@@ -194,3 +194,6 @@ Matching the Action default to Cargo's prepared version can select assets that d
 
 @plane z=6 label="Post-publication wrapper identity"
 A later wrapper commit can advance main and floating defaults after actual stable assets and consumer smoke evidence, while the exact stable tag retains its qualified release identity and older embedded default. Explicit binary inputs prevent that immutable-wrapper lag from selecting the wrong binary for consumers requiring the new release. Offline tests remain consistency evidence; live activation and ref movement require their real receipts.
+
+@plane z=7 label="Archive-first CI"
+Running the archive check beside the product lane let a tip with an open change go green everywhere except one check, and taught the ship flow to wait on a product-tip run that the archive tip then reused. Archive-first CI inverts that: `Archive` runs first and gates everything, so the only full run is on the archived tip, and ship guidance has no parent to wait for. Match the `Archive` job by exact name; a substring match would sweep in unrelated jobs.

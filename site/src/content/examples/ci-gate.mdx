@@ -55,7 +55,7 @@ The Action `strict` input defaults to `false` (errors fail; warnings do not). Fo
     strict: false
 ```
 
-There is no `score_threshold` Action input. Real inputs are `version`, `download-base-url`, `strict`, `require-coverage`, `root`, `args`, `lifecycle-enforce`, `comment`, and `token`. To fail when any spec scores below a floor, run `specsync score` after the Action has put `specsync` on PATH:
+There is no `score_threshold` Action input. Real inputs are `version`, `download-base-url`, `strict`, `require-coverage`, `root`, `args`, `lifecycle-enforce`, `require-archived`, `archive-gate-only`, `comment`, and `token`. To fail when any spec scores below a floor, run `specsync score` after the Action has put `specsync` on PATH:
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.1.2

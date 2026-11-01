@@ -632,10 +632,14 @@ fn print_record(
             // digest and nothing emitted one, so callers had to read
             // verification.json by hand. Surface the entries here.
             let acceptance_entries = change::acceptance_entries(root, record);
+            // Inside the status/show read scope, so this shares the delta-binding read `summary`
+            // used a few lines above (REQ-cmd-change-023).
+            let approved_deltas = change::approved_delta_summaries(root, record);
             print_json(&serde_json::json!({
                 "change": record,
                 "effective_definition": effective_definition,
                 "acceptance_entries": acceptance_entries,
+                "approved_deltas": approved_deltas,
                 "corrections": corrections,
                 "summary": summary,
                 "questions": questions,
@@ -699,6 +703,7 @@ fn print_mutation_record(
                 "change": record,
                 "effective_definition": result.effective_definition,
                 "acceptance_entries": acceptance_entries,
+                "approved_deltas": result.approved_deltas,
                 "corrections": result.corrections,
                 "summary": summary,
                 "questions": questions,
@@ -802,8 +807,10 @@ fn print_change_text_answers(record: &ChangeRecord) {
     println!("  Answers: {answer_summary}");
 }
 
-/// Human next-step string from interview/state and lightweight artifact completeness.
-/// Avoids digest-bearing loaders (CodeQL cleartext-logging); only reads selected artifact files.
+/// Human next-step string from interview/state, lightweight artifact completeness, and approval
+/// currency. Nothing digest-bearing reaches the string (CodeQL cleartext-logging): artifacts are
+/// read through `artifacts_complete_for_guidance`, and approval currency arrives as the boolean
+/// `approval_current_for_guidance` returns.
 fn text_mode_next_action(
     root: &Path,
     record: &ChangeRecord,
@@ -822,6 +829,14 @@ fn text_mode_next_action(
             format!("complete selected artifacts, then run `specsync change status {id}`")
         }
         ChangeState::Draft => {
+            format!("run `specsync change approve {id} --actor <name>`")
+        }
+        // The same approval currency `summary.approval_valid` reports: a changed scope or an
+        // edited approved delta. `check` would refuse both, so naming it here sent the operator
+        // to a certain failure.
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+            if !change::approval_current_for_guidance(root, record) =>
+        {
             format!("run `specsync change approve {id} --actor <name>`")
         }
         ChangeState::Approved | ChangeState::Implementing => {
@@ -848,10 +863,12 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 }
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,
-/// trust guidance for staged product → review → archive tips, and the merge-before-finalize trap.
+/// archive-first CI guidance (verify and review locally, ship, push the archive tip), and the
+/// merge-before-finalize trap.
 ///
 /// When `GITHUB_TOKEN` is set and the git remote is a GitHub repo, queries check-runs for the
-/// parent (or tip) SHA. Offline / no-token stays on `local_guidance`. Force offline with
+/// HEAD (or parent) SHA: archive-first CI runs the full lane only on a tip whose changes are
+/// all archived, so HEAD is where the merge decision is made. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
     let questions = change::next_questions_for(root, record);
@@ -1111,7 +1128,7 @@ fn sibling_active_change_ids(root: &Path, id: &str) -> Vec<String> {
     ids
 }
 
-const SHIP_TRUST_LOCAL_GUIDANCE: &str = "After pushing a product tip, wait for trust + SpecSync implementation ready (and required product checks) to succeed before pushing a review_only or archive_only tip. Review/archive tips reuse trust from a green product parent — do not push them while product trust is still running or cancelled.";
+const SHIP_TRUST_LOCAL_GUIDANCE: &str = "Archive-first CI: a pushed tip with any open change fails the Archive job and runs nothing else, so do not wait on CI for an unarchived tip. Verify locally (`specsync change check <id> --commit` and the local verify lane), record `change review`, run `change ship` without committing in between, then commit and push the archive tip. CI runs the full lane on that tip; merge when it is green.";
 
 /// Live GitHub check-run trust when online; otherwise local guidance (never blocks ship-status).
 fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
@@ -1137,11 +1154,12 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
     let Some(repo) = crate::github::detect_repo(root) else {
         return local();
     };
-    // Prefer parent SHA: review/archive tips reuse trust from the product parent.
+    // Prefer HEAD: archive-first CI runs the full lane on the archived tip itself, and no
+    // tip reuses trust from a parent any more. The parent is only a fallback.
     let query_sha = tip
-        .parent_sha
+        .tip_sha
         .as_deref()
-        .or(tip.tip_sha.as_deref())
+        .or(tip.parent_sha.as_deref())
         .map(str::to_string);
     let Some(query_sha) = query_sha else {
         return serde_json::json!({
@@ -1176,13 +1194,13 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
                 .collect();
             let guidance = match summary.overall.as_str() {
                 "green" => format!(
-                    "GitHub check-runs on {query_sha:.8} are green — safe to push a review_only or archive_only tip that reuses this parent when CI trust-reuse is enabled."
+                    "GitHub check-runs on {query_sha:.8} are green. If a change is still open, ship it and push the archive tip: archive-first CI decides the merge on that tip."
                 ),
                 "pending" => format!(
-                    "GitHub check-runs on {query_sha:.8} are still pending — wait for trust + SpecSync implementation ready before pushing a review/archive tip."
+                    "GitHub check-runs on {query_sha:.8} are still pending — wait for them to finish. Archive-first CI runs the full lane only on a tip whose changes are all archived."
                 ),
                 "failed" => format!(
-                    "GitHub check-runs on {query_sha:.8} failed or cancelled — do not push a review/archive tip until the product parent is green again."
+                    "GitHub check-runs on {query_sha:.8} failed or cancelled. A failed Archive on a tip with an open change is expected: ship locally, then push the archive tip. Any other failure on an archived tip needs a fix commit on top, with specs kept in sync (`specsync check --strict`)."
                 ),
                 "empty" => format!(
                     "No check-runs returned for {query_sha:.8} yet — wait for CI to start, or confirm the SHA was pushed to GitHub."
@@ -1585,13 +1603,13 @@ fn ship_stages(
         );
     stages.push(serde_json::json!({
         "id": "product_tip",
-        "title": "Product tip (full CI)",
+        "title": "Product tip (local verification)",
         "status": if product_done { "done" } else { "current" },
         "sha": verification_commit,
         "action": if product_done {
             "product verification evidence is current for this content".to_string()
         } else {
-            format!("run `specsync change check {id} --commit`, push the product tip, wait for trust + implementation ready")
+            format!("run `specsync change check {id} --commit` and the local verify lane; archive-first CI does not test a tip with an open change, so do not wait on remote CI here")
         },
     }));
 
@@ -1608,7 +1626,7 @@ fn ship_stages(
     };
     stages.push(serde_json::json!({
         "id": "review_tip",
-        "title": "Review tip (trust reuse from product parent)",
+        "title": "Scoped review (local, no CI wait)",
         "status": review_status,
         "action": if review.current() {
             "scoped review is recorded and current".to_string()
@@ -1619,7 +1637,7 @@ fn ship_stages(
             )
         } else if product_done {
             format!(
-                "record scoped review: `specsync change review {id} --reviewer <human>` then push a review_only tip if CI requires it; wait for trust reuse"
+                "record scoped review: `specsync change review {id} --reviewer <human>`, then run `specsync change ship {id}` without committing in between"
             )
         } else {
             "complete product tip first".to_string()
@@ -1638,7 +1656,7 @@ fn ship_stages(
         "title": "Archive tip (finalize on the same PR)",
         "status": archive_status,
         "action": if record.state == ChangeState::Archived {
-            "change is archived; push it if you have not, then merge when the checks are green"
+            "change is archived; commit and push the archive tip, wait for CI (Archive, then the full lane), then merge when it is green"
                 .to_string()
         } else if ready_to_finalize {
             format!("run `specsync change ship {id}`")
@@ -2167,13 +2185,13 @@ fn run_ship(
         .and_then(|value| value.as_str())
         .unwrap_or("local_guidance");
 
-    // Soft preflight: live trust is advisory unless --wait forces a green parent later.
+    // Soft preflight: live trust is advisory. `--wait` waits on the pushed archive tip itself.
     if announce && matches!(trust_status, "pending" | "failed" | "empty") {
         match format {
             OutputFormat::Json => {}
             _ => {
                 println!(
-                    "{} parent/product tip trust is `{trust_status}` — prefer waiting for green CI before archive tip push (see ship-status trust)",
+                    "{} HEAD check-runs are `{trust_status}` — expected under archive-first CI while a change is open; ship, then push the archive tip and wait for CI there (see ship-status trust)",
                     "⚠".yellow()
                 );
             }
@@ -2996,16 +3014,22 @@ if the floor call is removed from this function"
     fn approved_change_fixture(root: &Path) -> String {
         let record = draft_fixture(root);
         let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        id
+    }
+
+    /// Answers the interview, fills the selected artifacts, approves, and starts implementation.
+    fn approve_and_implement_fixture(root: &Path, id: &str) {
         for (question, answer) in [
             ("acceptance_criteria", "the fixture verifies"),
             ("public_contract", "no"),
             ("architecture_risk", "no"),
         ] {
-            change::answer_question(root, &id, question, answer).expect("answer");
+            change::answer_question(root, id, question, answer).expect("answer");
         }
         // Fill whatever artifacts the adaptive interview selected; approval refuses on any
         // scaffold left incomplete.
-        let workspace = root.join(".specsync/changes").join(&id);
+        let workspace = root.join(".specsync/changes").join(id);
         for entry in fs::read_dir(&workspace).expect("workspace") {
             let path = entry.expect("entry").path();
             if path.extension().and_then(|e| e.to_str()) == Some("md")
@@ -3019,9 +3043,129 @@ if the floor call is removed from this function"
                 .expect("fill artifact");
             }
         }
-        change::approve_definition(root, &id, Some("Reviewer".into()), None).expect("approve");
-        change::start_implementation(root, &id).expect("implement");
-        id
+        change::approve_definition(root, id, Some("Reviewer".into()), None).expect("approve");
+        change::start_implementation(root, id).expect("implement");
+    }
+
+    /// The delta-bearing sibling of `approved_change_fixture`: an implementing change whose
+    /// `auth` semantic delta was approved with the wording it holds now.
+    fn approved_delta_change_fixture(root: &Path) -> String {
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn authenticate() {}\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Reword the auth purpose".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .expect("create draft");
+        fs::write(
+            approved_delta_path(root, &record.id),
+            "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuth tracks credentials.\n",
+        )
+        .unwrap();
+        approve_and_implement_fixture(root, &record.id);
+        record.id
+    }
+
+    fn approved_delta_path(root: &Path, id: &str) -> PathBuf {
+        root.join(".specsync/changes")
+            .join(id)
+            .join("deltas/auth.md")
+    }
+
+    fn reapprove_action(id: &str) -> String {
+        format!("run `specsync change approve {id} --actor <name>`")
+    }
+
+    /// DISCRIMINATOR for REQ-cmd-change-005 and REQ-change-111. On f240d37 text `Next:` says
+    /// `change check` for a change whose approved delta was edited, and that check refuses.
+    #[test]
+    fn text_next_action_names_reapproval_when_an_approved_delta_was_edited() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = approved_delta_change_fixture(root);
+        let delta = approved_delta_path(root, &id);
+        let approved = fs::read_to_string(&delta).unwrap();
+        fs::write(
+            &delta,
+            format!("{approved}\n## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL carry wording nobody approved.\n\nAcceptance Criteria\n- Nobody reviewed this.\n"),
+        )
+        .unwrap();
+        let record = change::load_change(root, &id).expect("load");
+
+        let next = text_mode_next_action(root, &record, &[]);
+
+        assert_eq!(next, reapprove_action(&id));
+        assert_eq!(
+            next,
+            change::summarize_change(root, &record).next_action,
+            "text and JSON must name the same next action"
+        );
+        let refusal = change::check_change(root, Some(&id)).expect_err("check refuses the edit");
+        assert!(refusal.contains("changed after approval"), "{refusal}");
+    }
+
+    /// DISCRIMINATOR for REQ-cmd-change-005, the pre-existing stale-scope case: JSON already
+    /// asked for re-approval after a material scope change, while text `Next:` said `check`.
+    #[test]
+    fn text_next_action_names_reapproval_when_the_approved_scope_changed() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = approved_change_fixture(root);
+        let state_path = root.join(".specsync/changes").join(&id).join("state.json");
+        let mut state: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+        state["affected_paths"]
+            .as_array_mut()
+            .expect("affected paths")
+            .push("docs/".into());
+        fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+        let record = change::load_change(root, &id).expect("load");
+        assert!(!change::summarize_change(root, &record).approval_valid);
+
+        for lifecycle in [
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+        ] {
+            let mut record = record.clone();
+            record.state = lifecycle;
+            assert_eq!(
+                text_mode_next_action(root, &record, &[]),
+                reapprove_action(&id),
+                "{lifecycle:?}"
+            );
+        }
+    }
+
+    /// CONTROL, passes on f240d37 too: a current approval, with or without a delta, still
+    /// sends text `Next:` to `change check`.
+    #[test]
+    fn text_next_action_names_check_for_a_current_approval() {
+        for fixture in [approved_change_fixture, approved_delta_change_fixture] {
+            let temp = TempDir::new().expect("temp project");
+            let root = temp.path();
+            let id = fixture(root);
+            let record = change::load_change(root, &id).expect("load");
+            assert_eq!(
+                text_mode_next_action(root, &record, &[]),
+                format!("run `specsync change check {id}`")
+            );
+        }
     }
 
     /// Untracked files nobody asked the lifecycle to commit, shaped like the ones `git add -A`
@@ -3563,6 +3707,55 @@ if the floor call is removed from this function"
     /// So the assertion is AGREEMENT, exactly as in the stale case, and it survives whichever
     /// way #694 is resolved: if the walk gains a content fallback, `finalize` starts
     /// succeeding and readiness follows it back to `true` through the same predicate.
+    /// REQ-cmd-change-007: archive-first CI runs nothing on a tip with an open change, so no
+    /// guidance may send the operator to push a product tip and wait, or to reuse a parent's
+    /// trust. Stage ids stay stable for JSON consumers.
+    #[test]
+    fn ship_guidance_teaches_archive_first_ci() {
+        assert!(SHIP_TRUST_LOCAL_GUIDANCE.starts_with("Archive-first CI"));
+        for stale in [
+            "reuse trust",
+            "push the product tip",
+            "review_only or archive_only tip",
+            "implementation ready",
+        ] {
+            assert!(
+                !SHIP_TRUST_LOCAL_GUIDANCE.contains(stale),
+                "local guidance still teaches the product-tip flow: {stale}"
+            );
+        }
+
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        let stages = report["stages"].as_array().expect("stages");
+        let ids: Vec<&str> = stages
+            .iter()
+            .filter_map(|stage| stage["id"].as_str())
+            .collect();
+        assert_eq!(ids, ["product_tip", "review_tip", "archive_tip", "merge"]);
+        assert_eq!(stages[0]["title"], "Product tip (local verification)");
+        for stage in stages {
+            let text = format!("{} {}", stage["title"], stage["action"]);
+            for stale in [
+                "full CI)",
+                "wait for trust",
+                "review_only tip",
+                "trust reuse",
+            ] {
+                assert!(
+                    !text.contains(stale),
+                    "stage still teaches the product-tip flow: {text}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn ship_status_and_finalize_agree_after_a_squash_that_preserves_content() {
         let temp = TempDir::new().expect("temp project");

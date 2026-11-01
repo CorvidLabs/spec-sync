@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 11
+version: 13
 status: stable
 files:
   - src/hooks.rs
@@ -58,6 +58,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 11. Project directory names remain literal data in both the executable command
     and failure diagnostic. Spaces, apostrophes, dollar substitutions and
     backticks cannot alter shell syntax or execute directory-name content.
+12. Instruction blocks, the pre-commit hook and Claude Code hook settings are written without U+2013 or U+2014. A new block begins with ``<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->``; uninstall also recognizes the begin sentinel releases up to and including 6.1.1 wrote, by an exact two-form list rather than a prefix. Project-keyed pre-commit blocks are found by their markers whatever body they hold; the unmarked legacy comparison still uses the current hook body, with no frozen copy of an older one
 
 ## Behavioral Examples
 
@@ -121,6 +122,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v12: write hook files without en or em dashes; the new begin sentinel uses a semicolon and uninstall still recognizes the 6.1.1 form (REQ-hooks-005, #827). |
 | 2026-10-15 | Quote the generated failure hint as a fixed-format printf argument; execute installed hooks against ordinary and shell-metacharacter project paths on success and failure (#782). |
 | 2026-10-10 | Add `hooks.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |
@@ -133,3 +135,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-10-10 | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |
 | 2026-10-16 | keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics: Keep project paths literal in generated pre-commit failure diagnostics |
+| 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |

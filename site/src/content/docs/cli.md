@@ -374,7 +374,7 @@ specsync change approve add-passkeys --actor "Ada"
 # implement and test the approved scope
 specsync change check add-passkeys --commit
 specsync change audit
-# push the product tip, wait for required checks, then complete human review
+# run the local verify lane, then complete human review (archive-first CI waits for the archive tip)
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for checks before GitHub merges
@@ -424,6 +424,46 @@ classification add validators to this same path. Existing `start`, `verify`, `ac
 evidence. `reopen` also repairs eligible workflow-v2 terminal evidence. Recovery preserves the
 already-canonical semantic delta rather than applying it again. `change adopt` enables
 SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+
+`summary.approval_valid` is false whenever a gate that needs the approval would refuse it: the
+approved scope changed, or a semantic delta body was edited after the approval that recorded it.
+`summary.changed_approved_deltas` lists the edited modules and is omitted when empty. In both
+cases JSON and text `Next:` name `change approve`, the handoff is `not yet`, and `change audit`
+reports the refusal `change check` gives. Editing `plan.md` or another execution artifact after
+approval stales verification, not approval.
+
+`change status <id> --json` and `change show <id> --json` also carry a top-level
+`approved_deltas` array, one entry per affected module, sorted by module. `change answer`,
+`depend` and `supersede --json` carry the same key, built in the same transaction as their
+`summary`. `change new --json` carries it too, always `[]`, because a new change is a draft. The key is always present and is `[]` outside the approved, implementing and verifying
+states, and when the approved scope is stale. Each entry has `module` and `delta_intact`:
+
+- `delta_intact` is `true` when the delta body matches the body the approval recorded (line
+  endings aside), `false` when it was edited after approval, for the same reason `change check`
+  refuses it, and `null` when the approval predates the delta binding, which means unknown, not
+  tampered.
+- Only when `delta_intact` is `true`, `requirements` and `sections` list the `added`, `modified`
+  and `removed` keys of the body's `### REQUIREMENT` and `### SPEC SECTION` headings, and
+  `materialized` says whether the canonical spec carries that body. `materialized` is `false`
+  again after a re-approved correction until the next `change check`.
+- When `delta_intact` is `true` but the current delta grammar refuses the body (an approval
+  recorded under an older grammar), the entry carries `declarations_error` instead of those keys.
+
+```json
+"approved_deltas": [
+  {
+    "module": "shipping",
+    "delta_intact": true,
+    "requirements": { "added": ["REQ-shipping-002"], "modified": [], "removed": [] },
+    "sections": { "added": [], "modified": ["Public API"], "removed": [] },
+    "materialized": false
+  }
+]
+```
+
+A tool that links to a requirement not yet in `requirements.md` should accept it only while
+`summary.approval_valid` is true and the module's `delta_intact` is `true`, and should label it
+pending until `materialized` is `true`.
 
 Reviewer labels and stored provider declarations do not authenticate identity. Local finalization
 checks recorded content and history; authenticated provenance requires separately configured

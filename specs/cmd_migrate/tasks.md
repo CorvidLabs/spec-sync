@@ -33,6 +33,7 @@ spec: cmd_migrate.spec.md
 - [x] Integration tests for the full v3→v4 flow (`migrate_full_v3_to_v4`, dry-run, idempotency, partial recovery, JSON, `--no-backup`, no-project)
 - [x] Unit tests for migration-step application (`apply_create_directories_creates_v4_layout`, `apply_create_directories_is_idempotent`)
 - [x] Add `migrate 5.0` source-family mode with idempotent, verified reopening digest backfill
+- [x] Write the `.specsync/.gitignore` header with a colon, not an em dash; unit-tested by `apply_write_gitignore_writes_no_em_or_en_dash` (REQ-cmd-migrate-004, #827)
 
 ### Open
 

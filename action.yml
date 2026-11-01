@@ -33,6 +33,14 @@ inputs:
     description: 'Run lifecycle enforcement checks (--all). Fails CI if specs violate lifecycle rules.'
     required: false
     default: 'false'
+  require-archived:
+    description: 'Run the archive gate first: fail before downloading or running anything else when any SDD change under .specsync/changes/ is still open (not yet archived). Repositories without .specsync/changes/ pass. Needs python3 and a checkout of the commit under test.'
+    required: false
+    default: 'false'
+  archive-gate-only:
+    description: 'Run only the archive gate (implies require-archived) and skip the download and spec check. Put this in a first job and make every other job `needs:` it, so nothing runs until every change is archived.'
+    required: false
+    default: 'false'
   comment:
     description: 'Post spec drift results as a PR comment (requires pull_request event and write permissions)'
     required: false
@@ -42,10 +50,49 @@ inputs:
     required: false
     default: '${{ github.token }}'
 
+outputs:
+  archived:
+    description: '"true" when no SDD change is open, "false" when one is, empty when the archive gate did not run.'
+    value: ${{ steps.archive-gate.outputs.archived }}
+
 runs:
   using: 'composite'
   steps:
+    # The archive gate runs before anything else and needs no SpecSync binary,
+    # so a pull request with an open change fails in seconds without spending
+    # a download, a build or a test run. The same check backs the `Archive`
+    # job in this repository's own CI.
+    - name: Require every change to be archived
+      id: archive-gate
+      if: inputs.require-archived == 'true' || inputs.archive-gate-only == 'true'
+      shell: bash
+      working-directory: ${{ inputs.root }}
+      env:
+        ARCHIVE_READINESS: ${{ github.action_path }}/.github/scripts/archive-readiness.sh
+      run: |
+        set -euo pipefail
+        if ! command -v python3 >/dev/null 2>&1; then
+          echo "::error::The archive gate needs python3 on the runner."
+          exit 1
+        fi
+        STATUS=0
+        MESSAGE="$(bash "$ARCHIVE_READINESS" .)" || STATUS=$?
+        if [ "$STATUS" -eq 0 ]; then
+          echo "archived=true" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Archive::${MESSAGE}"
+        else
+          echo "archived=false" >> "$GITHUB_OUTPUT"
+          echo "::error title=Archive::${MESSAGE}"
+        fi
+        {
+          echo "### SpecSync archive gate"
+          echo
+          echo "$MESSAGE"
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit "$STATUS"
+
     - name: Download SpecSync
+      if: inputs.archive-gate-only != 'true'
       shell: bash
       env:
         SPECSYNC_VERSION: ${{ inputs.version }}
@@ -112,6 +159,7 @@ runs:
         echo "::notice::SpecSync installed (${OS}/${ARCH}) from ${BASE_URL}/${ARCHIVE}"
 
     - name: Run SpecSync
+      if: inputs.archive-gate-only != 'true'
       shell: bash
       id: specsync
       working-directory: ${{ inputs.root }}
@@ -188,7 +236,7 @@ runs:
         exit $EXIT_CODE
 
     - name: Post PR Comment
-      if: inputs.comment == 'true' && github.event_name == 'pull_request' && always()
+      if: inputs.comment == 'true' && inputs.archive-gate-only != 'true' && github.event_name == 'pull_request' && always()
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}

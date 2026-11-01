@@ -1253,6 +1253,336 @@ fn status_does_not_advertise_strict_unless_strict_was_requested() {
     );
 }
 
+/// An exported function no spec documents: a validator warning, which the effective-contract
+/// gate promotes to an error and the non-strict scoped pass does not.
+const UNDOCUMENTED_AUTH_SOURCE: &str = "// Authentication module.\npub fn undocumented_probe() {}\n";
+
+/// An approved workflow-v2 `auth` change under the given configured `enforcement`. With
+/// `undocumented` set, `src/auth.rs` gains an export the `auth` spec does not document, after
+/// approval and before the first check, as in Chough BUG-0003.
+fn approved_auth_change(root: &Path, enforcement: Option<&str>, undocumented: bool) -> ChangeRecord {
+    if let Some(mode) = enforcement {
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            format!("enforcement = \"{mode}\"\n"),
+        )
+        .unwrap();
+    }
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    if undocumented {
+        fs::write(root.join("src/auth.rs"), UNDOCUMENTED_AUTH_SOURCE).unwrap();
+    }
+    record
+}
+
+fn gate_entry(id: &str, modules: &str) -> String {
+    format!("specsync change check {id} (effective contract: {modules})")
+}
+
+fn verification_attempt_count(root: &Path, id: &str) -> usize {
+    let path = change_dir(root, id).join("verification-attempts.json");
+    if !path.exists() {
+        return 0;
+    }
+    serde_json::from_str::<VerificationAttemptLedger>(&fs::read_to_string(path).unwrap())
+        .unwrap()
+        .attempts
+        .len()
+}
+
+/// DISCRIMINATOR for REQ-change-112, under `warn` and under `strict`. On f240d37 the first
+/// `check_change` records `passed: true`, because the gate's roster filter dropped the change it
+/// was verifying. Configured enforcement plays no part, so both modes must fail alike.
+#[test]
+fn first_change_check_refuses_an_undocumented_export_in_a_declared_module() {
+    for mode in ["warn", "strict"] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = approved_auth_change(root, Some(mode), true);
+
+        let error = check_change(root, Some(&record.id)).unwrap_err();
+
+        assert!(
+            error.contains("Undocumented export 'undocumented_probe'"),
+            "{mode}: the first check must name the warning the gate refuses: {error}"
+        );
+        let checked = load_change(root, &record.id).unwrap();
+        let verification = load_verification(root, &checked).unwrap();
+        assert!(!verification.passed, "{mode}: {verification:?}");
+        let commands: Vec<(&str, bool)> = verification
+            .commands
+            .iter()
+            .map(|command| (command.command.as_str(), command.success))
+            .collect();
+        assert_eq!(
+            commands,
+            vec![
+                ("specsync check --spec auth", true),
+                (gate_entry(&record.id, "auth").as_str(), false),
+            ],
+            "{mode}: the scoped entry stays and the gate is named, not a `--strict` run"
+        );
+        assert_eq!(verification_attempt_count(root, &record.id), 1, "{mode}");
+    }
+}
+
+/// DISCRIMINATOR for REQ-change-112: a pass recorded by 6.1.1 over this tree. It is the pass the
+/// fixed first check no longer writes, so the fixture restores it under the current project
+/// digest. On f240d37 the next check refuses without recording anything, so the stale pass stays
+/// current and status keeps pointing at review.
+#[test]
+fn a_gate_refusal_appends_a_failed_attempt_after_a_recorded_pass() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, false);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    fs::write(root.join("src/auth.rs"), UNDOCUMENTED_AUTH_SOURCE).unwrap();
+    let digest = project_input_digest(root).unwrap();
+    let dir = change_dir(root, &record.id);
+    let mut ledger: VerificationAttemptLedger =
+        serde_json::from_str(&fs::read_to_string(dir.join("verification-attempts.json")).unwrap())
+            .unwrap();
+    let pass = ledger.attempts.last_mut().unwrap();
+    pass.workspace_digest = digest;
+    let pass = pass.clone();
+    write_json(&dir.join("verification-attempts.json"), &ledger).unwrap();
+    write_json(&dir.join("verification.json"), &pass).unwrap();
+    let verifying = load_change(root, &record.id).unwrap();
+    assert!(
+        summarize_change(root, &verifying)
+            .next_action
+            .contains("change review"),
+        "the fixture must hold a pass status calls current"
+    );
+
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+
+    assert!(error.contains("undocumented_probe"), "{error}");
+    assert_eq!(verification_attempt_count(root, &record.id), 2);
+    let verifying = load_change(root, &record.id).unwrap();
+    assert!(!load_verification(root, &verifying).unwrap().passed);
+    assert_eq!(
+        summarize_change(root, &verifying).next_action,
+        format!("run `specsync change check {}`", record.id),
+        "a recorded refusal supersedes the pass, so status names check, not review"
+    );
+}
+
+/// DISCRIMINATOR for REQ-change-112: the first check now reaches the verdict later checks and
+/// `change audit` already reached, and acceptance still refuses. On f240d37 the first check passes.
+#[test]
+fn first_check_and_later_gates_agree_on_a_declared_module_warning() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, true);
+    let warning = "Undocumented export 'undocumented_probe'";
+
+    let first = check_change(root, Some(&record.id)).unwrap_err();
+    let second = check_change(root, Some(&record.id)).unwrap_err();
+    let audit = audit_project(root);
+
+    assert!(first.contains(warning), "{first}");
+    assert!(second.contains(warning), "{second}");
+    assert!(
+        audit.errors.iter().any(|error| error.contains(warning)),
+        "{:?}",
+        audit.errors
+    );
+    assert_eq!(verification_attempt_count(root, &record.id), 2);
+    assert!(accept_change(root, &record.id, Some("Closing reviewer".into()), None).is_err());
+}
+
+/// CONTROL, passes on f240d37 too: clean declared modules record exactly the single scoped
+/// command, without `--strict`, on the first and the second check.
+#[test]
+fn a_clean_declared_module_still_records_one_scoped_command() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, Some("strict"), false);
+    for run in ["first", "second"] {
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed, "{run}");
+        let commands: Vec<&str> = verification
+            .commands
+            .iter()
+            .map(|command| command.command.as_str())
+            .collect();
+        assert_eq!(commands, vec!["specsync check --spec auth"], "{run}");
+    }
+}
+
+/// CONTROL, passes on f240d37 too: explicit `--strict` records the strict scoped command.
+#[test]
+fn explicit_strict_verification_is_unchanged() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, false);
+
+    let verification = check_change_with_strict(root, Some(&record.id), true)
+        .unwrap()
+        .unwrap();
+
+    let commands: Vec<&str> = verification
+        .commands
+        .iter()
+        .map(|command| command.command.as_str())
+        .collect();
+    assert_eq!(commands, vec!["specsync check --spec auth --strict"]);
+}
+
+/// CONTROL, passes on f240d37 too: a spec reached only through `affected_paths` is judged by the
+/// scoped rule alone, so its warning does not fail a non-strict check.
+#[test]
+fn a_warning_only_in_a_path_scoped_spec_keeps_the_scoped_rule() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "pub fn undocumented_probe() {}\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        fs::read_to_string(root.join("specs/auth/auth.spec.md"))
+            .unwrap()
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    record.affected_paths.push("src/".into());
+    save_change(root, &record).unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+
+    assert!(verification.passed, "{verification:?}");
+    let commands: Vec<&str> = verification
+        .commands
+        .iter()
+        .map(|command| command.command.as_str())
+        .collect();
+    assert_eq!(
+        commands,
+        vec!["specsync check --spec auth --spec other"],
+        "`other` is in scope through the path alone and judged by the scoped rule"
+    );
+}
+
+/// CONTROL, passes on f240d37 too: a `--no-spec-change` delivery declares no module, so the
+/// effective-contract gate judges nothing for it.
+#[test]
+fn a_no_spec_change_delivery_is_not_gated_by_the_effective_contract() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_no_spec_current_record(root);
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { true }\npub fn undocumented_probe() {}\n",
+    )
+    .unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+
+    assert!(verification.passed, "{verification:?}");
+    assert_eq!(verification.commands.len(), 1);
+}
+
+/// A second approved change declaring module `other`, whose source carries an undocumented
+/// export, beside the `auth` change the caller verifies.
+fn approve_an_other_module_change(root: &Path) {
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "pub fn other_probe() {}\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        fs::read_to_string(root.join("specs/auth/auth.spec.md"))
+            .unwrap()
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    let mut other = create_change(
+        root,
+        CreateChangeRequest {
+            description: "govern the other module".into(),
+            kind: ChangeKind::Feature,
+            affected_specs: vec!["other".into()],
+            affected_paths: vec!["src/other.rs".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: false,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    other.acceptance_criteria = vec!["The other module is governed".into()];
+    other.answers.insert("public_contract".into(), "yes".into());
+    other.answers.insert("architecture_risk".into(), "no".into());
+    save_change(root, &other).unwrap();
+    write_change_markdown(root, &other).unwrap();
+    for artifact in &other.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Govern it.\n"
+        } else {
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
+        };
+        fs::write(change_dir(root, &other.id).join(artifact.file_name()), content).unwrap();
+    }
+    fs::write(
+        delta_path(root, &other, "other"),
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nOther is governed.\n",
+    )
+    .unwrap();
+    approve_definition(root, &other.id, Some("Scope owner".into()), None).unwrap();
+}
+
+/// CONTROL, passes on f240d37 too: a gate failure that belongs to another change's module is not
+/// a verdict about this change, so it is still refused before any attempt is recorded.
+#[test]
+fn a_gate_failure_in_another_changes_module_is_still_refused_before_recording() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, false);
+    approve_an_other_module_change(root);
+
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+
+    assert!(error.contains("effective contract `other`"), "{error}");
+    assert_eq!(verification_attempt_count(root, &record.id), 0);
+}
+
+/// CONTROL for the attribution REQ-change-112 adds: splitting the gate's errors for one change
+/// keeps every error exactly once, whichever modules the change declares.
+#[test]
+fn gate_error_attribution_drops_no_error() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, true);
+    approve_an_other_module_change(root);
+    let mut records = list_changes_checked(root).unwrap();
+    for candidate in &mut records {
+        candidate.state = ChangeState::Verifying;
+    }
+    let outcome = validate_effective_contracts(root, &records);
+    assert!(outcome.module_errors.contains_key("auth") && outcome.module_errors.contains_key("other"));
+
+    for declared in [vec![], vec!["auth".to_string()], record.affected_specs.clone(), vec!["auth".into(), "other".into()]] {
+        let (attributed, rest) = outcome.split_for_declared(&declared);
+        let mut union: Vec<String> = attributed.into_values().flatten().chain(rest).collect();
+        let mut expected = outcome.errors.clone();
+        union.sort();
+        expected.sort();
+        assert_eq!(union, expected, "declared {declared:?}");
+    }
+}
+
 // Verifies REQ-change-030.
 #[test]
 fn native_cargo_check_argument_is_not_misclassified_as_specsync() {
@@ -3348,6 +3678,27 @@ fn portable_v1_change_with_a_delta(root: &Path) -> ChangeRecord {
     record
 }
 
+/// Append a later definition approval that records no delta wording to a ledger whose earlier
+/// definition approval recorded some: the withdrawn-binding shape #719 refuses.
+fn withdraw_the_recorded_delta_binding(root: &Path, record: &ChangeRecord) {
+    let mut ledger = load_approvals(root, record).unwrap();
+    let mut withdrawn = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .expect("the fixture approves the definition")
+        .clone();
+    withdrawn.approved_delta_digests = None;
+    withdrawn.timestamp += 1;
+    ledger.approvals.push(withdrawn);
+    write_json(
+        &change_dir(root, &record.id).join("approvals.json"),
+        &ledger,
+    )
+    .unwrap();
+}
+
 fn recorded_delta_digests(root: &Path, record: &ChangeRecord) -> Option<BTreeMap<String, String>> {
     let ledger = load_approvals(root, record).unwrap();
     effective_definition_approval(root, record, &ledger)
@@ -3435,23 +3786,7 @@ fn a_later_definition_approval_may_not_withdraw_a_recorded_delta_binding() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = change_with_an_approved_delta(root);
-
-    let mut ledger = load_approvals(root, &record).unwrap();
-    let mut withdrawn = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .expect("the fixture approves the definition")
-        .clone();
-    withdrawn.approved_delta_digests = None;
-    withdrawn.timestamp += 1;
-    ledger.approvals.push(withdrawn);
-    write_json(
-        &change_dir(root, &record.id).join("approvals.json"),
-        &ledger,
-    )
-    .unwrap();
+    withdraw_the_recorded_delta_binding(root, &record);
 
     fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
     let error = materialize_change_deltas(root, &record.id)
@@ -3768,6 +4103,315 @@ fn an_lf_delta_hashes_to_exactly_the_digest_the_unnormalized_binding_recorded() 
         Some(PRE_NORMALIZATION_DIGEST),
         "normalizing line endings must not move the digest of an LF delta; every digest recorded \
          since #711 was written over raw bytes and must keep verifying"
+    );
+}
+
+/// What status must say about a change whose approved `auth` delta body was edited
+/// (REQ-change-111, Chough BUG-0002): the approval is not current, the one next action is
+/// re-approval, the edited module is named, and the handoff is `not-yet`. `change check` refuses
+/// the same tree, so status and check agree.
+///
+/// `changed_approved_deltas` is read through the serialized summary, the shape `--json` prints,
+/// so this compiles against the unfixed binary and fails there on its assertions.
+fn assert_status_requests_reapproval_of_the_edited_delta(root: &Path, id: &str) {
+    let record = load_change(root, id).unwrap();
+    let state = record.state;
+    let summary = summarize_change(root, &record);
+    assert!(
+        !summary.approval_valid,
+        "{state:?}: an approval whose delta body changed is not current: {summary:?}"
+    );
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change approve {id} --actor <name>`"),
+        "{state:?}: status must send the operator to re-approval, not to a check that refuses"
+    );
+    assert_eq!(
+        serde_json::to_value(&summary).unwrap()["changed_approved_deltas"],
+        serde_json::json!(["auth"]),
+        "{state:?}: status must name the module whose approved delta changed"
+    );
+    assert_eq!(
+        summary.handoff.readiness,
+        HandoffReadiness::NotYet,
+        "{state:?}: {:?}",
+        summary.handoff
+    );
+    assert!(summary.handoff.reason.contains("changed after it was approved"));
+    let refusal = materialize_change_deltas(root, id).unwrap_err();
+    assert!(
+        refusal.contains("`auth`") && refusal.contains("changed after approval"),
+        "{state:?}: status and `change check` must reach the same verdict: {refusal}"
+    );
+}
+
+/// Status for an approved or implementing change whose approval still covers what is on disk.
+fn assert_status_reports_a_current_approval(root: &Path, id: &str) {
+    let record = load_change(root, id).unwrap();
+    let summary = summarize_change(root, &record);
+    assert!(summary.approval_valid, "{summary:?}");
+    assert_eq!(summary.next_action, format!("run `specsync change check {id}`"));
+    assert_ne!(summary.handoff.readiness, HandoffReadiness::NotYet);
+    assert!(
+        serde_json::to_value(&summary)
+            .unwrap()
+            .get("changed_approved_deltas")
+            .is_none(),
+        "an empty list is omitted, so no other status payload gains a key: {summary:?}"
+    );
+}
+
+/// DISCRIMINATOR for REQ-change-111 in the approved state. On f240d37 status reports
+/// `approval_valid: true` and `run specsync change check` for a delta `check` then refuses.
+#[test]
+fn status_reports_an_edited_approved_delta_as_an_invalid_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    assert_eq!(record.state, ChangeState::Approved);
+    assert_status_reports_a_current_approval(root, &record.id);
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+
+    assert_status_requests_reapproval_of_the_edited_delta(root, &record.id);
+}
+
+/// DISCRIMINATOR for REQ-change-111 in the implementing and verifying states. Verifying is
+/// reached through a passing `check_change`, so the delta has already been materialized: the
+/// binding still holds because the guard sits above the `canonical_applied` short-circuit.
+#[test]
+fn status_reports_an_edited_approved_delta_while_implementing_and_verifying() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let record = start_implementation(root, &record.id).unwrap();
+    assert_eq!(record.state, ChangeState::Implementing);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    assert_status_requests_reapproval_of_the_edited_delta(root, &record.id);
+
+    fs::write(delta_path(root, &record, "auth"), APPROVED_DELTA_BODY).unwrap();
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+    let verifying = load_change(root, &record.id).unwrap();
+    assert_eq!(verifying.state, ChangeState::Verifying);
+    assert!(summarize_change(root, &verifying).approval_valid);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    assert_status_requests_reapproval_of_the_edited_delta(root, &record.id);
+}
+
+/// DISCRIMINATOR for REQ-change-111 on the text path. Text `status` prints `handoff_summary`,
+/// which gathers its own signals; on f240d37 it calls an edited approved delta `safe`.
+#[test]
+fn handoff_summary_is_not_yet_for_an_edited_approved_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+
+    let handoff = handoff_summary(root, &record);
+
+    assert_eq!(
+        handoff,
+        summarize_change(root, &record).handoff,
+        "text and JSON must carry one verdict"
+    );
+    assert_eq!(handoff.readiness, HandoffReadiness::NotYet, "{handoff:?}");
+    assert!(handoff.before_clearing[0].contains(&format!("specsync change approve {}", record.id)));
+}
+
+/// DISCRIMINATOR for REQ-change-111 in `change audit`. On f240d37 the active-workspace audit
+/// reports nothing while `change check` refuses the same change.
+#[test]
+fn audit_reports_an_edited_approved_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let clean = audit_project(root);
+    assert!(
+        !clean
+            .errors
+            .iter()
+            .any(|error| error.contains("changed after approval")),
+        "the fixture must start from an approval that still covers its delta: {:?}",
+        clean.errors
+    );
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let refusal = materialize_change_deltas(root, &record.id).unwrap_err();
+    let report = audit_project(root);
+
+    assert!(
+        report
+            .errors
+            .contains(&format!("{}: {refusal}", record.id)),
+        "audit must report the refusal `change check` gives: {:?}",
+        report.errors
+    );
+}
+
+/// DISCRIMINATOR for REQ-change-111: a later definition approval that withdraws a recorded
+/// binding is refused by materialization, so status may not call it current. No module body
+/// changed, so no module is listed; the withdrawal itself is the reason.
+#[test]
+fn status_reports_a_withdrawn_delta_binding_as_an_invalid_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    withdraw_the_recorded_delta_binding(root, &record);
+
+    let summary = summarize_change(root, &record);
+
+    assert!(!summary.approval_valid, "{summary:?}");
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change approve {} --actor <name>`", record.id)
+    );
+    assert_eq!(summary.handoff.readiness, HandoffReadiness::NotYet);
+    assert!(
+        serde_json::to_value(&summary)
+            .unwrap()
+            .get("changed_approved_deltas")
+            .is_none()
+    );
+    let refusal = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(refusal.contains("records no semantic delta wording"), "{refusal}");
+}
+
+/// CONTROL, passes on f240d37 too: putting the approved bytes back, or approving the edit,
+/// returns status to a current approval and a `change check` next action.
+#[test]
+fn restoring_or_reapproving_an_edited_delta_restores_approval_validity() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    fs::write(delta_path(root, &record, "auth"), APPROVED_DELTA_BODY).unwrap();
+    assert_status_reports_a_current_approval(root, &record.id);
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(materialize_change_deltas(root, &record.id).is_ok());
+}
+
+/// CONTROL, passes on f240d37 too: the binding folds CRLF (#730), so a checkout that re-encoded
+/// an unedited delta leaves the approval current in status exactly as it does in `check`.
+#[test]
+fn a_crlf_checkout_of_an_approved_delta_keeps_status_approval_valid() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    fs::write(
+        delta_path(root, &record, "auth"),
+        approved_delta_body_as_a_crlf_checkout_writes_it(),
+    )
+    .unwrap();
+
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(materialize_change_deltas(root, &record.id).is_ok());
+}
+
+/// CONTROL, passes on f240d37 too: a ledger that never recorded a delta digest made no claim
+/// about wording (REQ-change-089, REQ-change-090), materialization proceeds, and status agrees.
+#[test]
+fn status_keeps_approval_valid_for_a_ledger_without_delta_digests() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    strip_recorded_delta_digests(root, &record);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(materialize_change_deltas(root, &record.id).is_ok());
+}
+
+/// CONTROL, passes on f240d37 too: `plan.md` is outside the approved scope. Editing it keeps
+/// the approval current and stales only the verification it is hashed into.
+#[test]
+fn editing_the_plan_after_approval_keeps_approval_valid() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    assert!(record.selected_artifacts.contains(&ArtifactKind::Plan));
+    let plan = change_dir(root, &record.id).join("plan.md");
+    let edit_plan = || {
+        let mut text = fs::read_to_string(&plan).unwrap();
+        text.push_str("\nAn implementation note the approver never read.\n");
+        fs::write(&plan, text).unwrap();
+    };
+    edit_plan();
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+
+    edit_plan();
+    let verifying = load_change(root, &record.id).unwrap();
+    let summary = summarize_change(root, &verifying);
+    assert_eq!(verifying.state, ChangeState::Verifying);
+    assert!(summary.approval_valid, "{summary:?}");
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change check {}`", record.id),
+        "a plan edit stales verification, not approval"
+    );
+}
+
+/// CONTROL, passes on f240d37 too: a clean approved change serializes no
+/// `changed_approved_deltas` key at all.
+#[test]
+fn changed_approved_deltas_is_omitted_when_empty() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    let json = serde_json::to_value(summarize_change(root, &record)).unwrap();
+
+    assert_eq!(json["approval_valid"], true);
+    assert!(json.get("changed_approved_deltas").is_none(), "{json}");
+}
+
+/// CONTROL, passes on f240d37 too: a finalized change keeps the approval and terminal-evidence
+/// verdicts the unfixed binary computes, even with its archived delta edited. Archives are
+/// history and are not re-judged by the active-state binding.
+#[test]
+fn finalized_change_summary_keeps_its_approval_and_terminal_verdicts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    quiet_git(root, &["add", "README.md"]);
+    quiet_git(root, &["commit", "-m", "base"]);
+    let record = change_with_an_approved_delta(root);
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "implement"]);
+    check_change(root, Some(&record.id)).unwrap();
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "record verification"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Scope owner".into()).unwrap();
+    let archive = finalize_change(root, &record.id).unwrap();
+    let archived = load_change(root, &record.id).unwrap();
+    assert_eq!(archived.state, ChangeState::Archived);
+    fs::write(archive.join("deltas/auth.md"), SWAPPED_DELTA_BODY).unwrap();
+
+    let summary = summarize_change(root, &archived);
+
+    assert_eq!(
+        summary.approval_valid,
+        ensure_definition_approval_valid(root, &archived).is_ok()
+    );
+    assert!(summary.approval_valid, "{summary:?}");
+    assert_eq!(
+        summary.terminal_evidence,
+        Some(terminal_evidence_summary(root, &archived))
+    );
+    assert!(
+        serde_json::to_value(&summary)
+            .unwrap()
+            .get("changed_approved_deltas")
+            .is_none()
     );
 }
 

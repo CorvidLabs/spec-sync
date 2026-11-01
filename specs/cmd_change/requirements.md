@@ -70,9 +70,10 @@ Acceptance Criteria
   approve transition. The adapter renders the domain's verdict and never computes its own.
 - When scope approval is missing or stale, status prints the exact current digest next to that
   approval action.
-- Status requests renewed approval only for a material stable-scope change and lists each added or
+- Status requests renewed approval for a material stable-scope change and lists each added or
   removed criterion, affected spec/path, dependency, supersession obligation, or changed intent in
-  plain language; execution/evidence-only changes direct the user to `change check` instead.
+  plain language, and for a semantic delta body edited after the approval that recorded it, naming
+  each such module; other execution/evidence-only changes direct the user to `change check` instead.
 - Newcomer output teaches `new → approve → implement → check → review → finalize → GitHub merge`.
 - Agent-authored status identifies a missing scoped review and explains that opening or updating the
   PR requests the configured review check.
@@ -80,7 +81,8 @@ Acceptance Criteria
   classification without presenting a different lifecycle.
 - `finalize` reports the implementation parent, archived path, finalization digest, and readiness
   for GitHub merge; it never claims to merge or invokes a provider merge API.
-- JSON and text expose the same current gate and next action.
+- JSON and text expose the same current gate and next action; text status names re-approval for
+  every approved, implementing, or verifying change whose approval is not current.
 - Review output exposes the persisted `pass` or `block` verdict; domain rejection of a scope
   approver acting as reviewer exits non-zero without success output.
 - Review identities are stable ASCII claims, attempts are append-only, and output does not imply
@@ -132,9 +134,10 @@ including local tip classification and optional live GitHub check-run trust:
 - HEAD tip class: `product`, `review_only`, `archive_only`, or `other`
 - verification tip presence and ancestry relative to HEAD
 - whether a scoped review is recorded, and whether the recorded review is still current
-- trust guidance for staged product → review → archive tips
+- archive-first trust guidance: verify and review locally, ship, then push the archive tip;
+  CI runs the full lane only on a tip whose changes are all archived
 - when `GITHUB_TOKEN` is set and the git remote is GitHub, live check-run trust for the
-  parent commit SHA (falling back to HEAD) with `trust.status` in
+  HEAD commit SHA (falling back to the parent) with `trust.status` in
   `green` | `pending` | `failed` | `empty` | `unavailable` and
   `trust.source` = `github_check_runs`
 - when the token is absent, lookup fails, or `SPECSYNC_SHIP_LOCAL_GUIDANCE` is set,
@@ -171,6 +174,12 @@ Acceptance Criteria
 - Live trust queries never fail the ship-status command; errors appear under `trust.error`
   with `trust.status` = `unavailable`.
 - Offline and no-token runs keep `trust.status` = `local_guidance` without network access.
+- No trust guidance or stage action tells the operator to push a product tip and wait for
+  remote CI before review, or to push a review/archive tip that reuses a parent's trust. A
+  failed Archive check on a tip with an open change is described as expected, with ship and an
+  archive-tip push as the next step.
+- Stage ids stay `product_tip`, `review_tip`, `archive_tip` and `merge`; only their titles and
+  actions describe the archive-first flow.
 
 ### REQ-cmd-change-008
 
@@ -328,7 +337,7 @@ Acceptance Criteria
 - The Archive check fails while a change workspace is open, names the one to archive first, and names one command.
 - The Archive check passes only when no change workspace is open, and its message says the pull request is ready to merge when the other checks are green.
 - The required CI gate fails while the Archive check fails.
-- SpecSync implementation ready does not fail only because the Archive check failed.
+- The Archive check runs before every other CI job. While it fails no other job runs, and both SpecSync implementation ready and the required CI gate fail.
 - `change ship` on a ready change commits the archive tip and its next line says to push, wait until the checks are green, and then merge.
 - `change ship` on a change that is not ready names one reason and one command and does not say to merge.
 - When several changes are open, the one closest to archive is named first. Accepted comes before verifying, and a tie goes to the lowest id.
@@ -372,4 +381,15 @@ Acceptance Criteria
 - Finalize after an uncommitted archive move still creates that commit.
 - The next action says to push the archive before merging.
 - The command does not merge the pull request.
+
+### REQ-cmd-change-023
+
+Every change JSON output that renders a single change record SHALL carry the domain's per-module approved delta declarations under a top-level `approved_deltas` array, rendered verbatim from `change::approved_delta_summaries`, and text output SHALL NOT change.
+
+Acceptance Criteria
+- `specsync change status <id> --json` and `specsync change show <id> --json` include a top-level `approved_deltas` key in every state; it is `[]` when the domain reports nothing, so a reader can tell a release without the field from a change without approved deltas.
+- The same key appears in every other JSON output that renders the single-record shape: `change new`, `change answer`, `change depend` and `change supersede`. `change answer`, `change depend` and `change supersede` render `DefinitionMutationResult.approved_deltas`, built under the project lock together with `summary`, and compute nothing after persistence; `change depend` on an approved change carries the same entries `change status` reports. `change new --json` always carries an empty `approved_deltas`, because a new change is a draft. Transition outputs such as `change approve --json`, and the roster printed by `change status` without an ID, do not change.
+- Each entry carries `module` and `delta_intact`; `requirements`, `sections` and `materialized` appear only when `delta_intact` is true.
+- No existing key changes name, type or value; `summary` and `change list --json` gain nothing.
+- Text `status` and `show` output is unchanged and prints no requirement list.
 

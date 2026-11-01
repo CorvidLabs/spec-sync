@@ -12,13 +12,13 @@ This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidir
 
 ## Companion files
 
-Each spec in `specs/<module>/` has companion files — read them before working, update them after:
+Each spec in `specs/<module>/` has companion files; read them before working, update them after:
 
-- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
-- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists, record a new lesson on a later plane of that file.
-- **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
-- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
+- **`tasks.md`**: Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
+- **`requirements.md`**: Acceptance criteria and user stories. These are permanent invariants, not tasks; do not check them off. Update if requirements change.
+- **`context.md`**: Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists, record a new lesson on a later plane of that file.
+- **`testing.md`**: Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
+- **`design.md`** *(opt-in)*: Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
 ## Before modifying any module
 
@@ -28,15 +28,15 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 
 ## After completing work
 
-1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
-2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md` — record decisions made, update current status
+1. Mark completed items in `tasks.md`: check off finished tasks, add new ones discovered
+2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md`: record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
 5. If UI/layout changed, update `design.md` with revised layout, components, or tokens
 
 ## Before creating a PR
 
-Run `specsync check --strict` — all specs must pass with zero warnings.
+Run `specsync check --strict`: all specs must pass with zero warnings.
 
 ## When adding new modules
 
@@ -44,14 +44,14 @@ Run `specsync add-spec <module-name>` to scaffold the spec and companion files, 
 
 ## Key commands
 
-- `specsync check` — validate all specs against source code
-- `specsync check --json` — machine-readable validation output
-- `specsync change check [id]` — scoped verification for one SDD change (not archive history)
-- `specsync change audit` — active workspaces + living specs project health
-- `specsync coverage` — show which modules lack specs
-- `specsync score` — quality score for each spec (0-100)
-- `specsync add-spec <name>` — scaffold a new spec with companion files
-- `specsync resolve --remote` — verify cross-project dependencies
+- `specsync check`: validate all specs against source code
+- `specsync check --json`: machine-readable validation output
+- `specsync change check [id]`: scoped verification for one SDD change (not archive history)
+- `specsync change audit`: active workspaces + living specs project health
+- `specsync coverage`: show which modules lack specs
+- `specsync score`: quality score for each spec (0-100)
+- `specsync add-spec <name>`: scaffold a new spec with companion files
+- `specsync resolve --remote`: verify cross-project dependencies
 "#;
 
 const CURSORRULES_SNIPPET: &str = r#"# Spec-Sync Rules
@@ -60,13 +60,13 @@ This project uses spec-sync for spec-to-code validation. Specs live in the `spec
 
 ## Companion files
 
-Each spec directory has companion files — read before working, update after:
+Each spec directory has companion files; read before working, update after:
 
-- `tasks.md` — Work items. Check off completed tasks, add new ones discovered.
-- `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not tasks.
-- `context.md` — Decisions, key files, current status. When `<module>.3md` exists, record a new lesson on a later plane of that file. Otherwise update this file when you make design choices.
-- `testing.md` — Test strategy: automated test locations, manual QA checklists, edge cases.
-- `design.md` *(opt-in)* — Layout, component hierarchy, design tokens, and asset references.
+- `tasks.md`: Work items. Check off completed tasks, add new ones discovered.
+- `requirements.md`: Acceptance criteria and user stories. Permanent invariants, not tasks.
+- `context.md`: Decisions, key files, current status. When `<module>.3md` exists, record a new lesson on a later plane of that file. Otherwise update this file when you make design choices.
+- `testing.md`: Test strategy: automated test locations, manual QA checklists, edge cases.
+- `design.md` *(opt-in)*: Layout, component hierarchy, design tokens, and asset references.
 
 ## Rules
 
@@ -86,17 +86,17 @@ This project uses spec-sync for bidirectional spec-to-code validation.
 
 ## Companion files
 
-Each spec directory has companion files — read before working, update after:
+Each spec directory has companion files; read before working, update after:
 
-- `tasks.md` — Work items to check off as completed. Add new tasks if you discover work needed.
-- `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not checkable tasks.
-- `context.md` — Architectural decisions, key files, and current status. When `<module>.3md` exists, record a new lesson on a later plane of that file. Otherwise update this file with decisions made.
-- `testing.md` — Test strategy: automated test locations, manual QA checklists, edge cases.
-- `design.md` *(opt-in)* — Layout, component hierarchy, design tokens, and asset references.
+- `tasks.md`: Work items to check off as completed. Add new tasks if you discover work needed.
+- `requirements.md`: Acceptance criteria and user stories. Permanent invariants, not checkable tasks.
+- `context.md`: Architectural decisions, key files, and current status. When `<module>.3md` exists, record a new lesson on a later plane of that file. Otherwise update this file with decisions made.
+- `testing.md`: Test strategy: automated test locations, manual QA checklists, edge cases.
+- `design.md` *(opt-in)*: Layout, component hierarchy, design tokens, and asset references.
 
 ## Guidelines
 
-- Specs are in `specs/<module>/<module>.spec.md` — read the relevant spec before modifying a module
+- Specs are in `specs/<module>/<module>.spec.md`; read the relevant spec before modifying a module
 - Read companion files `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present) before starting work
 - After changes, `specsync check` should pass with no errors
 - After completing work, update `tasks.md` (mark done items). If `<module>.3md` exists, record the lesson on a later plane. Otherwise update `context.md` (record decisions, update status)
@@ -111,13 +111,13 @@ This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidir
 
 ## Companion files
 
-Each spec in `specs/<module>/` has companion files — read them before working, update them after:
+Each spec in `specs/<module>/` has companion files; read them before working, update them after:
 
-- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
-- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists, record a new lesson on a later plane of that file.
-- **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
-- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
+- **`tasks.md`**: Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
+- **`requirements.md`**: Acceptance criteria and user stories. These are permanent invariants, not tasks; do not check them off. Update if requirements change.
+- **`context.md`**: Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists, record a new lesson on a later plane of that file.
+- **`testing.md`**: Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
+- **`design.md`** *(opt-in)*: Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
 ## Before modifying any module
 
@@ -127,15 +127,15 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 
 ## After completing work
 
-1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
-2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md` — record decisions made, update current status
+1. Mark completed items in `tasks.md`: check off finished tasks, add new ones discovered
+2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md`: record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
 5. If UI/layout changed, update `design.md` with revised layout, components, or tokens
 
 ## Before creating a PR
 
-Run `specsync check --strict` — all specs must pass with zero warnings.
+Run `specsync check --strict`: all specs must pass with zero warnings.
 
 ## When adding new modules
 
@@ -143,25 +143,25 @@ Run `specsync add-spec <module-name>` to scaffold the spec and companion files, 
 
 ## Key commands
 
-- `specsync check` — validate all specs against source code
-- `specsync check --json` — machine-readable validation output
-- `specsync change check [id]` — scoped verification for one SDD change (not archive history)
-- `specsync change audit` — active workspaces + living specs project health
-- `specsync coverage` — show which modules lack specs
-- `specsync score` — quality score for each spec (0-100)
-- `specsync add-spec <name>` — scaffold a new spec with companion files
-- `specsync resolve --remote` — verify cross-project dependencies
+- `specsync check`: validate all specs against source code
+- `specsync check --json`: machine-readable validation output
+- `specsync change check [id]`: scoped verification for one SDD change (not archive history)
+- `specsync change audit`: active workspaces + living specs project health
+- `specsync coverage`: show which modules lack specs
+- `specsync score`: quality score for each spec (0-100)
+- `specsync add-spec <name>`: scaffold a new spec with companion files
+- `specsync resolve --remote`: verify cross-project dependencies
 "#;
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
-# spec-sync pre-commit hook — validates specs before allowing commits.
+# spec-sync pre-commit hook: validates specs before allowing commits.
 # Installed by: specsync hooks install --precommit
 # Remove by deleting this file or running: specsync hooks uninstall --precommit
 #
 # Enforcement is controlled by the `enforcement` field in .specsync/config.toml:
-#   "warn"         — report violations but never block commits
-#   "enforce-new"  — block commits if files without specs exist
-#   "strict"       — block commits on any validation error (default)
+#   "warn":         report violations but never block commits
+#   "enforce-new":  block commits if files without specs exist
+#   "strict":       block commits on any validation error (default)
 # The separate --strict flag also fails warnings; this hook does not pass it,
 # so a first-run scaffold that only has warnings can still be committed.
 
@@ -169,7 +169,7 @@ if command -v specsync >/dev/null 2>&1; then
     echo "specsync: checking specs..."
     if ! specsync check; then
         echo ""
-        echo "specsync: specs have errors — fix them before committing."
+        echo "specsync: specs have errors; fix them before committing."
         echo "  Run 'specsync check' to see details."
         echo "  Use 'git commit --no-verify' to skip this check."
         exit 1
@@ -509,8 +509,20 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
 /// ends — so user content added after the block is never swept away. HTML comments
 /// render invisibly in markdown.
 const HOOK_BEGIN: &str =
-    "<!-- specsync:hook:begin (managed by `specsync hooks` — do not edit inside) -->";
+    "<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->";
+/// The begin sentinel written by sentinel-era releases up to and including 6.1.1 (#827).
+/// Read, never written: every block those releases installed still carries it, and `uninstall`
+/// must keep removing exactly that block.
+const LEGACY_HOOK_BEGIN: &str =
+    "<!-- specsync:hook:begin (managed by `specsync hooks` \u{2014} do not edit inside) -->";
 const HOOK_END: &str = "<!-- specsync:hook:end -->";
+
+/// Whether `line` is a managed-block begin sentinel, in the current or the 6.1.1 form.
+/// Recognition stays an exact two-form list rather than a prefix match, because uninstall
+/// deletes everything between begin and end.
+fn is_hook_begin(line: &str) -> bool {
+    line.contains(HOOK_BEGIN) || line.contains(LEGACY_HOOK_BEGIN)
+}
 
 /// Wrap a managed snippet in begin/end sentinels.
 fn wrap_snippet(snippet: &str) -> String {
@@ -824,7 +836,7 @@ fn remove_section_from_file(path: &Path, marker: &str, snippet: &str) -> Result<
     };
     let mut lines: Vec<&str> = content.lines().collect();
 
-    let begin = lines.iter().position(|l| l.contains(HOOK_BEGIN));
+    let begin = lines.iter().position(|l| is_hook_begin(l));
     let end_marker = lines.iter().rposition(|l| l.contains(HOOK_END));
     let snippet_lines: Vec<&str> = snippet.trim().lines().collect();
 
@@ -1958,5 +1970,137 @@ mod tests {
             "notes appended after install must survive uninstall: {content:?}"
         );
         assert!(!content.contains("Spec-Sync"));
+    }
+
+    // ── #827: generated hook files carry no en or em dash ─────────
+
+    fn assert_no_dash(label: &str, text: &str) {
+        let offenders: Vec<&str> = text
+            .lines()
+            .filter(|line| line.contains('\u{2013}') || line.contains('\u{2014}'))
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "{label} holds U+2013 or U+2014:\n{}",
+            offenders.join("\n")
+        );
+    }
+
+    /// The begin sentinel releases up to and including 6.1.1 wrote, frozen as a literal.
+    const BEGIN_6_1_1: &str =
+        "<!-- specsync:hook:begin (managed by `specsync hooks` \u{2014} do not edit inside) -->";
+    /// The new begin sentinel, written out so the test does not follow `HOOK_BEGIN`.
+    const BEGIN_NEW: &str =
+        "<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->";
+
+    // DISCRIMINATOR for REQ-hooks-005.
+    #[test]
+    fn generated_hook_content_contains_no_em_or_en_dash() {
+        for (label, snippet) in [
+            ("CLAUDE_MD_SNIPPET", CLAUDE_MD_SNIPPET),
+            ("CURSORRULES_SNIPPET", CURSORRULES_SNIPPET),
+            ("COPILOT_INSTRUCTIONS_SNIPPET", COPILOT_INSTRUCTIONS_SNIPPET),
+            ("AGENTS_MD_SNIPPET", AGENTS_MD_SNIPPET),
+        ] {
+            assert_no_dash(label, &wrap_snippet(snippet));
+        }
+        assert_no_dash("PRE_COMMIT_HOOK", PRE_COMMIT_HOOK);
+        let tmp = setup_git();
+        assert_no_dash("pre_commit_block", &pre_commit_block(tmp.path()).unwrap());
+        assert_no_dash("CLAUDE_CODE_HOOK_SETTINGS", CLAUDE_CODE_HOOK_SETTINGS);
+        assert!(wrap_snippet(CLAUDE_MD_SNIPPET).starts_with(&format!("{BEGIN_NEW}\n")));
+        assert!(wrap_snippet(CLAUDE_MD_SNIPPET).ends_with("\n<!-- specsync:hook:end -->"));
+    }
+
+    fn sentinel_fixture(begin: &str) -> String {
+        format!(
+            "# Mine\n\nbefore\n\n{begin}\n# Spec-Sync Integration\n\nEach spec has companion files \u{2014} read them first.\n\n## Key commands\n\n- `specsync check` \u{2014} validate all specs\n<!-- specsync:hook:end -->\n\n# After\n\nafter\n"
+        )
+    }
+
+    // DISCRIMINATOR for REQ-hooks-005: unfixed, the new begin line is not recognized and the
+    // heuristic leaves it behind as an orphan.
+    #[test]
+    fn uninstall_removes_a_block_with_the_new_begin_sentinel_exactly() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(&path, sentinel_fixture(BEGIN_NEW)).unwrap();
+
+        assert!(
+            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+        );
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# Mine\n\nbefore\n\n# After\n\nafter\n"
+        );
+    }
+
+    // CONTROL for REQ-hooks-005: a block a 6.1.1 install wrote is still removed exactly.
+    #[test]
+    fn uninstall_removes_a_block_with_the_6_1_1_begin_sentinel_exactly() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(&path, sentinel_fixture(BEGIN_6_1_1)).unwrap();
+
+        assert!(
+            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+        );
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# Mine\n\nbefore\n\n# After\n\nafter\n"
+        );
+    }
+
+    /// The pre-commit body releases from #774 up to 6.1.1 wrote, frozen as a literal.
+    const PRE_COMMIT_BODY_6_1_1: &str =
+        "# spec-sync pre-commit hook \u{2014} validates specs before allowing commits.
+# Installed by: specsync hooks install --precommit
+# Remove by deleting this file or running: specsync hooks uninstall --precommit
+#
+# Enforcement is controlled by the `enforcement` field in .specsync/config.toml:
+#   \"warn\"         \u{2014} report violations but never block commits
+#   \"enforce-new\"  \u{2014} block commits if files without specs exist
+#   \"strict\"       \u{2014} block commits on any validation error (default)
+# The separate --strict flag also fails warnings; this hook does not pass it,
+# so a first-run scaffold that only has warnings can still be committed.
+
+if command -v specsync >/dev/null 2>&1; then
+    echo \"specsync: checking specs...\"
+    if ! specsync check; then
+        echo \"\"
+        echo \"specsync: specs have errors \u{2014} fix them before committing.\"
+        echo \"  Use 'git commit --no-verify' to skip this check.\"
+        exit 1
+    fi
+else
+    echo \"specsync: not installed, skipping spec check\"
+fi";
+
+    // CONTROL for REQ-hooks-005: a project-keyed block is found by its markers, whatever body
+    // it holds, so a 6.1.1 body is removed without a frozen copy of that body in the reader.
+    #[test]
+    fn uninstall_precommit_removes_a_managed_block_with_the_6_1_1_body() {
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        let (begin, end) = pre_commit_markers(tmp.path()).unwrap();
+        let body = PRE_COMMIT_BODY_6_1_1
+            .lines()
+            .map(|line| format!("    {line}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(
+            hooks_dir.join("pre-commit"),
+            format!(
+                "#!/bin/sh\necho \"user before\"\n\n{begin}\nif true; then\n{body}\nfi\n{end}\n\necho \"user after\"\n"
+            ),
+        )
+        .unwrap();
+
+        assert!(uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        assert_eq!(
+            fs::read_to_string(hooks_dir.join("pre-commit")).unwrap(),
+            "#!/bin/sh\necho \"user before\"\n\necho \"user after\"\n"
+        );
     }
 }

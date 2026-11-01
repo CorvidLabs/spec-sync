@@ -36,6 +36,8 @@ remains published `6.1.1`; this preparation does not advance it.
 | `root` | `.` | Project root directory |
 | `args` | `''` | Extra whitespace-separated CLI arguments passed to `specsync check`; shell quoting is not supported |
 | `lifecycle-enforce` | `false` | Run lifecycle enforcement after the strict spec check |
+| `require-archived` | `false` | Run the archive gate first. Fails before downloading or running anything when an SDD change under `.specsync/changes/` is still open. Repositories without `.specsync/changes/` pass. Needs `python3` on the runner |
+| `archive-gate-only` | `false` | Run only the archive gate (implies `require-archived`) and skip the download, spec check and comment. Use it in a first job that every other job `needs:` |
 | `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and write permissions |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments. Override if using a PAT for cross-repo access |
 
@@ -81,6 +83,75 @@ explicitly pass `version: '6.1.1'` with it for the new stable binary. This later
 wrapper defaults to `6.1.1` after actual stable asset and supported-platform Action
 checks. Floating `@v6` advances only after consumer checks of this exact wrapper
 commit. Neither immutable `@v6.1.1` nor `@v6.0.0` is retargeted.
+
+---
+
+## Archive Gate: Nothing Runs Until Every Change Is Archived
+
+Every SDD change must be archived (`specsync change ship`) before a pull request
+merges. The archive gate makes that the first thing CI checks: one cheap job runs
+the gate, and every other job depends on it, so a commit with an open change under
+`.specsync/changes/` stops in seconds and nothing else runs.
+
+```yaml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  archive:
+    name: Archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      # The archive gate inputs are newer than v6.1.1, which ignores them. 6.1.2 is the
+      # first release that includes them; pin @v6.1.2 once it is published.
+      - uses: CorvidLabs/spec-sync@main
+        with:
+          archive-gate-only: 'true'
+
+  specsync:
+    needs: archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: CorvidLabs/spec-sync@v6.1.2
+        with:
+          version: '6.1.2'
+          strict: 'true'
+          require-coverage: '100'
+
+  test:
+    needs: archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: echo "your tests"
+```
+
+Make a job that depends on everything the required status check. GitHub treats a
+skipped job as passing, so a required check on a job that `archive` skipped would
+let the pull request merge. Use an aggregate job with `if: always()` that fails
+unless `archive` and the others succeeded.
+
+The gate needs no SpecSync binary. It prints the same sentence as the `Archive`
+check, naming the change to archive first and the command to run (for example
+`specsync change ship <id>`). The step also sets the `archived` output to `true` or
+`false`.
+
+To gate a single job instead, add `require-archived: 'true'` to an ordinary
+invocation. The gate then runs before the download and the spec check.
+
+The published `@v6.1.1` tag predates these inputs. On that tag GitHub warns about
+an unexpected input and skips nothing, so `archive-gate-only` would pass without
+gating anything. Use a ref that includes the archive gate.
+
+With the gate in place, the lifecycle runs locally up to ship: `change check
+<id> --commit`, `fledge lanes run verify`, `change review`, then `change ship`.
+Push the archived tip, and CI runs the full lane on it.
 
 ---
 

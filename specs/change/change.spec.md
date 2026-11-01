@@ -1,6 +1,6 @@
 ---
 module: change
-version: 147
+version: 152
 status: active
 files:
   - src/change.rs
@@ -15,6 +15,7 @@ files:
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/substantive_plan.rs
+  - src/change_tests/approved_delta_requirements.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -34,7 +35,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 2. The scope approval is bound to a deterministic SHA-256 projection of stable intent, contract, and affected scope; volatile implementation, test/evidence, semantic-delta materialization, canonical materialization, and lifecycle metadata bind a separate execution digest. The one CHG-0068 legacy adoption declares its missing source preimage and lack of equivalence proof, and a compile-time allowlist freezes its exact commit/blob anchor, source approval, adopted scope, authorization, and classifications.
 3. Approved semantic deltas form the effective future contract, and `change check` materializes them into canonical specs before scoped review and finalization; a delta body that changed after its approval is refused rather than applied, and no later definition approval may withdraw a delta binding an earlier one recorded.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
-5. `change check` compares THIS change's specs to source in-process and does not spawn `sdd.json` `verification_commands`, `cargo test`, or any other project test or build command. Scope is the modules in `affected_specs` union the specs whose `files:` fall inside `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its source can break; drift outside that scope belongs to `specsync check`. A declared module that resolves to no spec file on disk FAILS verification and is named — never silently dropped, even when other specs are in path scope and would make the pass look real. An empty scope is a PASS only for a change that declared no module and maps no spec. Evidence is the scoped command the verdict was reached under, `specsync check --spec <name> …`, where each name is what `filter_specs` matches (the file stem with `.spec` removed) and `--strict` appears only when it was requested.
+5. `change check` compares THIS change's specs to source in-process and does not spawn `sdd.json` `verification_commands`, `cargo test`, or any other project test or build command. Scope is the modules in `affected_specs` union the specs whose `files:` fall inside `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its source can break; drift outside that scope belongs to `specsync check`. A declared module that resolves to no spec file on disk FAILS verification and is named — never silently dropped, even when other specs are in path scope and would make the pass look real. An empty scope is a PASS only for a change that declared no module and maps no spec. Evidence is the scoped command the verdict was reached under, `specsync check --spec <name> …`, where each name is what `filter_specs` matches (the file stem with `.spec` removed) and `--strict` appears only when it was requested. The effective-contract gate judges the change being verified on every check, the first one after materialization included, and a refusal of a module the change declares is recorded as a failed attempt that also names `specsync change check <id> (effective contract: <module>, …)`.
 6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict, may be recorded by the same actor as the definition approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence. GitHub remains the merge authority for required reviewers.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
@@ -99,7 +100,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
 | `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
-| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, and normal/strict summaries validated inside its persistence transaction |
+| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen history |
 | `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
@@ -126,7 +127,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
 | `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
-| `ChangeSummary` | Human/agent status projection with approval health/current scope digest, plain-language material expansion, validator plan, scoped-review freshness, exactly one next action, a handoff verdict, and optional terminal evidence |
+| `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, exactly one next action, a handoff verdict, and optional terminal evidence |
+| `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
+| `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
 | `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
@@ -150,6 +153,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or atomically enable SDD — writing an enabled policy when none exists and flipping `enabled` on one written off by `init`, failing closed on a policy it cannot parse — activate workflow v2 without stranding cutoff-ineligible legacy records or rewriting legacy policy, and import OpenSpec or Spec Kit artifacts |
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then persists an interview answer and updates adaptive artifacts |
 | `answer_question_with_snapshot` | `root, id, question, answer` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the answer mutation with its full in-transaction machine snapshot |
+| `approval_current_for_guidance` | `root, record` | `bool` | Whether an approved, implementing, or verifying change's definition approval still covers its approved scope and the semantic delta bodies it recorded — the predicate behind `ChangeSummary.approval_valid` — for human next-action guidance without printing a digest |
+| `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
@@ -388,6 +393,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |
 | 2026-10-10 | Add `change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |
 | 2026-10-10 | v140: materialize the optional module.3md lesson requirement. |
@@ -552,3 +558,7 @@ Acceptance Criteria
 | 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-23 | authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage: Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage |
+| 2026-10-31 | report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited: Report an approval as invalid in change status when an approved semantic delta body is edited |
+| 2026-10-31 | run-the-effective-contract-gate-on-the-first-change-check-and-record-its-refusal-instead-of-leaving-a-stale-pass: Run the effective contract gate on the first change check and record its refusal instead of leaving a stale pass current |
+| 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
+| 2026-11-01 | report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json: Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON |

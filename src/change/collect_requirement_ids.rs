@@ -808,23 +808,61 @@ fn stub_section_warning(warning: &str) -> Option<&str> {
 ///
 /// Suppressions are carried alongside errors rather than instead of them, so a
 /// module that both fails and suppresses still reports what it let through.
+///
+/// `module_errors` attributes the validator verdicts among `errors` to the module whose effective
+/// contract produced them. It is private bookkeeping: every caller still reads `errors`, which is
+/// unchanged, and `errors` remains the complete list. Failures that are not a validator verdict
+/// about one module (ordering, the temporary workspace, an unresolvable canonical spec, a delta
+/// that cannot be read or applied) carry no attribution.
 #[derive(Debug, Default)]
 struct EffectiveContractOutcome {
     errors: Vec<String>,
     suppressions: Vec<String>,
+    module_errors: BTreeMap<String, Vec<String>>,
 }
 
 impl EffectiveContractOutcome {
     fn failed(error: String) -> Self {
         Self {
             errors: vec![error],
-            suppressions: Vec::new(),
+            ..Self::default()
         }
     }
 
     /// Join the errors for gates whose only output channel is a failure string.
     fn error_text(&self) -> Option<String> {
         (!self.errors.is_empty()).then(|| self.errors.join("; "))
+    }
+
+    /// Split the errors for verification of one change (REQ-change-112): the validator verdicts
+    /// about modules `declared` names, keyed by module, and every other error in gate order.
+    /// Together the two halves hold every error exactly once.
+    fn split_for_declared(
+        &self,
+        declared: &[String],
+    ) -> (BTreeMap<String, Vec<String>>, Vec<String>) {
+        let attributed: BTreeMap<String, Vec<String>> = self
+            .module_errors
+            .iter()
+            .filter(|(module, _)| declared.contains(module))
+            .map(|(module, errors)| (module.clone(), errors.clone()))
+            .collect();
+        let mut held: Vec<&String> = attributed.values().flatten().collect();
+        let rest = self
+            .errors
+            .iter()
+            .filter(|error| {
+                match held.iter().position(|candidate| *candidate == *error) {
+                    Some(index) => {
+                        held.swap_remove(index);
+                        false
+                    }
+                    None => true,
+                }
+            })
+            .cloned()
+            .collect();
+        (attributed, rest)
     }
 }
 
@@ -885,6 +923,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
     let ignore_rules = crate::ignore::IgnoreRules::load(root);
     let mut errors = Vec::new();
     let mut suppressions = Vec::new();
+    let mut module_errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for module in modules {
         let canonical = match canonical_module_paths(root, &config.specs_dir, &module) {
             Ok((spec_path, _)) => spec_path,
@@ -992,12 +1031,11 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             &schema_columns,
             &config,
         );
-        errors.extend(
-            result
-                .errors
-                .into_iter()
-                .map(|error| format!("effective contract `{module}`: {error}")),
-        );
+        let mut verdicts: Vec<String> = result
+            .errors
+            .into_iter()
+            .map(|error| format!("effective contract `{module}`: {error}"))
+            .collect();
         for warning in result.warnings {
             if let Some((category, source)) =
                 ignore_rules.suppression_source(&warning, &spec_rel_path, &inline_ignores)
@@ -1019,13 +1057,18 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
                 ));
                 continue;
             }
-            errors.push(format!("effective contract `{module}`: {warning}"));
+            verdicts.push(format!("effective contract `{module}`: {warning}"));
+        }
+        if !verdicts.is_empty() {
+            errors.extend(verdicts.iter().cloned());
+            module_errors.insert(module.clone(), verdicts);
         }
     }
     let _ = fs::remove_dir_all(temp);
     EffectiveContractOutcome {
         errors,
         suppressions,
+        module_errors,
     }
 }
 
@@ -1264,12 +1307,18 @@ fn delta_body_digests(
         let path = delta_path_checked(root, record, module)?;
         let body = read_bounded_change_text(&path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
-        let mut digest = FramedDigest::new(APPROVED_DELTA_DIGEST_DOMAIN);
-        digest.frame(b"module", module.as_bytes());
-        digest.frame(b"body", canonical_delta_body(&body).as_bytes());
-        digests.insert(module.clone(), digest.finish());
+        digests.insert(module.clone(), delta_body_digest(module, &body));
     }
     Ok(digests)
+}
+
+/// The framed digest of one module's delta body, CRLF folded. Approval and status both frame
+/// through this one function, so the approval-time and status-time constructions cannot drift.
+fn delta_body_digest(module: &str, body: &str) -> String {
+    let mut digest = FramedDigest::new(APPROVED_DELTA_DIGEST_DOMAIN);
+    digest.frame(b"module", module.as_bytes());
+    digest.frame(b"body", canonical_delta_body(body).as_bytes());
+    digest.finish()
 }
 
 /// Refuses to apply a semantic delta whose body is not the body the approver signed (#704).
@@ -1291,33 +1340,7 @@ fn ensure_approved_delta_bodies_unchanged(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(), String> {
-    let ledger = load_approvals(root, record)?;
-    let approval = effective_definition_approval(root, record, &ledger)?;
-    let Some(approved) = approval.approved_delta_digests.as_ref() else {
-        if ledger.approvals.iter().any(|candidate| {
-            candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
-        }) {
-            return Err(format!(
-                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers, then `specsync change check {}` to bring the canonical spec to them (or restore the approval ledger)",
-                record.id, record.id, record.id
-            ));
-        }
-        return Ok(());
-    };
-    let current = delta_body_digests(root, record)?;
-    let mut changed: Vec<&str> = approved
-        .iter()
-        .filter(|(module, digest)| current.get(*module) != Some(*digest))
-        .map(|(module, _)| module.as_str())
-        .collect();
-    changed.extend(
-        current
-            .keys()
-            .filter(|module| !approved.contains_key(*module))
-            .map(String::as_str),
-    );
-    changed.sort_unstable();
-    changed.dedup();
+    let changed = changed_approved_delta_modules(root, record)?;
     if changed.is_empty() {
         return Ok(());
     }
@@ -1335,6 +1358,283 @@ fn ensure_approved_delta_bodies_unchanged(
         record.id,
         record.id
     ))
+}
+
+/// The modules, sorted, whose delta body no longer matches the digest the effective definition
+/// approval recorded for it, plus any delta the approval never recorded. Empty when the bodies
+/// still match, and also when no definition approval in the ledger ever recorded a digest: that
+/// absence is unknown, not violated. `Err` for every refusal that names no module, such as a
+/// withdrawn binding or an unreadable delta.
+///
+/// The list is the reason a bare `bool` would throw away. Status names these modules in
+/// `ChangeSummary.changed_approved_deltas`; materialization and acceptance refuse with them.
+fn changed_approved_delta_modules(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<String>, String> {
+    Ok(match approved_delta_binding(root, record)? {
+        DeltaBinding::Unrecorded => Vec::new(),
+        DeltaBinding::Recorded { changed, .. } => changed,
+    })
+}
+
+/// One module's delta body as the binding read it, and whether it matches its approval.
+#[derive(Clone, Debug)]
+struct BoundDelta {
+    intact: bool,
+    body: String,
+}
+
+/// The delta binding of one change, read once: every affected module's body and its verdict.
+///
+/// `Unrecorded` is a ledger in which no definition approval recorded a delta digest, which is
+/// unknown, not violated (REQ-change-089, REQ-change-090). `changed` is exactly the sorted list
+/// `changed_approved_delta_modules` always returned; `per_module` keeps the bytes that were
+/// digested, so every projection of the binding is a projection of the same read (REQ-change-113).
+#[derive(Clone, Debug)]
+enum DeltaBinding {
+    Unrecorded,
+    Recorded {
+        per_module: BTreeMap<String, BoundDelta>,
+        changed: Vec<String>,
+    },
+}
+
+/// The only reader of delta bodies for the approval binding. Inside a delta-binding memo (every
+/// read scope, and the definition-mutation transaction) the result is memoized per change, so a
+/// status call reads each delta once; outside one, as in the refusing materialization and
+/// acceptance gates, every call reads live.
+fn approved_delta_binding(root: &Path, record: &ChangeRecord) -> Result<DeltaBinding, String> {
+    let key = DeltaBindingMemoKey {
+        id: record.id.clone(),
+        affected_specs: record.affected_specs.clone(),
+        no_spec_change: record.no_spec_change,
+    };
+    if let Some(memoized) = memoized_delta_binding(root, &key) {
+        return memoized;
+    }
+    let binding = read_approved_delta_binding(root, record);
+    memoize_delta_binding(root, key, &binding);
+    binding
+}
+
+fn read_approved_delta_binding(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<DeltaBinding, String> {
+    let ledger = load_approvals(root, record)?;
+    let approval = effective_definition_approval(root, record, &ledger)?;
+    let Some(approved) = approval.approved_delta_digests.as_ref() else {
+        if ledger.approvals.iter().any(|candidate| {
+            candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
+        }) {
+            return Err(format!(
+                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers, then `specsync change check {}` to bring the canonical spec to them (or restore the approval ledger)",
+                record.id, record.id, record.id
+            ));
+        }
+        return Ok(DeltaBinding::Unrecorded);
+    };
+    // A `no_spec_change` record owns no delta bodies (see `delta_body_digests`).
+    let mut per_module = BTreeMap::new();
+    if !record.no_spec_change {
+        for module in &record.affected_specs {
+            let path = delta_path_checked(root, record, module)?;
+            let body = read_bounded_change_text(&path, "semantic delta")
+                .map_err(|error| format!("semantic delta for {module}: {error}"))?;
+            record_test_delta_binding_read();
+            let intact = approved.get(module) == Some(&delta_body_digest(module, &body));
+            per_module.insert(module.clone(), BoundDelta { intact, body });
+        }
+    }
+    let mut changed: Vec<String> = approved
+        .keys()
+        .filter(|module| !per_module.get(*module).is_some_and(|bound| bound.intact))
+        .cloned()
+        .collect();
+    changed.extend(
+        per_module
+            .iter()
+            .filter(|(_, bound)| !bound.intact)
+            .map(|(module, _)| module.clone()),
+    );
+    changed.sort_unstable();
+    changed.dedup();
+    Ok(DeltaBinding::Recorded {
+        per_module,
+        changed,
+    })
+}
+
+/// Per affected module, what the current definition approval covers (REQ-change-113): the
+/// requirement IDs and spec sections the approved delta body declares, a three-valued integrity
+/// flag, and whether the canonical tree carries the body.
+///
+/// Reported only for an approved, implementing or verifying change whose scope approval is
+/// current, the states and the scope half `approval_currency` uses. Every field comes from the
+/// one memoized binding read the summary also uses, so `delta_intact` and
+/// `ChangeSummary.changed_approved_deltas` cannot disagree in one read scope. A list is withheld,
+/// never emptied, when its provenance is not proven: an edited body, a refused binding and an
+/// unknown binding carry the module and the flag only. Entries are sorted by module.
+pub fn approved_delta_summaries(root: &Path, record: &ChangeRecord) -> Vec<ApprovedDeltaSummary> {
+    if record.no_spec_change
+        || !matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+        || ensure_definition_approval_valid(root, record).is_err()
+    {
+        return Vec::new();
+    }
+    let mut modules: Vec<&String> = record.affected_specs.iter().collect();
+    modules.sort_unstable();
+    modules.dedup();
+    let bare = |module: &str, delta_intact: Option<bool>| ApprovedDeltaSummary {
+        module: module.to_string(),
+        delta_intact,
+        requirements: None,
+        sections: None,
+        materialized: None,
+        declarations_error: None,
+    };
+    let per_module = match approved_delta_binding(root, record) {
+        // A withdrawn binding or an unreadable delta: `approval_currency` reads the same `Err`
+        // as `approval_valid: false`.
+        Err(_) => {
+            return modules
+                .into_iter()
+                .map(|module| bare(module, Some(false)))
+                .collect();
+        }
+        Ok(DeltaBinding::Unrecorded) => {
+            return modules
+                .into_iter()
+                .map(|module| bare(module, None))
+                .collect();
+        }
+        Ok(DeltaBinding::Recorded { per_module, .. }) => per_module,
+    };
+    let specs_dir = record
+        .canonical_applied
+        .then(|| crate::config::load_config(root).specs_dir);
+    modules
+        .into_iter()
+        .map(|module| {
+            let Some(bound) = per_module.get(module).filter(|bound| bound.intact) else {
+                return bare(module, Some(false));
+            };
+            match parse_delta(&bound.body) {
+                Ok(items) => {
+                    let (requirements, sections) = split_delta_declarations(&items);
+                    // Before the first materialization the answer is false by definition, and a
+                    // first application may raise refusals only a first application should raise.
+                    let materialized = specs_dir.as_deref().is_some_and(|specs_dir| {
+                        let mut prepared = PreparedMaterialization::default();
+                        prepare_module_application(
+                            root,
+                            record,
+                            specs_dir,
+                            module,
+                            &bound.body,
+                            &mut prepared,
+                        )
+                        .is_ok_and(|()| !prepared.pending.iter().any(|pending| pending == module))
+                    });
+                    ApprovedDeltaSummary {
+                        requirements: Some(requirements),
+                        sections: Some(sections),
+                        materialized: Some(materialized),
+                        ..bare(module, Some(true))
+                    }
+                }
+                // The digest matched, so this is the approved body; only its declarations are
+                // unavailable under the current grammar, and the diagnostic says why.
+                Err(error) => ApprovedDeltaSummary {
+                    declarations_error: Some(error),
+                    ..bare(module, Some(true))
+                },
+            }
+        })
+        .collect()
+}
+
+/// Split parsed delta items into requirement and spec-section declarations by operation. Only
+/// `### REQUIREMENT` and `### SPEC SECTION` item headings are items, so prose is never reported.
+fn split_delta_declarations(items: &[DeltaItem]) -> (DeltaDeclarations, DeltaDeclarations) {
+    let mut requirements = DeltaDeclarations::default();
+    let mut sections = DeltaDeclarations::default();
+    for item in items {
+        let target = match item.target {
+            DeltaTarget::Requirement => &mut requirements,
+            DeltaTarget::SpecSection => &mut sections,
+        };
+        match item.operation {
+            DeltaOperation::Added => target.added.push(item.key.clone()),
+            DeltaOperation::Modified => target.modified.push(item.key.clone()),
+            DeltaOperation::Removed => target.removed.push(item.key.clone()),
+        }
+    }
+    for declarations in [&mut requirements, &mut sections] {
+        for list in [
+            &mut declarations.added,
+            &mut declarations.modified,
+            &mut declarations.removed,
+        ] {
+            list.sort_unstable();
+            list.dedup();
+        }
+    }
+    (requirements, sections)
+}
+
+/// Approval currency as the gates that consume the approval judge it (REQ-change-111).
+///
+/// For an approved, implementing or verifying change the approval is current only when the
+/// effective definition approval still matches the scope digest AND the delta bodies it recorded
+/// still match the delta files. Those are the two refusals materialization and acceptance give,
+/// and status reading only the first sent the operator to a `change check` certain to refuse
+/// (Chough BUG-0002). Every other state keeps the scope half alone, so draft, accepted and
+/// archived verdicts and every archived ledger are not re-judged by the active-state binding.
+///
+/// The delta half runs only when the scope half holds: it resolves the same effective approval
+/// first and would only repeat the scope refusal.
+struct ApprovalCurrency {
+    current: bool,
+    /// Sorted modules whose approved delta body changed; empty unless the scope half holds.
+    changed_approved_deltas: Vec<String>,
+}
+
+fn approval_currency(root: &Path, record: &ChangeRecord) -> ApprovalCurrency {
+    let scope_current = ensure_definition_approval_valid(root, record).is_ok();
+    if !scope_current
+        || !matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+    {
+        return ApprovalCurrency {
+            current: scope_current,
+            changed_approved_deltas: Vec::new(),
+        };
+    }
+    match changed_approved_delta_modules(root, record) {
+        Ok(changed) => ApprovalCurrency {
+            current: changed.is_empty(),
+            changed_approved_deltas: changed,
+        },
+        Err(_) => ApprovalCurrency {
+            current: false,
+            changed_approved_deltas: Vec::new(),
+        },
+    }
+}
+
+/// Whether the change's definition approval still covers its approved scope and, for an
+/// approved, implementing or verifying change, the semantic delta bodies it recorded. This is
+/// the predicate behind `ChangeSummary.approval_valid`, exported for human next-action guidance.
+/// It returns only a boolean built from comparisons, so no digest can reach a text sink.
+pub fn approval_current_for_guidance(root: &Path, record: &ChangeRecord) -> bool {
+    approval_currency(root, record).current
 }
 
 /// True when living `requirements.md` already has a `### {key}` requirement heading.
@@ -1731,61 +2031,79 @@ fn prepare_pending_delta_application(
         return Ok(prepared);
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
-    let converging = record.canonical_applied;
     for module in &record.affected_specs {
         let delta =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
-        let items = parse_delta(&delta)?;
-        let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
-        let mut spec = fs::read_to_string(&spec_path)
-            .map_err(|error| format!("failed to read {}: {error}", spec_path.display()))?;
-        let mut requirements = fs::read_to_string(&requirements_path)
-            .unwrap_or_else(|_| format!("---\nspec: {module}.spec.md\n---\n\n# Requirements\n"));
-        // Read BEFORE applying. A delta may legitimately target `## Change Log`, and the question
-        // is whether the row was already there, never whether this run has just written one.
-        let recorded = changelog_records_change(&spec, &record.id);
-        if converging
-            && recorded
-            && items
-                .iter()
-                .all(|item| delta_item_is_applied(&spec, &requirements, item))
-        {
-            continue;
-        }
-        for item in &items {
-            if converging && delta_item_is_applied(&spec, &requirements, item) {
-                continue;
-            }
-            match item.target {
-                DeltaTarget::Requirement => {
-                    requirements = apply_markdown_block(
-                        &requirements,
-                        "### ",
-                        &item.key,
-                        &item.content,
-                        item.operation,
-                    )?;
-                }
-                DeltaTarget::SpecSection => {
-                    spec = apply_markdown_block(
-                        &spec,
-                        "## ",
-                        &item.key,
-                        &item.content,
-                        item.operation,
-                    )?;
-                }
-            }
-        }
-        if !recorded {
-            spec = bump_spec_version(&spec)?;
-            spec = append_changelog(&spec, &record.id, &record.title);
-        }
-        prepared.files.push((spec_path, spec));
-        prepared.files.push((requirements_path, requirements));
-        prepared.pending.push(module.clone());
+        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)?;
     }
     Ok(prepared)
+}
+
+/// One module's step of `prepare_pending_delta_application`, on a delta body the caller read.
+///
+/// Materialization passes the body it just read; `approved_delta_summaries` passes the body the
+/// approval binding digested, so `materialized` is answered for the same bytes as `delta_intact`.
+/// Writes nothing: it only pushes the prepared files and, when the module has outstanding work,
+/// the module onto `prepared.pending`.
+fn prepare_module_application(
+    root: &Path,
+    record: &ChangeRecord,
+    specs_dir: &str,
+    module: &str,
+    delta: &str,
+    prepared: &mut PreparedMaterialization,
+) -> Result<(), String> {
+    let converging = record.canonical_applied;
+    let items = parse_delta(delta)?;
+    let (spec_path, requirements_path) = canonical_module_paths(root, specs_dir, module)?;
+    let mut spec = fs::read_to_string(&spec_path)
+        .map_err(|error| format!("failed to read {}: {error}", spec_path.display()))?;
+    let mut requirements = fs::read_to_string(&requirements_path)
+        .unwrap_or_else(|_| format!("---\nspec: {module}.spec.md\n---\n\n# Requirements\n"));
+    // Read BEFORE applying. A delta may legitimately target `## Change Log`, and the question
+    // is whether the row was already there, never whether this run has just written one.
+    let recorded = changelog_records_change(&spec, &record.id);
+    if converging
+        && recorded
+        && items
+            .iter()
+            .all(|item| delta_item_is_applied(&spec, &requirements, item))
+    {
+        return Ok(());
+    }
+    for item in &items {
+        if converging && delta_item_is_applied(&spec, &requirements, item) {
+            continue;
+        }
+        match item.target {
+            DeltaTarget::Requirement => {
+                requirements = apply_markdown_block(
+                    &requirements,
+                    "### ",
+                    &item.key,
+                    &item.content,
+                    item.operation,
+                )?;
+            }
+            DeltaTarget::SpecSection => {
+                spec = apply_markdown_block(
+                    &spec,
+                    "## ",
+                    &item.key,
+                    &item.content,
+                    item.operation,
+                )?;
+            }
+        }
+    }
+    if !recorded {
+        spec = bump_spec_version(&spec)?;
+        spec = append_changelog(&spec, &record.id, &record.title);
+    }
+    prepared.files.push((spec_path, spec));
+    prepared.files.push((requirements_path, requirements));
+    prepared.pending.push(module.to_string());
+    Ok(())
 }
 
 fn canonical_module_paths(

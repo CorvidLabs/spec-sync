@@ -2921,3 +2921,631 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
         lines[0]
     );
 }
+
+// Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic
+// delta edited after approval reads as an invalid approval in JSON and text status, and
+// `change check` and `change audit` both refuse it. Restoring the approved bytes clears all three.
+#[test]
+fn status_json_and_text_report_an_edited_approved_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    for dir in [".specsync", "src", "specs/auth"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 2,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    let id = "reword-the-auth-purpose";
+    run(&[
+        "change",
+        "new",
+        "Reword the auth purpose",
+        "--kind",
+        "bug-fix",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    for (question, answer) in [
+        ("acceptance_criteria", "The auth purpose is reworded"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", id, question, answer]).success();
+    }
+    let workspace = root.join(".specsync/changes").join(id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_eq!(
+        state["workflow_version"], 2,
+        "the delta binding is workflow-v2's"
+    );
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = match name {
+            "tasks" => "# Tasks\n\n- [x] Reword the purpose.\n",
+            "plan" => super::helpers::SUBSTANTIVE_PLAN,
+            _ => "# Complete\n\nReviewed delta wording.\n",
+        };
+        fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+    }
+    let delta = workspace.join("deltas/auth.md");
+    let approved =
+        "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuthentication with reviewed wording.\n";
+    fs::write(&delta, approved).unwrap();
+    run(&["change", "approve", id, "--actor", "Reviewer"]).success();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "approve"]);
+    let status_json = || -> Value {
+        let output = run(&["--json", "change", "status", id])
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        serde_json::from_slice(&output).unwrap()
+    };
+    let check_next = format!("run `specsync change check {id}`");
+    let current = status_json();
+    assert_eq!(current["summary"]["approval_valid"], true, "{current}");
+    assert_eq!(current["summary"]["next_action"], check_next.as_str());
+
+    fs::write(
+        &delta,
+        format!("{approved}\n## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL carry wording nobody approved.\n\nAcceptance Criteria\n- Nobody reviewed this.\n"),
+    )
+    .unwrap();
+
+    let reapprove = format!("specsync change approve {id} --actor <name>");
+    let edited = status_json();
+    let summary = &edited["summary"];
+    assert_eq!(summary["approval_valid"], false, "{edited}");
+    assert_eq!(
+        summary["next_action"],
+        format!("run `{reapprove}`").as_str()
+    );
+    assert_eq!(
+        summary["changed_approved_deltas"],
+        serde_json::json!(["auth"])
+    );
+    assert_eq!(summary["handoff"]["readiness"], "not-yet");
+    let text = String::from_utf8(
+        run(&["change", "status", id])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let line = |prefix: &str| {
+        text.lines()
+            .find(|line| line.trim_start().starts_with(prefix))
+            .unwrap_or_else(|| panic!("status prints a {prefix} line:\n{text}"))
+            .to_string()
+    };
+    assert!(line("Next:").contains(&reapprove), "{text}");
+    assert!(line("Handoff:").contains("Handoff: not yet —"), "{text}");
+    run(&["change", "check", id])
+        .failure()
+        .stderr(predicate::str::contains("changed after approval"));
+    run(&["change", "audit"])
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "{id}: semantic delta for `auth` changed after approval"
+        )));
+
+    fs::write(&delta, approved).unwrap();
+    let restored = status_json();
+    assert_eq!(restored["summary"]["approval_valid"], true, "{restored}");
+    assert_eq!(restored["summary"]["next_action"], check_next.as_str());
+    assert!(restored["summary"].get("changed_approved_deltas").is_none());
+    run(&["change", "audit"]).success();
+}
+
+// Verifies REQ-change-112 and REQ-change-023 through the built binary. Under configured
+// `enforcement = "strict"`, the first `change check` after approval refuses an undocumented
+// export in a declared module and records that refusal, `--commit` commits nothing, and status
+// points back at `change check`. Documenting the export lets the next check pass with the single
+// scoped command.
+#[test]
+fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    for dir in [".specsync", "src", "specs/auth"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "enforcement = \"strict\"\n",
+    )
+    .unwrap();
+    fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    fs::write(
+        &spec_path,
+        "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 2,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    let id = "add-an-auth-probe";
+    run(&[
+        "change",
+        "new",
+        "Add an auth probe",
+        "--kind",
+        "bug-fix",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    for (question, answer) in [
+        ("acceptance_criteria", "The auth probe is documented"),
+        ("public_contract", "yes"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", id, question, answer]).success();
+    }
+    let workspace = root.join(".specsync/changes").join(id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_eq!(state["workflow_version"], 2);
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = match name {
+            "tasks" => "# Tasks\n\n- [x] Add the probe.\n",
+            "plan" => super::helpers::SUBSTANTIVE_PLAN,
+            "testing" => "# Testing\n\nThe integration test proves the auth probe is documented.\n",
+            _ => "# Complete\n\nReviewed probe evidence.\n",
+        };
+        fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+    }
+    fs::write(
+        workspace.join("deltas/auth.md"),
+        "## MODIFIED\n\n### SPEC SECTION Invariants\n\nStable and probed.\n",
+    )
+    .unwrap();
+    run(&["change", "approve", id, "--actor", "Reviewer"]).success();
+    fs::write(
+        root.join("src/auth.rs"),
+        "// Authentication module.\npub fn undocumented_probe() {}\n",
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    let head = git(&["rev-parse", "HEAD"]);
+    let verification = || -> Value {
+        serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
+            .unwrap()
+    };
+    let gate_entry = format!("specsync change check {id} (effective contract: auth)");
+
+    run(&["--json", "change", "check", id])
+        .failure()
+        .stdout(predicate::str::contains(
+            "Undocumented export 'undocumented_probe'",
+        ));
+    let first = verification();
+    assert_eq!(first["passed"], false, "{first}");
+    assert_eq!(
+        first["commands"][0]["command"],
+        "specsync check --spec auth"
+    );
+    assert_eq!(first["commands"][1]["command"], gate_entry.as_str());
+    assert_eq!(first["commands"][1]["success"], false);
+
+    run(&["change", "check", id, "--commit"]).failure();
+    assert_eq!(
+        git(&["rev-parse", "HEAD"]),
+        head,
+        "a refused check commits nothing"
+    );
+    let status: Value = serde_json::from_slice(
+        &run(&["--json", "change", "status", id])
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .unwrap();
+    assert_eq!(
+        status["summary"]["next_action"],
+        format!("run `specsync change check {id}`").as_str(),
+        "{status}"
+    );
+
+    let spec = fs::read_to_string(&spec_path).unwrap().replacen(
+        "## Public API\n\nNone.\n",
+        "## Public API\n\n| Function | Description |\n|----------|-------------|\n| `undocumented_probe` | Probe the auth module |\n",
+        1,
+    );
+    fs::write(&spec_path, spec).unwrap();
+    run(&["change", "check", id]).success();
+    let passed = verification();
+    assert_eq!(passed["passed"], true, "{passed}");
+    assert_eq!(
+        passed["commands"],
+        serde_json::json!([{"command": "specsync check --spec auth", "success": true, "exit_code": 0}])
+    );
+}
+
+// Verifies REQ-change-113 and REQ-cmd-change-023 through the built binary. `change status --json`
+// and `change show --json` carry a top-level `approved_deltas` array: the requirement IDs and
+// sections an intact approved delta declares, withheld once the body is edited, CRLF-agnostic,
+// and `materialized` after `change check`. Text output, `summary` and `change list --json` gain
+// nothing, a draft reports `[]`, and `change depend --json` on an approved change carries the
+// entries `change status --json` reports.
+#[test]
+fn status_and_show_json_report_approved_delta_requirements() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    for dir in [".specsync", "src", "specs/auth", "specs/billing"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    for module in ["auth", "billing"] {
+        fs::write(
+            root.join(format!("src/{module}.rs")),
+            format!("// {module} module.\n"),
+        )
+        .unwrap();
+        fs::write(
+            root.join(format!("specs/{module}/{module}.spec.md")),
+            format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - src/{module}.rs\n---\n\n# {module}\n\n## Purpose\n\nThe {module} module.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+        )
+        .unwrap();
+    }
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 2,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    let json = |args: &[&str]| -> Value {
+        let mut full = vec!["--json"];
+        full.extend_from_slice(args);
+        let output = run(&full).success().get_output().stdout.clone();
+        serde_json::from_slice(&output).unwrap()
+    };
+    let draft = |id: &str, description: &str, module: &str, delta: &str| {
+        run(&[
+            "change",
+            "new",
+            description,
+            "--kind",
+            "bug-fix",
+            "--spec",
+            module,
+            "--path",
+            &format!("src/{module}.rs"),
+        ])
+        .success();
+        for (question, answer) in [
+            ("acceptance_criteria", "The session requirement is declared"),
+            ("public_contract", "yes"),
+            ("architecture_risk", "no"),
+        ] {
+            run(&["change", "answer", id, question, answer]).success();
+        }
+        let workspace = root.join(".specsync/changes").join(id);
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap())
+                .unwrap();
+        assert_eq!(state["workflow_version"], 2);
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let name = artifact.as_str().unwrap();
+            let content = match name {
+                "tasks" => "# Tasks\n\n- [x] Declare the requirement.\n",
+                "plan" => super::helpers::SUBSTANTIVE_PLAN,
+                "testing" => {
+                    "# Testing\n\nThe integration test covers REQ-auth-002 and REQ-billing-002.\n"
+                }
+                _ => "# Complete\n\nReviewed delta wording.\n",
+            };
+            fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+        }
+        let path = workspace.join(format!("deltas/{module}.md"));
+        fs::write(&path, delta).unwrap();
+        path
+    };
+    let id = "declare-the-session-requirement";
+    let approved = "## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL keep a session alive across a refresh; REQ-auth-009 is only mentioned.\n\nAcceptance Criteria\n- A session survives a page refresh.\n\n## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuthentication and sessions.\n";
+    let delta = draft(id, "Declare the session requirement", "auth", approved);
+
+    let draft_status = json(&["change", "status", id]);
+    assert_eq!(
+        draft_status["approved_deltas"],
+        serde_json::json!([]),
+        "a draft reports an empty list, and the key is present: {draft_status}"
+    );
+    let draft_keys: Vec<String> = draft_status.as_object().unwrap().keys().cloned().collect();
+
+    run(&["change", "approve", id, "--actor", "Reviewer"]).success();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "approve"]);
+    let expected = serde_json::json!([{
+        "module": "auth",
+        "delta_intact": true,
+        "requirements": {"added": ["REQ-auth-002"], "modified": [], "removed": []},
+        "sections": {"added": [], "modified": ["Purpose"], "removed": []},
+        "materialized": false
+    }]);
+    let status = json(&["change", "status", id]);
+    let show = json(&["change", "show", id]);
+    assert_eq!(status["approved_deltas"], expected, "{status}");
+    assert_eq!(show["approved_deltas"], expected, "{show}");
+    assert_eq!(status["summary"]["approval_valid"], true);
+    assert!(
+        status["summary"].get("approved_deltas").is_none(),
+        "summary gains nothing: {status}"
+    );
+    let mut keys: Vec<String> = status.as_object().unwrap().keys().cloned().collect();
+    keys.sort();
+    let mut previous = vec![
+        "acceptance_entries",
+        "approved_deltas",
+        "briefing",
+        "change",
+        "corrections",
+        "effective_definition",
+        "questions",
+        "summary",
+    ];
+    previous.sort();
+    assert_eq!(keys, previous, "one new top-level key and nothing else");
+    let mut draft_keys = draft_keys;
+    draft_keys.sort();
+    assert_eq!(draft_keys, previous);
+    // The `summary` key set a80748f prints for this same fixture, in the draft and the approved
+    // intact state: `summary` gains, loses and renames nothing.
+    let previous_summary = vec![
+        "approval_valid",
+        "artifacts_complete",
+        "correction_count",
+        "correction_valid",
+        "definition_digest",
+        "handoff",
+        "id",
+        "next_action",
+        "scoped_review_current",
+        "state",
+        "strict_validation_required",
+        "title",
+        "verification_commands",
+    ];
+    let summary_keys = |value: &Value| -> Vec<String> {
+        let mut keys: Vec<String> = value["summary"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    };
+    assert_eq!(
+        summary_keys(&draft_status),
+        previous_summary,
+        "{draft_status}"
+    );
+    assert_eq!(summary_keys(&status), previous_summary, "{status}");
+    assert_eq!(summary_keys(&show), previous_summary, "{show}");
+
+    fs::write(&delta, approved.replace('\n', "\r\n")).unwrap();
+    assert_eq!(
+        json(&["change", "status", id])["approved_deltas"],
+        expected,
+        "CRLF alone is not an edit"
+    );
+
+    fs::write(
+        &delta,
+        approved.replace("keep a session alive", "carry wording nobody approved"),
+    )
+    .unwrap();
+    let edited = json(&["change", "status", id]);
+    assert_eq!(
+        edited["approved_deltas"],
+        serde_json::json!([{"module": "auth", "delta_intact": false}]),
+        "{edited}"
+    );
+    assert_eq!(
+        edited["summary"]["changed_approved_deltas"],
+        serde_json::json!(["auth"])
+    );
+    assert_eq!(edited["summary"]["approval_valid"], false);
+    fs::write(&delta, approved).unwrap();
+
+    run(&["change", "check", id]).success();
+    let checked = json(&["change", "status", id]);
+    assert_eq!(
+        checked["approved_deltas"][0]["materialized"], true,
+        "{checked}"
+    );
+    assert_eq!(
+        checked["approved_deltas"][0]["requirements"]["added"],
+        serde_json::json!(["REQ-auth-002"])
+    );
+
+    let text = String::from_utf8(
+        run(&["change", "status", id])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(
+        !text.contains("REQ-auth-002"),
+        "text output is unchanged:\n{text}"
+    );
+    assert!(!text.contains("approved_deltas"), "{text}");
+    let list = json(&["change", "list"]);
+    assert!(
+        !list.to_string().contains("approved_deltas"),
+        "`change list --json` gains nothing: {list}"
+    );
+
+    // `change depend` on an approved change: the dependency is declared before approval, so
+    // re-declaring it leaves the approved scope current and the in-lock entries are intact.
+    let prerequisite = "add-a-billing-prerequisite";
+    draft(
+        prerequisite,
+        "Add a billing prerequisite",
+        "billing",
+        "## ADDED\n\n### REQUIREMENT REQ-billing-002\n\nThe system SHALL bill once.\n\nAcceptance Criteria\n- One charge.\n",
+    );
+    let dependent = "add-a-billing-dependent";
+    draft(
+        dependent,
+        "Add a billing dependent",
+        "billing",
+        "## MODIFIED\n\n### SPEC SECTION Purpose\n\nBilling, after its prerequisite.\n",
+    );
+    run(&["change", "depend", dependent, prerequisite]).success();
+    run(&["change", "approve", dependent, "--actor", "Reviewer"]).success();
+    let depended = json(&["change", "depend", dependent, prerequisite]);
+    let dependent_status = json(&["change", "status", dependent]);
+    assert_eq!(depended["summary"]["approval_valid"], true, "{depended}");
+    assert_eq!(
+        depended["approved_deltas"],
+        serde_json::json!([{
+            "module": "billing",
+            "delta_intact": true,
+            "requirements": {"added": [], "modified": [], "removed": []},
+            "sections": {"added": [], "modified": ["Purpose"], "removed": []},
+            "materialized": false
+        }]),
+        "{depended}"
+    );
+    assert_eq!(
+        depended["approved_deltas"],
+        dependent_status["approved_deltas"]
+    );
+
+    // `change new --json` renders the draft it just created, so its list is always empty. The
+    // key, the other top-level keys and the `summary` keys match `change status --json`.
+    let created = json(&[
+        "change",
+        "new",
+        "Add a draft for the new output",
+        "--kind",
+        "bug-fix",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ]);
+    assert_eq!(created["change"]["state"], "draft", "{created}");
+    assert_eq!(
+        created["approved_deltas"],
+        serde_json::json!([]),
+        "{created}"
+    );
+    let mut created_keys: Vec<String> = created.as_object().unwrap().keys().cloned().collect();
+    created_keys.sort();
+    assert_eq!(created_keys, previous);
+    assert_eq!(summary_keys(&created), previous_summary, "{created}");
+}

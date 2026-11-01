@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6a0028581fa6f816700be461dc93297cfc0eed40",
+  "contract_digest": "bfb94618e709fa1cb52cd27d5d1514a4a8c2fd3f656464a87d70a2d8ef24e57b",
+  "execution_digest": "f082446f5e7bf308b823ecfef4e46fc7cf201e5008a80b5e889fce587eb67fd5",
+  "workspace_digest": "4fc6b42cab79bb1a01d9bd40c572b04bd92a06e3bb82c51662e588d6258c7766",
+  "timestamp": 1793509526
+}

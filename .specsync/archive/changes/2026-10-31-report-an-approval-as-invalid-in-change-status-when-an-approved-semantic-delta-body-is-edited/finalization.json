@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited",
+  "implementation_commit": "284e5ee5c8dd0556fba476d3273f48a0133234e6",
+  "implementation_tree": "d871144a4717b9df0aefeb0ef5ed5fd6c3e958f4",
+  "contract_digest": "345b8a4781285280bb83e18dbfcf2df67fe825d90a9e73298832cca57b7c92a6",
+  "workspace_digest": "3e47b3f66be0a5f2b35e5e735bab3f9c7460daa438eeaea5b93884cea23fff29",
+  "closing_digest": "2aa08dd9eb63632a9a5933ba165d7a5b859e32bea801e001c47ab79eaa505ca6",
+  "review_digest": "a142dc97cee73e2fc942b4d0adb149f0e0a982ec1954c56566f77581370d74ff",
+  "finalization_digest": "027cd9cb7d13873f6e1a461774eedfe87b01da0f4aa5d2736bbfcce2131d2bd1",
+  "timestamp": 1793490252
+}

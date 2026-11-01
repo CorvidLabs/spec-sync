@@ -74,3 +74,9 @@ spec: change.spec.md
 - [x] Add authenticated same-delivery finalized policy coverage with exact signed-entry matching and nine regression cases (REQ-change-110).
 
 - [x] Address PR #821 review with base archive identities across renames and local staged/untracked delivery coverage; add discriminating regressions.
+
+- [x] Report an approval as not current in status, the handoff verdict and `change audit` when a semantic delta body it recorded was edited after approval, using the binding materialization and acceptance enforce, and name the edited modules in `summary.changed_approved_deltas` (REQ-change-111).
+- [x] Run the effective-contract gate on the change being verified on every `change check`, the first one included, and record its refusal of a declared module as a failed attempt naming `specsync change check <id> (effective contract: …)` (REQ-change-112).
+- [x] Write the lesson bundle heading as `# Lesson bundle: <id>` so the bundle's fixed text adds no en or em dash, copying user record text unchanged (REQ-change-116, #827).
+- [x] Report, per affected module, the requirement IDs and spec sections an approved semantic delta declares, with a three-valued `delta_intact` flag and a derived `materialized` flag, from one memoized delta-binding read shared with the summary; keep the refusing gates live (REQ-change-113).
+- [ ] Decide whether `collect_requirement_ids` (verification coverage) should move to the bounded delta read; that is a `change check` gate change and out of #826's scope.

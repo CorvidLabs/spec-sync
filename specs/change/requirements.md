@@ -304,6 +304,10 @@ Acceptance Criteria
   reproduces the verdict when every named spec resolves or when none does; a mixed scope fails
   the check but can rerun green, because an unmatched filter is demoted to a warning once any
   filter matches.
+- When the effective-contract gate refuses a module the change declares, the failed attempt keeps
+  that scoped entry and adds `specsync change check <id> (effective contract: <module>, …)` with
+  `success: false`, the command that reproduces the gate's refusal, rather than claiming a
+  `--strict` run that did not happen.
 - `change check` does not execute `.specsync/sdd.json` `verification_commands`.
 - Direct re-entry into SpecSync through `SPECSYNC_VERIFICATION_CONTEXT` still fails once.
 - Failed spec↔code attempts remain inspectable and a corrected retry can record passed latest evidence.
@@ -1447,4 +1451,57 @@ Acceptance Criteria
 - Existing active coverage and full-history integrity checks retain their behavior.
 - Only relevant delivery archive candidates are authenticated; unrelated historical damage is not a new active-audit failure.
 - The Algonest #48 reproduction passes with the candidate, and original6.1.1 still fails it. Missing history objects remain explicit verification limitations.
+
+### REQ-change-111
+
+The system SHALL report a definition approval as invalid in change status, in the handoff verdict, and in the active-workspace audit whenever the semantic delta bodies that approval recorded no longer match the change's delta files, using the same binding that materialization and acceptance enforce, and SHALL NOT reinterpret an approval that recorded no delta binding.
+
+Acceptance Criteria
+- For an approved, implementing, or verifying change whose effective definition approval recorded delta digests, a delta body edited after approval makes `summary.approval_valid` false, makes `summary.next_action` name `specsync change approve <id> --actor <name>`, and makes the handoff readiness `not-yet`.
+- `summary.changed_approved_deltas` lists the edited modules in sorted order and is omitted from JSON when empty.
+- `change audit` reports, for that change, the same refusal `change check` gives.
+- A body that differs only in CRLF line endings, a restored body, and a re-approved body keep or return `approval_valid` to true.
+- A later definition approval that withdraws a recorded binding reads as invalid, as materialization already refuses it.
+- A ledger in which no definition approval recorded a delta digest keeps its current status verdict.
+- Draft, accepted, and archived summaries, accepted and archived authentication, persisted ledgers, and every digest are unchanged.
+- An edit to `plan.md` or another artifact outside the approved scope keeps `approval_valid` true and stales only execution evidence.
+
+### REQ-change-112
+
+The system SHALL apply the effective-contract gate to the change being verified on every `change check`, including the first one after materialization, and SHALL record that gate's refusal of a module the change declares as a failed verification attempt, so recorded verification never reports a pass the lifecycle's own gates refuse for the same tree.
+
+Acceptance Criteria
+- The first `change check` of an approved change whose declared module carries an unsuppressed validator warning fails and names the warning, as later checks, finalization, and audit already do, whatever `enforcement` is configured.
+- The refusal is appended to `verification-attempts.json` and projected into `verification.json` with `passed: false`; `commands[]` keeps the scoped `specsync check --spec <name> …` entry and adds `specsync change check <id> (effective contract: <module>, …)` with `success: false`.
+- A failed attempt supersedes an earlier recorded pass, so status names `specsync change check <id>` rather than review, and `change check --commit` commits nothing.
+- A change whose declared modules carry no unsuppressed warning records exactly the single scoped command it recorded before.
+- Gate failures not attributable to a module the change declares are refused before any attempt is recorded, as before.
+- `specsync check`, configured `enforcement`, explicit `--strict`, the gate's promotion rule and suppressions, path-only scope, `--no-spec-change` changes, acceptance, audit, and accepted or archived evidence are unchanged.
+
+### REQ-change-116
+
+The lesson bundle that finalization writes SHALL add no U+2013 (en dash) or U+2014 (em dash) of its own; user-supplied record text it copies SHALL be copied unchanged.
+
+Acceptance Criteria
+- The bundle's first line is `# Lesson bundle: <id>`.
+- The bundle's fixed text (heading, section headings, labels and the guidance paragraph) contains neither character.
+- User-supplied record text is copied unchanged, including any dash it holds: the change title, every acceptance criterion, affected specs and paths, recorded verification command strings, and the bodies of the change's `context.md`, `design.md` and `testing.md`.
+- A bundle assembled from a record and artifacts whose user-supplied text holds neither character contains neither character.
+- Archived bundles are not rewritten, and nothing reads the heading back.
+
+### REQ-change-113
+
+The system SHALL report, for an approved, implementing, or verifying change whose scope approval is current, each affected module's declared requirement IDs and spec sections from the semantic delta body the definition approval recorded, with a per-module integrity flag computed by the same delta binding that materialization enforces, and SHALL NOT report any requirement as approved from a delta body that no longer matches its approval.
+
+Acceptance Criteria
+- After approval, `approved_delta_summaries` for a change whose `shipping` delta declares `### REQUIREMENT REQ-shipping-002` under `## ADDED` returns a `shipping` entry with `delta_intact: true`, `requirements.added == ["REQ-shipping-002"]`, the modified spec section names under `sections.modified`, and `materialized: false`.
+- Editing that delta body after approval makes the entry's `delta_intact` false and omits its `requirements`, `sections` and `materialized`; the module is the one `ChangeSummary.changed_approved_deltas` names, and `approval_valid` is false.
+- A body that differs from the approved one only in CRLF line endings keeps `delta_intact: true`.
+- A later definition approval that withdraws a recorded delta binding reports every declared module with `delta_intact: false`.
+- A ledger in which no definition approval recorded a delta digest reports each module with `delta_intact: null` and no requirements, never `false`.
+- After a passing `change check` materializes the delta, `materialized` is true. After a corrected delta is re-approved following materialization, `materialized` is false until the next `change check` applies it.
+- A requirement ID that appears only in prose inside a delta body is not reported; only `### REQUIREMENT <id>` item headings are.
+- A body whose digest matches the approval but that the current delta grammar refuses reports `delta_intact: true` with a `declarations_error` and no `requirements`, `sections` or `materialized`; `approval_valid` stays true and `changed_approved_deltas` stays empty for it.
+- Within one read scope or one definition-mutation result, `ChangeSummary.changed_approved_deltas`, `approval_valid`, `delta_intact`, the reported requirement IDs and sections, and `materialized` all derive from one read of each delta file; the materialization and acceptance refusals still read the delta files live.
+- Draft, accepted and archived changes, and an approved change whose scope approval is stale, return an empty list. `ChangeSummary`, `changed_approved_deltas`, persisted ledgers, digests and materialization are unchanged.
 

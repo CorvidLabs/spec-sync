@@ -9,16 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [6.1.2] - Unreleased
 
+Release candidate, not yet published. The published Action download default stays 6.1.1 until a separate post-publication asset and Action check.
+
+### Added
+
+- `specsync change status <id> --json` and `specsync change show <id> --json` carry a top-level `approved_deltas` array, one entry per affected module, naming the requirement IDs and spec sections each approved semantic delta declares, whether its body is still intact (`delta_intact`) and whether `change check` has applied it (`materialized`). An edited delta reports no requirements. The array is `[]` for draft, accepted, archived and stale-scope changes; no existing key changes (#828, issue #826).
+- The GitHub Action gains `require-archived` (run the archive gate before the download and spec check) and `archive-gate-only` (run only the gate, for a first job that every other job `needs:`). The gate needs no SpecSync binary and sets an `archived` output. Published `@v6.1.1` predates these inputs and ignores them; 6.1.2 is the first release that includes them (#832).
+- PENDING MERGE, confirm before tagging: an opt-in `verification_ignored_paths` list in `.specsync/sdd.json` (at most 8 project-relative directory prefixes) keeps another tool's record directory, tracked or untracked, out of the verification project-input digest, so it no longer stales verification. Entries that overlap specs, sources, policy or `.specsync/` are refused, and `change status --json` reports the list as `summary.verification_ignored_paths`. With the list absent or empty nothing changes. Older binaries ignore the key and read evidence recorded with a non-empty list as stale, so raise CI pins first (#830, issue #825).
+
 ### Fixed
 
-- Scoped verification failure diagnostics quote retry commands as literal output rather than evaluating shell syntax from a project path (#818).
-- Active-change audits recognize the matching finalized policy migration in native archives while retaining archive identity and accepted delivery-state checks (#821). This repairs archived-policy coverage; genuinely unfinished changes still need their own lifecycle completion.
+- Generated pre-commit hooks pass the project root as a literal argument, so `$(...)` substitutions and backticks in a project path are never evaluated in failed-check diagnostics. Existing hooks keep their old block until refreshed with `specsync hooks uninstall --precommit` then `specsync hooks install --precommit` (#818).
+- `specsync change audit` over active changes recognizes a finalized, signed policy migration of the same delivery in the native archive after every workspace is archived, while still refusing missing, wrong-scope, tampered or unrelated records and later unsigned policy edits (#821).
+- `specsync change status` reports an approval as invalid when an approved semantic delta body is edited after approval: `summary.approval_valid` is false, the next action names re-approval, the handoff says not yet, and the new `summary.changed_approved_deltas` array (omitted when empty) lists the edited modules. `change audit` reports the edit as an error (#823).
+- The first `specsync change check <id>` after approval runs the effective-contract gate on the declared modules, so an unsuppressed validator warning such as an undocumented export fails that first check under every `enforcement` setting, as later checks, `finalize` and `audit` already did. The refusal is recorded as a failed attempt that supersedes an earlier pass (#824).
+- Generated Markdown and hook files (`init`, `migrate`, `hooks install`, `agents install`, `compact` summary rows and archived lesson bundles) are written without em or en dashes. The managed instruction block begin marker changes; blocks and compacted rows earlier releases wrote are still recognized, removed and folded. The agent artifact template version advances to 7, so `specsync agents install` refreshes create-spec command files you have not edited (#829, issue #827).
+
+### Security
+
+- Update locked `rustls-webpki` from 0.103.15 to 0.103.16 and `webpki-roots` from 1.0.7 to 1.0.10 so certificate validation rejects distrusted intermediates (RUSTSEC-2026-0381, RUSTSEC-2026-0382). No other package, dependency edge or enabled feature changes (#821).
+
+### Changed
+
+- This repository's CI is archive-first: an `Archive` job runs before everything else in CI and Trust, and a commit with an open SDD change fails it in seconds while every other job is skipped. Tip-only lane narrowing is removed, so the archived tip runs the full lane. Installed agent and ship-status guidance describe the local flow: `change check --commit`, `fledge lanes run verify`, `change review`, `change ship`, then push the archived tip (#832).
+- The main Action wrapper selects published 6.1.1 after supported-platform asset and Action checks (#817). Immutable `@v6.1.1` keeps its historical 6.1.0 default; select `version: '6.1.1'` with that tag.
+- Package version and self-built candidate inputs (CI packaged Action consumer, Trust) move to 6.1.2. Documentation examples pin `@v6.1.2` with `version: '6.1.2'` for use after publication; archive-gate examples keep `@main` until 6.1.2 is published. The release validator accepts those archive-gate `@main` pins only while the published default is 6.1.1 or older (#832).
 
 ### Maintenance
 
-- Split private change and test modules without adding public features.
-- Prepare package and self-built candidate inputs at 6.1.2. The published Action download default stays at 6.1.1 until a separate post-publication asset and Action check.
-- The main Action wrapper already selects published 6.1.1 after supported-platform checks. Immutable `@v6.1.1` retains its historical 6.1.0 default; select `version: '6.1.1'` with that tag.
+- MCP implementation and the issues command integration tests are split into ordinary private modules with no behavior change (#819, #820).
 
 ## [6.1.1] - 2026-10-14
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json",
+  "implementation_commit": "850f1be1245831570fffed52304061279f5d7a5b",
+  "implementation_tree": "fba938418d3c1d398995987193a7993cda83c7fe",
+  "contract_digest": "390cb9e81b0ee0f2e077192f3602dc8ed7f8145c161d7716b6e975bc35d0c8cb",
+  "workspace_digest": "4a9c04c04128a11d0b9177d44ba0f1f15d01db224be381a416bd185a8ab3783f",
+  "closing_digest": "9004ea71c74927006d550338019cbabe3fbc20c3a37dc9971252627760de7d28",
+  "review_digest": "f58e784ef485c5eac1ea0513927e1d7a9ae4f28e22e2b93cd83b9b2a9bf2dda2",
+  "finalization_digest": "4bae26e869c834284a17af2e85390924a13b6fc15ca6f0c4ae5d94a48a65eca8",
+  "timestamp": 1793549648
+}

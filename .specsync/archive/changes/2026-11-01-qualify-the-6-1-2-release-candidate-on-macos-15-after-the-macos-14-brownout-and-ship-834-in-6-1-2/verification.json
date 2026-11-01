@@ -1,0 +1,52 @@
+{
+  "timestamp": 1793561281,
+  "commit": "4eaaae45eef8db745eb5e66705ea464feec35f76",
+  "contract_digest": "84b031d1d6391b9f5765ec3bb88f670e64741763dd916449a4cf2b534fa4b0df",
+  "execution_digest": "3faa0f51d5cf35124e4746392d78f75309b53db9018bece113453d785e43087b",
+  "workspace_digest": "d1e951ccfa149d976af1fb27cb64893dd16e97140ce17b166ce6f6432d0b522f",
+  "acceptance_input_digest": "2d89f280694e14c60ec516464a1a4da1afb2d8e725d5617abad3f987d27016cb",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/workflows/release.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c36f67fb9e87646ecc50efe68a53ae6d128a674e6625dd660b79da0a9afb3d5c",
+        "entry_digest": "ae806194edad9fe359d724cc910b3bf21631c8f74a593a954427b93936f320ec",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cf3b2f7372fbe2efd4f9a43848069889d210e551b0502335a1688cd8ab65c89f",
+        "entry_digest": "91c34f437c1fd0745edf732558f32a779a64b30c01445d4c9146d688ab80fe5f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/releases/6.1.2.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b5919808356ffbcc8d69afb4121dfe378ddb081764338d6861f848b340cea2a2",
+        "entry_digest": "ac392c006afff156aa086cb73e2a48a788c0fdb7aa39ba10c0c91607b7a9b972",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -7,11 +7,11 @@
   "title": "Qualify the 6.1.2 release candidate on macos-15 after the macos-14 brownout and ship #834 in 6.1.2",
   "description": "Qualify the 6.1.2 release candidate on macos-15 after the macos-14 brownout and ship #834 in 6.1.2",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "3d3d6e6db88077b1c233b37e4958916d8da40bbd",
   "created_at": 1793561064,
-  "updated_at": 1793561283,
+  "updated_at": 1793561445,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml",

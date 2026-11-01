@@ -88,13 +88,11 @@ over written bytes, so nothing stopped them.
   `remove_section_from_file` (`src/hooks.rs:827`) finds the block with `l.contains(HOOK_BEGIN)`.
   Every block installed by a sentinel-era version (since #300, 1f1c3a44) up to 6.1.1 carries
   this exact line.
-- `src/hooks.rs:156-180`, `PRE_COMMIT_HOOK`: comment lines and one `echo` carry the dash. The
-  constant is also a reader:
-  - `uninstall_precommit` recognizes a legacy unmarked appended block by comparing the lines
-    after `LEGACY_PRE_COMMIT_MARKER` with `PRE_COMMIT_HOOK` (line 671).
-  - It recognizes a legacy whole-file hook by `content.trim() == PRE_COMMIT_HOOK.trim()`
-    (line 679).
-  - `pre_commit_block` (line 276) derives the managed block body from it.
+- `src/hooks.rs:156-180`, `PRE_COMMIT_HOOK`: comment lines and one `echo` carry the dash.
+  `pre_commit_block` (line 276) derives the managed block body from it. The constant is also
+  compared by `uninstall_precommit` for unmarked legacy hooks: the lines after
+  `LEGACY_PRE_COMMIT_MARKER` (line 671) and a whole-file hook (line 679). Those comparisons do
+  not protect any state a release wrote with the current text (see the next section).
 - `src/commands/init.rs:565`, `specsync_gitignore_content`, and `src/commands/migrate.rs:682`,
   `apply_write_gitignore`: header comment lines. Both check only that the file exists before
   writing, and nothing parses the header.
@@ -112,9 +110,24 @@ over written bytes, so nothing stopped them.
   match the exact current snippet either, because the snippet text changes too. It falls back to
   the heuristic, which starts at the `# Spec-Sync Integration` line. The old begin comment is left
   behind as an orphan line in the user's file.
-- **`PRE_COMMIT_HOOK` alone.** Legacy unmarked and whole-file hooks no longer compare equal, so
-  `hooks uninstall --precommit` reports an ambiguous legacy block or does nothing. Project-keyed
-  managed blocks are unaffected, because their markers carry no dash.
+- **`PRE_COMMIT_HOOK` alone breaks nothing a release wrote.** This was checked against history,
+  not assumed:
+  - Only releases before #480 (32c8b350, 2026-07-31, first in v6.0.0-rc.1) wrote the unmarked
+    forms: `LEGACY_PRE_COMMIT_MARKER` followed by the body, or the body as the whole file
+    (`git show v5.2.0:src/hooks.rs`, `install_precommit`).
+  - #774 (b9ff3231, 2026-09-09) then rewrote `PRE_COMMIT_HOOK`: the config path moved from
+    `specsync.json` to `.specsync/config.toml`, the `(default)` moved from `warn` to `strict`, and
+    the `--enforcement` comment became the two `--strict` lines.
+  - So since #774 the comparisons at lines 671 and 679 already fail for every real legacy
+    install, whose body is the v5.x text. The 6.1.1 body only ever appeared inside project-keyed
+    blocks, which are found by markers that carry no dash.
+  - Repunctuating `PRE_COMMIT_HOOK` therefore needs no frozen copy. An earlier version of this
+    draft proposed one (`LEGACY_PRE_COMMIT_HOOK` holding the 6.1.1 text). That protected a state
+    no release produced, and it contradicted `research.md` alternative 3, which turns down
+    frozen snippet copies for the same reason. It is dropped.
+  - The real gap, that `hooks uninstall --precommit` stopped recognizing v5.x unmarked hooks at
+    #774, predates this issue and is not fixed here. It is listed as an open question in
+    `tasks.md`.
 - **The compaction writer alone.** Every changelog compacted by 6.1.1 would read as user history
   on the next run. That run would emit a second marked summary, and the run after it would fail
   closed on duplicate marked summaries.
@@ -128,8 +141,12 @@ over written bytes, so nothing stopped them.
   - `issues` verification.
   The issue scopes these out because they are not written into the repository. About 200 such
   literals remain.
-- User text that the lesson bundle copies verbatim from the change's `context.md`, `design.md`
-  and `testing.md`.
+- User text that the lesson bundle copies verbatim. That is not only the `context.md`,
+  `design.md` and `testing.md` bodies. `write_lesson_bundle`
+  (`src/change/historical_definition_digest_matches.rs:2821-2899`) also copies `record.title`,
+  every acceptance criterion, `affected_specs`, `affected_paths` and the recorded verification
+  command strings word for word. A dash in any of them is the user's and stays.
+- Recognition of v5.x unmarked pre-commit hooks, lost at #774 (see above).
 - Frozen archives under `.specsync/archive/`, and blocks or rows already present in a user's
   files. `hooks install` is a no-op when a block exists (`specs/hooks/requirements.md` Out of
   Scope: no auto-update on upgrade). Compaction rewrites a summary only when it folds more rows.
@@ -141,3 +158,13 @@ The shared scratch directory used while drafting is also used by sibling agents.
 `change answer` read a criteria file that another agent had overwritten, which put two foreign
 criteria into this record. The answer was re-recorded from a private file, and `change.md` now
 holds only this change's criteria. Nothing else was affected.
+
+## Coordination with sibling drafts
+
+- Requirement ids. Origin/main ends at REQ-change-112. The draft for #826 adds REQ-change-113,
+  and the draft for #825 adds REQ-change-114 and REQ-change-115. This package takes
+  REQ-change-116 so that no two drafts claim the same id, whatever order they are approved in.
+- Merge conflict. The draft for #825 also edits
+  `src/change/historical_definition_digest_matches.rs` (4,412 lines). This change touches only
+  the heading line in `write_lesson_bundle`, so the conflict, if any, is local. Whichever lands
+  second rebases.

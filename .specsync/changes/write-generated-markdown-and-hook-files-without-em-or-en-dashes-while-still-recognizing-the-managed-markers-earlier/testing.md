@@ -16,7 +16,9 @@ Results are recorded here after verification, not assumed.
 
 ## Integration: `tests/integration/generated_output_has_no_dashes.rs`
 
-New module, registered in `tests/integration.rs`. It drives the built binary through
+New module, registered in `tests/integration.rs`. It covers the writers named in the second
+acceptance criterion (init, migrate, hooks install, agents install, compact) and nothing else.
+It drives the built binary through
 `helpers::specsync()` in a `TempDir` that is `git init`ed. The shared assertion walks every file
 under the root, including `.git/hooks/pre-commit` and excluding the rest of `.git/`. It fails
 listing each `path:line` that holds U+2013 or U+2014.
@@ -50,13 +52,15 @@ listing each `path:line` that holds U+2013 or U+2014.
   origin/main the begin line is not recognized and the heuristic leaves it behind.
 - CONTROL `uninstall_removes_a_block_with_the_6_1_1_begin_sentinel_exactly`. The same fixture,
   framed by the frozen 6.1.1 begin line written out as a literal, with a 6.1.1-punctuated body.
-- CONTROL `uninstall_precommit_removes_a_legacy_appended_block_with_the_6_1_1_body` and
-  `uninstall_precommit_removes_a_legacy_whole_file_hook_with_the_6_1_1_body`. Their fixtures
-  use the frozen 6.1.1 text, not `PRE_COMMIT_HOOK`.
 - CONTROL `uninstall_precommit_removes_a_managed_block_with_the_6_1_1_body`: a project-keyed
-  block holding the 6.1.1 body.
+  block, framed by the markers `pre_commit_markers` returns for the root, holding the 6.1.1 body
+  written out as a literal (this is the form every release from #480 to 6.1.1 wrote). Uninstall
+  removes the block and leaves user lines around it.
+- No test is added for an unmarked hook with the 6.1.1 body: no release wrote one (see
+  `context.md`).
 - Existing tests kept green unchanged: `uninstall_precommit_removes_legacy_appended_block` and
-  `uninstall_precommit_removes_legacy_whole_file_hook`, which now exercise the new body;
+  `uninstall_precommit_removes_legacy_whole_file_hook`, which build their fixtures from
+  `PRE_COMMIT_HOOK` and so exercise the new body, as they exercised the current body before;
   `uninstall_preserves_user_content_after_wrapped_block`;
   `uninstall_legacy_block_without_sentinels_preserves_appended_notes`;
   `uninstall_preserves_crlf_line_endings`; and
@@ -99,10 +103,16 @@ under the REQ-change-109 limit), next to
 `a_module_3md_file_shows_later_planes_as_lessons_and_leaves_context_md`:
 
 - DISCRIMINATOR `lesson_bundle_heading_uses_a_colon_and_adds_no_dash`. `write_lesson_bundle`
-  for a record whose artifacts hold no dash yields a first line `# Lesson bundle: <id>` and no
-  U+2013 or U+2014 anywhere.
-- CONTROL `lesson_bundle_copies_artifact_text_verbatim`. A `context.md` body holding U+2014 is
-  copied unchanged.
+  for a record with a title, two acceptance criteria, affected specs and paths, a recorded
+  verification command, and `context.md`, `design.md` and `testing.md` bodies, none holding a
+  dash, yields a first line `# Lesson bundle: <id>` and no U+2013 or U+2014 anywhere.
+- DISCRIMINATOR `lesson_bundle_copies_user_record_text_verbatim`. U+2014 is placed in the
+  title, in one acceptance criterion, in an affected path and in the `context.md` body. Each
+  appears in the bundle exactly as written, and the count of U+2014 in the bundle equals the
+  count in those inputs, so the bundle adds none. On origin/main the copy assertions pass and
+  the count assertion fails by one, because the heading adds a dash.
+- This is the only coverage of the lesson bundle. A finalize through the built binary needs a
+  fully approved, checked and reviewed change, so the integration test does not attempt one.
 
 `src/commands/init.rs` and `src/commands/migrate.rs` tests modules:
 

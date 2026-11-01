@@ -14,8 +14,10 @@ artifact: docs
     dash form, and is brought in line with the modified requirement.
   - `specs/compact/compact.3md`: the Key Decisions and Notes planes that mention dash
     placeholders get a later lesson plane naming the two accepted forms.
-  - `specs/hooks/hooks.3md`: a lesson plane saying that the begin sentinel and the pre-commit
-    body are read back, so the 6.1.1 forms are frozen literals that readers accept.
+  - `specs/hooks/hooks.3md`: a lesson plane saying that the begin sentinel is read back, so the
+    6.1.1 form is a frozen literal that the reader accepts. The pre-commit body is found by its
+    project-keyed markers and needs no frozen copy; the unmarked legacy comparison has matched no
+    released install since #774.
   - `specs/agents/agents.3md`: template version 6.
 - `CHANGELOG.md` is written by the release change. The PR body states:
   - the observable file-format changes listed in `design.md`;

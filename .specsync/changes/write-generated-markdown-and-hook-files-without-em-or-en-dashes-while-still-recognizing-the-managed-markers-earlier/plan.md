@@ -8,9 +8,10 @@ artifact: plan
 ## Approach
 
 Replace U+2014 in every literal that SpecSync writes into a repository file with a colon, comma
-or semicolon. For the three strings that are also read back (the hook begin sentinel, the
-pre-commit hook body and the compaction summary row), keep a frozen 6.1.1 copy that readers
-accept. Add one integration test over the bytes the binary writes, plus per-module unit tests,
+or semicolon. For the two strings that are read back in a form a release actually wrote (the hook
+begin sentinel and the compaction summary row), readers accept the 6.1.1 form too. The
+pre-commit hook body needs no frozen copy: since #480 it is written only inside project-keyed
+markers that carry no dash (see `context.md`). Add one integration test over the bytes the binary writes, plus per-module unit tests,
 so a new dash in any writer fails CI.
 
 ## Out of scope
@@ -32,8 +33,7 @@ so a new dash in any writer fails CI.
    `CREATE_SPEC_STEPS_MD`. Bump `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
 3. Part B: rewrite the four hook snippets, add `LEGACY_HOOK_BEGIN` and `is_hook_begin`, and use
    them in `remove_section_from_file`.
-4. Part C: rewrite `PRE_COMMIT_HOOK`, add the frozen `LEGACY_PRE_COMMIT_HOOK`, and accept either
-   in `uninstall_precommit`.
+4. Part C: rewrite `PRE_COMMIT_HOOK`. `uninstall_precommit` is unchanged.
 5. Part D: change the compaction writer, and teach `summary_metadata` both forms.
 6. Regenerate this repository's agent assets with the built binary
    (`target/release/specsync agents install`). Commit the changed
@@ -43,6 +43,7 @@ so a new dash in any writer fails CI.
    - `specs/compact/requirements.md`: the free acceptance list that still names the dash form;
    - `compact.3md` notes;
    - lessons on a later plane of `hooks.3md`, `compact.3md` and `agents.3md`;
+  - the new requirement in `specs/change/requirements.md` as REQ-change-116;
    - each touched spec's version and Change Log.
 8. Run the regression lanes in `testing.md`. Then run `fledge lanes run pre-push` before any
    push.
@@ -58,6 +59,9 @@ so a new dash in any writer fails CI.
   constants. A writer this change does not exercise, such as `scaffold`, `generate`, `import` or
   `init-registry`, is covered by a byte grep of the string literals (none found) but not by the
   test. The open question in `tasks.md` asks whether to extend it.
+- **Sibling drafts.** #825 and #826 add requirement ids in the same module, and #825 edits the
+  same change source file. The id is chosen to avoid a collision, and the source edit here is
+  one line.
 - **Range separator.** A changelog whose first cell contains ` to ` would truncate the recorded
   range start. Generated and documented first cells are dates.
 

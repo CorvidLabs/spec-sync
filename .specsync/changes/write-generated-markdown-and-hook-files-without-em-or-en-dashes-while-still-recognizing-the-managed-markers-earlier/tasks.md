@@ -10,7 +10,7 @@ artifact: tasks
 - [ ] Use a colon in the `init` and `migrate` `.specsync/.gitignore` headers.
 - [ ] Repunctuate `CREATE_SPEC_STEPS_MD` and set `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
 - [ ] Repunctuate the four hook snippets, and write the new begin sentinel while reading both forms in `remove_section_from_file`.
-- [ ] Repunctuate `PRE_COMMIT_HOOK`, and accept the frozen 6.1.1 body in legacy pre-commit uninstall.
+- [ ] Repunctuate `PRE_COMMIT_HOOK`. No reader changes: project-keyed blocks are found by their markers.
 - [ ] Write compaction summaries as `<first> to <last>` with `-` placeholders, and read both forms in `summary_metadata`.
 - [ ] Add `tests/integration/generated_output_has_no_dashes.rs` and register it in `tests/integration.rs`.
 - [ ] Regenerate this repository's agent assets and `.specsync/agent-artifacts.json` with the built binary.
@@ -36,6 +36,13 @@ Decisions proposed to the human, not made by this draft:
   existing installs lose their dashes without an uninstall.
 - Whether the guard test should also drive `scaffold`, `generate`, `import` and `init-registry`.
   A byte grep of their literals found no dash today.
+- Whether to fix, in a separate change, the existing gap found while drafting:
+  `hooks uninstall --precommit` has not recognized the unmarked hooks that v5.x wrote since
+  #774 changed `PRE_COMMIT_HOOK`. Those installs are now reported as an ambiguous legacy block
+  or left alone. This draft does not change that behavior.
+- Requirement id order with the sibling drafts. This package takes REQ-change-116, after #826
+  (REQ-change-113) and #825 (REQ-change-114 and REQ-change-115). If the human prefers a
+  different order, the ids are renumbered before any of the three is approved.
 - Whether stdout Markdown that users commonly redirect into files, such as `specsync comment`
   bodies and `--format markdown` reports, should follow the same rule in a later change.
 

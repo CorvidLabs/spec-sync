@@ -10,8 +10,10 @@ The full requirement text is in `deltas/`, one file per module. Approval materia
 ### REQ-hooks-005 (added)
 
 Hook instruction blocks, the pre-commit hook and Claude Code hook settings are written without
-U+2013 or U+2014. The 6.1.1 begin sentinel and pre-commit body stay recognized by uninstall. The
-new begin sentinel is
+U+2013 or U+2014. The 6.1.1 begin sentinel stays recognized by uninstall. Project-keyed
+pre-commit blocks are found by their markers, so a 6.1.1 body is removed as before. Unmarked
+legacy pre-commit recognition keeps comparing against the current body; no frozen copy is added.
+The new begin sentinel is
 ``<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->``. Detection
 markers, the end sentinel and the project-keyed pre-commit markers are unchanged.
 
@@ -29,10 +31,17 @@ summary: it is left byte for byte when nothing is compacted, and is replaced by 
 row when more rows fold. A row mixing the two placeholder forms is not a summary. Every other
 criterion is restated unchanged.
 
-### REQ-change-113 (added)
+### REQ-change-116 (added)
 
-The lesson bundle's heading is `# Lesson bundle: <id>`. The bundle adds no dash of its own, and
-copies artifact text unchanged.
+The lesson bundle's heading is `# Lesson bundle: <id>`. The bundle's fixed text adds no dash of
+its own. All user-supplied record text it copies stays unchanged: the title, acceptance criteria,
+affected specs and paths, verification command strings, and the `context.md`, `design.md` and
+`testing.md` bodies.
+
+The id is 116, not the next free id on origin/main (113). Two sibling drafts already claim the
+next ids: #826 adds REQ-change-113 and #825 adds REQ-change-114 and REQ-change-115. If those
+drafts are renumbered or dropped, this id should be revisited before approval rather than leave
+a gap by accident.
 
 ### REQ-cmd-init-008 and REQ-cmd-migrate-004 (added)
 

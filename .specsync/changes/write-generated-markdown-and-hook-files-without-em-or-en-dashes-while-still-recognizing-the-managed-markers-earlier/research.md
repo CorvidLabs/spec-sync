@@ -13,15 +13,16 @@ artifact: research
 | Hook end sentinel `<!-- specsync:hook:end -->` | same | `src/hooks.rs:828` | yes, no dash, unchanged |
 | `Spec-Sync Integration` / `Spec-Sync Rules` | snippet headings | `is_installed`, install no-op check, uninstall marker | yes, no dash, unchanged |
 | Instruction snippet bodies | `install_markdown_snippet` | exact-snippet fallback (`position_of_slice`, `src/hooks.rs:836`) | yes |
-| `PRE_COMMIT_HOOK` body | `pre_commit_block` | legacy appended block (`:671`) and whole-file (`:679`) recognition | yes, in legacy hooks |
+| `PRE_COMMIT_HOOK` body | `pre_commit_block`, inside project-keyed markers | unmarked legacy comparisons (`:671`, `:679`) | 6.1.1 body only inside markers; unmarked hooks carry the v5.x text, which has not matched since #774 |
 | Pre-commit project-keyed markers | `pre_commit_markers` | install, uninstall, status | yes, no dash, unchanged |
 | Compaction summary range and placeholders | `compact_spec_changelog` (`src/compact.rs:313`) | `summary_metadata` (`:500`, `:503`) | yes, in every compacted changelog |
 | Lesson-bundle heading | `write_lesson_bundle` | nothing | yes, in frozen archives |
 | `.specsync/.gitignore` header | `init`, `migrate` | nothing (existence only) | yes |
 | create-spec command text | `agents install` | digest manifest only | yes, digest-tracked |
 
-The first, fourth, fifth and seventh rows are the compatibility surface. Every other row is
-write-only.
+The first, fourth and seventh rows are the compatibility surface. The fifth row looks like one
+but is not: no release wrote an unmarked hook with the current text, so changing it strands
+nothing. Every other row is write-only.
 
 ## Alternatives considered
 

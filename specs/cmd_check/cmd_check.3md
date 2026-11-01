@@ -34,3 +34,8 @@ Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs
 @plane z=4 label="Notes"
 - Orchestrates deterministic validation, scoring, lifecycle, and git modules.
 - `--dry-run` without `--fix` prints a warning and otherwise does nothing.
+
+@plane z=5 label="Lesson: the export table is the one holding exports (#768)"
+- A `Name` header does not mark an export table: parameter tables commonly use `| Name | Type | Description |`. #815 preferred the first `Name` table and moved rows out of a correct `| Function | Description |` table into a parameters table.
+- `--fix` now trusts the signal the checker trusts: the last table holding a row `get_spec_symbols` reads as documented. Only when no table holds one does the header rule (`Name`, `Function`, `Export`, `Symbol`, not a parameter or field table) decide, and the final fallback is the old last table.
+- Width and insertion point come from that one table. Taking them from two different tables (first table width, last table position) was the original #768 case 1 bug.

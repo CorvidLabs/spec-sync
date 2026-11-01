@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-check-fix-export-rows-in-the-table-that-already-holds-documented-exports-768-case-1",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "2d87128f70258018dc164e2a798577192b243490",
+      "contract_digest": "21722b45d2520ae6345e36949e9716bc256a23488951cd0ad40f9c6670b0d53d",
+      "execution_digest": "4536751ab4a67fa2224040f346b5231f82db9cb092c9bdf183f51507f8a15a80",
+      "workspace_digest": "2ea74e2f0e11d629c8e96ff998946b8610a393fce826c18e1b92347c572d690b",
+      "timestamp": 1793557338
+    }
+  ]
+}

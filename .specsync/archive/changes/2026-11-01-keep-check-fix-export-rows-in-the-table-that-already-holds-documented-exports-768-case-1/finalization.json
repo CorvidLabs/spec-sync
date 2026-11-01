@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-check-fix-export-rows-in-the-table-that-already-holds-documented-exports-768-case-1",
+  "implementation_commit": "2d87128f70258018dc164e2a798577192b243490",
+  "implementation_tree": "9ef156c13e91c6deeb5b7b7c3e5f10d0fdc71dfa",
+  "contract_digest": "21722b45d2520ae6345e36949e9716bc256a23488951cd0ad40f9c6670b0d53d",
+  "workspace_digest": "2ea74e2f0e11d629c8e96ff998946b8610a393fce826c18e1b92347c572d690b",
+  "closing_digest": "ca1167b888d9ccbfc38b0deba64fef0bef5baf93b76a1c97516283feb5252f2d",
+  "review_digest": "918b0b8c604b5801f37c305d2795aedf3ce75f72bc142cd9d3e58f3f02ad82b5",
+  "finalization_digest": "88b2d20f927dbd73c3142966590f3ddc18e56e5a9f36abfcdd38f2e7999a2c51",
+  "timestamp": 1793557385
+}

@@ -1060,28 +1060,80 @@ fn is_table_row(line: &str) -> bool {
     trimmed.len() > 2 && trimmed.starts_with('|') && trimmed.ends_with('|')
 }
 
-/// Column count of the first markdown table row found in `section`, if any.
-fn table_column_count(section: &str) -> Option<usize> {
-    table_rows_outside_code(section)
-        .first()
-        .map(|(_, row)| row[1..row.len() - 1].split('|').count())
+/// One contiguous Markdown table in a Public API block, as `--fix` sees it.
+struct FixTable<'a> {
+    /// Byte offset (relative to the block) just past the table's last row.
+    end: usize,
+    /// Header cells, trimmed.
+    header: Vec<&'a str>,
+    /// True once the separator row below the header has been seen.
+    past_separator: bool,
+    /// True when a data row holds a symbol the parser reads as documented.
+    documented: bool,
 }
 
-/// Markdown table rows in `block` that are not inside fenced or indented code,
-/// as (byte offset just past the row's line, trimmed row text).
+impl FixTable<'_> {
+    /// First-column header `Name`, `Function`, `Export` or `Symbol`,
+    /// singular or plural, ignoring case.
+    fn has_export_header(&self) -> bool {
+        let first = self.header.first().copied().unwrap_or_default();
+        ["name", "function", "export", "symbol"].iter().any(|word| {
+            first.eq_ignore_ascii_case(word)
+                || first
+                    .strip_suffix(['s', 'S'])
+                    .is_some_and(|stem| stem.eq_ignore_ascii_case(word))
+        })
+    }
+
+    /// A parameter or field table: a non-first column named `Type`, or a
+    /// first column named `Parameter`, `Param`, `Argument` or `Field`.
+    fn is_parameter_table(&self) -> bool {
+        let first = self.header.first().copied().unwrap_or_default();
+        self.header
+            .iter()
+            .skip(1)
+            .any(|cell| cell.eq_ignore_ascii_case("type"))
+            || ["parameter", "param", "argument", "field"]
+                .iter()
+                .any(|word| first.eq_ignore_ascii_case(word))
+    }
+}
+
+/// True when `row` is a table separator such as `|---|:--:|`.
+fn is_separator_row(row: &str) -> bool {
+    row[1..row.len() - 1].split('|').all(|cell| {
+        let cell = cell.trim();
+        cell.contains('-') && cell.chars().all(|c| matches!(c, '-' | ':'))
+    })
+}
+
+/// The one table of a Public API block that receives new export rows, as
+/// (byte offset just past its last row, header column count) (#768,
+/// REQ-cmd-check-017). Width and insertion point always come from this one
+/// table. The target is the last table holding a documented export row;
+/// otherwise the first table with an export-like first-column header that is
+/// not a parameter or field table; otherwise the last table.
 ///
+/// A table is a maximal run of consecutive table-row lines outside code.
 /// Fences follow CommonMark: an opening run of three or more backticks or
 /// tildes is closed only by a run of the same character at least as long,
 /// so a ```` ```` ```` sample that itself contains a ``` block stays one
-/// example. Four-space or tab indented lines are code too. `--fix` derives
-/// both the column template and the insertion point from these rows, so a
-/// pipe-shaped line inside an example can neither set the width nor become
-/// the "last row" of the table.
-fn table_rows_outside_code(block: &str) -> Vec<(usize, &str)> {
-    let mut rows = Vec::new();
+/// example. Four-space or tab indented lines are code too, so a pipe-shaped
+/// line inside an example can neither set the width nor become the "last
+/// row" of the table. Rows extend a table rather than following trailing
+/// prose (#615).
+///
+/// Whether a row is documented is decided by `parser::get_spec_symbols`
+/// itself, given the row and any `####` headings above it in the current
+/// `###` subsection, so a class method sub-table the checker skips does not
+/// count and the fixer and the checker agree on what is documented.
+fn export_table(block: &str) -> Option<(usize, usize)> {
+    let mut tables: Vec<FixTable> = Vec::new();
     let mut offset = 0;
     let mut fence: Option<(char, usize)> = None;
+    let mut minor_headings = String::new();
     for line in block.split_inclusive('\n') {
+        let start = offset;
         offset += line.len();
         let trimmed = line.trim_start();
         let marker = ['`', '~'].into_iter().find_map(|c| {
@@ -1105,24 +1157,48 @@ fn table_rows_outside_code(block: &str) -> Vec<(usize, &str)> {
         if line.starts_with("    ") || line.starts_with('\t') {
             continue;
         }
+        if line.starts_with("### ") {
+            minor_headings.clear();
+        } else if line.starts_with("####") {
+            minor_headings.push_str(line.trim_end());
+            minor_headings.push('\n');
+        }
         let row = line.trim();
-        if is_table_row(row) {
-            rows.push((offset, row));
+        if !is_table_row(row) {
+            continue;
+        }
+        match tables.last_mut().filter(|table| table.end == start) {
+            Some(table) => {
+                table.end = offset;
+                if !table.past_separator {
+                    table.past_separator = is_separator_row(row);
+                } else if !table.documented {
+                    let probe = format!(
+                        "## Public API\n\n{minor_headings}{}\n",
+                        line.trim_end_matches(['\r', '\n'])
+                    );
+                    table.documented = !parser::get_spec_symbols(&probe).is_empty();
+                }
+            }
+            None => tables.push(FixTable {
+                end: offset,
+                header: row[1..row.len() - 1].split('|').map(str::trim).collect(),
+                past_separator: false,
+                documented: false,
+            }),
         }
     }
-    rows
-}
-
-/// Byte offset (relative to `block`) of the start of the line following the
-/// last markdown table row in `block` outside code examples, if `block`
-/// contains a table at all.
-///
-/// `--fix` inserts new export rows here so they extend the existing table.
-/// Appending at the end of the section or subsection instead put the rows
-/// after any trailing prose (e.g. an "Acceptance Criteria" paragraph), where
-/// they are orphaned pipe-delimited text outside every table (#615).
-fn table_rows_end(block: &str) -> Option<usize> {
-    table_rows_outside_code(block).last().map(|(end, _)| *end)
+    tables
+        .iter()
+        .rev()
+        .find(|table| table.documented)
+        .or_else(|| {
+            tables
+                .iter()
+                .find(|table| table.has_export_header() && !table.is_parameter_table())
+        })
+        .or_else(|| tables.last())
+        .map(|table| (table.end, table.header.len()))
 }
 
 /// Normalize near-miss export headers within ## Public API.
@@ -1478,11 +1554,12 @@ fn auto_fix_specs(
                 for (&target, syms) in syms_by_target.iter().rev() {
                     let (_, start, end) = export_subs[target];
                     let block = &content[start..end];
-                    let columns = table_column_count(block);
+                    let table = export_table(block);
+                    let columns = table.map(|(_, columns)| columns);
                     let rows = build_rows(syms, columns);
                     // Extend the subsection's table; only fall back to the
                     // subsection end when it has no table yet.
-                    let insert_at = table_rows_end(block).map_or(end, |p| start + p);
+                    let insert_at = table.map_or(end, |(p, _)| start + p);
                     new_content = format!(
                         "{}\n{}\n{}",
                         new_content[..insert_at].trim_end(),
@@ -1494,8 +1571,9 @@ fn auto_fix_specs(
                 // No ### subsections — flat table (possibly under a bold
                 // `**Functions**` label) or empty body. Extend the existing
                 // table when there is one; otherwise insert at section end.
-                let rows = build_rows(&undocumented, table_column_count(api_section));
-                let insert_at = table_rows_end(api_section).map_or(api_end, |p| api_start + p);
+                let table = export_table(api_section);
+                let rows = build_rows(&undocumented, table.map(|(_, columns)| columns));
+                let insert_at = table.map_or(api_end, |(p, _)| api_start + p);
                 new_content = format!(
                     "{}\n{}\n{}",
                     content[..insert_at].trim_end(),

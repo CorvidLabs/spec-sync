@@ -1,6 +1,6 @@
 ---
 id: report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json
-state: verifying
+state: archived
 type: feature
 base_commit: a80748ff44ff42cd7578ac0f7cb8ba7e080ab183
 ---

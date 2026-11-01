@@ -7,10 +7,11 @@
   "title": "Advance the published SpecSync 6.1.2 Action default and archive-gate examples after platform consumer checks",
   "description": "Advance the published SpecSync 6.1.2 Action default and archive-gate examples after platform consumer checks",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "d08d2746f635bc26900601376d7392395d07faa9",
   "created_at": 1793566752,
-  "updated_at": 1793566941,
+  "updated_at": 1793567117,
   "affected_specs": [
     "github"
   ],

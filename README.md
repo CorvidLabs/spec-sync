@@ -21,11 +21,11 @@ Rust · single binary · 33 languages · no SpecSync API key required
 
 ## Install
 
-This tree prepares **6.1.2**; it has not been published or qualified as a release.
-The published GitHub release remains **6.1.1**. The 6.1.2 Action examples below
-are for use after immutable candidate qualification and publication; use the published
-6.1.1 pins until then. See [the candidate handoff](docs/releases/6.1.2.md).
-GitHub asset publication does not itself establish crates.io or Homebrew publication.
+The GitHub **6.1.2** release uses the immutable candidate qualified on Ubuntu and
+macOS, and crates.io serves 6.1.2. This separate Action wrapper update selects its
+published binary by default. Confirm availability at your chosen distribution before
+using the 6.1.2 installation pins below; GitHub asset publication does not itself
+establish Homebrew publication.
 Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
 the same 6.x version.
 
@@ -51,13 +51,13 @@ brew install CorvidLabs/tap/spec-sync
     require-coverage: '100'
 ```
 
-After publication use the explicit `@v6.1.2` Action and binary pins shown above for release gates.
+Use the explicit `@v6.1.2` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
 when using that older tag. This main wrapper's omitted-input default is published
-`6.1.1`, following supported-platform asset and Action checks. The immutable
-`@v6.1.1` tag still embeds default `6.1.0`: explicitly pass `version: '6.1.1'` with
+`6.1.2`, following supported-platform asset and Action checks. The immutable
+`@v6.1.2` tag still embeds default `6.1.1`: explicitly pass `version: '6.1.2'` with
 that tag for its new binary. Floating `@v6` advances to this wrapper commit only after
-its actual consumer checks pass; the immutable `@v6.1.1` ref is never moved here.
+its actual consumer checks pass; the immutable `@v6.1.2` ref is never moved here.
 
 Minimal immutable configuration:
 

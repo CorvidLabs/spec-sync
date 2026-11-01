@@ -1,6 +1,6 @@
 ---
 id: keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 3d3d6e6db88077b1c233b37e4958916d8da40bbd
 ---

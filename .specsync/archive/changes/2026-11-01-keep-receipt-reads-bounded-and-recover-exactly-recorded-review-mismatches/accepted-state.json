@@ -7,11 +7,11 @@
   "title": "Keep receipt reads bounded and recover exactly recorded review mismatches",
   "description": "Keep receipt reads bounded and recover exactly recorded review mismatches",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "3d3d6e6db88077b1c233b37e4958916d8da40bbd",
   "created_at": 1793564313,
-  "updated_at": 1793564699,
+  "updated_at": 1793564726,
   "affected_specs": [
     "change"
   ],

@@ -42,6 +42,27 @@
         "REQ-cmd-change-019",
         "REQ-github-023"
       ]
+    },
+    {
+      "timestamp": 1793509413,
+      "commit": "b2c0738e3cf3627dae1b081044c10407cd515bd5",
+      "contract_digest": "bfb94618e709fa1cb52cd27d5d1514a4a8c2fd3f656464a87d70a2d8ef24e57b",
+      "execution_digest": "f082446f5e7bf308b823ecfef4e46fc7cf201e5008a80b5e889fce587eb67fd5",
+      "workspace_digest": "4fc6b42cab79bb1a01d9bd40c572b04bd92a06e3bb82c51662e588d6258c7766",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec cmd_change --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-cmd-change-007",
+        "REQ-cmd-change-019",
+        "REQ-github-023"
+      ]
     }
   ]
 }

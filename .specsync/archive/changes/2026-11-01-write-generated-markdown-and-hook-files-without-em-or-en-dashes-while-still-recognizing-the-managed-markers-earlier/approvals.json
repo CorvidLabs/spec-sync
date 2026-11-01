@@ -211,6 +211,13 @@
         "compact": "9f53d1c3d4e6c012125b41b88703bd8985b3e9077f22707567a28e5e80ca64c7",
         "hooks": "20ed3145590a7157dd96ff00125fec607f891191c0a5a7a637da6ebeba3bec4e"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793547670,
+      "digest": "a0b220a5ea172791fd2e7bab8850ba9e0c4f5e88f65a976e610a1205ed9a0ff2",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

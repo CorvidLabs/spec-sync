@@ -7,11 +7,11 @@
   "title": "Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote",
   "description": "Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "a80748ff44ff42cd7578ac0f7cb8ba7e080ab183",
   "created_at": 1793496917,
-  "updated_at": 1793545043,
+  "updated_at": 1793547670,
   "affected_specs": [
     "hooks",
     "agents",

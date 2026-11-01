@@ -7,10 +7,10 @@
   "title": "Refresh release-validator fixtures and remaining current guidance for published SpecSync 6.1.2",
   "description": "Refresh release-validator fixtures and remaining current guidance for published SpecSync 6.1.2",
   "kind": "documentation",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "94585d49d549c581db498eca25899856e27fa43c",
   "created_at": 1793567352,
-  "updated_at": 1793567368,
+  "updated_at": 1793567664,
   "affected_specs": [],
   "affected_paths": [
     ".github/scripts/test-validate-release-candidate.py",

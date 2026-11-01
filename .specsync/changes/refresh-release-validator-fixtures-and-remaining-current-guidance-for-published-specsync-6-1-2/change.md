@@ -1,6 +1,6 @@
 ---
 id: refresh-release-validator-fixtures-and-remaining-current-guidance-for-published-specsync-6-1-2
-state: draft
+state: approved
 type: documentation
 base_commit: 94585d49d549c581db498eca25899856e27fa43c
 ---

@@ -276,7 +276,7 @@ jobs:
             fledge_asset: fledge-linux-x86_64
             fledge_sha256: bebbd9b9f377468b377ee1e177aef96992ee8f8d9f075f9fe2323153f2e165ec
           - platform: macos
-            os: macos-14
+            os: macos-15
             fledge_asset: fledge-macos-x86_64
             fledge_sha256: 5c52a05710918d8bf566546fdaa8f32792b169bbefad46addb6009837f7819d2
     permissions:

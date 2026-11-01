@@ -7,10 +7,11 @@
   "title": "Let the release validator accept the Action archive gate in CI and docs before its release",
   "description": "Let the release validator accept the Action archive gate in CI and docs before its release",
   "kind": "operations",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "a5043451fe1cde489347f036d209dee088292310",
   "created_at": 1793509380,
-  "updated_at": 1793509402,
+  "updated_at": 1793509418,
   "affected_specs": [],
   "affected_paths": [
     ".github/scripts/validate-release-version.py",

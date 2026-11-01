@@ -14,6 +14,17 @@ Each new test carries an honest label:
 Labels are confirmed against a build of unfixed a80748ff from a separate checkout before review.
 Results are recorded here after verification, not assumed.
 
+## Requirement evidence
+
+| Requirement | Evidence |
+|-------------|----------|
+| `REQ-hooks-005` | `generated_hook_content_contains_no_em_or_en_dash`, `uninstall_removes_a_block_with_the_new_begin_sentinel_exactly`, `uninstall_removes_a_block_with_the_6_1_1_begin_sentinel_exactly`, `uninstall_precommit_removes_a_managed_block_with_the_6_1_1_body` (src/hooks.rs); `fresh_project_writers_emit_no_em_or_en_dash` and `hooks_uninstall_through_the_binary_removes_a_6_1_1_block` (integration). |
+| `REQ-agents-009` | `generated_agent_artifacts_contain_no_em_or_en_dash`, `manifest_allows_unmodified_generated_artifact_upgrade`, `checked_in_create_spec_commands_match_generated_assets` (src/agents.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
+| `REQ-compact-001` | `compact_summary_rows_contain_no_em_or_en_dash`, `compact_leaves_a_6_1_1_summary_byte_for_byte_without_excess`, `compact_folds_a_6_1_1_summary_into_one_new_form_row`, `compact_does_not_treat_mixed_placeholder_forms_as_a_summary` and the existing compact suite (src/compact.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
+| `REQ-change-116` | `lesson_bundle_heading_uses_a_colon_and_adds_no_dash`, `lesson_bundle_copies_user_record_text_verbatim` (src/change_tests). |
+| `REQ-cmd-init-008` | `specsync_gitignore_content_has_no_em_or_en_dash` (src/commands/init.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
+| `REQ-cmd-migrate-004` | `apply_write_gitignore_writes_no_em_or_en_dash` (src/commands/migrate.rs); `migrate_writes_no_em_or_en_dash` (integration). |
+
 ## Integration: `tests/integration/generated_output_has_no_dashes.rs`
 
 New module, registered in `tests/integration.rs`. It covers the writers named in the second

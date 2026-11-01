@@ -1,0 +1,23 @@
+{
+  "timestamp": 1793500638,
+  "commit": "aa5a068f3d93bbb14768bdeaaf35fcc4129aba2c",
+  "contract_digest": "db8e50ab1948f01e51133366a90c8dd7a15873dce41a66de66cb15d801c63f73",
+  "execution_digest": "a548fefa34f29572ac6e197f5997bdf45ad154383b50e228fc45788fb1a8edcc",
+  "workspace_digest": "4d44f6f49528fb2ed3ab4494b1dc3add62e673d29ef44047bc22b0d35085564d",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-agents-009",
+    "REQ-change-116",
+    "REQ-cmd-init-008",
+    "REQ-cmd-migrate-004",
+    "REQ-compact-001",
+    "REQ-hooks-005"
+  ]
+}

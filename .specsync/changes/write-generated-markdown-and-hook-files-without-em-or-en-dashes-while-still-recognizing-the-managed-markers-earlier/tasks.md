@@ -16,10 +16,11 @@ artifact: tasks
 - [x] Regenerate this repository's agent assets and `.specsync/agent-artifacts.json` with the built binary.
 - [x] Update the compact requirements list, the hooks, compact and agents lesson planes, and each touched spec's version and Change Log.
 - [x] Run the regression lanes in `testing.md`, re-run the issue's repro with the fixed build, and record the observed results.
-- [ ] Follow-up, not in this scope: the tracked `SKILL.md` files for all four tools no longer
-  match their recorded digests or the generated `SKILL_BODY` (drift from #808, before this
-  change), so `agents install` in this repository refuses each tool. Only the command entries
-  of `.specsync/agent-artifacts.json` and the two create-spec commands were regenerated here.
+
+Follow-up, not in this scope: the tracked `SKILL.md` files for all four tools no longer
+match their recorded digests or the generated `SKILL_BODY` (drift from #808, before this
+change), so `agents install` in this repository refuses each tool. Only the command entries
+of `.specsync/agent-artifacts.json` and the two create-spec commands were regenerated here.
 
 ## Human gates
 

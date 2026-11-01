@@ -1,6 +1,6 @@
 ---
 id: write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier
-state: approved
+state: implementing
 type: bug_fix
 base_commit: a80748ff44ff42cd7578ac0f7cb8ba7e080ab183
 ---

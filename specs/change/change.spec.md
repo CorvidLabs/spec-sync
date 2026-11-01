@@ -1,6 +1,6 @@
 ---
 module: change
-version: 150
+version: 151
 status: active
 files:
   - src/change.rs
@@ -556,3 +556,4 @@ Acceptance Criteria
 | 2026-10-23 | authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage: Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage |
 | 2026-10-31 | report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited: Report an approval as invalid in change status when an approved semantic delta body is edited |
 | 2026-10-31 | run-the-effective-contract-gate-on-the-first-change-check-and-record-its-refusal-instead-of-leaving-a-stale-pass: Run the effective contract gate on the first change check and record its refusal instead of leaving a stale pass current |
+| 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |

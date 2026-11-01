@@ -1,6 +1,6 @@
 ---
 module: compact
-version: 10
+version: 11
 status: stable
 files:
   - src/compact.rs
@@ -117,3 +117,4 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str: Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output |
+| 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |

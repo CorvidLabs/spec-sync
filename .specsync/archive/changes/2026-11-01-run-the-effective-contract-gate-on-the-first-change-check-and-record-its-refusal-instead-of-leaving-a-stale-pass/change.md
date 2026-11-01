@@ -1,6 +1,6 @@
 ---
 id: run-the-effective-contract-gate-on-the-first-change-check-and-record-its-refusal-instead-of-leaving-a-stale-pass
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f240d379b9f023f5766e5c9b39508eb84e03e2bb
 ---

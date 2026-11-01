@@ -15,16 +15,19 @@ artifact: tasks
 - [x] Tie the range separator to its placeholder form, and refuse a range start that contains ` to ` (PR #829 review).
 - [x] Add `tests/integration/generated_output_has_no_dashes.rs` and register it in `tests/integration.rs`.
 - [x] Regenerate this repository's create-spec commands and the command entries of `.specsync/agent-artifacts.json` with the built binary.
-- [ ] Regenerate the four tracked `*/skills/spec-sync/SKILL.md` files (`.claude`, `.codex`, `.cursor`, `.gemini`) and every entry of `.specsync/agent-artifacts.json` with the built binary, so every tracked agent asset and manifest entry matches a fresh install and REQ-agents-009 criterion 3 holds. Add `tracked_agent_artifacts_and_manifest_match_a_fresh_install` (see `testing.md`) first and confirm it fails at bb7b4b4d before regenerating. 0xLeif decided to add the four paths to `affected_paths` and regenerate (PR #829); this task runs after that amendment is re-approved.
+- [x] Regenerate the four tracked `*/skills/spec-sync/SKILL.md` files (`.claude`, `.codex`, `.cursor`, `.gemini`) and every entry of `.specsync/agent-artifacts.json` with the built binary, so every tracked agent asset and manifest entry matches a fresh install and REQ-agents-009 criterion 3 holds. Add `tracked_agent_artifacts_and_manifest_match_a_fresh_install` (see `testing.md`) first and confirm it fails at bb7b4b4d before regenerating. 0xLeif decided to add the four paths to `affected_paths` and regenerate (PR #829); this task runs after that amendment is re-approved.
 - [x] Update the compact requirements list, the hooks, compact and agents lesson planes, and each touched spec's version and Change Log.
 - [x] Run the regression lanes in `testing.md`, re-run the issue's repro with the fixed build, and record the observed results.
 
-Context for the open task above: the tracked `SKILL.md` files for all four tools no longer
-match their recorded digests or the generated `SKILL_BODY` (drift from #808, before this
-change), so `agents install` in this repository refuses each tool. Only the command entries
+Context for the SKILL.md task above: the tracked `SKILL.md` files for all four tools no longer
+matched their recorded digests or the generated `SKILL_BODY` (drift from #808, before this
+change), so `agents install` in this repository refused each tool. Only the command entries
 of `.specsync/agent-artifacts.json` and the two create-spec commands were regenerated at
-bb7b4b4d. The amended `affected_paths` now lists the four `SKILL.md` files beside
-`.specsync/agent-artifacts.json`, so the regeneration stays inside the approved scope.
+bb7b4b4d. The amended `affected_paths` lists the four `SKILL.md` files beside
+`.specsync/agent-artifacts.json`, so the regeneration stays inside the approved scope. It was
+done by a fresh `target/release/specsync agents install --root <scratch>` copied back, because
+`agents install` has no force flag and refuses the drifted files in place; results are in
+`testing.md`.
 
 ## Human gates
 

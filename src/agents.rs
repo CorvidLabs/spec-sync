@@ -1817,4 +1817,63 @@ mod tests {
         }
         assert!(offenders.is_empty(), "{}", offenders.join("\n"));
     }
+
+    // DISCRIMINATOR for REQ-agents-009 criterion 3 (#827).
+    #[test]
+    fn tracked_agent_artifacts_and_manifest_match_a_fresh_install() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
+        if !repo.join(AGENT_ARTIFACT_MANIFEST_PATH).exists() {
+            // Published crate archives intentionally omit repository-only agent fixtures.
+            return;
+        }
+        let tmp = setup();
+        for tool in AgentTool::all() {
+            assert!(install_agent(tmp.path(), *tool).unwrap());
+        }
+
+        let mut drift = Vec::new();
+        for tool in AgentTool::all() {
+            for artifact in generated_agent_artifacts(tmp.path(), *tool).unwrap() {
+                let tracked_path = repo.join(&artifact.manifest_key);
+                let fresh = fs::read_to_string(&artifact.path).unwrap();
+                match fs::read_to_string(&tracked_path) {
+                    Ok(tracked) if normalize_checkout_line_endings(&tracked) == fresh => {}
+                    Ok(tracked) => drift.push(format!(
+                        "{}: file differs (tracked {}, fresh {})",
+                        artifact.manifest_key,
+                        content_digest(normalize_checkout_line_endings(&tracked).as_bytes()),
+                        content_digest(fresh.as_bytes())
+                    )),
+                    Err(error) => drift.push(format!("{}: {error}", artifact.manifest_key)),
+                }
+            }
+        }
+
+        let fresh_manifest = load_agent_artifact_manifest(tmp.path()).unwrap();
+        let tracked_manifest = load_agent_artifact_manifest(repo).unwrap();
+        for (key, fresh) in &fresh_manifest.artifacts {
+            match tracked_manifest.artifacts.get(key) {
+                Some(tracked) if tracked == fresh => {}
+                Some(tracked) => drift.push(format!(
+                    "{key}: manifest entry differs (tracked {} template {} digest {}, fresh {} template {} digest {})",
+                    tracked.tool,
+                    tracked.template_version,
+                    tracked.digest,
+                    fresh.tool,
+                    fresh.template_version,
+                    fresh.digest
+                )),
+                None => drift.push(format!("{key}: manifest entry missing from tracked manifest")),
+            }
+        }
+        for key in tracked_manifest.artifacts.keys() {
+            if !fresh_manifest.artifacts.contains_key(key) {
+                drift.push(format!(
+                    "{key}: tracked manifest entry a fresh install does not write"
+                ));
+            }
+        }
+        assert_eq!(tracked_manifest.version, fresh_manifest.version);
+        assert!(drift.is_empty(), "{}", drift.join("\n"));
+    }
 }

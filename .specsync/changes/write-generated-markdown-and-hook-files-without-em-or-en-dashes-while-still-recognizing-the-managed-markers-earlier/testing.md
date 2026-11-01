@@ -19,7 +19,7 @@ Results are recorded here after verification, not assumed.
 | Requirement | Evidence |
 |-------------|----------|
 | `REQ-hooks-005` | `generated_hook_content_contains_no_em_or_en_dash`, `uninstall_removes_a_block_with_the_new_begin_sentinel_exactly`, `uninstall_removes_a_block_with_the_6_1_1_begin_sentinel_exactly`, `uninstall_precommit_removes_a_managed_block_with_the_6_1_1_body` (src/hooks.rs); `fresh_project_writers_emit_no_em_or_en_dash` and `hooks_uninstall_through_the_binary_removes_a_6_1_1_block` (integration). |
-| `REQ-agents-009` | Criteria 1 and 2: `generated_agent_artifacts_contain_no_em_or_en_dash`, `manifest_allows_unmodified_generated_artifact_upgrade` (src/agents.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). Criterion 3: `tracked_agent_artifacts_and_manifest_match_a_fresh_install` (src/agents.rs), added with the regeneration task in `tasks.md`. At bb7b4b4d criterion 3 is NOT met: `checked_in_create_spec_commands_match_generated_assets` pins the create-spec commands, and every command asset and command manifest entry matches a fresh install, but the four `*/skills/spec-sync/SKILL.md` manifest entries (template 5, digest 43c72636...) and files (e0db91e7...) differ from the generated ones (template 6, digest 94d1a150...). At bb7b4b4d those files were outside the approved `affected_paths`; 0xLeif's amendment adds them, and the regeneration task in `tasks.md` closes the gap. |
+| `REQ-agents-009` | Criteria 1 and 2: `generated_agent_artifacts_contain_no_em_or_en_dash`, `manifest_allows_unmodified_generated_artifact_upgrade` (src/agents.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). Criterion 3: `tracked_agent_artifacts_and_manifest_match_a_fresh_install` (src/agents.rs), added with the regeneration task in `tasks.md`; it failed before the regeneration and passes after it (see "SKILL.md regeneration" below), so criterion 3 is met. At bb7b4b4d criterion 3 was NOT met: `checked_in_create_spec_commands_match_generated_assets` pins the create-spec commands, and every command asset and command manifest entry matches a fresh install, but the four `*/skills/spec-sync/SKILL.md` manifest entries (template 5, digest 43c72636...) and files (e0db91e7...) differ from the generated ones (template 6, digest 94d1a150...). At bb7b4b4d those files were outside the approved `affected_paths`; 0xLeif's amendment adds them, and the regeneration task in `tasks.md` closes the gap. |
 | `REQ-compact-001` | `compact_summary_rows_contain_no_em_or_en_dash`, `compact_leaves_a_6_1_1_summary_byte_for_byte_without_excess`, `compact_folds_a_6_1_1_summary_into_one_new_form_row`, `compact_does_not_treat_mixed_placeholder_forms_as_a_summary`, `compact_does_not_treat_a_range_and_placeholder_form_hybrid_as_a_summary`, `compact_refuses_a_range_start_that_contains_the_separator`, `compact_folds_when_only_the_range_end_contains_the_separator` and the existing compact suite (src/compact.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
 | `REQ-change-116` | `lesson_bundle_heading_uses_a_colon_and_adds_no_dash`, `lesson_bundle_copies_user_record_text_verbatim` (`lesson_bundle_dash_tests` in src/change/historical_definition_digest_matches.rs). |
 | `REQ-cmd-init-008` | `specsync_gitignore_content_has_no_em_or_en_dash` (src/commands/init.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
@@ -226,3 +226,33 @@ builder cannot regenerate the four SKILL.md files: they are outside the approved
 0xLeif decided to add the four paths to `affected_paths` and regenerate. After re-approval the
 regeneration and `tracked_agent_artifacts_and_manifest_match_a_fresh_install` are run, and
 their results are recorded here.
+
+## SKILL.md regeneration under the re-approved scope (2026-11-01)
+
+0xLeif re-approved the amended definition (four `*/skills/spec-sync/SKILL.md` paths added to
+`affected_paths`); `specsync change status <id> --json` reported `approval_valid: true` before
+any of this work.
+
+- Fail-before: `tracked_agent_artifacts_and_manifest_match_a_fresh_install` added to
+  `src/agents.rs` and run against the unregenerated tracked files
+  (`cargo test --locked --bin specsync tracked_agent_artifacts_and_manifest_match_a_fresh_install`):
+  FAILED, naming exactly eight drifts. Each of the four `SKILL.md` files differs (tracked
+  e0db91e7..., fresh 94d1a150...), and each of their four manifest entries differs (tracked
+  template 5 digest 43c72636..., fresh template 6 digest 94d1a150...). No command asset or
+  command entry was reported.
+- Regeneration: `cargo build --locked --release`, then
+  `target/release/specsync agents install --root <empty scratch dir>` (all four tools), then the
+  scratch root's four `SKILL.md` files and `.specsync/agent-artifacts.json` copied over the
+  tracked ones. `agents install` has no force flag and refuses the drifted files in place, so a
+  fresh install copied back is the exact output a fresh install writes. After the copy, every
+  one of the 17 files in the scratch root is byte-identical (`cmp`) to the tracked file.
+- Content change: one line per `SKILL.md`, the `context.md` bullet gains the `<module>.3md`
+  lesson-source sentence from the current `SKILL_BODY`. All four files now hash 94d1a150...;
+  the manifest's four `SKILL.md` entries are template 6, digest 94d1a150....
+- Dash check: U+2014 and U+2013 occur 0 times in each regenerated `SKILL.md` and in
+  `.specsync/agent-artifacts.json`.
+- Pass-after: `tracked_agent_artifacts_and_manifest_match_a_fresh_install` passes;
+  `cargo test --locked --bin specsync agents::`, 44 passed, 0 failed (including
+  `checked_in_create_spec_commands_match_generated_assets`,
+  `tracked_skill_files_carry_the_current_same_actor_guidance` and
+  `tracked_skill_files_teach_check_is_the_product`).

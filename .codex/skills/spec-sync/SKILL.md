@@ -56,7 +56,7 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 - **`tasks.md`** - Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
 - **`requirements.md`** - Acceptance criteria and user stories. These are permanent invariants, not tasks: do not check them off. Update if requirements change.
-- **`context.md`** - Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+- **`context.md`** - Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists beside the spec, that file is the lesson source: the first plane is context and later planes are lessons. Record a new lesson on a later plane. `context.md` stays, and briefings do not read it while the 3md file parses.
 - **`testing.md`** - Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
 - **`design.md`** *(opt-in)* - Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 

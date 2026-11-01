@@ -1268,9 +1268,13 @@ fn aggregate_check_runs(runs: &[CommitCheckRun]) -> &'static str {
 }
 
 /// Whether a check name is trust-lane relevant for ship guidance (heuristic).
+///
+/// `Archive` is matched exactly: under archive-first CI it is the first job, and every
+/// other check on a tip with an open change is skipped behind it.
 pub fn is_trust_relevant_check_name(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    lower.contains("trust")
+    let lower = name.trim().to_ascii_lowercase();
+    lower == "archive"
+        || lower.contains("trust")
         || lower.contains("implementation ready")
         || lower.contains("specsync trusted")
         || lower.contains("required ci")
@@ -2528,6 +2532,8 @@ mod tests {
         assert!(is_trust_relevant_check_name(
             "SpecSync implementation ready"
         ));
+        assert!(is_trust_relevant_check_name("Archive"));
+        assert!(!is_trust_relevant_check_name("Archive old releases"));
 
         let pending = serde_json::json!({
             "check_runs": [

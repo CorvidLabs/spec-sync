@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived",
+  "implementation_commit": "6a0028581fa6f816700be461dc93297cfc0eed40",
+  "implementation_tree": "9e97c5b18fbdca98ce42698cdbe73c095080c068",
+  "contract_digest": "bfb94618e709fa1cb52cd27d5d1514a4a8c2fd3f656464a87d70a2d8ef24e57b",
+  "workspace_digest": "4fc6b42cab79bb1a01d9bd40c572b04bd92a06e3bb82c51662e588d6258c7766",
+  "closing_digest": "df45c423dd78be8823376fb9de1e4151ec4a7e71f7dd5f173025650766fc7545",
+  "review_digest": "07c583f8d8b9cb1cde4babe4c2ba9433634e53728181da4e160b5a81c0f35559",
+  "finalization_digest": "74f0feaba62a5313d90b61521fb0632a7756cb91f3e4270640af586acffada96",
+  "timestamp": 1793509549
+}

@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793500638,
+      "commit": "aa5a068f3d93bbb14768bdeaaf35fcc4129aba2c",
+      "contract_digest": "db8e50ab1948f01e51133366a90c8dd7a15873dce41a66de66cb15d801c63f73",
+      "execution_digest": "a548fefa34f29572ac6e197f5997bdf45ad154383b50e228fc45788fb1a8edcc",
+      "workspace_digest": "4d44f6f49528fb2ed3ab4494b1dc3add62e673d29ef44047bc22b0d35085564d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793500649,
+      "commit": "8eeb0be4225543f969766a38bdb60179928b92b3",
+      "contract_digest": "db8e50ab1948f01e51133366a90c8dd7a15873dce41a66de66cb15d801c63f73",
+      "execution_digest": "a548fefa34f29572ac6e197f5997bdf45ad154383b50e228fc45788fb1a8edcc",
+      "workspace_digest": "f4790748838027fd2d5f4a9c7037da443b24585f1913cedff270892995a2c804",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793501598,
+      "commit": "7d08ed2d8dcf94c949b97e3b8fecbe27cf5a827f",
+      "contract_digest": "db8e50ab1948f01e51133366a90c8dd7a15873dce41a66de66cb15d801c63f73",
+      "execution_digest": "1be2fec6d01b4d8da6d6c7b69f5d44533faa15d6ecf367c90b15d6ced5e0fb14",
+      "workspace_digest": "fbcd38b968a3989fdc19a7eb7ce9cd6bd3a9a386cc96cba5867d8a00cef9dc32",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793501620,
+      "commit": "848c35873f3f82e59366635983fe07402948cec7",
+      "contract_digest": "db8e50ab1948f01e51133366a90c8dd7a15873dce41a66de66cb15d801c63f73",
+      "execution_digest": "1be2fec6d01b4d8da6d6c7b69f5d44533faa15d6ecf367c90b15d6ced5e0fb14",
+      "workspace_digest": "fbcd38b968a3989fdc19a7eb7ce9cd6bd3a9a386cc96cba5867d8a00cef9dc32",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793542159,
+      "commit": "63add5840f3ae9f19f80efd3ca5842a29209ff9f",
+      "contract_digest": "5df1c57e6faff258657e671179d97c29e8551b5135dc17fe46486dcb3698a6f4",
+      "execution_digest": "d7fe7ab21d107f2be7635d26f7f4a4e5bd48ca69fa138989612dc365f55e203c",
+      "workspace_digest": "ad627f9737e383c8fde6edd131329833d0b4a2e3b02709ecf49f191e7408197d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793542170,
+      "commit": "600515ac2735cc46b001d4437fa6144580684532",
+      "contract_digest": "5df1c57e6faff258657e671179d97c29e8551b5135dc17fe46486dcb3698a6f4",
+      "execution_digest": "d7fe7ab21d107f2be7635d26f7f4a4e5bd48ca69fa138989612dc365f55e203c",
+      "workspace_digest": "ad627f9737e383c8fde6edd131329833d0b4a2e3b02709ecf49f191e7408197d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793545029,
+      "commit": "55a11b15173c4ce827cb8d841530175607d94f0b",
+      "contract_digest": "234f0adab21557a501cd85c3c9b9b96083f393b8b72be50f7ba4c926941e3536",
+      "execution_digest": "c7b3d2ec7a87d390ad20f537efeddf4d17aa00b49317b8c579d6977f2f69c91d",
+      "workspace_digest": "955a94571e44ee59da4497b7a5d9bda4ae8889b24007ee439ead4721fbd2796c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-010",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    },
+    {
+      "timestamp": 1793545041,
+      "commit": "54cf236a9af219ed9b9946fdb09470196088707c",
+      "contract_digest": "234f0adab21557a501cd85c3c9b9b96083f393b8b72be50f7ba4c926941e3536",
+      "execution_digest": "c7b3d2ec7a87d390ad20f537efeddf4d17aa00b49317b8c579d6977f2f69c91d",
+      "workspace_digest": "955a94571e44ee59da4497b7a5d9bda4ae8889b24007ee439ead4721fbd2796c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-010",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
+    }
+  ]
+}

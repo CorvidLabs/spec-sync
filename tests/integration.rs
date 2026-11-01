@@ -47,6 +47,9 @@ mod watch;
 #[path = "integration/quickstart.rs"]
 mod quickstart;
 
+#[path = "integration/generated_output_has_no_dashes.rs"]
+mod generated_output_has_no_dashes;
+
 /// Guard against silently-orphaned integration test files (issue #585).
 ///
 /// `tests/integration/regression_w1.rs` sat on disk for months with 20 tests and

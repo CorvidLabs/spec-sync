@@ -56,15 +56,19 @@ A change is identified by a slug minted from its description. Nothing allocates 
 
 Do **not** merge a PR while any SDD change is still active. Squash-merge without finalize strands the workspace and orphans verification.
 
+CI is **archive-first**: the `Archive` job runs before everything else, and every other job depends on it. A pushed tip with any open change under `.specsync/changes/` fails `Archive` and runs nothing else, so there is no remote product-tip run to wait for. Verification and review happen locally; CI runs the full lane once, on the archived tip.
+
 ```text
 1. change approve <id> --actor <human>
 2. implement + keep affected_paths / Public API tables current
-3. change check <id> --commit          # product tip evidence on an ancestor of HEAD
-4. push product tip → wait for trust + implementation ready (when CI requires it)
-5. change review <id> --reviewer <human>   # may be the same actor as approve
-6. change ship <id>                    # or finalize; do NOT commit between review and ship
-7. commit archive tip if needed, push, wait for CI, then merge on GitHub
+3. change check <id> --commit          # local evidence on an ancestor of HEAD
+   fledge lanes run verify             # CI will not test this tip while the change is open
+4. change review <id> --reviewer <human>   # may be the same actor as approve; no CI wait
+5. change ship <id>                    # or finalize; do NOT commit between review and ship
+6. commit the archive tip, push, wait for CI (Archive → full lane on that tip), then merge on GitHub
 ```
+
+Pushing an unarchived tip is fine as a backup, but CI stops at `Archive`. If the full lane fails after archival, push a fix commit on top and keep specs in sync (`specsync check --strict`); a fix that changes the approved scope needs a new change.
 
 Use `change ship-status <id>` any time you are unsure which tip stage you are on.
 

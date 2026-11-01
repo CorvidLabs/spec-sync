@@ -499,6 +499,8 @@ sequenceDiagram
 
     Dev->>CI: push / open PR
     Dev->>T: push / open PR
+    CI->>CI: Archive: every change under .specsync/changes/ is archived (runs first)
+    Note over CI: an open change fails Archive and every other job is skipped
     par CI
         CI->>CI: classify changed paths (full, site, vscode, archive_only, review_only)
         CI->>CI: preflight: verification commits exist and are ancestors of HEAD
@@ -519,9 +521,14 @@ sequenceDiagram
 
 Job names and dependencies come from [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) and
 [`.github/workflows/trust.yml`](../.github/workflows/trust.yml). The path classifier is
-[`.github/scripts/classify-ci-paths.sh`](../.github/scripts/classify-ci-paths.sh). A tip that
-only adds a review or only moves one workflow-v2 change into the archive skips the heavy product
-lane. Documentation-only paths still run the full lane, so every PR can report the required
+[`.github/scripts/classify-ci-paths.sh`](../.github/scripts/classify-ci-paths.sh). CI is
+archive-first: the `Archive` job
+([`.github/scripts/archive-readiness.sh`](../.github/scripts/archive-readiness.sh)) runs before
+everything else and every other job depends on it, so a tip with an open change runs nothing
+else. Verification and scoped review happen locally before `change ship`; the full lane then runs
+on the archived tip itself. No tip reuses a green product parent any more: the lane is chosen from
+the whole pull request, and only a pull request that changes nothing but archive packages skips
+the heavy product lane. Documentation-only paths still run the full lane, so every PR can report the required
 gate. Branch protection on `main` requires the `Required CI gate` context, which passes only when
 `SpecSync implementation ready` does. That job needs every job that can finish before it, the
 lifecycle preflight and the lifecycle gate included. A job passes when it succeeded, or when it was

@@ -13,6 +13,18 @@ import sys
 # new stable assets and supported-platform Action smokes pass. Advancing this
 # value is a separate post-publication delivery; it never moves immutable tags.
 PUBLISHED_ACTION_DEFAULT = "6.1.1"
+# The archive gate inputs (`require-archived`, `archive-gate-only`) landed after this
+# release. Until a release that contains them is published, a documented step that uses
+# them may pin `@main`: `@v6.1.1` ignores both inputs, so a copied example would pass
+# without gating anything. The allowance ends by itself once PUBLISHED_ACTION_DEFAULT
+# advances past this release, and those examples must then pin it like every other step.
+ARCHIVE_GATE_UNRELEASED_AFTER = "6.1.1"
+
+
+def release_key(version: str) -> tuple[int, ...]:
+    """Numeric release order, ignoring any pre-release suffix."""
+    core = re.split(r"[-+]", version, maxsplit=1)[0]
+    return tuple(int(part) if part.isdigit() else 0 for part in core.split("."))
 
 YAML_FILES = (
     "action.yml",
@@ -125,11 +137,14 @@ ARGV.each do |path|
            repository.downcase == "corvidlabs/spec-sync" && !ref.empty?
           inputs = value["with"]
           version = inputs.is_a?(Hash) ? inputs["version"] : nil
+          archive_gate = inputs.is_a?(Hash) &&
+            (inputs.key?("require-archived") || inputs.key?("archive-gate-only"))
           steps << {
             path: path,
             block: index + 1,
             ref: ref,
             version: version.nil? ? nil : version.to_s,
+            archive_gate: archive_gate,
           }
         end
         value.each_value { |item| walk.call(item) }
@@ -325,8 +340,12 @@ def main() -> int:
         )
 
     ci_steps = workflow_uses_steps(".github/workflows/ci.yml", errors)
+    # The consumer job also runs the Action's archive gate against an open change; the
+    # packaged-binary step is the one that selects a binary version.
     consumer = find_uses_step(
-        ci_steps, "action-consumer", lambda uses: uses == "./"
+        [step for step in ci_steps if "version" in step[2]],
+        "action-consumer",
+        lambda uses: uses == "./",
     )
     if consumer is None:
         errors.append("packaged Action consumer step not found in ci.yml")
@@ -424,10 +443,15 @@ def main() -> int:
             f"Action docs default must be {expected_docs_default}, found {found!r}"
         )
 
+    archive_gate_may_pin_main = release_key(PUBLISHED_ACTION_DEFAULT) <= release_key(
+        ARCHIVE_GATE_UNRELEASED_AFTER
+    )
     stale_site_refs = [
         f"{step['path']} YAML block {step['block']}: @{step['ref']}"
         for step in documented_steps
-        if step["path"] != "README.md" and step["ref"] != expected_action_ref
+        if step["path"] != "README.md"
+        and step["ref"] != expected_action_ref
+        and not (archive_gate_may_pin_main and step.get("archive_gate") and step["ref"] == "main")
     ]
     stale_site_versions = [
         f"{step['path']} YAML block {step['block']}: {step['version']}"

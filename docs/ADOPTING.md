@@ -100,13 +100,18 @@ Write a `deltas/<module>.md` describing the requirement being added or changed, 
     specsync change approve <id> --actor "<you>"
     # …write the code…
     specsync change check <id> --commit
-    # push the product tip after local gates; wait for required CI and complete human PR review
+    # run your local verify lane; archive-first CI does not test a tip with an open change
     specsync change review <id> --reviewer "<human>"
     specsync change ship <id>
 
 Run `review` and `ship` consecutively, without committing between them. The reviewer may be
 the scope approver. Commit and push the archive result, wait for required checks, then merge
 on GitHub. **Merge only after every active change on the PR is archived.**
+
+With archive-first CI (the spec-sync Action's `require-archived` gate as the first job, or this
+repository's own `Archive` job), a pushed tip with any open change fails that gate and runs
+nothing else. The full lane runs once, on the archived tip. If it fails, push a fix commit on
+top with specs kept in sync; a fix that changes the approved scope needs a new change.
 
 `check --commit` and `ship --push` commit edits to files git already tracks, plus the untracked
 files the change owns: its workspace and archive package, the canonical specs its deltas write,

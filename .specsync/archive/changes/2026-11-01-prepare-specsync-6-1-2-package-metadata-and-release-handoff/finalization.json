@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "prepare-specsync-6-1-2-package-metadata-and-release-handoff",
+  "implementation_commit": "7dc9b679a05b66d9c3d3202670628ec4ea5cb361",
+  "implementation_tree": "e68e4d311f4618c1634dc99242c25fd2d0b35357",
+  "contract_digest": "0d1c8d9698d695550b28acb48494d1f3a79ff454695b6ed6032ebd6f2ccab1cb",
+  "workspace_digest": "d37f6b4ebfe60ee1633a5d8177750be0fb202b8aef67bef46395492c262dc844",
+  "closing_digest": "15dbc9b108e656149e275bb21c232f4a6f6f78cae219fc6f918a9719ba376cb6",
+  "review_digest": "0a6296bb866ee5b8e10c8a16bac0087fc52f282b4a97a5ca923b10b3062181fb",
+  "finalization_digest": "a072c3d86a7e16fb804ca44f4b15b79e39bf7e3871629b109208ce70ce39992e",
+  "timestamp": 1793556121
+}

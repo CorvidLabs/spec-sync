@@ -3,7 +3,7 @@
 This page is written to be **pasted wholesale into an agent session** in the repository you
 want to adopt spec-sync in. It is also readable on its own.
 
-This guide describes the 6.1 workflow and prepares 6.1.1 pins for use after publication. Install the stable binary and verify
+This guide describes the 6.1 workflow with the published 6.1.1 pins. Install the stable binary and verify
 `specsync --version` prints `specsync 6.1.1` before adoption; historical recovery guidance is
 labeled separately.
 
@@ -18,7 +18,7 @@ change end to end so the loop is proven rather than assumed.
 
 ## Install
 
-Pin explicitly. This tree prepares 6.1.1; published Cargo, GitHub and Homebrew releases remain 6.1.0 until Ubuntu/macOS qualification and promotion. After 6.1.1 is published:
+Pin explicitly. Cargo, GitHub and Homebrew all serve 6.1.1:
 
     cargo install specsync
     specsync --version    # specsync 6.1.1
@@ -26,7 +26,7 @@ Pin explicitly. This tree prepares 6.1.1; published Cargo, GitHub and Homebrew r
     # or a GitHub Release asset / git tag:
     cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.1.1 --locked specsync
 
-Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.1.0 until promotion. Prebuilt binaries exist for Linux and
+Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.1.1. Prebuilt binaries exist for Linux and
 macOS only; 6.0 publishes no Windows binary (#735).
 
 Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.

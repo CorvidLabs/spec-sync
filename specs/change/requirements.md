@@ -1448,3 +1448,17 @@ Acceptance Criteria
 - Only relevant delivery archive candidates are authenticated; unrelated historical damage is not a new active-audit failure.
 - The Algonest #48 reproduction passes with the candidate, and original6.1.1 still fails it. Missing history objects remain explicit verification limitations.
 
+### REQ-change-111
+
+The system SHALL report a definition approval as invalid in change status, in the handoff verdict, and in the active-workspace audit whenever the semantic delta bodies that approval recorded no longer match the change's delta files, using the same binding that materialization and acceptance enforce, and SHALL NOT reinterpret an approval that recorded no delta binding.
+
+Acceptance Criteria
+- For an approved, implementing, or verifying change whose effective definition approval recorded delta digests, a delta body edited after approval makes `summary.approval_valid` false, makes `summary.next_action` name `specsync change approve <id> --actor <name>`, and makes the handoff readiness `not-yet`.
+- `summary.changed_approved_deltas` lists the edited modules in sorted order and is omitted from JSON when empty.
+- `change audit` reports, for that change, the same refusal `change check` gives.
+- A body that differs only in CRLF line endings, a restored body, and a re-approved body keep or return `approval_valid` to true.
+- A later definition approval that withdraws a recorded binding reads as invalid, as materialization already refuses it.
+- A ledger in which no definition approval recorded a delta digest keeps its current status verdict.
+- Draft, accepted, and archived summaries, accepted and archived authentication, persisted ledgers, and every digest are unchanged.
+- An edit to `plan.md` or another artifact outside the approved scope keeps `approval_valid` true and stales only execution evidence.
+

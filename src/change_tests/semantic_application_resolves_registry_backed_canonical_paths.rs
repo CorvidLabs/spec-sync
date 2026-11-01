@@ -3348,6 +3348,27 @@ fn portable_v1_change_with_a_delta(root: &Path) -> ChangeRecord {
     record
 }
 
+/// Append a later definition approval that records no delta wording to a ledger whose earlier
+/// definition approval recorded some: the withdrawn-binding shape #719 refuses.
+fn withdraw_the_recorded_delta_binding(root: &Path, record: &ChangeRecord) {
+    let mut ledger = load_approvals(root, record).unwrap();
+    let mut withdrawn = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .expect("the fixture approves the definition")
+        .clone();
+    withdrawn.approved_delta_digests = None;
+    withdrawn.timestamp += 1;
+    ledger.approvals.push(withdrawn);
+    write_json(
+        &change_dir(root, &record.id).join("approvals.json"),
+        &ledger,
+    )
+    .unwrap();
+}
+
 fn recorded_delta_digests(root: &Path, record: &ChangeRecord) -> Option<BTreeMap<String, String>> {
     let ledger = load_approvals(root, record).unwrap();
     effective_definition_approval(root, record, &ledger)
@@ -3435,23 +3456,7 @@ fn a_later_definition_approval_may_not_withdraw_a_recorded_delta_binding() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = change_with_an_approved_delta(root);
-
-    let mut ledger = load_approvals(root, &record).unwrap();
-    let mut withdrawn = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .expect("the fixture approves the definition")
-        .clone();
-    withdrawn.approved_delta_digests = None;
-    withdrawn.timestamp += 1;
-    ledger.approvals.push(withdrawn);
-    write_json(
-        &change_dir(root, &record.id).join("approvals.json"),
-        &ledger,
-    )
-    .unwrap();
+    withdraw_the_recorded_delta_binding(root, &record);
 
     fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
     let error = materialize_change_deltas(root, &record.id)
@@ -3768,6 +3773,315 @@ fn an_lf_delta_hashes_to_exactly_the_digest_the_unnormalized_binding_recorded() 
         Some(PRE_NORMALIZATION_DIGEST),
         "normalizing line endings must not move the digest of an LF delta; every digest recorded \
          since #711 was written over raw bytes and must keep verifying"
+    );
+}
+
+/// What status must say about a change whose approved `auth` delta body was edited
+/// (REQ-change-111, Chough BUG-0002): the approval is not current, the one next action is
+/// re-approval, the edited module is named, and the handoff is `not-yet`. `change check` refuses
+/// the same tree, so status and check agree.
+///
+/// `changed_approved_deltas` is read through the serialized summary, the shape `--json` prints,
+/// so this compiles against the unfixed binary and fails there on its assertions.
+fn assert_status_requests_reapproval_of_the_edited_delta(root: &Path, id: &str) {
+    let record = load_change(root, id).unwrap();
+    let state = record.state;
+    let summary = summarize_change(root, &record);
+    assert!(
+        !summary.approval_valid,
+        "{state:?}: an approval whose delta body changed is not current: {summary:?}"
+    );
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change approve {id} --actor <name>`"),
+        "{state:?}: status must send the operator to re-approval, not to a check that refuses"
+    );
+    assert_eq!(
+        serde_json::to_value(&summary).unwrap()["changed_approved_deltas"],
+        serde_json::json!(["auth"]),
+        "{state:?}: status must name the module whose approved delta changed"
+    );
+    assert_eq!(
+        summary.handoff.readiness,
+        HandoffReadiness::NotYet,
+        "{state:?}: {:?}",
+        summary.handoff
+    );
+    assert!(summary.handoff.reason.contains("changed after it was approved"));
+    let refusal = materialize_change_deltas(root, id).unwrap_err();
+    assert!(
+        refusal.contains("`auth`") && refusal.contains("changed after approval"),
+        "{state:?}: status and `change check` must reach the same verdict: {refusal}"
+    );
+}
+
+/// Status for an approved or implementing change whose approval still covers what is on disk.
+fn assert_status_reports_a_current_approval(root: &Path, id: &str) {
+    let record = load_change(root, id).unwrap();
+    let summary = summarize_change(root, &record);
+    assert!(summary.approval_valid, "{summary:?}");
+    assert_eq!(summary.next_action, format!("run `specsync change check {id}`"));
+    assert_ne!(summary.handoff.readiness, HandoffReadiness::NotYet);
+    assert!(
+        serde_json::to_value(&summary)
+            .unwrap()
+            .get("changed_approved_deltas")
+            .is_none(),
+        "an empty list is omitted, so no other status payload gains a key: {summary:?}"
+    );
+}
+
+/// DISCRIMINATOR for REQ-change-111 in the approved state. On f240d37 status reports
+/// `approval_valid: true` and `run specsync change check` for a delta `check` then refuses.
+#[test]
+fn status_reports_an_edited_approved_delta_as_an_invalid_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    assert_eq!(record.state, ChangeState::Approved);
+    assert_status_reports_a_current_approval(root, &record.id);
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+
+    assert_status_requests_reapproval_of_the_edited_delta(root, &record.id);
+}
+
+/// DISCRIMINATOR for REQ-change-111 in the implementing and verifying states. Verifying is
+/// reached through a passing `check_change`, so the delta has already been materialized: the
+/// binding still holds because the guard sits above the `canonical_applied` short-circuit.
+#[test]
+fn status_reports_an_edited_approved_delta_while_implementing_and_verifying() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let record = start_implementation(root, &record.id).unwrap();
+    assert_eq!(record.state, ChangeState::Implementing);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    assert_status_requests_reapproval_of_the_edited_delta(root, &record.id);
+
+    fs::write(delta_path(root, &record, "auth"), APPROVED_DELTA_BODY).unwrap();
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+    let verifying = load_change(root, &record.id).unwrap();
+    assert_eq!(verifying.state, ChangeState::Verifying);
+    assert!(summarize_change(root, &verifying).approval_valid);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    assert_status_requests_reapproval_of_the_edited_delta(root, &record.id);
+}
+
+/// DISCRIMINATOR for REQ-change-111 on the text path. Text `status` prints `handoff_summary`,
+/// which gathers its own signals; on f240d37 it calls an edited approved delta `safe`.
+#[test]
+fn handoff_summary_is_not_yet_for_an_edited_approved_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+
+    let handoff = handoff_summary(root, &record);
+
+    assert_eq!(
+        handoff,
+        summarize_change(root, &record).handoff,
+        "text and JSON must carry one verdict"
+    );
+    assert_eq!(handoff.readiness, HandoffReadiness::NotYet, "{handoff:?}");
+    assert!(handoff.before_clearing[0].contains(&format!("specsync change approve {}", record.id)));
+}
+
+/// DISCRIMINATOR for REQ-change-111 in `change audit`. On f240d37 the active-workspace audit
+/// reports nothing while `change check` refuses the same change.
+#[test]
+fn audit_reports_an_edited_approved_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let clean = audit_project(root);
+    assert!(
+        !clean
+            .errors
+            .iter()
+            .any(|error| error.contains("changed after approval")),
+        "the fixture must start from an approval that still covers its delta: {:?}",
+        clean.errors
+    );
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let refusal = materialize_change_deltas(root, &record.id).unwrap_err();
+    let report = audit_project(root);
+
+    assert!(
+        report
+            .errors
+            .contains(&format!("{}: {refusal}", record.id)),
+        "audit must report the refusal `change check` gives: {:?}",
+        report.errors
+    );
+}
+
+/// DISCRIMINATOR for REQ-change-111: a later definition approval that withdraws a recorded
+/// binding is refused by materialization, so status may not call it current. No module body
+/// changed, so no module is listed; the withdrawal itself is the reason.
+#[test]
+fn status_reports_a_withdrawn_delta_binding_as_an_invalid_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    withdraw_the_recorded_delta_binding(root, &record);
+
+    let summary = summarize_change(root, &record);
+
+    assert!(!summary.approval_valid, "{summary:?}");
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change approve {} --actor <name>`", record.id)
+    );
+    assert_eq!(summary.handoff.readiness, HandoffReadiness::NotYet);
+    assert!(
+        serde_json::to_value(&summary)
+            .unwrap()
+            .get("changed_approved_deltas")
+            .is_none()
+    );
+    let refusal = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(refusal.contains("records no semantic delta wording"), "{refusal}");
+}
+
+/// CONTROL, passes on f240d37 too: putting the approved bytes back, or approving the edit,
+/// returns status to a current approval and a `change check` next action.
+#[test]
+fn restoring_or_reapproving_an_edited_delta_restores_approval_validity() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    fs::write(delta_path(root, &record, "auth"), APPROVED_DELTA_BODY).unwrap();
+    assert_status_reports_a_current_approval(root, &record.id);
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(materialize_change_deltas(root, &record.id).is_ok());
+}
+
+/// CONTROL, passes on f240d37 too: the binding folds CRLF (#730), so a checkout that re-encoded
+/// an unedited delta leaves the approval current in status exactly as it does in `check`.
+#[test]
+fn a_crlf_checkout_of_an_approved_delta_keeps_status_approval_valid() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    fs::write(
+        delta_path(root, &record, "auth"),
+        approved_delta_body_as_a_crlf_checkout_writes_it(),
+    )
+    .unwrap();
+
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(materialize_change_deltas(root, &record.id).is_ok());
+}
+
+/// CONTROL, passes on f240d37 too: a ledger that never recorded a delta digest made no claim
+/// about wording (REQ-change-089, REQ-change-090), materialization proceeds, and status agrees.
+#[test]
+fn status_keeps_approval_valid_for_a_ledger_without_delta_digests() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    strip_recorded_delta_digests(root, &record);
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(materialize_change_deltas(root, &record.id).is_ok());
+}
+
+/// CONTROL, passes on f240d37 too: `plan.md` is outside the approved scope. Editing it keeps
+/// the approval current and stales only the verification it is hashed into.
+#[test]
+fn editing_the_plan_after_approval_keeps_approval_valid() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    assert!(record.selected_artifacts.contains(&ArtifactKind::Plan));
+    let plan = change_dir(root, &record.id).join("plan.md");
+    let edit_plan = || {
+        let mut text = fs::read_to_string(&plan).unwrap();
+        text.push_str("\nAn implementation note the approver never read.\n");
+        fs::write(&plan, text).unwrap();
+    };
+    edit_plan();
+    assert_status_reports_a_current_approval(root, &record.id);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+
+    edit_plan();
+    let verifying = load_change(root, &record.id).unwrap();
+    let summary = summarize_change(root, &verifying);
+    assert_eq!(verifying.state, ChangeState::Verifying);
+    assert!(summary.approval_valid, "{summary:?}");
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change check {}`", record.id),
+        "a plan edit stales verification, not approval"
+    );
+}
+
+/// CONTROL, passes on f240d37 too: a clean approved change serializes no
+/// `changed_approved_deltas` key at all.
+#[test]
+fn changed_approved_deltas_is_omitted_when_empty() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    let json = serde_json::to_value(summarize_change(root, &record)).unwrap();
+
+    assert_eq!(json["approval_valid"], true);
+    assert!(json.get("changed_approved_deltas").is_none(), "{json}");
+}
+
+/// CONTROL, passes on f240d37 too: a finalized change keeps the approval and terminal-evidence
+/// verdicts the unfixed binary computes, even with its archived delta edited. Archives are
+/// history and are not re-judged by the active-state binding.
+#[test]
+fn finalized_change_summary_keeps_its_approval_and_terminal_verdicts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    quiet_git(root, &["add", "README.md"]);
+    quiet_git(root, &["commit", "-m", "base"]);
+    let record = change_with_an_approved_delta(root);
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "implement"]);
+    check_change(root, Some(&record.id)).unwrap();
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "record verification"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Scope owner".into()).unwrap();
+    let archive = finalize_change(root, &record.id).unwrap();
+    let archived = load_change(root, &record.id).unwrap();
+    assert_eq!(archived.state, ChangeState::Archived);
+    fs::write(archive.join("deltas/auth.md"), SWAPPED_DELTA_BODY).unwrap();
+
+    let summary = summarize_change(root, &archived);
+
+    assert_eq!(
+        summary.approval_valid,
+        ensure_definition_approval_valid(root, &archived).is_ok()
+    );
+    assert!(summary.approval_valid, "{summary:?}");
+    assert_eq!(
+        summary.terminal_evidence,
+        Some(terminal_evidence_summary(root, &archived))
+    );
+    assert!(
+        serde_json::to_value(&summary)
+            .unwrap()
+            .get("changed_approved_deltas")
+            .is_none()
     );
 }
 

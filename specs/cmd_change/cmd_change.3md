@@ -105,3 +105,6 @@ a left-out file does to verification, because the digest covers it where it sits
 doc comment used to say nothing is committed unless verification passes. That holds for the first
 pass only. When the second pass fails, the materialize commit stays on the branch rather than being
 rewound, and the error now names it.
+
+`text_mode_next_action` never asked whether the approval was current for an approved, implementing or verifying change. JSON already sent a stale scope to `change approve` while text `Next:` said `change check`. After #704 it said `check` for an edited approved delta as well, and `check` refuses both. The command layer still makes no lifecycle decision here. It asks the domain through `change::approval_current_for_guidance`, which is the predicate behind `summary.approval_valid` and returns only a boolean, so no digest reaches a text line. This is the sibling-projection lesson above once more: a text next action and a JSON next action are two projections of one value, and the fix had to reach both.
+

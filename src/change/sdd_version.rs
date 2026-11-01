@@ -1386,6 +1386,10 @@ pub struct ChangeSummary {
     pub definition_digest: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scope_expansion: Vec<String>,
+    /// Sorted modules whose semantic delta body changed after the definition approval recorded
+    /// it; omitted when empty. The reason `approval_valid` is false when `scope_expansion` is empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_approved_deltas: Vec<String>,
     pub artifacts_complete: bool,
     #[serde(default)]
     pub correction_valid: bool,

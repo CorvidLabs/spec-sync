@@ -2921,3 +2921,162 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
         lines[0]
     );
 }
+
+// Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic
+// delta edited after approval reads as an invalid approval in JSON and text status, and
+// `change check` and `change audit` both refuse it. Restoring the approved bytes clears all three.
+#[test]
+fn status_json_and_text_report_an_edited_approved_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    for dir in [".specsync", "src", "specs/auth"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 2,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    let id = "reword-the-auth-purpose";
+    run(&[
+        "change",
+        "new",
+        "Reword the auth purpose",
+        "--kind",
+        "bug-fix",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    for (question, answer) in [
+        ("acceptance_criteria", "The auth purpose is reworded"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", id, question, answer]).success();
+    }
+    let workspace = root.join(".specsync/changes").join(id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_eq!(
+        state["workflow_version"], 2,
+        "the delta binding is workflow-v2's"
+    );
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = match name {
+            "tasks" => "# Tasks\n\n- [x] Reword the purpose.\n",
+            "plan" => super::helpers::SUBSTANTIVE_PLAN,
+            _ => "# Complete\n\nReviewed delta wording.\n",
+        };
+        fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+    }
+    let delta = workspace.join("deltas/auth.md");
+    let approved =
+        "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuthentication with reviewed wording.\n";
+    fs::write(&delta, approved).unwrap();
+    run(&["change", "approve", id, "--actor", "Reviewer"]).success();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "approve"]);
+    let status_json = || -> Value {
+        let output = run(&["--json", "change", "status", id])
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        serde_json::from_slice(&output).unwrap()
+    };
+    let check_next = format!("run `specsync change check {id}`");
+    let current = status_json();
+    assert_eq!(current["summary"]["approval_valid"], true, "{current}");
+    assert_eq!(current["summary"]["next_action"], check_next.as_str());
+
+    fs::write(
+        &delta,
+        format!("{approved}\n## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL carry wording nobody approved.\n\nAcceptance Criteria\n- Nobody reviewed this.\n"),
+    )
+    .unwrap();
+
+    let reapprove = format!("specsync change approve {id} --actor <name>");
+    let edited = status_json();
+    let summary = &edited["summary"];
+    assert_eq!(summary["approval_valid"], false, "{edited}");
+    assert_eq!(
+        summary["next_action"],
+        format!("run `{reapprove}`").as_str()
+    );
+    assert_eq!(
+        summary["changed_approved_deltas"],
+        serde_json::json!(["auth"])
+    );
+    assert_eq!(summary["handoff"]["readiness"], "not-yet");
+    let text = String::from_utf8(
+        run(&["change", "status", id])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let line = |prefix: &str| {
+        text.lines()
+            .find(|line| line.trim_start().starts_with(prefix))
+            .unwrap_or_else(|| panic!("status prints a {prefix} line:\n{text}"))
+            .to_string()
+    };
+    assert!(line("Next:").contains(&reapprove), "{text}");
+    assert!(line("Handoff:").contains("Handoff: not yet —"), "{text}");
+    run(&["change", "check", id])
+        .failure()
+        .stderr(predicate::str::contains("changed after approval"));
+    run(&["change", "audit"])
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "{id}: semantic delta for `auth` changed after approval"
+        )));
+
+    fs::write(&delta, approved).unwrap();
+    let restored = status_json();
+    assert_eq!(restored["summary"]["approval_valid"], true, "{restored}");
+    assert_eq!(restored["summary"]["next_action"], check_next.as_str());
+    assert!(restored["summary"].get("changed_approved_deltas").is_none());
+    run(&["change", "audit"]).success();
+}

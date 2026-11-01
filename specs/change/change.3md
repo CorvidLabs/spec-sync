@@ -589,3 +589,12 @@ Native qualification completed on2026-10-23: all2,600 unit and464 integration te
 @plane z=3 label="Archive identity and local delivery"
 
 PR #821 review: archive-directory introduction does not prove approval introduction. A historical package can move while retaining genuine old closing evidence. Check its change identity against the immutable base roster, and collect local staged/unstaged/untracked delivery paths as well as the committed comparison. Reproduced both reviewer failures before repairing them; product verification remains separate.
+
+@plane z=4 label="Status and the delta binding"
+
+#704 bound delta bodies to the approval in a second place, `approved_delta_digests`, next to the scope digest. It updated the two gates that consume the approval, materialization and acceptance. Four readers whose job is to predict those gates still asked only the scope half: the JSON summary, `handoff_summary`, the `change audit` active loop and text `Next:`. Status then reported `approval_valid: true` and `run change check` for a delta that `check` refused (Chough BUG-0002). Workflow v1 never had this gap, because its definition digest hashed every delta. When a new binding is added next to an approval check, find every caller that predicts a gate, and compose both halves there. Callers that authenticate history are a different group.
+
+The two groups call the same function. That is why the fix composes the halves at the active-state readers (`approval_currency`) and does not fold the delta comparison into `ensure_definition_approval_valid`. That function also authenticates accepted and archived evidence, and 97 of the 285 archived ledgers on f240d37 carry delta digests. Folding the comparison in would have re-judged history against archive delta paths. The drift list `changed_approved_delta_modules` returns is the reason a bare `bool` would throw away. `ensure_approved_delta_bodies_unchanged` now formats its unchanged refusal text from that list.
+
+A reproduction of a workflow-v2 defect has to run under workflow v2. With a `"version": 1` `sdd.json`, `change new` writes a workflow-v1 record. The integration test then passed on the unfixed binary, because the v1 definition digest already invalidates the approval. A refusal test should also assert the refusal's text, not only the exit status. An appended requirement without Acceptance Criteria makes `change check` refuse in `validate_definition` before it reaches the binding.
+

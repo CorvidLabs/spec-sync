@@ -87,6 +87,13 @@ verification; implementation edits after scoped review stale the review. `change
 exact `change review` command when this human implementation review is the next required action; `change
 review` records the completed review and does not replace the repository's ordinary PR review.
 
+An unsuppressed validator warning in a module the change declares, such as an undocumented
+export, fails `change check` on its first run as well as on later ones. Finalization already
+refused it. This does not depend on the configured `enforcement`, which still governs
+`specsync check` only. The failed attempt is recorded: `verification.json` reports
+`passed: false` with an entry naming `specsync change check <id> (effective contract: <module>)`,
+so `change status` points back to `change check`.
+
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,

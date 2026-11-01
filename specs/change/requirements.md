@@ -304,6 +304,10 @@ Acceptance Criteria
   reproduces the verdict when every named spec resolves or when none does; a mixed scope fails
   the check but can rerun green, because an unmatched filter is demoted to a warning once any
   filter matches.
+- When the effective-contract gate refuses a module the change declares, the failed attempt keeps
+  that scoped entry and adds `specsync change check <id> (effective contract: <module>, …)` with
+  `success: false`, the command that reproduces the gate's refusal, rather than claiming a
+  `--strict` run that did not happen.
 - `change check` does not execute `.specsync/sdd.json` `verification_commands`.
 - Direct re-entry into SpecSync through `SPECSYNC_VERIFICATION_CONTEXT` still fails once.
 - Failed spec↔code attempts remain inspectable and a corrected retry can record passed latest evidence.
@@ -1461,4 +1465,16 @@ Acceptance Criteria
 - A ledger in which no definition approval recorded a delta digest keeps its current status verdict.
 - Draft, accepted, and archived summaries, accepted and archived authentication, persisted ledgers, and every digest are unchanged.
 - An edit to `plan.md` or another artifact outside the approved scope keeps `approval_valid` true and stales only execution evidence.
+
+### REQ-change-112
+
+The system SHALL apply the effective-contract gate to the change being verified on every `change check`, including the first one after materialization, and SHALL record that gate's refusal of a module the change declares as a failed verification attempt, so recorded verification never reports a pass the lifecycle's own gates refuse for the same tree.
+
+Acceptance Criteria
+- The first `change check` of an approved change whose declared module carries an unsuppressed validator warning fails and names the warning, as later checks, finalization, and audit already do, whatever `enforcement` is configured.
+- The refusal is appended to `verification-attempts.json` and projected into `verification.json` with `passed: false`; `commands[]` keeps the scoped `specsync check --spec <name> …` entry and adds `specsync change check <id> (effective contract: <module>, …)` with `success: false`.
+- A failed attempt supersedes an earlier recorded pass, so status names `specsync change check <id>` rather than review, and `change check --commit` commits nothing.
+- A change whose declared modules carry no unsuppressed warning records exactly the single scoped command it recorded before.
+- Gate failures not attributable to a module the change declares are refused before any attempt is recorded, as before.
+- `specsync check`, configured `enforcement`, explicit `--strict`, the gate's promotion rule and suppressions, path-only scope, `--no-spec-change` changes, acceptance, audit, and accepted or archived evidence are unchanged.
 

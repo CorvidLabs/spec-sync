@@ -3038,11 +3038,25 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
     validate_delta_files(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
-    let records = list_changes_checked(root)?;
+    // The gate judges the change being verified as verifying, the state this attempt records
+    // (REQ-change-112). On the first check `materialize_change_deltas` has just set
+    // `canonical_applied` and `Implementing`, and the gate's roster filter used to drop exactly
+    // that record, so the one run that records a pass was the one run the gate did not ask.
+    let mut records = list_changes_checked(root)?;
+    for candidate in &mut records {
+        if candidate.id == record.id {
+            candidate.state = ChangeState::Verifying;
+        }
+    }
     // Verification has no non-error output channel; `specsync check` and
     // `specsync change audit` run this same gate and report the suppressions.
-    if let Some(errors) = validate_effective_contracts(root, &records).error_text() {
-        return Err(errors);
+    // A verdict about a module this change declares is a spec↔code verdict about this change,
+    // so it is held and recorded as part of the attempt below. Every other gate failure is
+    // still refused before any attempt is recorded.
+    let gate = validate_effective_contracts(root, &records);
+    let (gate_refusals, unattributed) = gate.split_for_declared(&record.affected_specs);
+    if !unattributed.is_empty() {
+        return Err(gate.error_text().unwrap_or_else(|| unattributed.join("; ")));
     }
     ensure_tasks_complete(root, &record)?;
     // Evidence completeness is markdown in the change workspace. Fail it before
@@ -3058,8 +3072,23 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
             evidence_gap_detail(&record, acceptance_evidence_present, &missing_evidence)
         ));
     }
-    let (sync, findings) = evaluate_spec_code_sync(root, &record, strict)?;
-    let commands = vec![sync];
+    let (sync, mut findings) = evaluate_spec_code_sync(root, &record, strict)?;
+    let mut commands = vec![sync];
+    if !gate_refusals.is_empty() {
+        // Named for the command that reproduces the gate's verdict, not as a `--strict` run:
+        // the gate suppresses unauthored stubs and replays other active deltas, which
+        // `specsync check --strict` does not.
+        commands.push(CommandEvidence {
+            command: format!(
+                "specsync change check {} (effective contract: {})",
+                record.id,
+                gate_refusals.keys().cloned().collect::<Vec<_>>().join(", ")
+            ),
+            success: false,
+            exit_code: Some(1),
+        });
+        findings.splice(0..0, gate_refusals.into_values().flatten());
+    }
     let passed = commands.iter().all(|command| command.success);
     let verification = VerificationRecord {
         timestamp: now(),

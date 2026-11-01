@@ -103,7 +103,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - uses: CorvidLabs/spec-sync@main # pin a release that includes the archive gate once one is published
+      # The archive gate inputs are newer than v6.1.1, which ignores them. Pin the first
+      # release that includes them once it is published.
+      - uses: CorvidLabs/spec-sync@main
         with:
           archive-gate-only: 'true'
 
@@ -114,8 +116,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@main
+      - uses: CorvidLabs/spec-sync@v6.1.1
         with:
+          version: '6.1.1'
           strict: 'true'
           require-coverage: '100'
 

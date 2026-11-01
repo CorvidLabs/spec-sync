@@ -26,3 +26,4 @@ spec: cmd_change.spec.md
 - [x] Treat a change directory that holds a file but no state.json as still open, and skip an empty husk.
 - [x] Make text `Next:` name re-approval for every approved, implementing or verifying change whose approval is not current, through `change::approval_current_for_guidance` (REQ-cmd-change-005, REQ-change-111).
 - [x] Archive-first CI: query HEAD check-runs first in ship-status and rewrite trust guidance and stage copy for verify-locally → review → ship → push the archive tip (REQ-cmd-change-007, REQ-cmd-change-019)
+- [x] Render `approved_deltas` verbatim in single-record change JSON (`status`, `show`, `new`, `answer`, `depend`, `supersede`), from the in-lock mutation snapshot for mutations (REQ-cmd-change-023).

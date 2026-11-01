@@ -1,6 +1,6 @@
 ---
 module: change
-version: 151
+version: 152
 status: active
 files:
   - src/change.rs
@@ -15,6 +15,7 @@ files:
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/substantive_plan.rs
+  - src/change_tests/approved_delta_requirements.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -99,7 +100,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
 | `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
-| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, and normal/strict summaries validated inside its persistence transaction |
+| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen history |
 | `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
@@ -127,6 +128,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
 | `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
 | `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, exactly one next action, a handoff verdict, and optional terminal evidence |
+| `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
+| `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
 | `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
@@ -151,6 +154,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then persists an interview answer and updates adaptive artifacts |
 | `answer_question_with_snapshot` | `root, id, question, answer` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the answer mutation with its full in-transaction machine snapshot |
 | `approval_current_for_guidance` | `root, record` | `bool` | Whether an approved, implementing, or verifying change's definition approval still covers its approved scope and the semantic delta bodies it recorded — the predicate behind `ChangeSummary.approval_valid` — for human next-action guidance without printing a digest |
+| `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
@@ -557,3 +561,4 @@ Acceptance Criteria
 | 2026-10-31 | report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited: Report an approval as invalid in change status when an approved semantic delta body is edited |
 | 2026-10-31 | run-the-effective-contract-gate-on-the-first-change-check-and-record-its-refusal-instead-of-leaving-a-stale-pass: Run the effective contract gate on the first change check and record its refusal instead of leaving a stale pass current |
 | 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
+| 2026-11-01 | report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json: Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON |

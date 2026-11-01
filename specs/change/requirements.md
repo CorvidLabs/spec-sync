@@ -1489,3 +1489,19 @@ Acceptance Criteria
 - A bundle assembled from a record and artifacts whose user-supplied text holds neither character contains neither character.
 - Archived bundles are not rewritten, and nothing reads the heading back.
 
+### REQ-change-113
+
+The system SHALL report, for an approved, implementing, or verifying change whose scope approval is current, each affected module's declared requirement IDs and spec sections from the semantic delta body the definition approval recorded, with a per-module integrity flag computed by the same delta binding that materialization enforces, and SHALL NOT report any requirement as approved from a delta body that no longer matches its approval.
+
+Acceptance Criteria
+- After approval, `approved_delta_summaries` for a change whose `shipping` delta declares `### REQUIREMENT REQ-shipping-002` under `## ADDED` returns a `shipping` entry with `delta_intact: true`, `requirements.added == ["REQ-shipping-002"]`, the modified spec section names under `sections.modified`, and `materialized: false`.
+- Editing that delta body after approval makes the entry's `delta_intact` false and omits its `requirements`, `sections` and `materialized`; the module is the one `ChangeSummary.changed_approved_deltas` names, and `approval_valid` is false.
+- A body that differs from the approved one only in CRLF line endings keeps `delta_intact: true`.
+- A later definition approval that withdraws a recorded delta binding reports every declared module with `delta_intact: false`.
+- A ledger in which no definition approval recorded a delta digest reports each module with `delta_intact: null` and no requirements, never `false`.
+- After a passing `change check` materializes the delta, `materialized` is true. After a corrected delta is re-approved following materialization, `materialized` is false until the next `change check` applies it.
+- A requirement ID that appears only in prose inside a delta body is not reported; only `### REQUIREMENT <id>` item headings are.
+- A body whose digest matches the approval but that the current delta grammar refuses reports `delta_intact: true` with a `declarations_error` and no `requirements`, `sections` or `materialized`; `approval_valid` stays true and `changed_approved_deltas` stays empty for it.
+- Within one read scope or one definition-mutation result, `ChangeSummary.changed_approved_deltas`, `approval_valid`, `delta_intact`, the reported requirement IDs and sections, and `materialized` all derive from one read of each delta file; the materialization and acceptance refusals still read the delta files live.
+- Draft, accepted and archived changes, and an approved change whose scope approval is stale, return an empty list. `ChangeSummary`, `changed_approved_deltas`, persisted ledgers, digests and materialization are unchanged.
+

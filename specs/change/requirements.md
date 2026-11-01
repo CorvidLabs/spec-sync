@@ -1478,6 +1478,31 @@ Acceptance Criteria
 - Gate failures not attributable to a module the change declares are refused before any attempt is recorded, as before.
 - `specsync check`, configured `enforcement`, explicit `--strict`, the gate's promotion rule and suppressions, path-only scope, `--no-spec-change` changes, acceptance, audit, and accepted or archived evidence are unchanged.
 
+### REQ-change-114
+
+The system SHALL leave every file under a directory prefix listed in `.specsync/sdd.json` `verification_ignored_paths` out of the verification project-input digest, whether the file is tracked or untracked, SHALL leave the scoped-review descendant walk unchanged, and with the list absent or empty the digest and every persisted byte SHALL be unchanged.
+
+Acceptance Criteria
+- With `[".chough/"]` committed and the change verified, adding, editing, deleting or committing a file under `.chough/` before the review keeps verification current and status names `change review`.
+- `change review` records a passing review and `change finalize` accepts it; an uncommitted edit under a listed prefix after the review leaves the review current.
+- Any commit after the review, including one that touches only listed paths, still stales the review through the descendant walk.
+- Edits or commits outside every listed prefix, and a path equal to an entry without its trailing slash, still stale verification and review.
+- Adding, editing or removing an entry stales verification and review.
+- No persisted record gains a field; with the list absent or empty, the digest, `verification.json`, `review.json` and status JSON are byte-identical to before.
+- `ignored_paths`, `meaningful_paths`, coverage, `config.toml` `exclude_dirs` and `exclude_patterns`, acceptance-input digests and manifests, and lifecycle commit staging are unchanged.
+
+### REQ-change-115
+
+The system SHALL accept a `verification_ignored_paths` entry only when it is a bounded, portable, project-relative directory prefix that overlaps no specs, sources, SDD policy inputs or `meaningful_paths` scope, SHALL refuse an invalid list in every lifecycle verb that loads SDD policy, and SHALL refuse, for a change, an entry that overlaps that change's declared `affected_paths`.
+
+Acceptance Criteria
+- An entry is refused, naming it and the rule, unless it ends in `/`, has no glob or pattern character, is relative with no empty, `.` or `..` component, backslash or control character, is not and does not lie under a symlink on disk, is at most 128 bytes, and neither duplicates nor nests in another entry; the list holds at most 8 entries.
+- An entry is refused when it overlaps, ignoring ASCII case, `.specsync/`, the configured specs tree, a `source_dirs` entry, the configured `schema_dir`, any `meaningful_paths` scope, an SDD policy file, the `principles_file`, a `custom_artifacts` template, a file listed in a spec's `files:`, a path-form spec `depends_on` entry, or a file named in a spec's `Consumed By` table; an `ignored_paths` scope covering the entry does not relax this.
+- In a project rooted in a subdirectory of its Git repository, an entry excludes only paths under that project's own copy of the prefix.
+- `change new`, `change answer`, `change approve`, `change check`, `change review`, `change finalize`, `change ship` and `change audit` refuse an invalid list as an invalid SDD policy, `change status` makes fixing the entry its one next action, `change ship-status` reports it as a blocker naming the entry, and no evidence is recorded against it.
+- A change whose `affected_paths` overlap an entry is refused at create, at the paths answer, and at approve, check, review and finalize; other changes are unaffected.
+- `specsync check` does not read the list.
+
 ### REQ-change-116
 
 The lesson bundle that finalization writes SHALL add no U+2013 (en dash) or U+2014 (em dash) of its own; user-supplied record text it copies SHALL be copied unchanged.

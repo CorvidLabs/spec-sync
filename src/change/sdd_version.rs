@@ -111,6 +111,9 @@ struct DiscoveredEvidenceCacheKey {
     regular_files_only: bool,
     /// Clean tracked files are named by Git object id instead of their blob bytes.
     identify_clean_blobs: bool,
+    /// Validated `verification_ignored_paths` prefixes left out of discovery (empty for every
+    /// caller except the project-input digest with a non-empty list).
+    excluded_prefixes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -128,6 +131,7 @@ struct ChangeReadSnapshot {
     repository_context: Option<Result<RepositoryContext, String>>,
     checkout_overrides: Option<Result<Vec<String>, String>>,
     project_input_digest: Option<Result<String, String>>,
+    verification_ignored_paths: Option<Result<Vec<String>, String>>,
     git_evidence: BTreeMap<GitEvidenceCacheKey, Result<GitEvidence, String>>,
     discovered_evidence:
         BTreeMap<DiscoveredEvidenceCacheKey, Result<(Vec<String>, GitEvidence), String>>,
@@ -148,6 +152,7 @@ impl ChangeReadSnapshot {
             repository_context: None,
             checkout_overrides: None,
             project_input_digest: None,
+            verification_ignored_paths: None,
             git_evidence: BTreeMap::new(),
             discovered_evidence: BTreeMap::new(),
             git_text_queries: BTreeMap::new(),
@@ -786,6 +791,12 @@ pub struct SddPolicy {
     pub verification_commands: Vec<String>,
     pub custom_artifacts: BTreeMap<String, String>,
     pub principles_file: Option<String>,
+    /// Directory prefixes (each ending in `/`) whose files are left out of the verification
+    /// project-input digest and nothing else (issue #825). Empty by default and omitted from the
+    /// written policy when empty, so default and adopted policies keep their bytes. Every
+    /// lifecycle verb validates it through `validated_verification_ignored_paths`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub verification_ignored_paths: Vec<String>,
 }
 
 impl Default for SddPolicy {
@@ -824,6 +835,7 @@ impl Default for SddPolicy {
             verification_commands: Vec::new(),
             custom_artifacts: BTreeMap::new(),
             principles_file: None,
+            verification_ignored_paths: Vec::new(),
         }
     }
 }
@@ -1545,6 +1557,10 @@ pub struct ChangeSummary {
     pub strict_validation_required: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub verification_commands: Vec<String>,
+    /// The validated `.specsync/sdd.json` `verification_ignored_paths` list; omitted when empty
+    /// or invalid (an invalid list is the next action instead). Output only, never persisted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub verification_ignored_paths: Vec<String>,
     pub next_action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal_evidence: Option<TerminalEvidenceSummary>,
@@ -1770,6 +1786,10 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
     // A baseline means the project already adopted workflow v2. It does not
     // mean a broken policy file can be ignored. Parse the policy either way.
     let policy = load_policy_checked(root)?;
+    // Refuse before any workspace exists: an invalid list, or one that would hide a path this
+    // change claims (REQ-change-115).
+    let verification_ignored = validated_verification_ignored_paths(root)?;
+    ensure_affected_paths_clear_of_verification_ignored(&verification_ignored, &affected_paths, None)?;
     let workflow_version = if read_workflow_v2_baseline(root)?.is_some() {
         2
     } else {
@@ -2665,6 +2685,16 @@ pub(crate) fn answer_question_with_snapshot(
             record.answers.insert(question.into(), answer.into());
         }
     }
+    // Every answer validates the list; the per-change overlap is re-judged when the answer is
+    // the one that declares paths (REQ-change-115). Nothing is saved on refusal.
+    let verification_ignored = validated_verification_ignored_paths(root)?;
+    if question == "affected_paths" {
+        ensure_affected_paths_clear_of_verification_ignored(
+            &verification_ignored,
+            &record.affected_paths,
+            Some(&record.id),
+        )?;
+    }
     record.updated_at = now();
     let effective_definition = validate_definition_mutation(&record, &corrections)?;
     save_change(root, &record)?;
@@ -2940,6 +2970,7 @@ fn approve_definition_with_projection(
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
     validate_declared_path_ownership(root, &record)?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
     if portable_v501 {
         append_portable_definition_approval_v501(root, &record, actor, note)?;
     } else {
@@ -3146,6 +3177,8 @@ pub fn check_change_with_strict(
     let Some(id) = selected else {
         return Ok(None);
     };
+    // Refuse before materialization writes canonical specs (REQ-change-115).
+    ensure_change_clear_of_verification_ignored(root, &load_change(root, &id)?)?;
     materialize_change_deltas(root, &id)?;
     verify_change_with_strict(root, &id, strict).map(Some)
 }
@@ -3179,6 +3212,7 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
         &[ChangeState::Implementing, ChangeState::Verifying],
         "verify the change",
     )?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
     ensure_definition_approval_valid(root, &record)?;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;

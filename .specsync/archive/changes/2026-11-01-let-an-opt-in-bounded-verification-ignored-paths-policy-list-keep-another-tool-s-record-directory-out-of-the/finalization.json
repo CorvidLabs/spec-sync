@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the",
+  "implementation_commit": "b36cfa825652e60a0d8ea0b38f1459cbdb75a56e",
+  "implementation_tree": "10cbdd53383baffcf94ea6c25a2958caaed33a05",
+  "contract_digest": "14a813e25082d3c9545e1cc738747c5ec6fea9ee0373ea385028e7fcab44f4b2",
+  "workspace_digest": "2cb00081f7fd642a86077d50d310ddec952f11da5be916edc3da11660b823935",
+  "closing_digest": "12a8bcf02de1cf0d93293dddae52a450c724d20dff417dae91d31214707722bd",
+  "review_digest": "fcfc7f196db70b698f7eccff52e28a8e5448a30089ff061af29a3d646e88722f",
+  "finalization_digest": "47c8399fb78a17e8b2c1f850ddf8e09a8cbbc232085c5e123050373d0a1a1576",
+  "timestamp": 1793552421
+}

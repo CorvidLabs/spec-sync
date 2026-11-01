@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "b36cfa825652e60a0d8ea0b38f1459cbdb75a56e",
+      "contract_digest": "14a813e25082d3c9545e1cc738747c5ec6fea9ee0373ea385028e7fcab44f4b2",
+      "execution_digest": "e29863b01c0dbb7da35bf2eed46c6f55d29cf54e15849a106b8006d65e69d95a",
+      "workspace_digest": "2cb00081f7fd642a86077d50d310ddec952f11da5be916edc3da11660b823935",
+      "timestamp": 1793552371
+    }
+  ]
+}

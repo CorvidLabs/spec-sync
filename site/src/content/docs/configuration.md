@@ -172,6 +172,43 @@ Use `specsync lifecycle`, `specsync stale`, and `specsync score` to inspect thes
 
 `custom_artifacts` maps an artifact name to a project-owned Markdown template. `principles_file` names a standing principles file. When a change opens, SpecSync shows that file beside the lessons already written for the modules the change touches. A draft is asked which of those lessons or principles constrain it, and "none" is a complete answer. `specsync rules` names the file. When that file is not on disk, the command says it is missing. A `.specsync/sdd.json` that cannot be parsed is an error, not "no principles file". SpecSync does not copy lessons into it. A lesson becomes a standing rule only when a person writes it there.
 
+### Keeping another tool's records out of verification
+
+Another tool may keep its records beside your project, in a directory of its own, and write them between `change check` and `change review`. Chough writes `.chough/`, for example. Any file there makes the recorded verification stale, because the verification digest covers every project file. `ignored_paths` does not help, because it only decides coverage. Neither do `config.toml` `exclude_dirs` and `exclude_patterns`, which only decide spec scanning.
+
+`verification_ignored_paths` names such directories. It is empty by default:
+
+```json
+{
+  "verification_ignored_paths": [".chough/"]
+}
+```
+
+What it does: files under a listed directory, tracked or untracked, do not change the verification project-input digest. Writing, editing or deleting them, or committing them before the review, does not stale verification or the review.
+
+What still stales the review: any commit after `change review`, including one that touches only a listed directory. Keep such records uncommitted until after `change finalize`, as the "review and ship are one step" rule already says.
+
+What it does not do:
+
+- It does not change coverage. That is `ignored_paths`.
+- It does not change spec scanning. That is `config.toml` `exclude_dirs` and `exclude_patterns`.
+- It does not change what `change check --commit` stages.
+
+The rules. An entry that breaks one is refused with a message naming the entry and the rule:
+
+- Each entry is a directory prefix ending in `/`, relative to the project root like every other path in `sdd.json`. Globs and pattern characters (`*`, `?`, `[`, `]`, `{`, `}`, `!`), `..`, `.` or empty components, backslashes, control characters and absolute paths are refused. So is an entry that is, or lies under, a symlink on disk. An entry that does not exist yet is allowed.
+- At most 8 entries, each at most 128 bytes, with no duplicates and no entry inside another.
+- No overlap, ignoring ASCII case, with `.specsync/`, the specs tree, a `source_dirs` entry, the `config.toml` `schema_dir`, any `meaningful_paths` scope, a file listed in any spec's `files:`, a path-form `depends_on` entry or a file named in a spec's `Consumed By` table, an SDD policy file, the `principles_file` or a `custom_artifacts` template. `change check` reads all of these, so a hidden edit to any of them could change its verdict. Listing a directory in `ignored_paths` does not change this: `tests/fixtures/` and `.github/workflows/` stay refused under the default policy. A project whose `source_dirs` or `meaningful_paths` is `.` cannot use the list.
+- No overlap with a change's declared `--path`. That change is refused at `change new`, `change answer <id> affected_paths`, `change approve`, `change check`, `change review` and `change finalize`.
+
+The limit: SpecSync cannot tell whether your tests or CI read files under these directories. If they do, editing those files leaves verification current without your tests running again. Only list directories your build and tests never read. While the list is non-empty, `change status` and `change check` print it under `Verification ignores:` with this note, and `change status --json` reports it as `summary.verification_ignored_paths`.
+
+Where an invalid entry shows up: `change new`, `answer`, `approve`, `check`, `review`, `finalize`, `ship` and `audit` refuse it as an invalid SDD policy, `change status` names it as the next action, and `change ship-status` lists it as a blocker. `specsync check` does not read the list.
+
+Editing the list is an edit to `.specsync/sdd.json`. It needs a covering change when your policy requires one, and it stales existing verification.
+
+Compatibility: SpecSync versions before this release ignore the key and treat evidence recorded with it as stale. Raise the SpecSync version your CI pins before adding an entry.
+
 ## Custom modules
 
 Override automatic source ownership when a module spans unusual paths:

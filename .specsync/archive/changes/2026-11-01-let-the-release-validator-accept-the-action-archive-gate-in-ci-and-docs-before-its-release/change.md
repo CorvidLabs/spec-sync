@@ -1,6 +1,6 @@
 ---
 id: let-the-release-validator-accept-the-action-archive-gate-in-ci-and-docs-before-its-release
-state: implementing
+state: archived
 type: operations
 base_commit: a5043451fe1cde489347f036d209dee088292310
 ---

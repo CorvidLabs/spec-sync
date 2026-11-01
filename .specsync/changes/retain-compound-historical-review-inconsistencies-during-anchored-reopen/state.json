@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "retain-compound-historical-review-inconsistencies-during-anchored-reopen",
+  "slug": "retain-compound-historical-review-inconsistencies-during-anchored-reopen",
+  "title": "Retain compound historical review inconsistencies during anchored reopen",
+  "description": "Retain compound historical review inconsistencies during anchored reopen",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "9eba6ed1a9f24226fe24f08d890bbbd70245dbb5",
+  "created_at": 1793566769,
+  "updated_at": 1793567375,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/recorded_review_recovery.rs",
+    "specs/change",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Within exact recorded workspace-mismatch recovery, preserve the entire historical review including its inconsistent claimed hash as untrusted; keep every normal validation and non-review digest strict, refuse a pure review-hash mismatch, require exact remote-default package anchoring and fresh verification/review, and qualify the public source against the tested implementation."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "The maintainer explicitly approved bounded recovery of exactly anchored inconsistent review evidence without trusting it. No arbitrary corruption bypass, old review acceptance, force flag, limit increase, private consumer evidence, merge or release authorization is inferred.",
+    "public_contract": "yes"
+  }
+}

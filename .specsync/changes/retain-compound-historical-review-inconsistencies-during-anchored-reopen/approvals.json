@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (explicit bounded inconsistent-review recovery approval)",
+      "timestamp": 1793566779,
+      "digest": "eea4977d31a595ff8786a7db4c38273bfac910bf34fa8ca4d360050876aadd4c",
+      "note": "The complete exactly recorded old review remains untrusted; every non-review digest and fresh-review gate stays strict. No historical human review, merge or release approval is claimed.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retain-compound-historical-review-inconsistencies-during-anchored-reopen",
+        "title": "Retain compound historical review inconsistencies during anchored reopen",
+        "description": "Retain compound historical review inconsistencies during anchored reopen",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/change",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests/recorded_review_recovery.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Within exact recorded workspace-mismatch recovery, preserve the entire historical review including its inconsistent claimed hash as untrusted; keep every normal validation and non-review digest strict, refuse a pure review-hash mismatch, require exact remote-default package anchoring and fresh verification/review, and qualify the public source against the tested implementation."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "The maintainer explicitly approved bounded recovery of exactly anchored inconsistent review evidence without trusting it. No arbitrary corruption bypass, old review acceptance, force flag, limit increase, private consumer evidence, merge or release authorization is inferred.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "18ee2612db67866062b01e87b5698af7fbe05b1f6b2d0454505e23872855a3a4"
+      }
+    }
+  ],
+  "reopenings": []
+}

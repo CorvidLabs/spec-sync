@@ -1541,4 +1541,6 @@ The system SHALL permit an audited reopen of an active workflow-v2 accepted reco
 - Uncommitted changes, extra or missing files, mode or content tampering, missing remote-default evidence, and other invalid closing fields refuse without mutation.
 - Fresh verification and a newly current scoped review are mandatory before closing again.
 - Existing bounds and legacy serialized cause values are unchanged; old records serialize identically when the optional anchor is absent.
+- Within the exact recorded workspace-mismatch recovery, the inconsistent old review hash is retained as untrusted evidence rather than authenticated. The finalization self-digest and all non-review digests remain strict.
+- A review-hash mismatch without a review-workspace mismatch remains refused without mutation.
 

@@ -134,3 +134,5 @@ The tests are in `src/change_tests/approved_delta_requirements.rs`. Each one is 
 The frozen_manifest_ignores_later_oversized_assets_but_full_inventory_stays_bounded regression preserves exact signed evidence despite a later oversized tracked asset, detects tampering and deletion, and confirms full inventory remains bounded.
 
 REQ-change-117: recorded_review_recovery_preserves_preimage_and_requires_fresh_check_and_review covers the exact remote-default anchor and mandatory fresh gates. recorded_review_recovery_refuses_unanchored_or_modified_packages_without_writes covers unanchored, extra-file and file-mode controls. recorded_review_recovery_does_not_relax_other_finalization_digests preserves strict other-digest refusal.
+
+REQ-change-117 compound-review coverage retains an unrelated old review hash only inside the exact recorded workspace-mismatch downgrade. recorded_review_recovery_refuses_a_review_hash_mismatch_without_workspace_mismatch proves a pure review-hash mismatch remains refused, while the independent finalization-digest refusal still applies. The compound discriminator failed before this fix at the expected review-hash refusal.

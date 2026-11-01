@@ -627,3 +627,5 @@ The first cut of the overlap refusal listed the inputs from memory and missed `s
 A frozen receipt compares its signed inputs, so recursive validation captures those exact paths rather than loading payloads for later additions under an old directory scope. Fresh acceptance and reopen retain full discovery; resource limits and signed-input drift checks remain unchanged.
 
 An invalid review already committed in the remote-default package remains invalid. Recovery may downgrade it to verifying only after exact whole-package equality and all other authentication checks, preserving an immutable preimage anchor and requiring fresh verification and scoped review. Do not generalize this into a corruption bypass.
+
+A recorded inconsistent review can disagree with both the workspace and its claimed hash. Reopen-only recovery preserves that entire review as untrusted at the exact remote-default anchor; it does not authenticate either claim. The finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch is not admitted.

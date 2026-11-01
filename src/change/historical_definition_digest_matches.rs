@@ -1709,7 +1709,10 @@ fn validate_finalization_evidence_with_review_binding(
     }
     let review_bytes = serde_json::to_vec(&review)
         .map_err(|error| format!("failed to hash scoped review: {error}"))?;
-    if sha256_hex(&review_bytes) != finalization.review_digest {
+    // The reopen-only mode retains the whole mismatched historical review as
+    // untrusted, including its claimed hash. It grants no acceptance authority.
+    // Finalization's own digest and every non-review integrity check stay strict.
+    if !recorded_workspace_mismatch && sha256_hex(&review_bytes) != finalization.review_digest {
         return Err("finalization scoped-review digest does not match review.json".into());
     }
     if finalization_digest(&finalization) != finalization.finalization_digest {
@@ -1751,8 +1754,8 @@ fn recorded_review_workspace_mismatch_anchor(
     if current != recorded {
         return Err("recorded review recovery requires the entire unchanged remote-default package".into());
     }
-    // Only the known workspace/history mismatch is recoverable. Identity, schema,
-    // definition/execution, closing, review hash and finalization hash stay strict.
+    // Only the exactly recorded historical review is downgraded as untrusted.
+    // Identity, schema, definition/execution, closing and finalization hashes stay strict.
     validate_finalization_evidence_with_review_binding(root, record, verification, true)?;
     Ok(anchor)
 }

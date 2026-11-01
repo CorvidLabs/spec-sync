@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Recursive validation of a frozen acceptance receipt reads only its signed inputs, so later asset additions do not exhaust evidence capture. Fresh acceptance and reopen keep full discovery and unchanged resource limits.
+- An active v2 record with an inconsistent historical review workspace can be downgraded through audited reopen only when its entire package exactly matches a remote-default ancestor tree. The complete old review remains untrusted, all non-review digests remain strict, and closing requires fresh verification and scoped review.
+
 ## [6.1.2] - Unreleased
 
 Release candidate, not yet published. The published Action download default stays 6.1.1 until a separate post-publication asset and Action check.

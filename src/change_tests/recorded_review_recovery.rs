@@ -4,6 +4,13 @@ fn recorded_review_recovery_git(root: &Path, args: &[&str]) {
 }
 
 fn recorded_review_recovery_fixture(record_on_default: bool) -> (TempDir, ChangeRecord, String) {
+    recorded_review_recovery_fixture_with_mismatch(record_on_default, true)
+}
+
+fn recorded_review_recovery_fixture_with_mismatch(
+    record_on_default: bool,
+    workspace_mismatch: bool,
+) -> (TempDir, ChangeRecord, String) {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     recorded_review_recovery_git(root, &["init", "-b", "main"]);
@@ -26,11 +33,23 @@ fn recorded_review_recovery_fixture(record_on_default: bool) -> (TempDir, Change
     check_change(root, Some(&record.id)).unwrap();
     // Deliberately reproduce the historical bad writer: finalization fields bind the
     // later verification, while the review still describes the earlier workspace.
+    if !workspace_mismatch {
+        record_scoped_review(root, &record.id, "Matching workspace reviewer".into()).unwrap();
+    }
     let accepted = accept_change_with_gate(root, &record.id, None, None, "finalization", true, false)
         .unwrap();
+    let mut finalization = load_finalization(root, &accepted).unwrap();
+    finalization.review_digest = sha256_hex(b"historical untrusted review claim");
+    finalization.finalization_digest = finalization_digest(&finalization);
+    fs::write(change_dir(root, &accepted.id).join("finalization.json"),
+        json_content(&finalization).unwrap()).unwrap();
     let verification = load_verification(root, &accepted).unwrap();
     assert_eq!(validate_finalization_evidence(root, &accepted, &verification).unwrap_err(),
-        "finalization scoped review does not bind the accepted verification");
+        if workspace_mismatch {
+            "finalization scoped review does not bind the accepted verification"
+        } else {
+            "finalization scoped-review digest does not match review.json"
+        });
     recorded_review_recovery_git(root, &["add", "."]);
     recorded_review_recovery_git(root, &["commit", "-m", "record historical inconsistent package"]);
     let anchor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
@@ -113,5 +132,18 @@ fn recorded_review_recovery_does_not_relax_other_finalization_digests() {
     let error = reopen_change(root, &accepted.id, "Recovery operator".into(),
         "Other invalid evidence must remain refused".into()).unwrap_err();
     assert!(error.contains("finalization digest is invalid"), "{error}");
+    assert_eq!(archive_workspace_snapshot(root, &workspace, &subtree).unwrap(), before);
+}
+
+#[test]
+fn recorded_review_recovery_refuses_a_review_hash_mismatch_without_workspace_mismatch() {
+    let (temp, accepted, _) = recorded_review_recovery_fixture_with_mismatch(true, false);
+    let root = temp.path();
+    let workspace = change_dir(root, &accepted.id);
+    let subtree = portable_project_path(root, &workspace);
+    let before = archive_workspace_snapshot(root, &workspace, &subtree).unwrap();
+    let error = reopen_change(root, &accepted.id, "Recovery operator".into(),
+        "A pure review hash mismatch is outside this recovery".into()).unwrap_err();
+    assert!(error.contains("scoped-review digest does not match"), "{error}");
     assert_eq!(archive_workspace_snapshot(root, &workspace, &subtree).unwrap(), before);
 }

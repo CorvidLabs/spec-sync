@@ -89,3 +89,5 @@ spec: change.spec.md
 - [x] Restrict recursive frozen-receipt capture to signed entries without changing fresh or reopen discovery and resource limits.
 
 - [x] Implement reopen-only recorded review mismatch recovery with exact package anchoring and tamper controls.
+
+- [x] Preserve the complete invalid recorded review, including its claimed hash, as untrusted during bounded reopen-only recovery.

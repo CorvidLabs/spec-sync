@@ -21,7 +21,7 @@ Results are recorded here after verification, not assumed.
 | `REQ-hooks-005` | `generated_hook_content_contains_no_em_or_en_dash`, `uninstall_removes_a_block_with_the_new_begin_sentinel_exactly`, `uninstall_removes_a_block_with_the_6_1_1_begin_sentinel_exactly`, `uninstall_precommit_removes_a_managed_block_with_the_6_1_1_body` (src/hooks.rs); `fresh_project_writers_emit_no_em_or_en_dash` and `hooks_uninstall_through_the_binary_removes_a_6_1_1_block` (integration). |
 | `REQ-agents-009` | `generated_agent_artifacts_contain_no_em_or_en_dash`, `manifest_allows_unmodified_generated_artifact_upgrade`, `checked_in_create_spec_commands_match_generated_assets` (src/agents.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
 | `REQ-compact-001` | `compact_summary_rows_contain_no_em_or_en_dash`, `compact_leaves_a_6_1_1_summary_byte_for_byte_without_excess`, `compact_folds_a_6_1_1_summary_into_one_new_form_row`, `compact_does_not_treat_mixed_placeholder_forms_as_a_summary` and the existing compact suite (src/compact.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
-| `REQ-change-116` | `lesson_bundle_heading_uses_a_colon_and_adds_no_dash`, `lesson_bundle_copies_user_record_text_verbatim` (src/change_tests). |
+| `REQ-change-116` | `lesson_bundle_heading_uses_a_colon_and_adds_no_dash`, `lesson_bundle_copies_user_record_text_verbatim` (`lesson_bundle_dash_tests` in src/change/historical_definition_digest_matches.rs). |
 | `REQ-cmd-init-008` | `specsync_gitignore_content_has_no_em_or_en_dash` (src/commands/init.rs); `fresh_project_writers_emit_no_em_or_en_dash` (integration). |
 | `REQ-cmd-migrate-004` | `apply_write_gitignore_writes_no_em_or_en_dash` (src/commands/migrate.rs); `migrate_writes_no_em_or_en_dash` (integration). |
 
@@ -181,4 +181,13 @@ Pass-after, with the fix:
   `hooks uninstall` removed every block it installed.
 - The lesson bundle was not re-run through a binary finalize, as stated above; the two
   in-process tests are its coverage.
+
+Deviation on placement: the two lesson-bundle tests were first written in
+`src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs`, as planned above.
+That file is outside this change's approved `affected_paths`, and hosted CI's lifecycle audit
+refused it ("meaningful changed paths are not covered by an active change"). The tests moved,
+unchanged in substance, into a `#[cfg(test)] mod lesson_bundle_dash_tests` at the end of
+`src/change/historical_definition_digest_matches.rs` (4,530 lines, under the REQ-change-109
+limit), beside `write_lesson_bundle`. Re-run against the old heading they fail (the count test
+reports 6 em dashes, expected 5); with the fix both pass.
 

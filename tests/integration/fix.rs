@@ -453,13 +453,11 @@ fn fix_768_uses_one_contiguous_export_table() {
                 "\n{heading}\n\n{prefix}| Name | Kind | Description |\n|---|---|---|\n| `a` | fn | Existing |\n\nParameters follow.\n\n| Parameter | Description |\n|---|---|\n| input | Input value |\n"
             );
             assert_fix_768_table(&api, "| `a` | fn | Existing |", 3);
-            if prefix.is_empty() {
-                assert_fix_768_table(
-                    &api.replace("| Name |", "| Function |"),
-                    "| `a` | fn | Existing |",
-                    3,
-                );
-            }
+            assert_fix_768_table(
+                &api.replace("| Name |", "| Function |"),
+                "| `a` | fn | Existing |",
+                3,
+            );
         }
     }
 }

@@ -5,12 +5,12 @@ artifact: tasks
 
 # Tasks
 
-- [ ] After approval, cherry-pick #815's src and test change (a305444a, without its `.specsync` and `specs` edits) with corvid-agent as author.
-- [ ] Generalize #815's `assert_fix_768_table` to take the existing export row and expected width; keep `fix_768_uses_one_contiguous_export_table` passing.
-- [ ] Add the layout (c) and (d) tests from `testing.md`, and confirm their labels against builds of origin/main 709ab2bd and #815 (80658a63).
-- [ ] Replace #815's `export_table` selection in `src/commands/check.rs` with the REQ-cmd-check-017 order: last table holding a documented export row, else first export-like header that is not a parameter or field table, else the last table. Reuse the parser's row-symbol rule rather than a second definition.
-- [ ] Record #768 case 2 as an open task in `specs/cmd_check/tasks.md`, with the reason, and a lesson on a later plane of `specs/cmd_check/cmd_check.3md`.
-- [ ] Run the lanes in `testing.md` and record results.
+- [x] After approval, cherry-pick #815's src and test change (a305444a, without its `.specsync` and `specs` edits) with corvid-agent as author. Evidence: commit 40c6a4a0, author corvid-agent, cherry-picked from 0307d6f0, corvid-agent's rebased copy of a305444a; all three carry the same `src` and `tests` patch line for line, and a305444a is an ancestor of #815's head 80658a63.
+- [x] Generalize #815's `assert_fix_768_table` to take the existing export row and expected width; keep `fix_768_uses_one_contiguous_export_table` passing. Evidence: commit af2e4e38; the helper takes the anchor row and width.
+- [x] Add the layout (c) and (d) tests from `testing.md`, and confirm their labels against builds of origin/main 709ab2bd and #815 (80658a63). Evidence: commit af2e4e38, plus the approved header-rule and fallback tests; labels recorded in `testing.md`.
+- [x] Replace #815's `export_table` selection in `src/commands/check.rs` with the REQ-cmd-check-017 order: last table holding a documented export row, else first export-like header that is not a parameter or field table, else the last table. Reuse the parser's row-symbol rule rather than a second definition. Evidence: commit 2e36b08b; a data row counts as documented when `parser::get_spec_symbols` reads a symbol from it (with any `####` headings above it), so `src/parser.rs` is unchanged.
+- [x] Record #768 case 2 as an open task in `specs/cmd_check/tasks.md`, with the reason, and a lesson on a later plane of `specs/cmd_check/cmd_check.3md`. Evidence: commit 2e36b08b (open task, plane z=5).
+- [x] Run the lanes in `testing.md` and record results. Evidence: `testing.md` Results.
 
 ## Human gates
 

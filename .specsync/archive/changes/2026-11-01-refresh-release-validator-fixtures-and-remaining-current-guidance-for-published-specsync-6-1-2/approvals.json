@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793567664,
+      "digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+      "note": "Approved as drafted.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refresh-release-validator-fixtures-and-remaining-current-guidance-for-published-specsync-6-1-2",
+        "title": "Refresh release-validator fixtures and remaining current guidance for published SpecSync 6.1.2",
+        "description": "Refresh release-validator fixtures and remaining current guidance for published SpecSync 6.1.2",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          "MIGRATION.md",
+          "SECURITY.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "site/src/content/docs/quickstart.md",
+          "site/src/content/examples/ci-gate.mdx",
+          "site/src/content/examples/polyglot.mdx"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Validator test fixtures and current user guidance only; no runtime, canonical API, Action default, validator logic, risk or provenance policy changes.",
+        "acceptance_criteria": [
+          "Current guidance stops describing 6.1.2 as unpublished or pinning 6.1.1: site/src/content/docs/quickstart.md (the GitHub Action candidate note), site/src/content/examples/polyglot.mdx and ci-gate.mdx (the candidate notes), SECURITY.md (the CI pinning bullet, including the main wrapper default now 6.1.2), and the github-action.md manual-CI curl download moves from v6.1.1 to v6.1.2.",
+          "In .github/scripts/test-validate-release-candidate.py, the two published-default tests that anchored on the old @main archive-gate example match the published docs: test_archive_gate_main_ref_expires_once_a_newer_release_is_published first rewrites the @v6.1.2 archive-gate example to @main and still requires the newer-release rejection, and test_postpublication_default_requires_deliberate_advance asserts the docs already pin @v6.1.2 and that the validator passes. No other test and no validator logic changes; all 66 tests pass.",
+          "MIGRATION.md current 5.x to 6 guidance (binary pin and install tag, Homebrew line, Action pins, version check comment and the explicit Action pin paragraph) moves from 6.1.1 to 6.1.2; historical 5.0 and release-specific history text is unchanged.",
+          "validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass, change audit passes with both active changes, and the pre-push gate passes. No runtime source, canonical spec, dependency, workflow, tag or release changes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793569271,
+      "digest": "155457a76c51cbe589d9493d0bc2374e1253d00fbc661651d71222e94af7e8d8",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

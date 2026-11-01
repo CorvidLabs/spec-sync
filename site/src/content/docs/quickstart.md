@@ -251,8 +251,6 @@ Then run `specsync check` again until everything passes.
 
 ### GitHub Action
 
-> Candidate example: use 6.1.2 only after publication. Keep the published 6.1.1 pins until then.
-
 ```yaml
 # .github/workflows/specsync.yml
 name: SpecSync

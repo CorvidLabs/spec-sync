@@ -12,7 +12,7 @@ import sys
 # Keep this and Action/docs pinned to the preceding qualified release until the
 # new stable assets and supported-platform Action smokes pass. Advancing this
 # value is a separate post-publication delivery; it never moves immutable tags.
-PUBLISHED_ACTION_DEFAULT = "6.1.1"
+PUBLISHED_ACTION_DEFAULT = "6.1.2"
 # The archive gate inputs (`require-archived`, `archive-gate-only`) landed after this
 # release. Until a release that contains them is published, a documented step that uses
 # them may pin `@main`: `@v6.1.1` ignores both inputs, so a copied example would pass

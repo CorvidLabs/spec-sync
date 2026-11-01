@@ -1763,6 +1763,11 @@ class PublishedActionDefaultTests(unittest.TestCase):
 
     def test_archive_gate_main_ref_expires_once_a_newer_release_is_published(self) -> None:
         self.replace(
+            "site/src/content/docs/integrations/github-action.md",
+            "      - uses: CorvidLabs/spec-sync@v6.1.2\n        with:\n          version: '6.1.2'\n          archive-gate-only: 'true'\n",
+            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          version: '6.1.2'\n          archive-gate-only: 'true'\n",
+        )
+        self.replace(
             ".github/scripts/validate-release-version.py",
             'PUBLISHED_ACTION_DEFAULT = "6.1.0"',
             'PUBLISHED_ACTION_DEFAULT = "6.2.0"',
@@ -1799,13 +1804,10 @@ class PublishedActionDefaultTests(unittest.TestCase):
             ".github/scripts/validate-release-version.py",
             'PUBLISHED_ACTION_DEFAULT = "6.1.0"', 'PUBLISHED_ACTION_DEFAULT = "6.1.2"',
         )
-        # Publishing the first release with the archive gate inputs ends the `@main`
-        # allowance, so the same deliberate advance pins the archive-gate example too.
-        self.replace(
-            "site/src/content/docs/integrations/github-action.md",
-            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          archive-gate-only: 'true'\n",
-            "      - uses: CorvidLabs/spec-sync@v6.1.2\n        with:\n          archive-gate-only: 'true'\n",
-        )
+        # Publishing the first release with the archive gate inputs ended the `@main`
+        # allowance; the archive-gate example already pins @v6.1.2.
+        content = (self.root / "site/src/content/docs/integrations/github-action.md").read_text(encoding="utf-8")
+        self.assertIn("      - uses: CorvidLabs/spec-sync@v6.1.2\n        with:\n          version: '6.1.2'\n          archive-gate-only: 'true'\n", content)
         self.set_default("6.1.2")
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stderr)

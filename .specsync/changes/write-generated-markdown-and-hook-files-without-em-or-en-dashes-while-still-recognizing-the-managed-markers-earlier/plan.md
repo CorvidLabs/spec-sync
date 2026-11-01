@@ -37,8 +37,11 @@ so a new dash in any writer fails CI.
 5. Part D: change the compaction writer, and teach `summary_metadata` both forms.
 6. Regenerate this repository's agent assets with the built binary
    (`target/release/specsync agents install`). Commit the changed
-   `.claude/commands/specsync/create-spec.md`, `.cursor/commands/specsync-create-spec.md` and
-   `.specsync/agent-artifacts.json`.
+   `.claude/commands/specsync/create-spec.md`, `.cursor/commands/specsync-create-spec.md`,
+   the four `*/skills/spec-sync/SKILL.md` files (`.claude`, `.codex`, `.cursor`, `.gemini`,
+   added to `affected_paths` by 0xLeif's amendment on PR #829) and
+   `.specsync/agent-artifacts.json`. `tracked_agent_artifacts_and_manifest_match_a_fresh_install`
+   pins the result.
 7. Update the companions after verification:
    - `specs/compact/requirements.md`: the free acceptance list that still names the dash form;
    - `compact.3md` notes;

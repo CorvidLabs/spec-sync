@@ -1,6 +1,6 @@
 ---
 module: change
-version: 153
+version: 155
 status: active
 files:
   - src/change.rs
@@ -10,6 +10,7 @@ files:
   - src/change/sdd_version.rs
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
+  - src/change_tests/recorded_review_recovery.rs
   - src/change_tests.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
@@ -94,7 +95,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ScopeAdoptionV1` | Frozen adopted stable scope, anchor, authorization, and non-material classification evidence |
 | `DefinitionApprovalPairRole` | Current/full or legacy/projected role for one marked portable definition member |
 | `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
-| `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, stale/current input digests, and the staleness cause when the digests are equal |
+| `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, stale/current input digests, the staleness cause when the digests are equal, and an optional exact remote-default Git anchor when reopening a recorded review-workspace mismatch |
 | `ReopenCauseV1` | Why accepted evidence was stale despite matching inputs: unanchored verification or unreconstructible legacy acceptance; absent means inputs drifted |
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
@@ -374,6 +375,10 @@ Acceptance Criteria
 | A repeated stage-zero path has a different mode or object ID | Git candidate inspection fails closed without replacing the first observation |
 | Correction ledger is invalid when a definition mutation acquires the project lock | Mutation emits the safe integrity diagnostic and persists no lifecycle update |
 | Effective definition approval records no semantic delta wording while an earlier definition approval in the same ledger recorded it | Materialization and acceptance refuse the withdrawn claim and name `specsync change approve <id>` as the remedy |
+| Later files expand a previously accepted directory scope beyond the evidence payload bound | Recursive accepted-input validation captures only authenticated signed manifest entries; fresh acceptance and reopen keep full discovery and unchanged resource bounds, and signed input drift remains fail-closed |
+| An active v2 finalization has a mismatched historical review workspace but its entire raw package matches the current remote-default tree | Reopen may record that exact Git anchor and downgrade to verifying after all other authentication checks; ordinary acceptance/archive remain strict and fresh verification plus scoped review are required |
+| The mismatched package is modified, unanchored, not active v2, or has any other invalid finalization digest | Recovery refuses without changing lifecycle or evidence bytes |
+| The exactly recorded mismatched old review also has an inconsistent review hash | Reopen-only recovery preserves both as untrusted at the same anchor; finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch remains refused |
 
 ## Dependencies
 
@@ -568,3 +573,5 @@ Acceptance Criteria
 | 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
 | 2026-11-01 | report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json: Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON |
 | 2026-11-01 | let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the: Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest |
+| 2026-11-01 | keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches: Keep receipt reads bounded and recover exactly recorded review mismatches |
+| 2026-11-01 | retain-compound-historical-review-inconsistencies-during-anchored-reopen: Retain compound historical review inconsistencies during anchored reopen |

@@ -4095,7 +4095,6 @@ fn legacy_archive_subtree_digest(
     Ok(digest.finish())
 }
 
-#[cfg(test)]
 fn archive_workspace_snapshot(
     root: &Path,
     workspace: &Path,
@@ -4150,19 +4149,12 @@ fn git_tree_snapshot(
     repo_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
     let pathspec = format!(":(top,literal){repo_subtree}");
-    let output = Command::new("git")
-        .args([
-            "ls-tree",
-            "-r",
-            "-z",
-            "--full-name",
-            commit,
-            "--",
-            &pathspec,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect legacy archive tree: {error}"))?;
+    let output = run_git_bounded(
+        root,
+        &["ls-tree", "-r", "-z", "--full-name", commit, "--", &pathspec],
+        None,
+        MAX_GIT_EVIDENCE_PATH_BYTES + MAX_GIT_EVIDENCE_PATHS,
+    )?;
     if !output.status.success() {
         return Err(format!(
             "failed to inspect legacy archive tree at `{commit}`"
@@ -4327,10 +4319,9 @@ fn validate_accepted_inputs_recursive(
             }
             reconstruct_legacy_acceptance_manifest(root, record, expected_digest)?
         };
-        let current = acceptance_manifest_with_signed_owners(
+        let current = acceptance_manifest_for_signed_inputs(
             root,
             &terminal_delivery_projection(record),
-            &[],
             &signed,
         )?;
         let current_by_path: BTreeMap<_, _> = current

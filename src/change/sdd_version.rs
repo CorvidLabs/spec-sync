@@ -1146,6 +1146,10 @@ pub struct ReopenRecord {
     pub current_acceptance_input_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stale_evidence_cause: Option<ReopenCauseV1>,
+    /// Exact remote-default commit retaining the entire inconsistent original package.
+    /// Its old scoped review remains invalid; recovery only downgrades to verifying.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recorded_review_mismatch_anchor: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -3737,8 +3741,22 @@ fn reopen_unarchived_change(
     let inputs_drifted = current_acceptance_input_digest != stale_acceptance_input_digest;
     let tip_matches_closing = current_verification.passed
         && superseded_approval.digest == closing_digest(&record, &current_verification);
+    let mut recorded_review_mismatch_anchor = None;
     let anchored = if tip_matches_closing {
-        authenticate_accepted_evidence_with_anchor(root, &record, None)?.1
+        match authenticate_accepted_evidence_with_anchor(root, &record, None) {
+            Ok((_, anchored)) => anchored,
+            Err(error)
+                if error == "finalization scoped review does not bind the accepted verification" =>
+            {
+                recorded_review_mismatch_anchor = Some(recorded_review_workspace_mismatch_anchor(
+                    root,
+                    &record,
+                    &current_verification,
+                )?);
+                true
+            }
+            Err(error) => return Err(error),
+        }
     } else {
         accepted_evidence_is_anchored(root, &record, &prior_verification)
     };
@@ -3750,13 +3768,21 @@ fn reopen_unarchived_change(
         && prior_verification.acceptance_manifest.is_none()
         && reconstruct_legacy_acceptance_manifest(root, &record, &stale_acceptance_input_digest)
             .is_err();
-    if !inputs_drifted && anchored && !legacy_unreconstructible {
+    if !inputs_drifted
+        && anchored
+        && !legacy_unreconstructible
+        && recorded_review_mismatch_anchor.is_none()
+    {
         return Err(
             "accepted change delivery inputs are current (exact or successor-covered) and its verification commit is still anchored in current history; reopen is allowed only when accepted evidence is stale"
                 .into(),
         );
     }
-    if tip_matches_closing && anchored && !legacy_unreconstructible {
+    if tip_matches_closing
+        && anchored
+        && !legacy_unreconstructible
+        && recorded_review_mismatch_anchor.is_none()
+    {
         let records = list_all_changes_checked(root)?;
         let mut visiting = BTreeSet::new();
         let mut memo = BTreeMap::new();
@@ -3788,6 +3814,7 @@ fn reopen_unarchived_change(
         prior_verification,
         stale_acceptance_input_digest,
         current_acceptance_input_digest,
+        recorded_review_mismatch_anchor,
         stale_evidence_cause: if !anchored {
             Some(ReopenCauseV1::VerificationCommitUnanchored)
         } else if legacy_unreconstructible {

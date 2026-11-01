@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches",
+  "reviewer": "agent:codex",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ce4e4ec073a8c3c23f1bc1255877d5bc372bd8bd",
+  "contract_digest": "dcbc07397ebdfbcae61a9cfe93268054d814204fe51957f1a9a0df8b75a4ffde",
+  "execution_digest": "ed669c3e6a7e8085d50994a13516d28cc77d0dee8b9b78bcc0517f0782149d3f",
+  "workspace_digest": "5d1060e9e1cc26b8d0864088f2bd39b15d150ff3a3f0277d23e7b5cd720776a5",
+  "timestamp": 1793564708
+}

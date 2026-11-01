@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Recursive validation of a frozen acceptance receipt reads only its signed inputs, so later asset additions do not exhaust evidence capture. Fresh acceptance and reopen keep full discovery and unchanged resource limits.
+- An active v2 record with an inconsistent historical review workspace can be downgraded through audited reopen only when its entire package exactly matches a remote-default ancestor tree. The complete old review remains untrusted, all non-review digests remain strict, and closing requires fresh verification and scoped review.
+
 ### Changed
 
 - Advance the main Action binary default to published 6.1.2 after supported-platform asset and Action checks. Immutable `@v6.1.2` remains at its qualified candidate SHA with default 6.1.1; select `version: '6.1.2'` explicitly with that tag. Archive-gate examples pin `@v6.1.2`, and the release validator no longer accepts `@main` for them.

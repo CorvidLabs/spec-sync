@@ -23,3 +23,5 @@ include!("change_tests/semantic_application_resolves_registry_backed_canonical_p
 include!("change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs");
 include!("change_tests/verification_ignored_paths.rs");
 include!("change_tests/approved_delta_requirements.rs");
+
+include!("change_tests/recorded_review_recovery.rs");

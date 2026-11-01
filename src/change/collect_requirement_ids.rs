@@ -4180,6 +4180,7 @@ fn acceptance_manifest(
         overrides,
         None,
         UnownedProductionSource::Reject,
+        AcceptanceDiscovery::Full,
     )
 }
 
@@ -4194,6 +4195,7 @@ fn acceptance_manifest_legacy(
         overrides,
         None,
         UnownedProductionSource::AssignExactDelivery,
+        AcceptanceDiscovery::Full,
     )
 }
 
@@ -4209,6 +4211,30 @@ fn acceptance_manifest_with_signed_owners(
         overrides,
         Some(signed),
         UnownedProductionSource::Reject,
+        AcceptanceDiscovery::Full,
+    )
+}
+
+/// Recursive validation compares the authenticated manifest's entries only. Later additions
+/// are not signed inputs; fresh acceptance and reopening still use full discovery.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AcceptanceDiscovery {
+    Full,
+    SignedInputs,
+}
+
+fn acceptance_manifest_for_signed_inputs(
+    root: &Path,
+    record: &ChangeRecord,
+    signed: &AcceptanceManifestV1,
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal(
+        root,
+        record,
+        &[],
+        Some(signed),
+        UnownedProductionSource::Reject,
+        AcceptanceDiscovery::SignedInputs,
     )
 }
 
@@ -4218,8 +4244,12 @@ fn acceptance_manifest_internal(
     overrides: &[(PathBuf, String)],
     signed: Option<&AcceptanceManifestV1>,
     unowned_source: UnownedProductionSource,
+    discovery: AcceptanceDiscovery,
 ) -> Result<AcceptanceManifestV1, String> {
-    let discovery_scopes = acceptance_discovery_scopes(root, record)?;
+    let discovery_scopes = match discovery {
+        AcceptanceDiscovery::Full => acceptance_discovery_scopes(root, record)?,
+        AcceptanceDiscovery::SignedInputs => BTreeSet::new(),
+    };
     let override_content: BTreeMap<String, &[u8]> = overrides
         .iter()
         .map(|(path, content)| {
@@ -4230,17 +4260,19 @@ fn acceptance_manifest_internal(
         })
         .collect::<Result<_, String>>()?;
     let mut extra_candidates = override_content.keys().cloned().collect::<BTreeSet<_>>();
-    extra_candidates.extend(
-        record
-            .affected_paths
-            .iter()
-            .filter_map(|scope| (!scope.ends_with('/')).then_some(scope.clone())),
-    );
-    extra_candidates.extend(record.supersedes.iter().flat_map(|edge| {
-        edge.obligations
-            .iter()
-            .map(|obligation| obligation.path.clone())
-    }));
+    if discovery == AcceptanceDiscovery::Full {
+        extra_candidates.extend(
+            record
+                .affected_paths
+                .iter()
+                .filter_map(|scope| (!scope.ends_with('/')).then_some(scope.clone())),
+        );
+        extra_candidates.extend(record.supersedes.iter().flat_map(|edge| {
+            edge.obligations
+                .iter()
+                .map(|obligation| obligation.path.clone())
+        }));
+    }
     if let Some(signed) = signed {
         extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
     }

@@ -113,3 +113,47 @@ are part of the approved scope, so a NEW dependency stales the scope and the in-
 `approved_deltas` is `[]`, exactly what `status` then reports. Re-declaring a dependency the
 approval already covers keeps the scope current and carries the intact entries. The unit and
 integration tests drive both paths.
+
+## Observed results of the regression lanes
+
+Recorded after the review pass on PR #828. Figures marked "first run" come from the first
+implementation pass, whose logs were not committed; this pass did not re-run the a80748f stub
+labelling. Every other figure was observed in this pass on the working tree that the review fix
+commit records.
+
+- Unit, first run: against the a80748f stub described in `testing.md`, 12 failed and 14 passed.
+  With the change, 26 passed.
+- Unit, this pass: the 17 tests in `src/change_tests/approved_delta_requirements.rs` pass.
+  `cargo test --bin specsync change::` gave 557 passed, 0 failed. `cargo test --bin specsync
+  commands::change::` gave 34 passed, 0 failed.
+- Integration, before: `status_and_show_json_report_approved_delta_requirements`, run with
+  `CARGO_BIN_EXE_specsync` pointing at a debug build of unfixed a80748f, fails at its first
+  assertion. The draft `change status --json` has no `approved_deltas` key (`left: Null`,
+  `right: Array []`).
+- Integration, after: the same test passes against this branch.
+- `summary` key set: the integration fixture was replayed through both binaries. In the draft,
+  approved and `change new --json` outputs, a80748f and this branch print the same 13 `summary`
+  keys. The test now asserts that set (testing.md step 2), and asserts that `change new --json`
+  carries `approved_deltas == []`.
+- Full suite inside `fledge lanes run verify`: 2640 unit tests passed and 465 integration tests
+  passed, 0 failed. The lane passed (exit 0), including fmt, clippy, the release build and strict
+  specs.
+- `specsync check --strict --require-coverage 100`: 62 specs checked, 62 passed, 0 warnings. File
+  coverage 130/130 and LOC coverage 147486/147486.
+- `specsync change audit`, run before this commit's `change check --commit`, reported only
+  "verification evidence is stale for the current commit or contract". That is expected after
+  an edit, and the re-run after `change check --commit` is recorded in the PR.
+- `fledge lanes run pre-push` and `fledge trust verify` run before each push. Their results for
+  each head are recorded in the PR, not here, because a new commit outdates them.
+
+## Review finding: `change new` is not built from a mutation snapshot
+
+REQ-cmd-change-023 AC2 and the first `cli.md` text list `change new` among the outputs built
+under the project lock. In the code, `change new` renders through `print_record` after
+`create_change` releases the lock. Its `approved_deltas` is always `[]` because a new change is
+a draft, so nothing observable differs. `cli.md` and `docs.md` now claim the in-transaction build
+only for `answer`, `depend` and `supersede`. The requirement wording still lists `change new`.
+Correcting it is a delta edit that needs re-approval. That could be folded into the REQ-change-114
+renumber re-approval that the #829-first merge order already requires. Routing `change new`
+through a snapshot would instead add a crate-private function to the approved Public API section,
+which also needs re-approval. The human chooses between the two.

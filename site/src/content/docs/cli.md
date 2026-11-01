@@ -433,9 +433,9 @@ reports the refusal `change check` gives. Editing `plan.md` or another execution
 approval stales verification, not approval.
 
 `change status <id> --json` and `change show <id> --json` also carry a top-level
-`approved_deltas` array, one entry per affected module, sorted by module. `change new`, `answer`,
+`approved_deltas` array, one entry per affected module, sorted by module. `change answer`,
 `depend` and `supersede --json` carry the same key, built in the same transaction as their
-`summary`. The key is always present and is `[]` outside the approved, implementing and verifying
+`summary`. `change new --json` carries it too, always `[]`, because a new change is a draft. The key is always present and is `[]` outside the approved, implementing and verifying
 states, and when the approved scope is stale. Each entry has `module` and `delta_intact`:
 
 - `delta_intact` is `true` when the delta body matches the body the approval recorded (line

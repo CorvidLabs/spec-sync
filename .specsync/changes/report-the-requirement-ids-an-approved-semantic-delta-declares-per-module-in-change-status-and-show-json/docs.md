@@ -14,8 +14,9 @@ paragraph. It says:
   `### REQUIREMENT` and `### SPEC SECTION` headings) and `materialized`. When `delta_intact` is
   `true` but the current delta grammar refuses the body (an approval recorded under an older
   grammar), the entry carries `declarations_error` instead of those keys.
-- `change new`, `answer`, `depend` and `supersede --json` carry the same key, built in the same
-  transaction as their `summary`.
+- `change answer`, `depend` and `supersede --json` carry the same key, built in the same
+  transaction as their `summary`. `change new --json` carries it too, always `[]`, because a new
+  change is a draft.
 - `delta_intact` is `false` when the delta body changed after approval, for the same reason
   `change check` refuses it. It is `null` when the approval predates the delta binding, which
   means unknown, not tampered.

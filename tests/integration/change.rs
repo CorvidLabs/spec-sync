@@ -3398,6 +3398,40 @@ fn status_and_show_json_report_approved_delta_requirements() {
     let mut draft_keys = draft_keys;
     draft_keys.sort();
     assert_eq!(draft_keys, previous);
+    // The `summary` key set a80748f prints for this same fixture, in the draft and the approved
+    // intact state: `summary` gains, loses and renames nothing.
+    let previous_summary = vec![
+        "approval_valid",
+        "artifacts_complete",
+        "correction_count",
+        "correction_valid",
+        "definition_digest",
+        "handoff",
+        "id",
+        "next_action",
+        "scoped_review_current",
+        "state",
+        "strict_validation_required",
+        "title",
+        "verification_commands",
+    ];
+    let summary_keys = |value: &Value| -> Vec<String> {
+        let mut keys: Vec<String> = value["summary"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    };
+    assert_eq!(
+        summary_keys(&draft_status),
+        previous_summary,
+        "{draft_status}"
+    );
+    assert_eq!(summary_keys(&status), previous_summary, "{status}");
+    assert_eq!(summary_keys(&show), previous_summary, "{show}");
 
     fs::write(&delta, approved.replace('\n', "\r\n")).unwrap();
     assert_eq!(
@@ -3490,4 +3524,28 @@ fn status_and_show_json_report_approved_delta_requirements() {
         depended["approved_deltas"],
         dependent_status["approved_deltas"]
     );
+
+    // `change new --json` renders the draft it just created, so its list is always empty. The
+    // key, the other top-level keys and the `summary` keys match `change status --json`.
+    let created = json(&[
+        "change",
+        "new",
+        "Add a draft for the new output",
+        "--kind",
+        "bug-fix",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ]);
+    assert_eq!(created["change"]["state"], "draft", "{created}");
+    assert_eq!(
+        created["approved_deltas"],
+        serde_json::json!([]),
+        "{created}"
+    );
+    let mut created_keys: Vec<String> = created.as_object().unwrap().keys().cloned().collect();
+    created_keys.sort();
+    assert_eq!(created_keys, previous);
+    assert_eq!(summary_keys(&created), previous_summary, "{created}");
 }

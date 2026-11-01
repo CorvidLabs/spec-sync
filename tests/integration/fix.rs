@@ -444,7 +444,7 @@ fn assert_rows_contiguous(updated: &str, row_marker: &str) {
 // #768 case 1: width and insertion must describe the same table.
 #[test]
 fn fix_768_uses_one_contiguous_export_table() {
-    for heading in ["### Exported Functions", "**Functions**", ""] {
+    for heading in FIX_768_HEADINGS {
         for prefix in [
             "",
             "| Parameter | Description |\n|---|---|\n| input | Input value |\n\n",
@@ -452,15 +452,80 @@ fn fix_768_uses_one_contiguous_export_table() {
             let api = format!(
                 "\n{heading}\n\n{prefix}| Name | Kind | Description |\n|---|---|---|\n| `a` | fn | Existing |\n\nParameters follow.\n\n| Parameter | Description |\n|---|---|\n| input | Input value |\n"
             );
-            assert_fix_768_table(&api);
+            assert_fix_768_table(&api, "| `a` | fn | Existing |", 3);
             if prefix.is_empty() {
-                assert_fix_768_table(&api.replace("| Name |", "| Function |"));
+                assert_fix_768_table(
+                    &api.replace("| Name |", "| Function |"),
+                    "| `a` | fn | Existing |",
+                    3,
+                );
             }
         }
     }
 }
 
-fn assert_fix_768_table(api: &str) {
+// #768 layout (c): a parameters table before the export table must not take
+// the rows; origin/main already appended to the export table here.
+#[test]
+fn fix_768_keeps_rows_in_the_export_table_after_a_parameters_table() {
+    for heading in FIX_768_HEADINGS {
+        let api = format!(
+            "\n{heading}\n\n| Parameter | Description |\n|---|---|\n| input | Input value |\n\n| Function | Description |\n|---|---|\n| `a` | Existing |\n"
+        );
+        assert_fix_768_table(&api, "| `a` | Existing |", 2);
+    }
+}
+
+// #768 layout (d): a `Name`-headed parameters table after the export table is
+// not the export table; the table that already holds `a` is.
+#[test]
+fn fix_768_ignores_a_name_headed_parameters_table_after_the_export_table() {
+    for heading in FIX_768_HEADINGS {
+        let api = format!(
+            "\n{heading}\n\n| Function | Description |\n|---|---|\n| `a` | Existing |\n\nParameters follow.\n\n| Name | Type | Description |\n|---|---|---|\n| input | string | Input value |\n"
+        );
+        assert_fix_768_table(&api, "| `a` | Existing |", 2);
+    }
+}
+
+// REQ-cmd-check-017 rule 2: with no documented row yet, the first table with
+// an export-like header that is not a parameter table receives the rows.
+#[test]
+fn fix_768_header_rule_picks_the_export_table_when_none_holds_a_row() {
+    for heading in FIX_768_HEADINGS {
+        let api = format!(
+            "\n{heading}\n\n| Name | Type | Description |\n|---|---|---|\n| input | string | Input value |\n\n| Function | Description |\n|----------|-------------|\n\nFields follow.\n\n| Field | Description |\n|---|---|\n| id | Identifier |\n"
+        );
+        assert_fix_768_table(&api, "|----------|-------------|", 2);
+    }
+}
+
+// REQ-cmd-check-017 rule 3: with no documented row and no export-like header,
+// the last table receives the rows, with that table's own width.
+#[test]
+fn fix_768_falls_back_to_the_last_table_with_its_own_width() {
+    for heading in FIX_768_HEADINGS {
+        let api = format!(
+            "\n{heading}\n\n| Parameter | Type | Description |\n|---|---|---|\n| input | string | Input value |\n\nItems follow.\n\n| Item | Description |\n|------|-------------|\n"
+        );
+        assert_fix_768_table(&api, "|------|-------------|", 2);
+    }
+}
+
+const FIX_768_HEADINGS: [&str; 3] = ["### Exported Functions", "**Functions**", ""];
+
+/// Run `check --fix` on a spec whose Public API body is `api`, with `a` and
+/// `b` exported from source. Every new export row must have `width` cells and
+/// the new rows must directly follow `anchor`, the one line of the target
+/// table they extend; every other byte is preserved, `check --strict` passes
+/// and a second `--fix` changes nothing.
+fn assert_fix_768_table(api: &str, anchor: &str, width: usize) {
+    let original = spec_with_public_api(api);
+    assert_eq!(
+        original.matches(anchor).count(),
+        1,
+        "anchor must be unique: {anchor}"
+    );
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     write_config(root, "specs", &["src"]);
@@ -472,35 +537,35 @@ fn assert_fix_768_table(api: &str) {
     )
     .unwrap();
     let path = root.join("specs/auth/auth.spec.md");
-    fs::write(&path, spec_with_public_api(api)).unwrap();
+    fs::write(&path, &original).unwrap();
     fs::write(root.join("specs/auth/requirements.md"), "# Requirements\n").unwrap();
     specsync()
         .args(["check", "--fix", "--root", root.to_str().unwrap()])
         .assert()
         .success();
     let updated = fs::read_to_string(&path).unwrap();
-    let row = updated
+    let new_rows: Vec<&str> = updated
         .lines()
-        .find(|line| line.starts_with("| `b` |"))
-        .expect("new export row");
-    assert_eq!(
-        row.matches('|').count(),
-        4,
-        "must use export table width: {updated}"
-    );
+        .filter(|line| {
+            (line.starts_with("| `a` |") || line.starts_with("| `b` |"))
+                && !original.lines().any(|existing| existing == *line)
+        })
+        .collect();
     assert!(
-        updated.contains(&format!(
-            "| `a` | fn | Existing |\n{row}\n\nParameters follow."
-        )),
-        "must extend the export table: {updated}"
+        new_rows.iter().any(|row| row.starts_with("| `b` |")),
+        "new export row for b: {updated}"
     );
+    for row in &new_rows {
+        assert_eq!(
+            row.matches('|').count(),
+            width + 1,
+            "must use the target table's width: {updated}"
+        );
+    }
     assert_eq!(
         updated,
-        spec_with_public_api(api).replace(
-            "| `a` | fn | Existing |",
-            &format!("| `a` | fn | Existing |\n{row}")
-        ),
-        "all other content is preserved"
+        original.replace(anchor, &format!("{anchor}\n{}", new_rows.join("\n"))),
+        "rows directly follow the target table's last row and all other content is preserved"
     );
     specsync()
         .args([

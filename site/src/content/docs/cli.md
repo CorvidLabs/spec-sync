@@ -374,7 +374,7 @@ specsync change approve add-passkeys --actor "Ada"
 # implement and test the approved scope
 specsync change check add-passkeys --commit
 specsync change audit
-# push the product tip, wait for required checks, then complete human review
+# run the local verify lane, then complete human review (archive-first CI waits for the archive tip)
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for checks before GitHub merges

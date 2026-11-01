@@ -30,7 +30,7 @@ so a new dash in any writer fails CI.
 1. Write the discriminator and control tests in `testing.md`, and confirm their labels against
    an unfixed a80748ff build.
 2. Part A: the lesson-bundle heading, the `init` and `migrate` `.gitignore` headers, and
-   `CREATE_SPEC_STEPS_MD`. Bump `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
+   `CREATE_SPEC_STEPS_MD`. Bump `AGENT_ARTIFACT_TEMPLATE_VERSION` to 7.
 3. Part B: rewrite the four hook snippets, add `LEGACY_HOOK_BEGIN` and `is_hook_begin`, and use
    them in `remove_section_from_file`.
 4. Part C: rewrite `PRE_COMMIT_HOOK`. `uninstall_precommit` is unchanged.

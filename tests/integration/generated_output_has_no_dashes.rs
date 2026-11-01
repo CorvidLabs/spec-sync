@@ -1,5 +1,5 @@
 //! Files SpecSync writes into a repository carry no U+2013 (en dash) or U+2014 (em dash)
-//! (REQ-hooks-005, REQ-agents-009, REQ-compact-001, REQ-cmd-init-008, REQ-cmd-migrate-004).
+//! (REQ-hooks-005, REQ-agents-010, REQ-compact-001, REQ-cmd-init-008, REQ-cmd-migrate-004).
 //!
 //! Downstream projects lint their own Markdown for these characters, and some of what SpecSync
 //! writes cannot be fixed by hand: the managed hook block says "do not edit inside". So the guard

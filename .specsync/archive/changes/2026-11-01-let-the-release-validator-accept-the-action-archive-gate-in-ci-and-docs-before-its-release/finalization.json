@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "let-the-release-validator-accept-the-action-archive-gate-in-ci-and-docs-before-its-release",
+  "implementation_commit": "5e19021225de8d56547ed8f7d8a457476f3547d8",
+  "implementation_tree": "1c2c8d446fd12d675bc2584d19e1e04b9a60445a",
+  "contract_digest": "92d4127fd2b6b6687deb3750ca489e8703f16e61a9fbba817b62bb9a1612c5a2",
+  "workspace_digest": "4fc6b42cab79bb1a01d9bd40c572b04bd92a06e3bb82c51662e588d6258c7766",
+  "closing_digest": "c60a1cf1b4cb2343767ece5ba6430a25847bbb823041e6fd320139d897de1766",
+  "review_digest": "c7614e8dfceb3d277c24a306a34a427d72ab85ec27db04e2447899e1bc3e44a1",
+  "finalization_digest": "0443f7bfbdd306517848bd90d9d5c95271a5a4a9d523c619873a03c0f018df34",
+  "timestamp": 1793509706
+}

@@ -8,10 +8,13 @@ classify deselected and for a job whose own dependency failed, so the gate has
 to tell the two apart. Before #796 it could not: the lifecycle gate failed,
 test, audit, coverage and spec-check were skipped, and both gates went green.
 
-These tests hold the workflow to three rules:
+These tests hold the workflow to four rules:
 
+0. Archive runs first. It needs nothing, every other job depends on it, and
+   both gates require it, so a commit with an open SDD change runs nothing and
+   cannot merge.
 1. Every job that can finish before implementation-gate is in its `needs`,
-   `preflight` and `lifecycle-gate` included.
+   `archive`, `preflight` and `lifecycle-gate` included.
 2. The gate's row for each job evaluates that job's own `if:` again, so
    `skipped` passes only where classify deselected the job.
 3. Simulated over every classify path, the required gate is green when every
@@ -47,10 +50,10 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/ci.yml"
 GATE_JOB = "implementation-gate"
 REQUIRED_JOB = "ci-gate"
-ALWAYS_REQUIRED = ("classify", "preflight", "lifecycle-gate")
-# An open change fails Archive on purpose. That blocks the merge gate and must
-# not fail SpecSync implementation ready, which review is allowed to wait on.
-MERGE_ONLY = ("archive",)
+ALWAYS_REQUIRED = ("archive", "classify", "preflight", "lifecycle-gate")
+# An open change fails Archive on purpose, before anything else runs.
+ARCHIVE_JOB = "archive"
+ACTION = ROOT / "action.yml"
 CLASSIFY_FLAGS = (
     "full",
     "site",
@@ -425,15 +428,10 @@ def gate_contract_errors(jobs: dict[str, Any]) -> list[str]:
     for name in ALWAYS_REQUIRED:
         if name not in needs:
             errors.append(f"{GATE_JOB}.needs must include {name}")
+    errors.extend(archive_first_errors(jobs))
     downstream = {name for name in jobs if GATE_JOB in ancestors(jobs, name)} | {GATE_JOB}
-    required_needs = set(jobs[REQUIRED_JOB]["needs"])
-    for name in MERGE_ONLY:
-        if name not in required_needs:
-            errors.append(
-                f"{name} must be needed by {REQUIRED_JOB} so an open change still blocks merge"
-            )
     for name in sorted(set(jobs) - downstream):
-        if name in needs or name in ALWAYS_REQUIRED or name in MERGE_ONLY:
+        if name in needs or name in ALWAYS_REQUIRED:
             continue
         reason = (
             "gates on lifecycle-gate"
@@ -471,6 +469,26 @@ def gate_contract_errors(jobs: dict[str, Any]) -> list[str]:
     return errors
 
 
+def archive_first_errors(jobs: dict[str, Any]) -> list[str]:
+    """Archive is the root: it needs nothing and everything else depends on it."""
+    if ARCHIVE_JOB not in jobs:
+        return [f"workflow has no {ARCHIVE_JOB} job"]
+    errors: list[str] = []
+    archive = jobs[ARCHIVE_JOB]
+    if archive["needs"]:
+        errors.append(f"{ARCHIVE_JOB} must run first and need nothing, not {archive['needs']}")
+    if archive["if"] not in (None, "true"):
+        errors.append(f"{ARCHIVE_JOB} must always run, not only if: {archive['if']}")
+    for name in sorted(jobs):
+        if name != ARCHIVE_JOB and ARCHIVE_JOB not in ancestors(jobs, name):
+            errors.append(
+                f"{name} does not depend on {ARCHIVE_JOB}, so it runs while a change is still open"
+            )
+    if ARCHIVE_JOB not in jobs[REQUIRED_JOB]["needs"]:
+        errors.append(f"{REQUIRED_JOB} must need {ARCHIVE_JOB} so an open change blocks merge")
+    return errors
+
+
 # MARK: - Simulation
 
 
@@ -493,7 +511,7 @@ class Scenario:
         return values
 
 
-# Every lane classify-ci-paths.sh and select-ci-lane.sh can choose today.
+# Every lane classify-ci-paths.sh can choose today.
 SCENARIOS = (
     Scenario("Full PR (src/, tests/, workflows, docs/, *.md)", "pull_request", ("full",)),
     Scenario("Full PR, change awaiting scoped review", "pull_request", ("full", "review_required")),
@@ -891,11 +909,7 @@ class RequiredGateSimulationTests(unittest.TestCase):
             )
         for (scenario, forced), (results, transcript) in zip(cases, simulate_many(self.workflow, cases)):
             with self.subTest(path=scenario.label, forced=forced):
-                forced_name = next(iter(forced))
-                if forced_name in MERGE_ONLY:
-                    self.assertEqual(results[GATE_JOB], "success", transcript)
-                else:
-                    self.assertEqual(results[GATE_JOB], "failure", transcript)
+                self.assertEqual(results[GATE_JOB], "failure", transcript)
                 self.assertEqual(results[REQUIRED_JOB], "failure", transcript)
 
     def test_deselected_jobs_are_skipped_and_do_not_block(self) -> None:
@@ -924,6 +938,82 @@ class RequiredGateSimulationTests(unittest.TestCase):
                 for name in ALWAYS_REQUIRED:
                     self.assertEqual(results[name], "success")
                 self.assertEqual(results[REQUIRED_JOB], "success")
+
+
+class ArchiveFirstTests(unittest.TestCase):
+    """An open change stops CI before anything runs, and the Action can do the same."""
+
+    workflow: dict[str, Any]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.workflow = load_workflow()
+
+    def test_archive_is_the_root_of_the_workflow(self) -> None:
+        self.assertEqual(archive_first_errors(self.workflow["jobs"]), [])
+
+    def test_a_job_that_skips_archive_fails_the_contract(self) -> None:
+        broken = copy.deepcopy(self.workflow)
+        broken["jobs"]["classify"]["needs"] = []
+        errors = archive_first_errors(broken["jobs"])
+        self.assertTrue(any(error.startswith("classify does not depend") for error in errors), errors)
+
+    def test_archive_that_waits_on_another_job_fails_the_contract(self) -> None:
+        broken = copy.deepcopy(self.workflow)
+        broken["jobs"][ARCHIVE_JOB]["needs"] = ["classify", "preflight"]
+        broken["jobs"]["classify"]["needs"] = []
+        broken["jobs"]["preflight"]["needs"] = []
+        self.assertIn(
+            f"{ARCHIVE_JOB} must run first and need nothing, not ['classify', 'preflight']",
+            archive_first_errors(broken["jobs"]),
+        )
+
+    def test_an_open_change_runs_nothing_and_turns_both_gates_red(self) -> None:
+        cases = [(scenario, {ARCHIVE_JOB: "failure"}) for scenario in SCENARIOS]
+        for (scenario, _), (results, transcript) in zip(cases, simulate_many(self.workflow, cases)):
+            with self.subTest(path=scenario.label):
+                ran = {
+                    name
+                    for name, result in results.items()
+                    if result != "skipped" and name not in (ARCHIVE_JOB, GATE_JOB, REQUIRED_JOB)
+                }
+                self.assertEqual(ran, set(), transcript)
+                self.assertEqual(results[GATE_JOB], "failure", transcript)
+                self.assertEqual(results[REQUIRED_JOB], "failure", transcript)
+
+    def test_the_archive_job_runs_the_actions_archive_gate(self) -> None:
+        steps = self.workflow["jobs"][ARCHIVE_JOB]["steps"]
+        gate = [step for step in steps if step.get("uses") == "./"]
+        self.assertEqual(len(gate), 1, steps)
+        self.assertEqual(gate[0].get("with", {}).get("archive-gate-only"), "true")
+
+    def test_the_action_runs_its_archive_gate_before_anything_else(self) -> None:
+        action = load_action()
+        inputs = action["inputs"]
+        for name in ("require-archived", "archive-gate-only"):
+            with self.subTest(input=name):
+                self.assertEqual(inputs[name]["default"], "false")
+        steps = action["runs"]["steps"]
+        self.assertEqual(steps[0].get("id"), "archive-gate")
+        self.assertIn("archive-readiness.sh", steps[0]["env"]["ARCHIVE_READINESS"])
+        self.assertIn("inputs.require-archived == 'true'", steps[0]["if"])
+        self.assertIn("inputs.archive-gate-only == 'true'", steps[0]["if"])
+        for step in steps[1:]:
+            with self.subTest(step=step.get("name")):
+                self.assertIn("inputs.archive-gate-only != 'true'", step.get("if", ""))
+
+
+def load_action(path: Path = ACTION) -> dict[str, Any]:
+    """Parse action.yml through Ruby's standard-library Psych parser."""
+    ruby = r"""
+require "json"
+require "psych"
+puts JSON.generate(Psych.safe_load(File.read(ARGV.fetch(0), encoding: "UTF-8"), permitted_classes: [], aliases: false))
+"""
+    result = subprocess.run(
+        ["ruby", "-e", ruby, str(path)], capture_output=True, check=True, text=True, timeout=30
+    )
+    return json.loads(result.stdout)
 
 
 class GateScriptTests(unittest.TestCase):

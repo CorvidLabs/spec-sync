@@ -23,7 +23,7 @@ No existing file is rewritten by upgrading. Punctuation follows the table in `re
 - `CREATE_SPEC_STEPS_MD` (`src/agents.rs:123`) has four dashes. The two after bold
   definitions (lines 128 and 130) become colons, the aside on line 136 becomes a semicolon, and
   the lead-in on line 156 becomes a colon.
-  - `AGENT_ARTIFACT_TEMPLATE_VERSION` goes from 5 to 6.
+  - `AGENT_ARTIFACT_TEMPLATE_VERSION` goes from 6 to 7.
   - The existing digest manifest refreshes an installed copy whose bytes still match the
     recorded digest, and reports a customized copy as a conflict, as today. No manifest logic
     changes.

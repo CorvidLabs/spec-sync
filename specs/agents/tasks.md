@@ -30,7 +30,7 @@ spec: agents.spec.md
 - [x] Human approval safeguards and deterministic JSON interview guidance
 - [x] Keep checked-in create-spec commands byte-identical to installer templates and classify complete non-flag input
 - [x] Generated skills lead with check as the product and the 6.0 happy path (template version 5)
-- [x] Repunctuate the create-spec command body without en or em dashes and advance the template version to 6 (REQ-agents-009, #827)
+- [x] Repunctuate the create-spec command body without en or em dashes and advance the template version to 7 (REQ-agents-010, #827)
 
 ## Gaps
 
@@ -39,3 +39,4 @@ spec: agents.spec.md
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+- [x] Teach generated skills and the check command archive-first CI (local verify → review → ship → push the archive tip); keep checked-in installed copies identical

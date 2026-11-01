@@ -11,8 +11,24 @@ permissions:
   checks: read
 
 jobs:
+  # Same rule as CI: nothing runs while an SDD change is still open. Archive
+  # every change (`specsync change ship`) before Trust builds or gates anything.
+  archive:
+    name: Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Require every change to be archived
+        uses: ./
+        with:
+          archive-gate-only: 'true'
+
   trust:
     name: trust
+    needs: archive
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

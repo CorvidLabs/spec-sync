@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- CI is archive-first. A new `Archive` job runs before everything else in CI and in the Trust workflow, and every other job depends on it. A commit with an open SDD change under `.specsync/changes/` fails it in seconds, nothing else runs, and the required gate stays red until every change is archived. Tip-only lane narrowing (`select-ci-lane.sh`) is removed: the archived tip runs the full lane instead of reusing a product parent's green run. The ship flow becomes `change check --commit` → `fledge lanes run verify` → `change review` → `change ship` locally, then push the archived tip.
+- The GitHub Action gains `require-archived` (run the archive gate before the download and spec check) and `archive-gate-only` (run only the gate, for a first job that every other job `needs:`). The gate needs no SpecSync binary and sets an `archived` output. Published `@v6.1.1` predates these inputs and ignores them.
 - Advance the main Action binary default to published 6.1.1 after supported-platform asset and Action checks. Immutable `@v6.1.1` remains at its qualified candidate SHA with default 6.1.0; select `version: '6.1.1'` explicitly with that tag.
 
 ## [6.1.1] - 2026-10-14

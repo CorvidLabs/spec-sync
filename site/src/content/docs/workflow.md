@@ -69,7 +69,7 @@ Requirements use stable IDs, normative SHALL statements, and acceptance criteria
 
 ```bash
 specsync change check add-passkeys --commit
-# push the product tip after local gates and wait for required checks
+# run the local verify lane: archive-first CI does not test a tip with an open change
 # open or update the PR, then complete ordinary PR review
 # after a human reviewer passes the change package, diff, spec delta, and evidence:
 specsync change review add-passkeys --reviewer "Ada Reviewer"
@@ -77,6 +77,12 @@ specsync change finalize add-passkeys
 # do not commit between review and finalize; finalize commits the archive move
 # push the archive commit, wait for required checks, then merge on GitHub
 ```
+
+CI is archive-first. The `Archive` check runs before anything else and every other job depends
+on it, so a pushed tip with any open change fails `Archive` and runs nothing else. Verification
+and review are local; the full CI lane runs once, on the archived tip. If that lane fails, push a
+fix commit on top with specs kept in sync (`specsync check --strict`). A fix that changes the
+approved scope needs a new change.
 
 `change check` applies approved semantic deltas and compares specs to code in-process for
 **this change only**. It does not run the project's tests and does not re-validate archived
@@ -150,7 +156,7 @@ specsync change reopen add-passkeys \
   --actor "Ada Reviewer" \
   --reason "Review correction changed a scoped delivery input after finalization"
 specsync change check add-passkeys --commit
-# push the corrected product tip, wait for required checks, and complete human review
+# rerun the local verify lane and complete human review (CI waits for the archive tip)
 specsync change review add-passkeys --reviewer "Ada Reviewer"
 specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for required checks before merging

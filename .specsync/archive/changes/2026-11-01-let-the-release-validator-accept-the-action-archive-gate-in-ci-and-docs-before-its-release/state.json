@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "let-the-release-validator-accept-the-action-archive-gate-in-ci-and-docs-before-its-release",
+  "slug": "let-the-release-validator-accept-the-action-archive-gate-in-ci-and-docs-before-its-release",
+  "title": "Let the release validator accept the Action archive gate in CI and docs before its release",
+  "description": "Let the release validator accept the Action archive gate in CI and docs before its release",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "a5043451fe1cde489347f036d209dee088292310",
+  "created_at": 1793509380,
+  "updated_at": 1793509838,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/scripts/validate-release-version.py",
+    ".github/scripts/test-validate-release-candidate.py"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Release-version validation tooling only; no canonical spec owns these CI scripts",
+  "acceptance_criteria": [
+    "validate-release-version.py finds the packaged Action consumer step by its version input while action-consumer also runs the archive gate; documented steps that set require-archived or archive-gate-only may pin @main only while the published Action default is 6.1.1 or older; every other documented step still must pin the published release; test-validate-release-candidate.py passes and proves the allowance expires."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

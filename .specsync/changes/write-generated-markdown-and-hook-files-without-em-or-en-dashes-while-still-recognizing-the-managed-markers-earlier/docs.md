@@ -18,7 +18,7 @@ artifact: docs
     6.1.1 form is a frozen literal that the reader accepts. The pre-commit body is found by its
     project-keyed markers and needs no frozen copy; the unmarked legacy comparison has matched no
     released install since #774.
-  - `specs/agents/agents.3md`: template version 6.
+  - `specs/agents/agents.3md`: template version 7.
 - `CHANGELOG.md` is written by the release change. The PR body states:
   - the observable file-format changes listed in `design.md`;
   - that existing installed blocks keep their old text until `hooks uninstall` and

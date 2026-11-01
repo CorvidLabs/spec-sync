@@ -85,8 +85,33 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Archive runs first and every other job depends on it, directly or through
+  # classify/preflight. A commit with any open SDD change under
+  # .specsync/changes/ fails here in seconds and nothing else runs: every
+  # change must be archived (`specsync change ship`) before CI spends a build,
+  # a test run or a review on it, and before anything can merge.
+  #
+  # Product verification therefore happens locally before ship
+  # (`change check --commit` and `fledge lanes run verify`), and the full lane
+  # below runs on the archived tip itself. No tip reuses a green parent.
+  archive:
+    name: Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      # Dogfoods the packaged Action's archive gate, which runs
+      # .github/scripts/archive-readiness.sh without downloading SpecSync.
+      - name: Require every change to be archived
+        uses: ./
+        with:
+          archive-gate-only: 'true'
+
   classify:
     name: Classify changed paths
+    needs: archive
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -121,22 +146,12 @@ jobs:
           force_full=false
           case "$EVENT_NAME" in
             pull_request)
+              # Whole-PR classification only. A tip-only answer used to narrow
+              # an archive or review tip to a lane that reused its product
+              # parent's green run. The Archive job now stops every tip with an
+              # open change before CI starts, so no product parent is ever
+              # tested on its own and the archived tip gets the full lane.
               base="origin/$BASE_REF"
-              parent_line="$(git rev-list --parents -n 1 "$HEAD_SHA")"
-              if [[ "$(wc -w <<<"$parent_line" | tr -d ' ')" == "2" ]]; then
-                parent="$(git rev-parse "$HEAD_SHA^")"
-                child_output="$(
-                  git diff --name-status -z -M "$parent" "$HEAD_SHA" \
-                    | .github/scripts/classify-ci-paths.sh \
-                        "$GITHUB_WORKSPACE" false name-status "$parent"
-                )"
-                # Hold the tip-only answer as a CANDIDATE only. It may narrow the
-                # lane, but never contradict the whole-PR classification —
-                # `change ship` always makes an archive commit last, so overriding
-                # here unconditionally skipped the product lane on EVERY lifecycle
-                # pull request (#626). select-ci-lane.sh applies the rule.
-                tip_output="$child_output"
-              fi
               ;;
             push)
               base="$BEFORE_SHA"
@@ -175,17 +190,6 @@ jobs:
             output="$(printf '' | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" true)"
           else
             output="$(git diff --name-only -z "$base" "$HEAD_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
-            # The whole-PR answer is computed FIRST and unconditionally. It used
-            # to be skipped entirely whenever a tip-only answer had been set,
-            # which is why a pull request touching nine source files could be
-            # routed as archive-only.
-            if [[ -n "${tip_output:-}" ]]; then
-              full_file="$(mktemp)"; tip_file="$(mktemp)"
-              printf '%s\n' "$output" >"$full_file"
-              printf '%s\n' "$tip_output" >"$tip_file"
-              output="$(.github/scripts/select-ci-lane.sh "$full_file" "$tip_file")"
-              rm -f "$full_file" "$tip_file"
-            fi
           fi
 
           printf '%s\n' "$output" | tee -a "$GITHUB_OUTPUT"
@@ -197,6 +201,7 @@ jobs:
 
   preflight:
     name: Lifecycle preflight
+    needs: archive
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -254,17 +259,6 @@ jobs:
             exit 1
           fi
           echo "No stale verification evidence."
-
-  archive:
-    name: Archive
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - name: Say whether this pull request is archived
-        run: .github/scripts/archive-readiness.sh
 
   lifecycle-gate:
     name: Lifecycle gate
@@ -549,6 +543,33 @@ jobs:
           strict: 'true'
           require-coverage: '100'
           lifecycle-enforce: 'true'
+          require-archived: 'true'
+      - name: Open a change in the clean consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          change="${RUNNER_TEMP}/consumer/.specsync/changes/open-widget"
+          mkdir -p "$change"
+          printf '{"id":"open-widget","state":"implementing","workflow_version":2}\n' > "$change/state.json"
+      - name: Run the archive gate with the change still open
+        id: open-change-gate
+        continue-on-error: true
+        uses: ./
+        with:
+          root: ${{ runner.temp }}/consumer
+          archive-gate-only: 'true'
+      - name: Require the archive gate to block the open change
+        env:
+          GATE_OUTCOME: ${{ steps.open-change-gate.outcome }}
+          GATE_ARCHIVED: ${{ steps.open-change-gate.outputs.archived }}
+        run: |
+          # A failed composite may or may not export its outputs; when it does,
+          # the answer must be "false".
+          if [[ "$GATE_OUTCOME" != "failure" || ( -n "$GATE_ARCHIVED" && "$GATE_ARCHIVED" != "false" ) ]]; then
+            echo "::error::archive gate let an open change through (outcome=${GATE_OUTCOME}, archived=${GATE_ARCHIVED})"
+            exit 1
+          fi
+          echo "Archive gate blocked the open change."
 
   spec-check:
     needs: [classify, lifecycle-gate]
@@ -606,12 +627,11 @@ jobs:
     timeout-minutes: 5
     if: ${{ always() }}
     # Every product job that can finish before this one belongs in `needs`,
-    # preflight and the lifecycle gate included. A job missing from here cannot
-    # fail this gate (#796). Archive is the exception: an open change fails that
-    # job on purpose, and this gate is the product-tip signal review waits on.
-    # The required merge gate needs Archive on its own.
+    # Archive, preflight and the lifecycle gate included. A job missing from
+    # here cannot fail this gate (#796). Archive is the root of the graph: an
+    # open change fails it and skips everything else, and this gate says so.
     # .github/scripts/test-required-ci-gate.py fails when another job is missing.
-    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    needs: [archive, classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         # One row per job in `needs`: `<job> <selected> <result>`. <selected> is
@@ -625,6 +645,7 @@ jobs:
         env:
           NEEDS_RESULTS: ${{ join(needs.*.result, ' ') }}
           GATES: |
+            archive true ${{ needs.archive.result }}
             classify true ${{ needs.classify.result }}
             preflight true ${{ needs.preflight.result }}
             lifecycle-gate true ${{ needs.lifecycle-gate.result }}
@@ -638,7 +659,7 @@ jobs:
             coverage ${{ needs.classify.outputs.full == 'true' }} ${{ needs.coverage.result }}
             site ${{ needs.classify.outputs.full == 'true' || needs.classify.outputs.site == 'true' }} ${{ needs.site.result }}
             vscode-extension ${{ needs.classify.outputs.full == 'true' || needs.classify.outputs.vscode == 'true' }} ${{ needs.vscode-extension.result }}
-            corvid-pet ${{ github.event_name == 'pull_request' && needs.classify.outputs.review_required == 'true' }} ${{ needs.corvid-pet.result }}
+            corvid-pet ${{ github.event_name == 'pull_request' && needs.classify.outputs.full == 'true' }} ${{ needs.corvid-pet.result }}
         run: |
           status=0
           rows=0
@@ -683,20 +704,20 @@ jobs:
       # One aggregate context, suitable for a required status check. Lifecycle
       # coherence is proven by `specsync change audit --strict` in the lifecycle
       # gate and in spec-check, not by inspecting commit topology, and the
-      # implementation gate requires both of them. Archive is required here, not
-      # by implementation ready: an open change blocks the merge and leaves the
-      # product tip able to go green.
+      # implementation gate requires both of them. Archive is checked here as
+      # well as through implementation ready, so the merge-blocking reason is
+      # named directly: an open change must be archived before anything runs.
       - name: Require the implementation gate
         env:
           IMPLEMENTATION_RESULT: ${{ needs.implementation-gate.result }}
           ARCHIVE_RESULT: ${{ needs.archive.result }}
         run: |
-          if [[ "$IMPLEMENTATION_RESULT" != "success" ]]; then
-            echo "Implementation gate ended with: $IMPLEMENTATION_RESULT" >&2
+          if [[ "$ARCHIVE_RESULT" != "success" ]]; then
+            echo "Archive check ended with: $ARCHIVE_RESULT. Archive every open change (specsync change ship) before CI runs or the pull request merges." >&2
             exit 1
           fi
-          if [[ "$ARCHIVE_RESULT" != "success" ]]; then
-            echo "Archive check ended with: $ARCHIVE_RESULT" >&2
+          if [[ "$IMPLEMENTATION_RESULT" != "success" ]]; then
+            echo "Implementation gate ended with: $IMPLEMENTATION_RESULT" >&2
             exit 1
           fi
 
@@ -704,11 +725,11 @@ jobs:
     name: SpecSync scoped review
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # This is the one independent, implementation-scoped review. A proven
-    # archive-only child reuses the green result on its parent and never runs
-    # the reviewer a second time. Forks run the same read-only review without
-    # attempting a comment or review write.
-    if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.review_required == 'true' }}
+    # This is the one independent, implementation-scoped review. Archive runs
+    # first, so it never sees an open change: it reviews every archived pull
+    # request that selected the product lane. Forks run the same read-only
+    # review without attempting a comment or review write.
+    if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.full == 'true' }}
     needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     permissions:
       contents: read

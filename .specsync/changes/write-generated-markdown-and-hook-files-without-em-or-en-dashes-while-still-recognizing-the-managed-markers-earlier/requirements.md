@@ -17,9 +17,9 @@ The new begin sentinel is
 ``<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->``. Detection
 markers, the end sentinel and the project-keyed pre-commit markers are unchanged.
 
-### REQ-agents-009 (added)
+### REQ-agents-010 (added)
 
-Generated skill and command files contain neither character. The template version is 6 or
+Generated skill and command files contain neither character. The template version is 7 or
 higher, so digest-matching installed copies refresh. The tracked assets in this repository match
 the generated output.
 

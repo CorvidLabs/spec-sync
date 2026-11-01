@@ -8,14 +8,14 @@ artifact: tasks
 - [x] Add the discriminator and control tests in `testing.md`, and confirm their labels against an unfixed a80748ff build.
 - [x] Write `# Lesson bundle: <id>` in `write_lesson_bundle`.
 - [x] Use a colon in the `init` and `migrate` `.specsync/.gitignore` headers.
-- [x] Repunctuate `CREATE_SPEC_STEPS_MD` and set `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
+- [x] Repunctuate `CREATE_SPEC_STEPS_MD` and set `AGENT_ARTIFACT_TEMPLATE_VERSION` to 7.
 - [x] Repunctuate the four hook snippets, and write the new begin sentinel while reading both forms in `remove_section_from_file`.
 - [x] Repunctuate `PRE_COMMIT_HOOK`. No reader changes: project-keyed blocks are found by their markers.
 - [x] Write compaction summaries as `<first> to <last>` with `-` placeholders, and read both forms in `summary_metadata`.
 - [x] Tie the range separator to its placeholder form, and refuse a range start that contains ` to ` (PR #829 review).
 - [x] Add `tests/integration/generated_output_has_no_dashes.rs` and register it in `tests/integration.rs`.
 - [x] Regenerate this repository's create-spec commands and the command entries of `.specsync/agent-artifacts.json` with the built binary.
-- [x] Regenerate the four tracked `*/skills/spec-sync/SKILL.md` files (`.claude`, `.codex`, `.cursor`, `.gemini`) and every entry of `.specsync/agent-artifacts.json` with the built binary, so every tracked agent asset and manifest entry matches a fresh install and REQ-agents-009 criterion 3 holds. Add `tracked_agent_artifacts_and_manifest_match_a_fresh_install` (see `testing.md`) first and confirm it fails at bb7b4b4d before regenerating. 0xLeif decided to add the four paths to `affected_paths` and regenerate (PR #829); this task runs after that amendment is re-approved.
+- [x] Regenerate the four tracked `*/skills/spec-sync/SKILL.md` files (`.claude`, `.codex`, `.cursor`, `.gemini`) and every entry of `.specsync/agent-artifacts.json` with the built binary, so every tracked agent asset and manifest entry matches a fresh install and REQ-agents-010 criterion 3 holds. Add `tracked_agent_artifacts_and_manifest_match_a_fresh_install` (see `testing.md`) first and confirm it fails at bb7b4b4d before regenerating. 0xLeif decided to add the four paths to `affected_paths` and regenerate (PR #829); this task runs after that amendment is re-approved.
 - [x] Update the compact requirements list, the hooks, compact and agents lesson planes, and each touched spec's version and Change Log.
 - [x] Run the regression lanes in `testing.md`, re-run the issue's repro with the fixed build, and record the observed results.
 

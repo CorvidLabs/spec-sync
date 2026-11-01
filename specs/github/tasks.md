@@ -91,3 +91,4 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Apply and qualify the accepted candidate with Action/default docs at published 6.1.0 while explicit candidate CI/Trust remain 6.1.1
 - [x] Integrate and qualify one immutable candidate SHA on Ubuntu and macOS before stable publication
 - [x] After real stable asset/checksum/Action smoke gates, activate the separately frozen main/floating-default 6.1.1 patch; preserve immutable v6.1.1 default 6.1.0 and explicit-version guidance
+- [x] Archive-first CI: match the `Archive` check exactly in `is_trust_relevant_check_name` and record REQ-github-023

@@ -47,7 +47,7 @@ schema, or configuration change:
 ## Lifecycle verbs
 
 - `specsync check` - validate all specs against source. Default daily path. No change required.
-- `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready product-tip evidence.
+- `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready local evidence (archive-first CI does not test a tip with an open change).
 - `specsync change audit` - project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived change on each check.
 - Slash commands after `specsync agents install`: Claude and Gemini use `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit`. Cursor uses the flat names `/specsync-create-spec`, `/specsync-create-change`, `/specsync-check`, `/specsync-audit`.
@@ -83,9 +83,11 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 ## Before creating a PR
 
-Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, push
-the product tip from `change check --commit` with the PR. Record `change review` and
-`change ship`/`finalize` only after that tip is on the PR and required checks have run. Do not
+Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, CI is
+archive-first: a pushed tip with any open change fails the Archive check and runs nothing else.
+Verify locally (`change check --commit` and the local verify lane), record `change review`, run
+`change ship` without committing in between, then commit and push the archive tip. CI runs the
+full lane on that tip; merge only when it is green. Open the PR first: do not
 record review or ship before the PR exists.
 
 ## When adding new modules
@@ -210,7 +212,7 @@ const CREATE_CHANGE_STEPS_MD: &str = r#"1. SDD is opt-in via `specsync change ad
 const CHECK_CHANGE_DESCRIPTION: &str =
     "Run scoped SpecSync change verification for one change (materialize deltas + spec↔code sync)";
 
-const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`. For ship-ready product-tip evidence, include `--commit`.
+const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`. For ship-ready local evidence, include `--commit`.
 2. Expect **scoped** verification only: this change's materialization and in-process spec↔code sync. Do not run a full archive integrity walk.
 3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or ship/finalize path).
 4. Do **not** run `specsync change audit` unless the user asked for project health over active workspaces and living specs."#;
@@ -224,7 +226,7 @@ const AUDIT_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change audit`.
 
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using specsync check (the product). Use this whenever creating, editing, or reviewing a spec or its source, or when the user mentions spec-sync, SDD, change adopt, companion files, or the 6.0 change lifecycle (approve, check --commit, review, ship).";
 const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
-const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 6;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 7;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
 // `.specsync/agent-artifacts.json` is committed and shared, and `load_agent_artifact_manifest`
@@ -1744,6 +1746,45 @@ mod tests {
         }
     }
 
+    /// REQ-agents-009: generated and tracked agent text teaches archive-first CI.
+    #[test]
+    fn tracked_agent_files_teach_archive_first_ci() {
+        assert!(AGENT_ARTIFACT_TEMPLATE_VERSION >= 6);
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for relative in [
+            ".claude/skills/spec-sync/SKILL.md",
+            ".codex/skills/spec-sync/SKILL.md",
+            ".cursor/skills/spec-sync/SKILL.md",
+            ".gemini/skills/spec-sync/SKILL.md",
+            ".claude/commands/specsync/check.md",
+            ".cursor/commands/specsync-check.md",
+            ".gemini/commands/specsync/check.toml",
+        ] {
+            let path = root.join(relative);
+            let body = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            let flat = body.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(
+                flat.contains("local evidence"),
+                "{relative} must call --commit local evidence"
+            );
+            assert!(
+                !flat.contains("product-tip evidence") && !flat.contains("push the product tip"),
+                "{relative} still teaches pushing a product tip for remote CI"
+            );
+            if relative.ends_with("SKILL.md") {
+                assert!(
+                    flat.contains("archive-first"),
+                    "{relative} must say CI is archive-first"
+                );
+                assert!(
+                    flat.contains("push the archive tip"),
+                    "{relative} must say to push the archive tip"
+                );
+            }
+        }
+    }
+
     #[test]
     fn tracked_skill_files_teach_check_is_the_product() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -1786,7 +1827,7 @@ mod tests {
             );
         }
     }
-    // DISCRIMINATOR for REQ-agents-009 (#827).
+    // DISCRIMINATOR for REQ-agents-010 (#827).
     #[test]
     fn generated_agent_artifacts_contain_no_em_or_en_dash() {
         fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -1818,7 +1859,7 @@ mod tests {
         assert!(offenders.is_empty(), "{}", offenders.join("\n"));
     }
 
-    // DISCRIMINATOR for REQ-agents-009 criterion 3 (#827).
+    // DISCRIMINATOR for REQ-agents-010 criterion 3 (#827).
     #[test]
     fn tracked_agent_artifacts_and_manifest_match_a_fresh_install() {
         let repo = Path::new(env!("CARGO_MANIFEST_DIR"));

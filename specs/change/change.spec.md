@@ -1,6 +1,6 @@
 ---
 module: change
-version: 152
+version: 153
 status: active
 files:
   - src/change.rs
@@ -9,12 +9,14 @@ files:
   - src/change/historical_definition_digest_matches.rs
   - src/change/sdd_version.rs
   - src/change/validate_loaded_change.rs
+  - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/substantive_plan.rs
+  - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
@@ -36,7 +38,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 3. Approved semantic deltas form the effective future contract, and `change check` materializes them into canonical specs before scoped review and finalization; a delta body that changed after its approval is refused rather than applied, and no later definition approval may withdraw a delta binding an earlier one recorded.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
 5. `change check` compares THIS change's specs to source in-process and does not spawn `sdd.json` `verification_commands`, `cargo test`, or any other project test or build command. Scope is the modules in `affected_specs` union the specs whose `files:` fall inside `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its source can break; drift outside that scope belongs to `specsync check`. A declared module that resolves to no spec file on disk FAILS verification and is named — never silently dropped, even when other specs are in path scope and would make the pass look real. An empty scope is a PASS only for a change that declared no module and maps no spec. Evidence is the scoped command the verdict was reached under, `specsync check --spec <name> …`, where each name is what `filter_specs` matches (the file stem with `.spec` removed) and `--strict` appears only when it was requested. The effective-contract gate judges the change being verified on every check, the first one after materialization included, and a refusal of a module the change declares is recorded as a failed attempt that also names `specsync change check <id> (effective contract: <module>, …)`.
-6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict, may be recorded by the same actor as the definition approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence. GitHub remains the merge authority for required reviewers.
+6. Verification and scoped-review evidence bind the implementation commit and governed inputs (every project input except files under a `verification_ignored_paths` prefix, item 24); a scoped review records an explicit pass/block verdict, may be recorded by the same actor as the definition approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence. GitHub remains the merge authority for required reviewers.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
 9. Approval validates complete module-scoped deltas, refuses `## ADDED` for requirement IDs already present in the living tree (agents must use `## MODIFIED`), corrupt state fails closed, and transactional same-PR finalization remains retryable before or after the archive-directory move.
@@ -54,6 +56,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 21. Existing-change definition mutations validate correction-ledger integrity while holding the same project lock that guards persistence and return the validated effective-definition snapshot used by command output.
 22. Every change carries a handoff readiness — `safe`, `conditional`, or `not-yet` — computed as a pure function of its lifecycle signals: a project-wide sequence freeze, open interview questions, artifact completeness, definition-approval currency, correction-ledger validity, uncommitted edits under `affected_paths` (never `.specsync/` evidence, which the review → finalize pair leaves uncommitted by design), verification currency, scoped-review currency, and terminal-evidence staleness. A Draft is never `safe` because approval is the first boundary a fresh session can resume from; the summary names one plain-language reason without digests, the resume command `specsync change status <id>`, and the steps to take before clearing when readiness is not `safe`.
 23. The workspace digest names each clean tracked file by its Git object id (`specsync.project-input-digest.v4`), in an `object-id` frame that file bytes cannot match. It reads file bytes only for dirty or untracked paths, and those reads stay inside the existing payload bound. `filter=lfs` is that object id only when the configured clean and smudge commands are Git LFS and the blob is an LFS pointer. Every other content filter still fails closed. A change's own acceptance evidence still hashes the bytes of the paths it covers.
+24. `.specsync/sdd.json` `verification_ignored_paths` is an opt-in list, empty by default, of at most 8 portable project-relative directory prefixes ending in `/`. Files under them, tracked or untracked, are left out of the project-input digest and nowhere else: the scoped-review descendant walk still stales a review for any later commit, including one under a listed prefix. A non-empty list adds one length-framed `verification-ignored` frame, a tag no path or file-bytes frame can produce, to the same v4 domain. An entry is refused by every lifecycle verb that loads SDD policy when it is a pattern, absolute, symlinked, oversized, duplicated or nested, or when it overlaps `.specsync/`, the specs tree, `source_dirs`, the configured `schema_dir`, a `meaningful_paths` scope, spec `files:`, path-form spec `depends_on` entries, files named in a spec's `Consumed By` table, SDD policy, principles or custom-artifact files; `ignored_paths` never relaxes this. A change whose `affected_paths` overlap an entry is refused. No persisted record gains a field, and with the list absent or empty the digest is byte-identical.
 
 ## Public API
 
@@ -71,7 +74,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
-| `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration |
+| `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration, plus the opt-in `verification_ignored_paths` directory prefixes left out of the verification project-input digest (empty by default and omitted when empty) |
 | `SuccessionObligation` | Definition-bound predecessor path, canonical owner module, and full predecessor entry digest |
 | `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
 | `AcceptanceOwnerCorrection` | Sequenced human-authored exact path/module ownership correction for acceptance evidence |
@@ -127,7 +130,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
 | `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
-| `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, exactly one next action, a handoff verdict, and optional terminal evidence |
+| `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, the validated `verification_ignored_paths` list (omitted when empty or invalid), exactly one next action, a handoff verdict, and optional terminal evidence |
 | `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
 | `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
@@ -196,6 +199,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus the exact scoped command the next pass records as evidence; `--strict` only when requested |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Compare this change's specs to code in-process and record commit/contract evidence |
 | `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
+| `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |
+| `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 
 **Exported Methods**
@@ -562,3 +567,4 @@ Acceptance Criteria
 | 2026-10-31 | run-the-effective-contract-gate-on-the-first-change-check-and-record-its-refusal-instead-of-leaving-a-stale-pass: Run the effective contract gate on the first change check and record its refusal instead of leaving a stale pass current |
 | 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
 | 2026-11-01 | report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json: Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON |
+| 2026-11-01 | let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the: Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest |

@@ -3243,6 +3243,467 @@ fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
     );
 }
 
+// Issue #825 through the built binary. A workflow-v2 project with one change for `src/auth.rs`,
+// approved and verified with `change check --commit`. `entries` is written into `sdd.json` as raw
+// JSON, committed, and re-verified (step D, first half), so the fixture also runs against a binary
+// that ignores the key.
+struct VerificationIgnoredCli {
+    _temp: TempDir,
+    root: PathBuf,
+    id: String,
+}
+
+impl VerificationIgnoredCli {
+    fn root_arg(&self) -> &str {
+        self.root.to_str().unwrap()
+    }
+
+    fn git(&self, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(&self.root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn run(&self, args: &[&str]) -> assert_cmd::assert::Assert {
+        specsync()
+            .args(["--root", self.root_arg()])
+            .args(args)
+            .assert()
+    }
+
+    fn status_json(&self) -> Value {
+        let output = self
+            .run(&["--json", "change", "status", &self.id])
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        serde_json::from_slice(&output).unwrap()
+    }
+
+    fn next_action(&self) -> String {
+        self.status_json()["summary"]["next_action"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    fn review_next(&self) -> String {
+        format!(
+            "run `specsync change review {} --reviewer <human>` after the PR's scoped review passes",
+            self.id
+        )
+    }
+
+    fn write(&self, relative: &str, content: &str) {
+        let path = self.root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+
+    fn set_list(&self, entries: &[&str]) {
+        let path = self.root.join(".specsync/sdd.json");
+        let mut policy: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        policy["verification_ignored_paths"] = serde_json::json!(entries);
+        fs::write(path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+    }
+
+    fn new(entries: &[&str]) -> Self {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().to_path_buf();
+        let fixture = Self {
+            _temp: temp,
+            root,
+            id: "ship-the-auth-module".into(),
+        };
+        fixture.git(&["init", "-b", "main"]);
+        fixture.git(&["config", "user.email", "test@example.com"]);
+        fixture.git(&["config", "user.name", "Test"]);
+        fixture.write("src/auth.rs", "// Authentication module.\n");
+        fixture.write(
+            "specs/auth/auth.spec.md",
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        );
+        fixture.write(
+            ".specsync/sdd.json",
+            &serde_json::to_string_pretty(&serde_json::json!({
+                "version": 2,
+                "enabled": true,
+                "require_change_for_meaningful_files": false,
+                "meaningful_paths": ["src/", ".specsync/sdd.json"],
+                "ignored_paths": [".specsync/"],
+                "verification_commands": ["true"],
+                "custom_artifacts": {},
+                "principles_file": null
+            }))
+            .unwrap(),
+        );
+        fixture.git(&["add", "--all"]);
+        fixture.git(&["commit", "-m", "base"]);
+        let id = fixture.id.clone();
+        fixture
+            .run(&[
+                "change",
+                "new",
+                "Ship the auth module",
+                "--kind",
+                "bug-fix",
+                "--spec",
+                "auth",
+                "--path",
+                "src/auth.rs",
+                "--no-spec-change",
+                "--rationale",
+                "Internal behavior only",
+            ])
+            .success();
+        for (question, answer) in [
+            ("acceptance_criteria", "The auth module ships"),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            fixture
+                .run(&["change", "answer", &id, question, answer])
+                .success();
+        }
+        let workspace = fixture.root.join(".specsync/changes").join(&id);
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap())
+                .unwrap();
+        assert_eq!(state["workflow_version"], 2);
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let name = artifact.as_str().unwrap();
+            let content = match name {
+                "tasks" => "# Tasks\n\n- [x] Ship the module.\n",
+                "plan" => super::helpers::SUBSTANTIVE_PLAN,
+                _ => "# Complete\n\nReviewed auth delivery.\n",
+            };
+            fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+        }
+        fixture
+            .run(&["change", "approve", &id, "--actor", "Reviewer"])
+            .success();
+        fixture.write("src/auth.rs", "// Authentication module, shipped.\n");
+        fixture.git(&["add", "--all"]);
+        fixture.git(&["commit", "-m", "implement"]);
+        fixture.run(&["change", "check", &id, "--commit"]).success();
+        assert_eq!(fixture.next_action(), fixture.review_next());
+        if !entries.is_empty() {
+            fixture.set_list(entries);
+            fixture.git(&["add", ".specsync/sdd.json"]);
+            fixture.git(&["commit", "-m", "list another tool's records"]);
+            assert_eq!(
+                fixture.next_action(),
+                format!("run `specsync change check {id}`"),
+                "editing the list stales verification"
+            );
+        }
+        fixture
+    }
+}
+
+const VIP_NOTE: &str = "SpecSync cannot tell whether project tests or CI read files under these prefixes; edits there do not stale verification.";
+
+// DISCRIMINATOR. Issue #825 steps B, D and F with `verification_ignored_paths` in place of the
+// workarounds the issue tried: the record never stales verification before the review, the review
+// passes and finalize accepts it with an uncommitted edit under the prefix.
+// Verifies REQ-change-114 and REQ-cmd-change-024.
+#[test]
+fn listed_tool_records_do_not_stale_review_through_the_cli() {
+    let fixture = VerificationIgnoredCli::new(&[".chough/"]);
+    let id = fixture.id.clone();
+    let checked = fixture
+        .run(&["change", "check", &id, "--commit"])
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let checked = String::from_utf8(checked).unwrap();
+    assert_eq!(fixture.next_action(), fixture.review_next());
+
+    // Step B: another tool writes an untracked record after verification.
+    fixture.write(".chough/evidence/obs.json", "{\"observed\":true}\n");
+    let status = fixture.status_json();
+    assert_eq!(
+        status["summary"]["next_action"],
+        fixture.review_next().as_str(),
+        "{status}"
+    );
+    assert_eq!(
+        status["summary"]["verification_ignored_paths"],
+        serde_json::json!([".chough/"])
+    );
+    let text = String::from_utf8(
+        fixture
+            .run(&["change", "status", &id])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+
+    // Step D, second half: remove the record, then restore it.
+    fs::remove_file(fixture.root.join(".chough/evidence/obs.json")).unwrap();
+    assert_eq!(fixture.next_action(), fixture.review_next());
+    fixture.write(".chough/evidence/obs.json", "{\"observed\":true}\n");
+    assert_eq!(fixture.next_action(), fixture.review_next());
+
+    // Step F: commit the record before the review.
+    fixture.git(&["add", ".chough/evidence/obs.json"]);
+    fixture.git(&["commit", "-m", "record another tool's observation"]);
+    assert_eq!(fixture.next_action(), fixture.review_next());
+
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ])
+        .success();
+    fixture.write(".chough/evidence/obs.json", "{\"observed\":\"again\"}\n");
+    assert_eq!(
+        fixture.next_action(),
+        format!("run `specsync change finalize {id}`")
+    );
+    fixture.run(&["change", "finalize", &id]).success();
+
+    // Disclosure, asserted last so the behaviour above is what a80748ff fails on first.
+    for output in [&checked, &text] {
+        assert!(
+            output.contains("Verification ignores: .chough/"),
+            "{output}"
+        );
+        assert!(output.contains(VIP_NOTE), "{output}");
+    }
+}
+
+// DISCRIMINATOR for "a commit after the review stales it THROUGH THE DESCENDANT WALK". On
+// a80748ff the `.chough/` commit stales verification itself, so status asks for `change check`
+// and ship-status gives no walk message; with the list the digest stays put and only the
+// unchanged walk can make the review stale.
+// Verifies REQ-change-114.
+#[test]
+fn listed_prefix_commit_after_review_still_stales_through_the_cli() {
+    let fixture = VerificationIgnoredCli::new(&[".chough/"]);
+    let id = fixture.id.clone();
+    fixture.run(&["change", "check", &id, "--commit"]).success();
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ])
+        .success();
+    fixture.write(".chough/obs.json", "committed after the review\n");
+    fixture.git(&["add", ".chough/obs.json"]);
+    fixture.git(&["commit", "-m", "record after the review"]);
+    assert_ne!(
+        fixture.next_action(),
+        format!("run `specsync change finalize {id}`")
+    );
+    // The listed commit leaves verification current, so status asks for a fresh review rather
+    // than a fresh check, and the reason ship-status gives is the descendant walk's own message
+    // naming the path the post-review commit touched.
+    assert_eq!(fixture.next_action(), fixture.review_next());
+    fixture
+        .run(&["change", "finalize", &id])
+        .failure()
+        .stderr(predicate::str::contains(
+            "independent scoped review is stale",
+        ));
+    let shipped = fixture
+        .run(&["--json", "change", "ship-status", &id])
+        .get_output()
+        .stdout
+        .clone();
+    let shipped: Value = serde_json::from_slice(&shipped).unwrap();
+    let walk = "changed `.chough/obs.json`, which is outside this change's own lifecycle records";
+    assert!(
+        shipped["blockers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|blocker| blocker.as_str().unwrap().contains(walk)),
+        "{shipped}"
+    );
+}
+
+// DISCRIMINATOR. `change check` reads the configured `schema_dir` in-process to judge spec
+// `db_tables`, so an entry covering it is refused by every verb rather than letting a schema edit
+// leave verification and review current.
+// Verifies REQ-change-115.
+#[test]
+fn entry_covering_schema_dir_is_refused_through_the_cli() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    fixture.write(
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nschema_dir = \"db/schema\"\n",
+    );
+    fixture.write(
+        "db/schema/001_users.sql",
+        "CREATE TABLE users (id INTEGER);\n",
+    );
+    for entry in ["db/schema/", "db/"] {
+        fixture.set_list(&[entry]);
+        let refusal = format!(
+            "invalid SDD policy: verification_ignored_paths entry `{entry}` overlaps schema_dir `db/schema`"
+        );
+        fixture
+            .run(&[
+                "change",
+                "new",
+                "Another change beside a hidden schema",
+                "--kind",
+                "bug-fix",
+                "--path",
+                "src/auth.rs",
+                "--no-spec-change",
+                "--rationale",
+                "Internal behavior only",
+            ])
+            .failure()
+            .stderr(predicate::str::contains(refusal.as_str()));
+        for args in [
+            vec!["change", "check", id.as_str(), "--commit"],
+            vec![
+                "change",
+                "review",
+                id.as_str(),
+                "--reviewer",
+                "Independent reviewer",
+            ],
+        ] {
+            fixture
+                .run(&args)
+                .failure()
+                .stderr(predicate::str::contains(refusal.as_str()));
+        }
+        let next = fixture.next_action();
+        assert!(next.contains(refusal.as_str()), "{next}");
+    }
+}
+
+// DISCRIMINATOR. An invalid list fails closed in every verb, status names it, and ship-status
+// lists it as a blocker.
+// Verifies REQ-change-115 and REQ-cmd-change-024.
+#[test]
+fn invalid_verification_ignored_paths_are_refused_through_the_cli() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    fixture.set_list(&["src/"]);
+    let refusal = "invalid SDD policy: verification_ignored_paths entry `src/`";
+    fixture
+        .run(&[
+            "change",
+            "new",
+            "Another change under an invalid list",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "src/auth.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal behavior only",
+        ])
+        .failure()
+        .stderr(predicate::str::contains(refusal));
+    for args in [
+        vec!["change", "approve", id.as_str(), "--actor", "Reviewer"],
+        vec!["change", "check", id.as_str()],
+        vec![
+            "change",
+            "review",
+            id.as_str(),
+            "--reviewer",
+            "Independent reviewer",
+        ],
+        vec!["change", "finalize", id.as_str()],
+        vec!["change", "audit"],
+    ] {
+        fixture
+            .run(&args)
+            .failure()
+            .stderr(predicate::str::contains(refusal));
+    }
+    let next = fixture.next_action();
+    assert!(next.contains(refusal), "{next}");
+    let shipped = fixture
+        .run(&["--json", "change", "ship-status", &id])
+        .get_output()
+        .stdout
+        .clone();
+    let shipped: Value = serde_json::from_slice(&shipped).unwrap();
+    let blockers = shipped["blockers"].as_array().unwrap();
+    assert!(
+        blockers
+            .iter()
+            .any(|blocker| blocker.as_str().unwrap().contains(refusal)),
+        "{shipped}"
+    );
+}
+
+// CONTROL. Without the key the issue #825 behaviour is unchanged: an untracked record stales
+// verification and review refuses with the stale-digest message.
+// Verifies REQ-change-114.
+#[test]
+fn absent_list_keeps_issue_825_behaviour() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    fixture.write(".chough/evidence/obs.json", "{\"observed\":true}\n");
+    assert_eq!(
+        fixture.next_action(),
+        format!("run `specsync change check {id}`")
+    );
+    let status = fixture.status_json();
+    assert!(
+        status["summary"]
+            .get("verification_ignored_paths")
+            .is_none()
+    );
+    let text = String::from_utf8(
+        fixture
+            .run(&["change", "status", &id])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(!text.contains("Verification ignores"), "{text}");
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ])
+        .failure()
+        .stderr(predicate::str::contains(
+            "verification project-input digest is stale",
+        ));
+    fixture.git(&["add", ".chough/evidence/obs.json"]);
+    fixture.git(&["commit", "-m", "commit the record instead"]);
+    assert_eq!(
+        fixture.next_action(),
+        format!("run `specsync change check {id}`")
+    );
+}
+
 // Verifies REQ-change-113 and REQ-cmd-change-023 through the built binary. `change status --json`
 // and `change show --json` carry a top-level `approved_deltas` array: the requirement IDs and
 // sections an intact approved delta declares, withheld once the body is edited, CRLF-agnostic,

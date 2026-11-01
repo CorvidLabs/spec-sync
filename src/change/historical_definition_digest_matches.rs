@@ -2101,6 +2101,7 @@ pub fn record_scoped_review_with_verdict(
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
     let reviewer = validate_scoped_reviewer_claim(&reviewer)?;
@@ -2188,6 +2189,7 @@ fn accept_change_with_gate(
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "accept the change")?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
     ensure_definition_approval_valid(root, &record)?;
     let mut verification = load_verification(root, &record)?;
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
@@ -2390,6 +2392,7 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // state that determines whether finalization can resume.
     drop(acquire_project_lock(root)?);
     let record = load_change(root, id)?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
     require_state(
         &record,
         &[ChangeState::Verifying, ChangeState::Accepted],
@@ -3485,8 +3488,15 @@ fn summarize_change_with_effective(
     // Sequence-ledger freezes must outrank state-local next actions (including reopen /
     // finalize). Premature multi-id acknowledgements block change new/adopt project-wide.
     let sequence_freeze = sequence_ledger_freeze_next_action(root);
+    // An invalid or overlapping `verification_ignored_paths` list refuses every verb that would
+    // follow, and the boolean currency helpers above would hide it as stale verification, so it
+    // is the one next action right after a sequence freeze (REQ-change-115).
+    let verification_ignored = (record.state != ChangeState::Archived)
+        .then(|| ensure_change_clear_of_verification_ignored(root, record));
     let next_action = if let Some(remediation) = sequence_freeze.clone() {
         remediation
+    } else if let Some(Err(error)) = &verification_ignored {
+        verification_ignored_paths_next_action(error, &record.id)
     } else {
         match record.state {
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
@@ -3646,6 +3656,9 @@ fn summarize_change_with_effective(
         scoped_review_current,
         strict_validation_required,
         verification_commands,
+        verification_ignored_paths: verification_ignored
+            .and_then(Result::ok)
+            .unwrap_or_default(),
         next_action,
         terminal_evidence,
         handoff,
@@ -3943,6 +3956,25 @@ fn check_project_with_command_output(
             errors: vec![error],
             ..SddCheckReport::default()
         };
+    }
+    // Issue #825: an invalid `verification_ignored_paths` list is an invalid policy, and an entry
+    // overlapping an active change's declared paths refuses that change (REQ-change-115).
+    match validated_verification_ignored_paths(root) {
+        Err(error) => report.errors.push(error),
+        Ok(entries) => {
+            for record in records
+                .iter()
+                .filter(|record| record.state != ChangeState::Archived)
+            {
+                if let Err(error) = ensure_affected_paths_clear_of_verification_ignored(
+                    &entries,
+                    &record.affected_paths,
+                    Some(&record.id),
+                ) {
+                    report.errors.push(format!("{}: {error}", record.id));
+                }
+            }
+        }
     }
     for record in &records {
         if let Err(error) = validate_definition(root, record) {

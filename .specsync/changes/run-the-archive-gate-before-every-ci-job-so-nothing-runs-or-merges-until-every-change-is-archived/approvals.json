@@ -1,0 +1,68 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793507296,
+      "digest": "bfb94618e709fa1cb52cd27d5d1514a4a8c2fd3f656464a87d70a2d8ef24e57b",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived",
+        "title": "Run the archive gate before every CI job so nothing runs or merges until every change is archived",
+        "description": "Run the archive gate before every CI job so nothing runs or merges until every change is archived",
+        "kind": "operations",
+        "affected_specs": [
+          "agents",
+          "cmd_change",
+          "github"
+        ],
+        "affected_paths": [
+          ".claude/commands/specsync/check.md",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".codex/skills/spec-sync/SKILL.md",
+          ".cursor/commands/specsync-check.md",
+          ".cursor/skills/spec-sync/SKILL.md",
+          ".gemini/commands/specsync/check.toml",
+          ".gemini/skills/spec-sync/SKILL.md",
+          ".github/scripts/select-ci-lane.sh",
+          ".github/scripts/test-classify-ci-paths.sh",
+          ".github/scripts/test-required-ci-gate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/HLD.md",
+          "docs/ci-confidence.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "site/src/content/docs/workflow.md",
+          "site/src/content/examples/ci-gate.mdx",
+          "src/agents.rs",
+          "src/commands/change.rs",
+          "src/github.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A tip with any open change fails the Archive job first in CI and Trust, every other job is skipped, and the required CI gate fails; a tip with every change archived runs the full lane selected from the whole pull request; the Action's require-archived and archive-gate-only inputs run the same gate before downloading SpecSync; ship-status and agent guidance describe verify, review and ship locally, then push the archive tip."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "cmd_change lesson: change status and ship never say to merge while a change is open; the Archive check sentence stays identical between archive-readiness.sh and pull_request_archive_sentence; github lesson: in-process REST reads only, no new gh paths",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "fce6b1c5c6983963af983fd041ac5edc3298cff158c33bb22a135bd8ce7ab0f6",
+        "cmd_change": "dd5cf287b7a5765671b28d2f14a215c2416a9bdc2e7e64c77c04405432fa02b6",
+        "github": "1daf7ae9ca9b14483d78c80e9cb8686d15136dbb362557961f626633dfa29eac"
+      }
+    }
+  ],
+  "reopenings": []
+}

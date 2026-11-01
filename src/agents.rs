@@ -226,7 +226,7 @@ const AUDIT_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change audit`.
 
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using specsync check (the product). Use this whenever creating, editing, or reviewing a spec or its source, or when the user mentions spec-sync, SDD, change adopt, companion files, or the 6.0 change lifecycle (approve, check --commit, review, ship).";
 const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
-const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 5;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 6;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
 // `.specsync/agent-artifacts.json` is committed and shared, and `load_agent_artifact_manifest`

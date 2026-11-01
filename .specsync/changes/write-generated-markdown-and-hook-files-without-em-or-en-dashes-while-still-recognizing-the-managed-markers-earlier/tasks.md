@@ -5,22 +5,26 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Add the discriminator and control tests in `testing.md`, and confirm their labels against an unfixed a80748ff build.
-- [ ] Write `# Lesson bundle: <id>` in `write_lesson_bundle`.
-- [ ] Use a colon in the `init` and `migrate` `.specsync/.gitignore` headers.
-- [ ] Repunctuate `CREATE_SPEC_STEPS_MD` and set `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
-- [ ] Repunctuate the four hook snippets, and write the new begin sentinel while reading both forms in `remove_section_from_file`.
-- [ ] Repunctuate `PRE_COMMIT_HOOK`. No reader changes: project-keyed blocks are found by their markers.
-- [ ] Write compaction summaries as `<first> to <last>` with `-` placeholders, and read both forms in `summary_metadata`.
-- [ ] Add `tests/integration/generated_output_has_no_dashes.rs` and register it in `tests/integration.rs`.
-- [ ] Regenerate this repository's agent assets and `.specsync/agent-artifacts.json` with the built binary.
-- [ ] Update the compact requirements list, the hooks, compact and agents lesson planes, and each touched spec's version and Change Log.
-- [ ] Run the regression lanes in `testing.md`, re-run the issue's repro with the fixed build, and record the observed results.
+- [x] Add the discriminator and control tests in `testing.md`, and confirm their labels against an unfixed a80748ff build.
+- [x] Write `# Lesson bundle: <id>` in `write_lesson_bundle`.
+- [x] Use a colon in the `init` and `migrate` `.specsync/.gitignore` headers.
+- [x] Repunctuate `CREATE_SPEC_STEPS_MD` and set `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
+- [x] Repunctuate the four hook snippets, and write the new begin sentinel while reading both forms in `remove_section_from_file`.
+- [x] Repunctuate `PRE_COMMIT_HOOK`. No reader changes: project-keyed blocks are found by their markers.
+- [x] Write compaction summaries as `<first> to <last>` with `-` placeholders, and read both forms in `summary_metadata`.
+- [x] Add `tests/integration/generated_output_has_no_dashes.rs` and register it in `tests/integration.rs`.
+- [x] Regenerate this repository's agent assets and `.specsync/agent-artifacts.json` with the built binary.
+- [x] Update the compact requirements list, the hooks, compact and agents lesson planes, and each touched spec's version and Change Log.
+- [x] Run the regression lanes in `testing.md`, re-run the issue's repro with the fixed build, and record the observed results.
+- [ ] Follow-up, not in this scope: the tracked `SKILL.md` files for all four tools no longer
+  match their recorded digests or the generated `SKILL_BODY` (drift from #808, before this
+  change), so `agents install` in this repository refuses each tool. Only the command entries
+  of `.specsync/agent-artifacts.json` and the two create-spec commands were regenerated here.
 
 ## Human gates
 
-Scope approval of this change by a human is required before implementation starts. This draft
-records no approval.
+Scope approval was recorded by 0xLeif (PR #829) with the draft's recommended answers to the
+open questions below.
 
 Implementation review (`specsync change review <id> --reviewer <human>`) by a human follows a
 current `change check`. Finalization, merge and any release are separate human decisions.

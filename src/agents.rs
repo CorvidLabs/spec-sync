@@ -125,15 +125,15 @@ const CREATE_SPEC_STEPS_MD: &str = r#"1. Read the complete arguments above. Remo
    the complete remaining input for classification; do not extract a module
    name yet. If nothing remains, ask the user for a module or description.
 2. Classify the complete remaining input as one of:
-   - **A bare module name** — the entire input is one identifier with no
+   - **A bare module name**: the entire input is one identifier with no
      whitespace, such as `auth-service` or `billing`. Use it as-is.
-   - **A free-text feature description** — any quoted or unquoted sentence or
+   - **A free-text feature description**: any quoted or unquoted sentence or
      phrase describing what to build, e.g. `"I want a feature that lets users
      export their data as CSV"`. Only after making this classification, invent
      a short, kebab-case module name that captures the idea (e.g. `csv-export`).
      Never use only the first word as the module name. If the right name is
      ambiguous, ask the user to confirm or rename it before continuing. Keep
-     the complete description at hand — you'll use it in step 5.
+     the complete description at hand; you'll use it in step 5.
    Flag position does not change classification:
    - `--minimal billing` and `billing --minimal` both select the bare module
      `billing` in minimal mode.
@@ -153,7 +153,7 @@ const CREATE_SPEC_STEPS_MD: &str = r#"1. Read the complete arguments above. Remo
    enabled), a registry entry, and auto-detects related source files.
 5. Open the newly created `specs/<module-name>/<module-name>.spec.md` and fill
    in the `Purpose`, `Requirements`, and `Public API` sections. If a free-text
-   description was given in step 2, use it directly to draft these sections —
+   description was given in step 2, use it directly to draft these sections:
    ask clarifying questions if it's underspecified, but do not leave the
    sections as unfilled placeholder text. Do the same for `requirements.md`
    (acceptance criteria) and `tasks.md` (initial task breakdown), if present.
@@ -224,7 +224,7 @@ const AUDIT_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change audit`.
 
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using specsync check (the product). Use this whenever creating, editing, or reviewing a spec or its source, or when the user mentions spec-sync, SDD, change adopt, companion files, or the 6.0 change lifecycle (approve, check --commit, review, ship).";
 const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
-const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 5;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 6;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
 // `.specsync/agent-artifacts.json` is committed and shared, and `load_agent_artifact_manifest`
@@ -1785,5 +1785,36 @@ mod tests {
                 "{relative} must label start/verify/accept/archive as v1 recovery"
             );
         }
+    }
+    // DISCRIMINATOR for REQ-agents-009 (#827).
+    #[test]
+    fn generated_agent_artifacts_contain_no_em_or_en_dash() {
+        fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+            for entry in fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else {
+                    out.push(path);
+                }
+            }
+        }
+        let tmp = setup();
+        for tool in AgentTool::all() {
+            assert!(install_agent(tmp.path(), *tool).unwrap());
+        }
+        let mut files = Vec::new();
+        walk(tmp.path(), &mut files);
+        assert!(files.len() > 4, "{files:?}");
+        let mut offenders = Vec::new();
+        for path in files {
+            let text = fs::read_to_string(&path).unwrap();
+            for line in text.lines() {
+                if line.contains('\u{2013}') || line.contains('\u{2014}') {
+                    offenders.push(format!("{}: {line}", path.display()));
+                }
+            }
+        }
+        assert!(offenders.is_empty(), "{}", offenders.join("\n"));
     }
 }

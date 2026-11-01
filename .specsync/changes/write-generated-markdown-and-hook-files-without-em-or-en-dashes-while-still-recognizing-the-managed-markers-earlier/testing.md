@@ -131,3 +131,43 @@ under the REQ-change-109 limit), next to
 
 The issue's `repro3.sh` and the extra-writers script from `context.md` are re-run with the fixed
 build. Their output is recorded here.
+
+## Results (recorded after verification, 2026-11-01)
+
+Fail-before: the new tests were added first and run against the unchanged tree (a80748ff plus
+the approval commits). Every DISCRIMINATOR failed and every CONTROL passed:
+
+- Unit: `generated_hook_content_contains_no_em_or_en_dash`,
+  `uninstall_removes_a_block_with_the_new_begin_sentinel_exactly` (the new begin line was left
+  behind as an orphan), `compact_summary_rows_contain_no_em_or_en_dash`,
+  `compact_folds_a_6_1_1_summary_into_one_new_form_row`,
+  `generated_agent_artifacts_contain_no_em_or_en_dash`,
+  `lesson_bundle_heading_uses_a_colon_and_adds_no_dash`,
+  `lesson_bundle_copies_user_record_text_verbatim` (6 em dashes, expected 5),
+  `specsync_gitignore_content_has_no_em_or_en_dash` and
+  `apply_write_gitignore_writes_no_em_or_en_dash` failed, as did the five existing compact tests
+  whose expected strings moved to the new form. The controls
+  `uninstall_removes_a_block_with_the_6_1_1_begin_sentinel_exactly`,
+  `uninstall_precommit_removes_a_managed_block_with_the_6_1_1_body`,
+  `compact_leaves_a_6_1_1_summary_byte_for_byte_without_excess` and
+  `compact_does_not_treat_mixed_placeholder_forms_as_a_summary` passed.
+- Integration: `fresh_project_writers_emit_no_em_or_en_dash` failed listing 67 lines (CLAUDE.md 18,
+  AGENTS.md 18, copilot-instructions 8, .cursorrules 7, pre-commit 5, the two create-spec
+  commands 4 each, `.specsync/.gitignore` 1, one summary row per spec);
+  `migrate_writes_no_em_or_en_dash` failed on the gitignore header;
+  `hooks_uninstall_through_the_binary_removes_a_6_1_1_block` passed.
+
+Pass-after, with the fix:
+
+- `cargo test --bin specsync`: 2636 passed, 0 failed (after regenerating the two tracked
+  create-spec commands, which `checked_in_create_spec_commands_match_generated_assets` pins).
+- `cargo test --test integration`: 467 passed, 0 failed.
+- `specsync check --strict --require-coverage 100 --force` (release build): 62 specs passed,
+  0 warnings, 129/129 files.
+- The extra-writers script from `context.md`, re-run with the fixed release build: no written
+  file outside `.git/` and no line of `.git/hooks/pre-commit` holds U+2013 or U+2014; the
+  summary row reads `| 2026-01-01 to 2026-01-09 | - | Compacted: 9 entries <!-- specsync:compact:v1 --> |`;
+  `hooks uninstall` removed every block it installed.
+- The lesson bundle was not re-run through a binary finalize, as stated above; the two
+  in-process tests are its coverage.
+

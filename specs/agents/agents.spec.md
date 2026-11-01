@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 18
+version: 19
 status: stable
 files:
   - src/agents.rs
@@ -130,6 +130,7 @@ managed bytes from user customization.
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-11-01 | SpecSync | v19: create-spec command text carries no en or em dash; template version 6 refreshes digest-matching installed copies (REQ-agents-009, #827) |
 | 2026-10-10 | Add `agents.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-09-10 | leif | v15: generated skills lead with check as the product; SDD opt-in via change adopt; 6.0 happy path (`approve --actor`, `check --commit`, `review --reviewer`, `ship`/`finalize`); template version 5 |
 | 2026-09-01 | leif | Generated SDD skill allows the definition approver to record scoped review (solo ship) |

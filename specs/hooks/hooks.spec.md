@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 11
+version: 12
 status: stable
 files:
   - src/hooks.rs
@@ -58,6 +58,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 11. Project directory names remain literal data in both the executable command
     and failure diagnostic. Spaces, apostrophes, dollar substitutions and
     backticks cannot alter shell syntax or execute directory-name content.
+12. Instruction blocks, the pre-commit hook and Claude Code hook settings are written without U+2013 or U+2014. A new block begins with ``<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->``; uninstall also recognizes the begin sentinel releases up to and including 6.1.1 wrote, by an exact two-form list rather than a prefix. Project-keyed pre-commit blocks are found by their markers whatever body they hold; the unmarked legacy comparison still uses the current hook body, with no frozen copy of an older one
 
 ## Behavioral Examples
 
@@ -121,6 +122,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v12: write hook files without en or em dashes; the new begin sentinel uses a semicolon and uninstall still recognizes the 6.1.1 form (REQ-hooks-005, #827). |
 | 2026-10-15 | Quote the generated failure hint as a fixed-format printf argument; execute installed hooks against ordinary and shell-metacharacter project paths on success and failure (#782). |
 | 2026-10-10 | Add `hooks.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |

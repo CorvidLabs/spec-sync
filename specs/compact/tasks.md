@@ -31,6 +31,7 @@ spec: compact.spec.md
 - [x] Retain complete planned counts on staging failure and characterize deterministic late-publish partial results
 - [x] Stop before indented pipe-code and fail closed on indented separators
 - [x] Reject reordered generated summaries before no-final-newline reconstruction
+- [x] Write summary rows as `<first> to <last>` with `-` placeholders and keep folding the 6.1.1 dash form (REQ-compact-001, #827)
 
 ## Review Status
 

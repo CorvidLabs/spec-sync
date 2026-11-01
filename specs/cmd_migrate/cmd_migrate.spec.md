@@ -1,6 +1,6 @@
 ---
 module: cmd_migrate
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/migrate.rs
@@ -106,6 +106,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v6: the `.specsync/.gitignore` header that migration writes uses a colon instead of an em dash (REQ-cmd-migrate-004, #827). |
 | 2026-10-10 | Add `cmd_migrate.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-11 | Initial spec — v3.x to v4.0.0 migration command |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

@@ -2820,7 +2820,7 @@ pub(crate) fn lifecycle_commit_scope(
 /// Everything here is read from disk. No network, so `finalize` keeps working offline and in CI.
 fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Result<(), String> {
     let mut out = String::new();
-    out.push_str(&format!("# Lesson bundle — {}\n\n", record.id));
+    out.push_str(&format!("# Lesson bundle: {}\n\n", record.id));
     out.push_str(
         "Material for folding this change's lessons into each affected module's lesson file.\n\
          Synthesise from what actually happened below; do not restate the change description.\n\n",

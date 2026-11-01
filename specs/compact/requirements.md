@@ -15,10 +15,11 @@ spec: compact.spec.md
 - The `## Change Log` section ends at the next `## ` heading or EOF; only that slice is rewritten
 - The first two `|`-prefixed lines in the section (header + separator) are always preserved
 - The last `keep` ordinary data rows are kept verbatim; the earlier `total - keep` rows are replaced by a single summary row
-- The summary row reads `| <first_date> — <last_date> | Compacted: <N> entries |` for 2-column tables, and inserts a `—` placeholder for the middle column(s) on 3+ column tables
-- A generated summary row is recognized only when its first cell contains a non-empty `start — end` range, every interior cell is `—`, and its final cell has the exact grammatically-correct count plus `<!-- specsync:compact:v1 -->` provenance marker
-- When new ordinary rows require another compaction, prior generated summary counts are accumulated and the original range start is retained
-- Multiple marked summaries fail closed instead of being summed
+- The summary row reads `| <first_date> to <last_date> | Compacted: <N> entries <!-- specsync:compact:v1 --> |` for 2-column tables, and inserts a `-` placeholder for the middle column(s) on 3+ column tables; a written summary row contains no U+2013 or U+2014
+- A generated summary row is recognized only when its first cell contains a non-empty `start to end` range, every interior cell is `-`, and its final cell has the exact grammatically-correct count plus `<!-- specsync:compact:v1 -->` provenance marker
+- A summary row in the form written up to and including 6.1.1 (a U+2014 range separator and U+2014 interior cells) is recognized the same way; a row mixing the two placeholder forms is not a summary
+- When new ordinary rows require another compaction, prior generated summary counts are accumulated and the original range start is retained, and the replacement summary is written in the current form
+- Multiple marked summaries fail closed instead of being summed, whatever form each uses
 - Column count and cells are parsed from the first contiguous table without treating odd-backslash escaped pipes or code-span pipes as delimiters; even backslash runs do not escape delimiters
 - If `total <= keep`, no rows are removed (`removed == 0`) and the spec is not written; such results are filtered out by `compact_changelogs`
 - `dry_run: true` collects `CompactResult` values but never writes files

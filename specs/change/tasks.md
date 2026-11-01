@@ -77,3 +77,4 @@ spec: change.spec.md
 
 - [x] Report an approval as not current in status, the handoff verdict and `change audit` when a semantic delta body it recorded was edited after approval, using the binding materialization and acceptance enforce, and name the edited modules in `summary.changed_approved_deltas` (REQ-change-111).
 - [x] Run the effective-contract gate on the change being verified on every `change check`, the first one included, and record its refusal of a declared module as a failed attempt naming `specsync change check <id> (effective contract: …)` (REQ-change-112).
+- [x] Write the lesson bundle heading as `# Lesson bundle: <id>` so the bundle's fixed text adds no en or em dash, copying user record text unchanged (REQ-change-116, #827).

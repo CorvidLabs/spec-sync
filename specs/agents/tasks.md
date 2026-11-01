@@ -30,6 +30,7 @@ spec: agents.spec.md
 - [x] Human approval safeguards and deterministic JSON interview guidance
 - [x] Keep checked-in create-spec commands byte-identical to installer templates and classify complete non-flag input
 - [x] Generated skills lead with check as the product and the 6.0 happy path (template version 5)
+- [x] Repunctuate the create-spec command body without en or em dashes and advance the template version to 6 (REQ-agents-009, #827)
 
 ## Gaps
 

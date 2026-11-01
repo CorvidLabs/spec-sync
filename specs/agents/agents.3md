@@ -27,7 +27,7 @@ This plane is context. Later planes are lessons, in the order they were learned.
 @plane z=3 label="Current Status"
 Updated for shipped 6.0.0. Generated `SKILL_BODY` leads with `specsync check` as the product and
 SDD as opt-in via `specsync change adopt`. Happy path is `new` -> `answer` -> `approve --actor` ->
-implement -> `check --commit` -> `review --reviewer` -> `ship`/`finalize`. Template version 5.
+implement -> `check --commit` -> `review --reviewer` -> `ship`/`finalize`. Template version 6.
 All four tools receive that skill; Claude, Cursor, and Gemini also receive four commands —
 create-spec, create-change, check, and audit. `hooks.rs` snippets remain a separate, shorter
 surface and are not unified with `SKILL_BODY` in this change.
@@ -37,3 +37,12 @@ surface and are not unified with `SKILL_BODY` in this change.
 - The `create-spec` command's prompt body instructs the agent to parse either a bare module name or a natural-language feature description out of its arguments — that parsing happens in the agent's own reasoning, not in Rust code, since these are prompt files, not real CLI arg parsers.
 - Gemini's `.toml` command file is a hand-built string template (`gemini_create_spec_toml()`), not a serialized struct. That predates the `toml` crate, which this project has depended on since #483; nothing has migrated it.
 - Shared create-spec templates remove standalone `--minimal` flags before classifying the complete remaining input. The repository's Claude, Cursor, and Gemini command assets are regenerated from those templates and parity-tested byte for byte so contributors cannot receive stale first-token guidance.
+
+@plane z=5 label="Template text changes advance the template version"
+#827 repunctuated the shared create-spec body so it carries no en or em dash.
+Any change to generated command or skill text must advance
+`AGENT_ARTIFACT_TEMPLATE_VERSION` (now 6): the digest manifest refreshes only
+copies whose bytes still match their recorded digest and reports customized
+ones as conflicts. Regenerate the repository's tracked command assets and
+`.specsync/agent-artifacts.json` with the built binary, never by hand, so the
+parity tests compare against real installer output.

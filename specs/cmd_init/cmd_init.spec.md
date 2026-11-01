@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 16
+version: 17
 status: stable
 files:
   - src/commands/init.rs
@@ -77,6 +77,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v17: the `.specsync/.gitignore` header uses a colon instead of an em dash (REQ-cmd-init-008, #827). |
 | 2026-10-10 | Add `cmd_init.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v15: materialize the Linguist rule that keeps `*.3md` from being classified as Roff. |
 | 2026-10-10 | v14: init adds `*.3md linguist-language=Text` so GitHub does not classify the file as Roff. |

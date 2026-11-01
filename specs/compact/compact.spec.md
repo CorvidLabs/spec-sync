@@ -1,6 +1,6 @@
 ---
 module: compact
-version: 9
+version: 10
 status: stable
 files:
   - src/compact.rs
@@ -50,6 +50,7 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 12. Apply mode preflights every replacement and stages same-directory temporary files before publication
 13. Staging failures retain every planned result/count with zero writes; late publish failures retain all results and report exact partial progress
 14. Indented pipe code terminates table data, indented separators fail before writes, and a generated summary is valid only as the first data row
+15. Summary rows are written as `<first> to <last>` with `-` placeholders and contain no U+2013 or U+2014; a summary row in the 6.1.1 form (U+2014 range separator and placeholders) is still recognized and is rewritten in the current form only when more rows fold. A row mixing the two placeholder forms is user history
 
 ## Behavioral Examples
 
@@ -81,6 +82,7 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 
 | Condition | Behavior |
 |-----------|----------|
+| 2026-11-01 | v10: write summary rows as `<first> to <last>` with `-` placeholders and keep reading the 6.1.1 dash form (REQ-compact-001 modified, #827). |
 | Spec file unreadable | Records a structured failure, exits nonzero at the command boundary, and performs no writes |
 | Multiple marked summaries or malformed table | Records a parse failure and performs no writes |
 | Indented separator or reordered generated summary | Records a parse failure and performs no writes |

@@ -13,7 +13,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 - [link](hi/link.md): LINK (8 criteria)
 - [maturity](hi/maturity.md): MATURITY (12 criteria)
 - [plan](hi/plan.md): PLAN (9 criteria)
-- [recover](hi/recover.md): RECOVER (1 criterion)
+- [recover](hi/recover.md): RECOVER (2 criteria)
 - [setup](hi/setup.md): SETUP (16 criteria)
 - [ship](hi/ship.md): SHIP (32 criteria)
 - [spec](hi/spec.md): SPEC (17 criteria)

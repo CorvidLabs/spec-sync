@@ -627,3 +627,10 @@ percentage over nothing would be indistinguishable from full coverage, so no
 percentage is reported and `--require-coverage` fails closed. `files_total`
 counts the files discovered on disk plus any a spec's `files:` list names that
 are absent, since an absent file can never be covered.
+
+
+### Explicit historical receipt reconciliation
+
+Post-6.1.2 builds add `specsync change reconcile-history ID --actor ACTOR --reason REASON` for an unaccepted workflow-v2 successor that already declares exact `supersede` obligations. This is a scope request, not approval or archival. It binds the existing definition base as an immutable receipt anchor and invalidates prior scope approval. Reapprove the definition, run fresh verification, record a fresh scoped review, then finalize normally.
+
+The resulting schema-2 evidence explicitly marks historical file transitions **unproven**. It authenticates the complete original accepted package and frozen manifest at the anchor, preserves those bytes, and still verifies the current successor inputs at its actual acceptance commit. It does not claim retrospective product acceptance or historical before/after proof. Normal schema-1 succession retains its actual base-file check. Protected tool/policy inputs, symlinks and gitlinks are excluded from this bounded migration mode. Older releases must not be used to operate or qualify this new evidence mode.

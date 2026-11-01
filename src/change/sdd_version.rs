@@ -1482,6 +1482,23 @@ pub struct SemanticSuccessionTupleV1 {
 pub struct SemanticSuccessionEvidenceV1 {
     pub schema_version: u32,
     pub tuples: Vec<SemanticSuccessionTupleV1>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub historical_reconciliation: Option<HistoricalReconciliationEvidenceV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoricalReceiptWitnessV1 {
+    pub predecessor_id: String,
+    pub package_digest: String,
+    pub manifest_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoricalReconciliationEvidenceV1 {
+    pub schema_version: u32,
+    pub transition_status: String,
+    pub anchor_commit: String,
+    pub predecessors: Vec<HistoricalReceiptWitnessV1>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1586,6 +1603,7 @@ pub enum TerminalEvidenceValidity {
     SuccessorCovered,
     Stale,
     AuthenticatedHistory,
+    HistoricalTransitionUnproven,
     CorruptHistory,
 }
 
@@ -1597,6 +1615,7 @@ impl TerminalEvidenceValidity {
             Self::SuccessorCovered => "successor-covered",
             Self::Stale => "stale",
             Self::AuthenticatedHistory => "authenticated-history",
+            Self::HistoricalTransitionUnproven => "historical-transition-unproven",
             Self::CorruptHistory => "corrupt-history",
         }
     }

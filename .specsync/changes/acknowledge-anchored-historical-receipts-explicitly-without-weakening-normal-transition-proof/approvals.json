@@ -1,0 +1,53 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (explicitly approved all of the separately described audited migration feature)",
+      "timestamp": 1793571902,
+      "digest": "5eb373b1f15c9df5767034f1748241ca045d870f8ec093bd7d86dbcaf999560a",
+      "note": "User confirmed the explicit unproven-history boundary, immutable originals, fresh verification/review and separate reviewed release. Implementation acceptance and merge are separate gates.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof",
+        "title": "Acknowledge anchored historical receipts explicitly without weakening normal transition proof",
+        "description": "Acknowledge anchored historical receipts explicitly without weakening normal transition proof",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "hi",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/workflow.md",
+          "src/change",
+          "src/change.rs",
+          "src/change_tests",
+          "src/change_tests.rs",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Opt-in historical reconciliation preserves authenticated committed predecessor receipts, labels old transitions unproven, remains bound to exact path/module/digest obligations, and requires newly approved scope plus fresh current verification and scoped review before closure. Normal before/after succession stays strict."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "The user explicitly approved the separate audited migration feature after its unproven historical-transition boundary and need for a separately reviewed release were presented. RECOVER-2 captures that intent. Preserve every original receipt byte at an immutable ancestral Git anchor. Never invent historical product approval, dates, old file contents or transition proof; normal succession and all capture bounds remain unchanged.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "b2e4e7ddb08ba9dadcad9b453fa135ffd5e9dfd1f9eeec1d14fa23578cdae088",
+        "cli_args": "623c539c647762b538058c3c585cecdc90079b8f879796d39920e4a8cf5c9669",
+        "cmd_change": "e763859220f32f8dfacf9b36065f683771c8d5de93f57aa4accc0f76cf8eed8d"
+      }
+    }
+  ],
+  "reopenings": []
+}

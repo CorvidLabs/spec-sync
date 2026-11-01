@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 53
+version: 54
 status: active
 files:
   - src/commands/change.rs
@@ -183,3 +183,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
 | 2026-11-01 | report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json: Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON |
 | 2026-11-01 | let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the: Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest |
+| 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |

@@ -66,6 +66,11 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             &digest,
         )
         .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
+        ChangeAction::ReconcileHistory { id, actor, reason } => {
+            change::enable_historical_reconciliation(root, &id, actor, reason).map(|record| {
+                print_transition_with_handoff(root, &record, format, "historical reconciliation requested; old file transitions remain unproven; fresh definition approval required")
+            })
+        }
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
             change::list_changes(root)
@@ -412,6 +417,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         finalization_path.display()
                     )
                 })?;
+            let historical = change::load_change(root, &id)?.answers.get("historical_reconciliation").is_some_and(|value| value == "unproven");
             match format {
                 OutputFormat::Json => print_json(&serde_json::json!({
                     "id": id,
@@ -425,10 +431,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     "ready_for_github_merge": true,
                     "lesson_bundle": path.join(change::LESSON_BUNDLE_FILE),
                     "next_action": lessons_next_action(root, &id, &path),
-                })),
+                }).as_object().map(|object| {
+                    let mut object = object.clone();
+                    if historical { object.insert("historical_transition_proven".into(), serde_json::json!(false)); }
+                    object
+                }).unwrap_or_default()),
                 _ => {
                     // Digests stay in --json only; text mode names the archive + commit.
                     println!("{} {} finalized on this PR", "✓".green(), id);
+                    if historical { println!("  Historical file transitions remain unproven (explicit receipt reconciliation)."); }
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
                     println!("  {}", lesson_bundle_line());
@@ -636,16 +647,34 @@ fn print_record(
             // Inside the status/show read scope, so this shares the delta-binding read `summary`
             // used a few lines above (REQ-cmd-change-023).
             let approved_deltas = change::approved_delta_summaries(root, record);
-            print_json(&serde_json::json!({
-                "change": record,
-                "effective_definition": effective_definition,
-                "acceptance_entries": acceptance_entries,
-                "approved_deltas": approved_deltas,
-                "corrections": corrections,
-                "summary": summary,
-                "questions": questions,
-                "briefing": change::open_change_briefing(root, record),
-            }));
+            print_json(
+                &serde_json::json!({
+                    "change": record,
+                    "effective_definition": effective_definition,
+                    "acceptance_entries": acceptance_entries,
+                    "approved_deltas": approved_deltas,
+                    "corrections": corrections,
+                    "summary": summary,
+                    "questions": questions,
+                    "briefing": change::open_change_briefing(root, record),
+                })
+                .as_object()
+                .map(|object| {
+                    let mut object = object.clone();
+                    if record
+                        .answers
+                        .get("historical_reconciliation")
+                        .is_some_and(|value| value == "unproven")
+                    {
+                        object.insert(
+                            "historical_transition_proven".into(),
+                            serde_json::json!(false),
+                        );
+                    }
+                    object
+                })
+                .unwrap_or_default(),
+            );
         }
         _ => {
             // Text mode must not invoke digest-bearing loaders into cleartext sinks
@@ -701,16 +730,34 @@ fn print_mutation_record(
                 &result.summary
             };
             let acceptance_entries = change::acceptance_entries(root, record);
-            print_json(&serde_json::json!({
-                "change": record,
-                "effective_definition": result.effective_definition,
-                "acceptance_entries": acceptance_entries,
-                "approved_deltas": result.approved_deltas,
-                "corrections": result.corrections,
-                "summary": summary,
-                "questions": questions,
-                "briefing": change::open_change_briefing(root, record),
-            }));
+            print_json(
+                &serde_json::json!({
+                    "change": record,
+                    "effective_definition": result.effective_definition,
+                    "acceptance_entries": acceptance_entries,
+                    "approved_deltas": result.approved_deltas,
+                    "corrections": result.corrections,
+                    "summary": summary,
+                    "questions": questions,
+                    "briefing": change::open_change_briefing(root, record),
+                })
+                .as_object()
+                .map(|object| {
+                    let mut object = object.clone();
+                    if record
+                        .answers
+                        .get("historical_reconciliation")
+                        .is_some_and(|value| value == "unproven")
+                    {
+                        object.insert(
+                            "historical_transition_proven".into(),
+                            serde_json::json!(false),
+                        );
+                    }
+                    object
+                })
+                .unwrap_or_default(),
+            );
         }
         _ => {
             // The domain operation validated correction history while holding the mutation lock.
@@ -769,6 +816,15 @@ fn print_verification_ignored_lines(root: &Path) {
 /// `rust/cleartext-logging`). Callers must not pass values produced by
 /// `effective_change_definition` / `correction_history` into this path.
 fn print_change_text_identity(record: &ChangeRecord) {
+    if record
+        .answers
+        .get("historical_reconciliation")
+        .is_some_and(|value| value == "unproven")
+    {
+        println!(
+            "  Historical file transitions remain unproven (explicit receipt reconciliation)."
+        );
+    }
     let id = record.id.as_str();
     let title = record.title.as_str();
     let state = record.state.as_str();
@@ -824,6 +880,7 @@ fn print_change_text_answers(record: &ChangeRecord) {
     let answer_summary = record
         .answers
         .iter()
+        .filter(|(field, _)| field.as_str() != "historical_reconciliation_anchor")
         .map(|(field, value)| format!("{field}={value}"))
         .collect::<Vec<_>>()
         .join(", ");

@@ -13,6 +13,7 @@ fn successor_covers_input(
     expected: &AcceptanceInputEntryV1,
     owner: &str,
     rejected_successors: &mut BTreeMap<String, RejectedSuccessor>,
+    historically_reconciled: &mut bool,
 ) -> bool {
     for candidate in records.values() {
         // Only a successor that declares this obligation can cover it: authenticated
@@ -109,7 +110,7 @@ fn successor_covers_input(
                 continue;
             }
         }
-        match semantic_tuple_transition_is_valid(root, candidate, &tuple, pending) {
+        match semantic_tuple_transition_is_valid(root, candidate, &tuple, candidate_verification.semantic_succession.as_ref(), pending) {
             Ok(true) => {}
             Ok(false) => {
                 reject(format!(
@@ -128,7 +129,13 @@ fn successor_covers_input(
         }
         match validate_accepted_inputs_recursive(root, candidate, records, visiting, memo, pending)
         {
-            Ok(_) => return true,
+            Ok(validity) => {
+                if validity == AcceptedInputValidity::HistoricallyReconciled
+                    || candidate.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
+                    *historically_reconciled = true;
+                }
+                return true;
+            },
             Err(error) => reject(format!("its own delivery-input evidence is stale: {error}")),
         }
     }

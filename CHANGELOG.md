@@ -19,6 +19,7 @@ Release candidate, not yet published. The published Action download default stay
 
 ### Fixed
 
+- `specsync check --fix` adds new export rows to the table that already holds documented exports in a Public API block, using that table's column count, instead of the last table in the block (often a parameters table). Without a documented export it picks the first `Name`, `Function`, `Export` or `Symbol` table that is not a parameter or field table. #768 case 2 (an indented literal fence marker hiding the following table) stays open (#834, issue #768).
 - Generated pre-commit hooks pass the project root as a literal argument, so `$(...)` substitutions and backticks in a project path are never evaluated in failed-check diagnostics. Existing hooks keep their old block until refreshed with `specsync hooks uninstall --precommit` then `specsync hooks install --precommit` (#818).
 - `specsync change audit` over active changes recognizes a finalized, signed policy migration of the same delivery in the native archive after every workspace is archived, while still refusing missing, wrong-scope, tampered or unrelated records and later unsigned policy edits (#821).
 - `specsync change status` reports an approval as invalid when an approved semantic delta body is edited after approval: `summary.approval_valid` is false, the next action names re-approval, the handoff says not yet, and the new `summary.changed_approved_deltas` array (omitted when empty) lists the edited modules. `change audit` reports the edit as an error (#823).
@@ -34,6 +35,7 @@ Release candidate, not yet published. The published Action download default stay
 - This repository's CI is archive-first: an `Archive` job runs before everything else in CI and Trust, and a commit with an open SDD change fails it in seconds while every other job is skipped. Tip-only lane narrowing is removed, so the archived tip runs the full lane. Installed agent and ship-status guidance describe the local flow: `change check --commit`, `fledge lanes run verify`, `change review`, `change ship`, then push the archived tip (#832).
 - The main Action wrapper selects published 6.1.1 after supported-platform asset and Action checks (#817). Immutable `@v6.1.1` keeps its historical 6.1.0 default; select `version: '6.1.1'` with that tag.
 - Package version and self-built candidate inputs (CI packaged Action consumer, Trust) move to 6.1.2. Documentation examples pin `@v6.1.2` with `version: '6.1.2'` for use after publication; archive-gate examples keep `@main` until 6.1.2 is published. The release validator accepts those archive-gate `@main` pins only while the published default is 6.1.1 or older (#832).
+- Release candidate qualification runs on `macos-15`: `v6.1.2-rc.1` failed qualification because GitHub failed every `macos-14` job during the scheduled brownout before that image's retirement, and is superseded by `v6.1.2-rc.2`.
 
 ### Maintenance
 

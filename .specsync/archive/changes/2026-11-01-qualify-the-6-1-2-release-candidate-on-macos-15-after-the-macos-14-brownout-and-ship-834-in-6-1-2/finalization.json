@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "qualify-the-6-1-2-release-candidate-on-macos-15-after-the-macos-14-brownout-and-ship-834-in-6-1-2",
+  "implementation_commit": "4eaaae45eef8db745eb5e66705ea464feec35f76",
+  "implementation_tree": "4fd21f2dd108a24c154a6a5d01a3176c7cd358b7",
+  "contract_digest": "84b031d1d6391b9f5765ec3bb88f670e64741763dd916449a4cf2b534fa4b0df",
+  "workspace_digest": "d1e951ccfa149d976af1fb27cb64893dd16e97140ce17b166ce6f6432d0b522f",
+  "closing_digest": "f4dbc4cab0643611deeb90d1520f8bb98f7b00aeb93b6e57dcecae718ed3adb4",
+  "review_digest": "a0c05848cfb1c13da63f986a72b19c6f619120aa58f354ebee7d88d03e11fa3e",
+  "finalization_digest": "6b26288e90478bf547ea1179635072052bb686e5bb12d8daa9e4d940a0238749",
+  "timestamp": 1793561445
+}

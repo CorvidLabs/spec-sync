@@ -46,6 +46,29 @@
         "REQ-compact-001",
         "REQ-hooks-005"
       ]
+    },
+    {
+      "timestamp": 1793501598,
+      "commit": "7d08ed2d8dcf94c949b97e3b8fecbe27cf5a827f",
+      "contract_digest": "db8e50ab1948f01e51133366a90c8dd7a15873dce41a66de66cb15d801c63f73",
+      "execution_digest": "1be2fec6d01b4d8da6d6c7b69f5d44533faa15d6ecf367c90b15d6ced5e0fb14",
+      "workspace_digest": "fbcd38b968a3989fdc19a7eb7ce9cd6bd3a9a386cc96cba5867d8a00cef9dc32",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_migrate --spec compact --spec hooks",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-change-116",
+        "REQ-cmd-init-008",
+        "REQ-cmd-migrate-004",
+        "REQ-compact-001",
+        "REQ-hooks-005"
+      ]
     }
   ]
 }

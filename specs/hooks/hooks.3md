@@ -37,3 +37,14 @@ apostrophes could break parsing. Generate the command at its exact template line
 and print the independently quoted diagnostic through fixed-format printf.
 Execute the installed hook on both success and failure with real metacharacter
 directory names; quote-character text assertions alone do not prove safety.
+
+@plane z=6 label="The begin sentinel is read back; the pre-commit body is not"
+Before changing generated text, list which strings a reader parses. The
+instruction-block begin sentinel is found by `remove_section_from_file`, and
+every block a sentinel-era release installed (since #300, up to 6.1.1) carries
+the em-dash form, so #827 keeps that line as the frozen `LEGACY_HOOK_BEGIN`
+literal (written with a `\u{2014}` escape) and `is_hook_begin` accepts exactly
+the two forms. A prefix match was declined: uninstall deletes everything between
+begin and end. The pre-commit body needs no frozen copy: since #480 it is written
+only inside project-keyed markers that carry no dash, and the unmarked legacy
+comparison has matched no released install since #774 changed the body.

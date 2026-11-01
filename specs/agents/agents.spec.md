@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 20
+version: 21
 status: stable
 files:
   - src/agents.rs
@@ -130,6 +130,7 @@ managed bytes from user customization.
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-11-01 | SpecSync | v21: create-spec command text carries no en or em dash; template version 7 refreshes digest-matching installed copies (REQ-agents-010, #827) |
 | 2026-10-10 | Add `agents.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-09-10 | leif | v15: generated skills lead with check as the product; SDD opt-in via change adopt; 6.0 happy path (`approve --actor`, `check --commit`, `review --reviewer`, `ship`/`finalize`); template version 5 |
 | 2026-09-01 | leif | Generated SDD skill allows the definition approver to record scoped review (solo ship) |
@@ -153,3 +154,4 @@ managed bytes from user customization.
 | 2026-10-10 | SpecSync | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |
 | 2026-11-01 | SpecSync | v19: teach generated skills and `/specsync:check` archive-first CI: `--commit` is local evidence, review and ship happen without waiting on remote CI, and the full lane runs on the pushed archive tip |
 | 2026-11-01 | SpecSync | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
+| 2026-11-01 | SpecSync | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |

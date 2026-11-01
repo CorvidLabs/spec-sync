@@ -2820,7 +2820,7 @@ pub(crate) fn lifecycle_commit_scope(
 /// Everything here is read from disk. No network, so `finalize` keeps working offline and in CI.
 fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Result<(), String> {
     let mut out = String::new();
-    out.push_str(&format!("# Lesson bundle — {}\n\n", record.id));
+    out.push_str(&format!("# Lesson bundle: {}\n\n", record.id));
     out.push_str(
         "Material for folding this change's lessons into each affected module's lesson file.\n\
          Synthesise from what actually happened below; do not restate the change description.\n\n",
@@ -4409,4 +4409,122 @@ fn comparison_base_commit(root: &Path, comparison_base: &str) -> Option<String> 
             &["rev-parse", "--verify", &format!("{left}^{{commit}}")],
         )
     })
+}
+
+/// The lesson bundle adds no en or em dash of its own (#827). These live beside
+/// `write_lesson_bundle` so the tests stay inside the change's declared paths.
+#[cfg(test)]
+mod lesson_bundle_dash_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    /// A record and archive for the lesson-bundle tests (#827). `dash` is spliced into the
+    /// user-supplied title, one acceptance criterion, one affected path, the recorded verification
+    /// command and the `context.md` body, so an empty `dash` gives a bundle whose inputs hold none.
+    fn lesson_bundle_for(root: &Path, dash: &str) -> (String, String) {
+        let mut record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "note a constraint for auth".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/lib.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("The note does not move a contract".into()),
+            },
+        )
+        .unwrap();
+        record.title = format!("Fix the retry budget{dash}");
+        record.acceptance_criteria = vec![
+            format!("The retry budget is enforced{dash}"),
+            "A second criterion".into(),
+        ];
+        record.affected_specs = vec!["auth".into()];
+        record.affected_paths = vec![format!("src/auth{dash}.rs"), "src/lib.rs".into()];
+        save_change(root, &record).unwrap();
+        let verification = VerificationRecord {
+            timestamp: now(),
+            commit: Some("abc123".into()),
+            contract_digest: "digest".into(),
+            execution_digest: None,
+            workspace_digest: String::new(),
+            acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: vec![CommandEvidence {
+                command: format!("cargo test auth{dash}"),
+                success: true,
+                exit_code: Some(0),
+            }],
+            requirement_ids: Vec::new(),
+        };
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        let archive = root.join("bundle");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("context.md"),
+            format!("---\nchange: x\n---\n\n# Context\n\nThe budget was wrong{dash}.\n"),
+        )
+        .unwrap();
+        fs::write(
+            archive.join("design.md"),
+            "---\nchange: x\n---\n\n# Design\n\nCount attempts.\n",
+        )
+        .unwrap();
+        fs::write(
+            archive.join("testing.md"),
+            "---\nchange: x\n---\n\n# Testing\n\nA unit test.\n",
+        )
+        .unwrap();
+        write_lesson_bundle(root, &record, &archive).unwrap();
+        let bundle = fs::read_to_string(archive.join(LESSON_BUNDLE_FILE)).unwrap();
+        (record.id, bundle)
+    }
+
+    // DISCRIMINATOR for REQ-change-116.
+    #[test]
+    fn lesson_bundle_heading_uses_a_colon_and_adds_no_dash() {
+        let temp = TempDir::new().unwrap();
+        let (id, bundle) = lesson_bundle_for(temp.path(), "");
+        assert!(
+            bundle.starts_with(&format!("# Lesson bundle: {id}\n\n")),
+            "{bundle}"
+        );
+        assert!(bundle.contains("cargo test auth"), "{bundle}");
+        assert!(bundle.contains("Count attempts."), "{bundle}");
+        assert!(bundle.contains("A unit test."), "{bundle}");
+        assert!(
+            !bundle.contains('\u{2013}') && !bundle.contains('\u{2014}'),
+            "{bundle}"
+        );
+    }
+
+    // DISCRIMINATOR for REQ-change-116: user text is copied verbatim and the bundle adds no dash.
+    #[test]
+    fn lesson_bundle_copies_user_record_text_verbatim() {
+        let temp = TempDir::new().unwrap();
+        let dash = " \u{2014} note";
+        let (_, bundle) = lesson_bundle_for(temp.path(), dash);
+        for copied in [
+            format!("Fix the retry budget{dash}"),
+            format!("The retry budget is enforced{dash}"),
+            format!("src/auth{dash}.rs"),
+            format!("cargo test auth{dash}"),
+            format!("The budget was wrong{dash}."),
+        ] {
+            assert!(bundle.contains(&copied), "{copied} missing from:\n{bundle}");
+        }
+        assert_eq!(
+            bundle.matches('\u{2014}').count(),
+            5,
+            "every em dash must come from the five user inputs:\n{bundle}"
+        );
+        assert!(!bundle.contains('\u{2013}'), "{bundle}");
+    }
 }

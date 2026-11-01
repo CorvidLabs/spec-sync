@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 16
+version: 18
 status: stable
 files:
   - src/commands/init.rs
@@ -77,6 +77,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v17: the `.specsync/.gitignore` header uses a colon instead of an em dash (REQ-cmd-init-008, #827). |
 | 2026-10-10 | Add `cmd_init.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v15: materialize the Linguist rule that keeps `*.3md` from being classified as Roff. |
 | 2026-10-10 | v14: init adds `*.3md linguist-language=Text` so GitHub does not classify the file as Roff. |
@@ -94,3 +95,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-10-10 | keep-3md-files-from-being-classified-as-roff: Keep 3md files from being classified as Roff |
+| 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |

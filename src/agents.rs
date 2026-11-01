@@ -47,7 +47,7 @@ schema, or configuration change:
 ## Lifecycle verbs
 
 - `specsync check` - validate all specs against source. Default daily path. No change required.
-- `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready product-tip evidence.
+- `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready local evidence (archive-first CI does not test a tip with an open change).
 - `specsync change audit` - project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived change on each check.
 - Slash commands after `specsync agents install`: Claude and Gemini use `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit`. Cursor uses the flat names `/specsync-create-spec`, `/specsync-create-change`, `/specsync-check`, `/specsync-audit`.
@@ -83,9 +83,11 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 ## Before creating a PR
 
-Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, push
-the product tip from `change check --commit` with the PR. Record `change review` and
-`change ship`/`finalize` only after that tip is on the PR and required checks have run. Do not
+Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, CI is
+archive-first: a pushed tip with any open change fails the Archive check and runs nothing else.
+Verify locally (`change check --commit` and the local verify lane), record `change review`, run
+`change ship` without committing in between, then commit and push the archive tip. CI runs the
+full lane on that tip; merge only when it is green. Open the PR first: do not
 record review or ship before the PR exists.
 
 ## When adding new modules
@@ -210,7 +212,7 @@ const CREATE_CHANGE_STEPS_MD: &str = r#"1. SDD is opt-in via `specsync change ad
 const CHECK_CHANGE_DESCRIPTION: &str =
     "Run scoped SpecSync change verification for one change (materialize deltas + spec↔code sync)";
 
-const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`. For ship-ready product-tip evidence, include `--commit`.
+const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`. For ship-ready local evidence, include `--commit`.
 2. Expect **scoped** verification only: this change's materialization and in-process spec↔code sync. Do not run a full archive integrity walk.
 3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or ship/finalize path).
 4. Do **not** run `specsync change audit` unless the user asked for project health over active workspaces and living specs."#;

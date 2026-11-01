@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 49
+version: 50
 status: active
 files:
   - src/commands/change.rs
@@ -178,3 +178,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
 | 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |
 | 2026-10-31 | report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited: Report an approval as invalid in change status when an approved semantic delta body is edited |
+| 2026-11-01 | v50: archive-first CI. `ship-status` queries check-runs for HEAD first, and its trust guidance and stage copy say to verify and review locally, ship, then push the archive tip, instead of waiting on a product-tip run that review/archive tips reuse (REQ-cmd-change-007, REQ-cmd-change-019) |

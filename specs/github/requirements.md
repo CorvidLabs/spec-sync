@@ -313,3 +313,18 @@ Acceptance Criteria
 - The scan includes `src/mcp.rs`, `src/mcp/server_name.rs`, and `src/mcp/publish_staged_file_with_verification_hooks.rs`.
 - A `gh` process constructed in an MCP part still fails the scan.
 
+### REQ-github-023
+
+CI SHALL be archive-first. The `Archive` job SHALL run before every other job, and every other job
+SHALL depend on it, so a pull request tip with any open change under `.specsync/changes/` runs
+nothing else. The full lane SHALL run on the archived tip itself; no tip SHALL reuse trust from a
+green product parent.
+
+Acceptance Criteria
+- A tip with an open change fails `Archive`, every other job is skipped, and the required CI gate
+  fails.
+- A tip with every change archived passes `Archive` and runs the lane classify selects from the
+  whole pull request, not from the tip commit alone.
+- `is_trust_relevant_check_name("Archive")` is true, so ship-status lists the Archive check among
+  trust-relevant checks. A name that only contains the word, such as `Archive old releases`, is not
+  matched.

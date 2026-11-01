@@ -1,6 +1,6 @@
 ---
 module: github
-version: 43
+version: 44
 status: stable
 files:
   - src/github.rs
@@ -46,7 +46,7 @@ extension CI.
 | `list_issues` | `repo: &str, label: Option<&str>` | `Result<Vec<GitHubIssue>, String>` | List open issues through strict in-process REST pagination; requires `GITHUB_TOKEN` and skips pull requests |
 | `fetch_commit_check_summary` | `repo: &str, sha: &str` | `Result<CommitCheckSummary, String>` | Fetch GitHub Actions check-runs for a commit and aggregate overall trust status; requires `GITHUB_TOKEN` |
 | `parse_commit_check_summary` | `repo: &str, sha: &str, body: &Value` | `Result<CommitCheckSummary, String>` | Pure parse + aggregate of a check-runs JSON payload (unit-testable) |
-| `is_trust_relevant_check_name` | `name: &str` | `bool` | Heuristic: whether a check name is trust-lane relevant for ship guidance |
+| `is_trust_relevant_check_name` | `name: &str` | `bool` | Heuristic: whether a check name is trust-lane relevant for ship guidance; matches the archive-first `Archive` job exactly |
 | `create_drift_issue` | `repo: &str, spec_path: &str, errors: &[String], labels: &[String]` | `Result<GitHubIssue, String>` | Create a "Spec drift detected" issue with validation errors |
 
 #### Exported Structs
@@ -246,3 +246,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-10-15 | keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion: Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion |
 | 2026-10-15 | Conditional post-publication wrapper delivery advances the published binary default without changing the immutable CLI release identity |
 | 2026-10-15 | advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks: Advance the published SpecSync 6.1.1 Action default after platform consumer checks |
+| 2026-11-01 | v44: archive-first CI. `is_trust_relevant_check_name` matches the `Archive` job exactly; REQ-github-023 makes `Archive` the first CI job that every other job depends on, and the full lane runs on the archived tip with no parent trust reuse |

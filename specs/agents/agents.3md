@@ -37,3 +37,6 @@ surface and are not unified with `SKILL_BODY` in this change.
 - The `create-spec` command's prompt body instructs the agent to parse either a bare module name or a natural-language feature description out of its arguments — that parsing happens in the agent's own reasoning, not in Rust code, since these are prompt files, not real CLI arg parsers.
 - Gemini's `.toml` command file is a hand-built string template (`gemini_create_spec_toml()`), not a serialized struct. That predates the `toml` crate, which this project has depended on since #483; nothing has migrated it.
 - Shared create-spec templates remove standalone `--minimal` flags before classifying the complete remaining input. The repository's Claude, Cursor, and Gemini command assets are regenerated from those templates and parity-tested byte for byte so contributors cannot receive stale first-token guidance.
+
+@plane z=5 label="Archive-first CI"
+Generated skill text is shipped advice: when CI changed to archive-first, the old "push the product tip and wait for required checks before review" line became an instruction that can never complete. Generated assets and their checked-in copies under `.claude`, `.cursor`, `.gemini` and `.codex` must move together, and the parity test only covers the create-spec commands, so grep for the old sentence across every copy.

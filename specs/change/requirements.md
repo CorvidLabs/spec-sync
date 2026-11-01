@@ -1530,3 +1530,15 @@ Acceptance Criteria
 - Within one read scope or one definition-mutation result, `ChangeSummary.changed_approved_deltas`, `approval_valid`, `delta_intact`, the reported requirement IDs and sections, and `materialized` all derive from one read of each delta file; the materialization and acceptance refusals still read the delta files live.
 - Draft, accepted and archived changes, and an approved change whose scope approval is stale, return an empty list. `ChangeSummary`, `changed_approved_deltas`, persisted ledgers, digests and materialization are unchanged.
 
+### REQ-change-117
+
+The system SHALL permit an audited reopen of an active workflow-v2 accepted record with a historical scoped-review workspace mismatch only when its entire raw package exactly matches the current remote-default Git tree, that commit is an ancestor of HEAD, and all other definition, execution, identity, closing and finalization digest checks pass.
+
+#### Acceptance Criteria
+
+- The mismatched old review remains invalid for ordinary acceptance and archive.
+- Recovery preserves every original byte through a recorded immutable Git commit and returns only to verifying.
+- Uncommitted changes, extra or missing files, mode or content tampering, missing remote-default evidence, and other invalid closing fields refuse without mutation.
+- Fresh verification and a newly current scoped review are mandatory before closing again.
+- Existing bounds and legacy serialized cause values are unchanged; old records serialize identically when the optional anchor is absent.
+

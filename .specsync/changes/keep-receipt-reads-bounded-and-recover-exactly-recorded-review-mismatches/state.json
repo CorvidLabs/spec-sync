@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches",
+  "slug": "keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches",
+  "title": "Keep receipt reads bounded and recover exactly recorded review mismatches",
+  "description": "Keep receipt reads bounded and recover exactly recorded review mismatches",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "3d3d6e6db88077b1c233b37e4958916d8da40bbd",
+  "created_at": 1793564313,
+  "updated_at": 1793564693,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/sdd_version.rs",
+    "src/change_tests.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/change_tests/recorded_review_recovery.rs",
+    "specs/change",
+    "hi/recover.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Restrict recursive frozen-receipt reads to signed entries while retaining full fresh/reopen discovery and all bounds; admit reopen-only recovery of an exactly remote-default recorded active v2 review-workspace mismatch without trusting it; preserve original bytes through an ancestor Git anchor, require fresh verification and review, reject tampering and other invalid digests without writes, and retain backward-compatible optional audit metadata."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Maintainer approved bounded archival repair and explicitly approved the narrow recorded-review recovery behavior. No force flags, historical approval fabrication, receipt edits, resource-bound increases, public consumer-repository evidence or operator claims. Publish generic fixtures only. The combined source has already passed the full pinned Rust 1.89 verification lane; prove source equality after applying it here and run this branch own native checks and pre-push/trust gates.",
+    "public_contract": "yes"
+  }
+}

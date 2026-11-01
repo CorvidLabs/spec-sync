@@ -1,0 +1,49 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (explicit bounded archive and recovery approvals)",
+      "timestamp": 1793564385,
+      "digest": "dcbc07397ebdfbcae61a9cfe93268054d814204fe51957f1a9a0df8b75a4ffde",
+      "note": "Current technical scope authorization. No retrospective human review, merge or release approval is claimed.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches",
+        "title": "Keep receipt reads bounded and recover exactly recorded review mismatches",
+        "description": "Keep receipt reads bounded and recover exactly recorded review mismatches",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "INTENT.md",
+          "hi/recover.md",
+          "specs/change",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests.rs",
+          "src/change_tests/recorded_review_recovery.rs",
+          "src/change_tests/substantive_plan.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Restrict recursive frozen-receipt reads to signed entries while retaining full fresh/reopen discovery and all bounds; admit reopen-only recovery of an exactly remote-default recorded active v2 review-workspace mismatch without trusting it; preserve original bytes through an ancestor Git anchor, require fresh verification and review, reject tampering and other invalid digests without writes, and retain backward-compatible optional audit metadata."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Maintainer approved bounded archival repair and explicitly approved the narrow recorded-review recovery behavior. No force flags, historical approval fabrication, receipt edits, resource-bound increases, public consumer-repository evidence or operator claims. Publish generic fixtures only. The combined source has already passed the full pinned Rust 1.89 verification lane; prove source equality after applying it here and run this branch own native checks and pre-push/trust gates.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "504a3f124bb1b9ad72ccfa79d0554815f0d4f74880d16fe530ac531e99a6c721"
+      }
+    }
+  ],
+  "reopenings": []
+}

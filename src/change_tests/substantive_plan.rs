@@ -4234,3 +4234,47 @@ fn review_pr821_accepts_authenticated_untracked_archive() {
     let report = audit_project(root);
     assert!(report.errors.is_empty(), "Authenticated untracked archive: {report:?}");
 }
+
+#[test]
+fn frozen_manifest_ignores_later_oversized_assets_but_full_inventory_stays_bounded() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git").args(args).current_dir(root).output().unwrap();
+        assert!(output.status.success(), "git {:?}: {:?}", args, output);
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let mut record = completed_no_spec_record(root);
+    record.affected_specs.clear();
+    record.affected_paths = vec!["assets/".into()];
+    record.state = ChangeState::Implementing;
+    fs::create_dir(root.join("assets")).unwrap();
+    fs::write(root.join("assets/signed.txt"), b"original signed input").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "original input"]);
+    let signed = acceptance_manifest(root, &record, &[]).unwrap();
+    assert!(signed.entries.iter().any(|entry| entry.path == "assets/signed.txt"));
+
+    // A sparse file is cheap to create and Git compresses its zero bytes. Its actual
+    // payload still exceeds the unchanged acceptance bound, reproducing the over-read.
+    fs::File::create(root.join("assets/later.bin")).unwrap()
+        .set_len(MAX_GIT_EVIDENCE_PAYLOAD_BYTES as u64 + 1).unwrap();
+    git(&["add", "assets/later.bin"]);
+    git(&["commit", "-m", "later unrelated asset"]);
+    let projected = acceptance_manifest_for_signed_inputs(root, &record, &signed).unwrap();
+    assert_eq!(projected, signed);
+    let full_error = acceptance_manifest_with_signed_owners(root, &record, &[], &signed)
+        .unwrap_err();
+    assert!(full_error.contains("bound"), "{full_error}");
+
+    fs::write(root.join("assets/signed.txt"), b"tampered input").unwrap();
+    let changed = acceptance_manifest_for_signed_inputs(root, &record, &signed).unwrap();
+    assert_ne!(changed, signed);
+    assert_ne!(changed.entries[0].entry_digest, signed.entries[0].entry_digest);
+    fs::remove_file(root.join("assets/signed.txt")).unwrap();
+    let deleted = acceptance_manifest_for_signed_inputs(root, &record, &signed).unwrap();
+    assert!(deleted.entries.iter().any(|entry| entry.path == "assets/signed.txt"
+        && entry.kind == AcceptanceInputKind::Missing));
+}

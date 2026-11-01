@@ -1614,6 +1614,17 @@ fn validate_finalization_evidence(
     record: &ChangeRecord,
     verification: &VerificationRecord,
 ) -> Result<FinalizationRecord, String> {
+    validate_finalization_evidence_with_review_binding(root, record, verification, false)
+}
+
+/// Only the audited reopen helper can request the recorded mismatch mode. It never
+/// authenticates the old review for acceptance or archive.
+fn validate_finalization_evidence_with_review_binding(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+    recorded_workspace_mismatch: bool,
+) -> Result<FinalizationRecord, String> {
     let finalization = load_finalization(root, record)?;
     if finalization.schema_version != 2 || finalization.change_id != record.id {
         return Err("same-PR finalization has the wrong schema or change identity".into());
@@ -1671,11 +1682,16 @@ fn validate_finalization_evidence(
         || review.verdict != ScopedReviewVerdict::Pass
         || review.contract_digest != verification.contract_digest
         || review.execution_digest != verification.execution_digest
-        || review.workspace_digest != verification.workspace_digest
+        || (!recorded_workspace_mismatch && review.workspace_digest != verification.workspace_digest)
     {
         return Err("finalization scoped review does not bind the accepted verification".into());
     }
-    if implementation_commit_available {
+    if recorded_workspace_mismatch && review.workspace_digest == verification.workspace_digest {
+        return Err("recorded recovery requires a mismatched review workspace".into());
+    }
+    // A mismatched historical review is explicitly NOT accepted as current or ancestral.
+    // The reopen-only caller retains it at its exact remote-default Git anchor instead.
+    if implementation_commit_available && !recorded_workspace_mismatch {
         let review_ancestor = run_git_bounded(
             root,
             &[
@@ -1700,6 +1716,45 @@ fn validate_finalization_evidence(
         return Err("same-PR finalization digest is invalid".into());
     }
     Ok(finalization)
+}
+
+/// Recover a recorded invalid terminal claim without granting it acceptance authority.
+/// Current definition/execution and closing approval checks have already run in reopen.
+fn recorded_review_workspace_mismatch_anchor(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<String, String> {
+    if record.state != ChangeState::Accepted || record.workflow_version < 2 {
+        return Err("recorded review recovery requires an active workflow-v2 accepted record".into());
+    }
+    let reference = remote_default_ref(root)
+        .ok_or_else(|| "recorded review recovery requires remote-default Git evidence".to_string())?;
+    let anchor = git_output(root, &["rev-parse", "--verify", &format!("{reference}^{{commit}}")])
+        .ok_or_else(|| "recorded review recovery cannot resolve the remote-default commit".to_string())?;
+    ensure_git_ancestor(root, &anchor, "HEAD", "recorded review recovery")?;
+    let workspace = find_change_dir(root, &record.id)?;
+    if workspace != change_dir(root, &record.id) {
+        return Err("recorded review recovery requires the original active package".into());
+    }
+    let project_subtree = strict_portable_project_path(root, &workspace)?;
+    let repository_subtree = git_repo_relative_path(root, &project_subtree)?;
+    let current = archive_workspace_snapshot(root, &workspace, &project_subtree)?;
+    if current.is_empty()
+        || current.values().any(|(mode, bytes)| {
+            !matches!(mode, 0o100644 | 0o100755) || bytes.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES
+        })
+    {
+        return Err("recorded review recovery requires bounded regular package files".into());
+    }
+    let recorded = git_tree_snapshot(root, &anchor, &repository_subtree)?;
+    if current != recorded {
+        return Err("recorded review recovery requires the entire unchanged remote-default package".into());
+    }
+    // Only the known workspace/history mismatch is recoverable. Identity, schema,
+    // definition/execution, closing, review hash and finalization hash stay strict.
+    validate_finalization_evidence_with_review_binding(root, record, verification, true)?;
+    Ok(anchor)
 }
 
 /// Why a recorded scoped review is, or is not, current — split three ways.

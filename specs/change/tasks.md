@@ -85,3 +85,7 @@ spec: change.spec.md
 - [x] Write the lesson bundle heading as `# Lesson bundle: <id>` so the bundle's fixed text adds no en or em dash, copying user record text unchanged (REQ-change-116, #827).
 - [x] Report, per affected module, the requirement IDs and spec sections an approved semantic delta declares, with a three-valued `delta_intact` flag and a derived `materialized` flag, from one memoized delta-binding read shared with the summary; keep the refusing gates live (REQ-change-113).
 - [ ] Decide whether `collect_requirement_ids` (verification coverage) should move to the bounded delta read; that is a `change check` gate change and out of #826's scope.
+
+- [x] Restrict recursive frozen-receipt capture to signed entries without changing fresh or reopen discovery and resource limits.
+
+- [x] Implement reopen-only recorded review mismatch recovery with exact package anchoring and tamper controls.

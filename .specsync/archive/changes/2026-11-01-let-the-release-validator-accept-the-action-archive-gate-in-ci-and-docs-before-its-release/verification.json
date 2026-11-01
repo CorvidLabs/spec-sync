@@ -1,0 +1,42 @@
+{
+  "timestamp": 1793509694,
+  "commit": "5e19021225de8d56547ed8f7d8a457476f3547d8",
+  "contract_digest": "92d4127fd2b6b6687deb3750ca489e8703f16e61a9fbba817b62bb9a1612c5a2",
+  "execution_digest": "b0e703b636b6da7c89f9609f469bbbd4c2b7c60a1fb64ae7a36b23aad791f8d6",
+  "workspace_digest": "4fc6b42cab79bb1a01d9bd40c572b04bd92a06e3bb82c51662e588d6258c7766",
+  "acceptance_input_digest": "162f3fcdeaea535c49ae7710e68bbd5ac12fc922759df13d03b8efff87418f70",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/scripts/test-validate-release-candidate.py",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a394adaf84f857edf7ce0f02f520025b7e730db55572752f5c1d5439b5ff16fd",
+        "entry_digest": "9e7089bdddfa0d415e009a2a7748b0bc4f1fff112e232d331f3a9178fa935fb1",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/scripts/validate-release-version.py",
+        "kind": "file",
+        "mode": 33261,
+        "payload_digest": "27aef5c933450fbfa71ac5ce552d6b907c0ec90d9af9917f1d16f9d32532fc9f",
+        "entry_digest": "51c7072e81057acc057dd27be9a009feb685de3199361825dfb7148505856092",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1761,6 +1761,24 @@ class PublishedActionDefaultTests(unittest.TestCase):
         )
         self.assert_rejected("packaged Action consumer must use the runner-local release mirror")
 
+    def test_archive_gate_main_ref_expires_once_a_newer_release_is_published(self) -> None:
+        self.replace(
+            ".github/scripts/validate-release-version.py",
+            'PUBLISHED_ACTION_DEFAULT = "6.1.0"',
+            'PUBLISHED_ACTION_DEFAULT = "6.2.0"',
+        )
+        self.assert_rejected(
+            "site/src/content/docs/integrations/github-action.md YAML block 4: @main"
+        )
+
+    def test_main_ref_without_archive_gate_inputs_is_rejected(self) -> None:
+        self.replace(
+            "site/src/content/docs/integrations/github-action.md",
+            "      - uses: CorvidLabs/spec-sync@v6.1.1\n        with:\n          version: '6.1.1'\n          strict: 'true'\n          require-coverage: '100'\n",
+            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          version: '6.1.1'\n          strict: 'true'\n          require-coverage: '100'\n",
+        )
+        self.assert_rejected("site Action refs must all be @v6.1.1")
+
     def test_trust_candidate_mirror_remains_required(self) -> None:
         self.replace(
             ".github/workflows/trust.yml",

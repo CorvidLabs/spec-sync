@@ -57,10 +57,12 @@ Before this change, Trust was roughly 20 minutes, including roughly 17 minutes s
 full Rust suite. After this change, Trust should take roughly 3–8 minutes for release build, light
 lifecycle, contract, risk, and provenance.
 
-The immediate product-tip critical path is:
+CI is archive-first: the `Archive` job runs first and every other job needs it, so a tip with an
+open change runs nothing else. The critical path below therefore applies to the archived tip,
+plus the few seconds `Archive` takes:
 
 ```text
-Parallel critical path ≈ max(
+Parallel critical path ≈ Archive + max(
   test/ubuntu,    # authoritative product suite
   trust,          # should be ~3–8m after this redesign (release build + light lifecycle + contract + augur)
   spec-check,     # ~10–12m
@@ -206,14 +208,18 @@ Trust still:
 
 That preserves “this binary is the contract” without a second multi-OS suite.
 
-## Tip classes (unchanged)
+## Tip classes (archive-first)
+
+`Archive` runs first in both CI and Trust, and every other job needs it. No tip reuses an
+ancestor's trust: classify picks the lane from the whole pull request, never from the tip commit
+alone.
 
 | Tip | CI | Trust |
 |-----|----|-------|
-| Product / full | Ubuntu product lane + gates | Full Trust action (light lifecycle) |
+| Any tip with an open change | `Archive` fails; nothing else runs | `Archive` fails; `trust` does not run |
+| Archived tip of a product / full PR | `Archive`, then Ubuntu product lane + gates | `Archive`, then full Trust action (light lifecycle) |
+| PR that only moves packages into the archive | `Archive`, then lifecycle gates; heavy product lane deselected | `Archive`, then full Trust action |
 | Release candidate | Ubuntu + macOS release lane at one immutable SHA | Release identity and provenance |
-| `review_only` | Reuse / skip heavy | Reuse ancestor trust |
-| `archive_only` | archive-integrity | Reuse ancestor trust |
 
 ## Local agent checklist
 
@@ -235,6 +241,6 @@ workflow is the cross-platform authority for an exact immutable candidate SHA.
 
 ## Related
 
-- Further protected topology or ancestor-reuse changes require a separately pinned workflow update
+- Further protected CI topology changes (job order, the `Archive`-first dependency, lane selection) require a separately pinned workflow update
 - `fledge.toml` lanes: `verify` vs `trust-lifecycle`
 - `.trust.toml` lifecycle command

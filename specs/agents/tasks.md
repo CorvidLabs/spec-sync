@@ -38,3 +38,4 @@ spec: agents.spec.md
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+- [x] Teach generated skills and the check command archive-first CI (local verify → review → ship → push the archive tip); keep checked-in installed copies identical

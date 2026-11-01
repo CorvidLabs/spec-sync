@@ -184,7 +184,7 @@ fn historical_predecessor_receipt(
     root: &Path,
     anchor: &str,
     predecessor_id: &str,
-) -> Result<(AcceptanceManifestV1, HistoricalReceiptWitnessV1), String> {
+) -> Result<HistoricalReceiptProof, String> {
     if !is_canonical_commit_id(anchor) {
         return Err("historical receipt anchor is not a canonical commit".into());
     }
@@ -401,5 +401,65 @@ fn historical_terminal_summary() -> TerminalEvidenceSummary {
     TerminalEvidenceSummary {
         validity: TerminalEvidenceValidity::HistoricalTransitionUnproven,
         reason: Some("Original receipt bytes and current delivery are authenticated; historical file transitions remain unproven.".into()),
+    }
+}
+
+type HistoricalReceiptProof = (AcceptanceManifestV1, HistoricalReceiptWitnessV1);
+type AcceptedTransitionProof = (String, Vec<u8>, ChangeRecord);
+
+/// Evidence reused only within one pure accepted-input graph traversal. Callers create a fresh
+/// instance for each pass and discard it before any lifecycle write. This is the same lifetime
+/// as the existing graph-validity memo, not the report snapshot or an invocation-wide cache.
+#[derive(Default)]
+struct AcceptedInputValidationMemo {
+    validity: BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    authenticated: BTreeMap<String, Result<VerificationRecord, String>>,
+    historical_receipts: BTreeMap<(String, String), Result<HistoricalReceiptProof, String>>,
+    accepted_transitions: BTreeMap<String, Result<AcceptedTransitionProof, String>>,
+}
+
+impl AcceptedInputValidationMemo {
+    fn authenticate(
+        &mut self,
+        root: &Path,
+        record: &ChangeRecord,
+        pending: Option<&PendingArchiveClose<'_>>,
+    ) -> Result<VerificationRecord, String> {
+        if let Some(value) = self.authenticated.get(&record.id) {
+            return value.clone();
+        }
+        let result = authenticate_accepted_evidence(root, record, pending);
+        self.authenticated.insert(record.id.clone(), result.clone());
+        result
+    }
+
+    fn historical_receipt(
+        &mut self,
+        root: &Path,
+        anchor: &str,
+        id: &str,
+    ) -> Result<HistoricalReceiptProof, String> {
+        let key = (anchor.to_string(), id.to_string());
+        if let Some(value) = self.historical_receipts.get(&key) {
+            return value.clone();
+        }
+        let result = historical_predecessor_receipt(root, anchor, id);
+        self.historical_receipts.insert(key, result.clone());
+        result
+    }
+
+    fn accepted_transition(
+        &mut self,
+        root: &Path,
+        record: &ChangeRecord,
+        pending: Option<&PendingArchiveClose<'_>>,
+    ) -> Result<AcceptedTransitionProof, String> {
+        if let Some(value) = self.accepted_transitions.get(&record.id) {
+            return value.clone();
+        }
+        let result = authenticated_accepted_transition_for(root, record, pending);
+        self.accepted_transitions
+            .insert(record.id.clone(), result.clone());
+        result
     }
 }

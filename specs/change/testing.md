@@ -144,3 +144,5 @@ REQ-change-118: historical_reconciliation_preserves_strict_normal_failure_and_re
 
 
 Historical reconciliation qualification: six targeted checks passed; full pinned Rust 1.89 verification passed 2,697 unit tests, 478 integration tests, 66 release contracts and 35 CI contracts, including strict specs with full configured coverage. An isolated mutation removing the historical basis from approval/execution digests failed at the old-approval discriminator as required. This does not establish historical file transitions; their normalized classification remains historical-transition-unproven.
+
+Real-consumer performance follow-up: reuse authenticated successor evidence, immutable predecessor witnesses and acceptance anchors only within one pure graph traversal. Discard the memo before every lifecycle write and create a fresh one for each pass. The lifecycle discriminator measures fewer Git reads on a repeated tuple and proves a new pass refuses altered raw receipt bytes even when JSON semantics are unchanged. All original bounds, proof checks and serialized evidence remain unchanged. Full qualification is rerun after this production-code refinement.

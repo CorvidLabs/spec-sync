@@ -633,3 +633,5 @@ A recorded inconsistent review can disagree with both the workspace and its clai
 
 @plane z=9 label="Historical receipt reconciliation"
 A valid stored receipt does not prove that its old file bytes existed at a later definition base. Preserve ordinary before/after succession. An explicit historical scope must authenticate the complete anchored receipt, bind its frozen manifest and exact current input tuples, retain an unproven-transition classification in evidence and audit output, and require fresh scope approval, verification and review. Native archival preserves the original accepted-state bytes.
+
+A real multi-receipt graph exposed repeated authentication per input. Keep a private graph-local proof memo alongside cycle detection, shared across that pure preflight only, and drop it before mutations. A fresh traversal must reread receipt bytes; test both the reduction in Git reads and refusal after an intervening raw-byte alteration.

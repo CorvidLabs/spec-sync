@@ -91,6 +91,7 @@ fn semantic_tuple_transition_is_valid(
     tuple: &SemanticSuccessionTupleV1,
     succession: Option<&SemanticSuccessionEvidenceV1>,
     pending: Option<&PendingArchiveClose<'_>>,
+    memo: &mut AcceptedInputValidationMemo,
 ) -> Result<bool, String> {
     let Some(base) = successor.base_commit.as_deref() else {
         return Ok(false);
@@ -99,7 +100,7 @@ fn semantic_tuple_transition_is_valid(
     let base_old = if historical {
         let evidence = succession.ok_or_else(|| "historical reconciliation has no closing evidence".to_string())?;
         validate_historical_reconciliation_evidence(successor, evidence)?;
-        let (manifest, witness) = historical_predecessor_receipt(root, base, &tuple.predecessor_id)?;
+        let (manifest, witness) = memo.historical_receipt(root, base, &tuple.predecessor_id)?;
         let recorded = evidence.historical_reconciliation.as_ref().and_then(|value| value.predecessors.iter().find(|item| item.predecessor_id == tuple.predecessor_id))
             .ok_or_else(|| "historical reconciliation is missing its predecessor witness".to_string())?;
         if recorded != &witness { return Err("historical predecessor witness does not match the immutable receipt".into()); }
@@ -114,7 +115,7 @@ fn semantic_tuple_transition_is_valid(
     if base_old != tuple.predecessor_entry_digest {
         return Ok(false);
     }
-    let (anchor, _, _) = match authenticated_accepted_transition_for(root, successor, pending) {
+    let (anchor, _, _) = match memo.accepted_transition(root, successor, pending) {
         Ok(transition) => transition,
         Err(_) => return Ok(false),
     };
@@ -3342,7 +3343,7 @@ fn terminal_evidence_summary_with_records(
         record,
         records,
         &mut BTreeSet::new(),
-        &mut BTreeMap::new(),
+        &mut AcceptedInputValidationMemo::default(),
         &mut ArchivedIntegrityCache::default(),
     )
 }
@@ -3361,7 +3362,7 @@ fn terminal_evidence_results_with_records(
     successors: &BTreeMap<String, ChangeRecord>,
 ) -> (Vec<TerminalEvidenceResult>, ArchivedIntegrityCache) {
     let mut visiting = BTreeSet::new();
-    let mut memo = BTreeMap::new();
+    let mut memo = AcceptedInputValidationMemo::default();
     let mut archived_cache = ArchivedIntegrityCache::default();
     let results = records
         .values()
@@ -3386,7 +3387,7 @@ fn terminal_evidence_summary_with_validation_state(
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    memo: &mut AcceptedInputValidationMemo,
     archived_cache: &mut ArchivedIntegrityCache,
 ) -> TerminalEvidenceSummary {
     if record.state == ChangeState::Archived {
@@ -3430,7 +3431,7 @@ fn terminal_evidence_summary_with_validation_state(
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let records = list_all_changes_checked(root)?;
     let mut visiting = BTreeSet::new();
-    let mut memo = BTreeMap::new();
+    let mut memo = AcceptedInputValidationMemo::default();
     validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
         .map(|_| ())
 }
@@ -4308,10 +4309,10 @@ fn validate_accepted_inputs_recursive(
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<AcceptedInputValidity, String> {
-    if let Some(result) = memo.get(&record.id) {
+    if let Some(result) = memo.validity.get(&record.id) {
         return result.clone();
     }
     if !matches!(record.state, ChangeState::Accepted | ChangeState::Archived) {
@@ -4327,7 +4328,7 @@ fn validate_accepted_inputs_recursive(
         ));
     }
     let result = (|| {
-        let verification = authenticate_accepted_evidence(root, record, pending)?;
+        let verification = memo.authenticate(root, record, pending)?;
         let expected_digest = verification
             .acceptance_input_digest
             .as_deref()
@@ -4453,6 +4454,6 @@ fn validate_accepted_inputs_recursive(
         })
     })();
     visiting.remove(&record.id);
-    memo.insert(record.id.clone(), result.clone());
+    memo.validity.insert(record.id.clone(), result.clone());
     result
 }

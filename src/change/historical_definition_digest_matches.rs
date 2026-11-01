@@ -3047,12 +3047,13 @@ fn archive_change_with_options(
     // and the token is what lets it speak for itself here: without it the walk judged the package
     // by a history whose closing commit has not been made, refused it silently, and reported the
     // superseded change as uncovered during the very finalize that was covering it.
+    // One read-only graph pass, discarded before the archive move. No memo crosses a write.
+    let mut visiting = BTreeSet::new();
+    let mut memo = AcceptedInputValidationMemo::default();
     for candidate in simulated
         .values()
         .filter(|candidate| candidate.state == ChangeState::Accepted)
     {
-        let mut visiting = BTreeSet::new();
-        let mut memo = BTreeMap::new();
         if let Err(error) = validate_accepted_inputs_recursive(
             root,
             candidate,
@@ -3061,6 +3062,7 @@ fn archive_change_with_options(
             &mut memo,
             pending_close.as_ref(),
         ) {
+            drop(memo);
             let _ = remove_file_durable(&accepted_snapshot);
             return Err(format!(
                 "archive post-move preflight would invalidate `{}`: {error}",
@@ -3068,6 +3070,7 @@ fn archive_change_with_options(
             ));
         }
     }
+    drop(memo);
     if !resume_post_move && let Err(error) = rename_durable(&source, &destination) {
         let _ = remove_file_durable(&accepted_snapshot);
         return Err(format!(

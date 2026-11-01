@@ -166,6 +166,48 @@ fn historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_
         terminal_evidence_summary(root, &load_change(root, &old.id).unwrap()).validity,
         TerminalEvidenceValidity::HistoricalTransitionUnproven
     );
+    // Authenticate each shared receipt/anchor once per pure graph pass, not once per input.
+    let tuple = evidence.tuples.first().unwrap();
+    let mut memo = AcceptedInputValidationMemo::default();
+    reset_test_git_process_count();
+    assert!(semantic_tuple_transition_is_valid(
+        root,
+        &closed,
+        tuple,
+        Some(&evidence),
+        None,
+        &mut memo
+    )
+    .unwrap());
+    let first_reads = test_git_process_count();
+    reset_test_git_process_count();
+    assert!(semantic_tuple_transition_is_valid(
+        root,
+        &closed,
+        tuple,
+        Some(&evidence),
+        None,
+        &mut memo
+    )
+    .unwrap());
+    let repeated_reads = test_git_process_count();
+    assert!(
+        repeated_reads < first_reads,
+        "shared proof reads were repeated: first={first_reads}, repeated={repeated_reads}"
+    );
+    assert_eq!(memo.historical_receipts.len(), 1);
+    assert_eq!(memo.accepted_transitions.len(), 1);
+    drop(memo);
+    // A new pass must notice raw receipt changes, even if the JSON remains semantically valid.
+    let old_verification = change_dir(root, &old.id).join("verification.json");
+    let original = fs::read(&old_verification).unwrap();
+    let mut altered = original.clone();
+    altered.push(b'\n');
+    fs::write(&old_verification, altered).unwrap();
+    assert!(AcceptedInputValidationMemo::default()
+        .historical_receipt(root, &historical.anchor_commit, &old.id)
+        .is_err());
+    fs::write(&old_verification, original).unwrap();
     // Witness and classification changes are never interchangeable with proven succession.
     let mut forged = evidence.clone();
     forged
@@ -185,7 +227,15 @@ fn historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_
         .predecessors[0]
         .package_digest = "0".repeat(64);
     let tuple = forged.tuples.first().unwrap();
-    assert!(semantic_tuple_transition_is_valid(root, &closed, tuple, Some(&forged), None).is_err());
+    assert!(semantic_tuple_transition_is_valid(
+        root,
+        &closed,
+        tuple,
+        Some(&forged),
+        None,
+        &mut AcceptedInputValidationMemo::default()
+    )
+    .is_err());
     // The preserved original can now be archived natively, with its accepted-state intact.
     archive_change(root, &old.id).unwrap();
     assert!(validate_archived_integrity(root, &load_change(root, &old.id).unwrap()).is_ok());
@@ -203,30 +253,26 @@ fn historical_reconciliation_refuses_tampered_or_unanchored_packages_without_mut
     let before = fs::read(&state).unwrap();
     let artifact = change_dir(root, &old.id).join("unrecorded-extra.md");
     fs::write(&artifact, "not at the anchor\n").unwrap();
-    assert!(
-        enable_historical_reconciliation(
-            root,
-            &successor.id,
-            "Fixture owner".into(),
-            "Preserve unknown history.".into()
-        )
-        .is_err()
-    );
+    assert!(enable_historical_reconciliation(
+        root,
+        &successor.id,
+        "Fixture owner".into(),
+        "Preserve unknown history.".into()
+    )
+    .is_err());
     assert_eq!(fs::read(&state).unwrap(), before);
     fs::remove_file(artifact).unwrap();
     let mut record = load_change(root, &successor.id).unwrap();
     record.base_commit = Some("0".repeat(40));
     save_change(root, &record).unwrap();
     let invalid = fs::read(&state).unwrap();
-    assert!(
-        enable_historical_reconciliation(
-            root,
-            &successor.id,
-            "Fixture owner".into(),
-            "Preserve unknown history.".into()
-        )
-        .is_err()
-    );
+    assert!(enable_historical_reconciliation(
+        root,
+        &successor.id,
+        "Fixture owner".into(),
+        "Preserve unknown history.".into()
+    )
+    .is_err());
     assert_eq!(fs::read(&state).unwrap(), invalid);
 }
 
@@ -283,13 +329,11 @@ fn historical_reconciliation_leaves_normal_schema_and_digest_shape_unchanged() {
         digest.finish()
     );
     assert!(historical_package_digest(&BTreeMap::new()).is_err());
-    assert!(
-        historical_package_digest(&BTreeMap::from([(
-            "state.json".into(),
-            (0o120000, b"outside".to_vec())
-        )]))
-        .is_err()
-    );
+    assert!(historical_package_digest(&BTreeMap::from([(
+        "state.json".into(),
+        (0o120000, b"outside".to_vec())
+    )]))
+    .is_err());
 }
 
 #[test]

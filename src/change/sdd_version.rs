@@ -3804,7 +3804,7 @@ fn reopen_unarchived_change(
     {
         let records = list_all_changes_checked(root)?;
         let mut visiting = BTreeSet::new();
-        let mut memo = BTreeMap::new();
+        let mut memo = AcceptedInputValidationMemo::default();
         if validate_accepted_inputs_recursive(
             root,
             &record,

@@ -152,14 +152,14 @@ REQ-cmd-change-023 AC2 and the first `cli.md` text list `change new` among the o
 under the project lock. In the code, `change new` renders through `print_record` after
 `create_change` releases the lock. Its `approved_deltas` is always `[]` because a new change is
 a draft, so nothing observable differs. `cli.md` and `docs.md` now claim the in-transaction build
-only for `answer`, `depend` and `supersede`. The requirement wording still lists `change new`.
-Correcting it is a delta edit that needs re-approval. That could be folded into the REQ-change-114
+only for `answer`, `depend` and `supersede`. The requirement wording then still listed
+`change new`. Correcting it was a delta edit that needed re-approval. That could be folded into the REQ-change-114
 renumber re-approval that the #829-first merge order already requires. Routing `change new`
 through a snapshot would instead add a crate-private function to the approved Public API section,
-which also needs re-approval. The human chooses between the two.
+which also needs re-approval. The human chose between the two (below).
 
 Decision (0xLeif, 2026-11-01): amend, then accept. REQ-cmd-change-023 AC2 in
 `deltas/cmd_change.md` no longer lists `change new` among the outputs built in the same
 transaction as their `summary`, and states that `change new --json` always carries an empty
-`approved_deltas`. Requirement IDs are unchanged. The amendment needs re-approval, and the next
-`change check` re-materializes `specs/cmd_change/requirements.md`.
+`approved_deltas`. Requirement IDs are unchanged. 0xLeif re-approved the amended definition on
+2026-11-01, and `change check` re-materialized `specs/cmd_change/requirements.md` to match.

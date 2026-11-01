@@ -157,3 +157,9 @@ Correcting it is a delta edit that needs re-approval. That could be folded into 
 renumber re-approval that the #829-first merge order already requires. Routing `change new`
 through a snapshot would instead add a crate-private function to the approved Public API section,
 which also needs re-approval. The human chooses between the two.
+
+Decision (0xLeif, 2026-11-01): amend, then accept. REQ-cmd-change-023 AC2 in
+`deltas/cmd_change.md` no longer lists `change new` among the outputs built in the same
+transaction as their `summary`, and states that `change new --json` always carries an empty
+`approved_deltas`. Requirement IDs are unchanged. The amendment needs re-approval, and the next
+`change check` re-materializes `specs/cmd_change/requirements.md`.

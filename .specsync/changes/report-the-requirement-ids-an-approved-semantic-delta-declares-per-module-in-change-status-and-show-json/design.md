@@ -185,7 +185,9 @@ second one.
 - `print_mutation_record` adds `"approved_deltas": result.approved_deltas`, the value
   `definition_mutation_result` built under the project lock with the same memo as `summary`. It
   computes nothing after persistence, matching the existing comment that the JSON reuses the
-  in-lock snapshot. `change new`, `answer` and `supersede` are draft-only and always produce `[]`.
+  in-lock snapshot. `answer` and `supersede` are draft-only and always produce `[]`. `change new`
+  renders through `print_record` instead, because `create_change` returns no mutation snapshot,
+  and its `approved_deltas` is always `[]` because a new change is a draft.
   `change depend` is allowed in Approved, Implementing and Verifying
   (`add_dependency_with_snapshot`, `src/change/sdd_version.rs` around line 2552), so its output
   can carry real entries, and it has its own test.

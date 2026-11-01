@@ -141,3 +141,6 @@ REQ-change-117 compound-review coverage retains an unrelated old review hash onl
 ## Historical reconciliation evidence
 
 REQ-change-118: historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_gates; historical_reconciliation_refuses_tampered_or_unanchored_packages_without_mutation; historical_reconciliation_refuses_protected_and_unsupported_inputs; historical_reconciliation_leaves_normal_schema_and_digest_shape_unchanged; historical_reconciliation_reads_exact_successor_inputs_in_nested_projects
+
+
+Historical reconciliation qualification: six targeted checks passed; full pinned Rust 1.89 verification passed 2,697 unit tests, 478 integration tests, 66 release contracts and 35 CI contracts, including strict specs with full configured coverage. An isolated mutation removing the historical basis from approval/execution digests failed at the old-approval discriminator as required. This does not establish historical file transitions; their normalized classification remains historical-transition-unproven.

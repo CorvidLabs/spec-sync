@@ -629,3 +629,7 @@ A frozen receipt compares its signed inputs, so recursive validation captures th
 An invalid review already committed in the remote-default package remains invalid. Recovery may downgrade it to verifying only after exact whole-package equality and all other authentication checks, preserving an immutable preimage anchor and requiring fresh verification and scoped review. Do not generalize this into a corruption bypass.
 
 A recorded inconsistent review can disagree with both the workspace and its claimed hash. Reopen-only recovery preserves that entire review as untrusted at the exact remote-default anchor; it does not authenticate either claim. The finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch is not admitted.
+
+
+@plane z=9 label="Historical receipt reconciliation"
+A valid stored receipt does not prove that its old file bytes existed at a later definition base. Preserve ordinary before/after succession. An explicit historical scope must authenticate the complete anchored receipt, bind its frozen manifest and exact current input tuples, retain an unproven-transition classification in evidence and audit output, and require fresh scope approval, verification and review. Native archival preserves the original accepted-state bytes.

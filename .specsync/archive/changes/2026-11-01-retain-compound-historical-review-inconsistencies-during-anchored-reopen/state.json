@@ -7,11 +7,11 @@
   "title": "Retain compound historical review inconsistencies during anchored reopen",
   "description": "Retain compound historical review inconsistencies during anchored reopen",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "9eba6ed1a9f24226fe24f08d890bbbd70245dbb5",
   "created_at": 1793566769,
-  "updated_at": 1793567383,
+  "updated_at": 1793567839,
   "affected_specs": [
     "change"
   ],

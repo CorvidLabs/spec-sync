@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "retain-compound-historical-review-inconsistencies-during-anchored-reopen",
+  "implementation_commit": "d9fd9401a4eb99ff960de257819307b305848a1e",
+  "implementation_tree": "db297f41b58bd36d6a2d5048b3a834f2e64ea1b2",
+  "contract_digest": "eea4977d31a595ff8786a7db4c38273bfac910bf34fa8ca4d360050876aadd4c",
+  "workspace_digest": "238126ea025a95ce0060cc0fef785f9660255e0ce77431bb351b8e87b679b759",
+  "closing_digest": "09b70944d8713914009a8b0a9200c20079a8b27cfd11129c061f0786c63ee04d",
+  "review_digest": "aec3aedf2b5c7e79340b8bcaeeae46f8aafb3989cf032ad0e54610428dda8796",
+  "finalization_digest": "0cbd24ea919b5aec65ff39baf0231f23afc297c1dbcad4c18b3366754043ea17",
+  "timestamp": 1793567414
+}

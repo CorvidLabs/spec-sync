@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "retain-compound-historical-review-inconsistencies-during-anchored-reopen",
+      "reviewer": "agent:codex",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "d9fd9401a4eb99ff960de257819307b305848a1e",
+      "contract_digest": "eea4977d31a595ff8786a7db4c38273bfac910bf34fa8ca4d360050876aadd4c",
+      "execution_digest": "7aaa5b394eb2f26f0d242fcf115d752787b402e4f275f4401db083a278fd25b1",
+      "workspace_digest": "238126ea025a95ce0060cc0fef785f9660255e0ce77431bb351b8e87b679b759",
+      "timestamp": 1793567395
+    }
+  ]
+}

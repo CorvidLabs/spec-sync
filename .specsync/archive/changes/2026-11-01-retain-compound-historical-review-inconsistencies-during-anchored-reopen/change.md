@@ -1,6 +1,6 @@
 ---
 id: retain-compound-historical-review-inconsistencies-during-anchored-reopen
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9eba6ed1a9f24226fe24f08d890bbbd70245dbb5
 ---

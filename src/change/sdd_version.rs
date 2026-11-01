@@ -171,6 +171,10 @@ thread_local! {
     static TEST_CANONICAL_MODULE_QUERY_COUNT: std::cell::Cell<usize> = const {
         std::cell::Cell::new(0)
     };
+    #[cfg(test)]
+    static TEST_DELTA_BINDING_READ_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
 }
 
 /// Invocation-scoped snapshot for read-only lifecycle commands.
@@ -180,6 +184,9 @@ thread_local! {
 /// collection for each candidate set still performs the complete before/after Git race check.
 pub(crate) struct ChangeReadScope {
     root: PathBuf,
+    /// Every read scope memoizes the delta binding, so one invocation reads each delta once and
+    /// `summary` and `approved_deltas` are projections of the same bytes (REQ-change-113).
+    _delta_bindings: DeltaBindingMemo,
 }
 
 impl Drop for ChangeReadScope {
@@ -201,7 +208,88 @@ pub(crate) fn begin_change_read_scope(root: &Path) -> ChangeReadScope {
     });
     ChangeReadScope {
         root: root.to_path_buf(),
+        _delta_bindings: begin_delta_binding_memo(root),
     }
+}
+
+/// Identity of one memoized delta binding: the change and the record fields the read depends on.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct DeltaBindingMemoKey {
+    id: String,
+    affected_specs: Vec<String>,
+    no_spec_change: bool,
+}
+
+struct DeltaBindingMemoFrame {
+    root: PathBuf,
+    bindings: BTreeMap<DeltaBindingMemoKey, Result<DeltaBinding, String>>,
+}
+
+thread_local! {
+    static DELTA_BINDING_MEMOS: RefCell<Vec<DeltaBindingMemoFrame>> = const {
+        RefCell::new(Vec::new())
+    };
+}
+
+/// Drop guard for one delta-binding memo frame (REQ-change-113).
+///
+/// Read scopes hold one, and `definition_mutation_result` installs one while it builds the
+/// mutation's projections under the project lock. The refusing gates (materialization and
+/// acceptance) run outside any memo, so they always read the delta files live.
+struct DeltaBindingMemo {
+    root: PathBuf,
+}
+
+impl Drop for DeltaBindingMemo {
+    fn drop(&mut self) {
+        DELTA_BINDING_MEMOS.with(|memos| {
+            let removed = memos.borrow_mut().pop();
+            debug_assert_eq!(
+                removed.as_ref().map(|frame| frame.root.as_path()),
+                Some(self.root.as_path())
+            );
+        });
+    }
+}
+
+fn begin_delta_binding_memo(root: &Path) -> DeltaBindingMemo {
+    DELTA_BINDING_MEMOS.with(|memos| {
+        memos.borrow_mut().push(DeltaBindingMemoFrame {
+            root: root.to_path_buf(),
+            bindings: BTreeMap::new(),
+        });
+    });
+    DeltaBindingMemo {
+        root: root.to_path_buf(),
+    }
+}
+
+/// The binding memoized by the innermost memo frame, when that frame is for `root`.
+fn memoized_delta_binding(
+    root: &Path,
+    key: &DeltaBindingMemoKey,
+) -> Option<Result<DeltaBinding, String>> {
+    DELTA_BINDING_MEMOS.with(|memos| {
+        let memos = memos.borrow();
+        let frame = memos.last().filter(|frame| frame.root == root)?;
+        frame.bindings.get(key).cloned()
+    })
+}
+
+fn memoize_delta_binding(
+    root: &Path,
+    key: DeltaBindingMemoKey,
+    binding: &Result<DeltaBinding, String>,
+) {
+    DELTA_BINDING_MEMOS.with(|memos| {
+        if let Some(frame) = memos
+            .borrow_mut()
+            .last_mut()
+            .filter(|frame| frame.root == root)
+        {
+            frame.bindings.insert(key, binding.clone());
+        }
+    });
 }
 
 fn ensure_change_read_scope(root: &Path) -> Option<ChangeReadScope> {
@@ -266,6 +354,26 @@ fn reset_test_canonical_module_query_count() {
 #[cfg(test)]
 fn test_canonical_module_query_count() -> usize {
     TEST_CANONICAL_MODULE_QUERY_COUNT.with(std::cell::Cell::get)
+}
+
+/// Counts each delta body the approval binding reads, so a test can show that one read scope
+/// reads each delta once (REQ-change-113).
+#[cfg(test)]
+fn record_test_delta_binding_read() {
+    TEST_DELTA_BINDING_READ_COUNT.with(|count| count.set(count.get() + 1));
+}
+
+#[cfg(not(test))]
+fn record_test_delta_binding_read() {}
+
+#[cfg(test)]
+fn reset_test_delta_binding_read_count() {
+    TEST_DELTA_BINDING_READ_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn test_delta_binding_read_count() -> usize {
+    TEST_DELTA_BINDING_READ_COUNT.with(std::cell::Cell::get)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1124,6 +1232,40 @@ pub(crate) struct DefinitionMutationResult {
     pub(crate) corrections: Vec<CorrectionRecord>,
     pub(crate) summary: ChangeSummary,
     pub(crate) strict_summary: ChangeSummary,
+    /// Built under the project lock with the same delta-binding read as `summary`, so the
+    /// mutation's JSON never mixes an in-lock summary with an out-of-lock delta read.
+    pub(crate) approved_deltas: Vec<ApprovedDeltaSummary>,
+}
+
+/// The item keys one semantic delta declares for one target, split by operation. Each list is
+/// sorted and deduplicated.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeltaDeclarations {
+    pub added: Vec<String>,
+    pub modified: Vec<String>,
+    pub removed: Vec<String>,
+}
+
+/// What the current definition approval covers for one affected module (REQ-change-113).
+///
+/// `delta_intact` is `Some(true)` when the delta body matches the digest the approval recorded
+/// (CRLF folded), `Some(false)` when it does not or the binding is refused as a whole, and `None`
+/// when no definition approval in the ledger recorded a digest. `requirements`, `sections` and
+/// `materialized` are present only for an intact body the current delta grammar parses; an intact
+/// body the grammar refuses carries `declarations_error` instead. A list is withheld, never
+/// emptied, when its provenance is not proven.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovedDeltaSummary {
+    pub module: String,
+    pub delta_intact: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirements: Option<DeltaDeclarations>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sections: Option<DeltaDeclarations>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub materialized: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declarations_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2728,16 +2870,20 @@ fn definition_mutation_result(
     effective_definition: EffectiveChangeDefinition,
     corrections: Vec<CorrectionRecord>,
 ) -> DefinitionMutationResult {
+    // One delta-binding read for every projection below, all under the caller's project lock.
+    let _delta_bindings = begin_delta_binding_memo(root);
     let summary =
         summarize_change_with_effective(root, &change, false, Some(&effective_definition));
     let strict_summary =
         summarize_change_with_effective(root, &change, true, Some(&effective_definition));
+    let approved_deltas = approved_delta_summaries(root, &change);
     DefinitionMutationResult {
         change,
         effective_definition,
         corrections,
         summary,
         strict_summary,
+        approved_deltas,
     }
 }
 

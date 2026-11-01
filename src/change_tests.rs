@@ -21,3 +21,4 @@ include!("change_tests/archive_post_move_failure_restores_exact_source_bytes_wit
 include!("change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs");
 include!("change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs");
 include!("change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs");
+include!("change_tests/approved_delta_requirements.rs");

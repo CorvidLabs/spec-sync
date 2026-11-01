@@ -5,18 +5,18 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Write the unit tests in `testing.md` in `src/change_tests/approved_delta_requirements.rs` and the integration test in `tests/integration/change.rs`. Record which ones fail on origin/main a80748f.
-- [ ] Add `DeltaDeclarations` and `ApprovedDeltaSummary` to `src/change/sdd_version.rs`.
-- [ ] Factor `delta_body_digest` and a private `approved_delta_binding` out of `changed_approved_delta_modules`, keeping every existing output and refusal string byte-identical.
-- [ ] Add the `DeltaBindingMemo` guard, held by `ChangeReadScope` and installed by `definition_mutation_result`; keep the materialization and acceptance refusals outside any memo.
-- [ ] Factor `prepare_module_application` out of `prepare_pending_delta_application` so `materialized` runs on the bound body.
-- [ ] Add `approved_delta_summaries` with the state and scope gate, the `delta_intact` mapping including `declarations_error`, the same-bytes item split and `materialized`.
-- [ ] Add `approved_deltas` to `DefinitionMutationResult` under the lock; render it in `print_mutation_record`, and render `approved_delta_summaries` in `print_record`.
-- [ ] Include the new test file from `src/change_tests.rs` and list it in the `change` spec `files:`.
-- [ ] Document `approved_deltas` in `site/src/content/docs/cli.md`.
-- [ ] Re-run the issue's `repro2.sh` against the candidate build and record the output in `context.md`.
-- [ ] Update the change and cmd_change `testing.md`, `tasks.md` and lessons (`change.3md`, `cmd_change.3md`) after verification.
-- [ ] Run the regression lanes in `testing.md` and record the observed results.
+- [x] Write the unit tests in `testing.md` in `src/change_tests/approved_delta_requirements.rs` and the integration test in `tests/integration/change.rs`. Record which ones fail on origin/main a80748f.
+- [x] Add `DeltaDeclarations` and `ApprovedDeltaSummary` to `src/change/sdd_version.rs`.
+- [x] Factor `delta_body_digest` and a private `approved_delta_binding` out of `changed_approved_delta_modules`, keeping every existing output and refusal string byte-identical.
+- [x] Add the `DeltaBindingMemo` guard, held by `ChangeReadScope` and installed by `definition_mutation_result`; keep the materialization and acceptance refusals outside any memo.
+- [x] Factor `prepare_module_application` out of `prepare_pending_delta_application` so `materialized` runs on the bound body.
+- [x] Add `approved_delta_summaries` with the state and scope gate, the `delta_intact` mapping including `declarations_error`, the same-bytes item split and `materialized`.
+- [x] Add `approved_deltas` to `DefinitionMutationResult` under the lock; render it in `print_mutation_record`, and render `approved_delta_summaries` in `print_record`.
+- [x] Include the new test file from `src/change_tests.rs` and list it in the `change` spec `files:`.
+- [x] Document `approved_deltas` in `site/src/content/docs/cli.md`.
+- [x] Re-run the issue's `repro2.sh` against the candidate build and record the output in `context.md`.
+- [x] Update the change and cmd_change `testing.md`, `tasks.md` and lessons (`change.3md`, `cmd_change.3md`) after verification.
+- [x] Run the regression lanes in `testing.md` and record the observed results.
 
 ## Human gates
 

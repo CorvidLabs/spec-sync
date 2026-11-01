@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793501098,
+      "commit": "47ae8775cae1e655898771723107cc9ec309e2d0",
+      "contract_digest": "390cb9e81b0ee0f2e077192f3602dc8ed7f8145c161d7716b6e975bc35d0c8cb",
+      "execution_digest": "c8a86fca8f8aee1e0c633f7990ba1b4a40cb571bcdbf2512c472f1b91aa926fd",
+      "workspace_digest": "67ff03d6d4ffa2992585e3f6a814e3b272545821945b2787bec17212e10a40dc",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "specsync change check report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json (effective contract: change)",
+          "success": false,
+          "exit_code": 1
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-113",
+        "REQ-cmd-change-023"
+      ]
+    },
+    {
+      "timestamp": 1793501431,
+      "commit": "47ae8775cae1e655898771723107cc9ec309e2d0",
+      "contract_digest": "390cb9e81b0ee0f2e077192f3602dc8ed7f8145c161d7716b6e975bc35d0c8cb",
+      "execution_digest": "c8a86fca8f8aee1e0c633f7990ba1b4a40cb571bcdbf2512c472f1b91aa926fd",
+      "workspace_digest": "d35a94c3a9fd4f4d1ab7f8b2389a65a2c1d5f58ee140d97c54d575dc08cff145",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-113",
+        "REQ-cmd-change-023"
+      ]
+    }
+  ]
+}

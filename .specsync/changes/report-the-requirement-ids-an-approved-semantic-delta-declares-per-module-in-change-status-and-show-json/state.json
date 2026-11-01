@@ -7,10 +7,11 @@
   "title": "Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON",
   "description": "Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "a80748ff44ff42cd7578ac0f7cb8ba7e080ab183",
   "created_at": 1793496674,
-  "updated_at": 1793498461,
+  "updated_at": 1793501434,
   "affected_specs": [
     "change",
     "cmd_change"

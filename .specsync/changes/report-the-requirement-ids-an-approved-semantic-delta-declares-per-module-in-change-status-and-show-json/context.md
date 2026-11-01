@@ -79,3 +79,37 @@ and sections, a per-module integrity flag, and a materialization flag.
 - HI: links CHANGE-5 (the delta is readable: added, changed, retired), CHANGE-6.a (the approval is
   bound to its content, so later edits cannot ride on it), CHANGE-7 (ask the state of a change) and
   AGENT-2 (structured data, so an agent never scrapes). No new HI criterion is proposed or captured.
+
+## Re-run of the issue reproduction (candidate build)
+
+The issue's `repro2.sh` and `base.sh` were run unchanged against a debug build of this branch, with
+the same fixture (Chough `examples/shipping` at CorvidLabs/chough@2756dc2) and a simulated
+approver in a disposable repository under the session scratchpad.
+
+A. After approval, `status.json` and `show.json` each mention REQ-shipping-002 once, under the new
+key:
+
+```text
+{ "state": "approved", "approval_valid": true }
+status --json bytes: 2979, mentions: 1
+show --json bytes:   2979, mentions: 1
+top-level keys: ["acceptance_entries","approved_deltas","briefing","change","corrections","effective_definition","questions","summary"]
+approved_deltas: [{"delta_intact":true,"materialized":false,"module":"shipping","requirements":{"added":["REQ-shipping-002"],"modified":[],"removed":[]},"sections":{"added":[],"modified":["Public API"],"removed":[]}}]
+```
+
+B. After the approved body is edited: `{"approval_valid":false,"next_action":"run `specsync change approve free-shipping-at-the-threshold --actor <name>`"}`
+and `approved_deltas: [{"delta_intact":false,"module":"shipping"}]`.
+
+C. `change check` still exits 1 with the unchanged "semantic delta for `shipping` changed after
+approval" refusal.
+
+With `base.sh <dir> verify` the change is `verifying` and the entry reports `materialized: true`
+with the same requirement and section lists.
+
+## Deviation found while testing
+
+The design expected `change depend` on an approved change to carry real entries. Dependencies
+are part of the approved scope, so a NEW dependency stales the scope and the in-lock
+`approved_deltas` is `[]`, exactly what `status` then reports. Re-declaring a dependency the
+approval already covers keeps the scope current and carries the intact entries. The unit and
+integration tests drive both paths.

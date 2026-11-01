@@ -632,10 +632,14 @@ fn print_record(
             // digest and nothing emitted one, so callers had to read
             // verification.json by hand. Surface the entries here.
             let acceptance_entries = change::acceptance_entries(root, record);
+            // Inside the status/show read scope, so this shares the delta-binding read `summary`
+            // used a few lines above (REQ-cmd-change-023).
+            let approved_deltas = change::approved_delta_summaries(root, record);
             print_json(&serde_json::json!({
                 "change": record,
                 "effective_definition": effective_definition,
                 "acceptance_entries": acceptance_entries,
+                "approved_deltas": approved_deltas,
                 "corrections": corrections,
                 "summary": summary,
                 "questions": questions,
@@ -699,6 +703,7 @@ fn print_mutation_record(
                 "change": record,
                 "effective_definition": result.effective_definition,
                 "acceptance_entries": acceptance_entries,
+                "approved_deltas": result.approved_deltas,
                 "corrections": result.corrections,
                 "summary": summary,
                 "questions": questions,

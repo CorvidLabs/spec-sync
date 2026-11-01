@@ -62,6 +62,13 @@
         "cmd_change": "dd5cf287b7a5765671b28d2f14a215c2416a9bdc2e7e64c77c04405432fa02b6",
         "github": "1daf7ae9ca9b14483d78c80e9cb8686d15136dbb362557961f626633dfa29eac"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793509549,
+      "digest": "df45c423dd78be8823376fb9de1e4151ec4a7e71f7dd5f173025650766fc7545",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

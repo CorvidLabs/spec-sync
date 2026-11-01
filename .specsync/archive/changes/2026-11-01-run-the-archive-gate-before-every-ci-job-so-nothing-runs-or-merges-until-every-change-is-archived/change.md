@@ -1,6 +1,6 @@
 ---
 id: run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived
-state: implementing
+state: archived
 type: operations
 base_commit: 24e29e100930db10e2f9db78bb7bcbf5ab6507e4
 ---

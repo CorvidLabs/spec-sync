@@ -1,0 +1,46 @@
+---
+change: write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier
+artifact: tasks
+---
+
+# Tasks
+
+- [ ] Add the discriminator and control tests in `testing.md`, and confirm their labels against an unfixed a80748ff build.
+- [ ] Write `# Lesson bundle: <id>` in `write_lesson_bundle`.
+- [ ] Use a colon in the `init` and `migrate` `.specsync/.gitignore` headers.
+- [ ] Repunctuate `CREATE_SPEC_STEPS_MD` and set `AGENT_ARTIFACT_TEMPLATE_VERSION` to 6.
+- [ ] Repunctuate the four hook snippets, and write the new begin sentinel while reading both forms in `remove_section_from_file`.
+- [ ] Repunctuate `PRE_COMMIT_HOOK`, and accept the frozen 6.1.1 body in legacy pre-commit uninstall.
+- [ ] Write compaction summaries as `<first> to <last>` with `-` placeholders, and read both forms in `summary_metadata`.
+- [ ] Add `tests/integration/generated_output_has_no_dashes.rs` and register it in `tests/integration.rs`.
+- [ ] Regenerate this repository's agent assets and `.specsync/agent-artifacts.json` with the built binary.
+- [ ] Update the compact requirements list, the hooks, compact and agents lesson planes, and each touched spec's version and Change Log.
+- [ ] Run the regression lanes in `testing.md`, re-run the issue's repro with the fixed build, and record the observed results.
+
+## Human gates
+
+Scope approval of this change by a human is required before implementation starts. This draft
+records no approval.
+
+Implementation review (`specsync change review <id> --reviewer <human>`) by a human follows a
+current `change check`. Finalization, merge and any release are separate human decisions.
+
+Decisions proposed to the human, not made by this draft:
+
+- Whether to capture the human-intent wording proposed in `requirements.md`, and under which ids.
+- The compaction range separator (` to ` is proposed; `..` is the alternative) and placeholder
+  (`-` is proposed).
+- Whether the hook begin sentinel should be recognized by an explicit two-form list (proposed)
+  or by the prefix `<!-- specsync:hook:begin`.
+- Whether `hooks install` should, in a later change, refresh an already-present managed block so
+  existing installs lose their dashes without an uninstall.
+- Whether the guard test should also drive `scaffold`, `generate`, `import` and `init-registry`.
+  A byte grep of their literals found no dash today.
+- Whether stdout Markdown that users commonly redirect into files, such as `specsync comment`
+  bodies and `--format markdown` reports, should follow the same rule in a later change.
+
+## After verification
+
+Run `fledge lanes run pre-push` before every push, and `fledge trust verify` before calling the
+work complete. Hosted CI and Trust results for the exact head are recorded as evidence, not
+assumed.

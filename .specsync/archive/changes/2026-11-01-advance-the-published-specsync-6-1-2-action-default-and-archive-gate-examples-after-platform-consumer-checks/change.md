@@ -1,6 +1,6 @@
 ---
 id: advance-the-published-specsync-6-1-2-action-default-and-archive-gate-examples-after-platform-consumer-checks
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d08d2746f635bc26900601376d7392395d07faa9
 ---

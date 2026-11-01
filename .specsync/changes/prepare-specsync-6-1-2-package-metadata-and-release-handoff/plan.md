@@ -15,7 +15,7 @@ No runtime fixes or dependency upgrades. No tag creation or movement. No merge o
 
 ## Steps
 
-Inspect current release workflows and versions; prepare metadata and notes; run native checks; open a draft PR with every unmet gate explicit.
+Inspect current release workflows and versions; merge origin/main into the branch; prepare metadata, CHANGELOG and handoff notes from the archived changes since v6.1.1; run the release validators and cargo package --list; keep the draft PR with every unmet gate explicit.
 
 ## Risks
 

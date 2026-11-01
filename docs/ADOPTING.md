@@ -3,7 +3,7 @@
 This page is written to be **pasted wholesale into an agent session** in the repository you
 want to adopt spec-sync in. It is also readable on its own.
 
-This guide describes the 6.1 workflow and prepares 6.1.1 pins for use after publication. Install the stable binary and verify
+This guide describes the 6.1 workflow with the published 6.1.1 pins. Install the stable binary and verify
 `specsync --version` prints `specsync 6.1.1` before adoption; historical recovery guidance is
 labeled separately.
 
@@ -18,7 +18,7 @@ change end to end so the loop is proven rather than assumed.
 
 ## Install
 
-Pin explicitly. This tree prepares 6.1.1; published Cargo, GitHub and Homebrew releases remain 6.1.0 until Ubuntu/macOS qualification and promotion. After 6.1.1 is published:
+Pin explicitly. Cargo, GitHub and Homebrew all serve 6.1.1:
 
     cargo install specsync
     specsync --version    # specsync 6.1.1
@@ -26,7 +26,7 @@ Pin explicitly. This tree prepares 6.1.1; published Cargo, GitHub and Homebrew r
     # or a GitHub Release asset / git tag:
     cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.1.1 --locked specsync
 
-Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.1.0 until promotion. Prebuilt binaries exist for Linux and
+Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.1.1. Prebuilt binaries exist for Linux and
 macOS only; 6.0 publishes no Windows binary (#735).
 
 Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.
@@ -100,13 +100,18 @@ Write a `deltas/<module>.md` describing the requirement being added or changed, 
     specsync change approve <id> --actor "<you>"
     # …write the code…
     specsync change check <id> --commit
-    # push the product tip after local gates; wait for required CI and complete human PR review
+    # run your local verify lane; archive-first CI does not test a tip with an open change
     specsync change review <id> --reviewer "<human>"
     specsync change ship <id>
 
 Run `review` and `ship` consecutively, without committing between them. The reviewer may be
 the scope approver. Commit and push the archive result, wait for required checks, then merge
 on GitHub. **Merge only after every active change on the PR is archived.**
+
+With archive-first CI (the spec-sync Action's `require-archived` gate as the first job, or this
+repository's own `Archive` job), a pushed tip with any open change fails that gate and runs
+nothing else. The full lane runs once, on the archived tip. If it fails, push a fix commit on
+top with specs kept in sync; a fix that changes the approved scope needs a new change.
 
 `check --commit` and `ship --push` commit edits to files git already tracks, plus the untracked
 files the change owns: its workspace and archive package, the canonical specs its deltas write,

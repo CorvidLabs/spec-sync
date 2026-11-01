@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793567721,
+      "commit": "a310c49ab99f36dd71a0b81feebae4fc7ea65b87",
+      "contract_digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+      "execution_digest": "2e0782e1a6332d53811bdd317b5e40ef1bbf60479e7e89dbc8e37604d742a7f3",
+      "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1793567727,
+      "commit": "534302d0824a064553c8233259a6e154d0a21a7e",
+      "contract_digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+      "execution_digest": "2e0782e1a6332d53811bdd317b5e40ef1bbf60479e7e89dbc8e37604d742a7f3",
+      "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1793569176,
+      "commit": "c6621210b452591dc1433ec1ba780b47527ce1a3",
+      "contract_digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+      "execution_digest": "2e0782e1a6332d53811bdd317b5e40ef1bbf60479e7e89dbc8e37604d742a7f3",
+      "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1793569182,
+      "commit": "08cd2d710a5762c941eaad799bb6cc49859d976d",
+      "contract_digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+      "execution_digest": "2e0782e1a6332d53811bdd317b5e40ef1bbf60479e7e89dbc8e37604d742a7f3",
+      "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1793569182,
+      "commit": "3beb620f4d51b1c192ee62bb5597ac49233d91ad",
+      "contract_digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+      "execution_digest": "2e0782e1a6332d53811bdd317b5e40ef1bbf60479e7e89dbc8e37604d742a7f3",
+      "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+      "acceptance_input_digest": "66942b9ab30434000878e256fd98e01624afcd61ce273d20e2a5863b07d0ac8e",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/scripts/test-validate-release-candidate.py",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bae273314ac0685ef1461940348468f1e24e1e4e9e7c00dfa3fbb73186d58776",
+            "entry_digest": "81d08a5f44cb6e1884bc993f118bdab363cd3e14cab43e66b53b4cd3c0f49e40",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "MIGRATION.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fbb233711c3c6ebb453ed3306518e342760d24979f91a9a0ca7b8bfdd605b63c",
+            "entry_digest": "11e295dff1f5a2ec5c06cc3e0f10db5cbe72b92c8b71d2070846267a2852c826",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "SECURITY.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "511b65d7aaddaaec52e8dd69ae07735e38b32fbde1642149e5ac125912b61137",
+            "entry_digest": "6779d5892dfa3aeb10a27af343a78fd05cdb0d1346c41785f2527d892f508b91",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/github-action.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a5b26e50845de8d12d79c67af53d082b782b3eab52d6a491c4b146f6237b3400",
+            "entry_digest": "7e95b7627ce02f658776a16c98eea5b81283d63edd269f399dd734dd465cb512",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/quickstart.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "037e635b0412f1b791b1b08a4abb8ee6fe2e725e4a2fe0bd71e29f14fa040be1",
+            "entry_digest": "e602f73432c27ea1b90405b713f24a01e5aeffad73bc97301e61dec0ac0679b4",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/ci-gate.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7140899fa05061ded31ece47886cd4d9906dd124cab2e03dcbf37acd33995fa9",
+            "entry_digest": "fdfa20d0c7285a574080069285518d79e2ce3504fcbfe29b41477e2ad30fab10",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/polyglot.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e287ad36d5e4e7ed860eb409a7358af973a2f08f55cc87dd7124b73b60fb26df",
+            "entry_digest": "a101bfd8338dccafe282e8327f6dce8a62e1c098062413b531baa610b16f3300",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

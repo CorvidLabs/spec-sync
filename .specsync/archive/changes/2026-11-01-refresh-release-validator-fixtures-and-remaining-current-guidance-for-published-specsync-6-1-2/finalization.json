@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refresh-release-validator-fixtures-and-remaining-current-guidance-for-published-specsync-6-1-2",
+  "implementation_commit": "3beb620f4d51b1c192ee62bb5597ac49233d91ad",
+  "implementation_tree": "0fd0e83391a628f45dcf8109fe2729d0f245eb1e",
+  "contract_digest": "06f15b6ed1ab281c97fb3f6423d94d3916ceb181af74fc450162979682ce1e5f",
+  "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+  "closing_digest": "155457a76c51cbe589d9493d0bc2374e1253d00fbc661651d71222e94af7e8d8",
+  "review_digest": "8fcaa0e08aefbd1fb0798b31b74f5d91584a2c17e85a160b37574d6289491ca8",
+  "finalization_digest": "493b25f915f632b45c954c41e9c224622335b92d15d81e96ab0ad7b737ecb991",
+  "timestamp": 1793569271
+}

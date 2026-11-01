@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "advance-the-published-specsync-6-1-2-action-default-and-archive-gate-examples-after-platform-consumer-checks",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "3fd288456f374879458702b78a47c71d703df69c",
+      "contract_digest": "d86a6b95f41a5582fb1cc49bf1f3f49821c8c89339e23ee9da514a049a814478",
+      "execution_digest": "e3cf645a4374568023562e5a782f2913e968ea9962d99505e6aa2ee60dfb0d2e",
+      "workspace_digest": "e2eab855ac5ccc18471b35f6d1e3e8b10ab0f2e862bcfbed951418dbc63c582f",
+      "timestamp": 1793568663
+    }
+  ]
+}

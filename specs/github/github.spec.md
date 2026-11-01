@@ -1,6 +1,6 @@
 ---
 module: github
-version: 45
+version: 46
 status: stable
 files:
   - src/github.rs
@@ -18,9 +18,9 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
 contract: immutable exact-version refs and a verified floating major compatibility ref. This
-later main wrapper defaults to the qualified published `6.1.1` binary after stable
-asset and supported-platform Action checks. Immutable `@v6.1.1` remains on the
-qualified candidate SHA with default `6.1.0`; pass explicit `version: '6.1.1'` for
+later main wrapper defaults to the qualified published `6.1.2` binary after stable
+asset and supported-platform Action checks. Immutable `@v6.1.2` remains on the
+qualified candidate SHA with default `6.1.1`; pass explicit `version: '6.1.2'` for
 the new stable binary. Floating `@v6` advances only after actual consumer checks
 of this separate wrapper commit. The published `@v6.0.0` Action tag still embeds
 default `6.0.0-rc.14` and is not
@@ -248,3 +248,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-10-15 | advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks: Advance the published SpecSync 6.1.1 Action default after platform consumer checks |
 | 2026-11-01 | v44: archive-first CI. `is_trust_relevant_check_name` matches the `Archive` job exactly; REQ-github-023 makes `Archive` the first CI job that every other job depends on, and the full lane runs on the archived tip with no parent trust reuse |
 | 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
+| 2026-11-01 | advance-the-published-specsync-6-1-2-action-default-and-archive-gate-examples-after-platform-consumer-checks: Advance the published SpecSync 6.1.2 Action default and archive-gate examples after platform consumer checks |

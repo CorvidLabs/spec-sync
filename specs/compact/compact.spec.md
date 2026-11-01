@@ -1,6 +1,6 @@
 ---
 module: compact
-version: 11
+version: 12
 status: stable
 files:
   - src/compact.rs
@@ -82,10 +82,10 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 
 | Condition | Behavior |
 |-----------|----------|
-| 2026-11-01 | v10: write summary rows as `<first> to <last>` with `-` placeholders and keep reading the 6.1.1 dash form (REQ-compact-001 modified, #827). |
 | Spec file unreadable | Records a structured failure, exits nonzero at the command boundary, and performs no writes |
 | Multiple marked summaries or malformed table | Records a parse failure and performs no writes |
 | Indented separator or reordered generated summary | Records a parse failure and performs no writes |
+| Compacted range start already contains ` to ` | Records a parse failure and performs no writes, because the next fold could not tell where the start ends |
 | Staging failure | Records the failing path/operation and performs no writes |
 | Late atomic publish failure | Reports an incomplete/partial outcome and never claims complete success |
 | No changelog section found | Spec is silently skipped |
@@ -108,6 +108,8 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 
 | Date | Change |
 |------|--------|
+| 2026-11-01 | v12: tie the range separator to its placeholder form, so a hybrid row is user history, and refuse a range start that already contains ` to ` (REQ-compact-001, #827 review). |
+| 2026-11-01 | v10: write summary rows as `<first> to <last>` with `-` placeholders and keep reading the 6.1.1 dash form (REQ-compact-001 modified, #827). |
 | 2026-10-10 | Add `compact.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Stop before indented pipe-code and reject indented separators or reordered generated summaries before mutation |
 | 2026-07-26 | Close adversarial #417 gaps: ignore fenced/prefix headings, preserve keep-zero EOF bytes, retain complete plan counts on staging failure, and characterize late partial publication |

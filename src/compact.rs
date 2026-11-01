@@ -312,6 +312,13 @@ fn compact_spec_changelog(
     let first_date = old_range_start
         .unwrap_or_else(|| extract_first_cell(removed_rows.first().map(|(_, l)| *l).unwrap_or("")));
     let last_date = extract_first_cell(removed_rows.last().map(|(_, l)| *l).unwrap_or(""));
+    // A fold reads the range start up to the first separator, so a start that already holds
+    // the separator would be cut short on the next fold. Refuse rather than lose its text.
+    if first_date.contains(SUMMARY_RANGE_SEPARATOR) {
+        return Err(format!(
+            "Change Log range start `{first_date}` contains `{SUMMARY_RANGE_SEPARATOR}`, the compaction range separator; refusing to write an ambiguous summary range"
+        ));
+    }
 
     let col_count = header_cells.len();
 
@@ -509,18 +516,23 @@ fn summary_metadata(row: &str) -> Option<(u64, String)> {
     }
     // Interior cells are uniformly one placeholder form: the current `-`, or the U+2014 that
     // releases up to and including 6.1.1 wrote. A row mixing the two is user history.
+    // The range separator belongs to the same form as the interior cells, so a row pairing one
+    // form's range with the other form's placeholders is user history too. A 2-column table
+    // has no interior cells, so either range form identifies it.
     let interior = &cells[1..cells.len() - 1];
-    if !interior.iter().all(|cell| cell == SUMMARY_PLACEHOLDER)
-        && !interior
-            .iter()
-            .all(|cell| cell == LEGACY_SUMMARY_PLACEHOLDER)
-    {
-        return None;
-    }
+    let current = interior.iter().all(|cell| cell == SUMMARY_PLACEHOLDER);
+    let legacy = interior
+        .iter()
+        .all(|cell| cell == LEGACY_SUMMARY_PLACEHOLDER);
     let first = cells.first()?;
-    let (range_start, range_end) = first
-        .split_once(SUMMARY_RANGE_SEPARATOR)
-        .or_else(|| first.split_once(LEGACY_SUMMARY_RANGE_SEPARATOR))?;
+    let current_range = || first.split_once(SUMMARY_RANGE_SEPARATOR);
+    let legacy_range = || first.split_once(LEGACY_SUMMARY_RANGE_SEPARATOR);
+    let (range_start, range_end) = match (current, legacy) {
+        (true, true) => current_range().or_else(legacy_range)?,
+        (true, false) => current_range()?,
+        (false, true) => legacy_range()?,
+        (false, false) => return None,
+    };
     let range_start = range_start.trim();
     if range_start.is_empty() || range_end.trim().is_empty() {
         return None;
@@ -1361,7 +1373,9 @@ Test module.
         for range in ["2026-01-01 to 2026-01-09", "2026-01-01 \u{2014} 2026-01-09"] {
             let mixed =
                 format!("| {range} | - | \u{2014} | Compacted: 9 entries {SUMMARY_MARKER} |");
+            // A dated row first, so the compacted range starts without a separator in it.
             let mut content = table(4);
+            content.push_str("| 2025-12-31 | x | x | Change 0 |\n");
             content.push_str(&mixed);
             content.push('\n');
             for day in 1..=3 {
@@ -1372,11 +1386,101 @@ Test module.
                 .unwrap()
                 .unwrap();
             assert_eq!(
-                result.original_entries, 4,
+                result.original_entries, 5,
                 "the mixed row is an ordinary entry"
             );
-            assert_eq!(result.removed, 1);
+            assert_eq!(result.removed, 2);
             assert!(!after.contains(&mixed), "{after}");
         }
+    }
+
+    // CONTROL for REQ-compact-001: a range separator in one form with interior cells in the
+    // other form matches neither approved summary form, so the row is user history.
+    #[test]
+    fn compact_does_not_treat_a_range_and_placeholder_form_hybrid_as_a_summary() {
+        for columns in [3, 4] {
+            let interior = |cell: &str| vec![cell; columns - 2].join(" | ");
+            for hybrid in [
+                format!(
+                    "| 2026-01-01 \u{2014} 2026-01-09 | {} | Compacted: 9 entries {SUMMARY_MARKER} |",
+                    interior("-")
+                ),
+                format!(
+                    "| 2026-01-01 to 2026-01-09 | {} | Compacted: 9 entries {SUMMARY_MARKER} |",
+                    interior("\u{2014}")
+                ),
+            ] {
+                assert!(!is_summary_row(&hybrid), "{hybrid}");
+                // A dated row first, so the compacted range starts without a separator in it.
+                let mut content = table(columns);
+                content.push_str(&row(columns, 0));
+                content.push_str(&hybrid);
+                content.push('\n');
+                for day in 1..=4 {
+                    content.push_str(&row(columns, day));
+                }
+                let (after, result) = compact_spec_changelog(&content, "t.spec.md", 3)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    result.original_entries, 6,
+                    "the hybrid row is an ordinary entry"
+                );
+                assert_eq!(result.removed, 3);
+                assert!(after.contains("Compacted: 3 entries"), "{after}");
+                assert!(!after.contains(&hybrid), "{after}");
+            }
+        }
+    }
+
+    // DISCRIMINATOR for REQ-compact-001: a first compacted cell holding ` to ` would make the
+    // written range ambiguous, and the next fold would cut its start short. Refuse instead.
+    #[test]
+    fn compact_refuses_a_range_start_that_contains_the_separator() {
+        let mut content = table(3);
+        for quarter in 1..=8 {
+            content.push_str(&format!(
+                "| Q{quarter} to Q{} 2026 | x | Change {quarter} |\n",
+                quarter + 1
+            ));
+        }
+        let error = compact_spec_changelog(&content, "t.spec.md", 3).unwrap_err();
+        assert!(error.contains("` to `"), "{error}");
+    }
+
+    // CONTROL for REQ-compact-001: ` to ` in the range end only stays unambiguous, so a fold
+    // keeps the full original start.
+    #[test]
+    fn compact_folds_when_only_the_range_end_contains_the_separator() {
+        let mut content = table(3);
+        content.push_str("| 2026-01-01 | x | Change 0 |\n");
+        for quarter in 1..=7 {
+            content.push_str(&format!(
+                "| Q{quarter} to Q{} 2026 | x | Change {quarter} |\n",
+                quarter + 1
+            ));
+        }
+        let (first, _) = compact_spec_changelog(&content, "t.spec.md", 3)
+            .unwrap()
+            .unwrap();
+        assert!(
+            first.contains(&format!(
+                "| 2026-01-01 to Q4 to Q5 2026 | - | Compacted: 5 entries {SUMMARY_MARKER} |"
+            )),
+            "{first}"
+        );
+        let mut more = first.clone();
+        for day in 1..=2 {
+            more.push_str(&row(3, day));
+        }
+        let (second, _) = compact_spec_changelog(&more, "t.spec.md", 3)
+            .unwrap()
+            .unwrap();
+        assert!(
+            second.contains(&format!(
+                "| 2026-01-01 to Q6 to Q7 2026 | - | Compacted: 7 entries {SUMMARY_MARKER} |"
+            )),
+            "{second}"
+        );
     }
 }

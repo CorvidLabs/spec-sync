@@ -41,6 +41,15 @@ counts. Changing the writer alone (#827, dropping the em dash) would have made
 every changelog 6.1.1 compacted look like user history on the next run, emit a
 second marked summary, and fail closed on the run after. The reader now accepts
 the current form (` to ` and `-`) and the 6.1.1 form (U+2014 range and cells),
-each uniformly; a row mixing the placeholders is not a summary. A no-excess run
+each uniformly; a row mixing the placeholders is not a summary, and neither is a
+row pairing one form's range with the other form's placeholders. A no-excess run
 still returns the original bytes, so an old row is rewritten only when it folds.
 Pin each legacy form as a literal fixture rather than through a constant.
+
+@plane z=6 label="A prose separator needs a refusal where the text can hold it"
+` to ` is a word, so a first compacted cell such as `Q1 to Q2 2026` can already
+contain it. The fold reads the start up to the first separator, and the next
+fold would silently cut that start to `Q1`. The writer now refuses a range start
+holding ` to ` and writes nothing; an end holding it stays unambiguous. When a
+separator is chosen from ordinary text, check which side of the split may hold
+it and fail closed for that side instead of guessing.

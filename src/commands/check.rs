@@ -1060,28 +1060,14 @@ fn is_table_row(line: &str) -> bool {
     trimmed.len() > 2 && trimmed.starts_with('|') && trimmed.ends_with('|')
 }
 
-/// Column count of the first markdown table row found in `section`, if any.
-fn table_column_count(section: &str) -> Option<usize> {
-    table_rows_outside_code(section)
-        .first()
-        .map(|(_, row)| row[1..row.len() - 1].split('|').count())
-}
-
-/// Markdown table rows in `block` that are not inside fenced or indented code,
-/// as (byte offset just past the row's line, trimmed row text).
-///
-/// Fences follow CommonMark: an opening run of three or more backticks or
-/// tildes is closed only by a run of the same character at least as long,
-/// so a ```` ```` ```` sample that itself contains a ``` block stays one
-/// example. Four-space or tab indented lines are code too. `--fix` derives
-/// both the column template and the insertion point from these rows, so a
-/// pipe-shaped line inside an example can neither set the width nor become
-/// the "last row" of the table.
-fn table_rows_outside_code(block: &str) -> Vec<(usize, &str)> {
-    let mut rows = Vec::new();
+/// Select one contiguous table, preferring the first with a `Name` header.
+/// Width and insertion offset must come from the same table (#768).
+fn export_table(block: &str) -> Option<(usize, usize)> {
+    let mut tables: Vec<(usize, usize, bool)> = Vec::new();
     let mut offset = 0;
     let mut fence: Option<(char, usize)> = None;
     for line in block.split_inclusive('\n') {
+        let start = offset;
         offset += line.len();
         let trimmed = line.trim_start();
         let marker = ['`', '~'].into_iter().find_map(|c| {
@@ -1106,23 +1092,24 @@ fn table_rows_outside_code(block: &str) -> Vec<(usize, &str)> {
             continue;
         }
         let row = line.trim();
-        if is_table_row(row) {
-            rows.push((offset, row));
+        if !is_table_row(row) {
+            continue;
+        }
+        if let Some(table) = tables.last_mut().filter(|table| table.0 == start) {
+            table.0 = offset;
+        } else {
+            let cells: Vec<_> = row[1..row.len() - 1].split('|').collect();
+            let has_name = cells
+                .iter()
+                .any(|cell| cell.trim().eq_ignore_ascii_case("name"));
+            tables.push((offset, cells.len(), has_name));
         }
     }
-    rows
-}
-
-/// Byte offset (relative to `block`) of the start of the line following the
-/// last markdown table row in `block` outside code examples, if `block`
-/// contains a table at all.
-///
-/// `--fix` inserts new export rows here so they extend the existing table.
-/// Appending at the end of the section or subsection instead put the rows
-/// after any trailing prose (e.g. an "Acceptance Criteria" paragraph), where
-/// they are orphaned pipe-delimited text outside every table (#615).
-fn table_rows_end(block: &str) -> Option<usize> {
-    table_rows_outside_code(block).last().map(|(end, _)| *end)
+    tables
+        .iter()
+        .find(|table| table.2)
+        .or_else(|| tables.first())
+        .map(|&(end, columns, _)| (end, columns))
 }
 
 /// Normalize near-miss export headers within ## Public API.
@@ -1478,11 +1465,12 @@ fn auto_fix_specs(
                 for (&target, syms) in syms_by_target.iter().rev() {
                     let (_, start, end) = export_subs[target];
                     let block = &content[start..end];
-                    let columns = table_column_count(block);
+                    let table = export_table(block);
+                    let columns = table.map(|(_, columns)| columns);
                     let rows = build_rows(syms, columns);
                     // Extend the subsection's table; only fall back to the
                     // subsection end when it has no table yet.
-                    let insert_at = table_rows_end(block).map_or(end, |p| start + p);
+                    let insert_at = table.map_or(end, |(p, _)| start + p);
                     new_content = format!(
                         "{}\n{}\n{}",
                         new_content[..insert_at].trim_end(),
@@ -1494,8 +1482,9 @@ fn auto_fix_specs(
                 // No ### subsections — flat table (possibly under a bold
                 // `**Functions**` label) or empty body. Extend the existing
                 // table when there is one; otherwise insert at section end.
-                let rows = build_rows(&undocumented, table_column_count(api_section));
-                let insert_at = table_rows_end(api_section).map_or(api_end, |p| api_start + p);
+                let table = export_table(api_section);
+                let rows = build_rows(&undocumented, table.map(|(_, columns)| columns));
+                let insert_at = table.map_or(api_end, |(p, _)| api_start + p);
                 new_content = format!(
                     "{}\n{}\n{}",
                     content[..insert_at].trim_end(),

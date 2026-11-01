@@ -1,6 +1,6 @@
 ---
 module: github
-version: 44
+version: 45
 status: stable
 files:
   - src/github.rs
@@ -247,3 +247,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-10-15 | Conditional post-publication wrapper delivery advances the published binary default without changing the immutable CLI release identity |
 | 2026-10-15 | advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks: Advance the published SpecSync 6.1.1 Action default after platform consumer checks |
 | 2026-11-01 | v44: archive-first CI. `is_trust_relevant_check_name` matches the `Archive` job exactly; REQ-github-023 makes `Archive` the first CI job that every other job depends on, and the full lane runs on the archived tip with no parent trust reuse |
+| 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |

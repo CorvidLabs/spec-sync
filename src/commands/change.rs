@@ -3702,6 +3702,55 @@ if the floor call is removed from this function"
     /// So the assertion is AGREEMENT, exactly as in the stale case, and it survives whichever
     /// way #694 is resolved: if the walk gains a content fallback, `finalize` starts
     /// succeeding and readiness follows it back to `true` through the same predicate.
+    /// REQ-cmd-change-007: archive-first CI runs nothing on a tip with an open change, so no
+    /// guidance may send the operator to push a product tip and wait, or to reuse a parent's
+    /// trust. Stage ids stay stable for JSON consumers.
+    #[test]
+    fn ship_guidance_teaches_archive_first_ci() {
+        assert!(SHIP_TRUST_LOCAL_GUIDANCE.starts_with("Archive-first CI"));
+        for stale in [
+            "reuse trust",
+            "push the product tip",
+            "review_only or archive_only tip",
+            "implementation ready",
+        ] {
+            assert!(
+                !SHIP_TRUST_LOCAL_GUIDANCE.contains(stale),
+                "local guidance still teaches the product-tip flow: {stale}"
+            );
+        }
+
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        let stages = report["stages"].as_array().expect("stages");
+        let ids: Vec<&str> = stages
+            .iter()
+            .filter_map(|stage| stage["id"].as_str())
+            .collect();
+        assert_eq!(ids, ["product_tip", "review_tip", "archive_tip", "merge"]);
+        assert_eq!(stages[0]["title"], "Product tip (local verification)");
+        for stage in stages {
+            let text = format!("{} {}", stage["title"], stage["action"]);
+            for stale in [
+                "full CI)",
+                "wait for trust",
+                "review_only tip",
+                "trust reuse",
+            ] {
+                assert!(
+                    !text.contains(stale),
+                    "stage still teaches the product-tip flow: {text}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn ship_status_and_finalize_agree_after_a_squash_that_preserves_content() {
         let temp = TempDir::new().expect("temp project");

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793507726,
+      "commit": "459a48ff943ebb9f4327214dc93a0c2a63c216a3",
+      "contract_digest": "bfb94618e709fa1cb52cd27d5d1514a4a8c2fd3f656464a87d70a2d8ef24e57b",
+      "execution_digest": "f082446f5e7bf308b823ecfef4e46fc7cf201e5008a80b5e889fce587eb67fd5",
+      "workspace_digest": "49e9a6d2a18b62db3257110887951b100d9150069114f3a994ef668a6247eeee",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec cmd_change --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-cmd-change-007",
+        "REQ-cmd-change-019",
+        "REQ-github-023"
+      ]
+    }
+  ]
+}

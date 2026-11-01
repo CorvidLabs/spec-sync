@@ -10,4 +10,5 @@ artifact: tasks
 - [x] Gate tests and action-consumer exercise
 - [x] Ship-status/ship guidance and `Archive` trust relevance
 - [x] Agent text, AGENTS.md, docs and site
-- [ ] Roll the gate out to Raven, Chough and other spec-sync repositories (separate PRs)
+
+Follow-up outside this change: roll the gate out to Raven, Chough and the other spec-sync repositories in their own pull requests, once a ref containing these Action inputs is published.

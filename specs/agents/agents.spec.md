@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 19
+version: 20
 status: stable
 files:
   - src/agents.rs
@@ -152,3 +152,4 @@ managed bytes from user customization.
 | 2026-09-10 | SpecSync | teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle: Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle |
 | 2026-10-10 | SpecSync | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |
 | 2026-11-01 | SpecSync | v19: teach generated skills and `/specsync:check` archive-first CI: `--commit` is local evidence, review and ship happen without waiting on remote CI, and the full lane runs on the pushed archive tip |
+| 2026-11-01 | SpecSync | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |

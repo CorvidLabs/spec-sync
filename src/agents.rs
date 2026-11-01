@@ -1746,6 +1746,45 @@ mod tests {
         }
     }
 
+    /// REQ-agents-009: generated and tracked agent text teaches archive-first CI.
+    #[test]
+    fn tracked_agent_files_teach_archive_first_ci() {
+        assert!(AGENT_ARTIFACT_TEMPLATE_VERSION >= 6);
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for relative in [
+            ".claude/skills/spec-sync/SKILL.md",
+            ".codex/skills/spec-sync/SKILL.md",
+            ".cursor/skills/spec-sync/SKILL.md",
+            ".gemini/skills/spec-sync/SKILL.md",
+            ".claude/commands/specsync/check.md",
+            ".cursor/commands/specsync-check.md",
+            ".gemini/commands/specsync/check.toml",
+        ] {
+            let path = root.join(relative);
+            let body = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            let flat = body.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(
+                flat.contains("local evidence"),
+                "{relative} must call --commit local evidence"
+            );
+            assert!(
+                !flat.contains("product-tip evidence") && !flat.contains("push the product tip"),
+                "{relative} still teaches pushing a product tip for remote CI"
+            );
+            if relative.ends_with("SKILL.md") {
+                assert!(
+                    flat.contains("archive-first"),
+                    "{relative} must say CI is archive-first"
+                );
+                assert!(
+                    flat.contains("push the archive tip"),
+                    "{relative} must say to push the archive tip"
+                );
+            }
+        }
+    }
+
     #[test]
     fn tracked_skill_files_teach_check_is_the_product() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

@@ -8,8 +8,10 @@ artifact: tasks
 - [ ] Write the unit tests in `testing.md` in `src/change_tests/approved_delta_requirements.rs` and the integration test in `tests/integration/change.rs`. Record which ones fail on origin/main a80748f.
 - [ ] Add `DeltaDeclarations` and `ApprovedDeltaSummary` to `src/change/sdd_version.rs`.
 - [ ] Factor `delta_body_digest` and a private `approved_delta_binding` out of `changed_approved_delta_modules`, keeping every existing output and refusal string byte-identical.
-- [ ] Add `approved_delta_summaries` with the state and scope gate, the `delta_intact` mapping, the same-bytes item split and `materialized`.
-- [ ] Render `approved_deltas` in `print_record` and `print_mutation_record`.
+- [ ] Add the `DeltaBindingMemo` guard, held by `ChangeReadScope` and installed by `definition_mutation_result`; keep the materialization and acceptance refusals outside any memo.
+- [ ] Factor `prepare_module_application` out of `prepare_pending_delta_application` so `materialized` runs on the bound body.
+- [ ] Add `approved_delta_summaries` with the state and scope gate, the `delta_intact` mapping including `declarations_error`, the same-bytes item split and `materialized`.
+- [ ] Add `approved_deltas` to `DefinitionMutationResult` under the lock; render it in `print_mutation_record`, and render `approved_delta_summaries` in `print_record`.
 - [ ] Include the new test file from `src/change_tests.rs` and list it in the `change` spec `files:`.
 - [ ] Document `approved_deltas` in `site/src/content/docs/cli.md`.
 - [ ] Re-run the issue's `repro2.sh` against the candidate build and record the output in `context.md`.
@@ -30,9 +32,19 @@ Decisions for the human to make before approval:
   IDs beside a null flag.
 - Accepted changes. The draft returns `[]` for accepted changes and does not report their
   (materialized) declarations.
-- Requirement IDs. REQ-change-113 and REQ-cmd-change-023 are the next free IDs on a80748f. A
-  sibling draft opened in the same session may claim the same ones, and whichever merges second
-  renumbers.
+- Parse-refused intact bodies. The draft reports a body whose digest matches but that the current
+  grammar refuses as `delta_intact: true` plus `declarations_error`, not as `false`. The
+  alternative (treat it as not intact) would contradict `approval_valid`.
+- Sibling drafts. REQ-change-113 and REQ-cmd-change-023 were the next free IDs on a80748f, but the
+  #827 draft also claims REQ-change-113, so whichever merges second renumbers. Separately, this
+  delta restates the whole `change` `### SPEC SECTION Public API`. The #825 draft modifies
+  `Contract`, not Public API, but it touches the same source files and adds an exported
+  `SddPolicy` field. If any change that adds a Public API row merges first, this draft must be
+  rebased onto the new section and re-approved, or its materialization drops that row. The human
+  decides the merge order.
+- `collect_requirement_ids`. The draft leaves the verification-coverage reader on its unbounded
+  read (reason in `design.md`, "Not reused"). Moving it to the bounded read is a separate gate
+  change. Whether to file it as a follow-up issue is the human's call; this draft files nothing.
 - HI. No `hi/` criterion is captured or changed. The draft links CHANGE-5, CHANGE-6.a, CHANGE-7
   and AGENT-2. If the human wants a dedicated criterion, for example "A tool can see which
   requirements an approved change will add before they reach the contract", that wording is a

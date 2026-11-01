@@ -12,7 +12,8 @@ Acceptance Criteria
 - A ledger in which no definition approval recorded a delta digest reports each module with `delta_intact: null` and no requirements, never `false`.
 - After a passing `change check` materializes the delta, `materialized` is true. After a corrected delta is re-approved following materialization, `materialized` is false until the next `change check` applies it.
 - A requirement ID that appears only in prose inside a delta body is not reported; only `### REQUIREMENT <id>` item headings are.
-- Requirement IDs and digest comparison come from one read of each delta file.
+- A body whose digest matches the approval but that the current delta grammar refuses reports `delta_intact: true` with a `declarations_error` and no `requirements`, `sections` or `materialized`; `approval_valid` stays true and `changed_approved_deltas` stays empty for it.
+- Within one read scope or one definition-mutation result, `ChangeSummary.changed_approved_deltas`, `approval_valid`, `delta_intact`, the reported requirement IDs and sections, and `materialized` all derive from one read of each delta file; the materialization and acceptance refusals still read the delta files live.
 - Draft, accepted and archived changes, and an approved change whose scope approval is stale, return an empty list. `ChangeSummary`, `changed_approved_deltas`, persisted ledgers, digests and materialization are unchanged.
 
 ## MODIFIED
@@ -62,7 +63,7 @@ Acceptance Criteria
 | `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
 | `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
-| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, and normal/strict summaries validated inside its persistence transaction |
+| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen history |
 | `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
@@ -90,7 +91,7 @@ Acceptance Criteria
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
 | `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
 | `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, exactly one next action, a handoff verdict, and optional terminal evidence |
-| `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body |
+| `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
 | `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
@@ -116,7 +117,7 @@ Acceptance Criteria
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then persists an interview answer and updates adaptive artifacts |
 | `answer_question_with_snapshot` | `root, id, question, answer` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the answer mutation with its full in-transaction machine snapshot |
 | `approval_current_for_guidance` | `root, record` | `bool` | Whether an approved, implementing, or verifying change's definition approval still covers its approved scope and the semantic delta bodies it recorded — the predicate behind `ChangeSummary.approval_valid` — for human next-action guidance without printing a digest |
-| `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests; empty in every other state |
+| `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |

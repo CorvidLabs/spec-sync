@@ -28,10 +28,17 @@ that verdict, and `changed_approved_deltas` carries the reason.
 | `prepare_pending_delta_application` (materialization) | `:1834` | `read_bounded_change_text` | yes, through `parse_delta` |
 | `validate_delta_files` (approval) | `:1150` | per file | yes |
 
-The new projection reads each delta once with `read_bounded_change_text`. It digests and parses
-those same bytes, so the IDs it reports are the IDs of the body it judged intact. A separate
-`collect_requirement_ids` call would read the file a second time, and an edit between the two
-reads could report IDs from a body that was never compared.
+The new projection reads each delta once with `read_bounded_change_text`, through the binding
+read that `changed_approved_delta_modules` (and so `summary`) also uses, memoized per invocation.
+It digests, parses and runs the materialization check on those same bytes, so the IDs it reports
+are the IDs of the body it judged intact. A separate `collect_requirement_ids` call would read the
+file a second time, and an edit between the two reads could report IDs from a body that was never
+compared.
+
+`collect_requirement_ids` itself stays as it is. It is a `change check` coverage input that must
+read live, and moving it to the bounded read would change a gate's behavior and refusal text,
+which is outside this status-only scope. It shares `parse_delta` with the new projection, so the
+grammar is one. See `design.md`, "Not reused".
 
 ## Where the field goes
 
@@ -62,5 +69,15 @@ fixtures (`completed_section_only_current_record`, `change_with_an_approved_delt
 ## Collision check
 
 No branch on origin at fetch time (`git grep` over `codex/*`, `grok/*`, `0xleif/*`, `fix/*`, `refactor/*`)
-uses REQ-change-113 or REQ-cmd-change-023. Sibling drafts opened in the same session may claim
-the same next IDs. See the open question in `tasks.md`.
+uses REQ-change-113 or REQ-cmd-change-023. Local sibling drafts from the same session, checked in
+their worktrees:
+
+| Draft | Branch | `change` delta | `cmd_change` delta | Source overlap |
+|-------|--------|----------------|--------------------|----------------|
+| #825 verification ignored paths | `0xleif/feat/verification-ignored-paths` (5797cb9f) | ADDED REQ-change-114, 115; MODIFIED `Contract` | ADDED REQ-cmd-change-024; MODIFIED `Contract` | `collect_requirement_ids.rs`, `sdd_version.rs`, `commands/change.rs`, `change_tests.rs`; adds the exported `SddPolicy.verification_ignored_paths` |
+| #827 generated markdown dashes | `0xleif/fix/generated-markdown-no-em-dash` (b286c396) | ADDED REQ-change-113 | none | not checked in detail |
+
+So REQ-change-113 collides with #827. Neither sibling modifies `### SPEC SECTION Public API` today,
+but this delta restates that whole section. If #825 (or any other change) adds a Public API row
+for its new exported item and merges first, this delta's restated section drops that row at
+materialization unless it is rebased and re-approved. See the open question in `tasks.md`.

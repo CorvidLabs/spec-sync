@@ -11,7 +11,11 @@ paragraph. It says:
 - `change status <id> --json` and `change show <id> --json` carry a top-level `approved_deltas`
   array. Each entry has `module`, `delta_intact`, and, only when `delta_intact` is `true`,
   `requirements` and `sections` (`added`, `modified` and `removed` keys taken from
-  `### REQUIREMENT` and `### SPEC SECTION` headings) and `materialized`.
+  `### REQUIREMENT` and `### SPEC SECTION` headings) and `materialized`. When `delta_intact` is
+  `true` but the current delta grammar refuses the body (an approval recorded under an older
+  grammar), the entry carries `declarations_error` instead of those keys.
+- `change new`, `answer`, `depend` and `supersede --json` carry the same key, built in the same
+  transaction as their `summary`.
 - `delta_intact` is `false` when the delta body changed after approval, for the same reason
   `change check` refuses it. It is `null` when the approval predates the delta binding, which
   means unknown, not tampered.
@@ -31,6 +35,7 @@ Other docs:
   `specs/cmd_change/cmd_change.3md`. One point for each:
   - The IDs and the integrity verdict must come from the same bytes.
   - A list is withheld, not emptied, when its provenance is not proven.
+  - Two projections of one input in one JSON object must share one read, or they can disagree.
 - Canonical requirement and Public API texts arrive through the approved deltas.
 - `CHANGELOG.md` is written by the release change. The PR body states the new JSON key so the
   release notes can carry it.

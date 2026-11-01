@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "prepare-specsync-6-1-2-package-metadata-and-release-handoff",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "7dc9b679a05b66d9c3d3202670628ec4ea5cb361",
+      "contract_digest": "0d1c8d9698d695550b28acb48494d1f3a79ff454695b6ed6032ebd6f2ccab1cb",
+      "execution_digest": "ce418ab79d17cc1fca875cde24d51277b4a3d0c8fddd06d40302655b0533ca91",
+      "workspace_digest": "d37f6b4ebfe60ee1633a5d8177750be0fb202b8aef67bef46395492c262dc844",
+      "timestamp": 1793556064
+    }
+  ]
+}

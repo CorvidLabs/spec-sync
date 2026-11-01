@@ -11,6 +11,10 @@ spec: cmd_check.spec.md
 
 - [ ] Add a CLI integration test for `check --stale` against a temp git repo (current stale-subcommand tests don't cover `check --stale`)
 
+## Open
+
+- [ ] #768 case 2: an indented literal fence marker (for example a four-space indented ```` ``` ```` line) hides the following Public API table from symbol discovery. Not fixed with case 1 (REQ-cmd-check-017) because fixing only the `--fix` insertion scanner is insufficient: parser symbol discovery (`blank_fenced_code`) also treats the marker as a fence, so the table stays hidden and `--fix` can duplicate exports that are already documented. A fix must change the parser and the scanner together.
+
 ## Done
 
 - [x] Initial spec creation with all required sections

@@ -1060,12 +1060,78 @@ fn is_table_row(line: &str) -> bool {
     trimmed.len() > 2 && trimmed.starts_with('|') && trimmed.ends_with('|')
 }
 
-/// Select one contiguous table, preferring the first with a `Name` header.
-/// Width and insertion offset must come from the same table (#768).
+/// One contiguous Markdown table in a Public API block, as `--fix` sees it.
+struct FixTable<'a> {
+    /// Byte offset (relative to the block) just past the table's last row.
+    end: usize,
+    /// Header cells, trimmed.
+    header: Vec<&'a str>,
+    /// True once the separator row below the header has been seen.
+    past_separator: bool,
+    /// True when a data row holds a symbol the parser reads as documented.
+    documented: bool,
+}
+
+impl FixTable<'_> {
+    /// First-column header `Name`, `Function`, `Export` or `Symbol`,
+    /// singular or plural, ignoring case.
+    fn has_export_header(&self) -> bool {
+        let first = self.header.first().copied().unwrap_or_default();
+        ["name", "function", "export", "symbol"].iter().any(|word| {
+            first.eq_ignore_ascii_case(word)
+                || first
+                    .strip_suffix(['s', 'S'])
+                    .is_some_and(|stem| stem.eq_ignore_ascii_case(word))
+        })
+    }
+
+    /// A parameter or field table: a non-first column named `Type`, or a
+    /// first column named `Parameter`, `Param`, `Argument` or `Field`.
+    fn is_parameter_table(&self) -> bool {
+        let first = self.header.first().copied().unwrap_or_default();
+        self.header
+            .iter()
+            .skip(1)
+            .any(|cell| cell.eq_ignore_ascii_case("type"))
+            || ["parameter", "param", "argument", "field"]
+                .iter()
+                .any(|word| first.eq_ignore_ascii_case(word))
+    }
+}
+
+/// True when `row` is a table separator such as `|---|:--:|`.
+fn is_separator_row(row: &str) -> bool {
+    row[1..row.len() - 1].split('|').all(|cell| {
+        let cell = cell.trim();
+        cell.contains('-') && cell.chars().all(|c| matches!(c, '-' | ':'))
+    })
+}
+
+/// The one table of a Public API block that receives new export rows, as
+/// (byte offset just past its last row, header column count) (#768,
+/// REQ-cmd-check-017). Width and insertion point always come from this one
+/// table. The target is the last table holding a documented export row;
+/// otherwise the first table with an export-like first-column header that is
+/// not a parameter or field table; otherwise the last table.
+///
+/// A table is a maximal run of consecutive table-row lines outside code.
+/// Fences follow CommonMark: an opening run of three or more backticks or
+/// tildes is closed only by a run of the same character at least as long,
+/// so a ```` ```` ```` sample that itself contains a ``` block stays one
+/// example. Four-space or tab indented lines are code too, so a pipe-shaped
+/// line inside an example can neither set the width nor become the "last
+/// row" of the table. Rows extend a table rather than following trailing
+/// prose (#615).
+///
+/// Whether a row is documented is decided by `parser::get_spec_symbols`
+/// itself, given the row and any `####` headings above it in the current
+/// `###` subsection, so a class method sub-table the checker skips does not
+/// count and the fixer and the checker agree on what is documented.
 fn export_table(block: &str) -> Option<(usize, usize)> {
-    let mut tables: Vec<(usize, usize, bool)> = Vec::new();
+    let mut tables: Vec<FixTable> = Vec::new();
     let mut offset = 0;
     let mut fence: Option<(char, usize)> = None;
+    let mut minor_headings = String::new();
     for line in block.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
@@ -1091,25 +1157,48 @@ fn export_table(block: &str) -> Option<(usize, usize)> {
         if line.starts_with("    ") || line.starts_with('\t') {
             continue;
         }
+        if line.starts_with("### ") {
+            minor_headings.clear();
+        } else if line.starts_with("####") {
+            minor_headings.push_str(line.trim_end());
+            minor_headings.push('\n');
+        }
         let row = line.trim();
         if !is_table_row(row) {
             continue;
         }
-        if let Some(table) = tables.last_mut().filter(|table| table.0 == start) {
-            table.0 = offset;
-        } else {
-            let cells: Vec<_> = row[1..row.len() - 1].split('|').collect();
-            let has_name = cells
-                .iter()
-                .any(|cell| cell.trim().eq_ignore_ascii_case("name"));
-            tables.push((offset, cells.len(), has_name));
+        match tables.last_mut().filter(|table| table.end == start) {
+            Some(table) => {
+                table.end = offset;
+                if !table.past_separator {
+                    table.past_separator = is_separator_row(row);
+                } else if !table.documented {
+                    let probe = format!(
+                        "## Public API\n\n{minor_headings}{}\n",
+                        line.trim_end_matches(['\r', '\n'])
+                    );
+                    table.documented = !parser::get_spec_symbols(&probe).is_empty();
+                }
+            }
+            None => tables.push(FixTable {
+                end: offset,
+                header: row[1..row.len() - 1].split('|').map(str::trim).collect(),
+                past_separator: false,
+                documented: false,
+            }),
         }
     }
     tables
         .iter()
-        .find(|table| table.2)
-        .or_else(|| tables.first())
-        .map(|&(end, columns, _)| (end, columns))
+        .rev()
+        .find(|table| table.documented)
+        .or_else(|| {
+            tables
+                .iter()
+                .find(|table| table.has_export_header() && !table.is_parameter_table())
+        })
+        .or_else(|| tables.last())
+        .map(|table| (table.end, table.header.len()))
 }
 
 /// Normalize near-miss export headers within ## Public API.

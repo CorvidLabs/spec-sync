@@ -1,6 +1,6 @@
 ---
 id: qualify-the-6-1-2-release-candidate-on-macos-15-after-the-macos-14-brownout-and-ship-834-in-6-1-2
-state: draft
+state: approved
 type: operations
 base_commit: 3d3d6e6db88077b1c233b37e4958916d8da40bbd
 ---

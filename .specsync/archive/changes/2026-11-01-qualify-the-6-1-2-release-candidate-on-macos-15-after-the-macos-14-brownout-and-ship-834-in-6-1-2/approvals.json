@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793561172,
+      "digest": "84b031d1d6391b9f5765ec3bb88f670e64741763dd916449a4cf2b534fa4b0df",
+      "note": "Approved by 0xLeif in the Claude Code session on 2026-11-01 (\"Runner fix + ship #834 in 6.1.2\", then \"I approve and hurry up\"): qualify on macos-15, add #834 to the 6.1.2 notes, record rc.1 superseded by rc.2. Recorded by the agent on that instruction.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "qualify-the-6-1-2-release-candidate-on-macos-15-after-the-macos-14-brownout-and-ship-834-in-6-1-2",
+        "title": "Qualify the 6.1.2 release candidate on macos-15 after the macos-14 brownout and ship #834 in 6.1.2",
+        "description": "Qualify the 6.1.2 release candidate on macos-15 after the macos-14 brownout and ship #834 in 6.1.2",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/release.yml",
+          "CHANGELOG.md",
+          "docs/releases/6.1.2.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Release workflow runner image and release notes only; no runtime, canonical API, Action default, risk or provenance policy changes.",
+        "acceptance_criteria": [
+          "CHANGELOG.md 6.1.2 and docs/releases/6.1.2.md add #834 (#768 case 1: check --fix keeps export rows in the table that already holds documented exports; case 2 stays open), name the new candidate source commit on origin/main, and record that v6.1.2-rc.1 failed qualification because of the scheduled macos-14 brownout and is superseded by v6.1.2-rc.2.",
+          "No runtime source, canonical spec, dependency, tag or release changes; v6.1.2-rc.1 is left as is.",
+          "The release.yml qualify job's macOS matrix entry runs on macos-15 instead of the retired macos-14 image; its platform name, fledge asset and checksum and every other workflow line are unchanged.",
+          "validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793561445,
+      "digest": "f4dbc4cab0643611deeb90d1520f8bb98f7b00aeb93b6e57dcecae718ed3adb4",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "qualify-the-6-1-2-release-candidate-on-macos-15-after-the-macos-14-brownout-and-ship-834-in-6-1-2",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "4eaaae45eef8db745eb5e66705ea464feec35f76",
+  "contract_digest": "84b031d1d6391b9f5765ec3bb88f670e64741763dd916449a4cf2b534fa4b0df",
+  "execution_digest": "3faa0f51d5cf35124e4746392d78f75309b53db9018bece113453d785e43087b",
+  "workspace_digest": "d1e951ccfa149d976af1fb27cb64893dd16e97140ce17b166ce6f6432d0b522f",
+  "timestamp": 1793561397
+}

@@ -102,6 +102,13 @@
         "cli_args": "623c539c647762b538058c3c585cecdc90079b8f879796d39920e4a8cf5c9669",
         "cmd_change": "e763859220f32f8dfacf9b36065f683771c8d5de93f57aa4accc0f76cf8eed8d"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793580857,
+      "digest": "a6f868acbba0f8aaac0fdb78787cd0eaa8b789ae69d6373097ec66dc8529ecd9",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [

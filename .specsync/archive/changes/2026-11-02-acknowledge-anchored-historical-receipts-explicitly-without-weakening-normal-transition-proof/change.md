@@ -1,6 +1,6 @@
 ---
 id: acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof
-state: implementing
+state: archived
 type: feature
 base_commit: 0b06c18aa2b6d6549f0bdb1e221b7a17e284c099
 ---

@@ -7,11 +7,11 @@
   "title": "Acknowledge anchored historical receipts explicitly without weakening normal transition proof",
   "description": "Acknowledge anchored historical receipts explicitly without weakening normal transition proof",
   "kind": "feature",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "0b06c18aa2b6d6549f0bdb1e221b7a17e284c099",
   "created_at": 1793571667,
-  "updated_at": 1793575625,
+  "updated_at": 1793581165,
   "affected_specs": [
     "change",
     "cmd_change",

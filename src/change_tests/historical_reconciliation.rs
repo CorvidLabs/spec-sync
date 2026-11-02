@@ -239,6 +239,22 @@ fn historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_
     // The preserved original can now be archived natively, with its accepted-state intact.
     archive_change(root, &old.id).unwrap();
     assert!(validate_archived_integrity(root, &load_change(root, &old.id).unwrap()).is_ok());
+    let (_, archived_witness) =
+        historical_predecessor_receipt(root, &historical.anchor_commit, &old.id).unwrap();
+    assert_eq!(
+        archived_witness, historical.predecessors[0],
+        "native metadata projection must retain the exact original package witness"
+    );
+    let archived_markdown = find_change_dir(root, &old.id).unwrap().join("change.md");
+    let native_markdown = fs::read(&archived_markdown).unwrap();
+    let mut altered_markdown = native_markdown.clone();
+    altered_markdown.push(b'\n');
+    fs::write(&archived_markdown, altered_markdown).unwrap();
+    assert!(
+        historical_predecessor_receipt(root, &historical.anchor_commit, &old.id).is_err(),
+        "arbitrary archived markdown is not a native metadata projection"
+    );
+    fs::write(&archived_markdown, native_markdown).unwrap();
     fs::write(root.join("src/auth.rs"), "// unsigned later source\n").unwrap();
     assert!(
         ensure_closing_approval_valid(root, &load_change(root, &successor.id).unwrap()).is_err()

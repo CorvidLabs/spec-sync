@@ -227,6 +227,25 @@ fn historical_predecessor_receipt(
             "archived historical receipt is missing its accepted-state preimage".to_string()
         })?;
         current.insert("state.json".into(), accepted);
+        // Native archive regenerates change.md from the authenticated archived record.
+        // Admit only that exact metadata projection; the immutable witness retains every
+        // original markdown byte, and all other original files must still match below.
+        if let Some(original_markdown) = snapshot.get("change.md") {
+            let archived_markdown = current.get("change.md").ok_or_else(|| {
+                "archived historical receipt is missing its generated change markdown".to_string()
+            })?;
+            if archived_markdown != original_markdown {
+                if archived_markdown.0 != original_markdown.0
+                    || archived_markdown.1 != change_markdown_content(&predecessor).as_bytes()
+                {
+                    return Err(
+                        "archived historical receipt markdown is not the exact native projection"
+                            .into(),
+                    );
+                }
+                current.insert("change.md".into(), original_markdown.clone());
+            }
+        }
         if snapshot
             .iter()
             .any(|(path, entry)| current.get(path) != Some(entry))

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof",
+  "implementation_commit": "8065a19a2fc5c19c677ae23fbbbba64c9e52fdfe",
+  "implementation_tree": "fb62f846f10c5397273254abb0b86a8b5b41210f",
+  "contract_digest": "5eb373b1f15c9df5767034f1748241ca045d870f8ec093bd7d86dbcaf999560a",
+  "workspace_digest": "2c8f934f5a099abdb52ede246289d3a452b53d0b4a945bdcbe2e281cd5c139ae",
+  "closing_digest": "adf4fd2fc61eb010aa45c8f46dd1ffc338d15effa7156515bba5d9e4c0fa19bd",
+  "review_digest": "e12f93bf6414fa5c04211c81e6079f9b4d876f04177251ea55d26a6f0f86fdd4",
+  "finalization_digest": "a398101d0173fd87c5d21353e9239d6e663d3b35a065ae76095b06b09a9591df",
+  "timestamp": 1793575625
+}

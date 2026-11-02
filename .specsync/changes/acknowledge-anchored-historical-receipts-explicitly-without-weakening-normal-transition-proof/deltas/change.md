@@ -1,4 +1,4 @@
-## ADDED
+## MODIFIED
 
 ### REQUIREMENT REQ-change-118
 
@@ -7,12 +7,10 @@ The system SHALL offer explicitly approved historical receipt reconciliation tha
 #### Acceptance Criteria
 
 - The opt-in request is definition-bound, carries an actor/reason and the immutable definition base, and invalidates old scope approval. Accepted or archived successors cannot be silently converted.
-- Every predecessor is an already accepted normal manifest-backed receipt whose complete regular-file package matches its committed anchor; after native archival only authenticated accepted-state normalization is permitted. All definition, execution, identity, manifest, closing and finalization checks remain strict.
+- Every predecessor is an already accepted normal manifest-backed receipt whose complete regular-file package matches its committed anchor; after native archival only the authenticated accepted-state preimage and exact native-generated archived change.md may be normalized back to their immutable original bytes. All definition, execution, identity, manifest, closing and finalization checks remain strict.
 - Versioned closing evidence binds sorted exact package/manifest witnesses and one-to-one current path/module/digest tuples, with transition status unproven. A forged witness, missing anchor, altered receipt, non-ancestor, unsupported or protected path, stale current successor or a claim of proven history refuses.
 - Fresh verification and current scoped review are mandatory after new scope approval. The new mode does not fabricate old dates, approvals, source bytes, product acceptance or historical transitions.
 - Ordinary succession retains its actual base-file check and unchanged serialized schema/digests. All resource bounds remain unchanged. Historical mode supports regular-file, missing and directory entries, not symlinks or gitlinks.
-
-## MODIFIED
 
 ### SPEC SECTION Public API
 

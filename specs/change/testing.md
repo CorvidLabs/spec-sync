@@ -136,3 +136,15 @@ The frozen_manifest_ignores_later_oversized_assets_but_full_inventory_stays_boun
 REQ-change-117: recorded_review_recovery_preserves_preimage_and_requires_fresh_check_and_review covers the exact remote-default anchor and mandatory fresh gates. recorded_review_recovery_refuses_unanchored_or_modified_packages_without_writes covers unanchored, extra-file and file-mode controls. recorded_review_recovery_does_not_relax_other_finalization_digests preserves strict other-digest refusal.
 
 REQ-change-117 compound-review coverage retains an unrelated old review hash only inside the exact recorded workspace-mismatch downgrade. recorded_review_recovery_refuses_a_review_hash_mismatch_without_workspace_mismatch proves a pure review-hash mismatch remains refused, while the independent finalization-digest refusal still applies. The compound discriminator failed before this fix at the expected review-hash refusal.
+
+
+## Historical reconciliation evidence
+
+REQ-change-118: historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_gates; historical_reconciliation_refuses_tampered_or_unanchored_packages_without_mutation; historical_reconciliation_refuses_protected_and_unsupported_inputs; historical_reconciliation_leaves_normal_schema_and_digest_shape_unchanged; historical_reconciliation_reads_exact_successor_inputs_in_nested_projects
+
+
+Historical reconciliation qualification: six targeted checks passed; full pinned Rust 1.89 verification passed 2,697 unit tests, 478 integration tests, 66 release contracts and 35 CI contracts, including strict specs with full configured coverage. An isolated mutation removing the historical basis from approval/execution digests failed at the old-approval discriminator as required. This does not establish historical file transitions; their normalized classification remains historical-transition-unproven.
+
+Real-consumer performance follow-up: reuse authenticated successor evidence, immutable predecessor witnesses and acceptance anchors only within one pure graph traversal. Discard the memo before every lifecycle write and create a fresh one for each pass. The lifecycle discriminator measures fewer Git reads on a repeated tuple and proves a new pass refuses altered raw receipt bytes even when JSON semantics are unchanged. All original bounds, proof checks and serialized evidence remain unchanged. Full qualification is rerun after this production-code refinement.
+
+Native archive rewrites generated change.md. Historical receipt comparison admits only the exact rendering of the authenticated archived record, preserving the original raw markdown in the immutable package witness. The native lifecycle regression proves witness equality after the move and refuses a one-byte altered archived markdown. Other original package bytes and modes remain strict.

@@ -381,6 +381,17 @@ pub enum ChangeAction {
         #[arg(long)]
         digest: String,
     },
+    /// Request explicitly unproven historical receipt reconciliation; requires fresh scope approval
+    ReconcileHistory {
+        /// Unaccepted workflow-v2 successor with exact supersedes obligations
+        id: String,
+        /// Actor requesting the separately approved historical scope
+        #[arg(long)]
+        actor: String,
+        /// Why a historical acknowledgement is needed
+        #[arg(long)]
+        reason: String,
+    },
     /// List active changes
     List,
     /// Show one change, its gate health, and next questions
@@ -1245,5 +1256,45 @@ mod tests {
         ));
 
         assert!(Cli::try_parse_from(["specsync", "init", "--force"]).is_err());
+    }
+
+    #[test]
+    fn change_historical_reconciliation_requires_explicit_actor_and_reason() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "reconcile-history",
+            "repair-history",
+            "--actor",
+            "Scope owner",
+            "--reason",
+            "Acknowledge unproven history",
+        ])
+        .unwrap();
+        assert!(
+            matches!(cli.command, Some(Command::Change { action: ChangeAction::ReconcileHistory { id, actor, reason } }) if id == "repair-history" && actor == "Scope owner" && reason == "Acknowledge unproven history")
+        );
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "reconcile-history",
+                "repair-history",
+                "--actor",
+                "Scope owner"
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "reconcile-history",
+                "repair-history",
+                "--reason",
+                "Unproven history"
+            ])
+            .is_err()
+        );
     }
 }

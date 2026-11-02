@@ -8,11 +8,12 @@ fn successor_covers_input(
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
     expected: &AcceptanceInputEntryV1,
     owner: &str,
     rejected_successors: &mut BTreeMap<String, RejectedSuccessor>,
+    historically_reconciled: &mut bool,
 ) -> bool {
     for candidate in records.values() {
         // Only a successor that declares this obligation can cover it: authenticated
@@ -40,7 +41,7 @@ fn successor_covers_input(
                 },
             );
         };
-        let candidate_verification = match authenticate_accepted_evidence(root, candidate, pending)
+        let candidate_verification = match memo.authenticate(root, candidate, pending)
         {
             Ok(verification) => verification,
             Err(error) => {
@@ -109,7 +110,7 @@ fn successor_covers_input(
                 continue;
             }
         }
-        match semantic_tuple_transition_is_valid(root, candidate, &tuple, pending) {
+        match semantic_tuple_transition_is_valid(root, candidate, &tuple, candidate_verification.semantic_succession.as_ref(), pending, memo) {
             Ok(true) => {}
             Ok(false) => {
                 reject(format!(
@@ -128,7 +129,13 @@ fn successor_covers_input(
         }
         match validate_accepted_inputs_recursive(root, candidate, records, visiting, memo, pending)
         {
-            Ok(_) => return true,
+            Ok(validity) => {
+                if validity == AcceptedInputValidity::HistoricallyReconciled
+                    || candidate.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
+                    *historically_reconciled = true;
+                }
+                return true;
+            },
             Err(error) => reject(format!("its own delivery-input evidence is stale: {error}")),
         }
     }
@@ -238,7 +245,7 @@ fn later_sequence_owner_covers_historical_input(
     predecessor: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<bool, String> {
     validate_change_sequences(root)?;
@@ -254,7 +261,7 @@ fn later_sequence_owner_covers_historical_input(
     {
         return Ok(false);
     }
-    let verification = match authenticate_accepted_evidence(root, owner, pending) {
+    let verification = match memo.authenticate(root, owner, pending) {
         Ok(verification) => verification,
         Err(_) => return Ok(false),
     };

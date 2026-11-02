@@ -611,3 +611,8 @@ Point them to:
 2. The `specs/` directory — read the specs for their area
 3. `specsync hooks install` — set up their local hooks
 4. This guide — understand the workflow
+
+
+### Historical acknowledgement is a different proof basis
+
+A stored receipt can be authentic even when its original file transition cannot be reconstructed from the definition base. Normal succession continues to refuse that case. The opt-in `change reconcile-history` scope, available after 6.1.2, preserves and authenticates committed accepted packages and explicitly labels the old transitions unproven. It requires new definition approval and fresh current verification and scoped review. It is administrative historical reconciliation, not a claim that old product behavior was accepted again or that missing historical evidence has been recovered. Its versioned evidence and status/finalize disclosure retain that distinction after archival.

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 155
+version: 156
 status: active
 files:
   - src/change.rs
@@ -10,7 +10,9 @@ files:
   - src/change/sdd_version.rs
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
+  - src/change/historical_reconciliation.rs
   - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/historical_reconciliation.rs
   - src/change_tests.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
@@ -220,6 +222,10 @@ Acceptance Criteria
 - The process marker and diagnostic helper remain private binary implementation details.
 - Correction inspection exposes typed portable records without exposing mutable ledger internals.
 - Acceptance-owner corrections expose only immutable audit fields and never mutable internal ledgers.
+
+| `enable_historical_reconciliation` | Request definition-bound unproven historical receipt reconciliation; require fresh approval and closing gates |
+| `HistoricalReceiptWitnessV1` | Immutable predecessor identity, package digest and frozen manifest digest |
+| `HistoricalReconciliationEvidenceV1` | Explicit unproven status, immutable base anchor and sorted exact receipt witnesses |
 
 ## Invariants
 
@@ -575,3 +581,4 @@ Acceptance Criteria
 | 2026-11-01 | let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the: Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest |
 | 2026-11-01 | keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches: Keep receipt reads bounded and recover exactly recorded review mismatches |
 | 2026-11-01 | retain-compound-historical-review-inconsistencies-during-anchored-reopen: Retain compound historical review inconsistencies during anchored reopen |
+| 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |

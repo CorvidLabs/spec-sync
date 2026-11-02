@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Explicit, separately approved historical receipt reconciliation preserves authenticated ancestral packages and frozen manifests, labels old transitions unproven, and requires fresh current verification and scoped review. Normal before/after succession and resource bounds stay strict.
+
 ### Fixed
 
 - Recursive validation of a frozen acceptance receipt reads only its signed inputs, so later asset additions do not exhaust evidence capture. Fresh acceptance and reopen keep full discovery and unchanged resource limits.

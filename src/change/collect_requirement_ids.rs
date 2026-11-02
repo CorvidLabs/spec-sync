@@ -165,6 +165,7 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
 
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let effective = effective_change_definition(root, record)?;
+    historical_reconciliation_anchor(record)?;
     validate_acceptance_owner_correction_records(record)?;
     if !record.acceptance_owner_corrections.is_empty()
         && matches!(
@@ -4519,6 +4520,7 @@ fn build_semantic_succession_evidence(
         return Ok(SemanticSuccessionEvidenceV1 {
             schema_version: 1,
             tuples: Vec::new(),
+            historical_reconciliation: None,
         });
     }
     let base = record.base_commit.as_deref().ok_or_else(|| {
@@ -4535,15 +4537,26 @@ fn build_semantic_succession_evidence(
             "semantic succession base commit `{base}` is not an ancestor of HEAD"
         ));
     }
+    let historical = build_historical_reconciliation_evidence(root, record)?;
+    let mut historical_manifests = BTreeMap::new();
+    if historical.is_some() {
+        for edge in &record.supersedes {
+            let (manifest, _) = historical_predecessor_receipt(root, base, &edge.predecessor_id)?;
+            historical_manifests.insert(edge.predecessor_id.clone(), manifest);
+        }
+    }
     let mut tuples = Vec::new();
     for edge in &record.supersedes {
         for obligation in &edge.obligations {
-            let base_digest = acceptance_entry_digest_at_commit(
-                root,
-                base,
-                &edge.predecessor_id,
-                &obligation.path,
-            )?;
+            let base_digest = if let Some(manifest) = historical_manifests.get(&edge.predecessor_id) {
+                historical_supported_path(root, &obligation.path)?;
+                let entry = manifest.entries.iter().find(|entry| entry.path == obligation.path)
+                    .ok_or_else(|| format!("historical receipt has no input `{}`", obligation.path))?;
+                historical_supported_entry(entry)?;
+                entry.entry_digest.clone()
+            } else {
+                acceptance_entry_digest_at_commit(root, base, &edge.predecessor_id, &obligation.path)?
+            };
             if base_digest != obligation.predecessor_entry_digest {
                 return Err(format!(
                     "definition-signed base tree does not contain adopted predecessor entry `{}` `{}`",
@@ -4560,6 +4573,9 @@ fn build_semantic_succession_evidence(
                         obligation.path
                     )
                 })?;
+            if historical.is_some() {
+                historical_supported_entry(successor)?;
+            }
             if !successor.owners.contains(&obligation.module) {
                 return Err(format!(
                     "successor acceptance entry `{}` is not owned by obligation module `{}`",
@@ -4597,8 +4613,9 @@ fn build_semantic_succession_evidence(
             .then_with(|| left.module.cmp(&right.module))
     });
     let evidence = SemanticSuccessionEvidenceV1 {
-        schema_version: 1,
+        schema_version: if historical.is_some() { 2 } else { 1 },
         tuples,
+        historical_reconciliation: historical,
     };
     validate_semantic_succession(record, &evidence)?;
     Ok(evidence)
@@ -4608,12 +4625,7 @@ fn validate_semantic_succession(
     record: &ChangeRecord,
     evidence: &SemanticSuccessionEvidenceV1,
 ) -> Result<(), String> {
-    if evidence.schema_version != 1 {
-        return Err(format!(
-            "unsupported semantic succession schema {}",
-            evidence.schema_version
-        ));
-    }
+    validate_historical_reconciliation_evidence(record, evidence)?;
     if evidence.tuples.len() > MAX_ACCEPTANCE_ENTRIES {
         return Err(format!(
             "semantic succession exceeds {MAX_ACCEPTANCE_ENTRIES} tuples"
@@ -4690,6 +4702,10 @@ fn validate_semantic_succession(
 fn semantic_succession_digest(evidence: &SemanticSuccessionEvidenceV1) -> Result<String, String> {
     let mut digest = FramedDigest::new(SEMANTIC_SUCCESSION_DOMAIN);
     digest.frame(b"schema-version", &evidence.schema_version.to_be_bytes());
+    if let Some(historical) = &evidence.historical_reconciliation {
+        let bytes = serde_json::to_vec(historical).map_err(|error| error.to_string())?;
+        digest.frame(b"historical-reconciliation-unproven-v1", &bytes);
+    }
     let mut previous: Option<(&str, &str, &str)> = None;
     for tuple in &evidence.tuples {
         // See `validate_semantic_succession`: the ordinal is not framed into the digest and

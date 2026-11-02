@@ -89,17 +89,33 @@ fn semantic_tuple_transition_is_valid(
     root: &Path,
     successor: &ChangeRecord,
     tuple: &SemanticSuccessionTupleV1,
+    succession: Option<&SemanticSuccessionEvidenceV1>,
     pending: Option<&PendingArchiveClose<'_>>,
+    memo: &mut AcceptedInputValidationMemo,
 ) -> Result<bool, String> {
     let Some(base) = successor.base_commit.as_deref() else {
         return Ok(false);
     };
-    let base_old =
-        acceptance_entry_digest_at_commit(root, base, &tuple.predecessor_id, &tuple.path)?;
+    let historical = historical_reconciliation_anchor(successor)?.is_some();
+    let base_old = if historical {
+        let evidence = succession.ok_or_else(|| "historical reconciliation has no closing evidence".to_string())?;
+        validate_historical_reconciliation_evidence(successor, evidence)?;
+        let (manifest, witness) = memo.historical_receipt(root, base, &tuple.predecessor_id)?;
+        let recorded = evidence.historical_reconciliation.as_ref().and_then(|value| value.predecessors.iter().find(|item| item.predecessor_id == tuple.predecessor_id))
+            .ok_or_else(|| "historical reconciliation is missing its predecessor witness".to_string())?;
+        if recorded != &witness { return Err("historical predecessor witness does not match the immutable receipt".into()); }
+        historical_supported_path(root, &tuple.path)?;
+        let entry = manifest.entries.iter().find(|entry| entry.path == tuple.path)
+            .ok_or_else(|| "historical receipt does not contain the adopted input".to_string())?;
+        historical_supported_entry(entry)?;
+        entry.entry_digest.clone()
+    } else {
+        acceptance_entry_digest_at_commit(root, base, &tuple.predecessor_id, &tuple.path)?
+    };
     if base_old != tuple.predecessor_entry_digest {
         return Ok(false);
     }
-    let (anchor, _, _) = match authenticated_accepted_transition_for(root, successor, pending) {
+    let (anchor, _, _) = match memo.accepted_transition(root, successor, pending) {
         Ok(transition) => transition,
         Err(_) => return Ok(false),
     };
@@ -127,6 +143,8 @@ fn semantic_tuple_transition_is_valid(
     }
     let successor_digest = if closing {
         acceptance_entry_digest_in_tree(root, &successor.id, &tuple.path)
+    } else if historical {
+        historical_entry_digest_at_commit(root, &anchor, &tuple.path)
     } else {
         acceptance_entry_digest_at_commit(root, &anchor, &successor.id, &tuple.path)
     };
@@ -3248,6 +3266,7 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
 enum AcceptedInputValidity {
     Exact,
     SuccessorCovered,
+    HistoricallyReconciled,
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
@@ -3324,7 +3343,7 @@ fn terminal_evidence_summary_with_records(
         record,
         records,
         &mut BTreeSet::new(),
-        &mut BTreeMap::new(),
+        &mut AcceptedInputValidationMemo::default(),
         &mut ArchivedIntegrityCache::default(),
     )
 }
@@ -3343,7 +3362,7 @@ fn terminal_evidence_results_with_records(
     successors: &BTreeMap<String, ChangeRecord>,
 ) -> (Vec<TerminalEvidenceResult>, ArchivedIntegrityCache) {
     let mut visiting = BTreeSet::new();
-    let mut memo = BTreeMap::new();
+    let mut memo = AcceptedInputValidationMemo::default();
     let mut archived_cache = ArchivedIntegrityCache::default();
     let results = records
         .values()
@@ -3368,14 +3387,17 @@ fn terminal_evidence_summary_with_validation_state(
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    memo: &mut AcceptedInputValidationMemo,
     archived_cache: &mut ArchivedIntegrityCache,
 ) -> TerminalEvidenceSummary {
     if record.state == ChangeState::Archived {
         return match validate_archived_integrity_with_cache(root, record, archived_cache) {
-            Ok(()) => TerminalEvidenceSummary {
-                validity: TerminalEvidenceValidity::AuthenticatedHistory,
-                reason: None,
+            Ok(()) => {
+                if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
+                    historical_terminal_summary()
+                } else {
+                    TerminalEvidenceSummary { validity: TerminalEvidenceValidity::AuthenticatedHistory, reason: None }
+                }
             },
             Err(reason) => TerminalEvidenceSummary {
                 validity: TerminalEvidenceValidity::CorruptHistory,
@@ -3384,14 +3406,21 @@ fn terminal_evidence_summary_with_validation_state(
         };
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
-        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
-            validity: TerminalEvidenceValidity::Exact,
-            reason: None,
+        Ok(AcceptedInputValidity::Exact) => {
+            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
+                historical_terminal_summary()
+            } else {
+                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::Exact, reason: None }
+            }
         },
-        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
-            validity: TerminalEvidenceValidity::SuccessorCovered,
-            reason: None,
+        Ok(AcceptedInputValidity::SuccessorCovered) => {
+            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
+                historical_terminal_summary()
+            } else {
+                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
+            }
         },
+        Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
         Err(reason) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
             reason: Some(reason),
@@ -3402,7 +3431,7 @@ fn terminal_evidence_summary_with_validation_state(
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let records = list_all_changes_checked(root)?;
     let mut visiting = BTreeSet::new();
-    let mut memo = BTreeMap::new();
+    let mut memo = AcceptedInputValidationMemo::default();
     validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
         .map(|_| ())
 }
@@ -4280,10 +4309,10 @@ fn validate_accepted_inputs_recursive(
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<AcceptedInputValidity, String> {
-    if let Some(result) = memo.get(&record.id) {
+    if let Some(result) = memo.validity.get(&record.id) {
         return result.clone();
     }
     if !matches!(record.state, ChangeState::Accepted | ChangeState::Archived) {
@@ -4299,7 +4328,7 @@ fn validate_accepted_inputs_recursive(
         ));
     }
     let result = (|| {
-        let verification = authenticate_accepted_evidence(root, record, pending)?;
+        let verification = memo.authenticate(root, record, pending)?;
         let expected_digest = verification
             .acceptance_input_digest
             .as_deref()
@@ -4330,6 +4359,7 @@ fn validate_accepted_inputs_recursive(
             .map(|entry| (entry.path.as_str(), entry))
             .collect();
         let mut successor_covered = false;
+        let mut historically_reconciled = false;
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
                 format!(
@@ -4378,6 +4408,7 @@ fn validate_accepted_inputs_recursive(
                         expected,
                         module,
                         &mut rejected_successors,
+                        &mut historically_reconciled,
                     )
                 }) {
                     return Err(stale_input_remediation_reason(
@@ -4402,6 +4433,7 @@ fn validate_accepted_inputs_recursive(
                     expected,
                     owner,
                     &mut rejected_successors,
+                    &mut historically_reconciled,
                 ) {
                     return Err(stale_input_remediation_reason(
                         record,
@@ -4413,13 +4445,15 @@ fn validate_accepted_inputs_recursive(
                 successor_covered = true;
             }
         }
-        Ok(if successor_covered {
+        Ok(if historically_reconciled {
+            AcceptedInputValidity::HistoricallyReconciled
+        } else if successor_covered {
             AcceptedInputValidity::SuccessorCovered
         } else {
             AcceptedInputValidity::Exact
         })
     })();
     visiting.remove(&record.id);
-    memo.insert(record.id.clone(), result.clone());
+    memo.validity.insert(record.id.clone(), result.clone());
     result
 }

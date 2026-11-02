@@ -25,3 +25,5 @@ include!("change_tests/verification_ignored_paths.rs");
 include!("change_tests/approved_delta_requirements.rs");
 
 include!("change_tests/recorded_review_recovery.rs");
+
+include!("change_tests/historical_reconciliation.rs");

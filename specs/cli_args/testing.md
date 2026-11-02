@@ -23,3 +23,8 @@ spec: cli_args.spec.md
 | `change correct-owner` with repeated `--path`, `--manifest`, or `--all-missing` | Parses batch selection grammar (`REQ-cli-args-006`) |
 | `migrate 5.0 [--dry-run]` | Parses the ledger backfill mode (`REQ-cli-args-007`) |
 | `migrate 9.9` | Clap rejects the unknown source family before domain mutation |
+
+
+## Historical reconciliation evidence
+
+REQ-cli-args-020: change_historical_reconciliation_requires_explicit_actor_and_reason

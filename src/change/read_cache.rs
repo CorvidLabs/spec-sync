@@ -52,6 +52,9 @@ struct PersistentReadCacheFrame {
     /// Commit to the set of lifecycle state paths touched in `commit..HEAD`, or `None` when that
     /// commit is not an ancestor of `HEAD` (or the walk failed), so its entries are unusable.
     touched_since: BTreeMap<String, Option<BTreeSet<String>>>,
+    /// `HEAD` resolved once, to a full commit id, when the frame loaded. Every invalidation walk
+    /// and every stamp in this scope uses this id, never the moving symbolic `HEAD`.
+    head: Option<String>,
 }
 
 fn archive_index_in_scope(root: &Path, id: &str) -> Option<Vec<PathBuf>> {
@@ -120,6 +123,7 @@ fn with_persistent_read_cache<Value>(
     })?;
     if frame.loaded.is_none() {
         frame.path = persistent_read_cache_path(root);
+        frame.head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
         let prefix = git_repo_prefix(root).unwrap_or_default();
         let fresh = PersistentReadCache {
             schema: READ_CACHE_SCHEMA,
@@ -153,14 +157,15 @@ fn with_persistent_read_cache<Value>(
     Some(value)
 }
 
-/// Lifecycle state paths touched by any commit in `commit..HEAD`, compared against every parent.
-fn lifecycle_paths_touched_since(root: &Path, commit: &str) -> Option<BTreeSet<String>> {
-    if !cached_git_status_success(root, &["merge-base", "--is-ancestor", commit, "HEAD"]).ok()? {
+/// Lifecycle state paths touched by any commit in `commit..head`, compared against every parent.
+/// `head` is a full commit id resolved once per scope, so both Git calls see the same tip.
+fn lifecycle_paths_touched_since(root: &Path, commit: &str, head: &str) -> Option<BTreeSet<String>> {
+    if !cached_git_status_success(root, &["merge-base", "--is-ancestor", commit, head]).ok()? {
         return None;
     }
     let changes = git_repo_relative_path(root, CHANGES_PATH).ok()?;
     let archive = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
-    let range = format!("{commit}..HEAD");
+    let range = format!("{commit}..{head}");
     let output = scoped_review_git_text(
         root,
         &[
@@ -241,10 +246,13 @@ fn cached_workflow_history_is_current(root: &Path, record: &ChangeRecord) -> boo
         if entry.state_digest != digest || entry.archive_state_path != archive_state_path {
             return false;
         }
+        let Some(head) = frame.head.clone() else {
+            return false;
+        };
         let touched = frame
             .touched_since
             .entry(entry.commit.clone())
-            .or_insert_with(|| lifecycle_paths_touched_since(root, &entry.commit));
+            .or_insert_with(|| lifecycle_paths_touched_since(root, &entry.commit, &head));
         touched.as_ref().is_some_and(|touched| {
             // The live check also reads the archive's current state path, which need not end
             // in `-<id>` once the directory is renamed; treat it as a candidate too.
@@ -264,10 +272,13 @@ fn remember_workflow_history_pass(root: &Path, record: &ChangeRecord) {
     let Some((digest, archive_state_path)) = archived_state_cache_key(root, record) else {
         return;
     };
-    let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]) else {
-        return;
-    };
+    // The verdict was computed against the scope's HEAD; if HEAD has moved since, it is not known
+    // to hold at either commit, so record nothing.
+    let current = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
     with_persistent_read_cache(root, |_, frame| {
+        let Some(head) = frame.head.clone().filter(|head| current.as_ref() == Some(head)) else {
+            return;
+        };
         if let Some(cache) = frame.loaded.as_mut() {
             let entry = WorkflowHistoryCacheEntry {
                 state_digest: digest,

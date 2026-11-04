@@ -1,6 +1,6 @@
 ---
 module: change
-version: 156
+version: 157
 status: active
 files:
   - src/change.rs
@@ -584,3 +584,4 @@ Acceptance Criteria
 | 2026-11-01 | keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches: Keep receipt reads bounded and recover exactly recorded review mismatches |
 | 2026-11-01 | retain-compound-historical-review-inconsistencies-during-anchored-reopen: Retain compound historical review inconsistencies during anchored reopen |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
+| 2026-11-04 | answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven: Answer archived change status, change list and change status within 2 seconds on Raven |

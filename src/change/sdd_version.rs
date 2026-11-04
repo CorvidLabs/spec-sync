@@ -4620,8 +4620,7 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
 /// directory whose `files:` lists it (sorted by spec path). A listing spec that cannot own the
 /// path says why. When nothing names a module to declare, the declared spec whose `files:` share
 /// the deepest directory with the path is the one to edit; ties name every tied spec, and a path
-/// that shares no directory below a source root with any declared spec says so and lists the
-/// declared specs. Nothing here depends on directory iteration or `--spec` order. This only words
+/// that shares no directory with any declared spec (depth 0) gets the generic message. Nothing here depends on directory iteration or `--spec` order. This only words
 /// the refusal; ownership is still decided by `production_source_lacks_canonical_owner_with_evidence`.
 fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
     let config = crate::config::load_config(root);
@@ -4736,26 +4735,15 @@ fn closest_declared_spec_hint(
 ) -> String {
     let ours: Vec<&str> = path.split('/').collect();
     let our_directory = &ours[..ours.len().saturating_sub(1)];
-    // Sharing only a source root (`src`) is not a close match: every source file shares it.
-    let source_roots: Vec<String> = config
-        .source_dirs
-        .iter()
-        .filter_map(|dir| normalize_project_path(dir).ok())
-        .collect();
+    // Whole path components only, so `src/foo` and `src/foobar` share `src` (depth 1).
     let shared_depth = |file: &str| {
         let theirs: Vec<&str> = file.split('/').collect();
         let their_directory = &theirs[..theirs.len().saturating_sub(1)];
-        let depth = our_directory
+        our_directory
             .iter()
             .zip(their_directory.iter())
             .take_while(|(left, right)| left == right)
-            .count();
-        let shared = our_directory[..depth].join("/");
-        if depth == 0 || source_roots.contains(&shared) {
-            0
-        } else {
-            depth
-        }
+            .count()
     };
     let mut declared: Vec<(usize, String)> = Vec::new();
     for module in &record.affected_specs {
@@ -4788,14 +4776,9 @@ fn closest_declared_spec_hint(
             .collect::<Vec<_>>()
             .join(", ")
     };
-    if declared.is_empty() {
-        return "add it to the `files:` list of the spec that should own it".to_string();
-    }
+    // Depth 0 shares no directory at all, so no declared spec is a closer guess than any other.
     if best == 0 {
-        return format!(
-            "no declared spec lists a file in its directory; add it to the `files:` list of the spec that should own it (declared: {})",
-            quoted(declared.iter().map(|(_, spec)| spec).collect())
-        );
+        return "add it to the `files:` list of the spec that owns it".to_string();
     }
     let closest: Vec<&String> = declared
         .iter()

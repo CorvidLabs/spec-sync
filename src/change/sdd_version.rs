@@ -140,6 +140,12 @@ struct ChangeReadSnapshot {
     workflow_version_history: BTreeMap<String, Result<(), String>>,
     historical_sequence_ledgers: BTreeMap<u64, Result<Vec<Vec<u8>>, String>>,
     terminal_evidence: Option<Result<BTreeMap<String, TerminalEvidenceSummary>, String>>,
+    archived_terminal_evidence: BTreeMap<String, TerminalEvidenceSummary>,
+    archived_integrity_cache: Option<ArchivedIntegrityCache>,
+    scoped_review_texts: BTreeMap<Vec<String>, Result<String, String>>,
+    scoped_review_files: BTreeMap<(String, String), Option<Vec<u8>>>,
+    archive_index: Option<BTreeMap<String, Vec<PathBuf>>>,
+    persistent_cache: PersistentReadCacheFrame,
 }
 
 impl ChangeReadSnapshot {
@@ -160,6 +166,12 @@ impl ChangeReadSnapshot {
             workflow_version_history: BTreeMap::new(),
             historical_sequence_ledgers: BTreeMap::new(),
             terminal_evidence: None,
+            archived_terminal_evidence: BTreeMap::new(),
+            archived_integrity_cache: None,
+            scoped_review_texts: BTreeMap::new(),
+            scoped_review_files: BTreeMap::new(),
+            archive_index: None,
+            persistent_cache: PersistentReadCacheFrame::default(),
         }
     }
 }
@@ -203,6 +215,9 @@ impl Drop for ChangeReadScope {
                 removed.as_ref().map(|scope| scope.root.as_path()),
                 Some(self.root.as_path())
             );
+            if let Some(scope) = removed.as_ref() {
+                flush_persistent_read_cache(&scope.persistent_cache);
+            }
         });
     }
 }

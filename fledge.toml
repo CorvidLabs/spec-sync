@@ -30,6 +30,10 @@ cmd = "cargo run -- check --strict --require-coverage 100 --force"
 [tasks.spec-check-fast]
 cmd = "bash scripts/spec-check-fast.sh"
 
+# Timed benchmark against a Raven-sized fixture (124 archived changes, 120 specs).
+[tasks.bench-archived-reads]
+cmd = "cargo test --release --locked --bin specsync -- --ignored raven_sized_archived_status_benchmark --nocapture"
+
 [tasks.pre-push]
 cmd = "bash scripts/pre-push-gate.sh"
 

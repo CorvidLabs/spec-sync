@@ -77,3 +77,191 @@ fn archived_status_git_processes_do_not_grow_with_other_archives() {
     );
 }
 
+#[test]
+fn cached_archived_reads_answer_exactly_like_live_reads() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let first = finalized_archived_change(root);
+    let second = finalized_archived_change(root);
+    for record in [&first, &second] {
+        let live = archived_status_read(root, &record.id).unwrap();
+        let cold = git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+        let warm = git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+        assert_eq!(cold, live);
+        assert_eq!(warm, live);
+    }
+    assert!(
+        persistent_read_cache_path(root).is_some_and(|path| path.is_file()),
+        "a scoped read should leave its verdicts under the Git directory"
+    );
+}
+
+#[test]
+fn cached_archived_history_still_refuses_a_later_hidden_downgrade() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+
+    let state_path = find_change_dir(root, &record.id).unwrap().join("state.json");
+    let original = fs::read(&state_path).unwrap();
+    let mut downgraded: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    let object = downgraded.as_object_mut().unwrap();
+    object.remove("workflow_version");
+    object.remove("workflow_origin_version");
+    fs::write(
+        &state_path,
+        format!("{}\n", serde_json::to_string_pretty(&downgraded).unwrap()),
+    )
+    .unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "attempt workflow downgrade"]);
+    fs::write(&state_path, &original).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "hide workflow downgrade"]);
+
+    let live = archived_status_read(root, &record.id).unwrap_err();
+    assert!(live.contains("workflow-version history changed immutable identity"));
+    let scoped = git_processes_for_one_scoped_read(root, &record.id).0.unwrap_err();
+    assert_eq!(scoped, live);
+}
+
+#[test]
+fn cached_archived_reads_recheck_an_edited_archive_and_a_moved_head() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    let warm = git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+
+    // An uncommitted edit to the archived state changes its digest, so nothing cached applies.
+    let state_path = find_change_dir(root, &record.id).unwrap().join("state.json");
+    let original = fs::read(&state_path).unwrap();
+    let mut edited: ChangeRecord = serde_json::from_slice(&original).unwrap();
+    edited.workflow_origin_version = None;
+    write_json(&state_path, &edited).unwrap();
+    let live = archived_status_read(root, &record.id);
+    assert_eq!(git_processes_for_one_scoped_read(root, &record.id).0, live);
+    fs::write(&state_path, &original).unwrap();
+
+    // A HEAD the cached verdict was not computed on an ancestor of recomputes it.
+    quiet_git(root, &["checkout", "--quiet", "--orphan", "unrelated"]);
+    quiet_git(root, &["commit", "--quiet", "-m", "unrelated history"]);
+    let live = archived_status_read(root, &record.id);
+    assert_eq!(git_processes_for_one_scoped_read(root, &record.id).0, live);
+    quiet_git(root, &["checkout", "--quiet", "main"]);
+    assert_eq!(
+        git_processes_for_one_scoped_read(root, &record.id).0.unwrap(),
+        warm
+    );
+}
+
+#[test]
+fn path_is_state_candidate_matches_only_one_change_s_state_paths() {
+    let changes = ".specsync/changes";
+    let archive = ".specsync/archive/changes";
+    let id = "fix-it";
+    assert!(path_is_state_candidate(".specsync/changes/fix-it/state.json", changes, archive, id));
+    assert!(path_is_state_candidate(
+        ".specsync/archive/changes/2026-01-01-fix-it/state.json",
+        changes,
+        archive,
+        id
+    ));
+    assert!(!path_is_state_candidate(
+        ".specsync/archive/changes/2026-01-01-fix-it/approvals.json",
+        changes,
+        archive,
+        id
+    ));
+    assert!(!path_is_state_candidate(
+        ".specsync/archive/changes/nested/2026-01-01-fix-it/state.json",
+        changes,
+        archive,
+        id
+    ));
+    assert!(!path_is_state_candidate(
+        ".specsync/archive/changes/2026-01-01-fix-it-too/state.json",
+        changes,
+        archive,
+        id
+    ));
+}
+
+/// The timed benchmark against a Raven-sized project: 124 archived changes and 120 specs.
+/// Run on demand (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES` and
+/// `SPECSYNC_BENCH_SPECS` change the fixture size.
+#[test]
+#[ignore = "timed benchmark; run with `fledge run bench-archived-reads`"]
+fn raven_sized_archived_status_benchmark() {
+    let size = |name: &str, default: usize| {
+        std::env::var(name)
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(default)
+    };
+    let archives = size("SPECSYNC_BENCH_ARCHIVES", 124);
+    let specs = size("SPECSYNC_BENCH_SPECS", 120);
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    for index in 0..specs {
+        let module = format!("bench-{index}");
+        fs::create_dir_all(root.join("specs").join(&module)).unwrap();
+        fs::create_dir_all(root.join("bench")).unwrap();
+        fs::write(
+            root.join(format!("bench/{module}.rs")),
+            format!("pub fn bench_{index}() {{}}\n"),
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs").join(&module).join(format!("{module}.spec.md")),
+            format!(
+                "---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - bench/{module}.rs\n---\n\n# Bench {index}\n\n## Purpose\n\nBenchmark fixture.\n"
+            ),
+        )
+        .unwrap();
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "benchmark specs"]);
+    let built = Instant::now();
+    let mut ids = Vec::new();
+    for _ in 0..archives {
+        ids.push(finalized_archived_change(root).id);
+    }
+    eprintln!(
+        "fixture: {archives} archived changes, {specs} specs, built in {:.1}s",
+        built.elapsed().as_secs_f64()
+    );
+    let target = ids.last().unwrap().clone();
+    let time = |label: &str| {
+        let started = Instant::now();
+        let (result, processes) = git_processes_for_one_scoped_read(root, &target);
+        result.unwrap();
+        let elapsed = started.elapsed();
+        eprintln!(
+            "{label}: {:.3}s, {processes} Git processes",
+            elapsed.as_secs_f64()
+        );
+        elapsed
+    };
+    let live_started = Instant::now();
+    archived_status_read(root, &target).unwrap();
+    eprintln!("unscoped: {:.3}s", live_started.elapsed().as_secs_f64());
+    time("cold read scope");
+    let warm = time("warm read scope");
+    let started = Instant::now();
+    {
+        let _scope = begin_change_read_scope(root);
+        list_changes(root).unwrap();
+    }
+    eprintln!("change list: {:.3}s", started.elapsed().as_secs_f64());
+    assert!(
+        warm < Duration::from_secs(2),
+        "a warm archived status read took {:.3}s against the 2 s budget",
+        warm.as_secs_f64()
+    );
+}
+

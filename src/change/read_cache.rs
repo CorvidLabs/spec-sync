@@ -249,10 +249,16 @@ fn path_is_state_candidate(path: &str, changes_root: &str, archive_root: &str, i
     !directory.contains('/') && directory.ends_with(&format!("-{id}"))
 }
 
+/// The digest and repository path of the archived `state.json`, but only when those bytes parse
+/// to exactly `record`: a verdict is computed for a record, so it may only be keyed by bytes that
+/// say the same thing.
 fn archived_state_cache_key(root: &Path, record: &ChangeRecord) -> Option<(String, String)> {
     let workspace = find_change_dir(root, &record.id).ok()?;
     let state = workspace.join("state.json");
     let bytes = fs::read(&state).ok()?;
+    if serde_json::from_slice::<ChangeRecord>(&bytes).ok().as_ref() != Some(record) {
+        return None;
+    }
     let archive_state_path =
         git_repo_relative_path(root, &portable_project_path(root, &state)).ok()?;
     Some((sha256_hex(&bytes), archive_state_path))

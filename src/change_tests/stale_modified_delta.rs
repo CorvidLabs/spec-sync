@@ -488,3 +488,40 @@ fn a_stale_delta_in_one_module_is_named_and_blocks_every_module() {
         "the refusal comes before any module is written"
     );
 }
+
+/// DISCRIMINATOR for a `## MODIFIED` `Change Log` section (#845 review plan, 2.2f). The change's
+/// own materialization appends its row to that section, so the block never equals the approved
+/// body afterwards and a recorded base would refuse the change's second check on its own text.
+/// The Change Log therefore records no base, and a re-check is not refused as stale.
+#[test]
+fn a_modified_change_log_section_is_not_refused_as_stale_by_its_own_row() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_change_with_delta(
+        root,
+        "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial (restated) |\n",
+    );
+    let bases = load_approvals(root, &record)
+        .unwrap()
+        .approvals
+        .last()
+        .unwrap()
+        .approved_delta_bases
+        .clone()
+        .expect("a new approval records bases");
+    assert!(
+        !bases.keys().any(|key| key.ends_with("SPEC SECTION Change Log")),
+        "the Change Log section must record no base: {bases:?}"
+    );
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    let second = materialize_change_deltas(root, &record.id);
+
+    assert!(
+        second
+            .as_ref()
+            .err()
+            .is_none_or(|error| !error.contains("approved against canonical text that has changed")),
+        "the change's own Change Log row must not read as a stale base: {second:?}"
+    );
+}

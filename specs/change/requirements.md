@@ -1567,4 +1567,13 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 - Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
+### REQ-change-120
+
+When `change approve` refuses affected paths that no declared module canonically owns, the error SHALL say which spec to edit for each refused path. Ownership itself is still decided exactly as REQ-change-053 requires.
+
+#### Acceptance Criteria
+
+- A refused path that some spec under the specs directory already lists in its `files:` names that spec file and its module, and says to declare it with `--spec`.
+- Otherwise the refused path names the declared spec whose `files:` entries share the longest directory with the path, and says to add the path to that spec's `files:` list.
+- The same paths are refused as before; only the wording of the refusal changes.
 

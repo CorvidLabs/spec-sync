@@ -1377,8 +1377,8 @@ fn for_each_replacing_delta_item(
         let (spec_path, requirements_path) = canonical_module_paths(root, specs_dir.as_str(), module)?;
         // A missing file is a block that is absent, which is a base like any other; whether a
         // MODIFIED item may target it is `apply_markdown_block`'s question, not this one's.
-        let spec = fs::read_to_string(&spec_path).unwrap_or_default();
-        let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+        let spec = read_canonical_or_absent(root, &spec_path)?;
+        let requirements = read_canonical_or_absent(root, &requirements_path)?;
         for item in items.iter().filter(|item| {
             item.operation != DeltaOperation::Added && !is_change_log_section(item)
         }) {
@@ -1386,6 +1386,19 @@ fn for_each_replacing_delta_item(
         }
     }
     Ok(())
+}
+
+/// A canonical file's text, or empty when it does not exist. Any other read failure is an error:
+/// reading an unreadable file as empty would report an IO fault as a moved block.
+fn read_canonical_or_absent(root: &Path, path: &Path) -> Result<String, String> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(format!(
+            "could not read canonical `{}` to compare delta bases: {error}",
+            portable_project_path(root, path)
+        )),
+    }
 }
 
 /// Whether an item targets the module spec's `## Change Log` section. Materialization appends

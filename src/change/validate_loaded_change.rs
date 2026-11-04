@@ -605,7 +605,7 @@ fn append_approval(
     // Read with the bodies, before anything is applied: this is the text the approver is
     // approving the change over (#843).
     let approved_delta_bases = (gate == "definition")
-        .then(|| delta_base_digests(root, record))
+        .then(|| approval_delta_bases(root, record, &ledger))
         .transpose()?;
     ledger.approvals.push(ApprovalRecord {
         gate: gate.into(),
@@ -651,7 +651,11 @@ fn append_portable_definition_approval_v501(
     // 5.0.1 projection bytes, nor `definition_approval_pair_id`, and `ApprovalLedger` tolerates
     // unknown fields by design, so a 5.0.1 reader still parses the record it came for.
     let approved_delta_digests = Some(delta_body_digests(root, record)?);
-    let approved_delta_bases = Some(delta_base_digests(root, record)?);
+    let approved_delta_bases = Some(approval_delta_bases(
+        root,
+        record,
+        &load_approvals(root, record)?,
+    )?);
     let actor = resolve_actor(root, actor)?;
     let timestamp = now();
     let path = change_dir(root, &record.id).join("approvals.json");

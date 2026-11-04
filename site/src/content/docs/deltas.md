@@ -97,7 +97,10 @@ semantic delta for `auth` was approved against canonical text that has changed s
 ```
 
 Rewrite the delta body onto the current canonical text, then run `change approve` and `change check`
-again. Approvals recorded before SpecSync carried this field keep their earlier behaviour.
+again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,
+because it would record the newer text as the base and let the old body overwrite it. Approvals
+recorded before SpecSync carried this field keep their earlier behaviour, but once a change has
+recorded these bases, a later approval cannot drop them.
 
 ---
 

@@ -1405,6 +1405,80 @@ fn delta_base_digests(
     Ok(bases)
 }
 
+/// The bases a new definition approval records (#843), refusing a re-approval that would
+/// launder a stale body.
+///
+/// For an item whose module body is byte-for-byte the body the previous definition approval
+/// signed, and whose base that approval recorded, the previous base is the truth: the body was
+/// written against it. If the item is already applied, the base travels unchanged (re-reading the
+/// tree would record this change's own text and forget what it replaced). If it is not applied and
+/// the block has moved since, re-approving would record the newer text as the base and let the
+/// unchanged stale body overwrite it, so the approval is refused, naming the block. Every other
+/// item (a rewritten body, or no earlier base) records the canonical block as it stands now.
+fn approval_delta_bases(
+    root: &Path,
+    record: &ChangeRecord,
+    ledger: &ApprovalLedger,
+) -> Result<BTreeMap<String, String>, String> {
+    let previous = effective_definition_approval(root, record, ledger)
+        .ok()
+        .or_else(|| {
+            ledger
+                .approvals
+                .iter()
+                .rev()
+                .find(|approval| approval.gate == "definition")
+        });
+    let (Some(previous_bases), Some(previous_bodies)) = (
+        previous.and_then(|approval| approval.approved_delta_bases.as_ref()),
+        previous.and_then(|approval| approval.approved_delta_digests.as_ref()),
+    ) else {
+        return delta_base_digests(root, record);
+    };
+    let current_bodies = delta_body_digests(root, record)?;
+    let mut bases = BTreeMap::new();
+    let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for_each_replacing_delta_item(root, record, |module, spec, requirements, item| {
+        let key = delta_base_key(module, item);
+        let current = canonical_block_digest(module, spec, requirements, item);
+        let body_unchanged = previous_bodies.get(module).is_some()
+            && previous_bodies.get(module) == current_bodies.get(module);
+        let base = match previous_bases.get(&key) {
+            Some(previous_base) if body_unchanged => {
+                if !delta_item_is_applied(spec, requirements, item) && *previous_base != current {
+                    let target = match item.target {
+                        DeltaTarget::Requirement => item.key.clone(),
+                        DeltaTarget::SpecSection => format!("section `{}`", item.key),
+                    };
+                    moved.entry(module.to_string()).or_default().push(target);
+                }
+                previous_base.clone()
+            }
+            _ => current,
+        };
+        bases.insert(key, base);
+    })?;
+    if moved.is_empty() {
+        return Ok(bases);
+    }
+    Err(format!(
+        "cannot approve {}: the semantic delta for {} was approved against canonical text that has changed since ({}) and the delta body has not been rewritten; approving it unchanged would let the stale body overwrite text this change never approved, so rewrite each listed delta body onto the current canonical text first, then run `specsync change approve {}` and `specsync change check {}`",
+        record.id,
+        moved
+            .keys()
+            .map(|module| format!("`{module}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        moved
+            .iter()
+            .map(|(module, targets)| format!("{module}: {}", targets.join(", ")))
+            .collect::<Vec<_>>()
+            .join("; "),
+        record.id,
+        record.id
+    ))
+}
+
 /// Refuses to apply a `## MODIFIED` or `## REMOVED` item over canonical text that changed after
 /// the item was approved (#843).
 ///
@@ -1425,6 +1499,18 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
     let Some(bases) = approval.approved_delta_bases.as_ref() else {
+        // Absence is monotone, exactly as for `approved_delta_digests` (#719): a ledger that has
+        // recorded bases for this change is new enough to record them again, so a later
+        // definition approval carrying none is a claim being withdrawn, not silence from before
+        // the binding, and it must not switch this guard off.
+        if ledger.approvals.iter().any(|candidate| {
+            candidate.gate == "definition" && candidate.approved_delta_bases.is_some()
+        }) {
+            return Err(format!(
+                "the definition approval for {} records no canonical bases for its MODIFIED or REMOVED delta items although an earlier definition approval on this change recorded them; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the canonical text this approval covers, then `specsync change check {}` (or restore the approval ledger)",
+                record.id, record.id, record.id
+            ));
+        }
         return Ok(());
     };
     let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();

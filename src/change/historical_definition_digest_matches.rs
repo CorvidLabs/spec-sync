@@ -2280,6 +2280,9 @@ fn accept_change_with_gate(
     // Acceptance is the second place deltas reach the canonical spec (`prepare_delta_application`
     // below, when `check` never materialized them), so it gets the same refusal.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
+    // And for the same reason a body approved over canonical text that has since moved is
+    // refused here, before `prepare_pending_delta_application` could write it over (#843).
+    ensure_approved_delta_bases_current(root, &record)?;
     let records = list_changes_checked(root)?;
     // Same as verification: acceptance reports only failures, and the project
     // surfaces report every suppression this gate applied.

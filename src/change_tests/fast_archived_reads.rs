@@ -458,3 +458,33 @@ fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
         .collect();
     assert!(leftovers.is_empty(), "temporary files left behind: {leftovers:?}");
 }
+
+#[test]
+fn git_processes_spawned_by_prefetch_threads_are_counted() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let records: Vec<ChangeRecord> = (0..4).map(|_| finalized_archived_change(root)).collect();
+    let archives = || fs::read_dir(root.join(ARCHIVE_PATH)).unwrap().collect::<Vec<_>>();
+
+    let serial = {
+        let _scope = begin_change_read_scope(root);
+        reset_test_git_process_count();
+        for record in &records {
+            validate_workflow_version_history_uncached(root, record).unwrap();
+        }
+        test_git_process_count()
+    };
+    let prefetched = {
+        let _scope = begin_change_read_scope(root);
+        reset_test_git_process_count();
+        prefetch_archived_workflow_histories(root, &archives());
+        test_git_process_count()
+    };
+    // The prefetch does the same per-archive history work on worker threads, so the guard that
+    // budgets Git processes must see at least as many as the serial walk.
+    assert!(
+        prefetched >= serial,
+        "prefetch reported {prefetched} Git processes for work that spawns {serial} serially"
+    );
+}

@@ -302,6 +302,9 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     }
 }
 
+/// One archived package a commit introduced: `(id, directory, approvals bytes)`.
+type ArchivePackageIntroduction = (String, String, Option<Vec<u8>>);
+
 /// The archived packages `commit` added under `history_pathspec`, as `(id, directory, approvals)`.
 /// Reads the persistent cache inside a read scope, and stores a result only when every Git call
 /// behind it answered conclusively.
@@ -310,7 +313,7 @@ fn archive_introductions_at_commit(
     commit: &str,
     history_pathspec: &str,
     directory_prefix: &str,
-) -> Result<Vec<(String, String, Option<Vec<u8>>)>, String> {
+) -> Result<Vec<ArchivePackageIntroduction>, String> {
     let key = format!("{commit}\n{history_pathspec}");
     if let Some(Some(cached)) = with_persistent_read_cache(root, |_, frame| {
         frame
@@ -360,7 +363,7 @@ fn archive_introductions_at_commit(
     Ok(introduced)
 }
 
-type ArchiveIntroductionsAtCommit = (Vec<(String, String, Option<Vec<u8>>)>, bool);
+type ArchiveIntroductionsAtCommit = (Vec<ArchivePackageIntroduction>, bool);
 
 fn archive_introductions_at_commit_uncached(
     root: &Path,

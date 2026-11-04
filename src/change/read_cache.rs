@@ -98,10 +98,51 @@ fn read_cache_build_identity() -> String {
     )
 }
 
-/// The cache is disabled in a shallow repository: deepening it later could reveal history a
-/// cached verdict never saw.
+/// The cache is disabled whenever the history Git walks is not simply the object graph:
+/// a shallow repository (deepening it could reveal history a verdict never saw), replace refs or
+/// grafts (they rewrite parents and trees without moving `HEAD`), and a partial clone (a missing
+/// blob could make a verdict depend on what happened to be fetched).
 fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
-    if git_output(root, &["rev-parse", "--is-shallow-repository"]).as_deref() != Some("false") {
+    let probe = git_output(
+        root,
+        &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
+    )?;
+    let mut probe = probe.lines();
+    if probe.next() != Some("false") {
+        return None;
+    }
+    let common_dir = PathBuf::from(probe.next()?);
+    let common_dir = if common_dir.is_absolute() {
+        common_dir
+    } else {
+        root.join(common_dir)
+    };
+    if common_dir.join("info").join("grafts").exists() {
+        return None;
+    }
+    let replace_refs = run_git_bounded(
+        root,
+        &["for-each-ref", "--count=1", "--format=%(refname)", "refs/replace/"],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    if !replace_refs.status.success() || !replace_refs.stdout.trim_ascii().is_empty() {
+        return None;
+    }
+    let promisor = run_git_bounded(
+        root,
+        &[
+            "config",
+            "--get-regexp",
+            r"^(extensions\.partialclone|remote\..*\.promisor)$",
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    // Exit 1 means no such key; any match, or any other failure, keeps the cache off.
+    if promisor.status.code() != Some(1) {
         return None;
     }
     let path = git_output(root, &["rev-parse", "--git-path", READ_CACHE_FILE])?;

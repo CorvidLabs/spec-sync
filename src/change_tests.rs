@@ -27,3 +27,5 @@ include!("change_tests/approved_delta_requirements.rs");
 include!("change_tests/recorded_review_recovery.rs");
 
 include!("change_tests/historical_reconciliation.rs");
+
+include!("change_tests/fast_archived_reads.rs");

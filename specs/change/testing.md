@@ -148,3 +148,7 @@ Historical reconciliation qualification: six targeted checks passed; full pinned
 Real-consumer performance follow-up: reuse authenticated successor evidence, immutable predecessor witnesses and acceptance anchors only within one pure graph traversal. Discard the memo before every lifecycle write and create a fresh one for each pass. The lifecycle discriminator measures fewer Git reads on a repeated tuple and proves a new pass refuses altered raw receipt bytes even when JSON semantics are unchanged. All original bounds, proof checks and serialized evidence remain unchanged. Full qualification is rerun after this production-code refinement.
 
 Native archive rewrites generated change.md. Historical receipt comparison admits only the exact rendering of the authenticated archived record, preserving the original raw markdown in the immutable package witness. The native lifecycle regression proves witness equality after the move and refuses a one-byte altered archived markdown. Other original package bytes and modes remain strict.
+
+## Approve ownership hint evidence
+
+REQ-change-120: approve_ownership_refusal_names_the_declared_spec_to_edit and approve_ownership_refusal_names_an_undeclared_spec_that_lists_the_path failed first on main f82eb09, whose refusal named no spec. approve_rejects_a_declared_path_owned_by_an_undeclared_module still proves the same paths are refused.

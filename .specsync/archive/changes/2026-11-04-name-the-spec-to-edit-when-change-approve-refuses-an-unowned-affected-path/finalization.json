@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path",
+  "implementation_commit": "0d0444346f28de069ccd307c69113de4044860c3",
+  "implementation_tree": "eb9056545a0c7fb898871a23bb6fb62dea683b25",
+  "contract_digest": "5fe8ea36d198acddf257ff0b366e611ca580f8313c2fa35372324f5b6027ee66",
+  "workspace_digest": "7511c51a5a5a3fa848b2baddb14e988c4d3e311ffba37cd4a2e25ae99978f748",
+  "closing_digest": "4a83ae6c0d4067dd706eb85f7f4f13eb0aa8e44e41c7e2ef38adf048ec334d26",
+  "review_digest": "287aa6efd92ed1bcfcc9a50cdf192d2f0838c433b303d0425296d83d35783914",
+  "finalization_digest": "66dacab52f454c5cab59ef6240a38678072aec52f173b1d9f90dd3b8839b8258",
+  "timestamp": 1793806723
+}

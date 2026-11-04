@@ -1,6 +1,6 @@
 ---
 module: change
-version: 156
+version: 157
 status: active
 files:
   - src/change.rs
@@ -21,6 +21,7 @@ files:
   - src/change_tests/substantive_plan.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
+  - src/change_tests/approve_ownership_names_the_spec.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -582,3 +583,4 @@ Acceptance Criteria
 | 2026-11-01 | keep-receipt-reads-bounded-and-recover-exactly-recorded-review-mismatches: Keep receipt reads bounded and recover exactly recorded review mismatches |
 | 2026-11-01 | retain-compound-historical-review-inconsistencies-during-anchored-reopen: Retain compound historical review inconsistencies during anchored reopen |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
+| 2026-11-04 | name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path: Name the spec to edit when change approve refuses an unowned affected path |

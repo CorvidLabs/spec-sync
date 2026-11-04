@@ -1,0 +1,52 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (scope approved in Grok Bot chat t811u, recorded by corvid-agent)",
+      "timestamp": 1793755674,
+      "digest": "5fe8ea36d198acddf257ff0b366e611ca580f8313c2fa35372324f5b6027ee66",
+      "note": "Scope is Leif's t811u ask that the approve ownership error say which spec to edit. No human review, merge or release approval is claimed.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path",
+        "title": "Name the spec to edit when change approve refuses an unowned affected path",
+        "description": "Name the spec to edit when change approve refuses an unowned affected path",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "INTENT.md",
+          "hi/change.md",
+          "specs/change",
+          "src/change/sdd_version.rs",
+          "src/change_tests.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When change approve refuses an affected path that no declared module owns, the error says which spec to edit for each such path: the undeclared spec that already lists it, or the declared spec to add it to."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-053 keeps deciding ownership at approve; only the refusal wording changes. Leif's t811u rules: never weaken a gate, no em or en dashes in prose.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "a84f0601a98f946bb5a2242f04e05150c72e8fcbe94b88d450732fea65572903"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793806723,
+      "digest": "4a83ae6c0d4067dd706eb85f7f4f13eb0aa8e44e41c7e2ef38adf048ec334d26",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -1,6 +1,6 @@
 ---
 id: answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven
-state: archived
+state: verifying
 type: bug_fix
 base_commit: 84dbb56b245da36b3625440f5e394d85d686cd22
 ---

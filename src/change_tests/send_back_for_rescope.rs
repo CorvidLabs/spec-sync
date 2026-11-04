@@ -346,7 +346,10 @@ fn approve_check_and_commit(root: &Path, id: &str, message: &str) {
 fn a_sent_back_change_with_a_removed_item_can_be_checked_again() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let record = completed_section_only_current_record(root, REMOVED_DELTA);
+    // A REMOVED-only delta has no semantic acceptance item, so it could never verify; the
+    // MODIFIED item lets the last step run `change check` as well as materialize.
+    let record =
+        completed_section_only_current_record(root, &format!("{SEND_BACK_DELTA}\n{REMOVED_DELTA}"));
     approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
     start_implementation(root, &record.id).unwrap();
     materialize_change_deltas(root, &record.id).unwrap();

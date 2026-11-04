@@ -102,6 +102,10 @@ because it would record the newer text as the base and let the old body overwrit
 recorded before SpecSync carried this field keep their earlier behaviour, but once a change has
 recorded these bases, a later approval cannot drop them.
 
+One limit: a `MODIFIED` `Change Log` section is not protected this way. `change check` appends the
+change's own row to that section, so its text never matches the approved body afterwards. Prefer
+letting SpecSync append Change Log rows over restating the whole table in a delta.
+
 ---
 
 ## The Effective Contract

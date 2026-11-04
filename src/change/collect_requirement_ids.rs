@@ -1379,14 +1379,21 @@ fn for_each_replacing_delta_item(
         // MODIFIED item may target it is `apply_markdown_block`'s question, not this one's.
         let spec = fs::read_to_string(&spec_path).unwrap_or_default();
         let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
-        for item in items
-            .iter()
-            .filter(|item| item.operation != DeltaOperation::Added)
-        {
+        for item in items.iter().filter(|item| {
+            item.operation != DeltaOperation::Added && !is_change_log_section(item)
+        }) {
             visit(module, &spec, &requirements, item);
         }
     }
     Ok(())
+}
+
+/// Whether an item targets the module spec's `## Change Log` section. Materialization appends
+/// this change's own row to that section, so after the first check the block never equals the
+/// approved body and a recorded base could only ever refuse the change's own text. The Change Log
+/// therefore records no base and is not guarded against a stale body (documented in deltas.md).
+fn is_change_log_section(item: &DeltaItem) -> bool {
+    item.target == DeltaTarget::SpecSection && item.key == "Change Log"
 }
 
 /// The approval-time base of every replacing item (#843): what a definition approval records

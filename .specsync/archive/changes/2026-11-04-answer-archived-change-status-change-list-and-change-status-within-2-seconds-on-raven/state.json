@@ -7,11 +7,11 @@
   "title": "Answer archived change status, change list and change status within 2 seconds on Raven",
   "description": "Answer archived change status, change list and change status within 2 seconds on Raven",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "84dbb56b245da36b3625440f5e394d85d686cd22",
   "created_at": 1793753525,
-  "updated_at": 1793805198,
+  "updated_at": 1793836372,
   "affected_specs": [
     "change"
   ],

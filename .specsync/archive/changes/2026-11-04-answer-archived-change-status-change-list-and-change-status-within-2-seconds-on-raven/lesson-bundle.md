@@ -13,7 +13,7 @@ Synthesise from what actually happened below; do not restate the change descript
 
 ## Evidence
 
-- Verification commit: `b09a82cd6fe3fd8fd3031177a50f4349982a4ae2`
+- Verification commit: `cd2853b1813fd12e14e9fb72c3bffdc584dcbf1f`
 - Base commit: `84dbb56b245da36b3625440f5e394d85d686cd22`
 - Verified by: `specsync check --spec change`
 
@@ -38,7 +38,7 @@ Profiled on Linux against CorvidLabs/raven main 74e43005: one archived `change s
 
 # Testing
 
-REQ-change-119 is covered by archived_status_git_processes_do_not_grow_with_other_archives (failed first on main: three more archived changes added 237 Git processes to one read, 210 with two archives and 447 with five), cached_archived_reads_answer_exactly_like_live_reads, cached_archived_history_still_refuses_a_later_hidden_downgrade, cached_archived_reads_recheck_an_edited_archive_and_a_moved_head and path_is_state_candidate_matches_only_one_change_s_state_paths. raven_sized_archived_status_benchmark is the timed benchmark (`fledge run bench-archived-reads`). Raven timings before and after are recorded in the pull request.
+REQ-change-119 is covered by archived_status_git_processes_do_not_grow_with_other_archives (failed first on main: three more archived changes added 237 Git processes to one read, 210 with two archives and 447 with five), cached_archived_reads_answer_exactly_like_live_reads, cached_archived_history_still_refuses_a_later_hidden_downgrade, cached_archived_reads_recheck_an_edited_archive_and_a_moved_head and path_is_state_candidate_matches_only_one_change_s_state_paths. Review follow-ups, each committed failing first: cached_archived_history_refuses_a_hidden_downgrade_in_a_renamed_archive (renamed archive bypass), an_unreadable_introduced_archive_blob_is_never_cached_as_absent and an_unreadable_blob_at_a_commit_is_an_error_not_an_absent_file (offline partial clone), a_pass_is_never_stamped_with_a_head_that_moved_during_the_read, a_cache_hit_moves_its_entry_forward_to_the_current_head, a_cache_flush_never_shares_its_temporary_file_with_another_writer, git_processes_spawned_by_prefetch_threads_are_counted, the_persistent_cache_is_off_while_replace_refs_rewrite_history, the_persistent_cache_is_off_while_grafts_rewrite_history, the_persistent_cache_is_off_in_a_partial_clone, a_second_worktree_reads_warm_from_the_shared_cache and a_pass_is_stored_only_for_the_state_it_was_computed_for. raven_sized_archived_status_benchmark is the timed benchmark (`fledge run bench-archived-reads`). Raven timings before and after are recorded in the pull request.
 
 ## Where these lessons go
 

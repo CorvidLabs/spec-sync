@@ -128,6 +128,54 @@ fn cached_archived_history_still_refuses_a_later_hidden_downgrade() {
     assert_eq!(scoped, live);
 }
 
+/// Rewrites the archived `state.json` without its workflow-version fields, commits that, then
+/// commits the original bytes back, so the tip looks untouched but history holds a downgrade.
+fn commit_hidden_workflow_downgrade(root: &Path, state_path: &Path) {
+    let original = fs::read(state_path).unwrap();
+    let mut downgraded: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    let object = downgraded.as_object_mut().unwrap();
+    object.remove("workflow_version");
+    object.remove("workflow_origin_version");
+    fs::write(
+        state_path,
+        format!("{}\n", serde_json::to_string_pretty(&downgraded).unwrap()),
+    )
+    .unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "attempt workflow downgrade"]);
+    fs::write(state_path, &original).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "hide workflow downgrade"]);
+}
+
+#[test]
+fn cached_archived_history_refuses_a_hidden_downgrade_in_a_renamed_archive() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+
+    // Move the archive to a directory whose name no longer ends in `-<id>`; `find_change_dir`
+    // still finds it by the id its state declares.
+    let original_dir = find_change_dir(root, &record.id).unwrap();
+    let renamed_dir = original_dir.with_file_name("renamed-archive");
+    fs::rename(&original_dir, &renamed_dir).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "rename archive directory"]);
+    assert_eq!(find_change_dir(root, &record.id).unwrap(), renamed_dir);
+
+    // A warm read caches a passing verdict for the renamed path.
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+
+    commit_hidden_workflow_downgrade(root, &renamed_dir.join("state.json"));
+
+    let live = archived_status_read(root, &record.id).unwrap_err();
+    assert!(live.contains("workflow-version history changed immutable identity"));
+    let scoped = git_processes_for_one_scoped_read(root, &record.id).0.unwrap_err();
+    assert_eq!(scoped, live);
+}
+
 #[test]
 fn cached_archived_reads_recheck_an_edited_archive_and_a_moved_head() {
     let temp = TempDir::new().unwrap();

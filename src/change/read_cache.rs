@@ -5,10 +5,10 @@
 // 1. An invocation-scoped archive index, so resolving one change's workspace no longer parses
 //    every archived `state.json` again on each lookup.
 // 2. A persistent cache of archived workflow-version history verdicts, stored under the Git
-//    directory (never in the working tree, so it is never a project input). An entry is reused
-//    only when its content digest still matches the archived `state.json` bytes, the commit it was
-//    computed at is an ancestor of `HEAD`, and no commit between them touched that change's active
-//    or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
+//    common directory so every worktree shares it (never in the working tree, so it is never a
+//    project input). An entry is reused only when its content digest still matches the archived
+//    `state.json` bytes, the commit it was computed at is an ancestor of the scope's `HEAD`, and
+//    no commit between them touched that change's active or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
 //    stored, so a refusal is always re-derived.
 
 const READ_CACHE_SCHEMA: u32 = 1;
@@ -145,9 +145,9 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     if promisor.status.code() != Some(1) {
         return None;
     }
-    let path = git_output(root, &["rev-parse", "--git-path", READ_CACHE_FILE])?;
-    let path = PathBuf::from(path);
-    Some(if path.is_absolute() { path } else { root.join(path) })
+    // The common directory, not the per-worktree one: worktrees share one object graph, and an
+    // entry is only reused after proving it against the reading worktree's own `HEAD`.
+    Some(common_dir.join(READ_CACHE_FILE))
 }
 
 fn with_persistent_read_cache<Value>(

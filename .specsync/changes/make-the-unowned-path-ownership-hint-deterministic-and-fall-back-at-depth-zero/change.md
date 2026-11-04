@@ -1,6 +1,6 @@
 ---
 id: make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 5e137ece36437d8eaa5b54f481457d8f7444ee49
 ---

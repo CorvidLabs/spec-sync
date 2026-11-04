@@ -2,7 +2,7 @@
 
 ### REQUIREMENT REQ-change-123
 
-`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. The send-back SHALL list the spec text the change had already applied, and `change check` and `change accept` SHALL refuse, naming the spec file and the item, while text that the new scope no longer declares is still in the spec.
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
 
 #### Acceptance Criteria
 
@@ -15,6 +15,10 @@
 - A re-scope that drops an item the change already applied is refused by check, naming the spec file and the item, until that text is taken out of the spec.
 - The definition approval event resolver refuses an approval that a send-back cancelled.
 - Removing a committed send-back from `approvals.json` is refused and does not bring the cancelled approval back.
+- After a send-back, a change with a REMOVED item materializes and checks again (0xLeif's repro), and a kept ADDED item with a new body replaces the change's earlier body.
+- A dropped MODIFIED item is refused with advice to restore its pre-change text, quoting it; a dropped REMOVED item is listed and refused until the block is restored.
+- A module dropped from `affected_specs` is refused while its Change Log keeps the change's row.
+- A send-back deleted in a later commit is refused by check and reported by the project audit.
 
 ## MODIFIED
 

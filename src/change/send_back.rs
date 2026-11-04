@@ -8,10 +8,14 @@
 // needs a fresh one (CHANGE-12.b); and it only appends, so nothing already recorded is lost
 // (CHANGE-12.c).
 //
-// Spec text the change already applied stays where it is, and the send-back lists it. The next
-// `change check` converges an item the new scope keeps with the same body rather than applying it
-// twice. An item the new scope drops would be left in the spec with no change owning it, so check
-// and accept refuse while that text is still there, naming the file and the item.
+// Spec text the change already applied stays where it is, and the send-back lists it, with the
+// text each block had before the change. Once a change has been sent back, `change check` always
+// converges: an item the new scope keeps with the same body (a REMOVED block still gone, an ADDED
+// or MODIFIED block with the same text) is not applied twice, and an ADDED item kept under the
+// same key with a new body replaces the change's own earlier body. An item the new scope drops,
+// and a module it drops whose Change Log still carries the change's row, would be left in the spec
+// with no change owning it, so check and accept refuse until it is restored, naming the file, the
+// item and the text to restore.
 
 /// One audited send-back, appended to `approvals.json` under `send_backs`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,16 +35,40 @@ pub struct SendBackRecord {
     /// The spec text the change had already applied when it was sent back.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub applied_items: Vec<AppliedDeltaItem>,
+    /// The modules whose Change Log carried this change's row (and so its version bump) when it
+    /// was sent back.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub applied_modules: Vec<String>,
 }
 
 /// One block a change's delta has put into a canonical spec or requirements file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppliedDeltaItem {
     pub module: String,
+    /// `added`, `modified` or `removed`.
+    #[serde(default = "modified_operation")]
+    pub operation: String,
     /// `requirement` or `section`.
     pub target: String,
     pub key: String,
+    /// The body the change applied; empty for a REMOVED item.
     pub content: String,
+    /// The block's body before the change applied it, from Git history, when it is known. `None`
+    /// for an ADDED block, which did not exist before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_content: Option<String>,
+}
+
+fn modified_operation() -> String {
+    "modified".into()
+}
+
+fn operation_name(operation: DeltaOperation) -> &'static str {
+    match operation {
+        DeltaOperation::Added => "added",
+        DeltaOperation::Modified => "modified",
+        DeltaOperation::Removed => "removed",
+    }
 }
 
 impl AppliedDeltaItem {
@@ -52,9 +80,17 @@ impl AppliedDeltaItem {
         }
     }
 
+    fn delta_operation(&self) -> DeltaOperation {
+        match self.operation.as_str() {
+            "added" => DeltaOperation::Added,
+            "removed" => DeltaOperation::Removed,
+            _ => DeltaOperation::Modified,
+        }
+    }
+
     fn as_delta_item(&self) -> DeltaItem {
         DeltaItem {
-            operation: DeltaOperation::Modified,
+            operation: self.delta_operation(),
             target: self.delta_target(),
             key: self.key.clone(),
             content: self.content.clone(),
@@ -83,17 +119,18 @@ impl AppliedDeltaItem {
     }
 }
 
-/// The blocks of `record`'s current deltas that are in the canonical tree, for every module whose
-/// Change Log names the change. A REMOVED item leaves no text behind, so it is not listed.
-fn applied_delta_items(root: &Path, record: &ChangeRecord) -> Result<Vec<AppliedDeltaItem>, String> {
+/// The blocks of `record`'s current deltas that are in the canonical tree, and the modules whose
+/// Change Log names the change. A REMOVED item is listed while its block is still gone; every
+/// item carries the block's text from before the change when Git history has it.
+fn applied_delta_items(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(Vec<AppliedDeltaItem>, Vec<String>), String> {
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut applied = Vec::new();
+    let mut modules = Vec::new();
     for module in &record.affected_specs {
         let delta_path = delta_path_checked(root, record, module)?;
-        if !delta_path.exists() {
-            continue;
-        }
-        let delta = read_bounded_change_text(&delta_path, "semantic delta")?;
         let Ok((spec_path, requirements_path)) = canonical_module_paths(root, &specs_dir, module)
         else {
             continue;
@@ -104,25 +141,112 @@ fn applied_delta_items(root: &Path, record: &ChangeRecord) -> Result<Vec<Applied
         if !changelog_records_change(&spec, &record.id) {
             continue;
         }
+        modules.push(module.clone());
+        if !delta_path.exists() {
+            continue;
+        }
+        let delta = read_bounded_change_text(&delta_path, "semantic delta")?;
         let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
         for item in parse_delta(&delta)? {
-            if item.operation == DeltaOperation::Removed
-                || !delta_item_is_applied(&spec, &requirements, &item)
-            {
+            if !delta_item_is_applied(&spec, &requirements, &item) {
                 continue;
             }
+            let path = match item.target {
+                DeltaTarget::Requirement => &requirements_path,
+                DeltaTarget::SpecSection => &spec_path,
+            };
+            let previous_content = if item.operation == DeltaOperation::Added {
+                None
+            } else {
+                pre_change_block(root, record, &spec_path, path, &item)
+            };
             applied.push(AppliedDeltaItem {
                 module: module.clone(),
+                operation: operation_name(item.operation).into(),
                 target: match item.target {
                     DeltaTarget::Requirement => "requirement".into(),
                     DeltaTarget::SpecSection => "section".into(),
                 },
                 key: item.key,
                 content: item.content,
+                previous_content,
             });
         }
     }
-    Ok(applied)
+    Ok((applied, modules))
+}
+
+fn project_relative(root: &Path, path: &Path) -> Option<String> {
+    Some(
+        path.strip_prefix(root)
+            .ok()?
+            .to_string_lossy()
+            .replace('\\', "/"),
+    )
+}
+
+/// The body `item`'s block had before the change applied it. The pre-change tree is the parent of
+/// the first commit whose spec carries the change's Change Log row, or HEAD while that row is not
+/// committed yet. Outside Git, or when the block is not in that tree, the text is unknown.
+fn pre_change_block(
+    root: &Path,
+    record: &ChangeRecord,
+    spec_path: &Path,
+    path: &Path,
+    item: &DeltaItem,
+) -> Option<String> {
+    let prefix = git_repo_prefix(root).ok()?;
+    let spec = project_relative(root, spec_path)?;
+    let file = project_relative(root, path)?;
+    let row = format!("{}:", record.id);
+    let commits = git_output_allow_empty(
+        root,
+        &["log", "--reverse", "--format=%H", "-S", row.as_str(), "--", spec.as_str()],
+    )?;
+    let tree = match commits.lines().next() {
+        Some(commit) => format!("{}^", commit.trim()),
+        None => "HEAD".into(),
+    };
+    let object = format!("{tree}:{prefix}{file}");
+    let text = git_output(root, &["show", object.as_str()])?;
+    block_body(&text, item)
+}
+
+/// The body under `item`'s heading in `source`, without the heading line.
+fn block_body(source: &str, item: &DeltaItem) -> Option<String> {
+    let prefix = match item.target {
+        DeltaTarget::Requirement => "### ",
+        DeltaTarget::SpecSection => "## ",
+    };
+    let heading = format!("{prefix}{}", item.key);
+    let range = markdown_block_range(source, &heading, markdown_prefix_level(prefix))?;
+    let block = &source[range];
+    let body = block.split_once('\n').map_or("", |(_, rest)| rest);
+    Some(body.trim_matches(['\n', ' ', '\t']).to_string())
+}
+
+/// After a send-back, an ADDED item the new scope keeps under the same key may change its body.
+/// The block is the change's own earlier text when a send-back listed it as added and the canonical
+/// block still carries that text; only then is it replaced rather than refused as existing.
+fn sent_back_added_block_is_own(
+    ledger: &ApprovalLedger,
+    module: &str,
+    item: &DeltaItem,
+    spec: &str,
+    requirements: &str,
+) -> bool {
+    item.operation == DeltaOperation::Added
+        && ledger
+            .send_backs
+            .iter()
+            .flat_map(|sent| &sent.applied_items)
+            .any(|applied| {
+                applied.module == module
+                    && applied.delta_operation() == DeltaOperation::Added
+                    && applied.delta_target() == item.target
+                    && applied.key == item.key
+                    && delta_item_is_applied(spec, requirements, &applied.as_delta_item())
+            })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -155,7 +279,7 @@ pub fn send_back_change(
         return Err("send-back requires a non-empty reason passed with --reason".into());
     }
     let mut ledger = load_approvals(root, &record)?;
-    let applied_items = applied_delta_items(root, &record)?;
+    let (applied_items, applied_modules) = applied_delta_items(root, &record)?;
     let audit = SendBackRecord {
         schema_version: 1,
         change_id: record.id.clone(),
@@ -167,11 +291,13 @@ pub fn send_back_change(
         cancelled_approvals: ledger.approvals.len(),
         canonical_applied: record.canonical_applied,
         applied_items,
+        applied_modules,
     };
     ledger.send_backs.push(audit.clone());
     record.state = ChangeState::Draft;
-    // Materialization has to run again for the new scope; the canonical tree, not this flag,
-    // decides which blocks are still outstanding.
+    // Materialization has to run again for the new scope. Because the ledger now holds a
+    // send-back, it converges on what the canonical tree already carries (see
+    // `prepare_module_application`), so the blocks this change applied are not applied twice.
     record.canonical_applied = false;
     record.updated_at = now();
     write_prepared_files(
@@ -227,9 +353,10 @@ fn ensure_definition_approval_not_sent_back(
     }
 }
 
-/// Send-backs only append (CHANGE-12.c). A send-back the committed ledger already holds cannot be
-/// deleted or edited to bring the approval it cancelled back. Outside a git repository, or before
-/// the ledger is first committed, there is no committed history to compare with.
+/// Send-backs only append (CHANGE-12.c). No send-back of this change that any commit of its
+/// ledger held may be deleted or edited later, in the working tree or in a later commit, because
+/// that would bring back the approval it cancelled. The ledger's history is one cached
+/// `git log -G send_backs` per path; outside a git repository there is no history to compare with.
 fn ensure_committed_send_backs_kept(
     root: &Path,
     record: &ChangeRecord,
@@ -238,46 +365,84 @@ fn ensure_committed_send_backs_kept(
     let Ok(prefix) = git_repo_prefix(root) else {
         return Ok(());
     };
-    let Ok(dir) = find_change_dir(root, &record.id) else {
-        return Ok(());
-    };
     let mut candidates = Vec::new();
-    if let Ok(relative) = dir.strip_prefix(root) {
-        candidates.push(relative.to_string_lossy().replace('\\', "/"));
+    if let Ok(dir) = find_change_dir(root, &record.id)
+        && let Some(relative) = project_relative(root, &dir)
+    {
+        candidates.push(relative);
     }
-    candidates.push(format!("{CHANGES_PATH}/{}", record.id));
+    let active = format!("{CHANGES_PATH}/{}", record.id);
+    if !candidates.contains(&active) {
+        candidates.push(active);
+    }
     for candidate in candidates {
-        let path = format!("{prefix}{candidate}/approvals.json");
-        let object = format!("HEAD:{path}");
-        let Some(text) = git_output(root, &["show", object.as_str()]) else {
+        let path = format!("{candidate}/approvals.json");
+        let Some(commits) = git_output_allow_empty(
+            root,
+            &["log", "--format=%H", "-G", "send_backs", "--", path.as_str()],
+        ) else {
             continue;
         };
-        let Ok(committed) = serde_json::from_str::<ApprovalLedger>(&text) else {
-            continue;
-        };
-        if committed.send_backs.len() > ledger.send_backs.len()
-            || committed
+        for commit in commits.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            let object = format!("{commit}:{prefix}{path}");
+            let Some(text) = git_output(root, &["show", object.as_str()]) else {
+                continue;
+            };
+            let Ok(committed) = serde_json::from_str::<ApprovalLedger>(&text) else {
+                continue;
+            };
+            let kept: Vec<_> = committed
                 .send_backs
                 .iter()
-                .zip(&ledger.send_backs)
-                .any(|(kept, current)| kept != current)
-        {
-            return Err(format!(
-                "the send-back history of `{}` differs from the committed ledger at HEAD: a committed send-back was removed or edited, which would bring back the approval it cancelled; restore `{candidate}/approvals.json`",
-                record.id
-            ));
+                .filter(|sent| sent.change_id == record.id)
+                .collect();
+            if kept.len() > ledger.send_backs.len()
+                || kept
+                    .iter()
+                    .zip(&ledger.send_backs)
+                    .any(|(kept, current)| *kept != current)
+            {
+                let short = &commit[..commit.len().min(12)];
+                return Err(format!(
+                    "the send-back history of `{}` differs from the one committed in {short}: a committed send-back was removed or edited, which would bring back the approval it cancelled; restore the send-backs in `{path}` from `git show {short}:{prefix}{path}`",
+                    record.id
+                ));
+            }
         }
-        return Ok(());
     }
     Ok(())
 }
 
+/// The project audit checks the send-back history of every change it audits, active or
+/// archived, so a deleted send-back cannot hide in a committed ledger.
+fn send_back_history_errors<'a>(
+    root: &Path,
+    records: impl IntoIterator<Item = &'a ChangeRecord>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    for record in records {
+        let Ok(ledger) = load_approvals(root, record) else {
+            continue;
+        };
+        if let Err(error) = ensure_committed_send_backs_kept(root, record, &ledger) {
+            errors.push(error);
+        }
+    }
+    errors
+}
+
 /// Spec text the change applied before a send-back must not be left in the spec with no change
 /// owning it. An item the new scope no longer declares (same module, target and key) is refused
-/// while the canonical tree still carries the body the change applied.
+/// while the canonical tree still carries what the change did to it: the body it applied, or for
+/// a REMOVED item the block's absence. A module the new scope drops is refused while its Change
+/// Log still carries the change's row and version bump. The refusal names what to restore.
 fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let ledger = load_approvals(root, record)?;
-    if ledger.send_backs.iter().all(|sent| sent.applied_items.is_empty()) {
+    if ledger
+        .send_backs
+        .iter()
+        .all(|sent| sent.applied_items.is_empty() && sent.applied_modules.is_empty())
+    {
         return Ok(());
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
@@ -289,7 +454,7 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
             declared.insert(module.clone(), parse_delta(&delta)?);
         }
     }
-    let mut orphans = Vec::new();
+    let mut orphans: Vec<String> = Vec::new();
     for item in ledger.send_backs.iter().flat_map(|sent| &sent.applied_items) {
         let kept = declared.get(&item.module).is_some_and(|items| {
             items
@@ -306,20 +471,58 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
         };
         let spec = fs::read_to_string(&spec_path).unwrap_or_default();
         let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
-        if delta_item_is_applied(&spec, &requirements, &item.as_delta_item()) {
-            let description = item.describe(root);
-            if !orphans.contains(&description) {
-                orphans.push(description);
+        if !delta_item_is_applied(&spec, &requirements, &item.as_delta_item()) {
+            continue;
+        }
+        let description = item.describe(root);
+        let advice = match (item.delta_operation(), &item.previous_content) {
+            (DeltaOperation::Added, _) => {
+                format!("{description}, which it added: take that block out of the spec")
             }
+            (DeltaOperation::Removed, Some(previous)) => format!(
+                "{description}, which it removed: restore the block with the text it had before this change:\n\n{previous}\n"
+            ),
+            (_, Some(previous)) => format!(
+                "{description}, which it modified: restore the text it had before this change:\n\n{previous}\n"
+            ),
+            (DeltaOperation::Removed, None) => format!(
+                "{description}, which it removed: restore the block as it was before this change"
+            ),
+            (_, None) => format!(
+                "{description}, which it modified: restore the text it had before this change"
+            ),
+        };
+        if !orphans.contains(&advice) {
+            orphans.push(advice);
+        }
+    }
+    for module in ledger.send_backs.iter().flat_map(|sent| &sent.applied_modules) {
+        if record.affected_specs.contains(module) {
+            continue;
+        }
+        let Ok((spec_path, _)) = canonical_module_paths(root, &specs_dir, module) else {
+            continue;
+        };
+        let spec = fs::read_to_string(&spec_path).unwrap_or_default();
+        if !changelog_records_change(&spec, &record.id) {
+            continue;
+        }
+        let advice = format!(
+            "`{}`, a module it no longer declares, still has its Change Log row and version bump: remove the `{}:` row from its `## Change Log` and restore its `version:`",
+            project_relative(root, &spec_path).unwrap_or_else(|| spec_path.display().to_string()),
+            record.id
+        );
+        if !orphans.contains(&advice) {
+            orphans.push(advice);
         }
     }
     if orphans.is_empty() {
         return Ok(());
     }
     Err(format!(
-        "`{}` was re-scoped after it had applied spec text that its deltas no longer declare, so nothing would own it: {}. Take that text out of the spec, or keep the item in the change's delta, then run `specsync change check {}` again",
+        "`{}` was re-scoped after it had changed spec text that its deltas no longer declare, so nothing would own it: {}. Make those edits, or keep the items in the change's delta, then run `specsync change check {}` again",
         record.id,
-        orphans.join(", "),
+        orphans.join("; "),
         record.id
     ))
 }

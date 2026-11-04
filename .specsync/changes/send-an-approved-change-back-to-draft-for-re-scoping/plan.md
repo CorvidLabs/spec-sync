@@ -24,7 +24,7 @@ Add an audited `change send-back` that returns an approved, implementing or veri
 
 ## Risks
 
-- A re-scope that drops an item the change already applied would leave orphan text in the spec. Check and accept refuse and name it until the text is taken out or the item is kept (review round on e52f77d).
+- A re-scope that drops an item the change already applied would leave orphan text in the spec. Check and accept refuse and name it until the text is taken out or the item is kept (review round on e52f77d). Review round two (6e9abc9): REMOVED items are listed too, the advice restores pre-change text, a dropped module's Change Log row is refused, and materialization converges after a send-back.
 - A ledger edited before its first commit cannot be compared with history; the committed-ledger comparison covers every send-back once committed.
 - Field growth on `ApprovalLedger` is read-tolerant and omitted when empty.
 

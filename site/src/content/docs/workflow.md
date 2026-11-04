@@ -165,15 +165,22 @@ specsync change check add-passkeys --commit
 The person and the reason are appended to `approvals.json` under `send_backs`. The definition
 approval recorded before the send-back is kept but no longer counts, so the new scope needs a
 fresh `change approve`, even when it did not change. A committed send-back cannot be deleted to
-bring that approval back: check refuses a ledger whose send-backs differ from the committed one.
+bring that approval back: check refuses a ledger that lost or changed a send-back held by any
+earlier commit, and `specsync change audit` reports it.
 
 Spec text the change already applied stays in place, and the send-back lists it under
-`applied_items`. The next `change check` converges an item the new scope keeps with the same body
-and applies the rest. If the new scope drops an item that was already applied, its text would be
-left in the spec with no change owning it, so `change check` and `change accept` refuse and name
-each such item, for example `specs/auth/auth.spec.md` section `Purpose`. Take that text out of
-the spec (or keep the item in the delta), then check again. Accepted or archived changes use
-`change reopen` instead.
+`applied_items`, REMOVED items included, with each block's text from before the change. It also
+lists the modules whose Change Log carries the change's row. After a send-back, `change check`
+converges on the canonical tree: a kept item that is already applied (a removed block still gone,
+an added or modified block with the same body) is not applied again, a kept ADDED item with a new
+body replaces the change's own earlier body, and the rest is applied. If the new scope drops an
+item that was already applied, the spec would keep that edit with no change owning it, so
+`change check` and `change accept` refuse and say what to restore for each one, for example
+`specs/auth/auth.spec.md` section `Purpose`: take out a block the change added, or put back the
+pre-change text (quoted in the message) of a block it modified or removed. A module dropped from
+`affected_specs` is refused while its Change Log still has the change's row; remove that row and
+restore its `version:`. Then check again (or keep the item in the delta). Accepted or archived
+changes use `change reopen` instead.
 
 ## 4. Recover accepted or archived evidence
 

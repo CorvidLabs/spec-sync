@@ -3990,6 +3990,10 @@ fn check_project_with_command_output(
         terminal_evidence,
         ..SddCheckReport::default()
     };
+    // CHANGE-12.c: a send-back any commit held cannot be deleted later, active or archived.
+    report
+        .errors
+        .extend(send_back_history_errors(root, all_records.values()));
     let policy = if let Some(base) = base_policy.filter(|policy| policy.enabled)
         && current_policy.as_ref() != Some(&base)
     {

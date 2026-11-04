@@ -16,3 +16,6 @@ artifact: tasks
 - [x] Review round: honour send-backs in the definition approval event resolver, the scoped-review approver lookup and the scope-expansion summary.
 - [x] Review round: refuse a ledger whose committed send-backs were removed or edited.
 - [x] Review round: finalize test uses a change that owns a spec.
+- [x] Review round two (6e9abc9): converge after a send-back so REMOVED and changed ADDED items check again.
+- [x] Review round two: list REMOVED items and pre-change text; advise restoring it; refuse a dropped module's Change Log row.
+- [x] Review round two: check every committed revision of the send-back history, and report it in the audit.

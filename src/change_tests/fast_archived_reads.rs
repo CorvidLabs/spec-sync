@@ -401,3 +401,31 @@ fn a_pass_is_never_stamped_with_a_head_that_moved_during_the_read() {
     let scoped = git_processes_for_one_scoped_read(root, &record.id).0.unwrap_err();
     assert_eq!(scoped, live);
 }
+
+fn cached_history_commit(root: &Path, id: &str) -> Option<String> {
+    let bytes = fs::read(persistent_read_cache_path(root)?).ok()?;
+    let cache: PersistentReadCache = serde_json::from_slice(&bytes).ok()?;
+    cache.workflow_history.get(id).map(|entry| entry.commit.clone())
+}
+
+#[test]
+fn a_cache_hit_moves_its_entry_forward_to_the_current_head() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+    let stamped = cached_history_commit(root, &record.id).unwrap();
+    for index in 0..3 {
+        fs::write(root.join("README.md"), format!("unrelated {index}\n")).unwrap();
+        quiet_git(root, &["commit", "-am", "unrelated work"]);
+    }
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+    let head = quiet_git(root, &["rev-parse", "HEAD"]);
+    assert_ne!(stamped, head);
+    assert_eq!(
+        cached_history_commit(root, &record.id).as_deref(),
+        Some(head.as_str()),
+        "a proven-current hit should restamp its entry so later reads walk only newer commits"
+    );
+}

@@ -525,3 +525,26 @@ fn a_modified_change_log_section_is_not_refused_as_stale_by_its_own_row() {
         "the change's own Change Log row must not read as a stale base: {second:?}"
     );
 }
+
+/// DISCRIMINATOR (review nit on #845): a canonical file that exists but cannot be read is an
+/// error to surface, not an absent block. Reading it as empty would misreport an IO failure as
+/// main having moved the requirement.
+#[test]
+fn an_unreadable_canonical_file_is_reported_not_treated_as_a_stale_base() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_approved_against_old_requirement(root);
+    fs::remove_file(requirements_path(root)).unwrap();
+    fs::create_dir_all(requirements_path(root)).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("could not read") && error.contains("requirements.md"),
+        "the refusal must name the canonical file it could not read: {error}"
+    );
+    assert!(
+        !error.contains("has changed since"),
+        "an IO failure must not be reported as a stale base: {error}"
+    );
+}

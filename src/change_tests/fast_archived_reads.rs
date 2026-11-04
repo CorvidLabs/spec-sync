@@ -488,3 +488,35 @@ fn git_processes_spawned_by_prefetch_threads_are_counted() {
         "prefetch reported {prefetched} Git processes for work that spawns {serial} serially"
     );
 }
+
+#[test]
+fn the_persistent_cache_is_off_while_replace_refs_rewrite_history() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    assert!(persistent_read_cache_path(root).is_some());
+    fs::write(root.join("README.md"), "replacement\n").unwrap();
+    quiet_git(root, &["commit", "-am", "replacement"]);
+    let replacement = quiet_git(root, &["rev-parse", "HEAD"]);
+    quiet_git(root, &["replace", "HEAD~1", replacement.as_str()]);
+    assert_eq!(persistent_read_cache_path(root), None);
+}
+
+#[test]
+fn the_persistent_cache_is_off_while_grafts_rewrite_history() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    assert!(persistent_read_cache_path(root).is_some());
+    let head = quiet_git(root, &["rev-parse", "HEAD"]);
+    fs::create_dir_all(root.join(".git/info")).unwrap();
+    fs::write(root.join(".git/info/grafts"), format!("{head}\n")).unwrap();
+    assert_eq!(persistent_read_cache_path(root), None);
+}
+
+#[test]
+fn the_persistent_cache_is_off_in_a_partial_clone() {
+    let temp = TempDir::new().unwrap();
+    let (clone, _, _) = offline_partial_clone_missing_an_archive_blob(&temp);
+    assert_eq!(persistent_read_cache_path(&clone), None);
+}

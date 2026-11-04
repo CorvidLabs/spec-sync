@@ -1928,9 +1928,13 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = read_scope_value(root, |scope| scope.scoped_review_files.get(&key).cloned()) {
         return Ok(cached);
     }
+    if let Some(cached) = memoized_immutable_file(root, commit, path) {
+        return Ok(cached);
+    }
     let object = format!("{commit}:{path}");
     let output = run_scoped_review_git(root, &["show", object.as_str()])?;
     let result = output.status.success().then_some(output.stdout);
+    remember_immutable_file(root, commit, path, &result);
     update_read_scope(root, |scope| {
         if scope.scoped_review_files.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
             scope.scoped_review_files.insert(key, result.clone());
@@ -1944,6 +1948,9 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = read_scope_value(root, |scope| scope.scoped_review_texts.get(&key).cloned()) {
         return cached;
     }
+    if let Some(cached) = memoized_immutable_text(root, args) {
+        return cached;
+    }
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(
@@ -1955,6 +1962,7 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
             .map(|value| value.trim().to_string())
             .map_err(|_| "scoped-review Git query returned non-UTF-8 output".to_string())
     };
+    remember_immutable_text(root, args, &result);
     update_read_scope(root, |scope| {
         if scope.scoped_review_texts.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
             scope.scoped_review_texts.insert(key, result.clone());
@@ -2463,6 +2471,7 @@ fn accept_change_with_gate(
 }
 
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
     // state that determines whether finalization can resume.
     drop(acquire_project_lock(root)?);
@@ -2502,6 +2511,7 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
 }
 

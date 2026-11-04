@@ -520,3 +520,27 @@ fn the_persistent_cache_is_off_in_a_partial_clone() {
     let (clone, _, _) = offline_partial_clone_missing_an_archive_blob(&temp);
     assert_eq!(persistent_read_cache_path(&clone), None);
 }
+
+#[test]
+fn a_second_worktree_reads_warm_from_the_shared_cache() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("main");
+    fs::create_dir_all(&root).unwrap();
+    fast_read_repository(&root);
+    let record = finalized_archived_change(&root);
+    git_processes_for_one_scoped_read(&root, &record.id).0.unwrap();
+
+    let second = temp.path().join("second");
+    quiet_git(
+        &root,
+        &["worktree", "add", "-q", "--detach", second.to_str().unwrap(), "HEAD"],
+    );
+    assert_eq!(
+        persistent_read_cache_path(&second),
+        persistent_read_cache_path(&root),
+        "worktrees of one repository share one history, so they should share one cache"
+    );
+    assert!(cached_history_commit(&second, &record.id).is_some());
+    let live = archived_status_read(&second, &record.id).unwrap();
+    assert_eq!(git_processes_for_one_scoped_read(&second, &record.id).0.unwrap(), live);
+}

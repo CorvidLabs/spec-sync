@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path",
+  "slug": "name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path",
+  "title": "Name the spec to edit when change approve refuses an unowned affected path",
+  "description": "Name the spec to edit when change approve refuses an unowned affected path",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "376d17cd44940bd1e241f1d15b64bb8542fe2e0a",
+  "created_at": 1793753811,
+  "updated_at": 1793755674,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change_tests.rs",
+    "src/change_tests/approve_ownership_names_the_spec.rs",
+    "specs/change",
+    "hi/change.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "When change approve refuses an affected path that no declared module owns, the error says which spec to edit for each such path: the undeclared spec that already lists it, or the declared spec to add it to."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-053 keeps deciding ownership at approve; only the refusal wording changes. Leif's t811u rules: never weaken a gate, no em or en dashes in prose.",
+    "public_contract": "no"
+  }
+}

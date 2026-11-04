@@ -87,6 +87,18 @@ For `ADDED`, the heading must not exist yet; use `MODIFIED` to change an existin
 changes touch the same section in sequence, each delta restates the complete resulting table rather
 than only its own additions.
 
+Because a `MODIFIED` block replaces the whole block, the definition approval also records the
+canonical text each `MODIFIED` and `REMOVED` block was approved against. If another change rewrites
+that same block on the base branch and it is merged in before this change lands, `change check`
+and `change audit` refuse rather than overwrite the newer text, and name the block that moved:
+
+```text
+semantic delta for `auth` was approved against canonical text that has changed since (auth: REQ-auth-001); applying it would overwrite text this change never approved, ...
+```
+
+Rewrite the delta body onto the current canonical text, then run `change approve` and `change check`
+again. Approvals recorded before SpecSync carried this field keep their earlier behaviour.
+
 ---
 
 ## The Effective Contract

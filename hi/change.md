@@ -9,6 +9,8 @@ families: [CHANGE]
 
 Before anyone writes code, the change should be something a person agreed to in writing. Opening one asks a short, predictable set of questions instead of handing over a blank template, and the contract edit travels with it as a delta anyone can read. Exactly one human approval binds that agreed scope to its content, so an agent cannot quietly widen what was agreed and a later reader can see what was actually promised.
 
+CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #843): "Confirm #843 criteria as written", choosing to "Protect only changes approved from now on". Recorded by corvid-agent.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -32,3 +34,7 @@ Before anyone writes code, the change should be something a person agreed to in 
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
+- **CHANGE-11**  A change approved against older contract text never silently overwrites newer text another change put there.
+  - **CHANGE-11.a**  Checking that change stops and names the requirement or section whose text moved.
+  - **CHANGE-11.b**  The project health check (audit) reports the same problem before anything is lost.
+  - **CHANGE-11.c**  The message tells me the way forward: rewrite the change onto the current text and approve it again.

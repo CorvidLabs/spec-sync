@@ -1,4 +1,54 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (criteria confirmed in Grok Bot widget 2026-11-04 07:34 MST, recorded by corvid-agent)",
+      "timestamp": 1793803001,
+      "digest": "3150a7210bbff3ba386ccf93836ea2993694107ff20f68cd2e54d5c66cc02d69",
+      "note": "Criteria are Leif's confirmed CHANGE-11 to CHANGE-11.c (#843), protecting only approvals made from now on. No human review, merge or release approval is claimed.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text",
+        "title": "Refuse a stale modified delta instead of overwriting newer canonical text",
+        "description": "Refuse a stale modified delta instead of overwriting newer canonical text",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "INTENT.md",
+          "hi/change.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/stale_modified_delta.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A change approved against older contract text never silently overwrites newer text another change put there.",
+          "Checking that change stops and names the requirement or section whose text moved.",
+          "The message tells me the way forward: rewrite the change onto the current text and approve it again.",
+          "The project health check (audit) reports the same problem before anything is lost."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-089/090: an approval that recorded nothing is unknown, not violated, so approvals written before this field keep today's behaviour (Leif chose 'Protect only changes approved from now on'). REQ-change-111: the edited-body refusal still runs first. Never weaken a gate.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "973aa3a6d6c62344142943d8268c713208373b6822c2e8e08739c2e11c65e313"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

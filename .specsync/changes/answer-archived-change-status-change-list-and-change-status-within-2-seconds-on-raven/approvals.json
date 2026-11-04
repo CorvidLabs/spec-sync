@@ -52,6 +52,52 @@
       "timestamp": 1793805198,
       "digest": "bce8959b48e30c63c1afc8940f412007ef2b2bb629d3f6a3931bdbec54f21cfe",
       "note": "Same-PR finalization closing digest"
+    },
+    {
+      "gate": "definition",
+      "actor": "Leif (0xLeif, GitHub review of #840 at dd14e57, 2026-11-04 8:33 AM MST, https://github.com/CorvidLabs/spec-sync/pull/840#pullrequestreview-5771061901; recorded by corvid-agent)",
+      "timestamp": 1793807990,
+      "digest": "8510c7cd4f81461e818383f5fc2a7ce91cc0f216880a5dedd823404b4ccaba89",
+      "note": "Re-pins the definition after one amendment Leif asked for in that review, quoted: \"REQ-change-119 should also list `change audit`, which opens a read scope.\" The original scope approval (Leif, t811u) is unchanged otherwise.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven",
+        "title": "Answer archived change status, change list and change status within 2 seconds on Raven",
+        "description": "Answer archived change status, change list and change status within 2 seconds on Raven",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "INTENT.md",
+          "fledge.toml",
+          "hi/speed.md",
+          "specs/change",
+          "src/change.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Archived change status, change list and change status return in under 2 seconds on Raven, check stays proportional to the specs touched, read caches are keyed by content digest with a correct invalidation rule, and a benchmark against a Raven-sized fixture guards the budget; output is identical to a live read."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md: refusing gates install no memo and stay live, and two projections of one input in one output share one read; hi SHIP-7 audit without rewalking archives; Leif t811u: never weaken a gate, do not change who approves, native SpecSync state keeps deciding stage gates, do not raise timeouts.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "ab3321abe195835beccfaef475dbf12998d804916ca56b1d3b730e415abda5b2"
+      }
     }
   ],
   "reopenings": [

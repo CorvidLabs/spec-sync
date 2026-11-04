@@ -121,11 +121,11 @@ thread_local! {
 /// verdict reused under the same digest and history rule as a read scope, and the archive
 /// packages an immutable commit introduced. No working-tree snapshot is taken, so the command
 /// still sees its own writes.
-pub(crate) struct HistoryCacheScope {
+struct HistoryCacheScope {
     root: PathBuf,
 }
 
-pub(crate) fn begin_history_cache_scope(root: &Path) -> HistoryCacheScope {
+fn begin_history_cache_scope(root: &Path) -> HistoryCacheScope {
     HISTORY_CACHE_SCOPES.with(|scopes| {
         scopes
             .borrow_mut()

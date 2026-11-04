@@ -9,6 +9,8 @@ families: [CHANGE]
 
 Before anyone writes code, the change should be something a person agreed to in writing. Opening one asks a short, predictable set of questions instead of handing over a blank template, and the contract edit travels with it as a delta anyone can read. Exactly one human approval binds that agreed scope to its content, so an agent cannot quietly widen what was agreed and a later reader can see what was actually promised.
 
+CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -32,3 +34,7 @@ Before anyone writes code, the change should be something a person agreed to in 
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
+- **CHANGE-12**  When a change's scope turns out wrong after approval, I can send it back to be re-scoped instead of deleting it by hand.
+  - **CHANGE-12.a**  Sending it back needs a named person and a reason, and both stay in the change's history.
+  - **CHANGE-12.b**  Sending it back cancels its approval, so the new scope needs a fresh one.
+  - **CHANGE-12.c**  Nothing already recorded about the change is lost.

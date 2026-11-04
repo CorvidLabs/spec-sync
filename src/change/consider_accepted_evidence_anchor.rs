@@ -3174,6 +3174,7 @@ fn effective_definition_approval<'a>(
         .iter()
         .rposition(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
+    ensure_definition_approval_not_sent_back(record, ledger, latest_index)?;
     let latest = &ledger.approvals[latest_index];
     if record.workflow_version >= 2 {
         let approved = if let Some(approved) = latest.approved_scope.as_ref() {

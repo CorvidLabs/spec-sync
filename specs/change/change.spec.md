@@ -11,7 +11,9 @@ files:
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
   - src/change/historical_reconciliation.rs
+  - src/change/send_back.rs
   - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs

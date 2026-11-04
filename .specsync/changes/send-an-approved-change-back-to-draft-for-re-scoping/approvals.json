@@ -1,0 +1,62 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (criteria confirmed in Grok Bot widget 2026-11-04 07:34 MST, recorded by corvid-agent)",
+      "timestamp": 1793803693,
+      "digest": "79176876ca9fd22500093a70fe52de810202eb4c4807a6e4717635ad51cad78c",
+      "note": "Criteria are Leif's confirmed CHANGE-12 to CHANGE-12.c (#844 option A, from his 'Both A and B' choice). Option B is not in scope. No human review, merge or release approval is claimed.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "send-an-approved-change-back-to-draft-for-re-scoping",
+        "title": "Send an approved change back to draft for re-scoping",
+        "description": "Send an approved change back to draft for re-scoping",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "INTENT.md",
+          "hi/change.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change",
+          "specs/cli_args",
+          "specs/cmd_change",
+          "src/change.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/sdd_version.rs",
+          "src/change/send_back.rs",
+          "src/change_tests.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/send_back_for_rescope.rs",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Nothing already recorded about the change is lost.",
+          "Sending it back cancels its approval, so the new scope needs a fresh one.",
+          "Sending it back needs a named person and a reason, and both stay in the change's history.",
+          "When a change's scope turns out wrong after approval, I can send it back to be re-scoped instead of deleting it by hand."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6.c: changing scope costs a fresh approval, so a send-back cancels every earlier approval. CHANGE-12.c: append-only, nothing recorded is removed. Accepted and archived changes keep using change reopen. Never weaken a gate. Leif chose 'Both A and B' on 2026-11-04; this change is option A only.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "719b8d63aa9af9d2be58f528945215ec3c1f3fd252b324741cc322a3e7367dd0",
+        "cli_args": "858b05717cd44cce2ca327d2583f00ff1d52cddf1608c6f7d5a120709861aee5",
+        "cmd_change": "2a89e192b3ba95c4e9a53dcbaf924d50c131115eb9a5684f39ca1aa777e874d1"
+      }
+    }
+  ],
+  "reopenings": []
+}

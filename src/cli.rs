@@ -479,6 +479,17 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Send an approved, implementing or verifying change back to draft for re-scoping
+    SendBack {
+        /// Change ID
+        id: String,
+        /// Human actor authorizing the audited send-back
+        #[arg(long)]
+        actor: String,
+        /// Non-empty reason the approved scope is wrong
+        #[arg(long)]
+        reason: String,
+    },
     /// Correct supported accepted interview metadata through append-only audit evidence
     Correct {
         /// Accepted change ID
@@ -1065,6 +1076,41 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn change_send_back_requires_and_collects_audit_inputs() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "send-back",
+            "add-passkeys",
+            "--actor",
+            "Ada Reviewer",
+            "--reason",
+            "The session code moved",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::SendBack {
+                    id,
+                    actor,
+                    reason,
+                }
+            }) if id == "add-passkeys"
+                && actor == "Ada Reviewer"
+                && reason == "The session code moved"
+        ));
+        for missing in [
+            ["--actor", "Ada Reviewer"],
+            ["--reason", "The session code moved"],
+        ] {
+            let mut args = vec!["specsync", "change", "send-back", "add-passkeys"];
+            args.extend(missing);
+            assert!(Cli::try_parse_from(args).is_err());
+        }
     }
 
     #[test]

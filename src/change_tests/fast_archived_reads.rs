@@ -313,3 +313,69 @@ fn raven_sized_archived_status_benchmark() {
     );
 }
 
+
+/// A blob-less partial clone of a repository whose archive state changed after it was added,
+/// with its promisor remote gone, so the blob the archive was introduced with cannot be read.
+/// Returns the clone root and the introducing commit.
+fn offline_partial_clone_missing_an_archive_blob(temp: &TempDir) -> (PathBuf, String, String) {
+    let origin = temp.path().join("origin");
+    fs::create_dir_all(&origin).unwrap();
+    fast_read_repository(&origin);
+    let state = format!("{ARCHIVE_PATH}/2026-01-01-offline/state.json");
+    fs::create_dir_all(origin.join(&state).parent().unwrap()).unwrap();
+    fs::write(origin.join(&state), "{\"introduced\":true}\n").unwrap();
+    quiet_git(&origin, &["add", "--all"]);
+    quiet_git(&origin, &["commit", "-m", "introduce archive"]);
+    let introduction = quiet_git(&origin, &["rev-parse", "HEAD"]);
+    fs::write(origin.join(&state), "{\"introduced\":false}\n").unwrap();
+    quiet_git(&origin, &["commit", "-am", "edit archive"]);
+    quiet_git(&origin, &["config", "uploadpack.allowFilter", "true"]);
+
+    let clone = temp.path().join("clone");
+    let url = format!("file://{}", origin.display());
+    quiet_git(
+        temp.path(),
+        &["clone", "-q", "--filter=blob:none", url.as_str(), "clone"],
+    );
+    quiet_git(&clone, &["remote", "set-url", "origin", "file:///nonexistent-promisor"]);
+    (clone, introduction, state)
+}
+
+#[test]
+fn an_unreadable_introduced_archive_blob_is_never_cached_as_absent() {
+    let temp = TempDir::new().unwrap();
+    let (clone, introduction, _) = offline_partial_clone_missing_an_archive_blob(&temp);
+    let archive_root = ARCHIVE_PATH.to_string();
+    let (introduced, conclusive) = archive_introductions_at_commit_uncached(
+        &clone,
+        &introduction,
+        &format!(":(top,literal){archive_root}"),
+        &format!("{archive_root}/"),
+    )
+    .unwrap();
+    assert!(introduced.is_empty());
+    assert!(
+        !conclusive,
+        "diff-tree listed the archived state but its blob could not be read; that must not be \
+         stored as 'introduced nothing'"
+    );
+}
+
+#[test]
+fn an_unreadable_blob_at_a_commit_is_an_error_not_an_absent_file() {
+    let temp = TempDir::new().unwrap();
+    let (clone, introduction, state) = offline_partial_clone_missing_an_archive_blob(&temp);
+    let _scope = begin_change_read_scope(&clone);
+    for _ in 0..2 {
+        let read = scoped_review_file_at_commit(&clone, &introduction, &state);
+        assert!(
+            read.is_err(),
+            "a path the commit's tree lists but whose blob is unavailable read as {read:?}"
+        );
+    }
+    // A path the commit really does not have is still plainly absent.
+    assert_eq!(
+        scoped_review_file_at_commit(&clone, &introduction, "no-such-file").unwrap(),
+        None
+    );
+}

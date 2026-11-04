@@ -1,6 +1,6 @@
 ---
 id: send-an-approved-change-back-to-draft-for-re-scoping
-state: verifying
+state: implementing
 type: feature
 base_commit: f82eb09e2d3da852ff58e0cfbb734ab6faba724e
 ---

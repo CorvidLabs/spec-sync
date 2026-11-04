@@ -103,7 +103,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ReopenCauseV1` | Why accepted evidence was stale despite matching inputs: unanchored verification or unreconstructible legacy acceptance; absent means inputs drifted |
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
-| `AppliedDeltaItem` | One item a change's delta applied to a canonical spec or requirements file: module, operation, target, key, body and the block's pre-change text, listed by a send-back |
+| `AppliedDeltaItem` | One block a change's delta put into a canonical spec or requirements file: module, target, key and body, listed by a send-back |
 | `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, whether canonical text had been applied, and the applied items |
 | `SendBackResult` | Deterministic change-plus-audit result returned by the send-back transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |

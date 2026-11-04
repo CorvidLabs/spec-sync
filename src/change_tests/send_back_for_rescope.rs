@@ -516,3 +516,33 @@ fn a_send_back_deleted_in_a_later_commit_is_refused_and_audited() {
         report.errors
     );
 }
+
+/// DISCRIMINATOR (High), 0xLeif's exact repro: a REMOVED-only delta through approve, start,
+/// materialize, send-back, answer, approve, start and materialize again.
+#[test]
+fn a_sent_back_removed_only_change_materializes_again() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, REMOVED_DELTA);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    start_implementation(root, &record.id).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    let version = |root: &Path| {
+        fs::read_to_string(root.join("specs/auth/auth.spec.md"))
+            .unwrap()
+            .lines()
+            .find(|line| line.starts_with("version:"))
+            .unwrap()
+            .to_string()
+    };
+    let first_version = version(root);
+    send_back_change(root, &record.id, "Scope owner".into(), SEND_BACK_REASON.into()).unwrap();
+    answer_question(root, &record.id, "affected_paths", "src/auth.rs").unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    start_implementation(root, &record.id).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(!spec.contains("## Legacy Notes"), "{spec}");
+    assert_eq!(spec.matches("add-passkeys:").count(), 1, "{spec}");
+    assert_eq!(version(root), first_version, "the version is bumped once: {spec}");
+}

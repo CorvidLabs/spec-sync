@@ -517,11 +517,32 @@ fn cached_workflow_history_is_current(root: &Path, record: &ChangeRecord) -> boo
             .touched_since
             .entry(entry.commit.clone())
             .or_insert_with(|| lifecycle_paths_touched_since(root, &entry.commit));
-        touched.as_ref().is_some_and(|touched| {
+        let current = touched.as_ref().is_some_and(|touched| {
             !touched.iter().any(|path| {
                 path_is_state_candidate(path, &changes_root, &archive_root, &record.id)
             })
-        })
+        });
+        // A verdict proven current at `HEAD` is a verdict at `HEAD`: no commit in
+        // `entry.commit..HEAD` touched its state paths, so `entry.commit..later` is untouched
+        // exactly when `HEAD..later` is. Restamping it inside a read scope (where `HEAD` resolves
+        // from the scope's memo) lets the next read check one short range instead of one range
+        // per commit an archive was cached at.
+        if current
+            && read_scope_value(root, |_| Some(())).is_some()
+            && let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+            && head != entry.commit
+            && let Some(cache) = frame.loaded.as_mut()
+        {
+            cache.workflow_history.insert(
+                record.id.clone(),
+                WorkflowHistoryCacheEntry {
+                    commit: head,
+                    ..entry
+                },
+            );
+            frame.dirty = true;
+        }
+        current
     })
     .unwrap_or(false)
 }

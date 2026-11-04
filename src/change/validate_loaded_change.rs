@@ -3035,7 +3035,17 @@ fn validate_workflow_v2_baseline_history(
     cutoff_commit: Option<&str>,
     current_bytes: &[u8],
 ) -> Result<(), String> {
-    if memoized_baseline_history_ok(root, head, baseline_path, cutoff_commit, current_bytes) {
+    // A read scope memoizes by the literal `HEAD` its own reads used; elsewhere every query names
+    // the resolved id, and only then is a passing verdict shared under that id.
+    let revision = if read_scope_value(root, |_| Some(())).is_some() {
+        "HEAD"
+    } else {
+        head
+    };
+    let memoize = revision == head;
+    if memoize
+        && memoized_baseline_history_ok(root, head, baseline_path, cutoff_commit, current_bytes)
+    {
         return Ok(());
     }
     let limits = lifecycle_validation_limits();
@@ -3047,7 +3057,7 @@ fn validate_workflow_v2_baseline_history(
             "--reverse",
             "--full-history",
             max_count.as_str(),
-            head,
+            revision,
             "--",
             baseline_path,
         ],
@@ -3075,7 +3085,7 @@ fn validate_workflow_v2_baseline_history(
                 "log",
                 "--format=%H",
                 "--diff-filter=A",
-                head,
+                revision,
                 "--",
                 baseline_path,
             ],
@@ -3154,7 +3164,7 @@ fn validate_workflow_v2_baseline_history(
                 }
             }
         }
-        let committed_bytes = scoped_review_file_at_commit(root, head, baseline_path)?
+        let committed_bytes = scoped_review_file_at_commit(root, revision, baseline_path)?
             .ok_or_else(|| "committed workflow-v2 baseline was deleted".to_string())?;
         if introduced_bytes != committed_bytes || committed_bytes.as_slice() != current_bytes {
             return Err("workflow-v2 baseline changed after its introduction".into());
@@ -3162,11 +3172,13 @@ fn validate_workflow_v2_baseline_history(
     }
 
     if let Some(cutoff) = cutoff_commit
-        && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, head])?
+        && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, revision])?
     {
         return Err("workflow-v2 baseline cutoff is not reachable from HEAD".into());
     }
-    remember_baseline_history_ok(root, head, baseline_path, cutoff_commit, current_bytes);
+    if memoize {
+        remember_baseline_history_ok(root, head, baseline_path, cutoff_commit, current_bytes);
+    }
     Ok(())
 }
 

@@ -544,3 +544,39 @@ fn a_second_worktree_reads_warm_from_the_shared_cache() {
     let live = archived_status_read(&second, &record.id).unwrap();
     assert_eq!(git_processes_for_one_scoped_read(&second, &record.id).0.unwrap(), live);
 }
+
+#[test]
+fn a_pass_is_stored_only_for_the_state_it_was_computed_for() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    let state_path = find_change_dir(root, &record.id).unwrap().join("state.json");
+    {
+        let _scope = begin_change_read_scope(root);
+        assert!(!cached_workflow_history_is_current(root, &record));
+        // While the verdict for `record` is being computed, the file on disk changes to a state
+        // that loads cleanly but whose history does not hold: a different workflow origin.
+        let mut downgraded: serde_json::Value =
+            serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+        let object = downgraded.as_object_mut().unwrap();
+        let origin = object["workflow_origin_version"].as_u64().unwrap();
+        object.insert(
+            "workflow_origin_version".into(),
+            serde_json::json!(if origin == 1 { 2 } else { 1 }),
+        );
+        fs::write(
+            &state_path,
+            format!("{}\n", serde_json::to_string_pretty(&downgraded).unwrap()),
+        )
+        .unwrap();
+        remember_workflow_history_pass(root, &record);
+    }
+    // The pass was computed for `record`, not for the bytes now on disk, so nothing may be stored
+    // under those bytes' digest. (Archive integrity checks also refuse this edit at the command
+    // layer today; the cache must not depend on that.)
+    assert_eq!(cached_history_commit(root, &record.id), None);
+    let live = archived_status_read(root, &record.id).unwrap_err();
+    let scoped = git_processes_for_one_scoped_read(root, &record.id).0.unwrap_err();
+    assert_eq!(scoped, live);
+}

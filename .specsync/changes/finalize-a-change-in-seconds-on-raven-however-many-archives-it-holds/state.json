@@ -11,12 +11,18 @@
   "canonical_applied": true,
   "base_commit": "df7bace2742ff5910d9b6747ecfda7e639848c7e",
   "created_at": 1793757762,
-  "updated_at": 1793760348,
+  "updated_at": 1793835695,
   "affected_specs": [
     "change"
   ],
   "affected_paths": [
-    "src/change/read_cache.rs src/change/validate_loaded_change.rs src/change/historical_definition_digest_matches.rs src/change/consider_accepted_evidence_anchor.rs src/change_tests/fast_finalize.rs src/change_tests.rs specs/change"
+    "src/change/read_cache.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests/fast_finalize.rs",
+    "src/change_tests.rs",
+    "specs/change"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

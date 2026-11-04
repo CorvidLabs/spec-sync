@@ -379,3 +379,25 @@ fn an_unreadable_blob_at_a_commit_is_an_error_not_an_absent_file() {
         None
     );
 }
+
+#[test]
+fn a_pass_is_never_stamped_with_a_head_that_moved_during_the_read() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    let state_path = find_change_dir(root, &record.id).unwrap().join("state.json");
+    {
+        let _scope = begin_change_read_scope(root);
+        // The read starts: nothing cached yet, so the verdict would be computed live at this HEAD.
+        assert!(!cached_workflow_history_is_current(root, &record));
+        // HEAD moves mid-read to a commit whose history hides a downgrade.
+        commit_hidden_workflow_downgrade(root, &state_path);
+        // The pass computed for the earlier HEAD must not be recorded against the new one.
+        remember_workflow_history_pass(root, &record);
+    }
+    let live = archived_status_read(root, &record.id).unwrap_err();
+    assert!(live.contains("workflow-version history changed immutable identity"));
+    let scoped = git_processes_for_one_scoped_read(root, &record.id).0.unwrap_err();
+    assert_eq!(scoped, live);
+}

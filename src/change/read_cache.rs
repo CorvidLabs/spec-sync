@@ -325,7 +325,14 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     {
         return;
     }
-    let temporary = path.with_extension(format!("tmp-{}", std::process::id()));
+    // Unique per process and per flush, so concurrent writers (threads or processes) never share
+    // a temporary file; the rename stays atomic.
+    static FLUSH_NONCE: AtomicU64 = AtomicU64::new(0);
+    let temporary = path.with_extension(format!(
+        "tmp-{}-{}",
+        std::process::id(),
+        FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
+    ));
     if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
         let _ = fs::remove_file(&temporary);
     }

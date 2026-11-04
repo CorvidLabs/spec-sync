@@ -7,11 +7,11 @@
   "title": "Name the spec to edit when change approve refuses an unowned affected path",
   "description": "Name the spec to edit when change approve refuses an unowned affected path",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "376d17cd44940bd1e241f1d15b64bb8542fe2e0a",
   "created_at": 1793753811,
-  "updated_at": 1793756455,
+  "updated_at": 1793806723,
   "affected_specs": [
     "change"
   ],

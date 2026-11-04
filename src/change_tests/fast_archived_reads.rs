@@ -239,8 +239,8 @@ fn path_is_state_candidate_matches_only_one_change_s_state_paths() {
 }
 
 /// The timed benchmark against a Raven-sized project: 124 archived changes and 120 specs.
-/// Run on demand (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES` and
-/// `SPECSYNC_BENCH_SPECS` change the fixture size.
+/// Run on demand (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES`,
+/// `SPECSYNC_BENCH_SPECS` and `SPECSYNC_BENCH_ACTIVE` change the fixture size.
 #[test]
 #[ignore = "timed benchmark; run with `fledge run bench-archived-reads`"]
 fn raven_sized_archived_status_benchmark() {
@@ -298,18 +298,42 @@ fn raven_sized_archived_status_benchmark() {
     let live_started = Instant::now();
     archived_status_read(root, &target).unwrap();
     eprintln!("unscoped: {:.3}s", live_started.elapsed().as_secs_f64());
+    // Cold means no persistent cache at all, not merely a fresh process.
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
     time("cold read scope");
     let warm = time("warm read scope");
-    let started = Instant::now();
-    {
-        let _scope = begin_change_read_scope(root);
-        list_changes(root).unwrap();
+
+    // `change list` reads every archive and the open changes beside them.
+    let active = size("SPECSYNC_BENCH_ACTIVE", 3);
+    for _ in 0..active {
+        current_workflow_record(root, completed_no_spec_record(root));
     }
-    eprintln!("change list: {:.3}s", started.elapsed().as_secs_f64());
+    let list = |label: &str| {
+        let started = Instant::now();
+        let _scope = begin_change_read_scope(root);
+        reset_test_git_process_count();
+        list_changes(root).unwrap();
+        let elapsed = started.elapsed();
+        eprintln!(
+            "{label} ({active} active): {:.3}s, {} Git processes",
+            elapsed.as_secs_f64(),
+            test_git_process_count()
+        );
+        elapsed
+    };
+    list("change list, first");
+    let warm_list = list("change list, warm");
     assert!(
         warm < Duration::from_secs(2),
         "a warm archived status read took {:.3}s against the 2 s budget",
         warm.as_secs_f64()
+    );
+    assert!(
+        warm_list < Duration::from_secs(2),
+        "a warm change list took {:.3}s against the 2 s budget",
+        warm_list.as_secs_f64()
     );
 }
 

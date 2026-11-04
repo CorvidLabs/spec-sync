@@ -305,6 +305,23 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     }
 }
 
+/// Whether `commit`'s tree has an entry at the repository-relative `path`, read from tree objects
+/// only, so it answers even when the blob itself is unavailable. `None` when Git cannot say.
+fn commit_tree_lists_path(root: &Path, commit: &str, path: &str) -> Option<bool> {
+    let output = run_git_bounded(
+        root,
+        &["ls-tree", "--full-tree", "-z", "--name-only", commit, "--", path],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .split('\0')
+            .any(|listed| listed == path)
+    })
+}
+
 /// One archived package a commit introduced: `(id, directory, approvals bytes)`.
 type ArchivePackageIntroduction = (String, String, Option<Vec<u8>>);
 
@@ -424,12 +441,13 @@ fn archive_introductions_at_commit_uncached(
             conclusive = false;
             continue;
         };
-        let Some(archived) = state
-            .status
-            .success()
-            .then(|| serde_json::from_slice::<ChangeRecord>(&state.stdout).ok())
-            .flatten()
-        else {
+        if !state.status.success() {
+            // diff-tree just listed this path as added, so a failed read means the blob is
+            // unavailable (an offline partial clone), not that the archive is absent.
+            conclusive = false;
+            continue;
+        }
+        let Ok(archived) = serde_json::from_slice::<ChangeRecord>(&state.stdout) else {
             continue;
         };
         let object = format!("{commit}:{directory}/approvals.json");
@@ -439,7 +457,15 @@ fn archive_introductions_at_commit_uncached(
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         ) {
-            Ok(output) => output.status.success().then_some(output.stdout),
+            Ok(output) if output.status.success() => Some(output.stdout),
+            Ok(_) => {
+                if commit_tree_lists_path(root, commit, &format!("{directory}/approvals.json"))
+                    != Some(false)
+                {
+                    conclusive = false;
+                }
+                None
+            }
             Err(_) => {
                 conclusive = false;
                 None

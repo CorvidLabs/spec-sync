@@ -1930,6 +1930,13 @@ fn scoped_review_file_at_commit(
     }
     let object = format!("{commit}:{path}");
     let output = run_scoped_review_git(root, &["show", object.as_str()])?;
+    // A failed read is only "absent" when the commit's tree has no such entry; otherwise the blob
+    // is unavailable (an offline partial clone), which must neither pass as absent nor be memoized.
+    if !output.status.success() && commit_tree_lists_path(root, commit, path) != Some(false) {
+        return Err(format!(
+            "scoped-review Git object `{object}` is listed but could not be read"
+        ));
+    }
     let result = output.status.success().then_some(output.stdout);
     update_read_scope(root, |scope| {
         if scope.scoped_review_files.len() < MAX_CHANGE_READ_CACHE_ENTRIES {

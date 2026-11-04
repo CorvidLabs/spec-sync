@@ -429,3 +429,32 @@ fn a_cache_hit_moves_its_entry_forward_to_the_current_head() {
         "a proven-current hit should restamp its entry so later reads walk only newer commits"
     );
 }
+
+#[test]
+fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("specsync").join("read-cache-v1.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    // Another thread of this process is mid-write: the bare per-process name is taken.
+    fs::create_dir_all(path.with_extension(format!("tmp-{}", std::process::id()))).unwrap();
+    let frame = PersistentReadCacheFrame {
+        path: Some(path.clone()),
+        loaded: Some(PersistentReadCache {
+            schema: READ_CACHE_SCHEMA,
+            ..PersistentReadCache::default()
+        }),
+        dirty: true,
+        ..PersistentReadCacheFrame::default()
+    };
+    flush_persistent_read_cache(&frame);
+    let written: PersistentReadCache =
+        serde_json::from_slice(&fs::read(&path).expect("the cache was not written")).unwrap();
+    assert_eq!(written.schema, READ_CACHE_SCHEMA);
+    let leftovers: Vec<_> = fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name())
+        .filter(|name| name.to_string_lossy().contains(".tmp-") && !name.to_string_lossy().ends_with(&std::process::id().to_string()))
+        .collect();
+    assert!(leftovers.is_empty(), "temporary files left behind: {leftovers:?}");
+}

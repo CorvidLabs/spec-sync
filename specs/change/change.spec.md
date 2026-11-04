@@ -21,6 +21,7 @@ files:
   - src/change_tests/substantive_plan.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
+  - src/change_tests/stale_modified_delta.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []

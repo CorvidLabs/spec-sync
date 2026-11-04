@@ -1322,6 +1322,148 @@ fn delta_body_digest(module: &str, body: &str) -> String {
     digest.finish()
 }
 
+/// The ledger key of one `## MODIFIED` / `## REMOVED` item's approval-time base (#843), e.g.
+/// `cli: REQUIREMENT REQ-cli-007`. Readable on purpose: it is what a refusal names.
+fn delta_base_key(module: &str, item: &DeltaItem) -> String {
+    let target = match item.target {
+        DeltaTarget::Requirement => "REQUIREMENT",
+        DeltaTarget::SpecSection => "SPEC SECTION",
+    };
+    format!("{module}: {target} {}", item.key)
+}
+
+/// Framed digest of the canonical block an item targets, as it stands in `spec`/`requirements`
+/// now, or of its absence. Line endings and surrounding blank lines fold exactly as
+/// `markdown_block_matches` folds them, so a CRLF checkout never reads as a moved block.
+fn canonical_block_digest(module: &str, spec: &str, requirements: &str, item: &DeltaItem) -> String {
+    let (source, prefix) = match item.target {
+        DeltaTarget::Requirement => (requirements, "### "),
+        DeltaTarget::SpecSection => (spec, "## "),
+    };
+    let heading = format!("{prefix}{}", item.key);
+    let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
+    digest.frame(b"key", delta_base_key(module, item).as_bytes());
+    match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
+        None => digest.frame(b"absent", b""),
+        Some(range) => {
+            let block = source[range].replace("\r\n", "\n");
+            digest.frame(b"block", block.trim_matches(['\n', ' ', '\t']).as_bytes());
+        }
+    }
+    digest.finish()
+}
+
+/// Every `## MODIFIED` / `## REMOVED` item of every affected module, with the canonical spec and
+/// requirements text it applies to, read once per module.
+fn for_each_replacing_delta_item(
+    root: &Path,
+    record: &ChangeRecord,
+    mut visit: impl FnMut(&str, &str, &str, &DeltaItem),
+) -> Result<(), String> {
+    if record.no_spec_change {
+        return Ok(());
+    }
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    for module in &record.affected_specs {
+        let delta = read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")
+            .map_err(|error| format!("semantic delta for {module}: {error}"))?;
+        let items = parse_delta(&delta)?;
+        if !items
+            .iter()
+            .any(|item| item.operation != DeltaOperation::Added)
+        {
+            continue;
+        }
+        let (spec_path, requirements_path) = canonical_module_paths(root, specs_dir.as_str(), module)?;
+        // A missing file is a block that is absent, which is a base like any other; whether a
+        // MODIFIED item may target it is `apply_markdown_block`'s question, not this one's.
+        let spec = fs::read_to_string(&spec_path).unwrap_or_default();
+        let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+        for item in items
+            .iter()
+            .filter(|item| item.operation != DeltaOperation::Added)
+        {
+            visit(module, &spec, &requirements, item);
+        }
+    }
+    Ok(())
+}
+
+/// The approval-time base of every replacing item (#843): what a definition approval records
+/// beside the delta bodies it approves.
+fn delta_base_digests(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<BTreeMap<String, String>, String> {
+    let mut bases = BTreeMap::new();
+    for_each_replacing_delta_item(root, record, |module, spec, requirements, item| {
+        bases.insert(
+            delta_base_key(module, item),
+            canonical_block_digest(module, spec, requirements, item),
+        );
+    })?;
+    Ok(bases)
+}
+
+/// Refuses to apply a `## MODIFIED` or `## REMOVED` item over canonical text that changed after
+/// the item was approved (#843).
+///
+/// A modified body replaces the whole block. When the base branch rewrites that block after
+/// approval — another change lands and is merged in — applying the stale body would delete the
+/// other change's text with no record that anything was lost, and the tests rarely cover the
+/// dropped wording, so verification still passes. The approval recorded the block it was granted
+/// over; an item whose block is neither that base nor already this change's own text is refused,
+/// naming the block, before anything is written.
+///
+/// An item that is already applied is never refused: the block carrying exactly this change's
+/// approved text is converged, whatever the base was. Absent bases (approvals written before this
+/// binding) are unknown, not violated, so such a change keeps materializing as before.
+fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if record.no_spec_change {
+        return Ok(());
+    }
+    let ledger = load_approvals(root, record)?;
+    let approval = effective_definition_approval(root, record, &ledger)?;
+    let Some(bases) = approval.approved_delta_bases.as_ref() else {
+        return Ok(());
+    };
+    let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for_each_replacing_delta_item(root, record, |module, spec, requirements, item| {
+        if delta_item_is_applied(spec, requirements, item) {
+            return;
+        }
+        let key = delta_base_key(module, item);
+        let Some(base) = bases.get(&key) else {
+            return;
+        };
+        if *base != canonical_block_digest(module, spec, requirements, item) {
+            let target = match item.target {
+                DeltaTarget::Requirement => item.key.clone(),
+                DeltaTarget::SpecSection => format!("section `{}`", item.key),
+            };
+            moved.entry(module.to_string()).or_default().push(target);
+        }
+    })?;
+    if moved.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "semantic delta for {} was approved against canonical text that has changed since ({}); applying it would overwrite text this change never approved, so rewrite each listed delta body onto the current canonical text, re-run `specsync change approve {}` to approve the rebased bodies, then `specsync change check {}`",
+        moved
+            .keys()
+            .map(|module| format!("`{module}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        moved
+            .iter()
+            .map(|(module, targets)| format!("{module}: {}", targets.join(", ")))
+            .collect::<Vec<_>>()
+            .join("; "),
+        record.id,
+        record.id
+    ))
+}
+
 /// Refuses to apply a semantic delta whose body is not the body the approver signed (#704).
 ///
 /// ABSENT EVIDENCE IS NOT A VIOLATION. Every approval written before `approved_delta_digests`

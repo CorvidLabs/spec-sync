@@ -450,6 +450,7 @@ const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
 const FINALIZATION_DIGEST_DOMAIN: &[u8] = b"specsync.finalization-digest.v2";
 const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
 const APPROVED_DELTA_DIGEST_DOMAIN: &[u8] = b"specsync.approved-delta.v1";
+const APPROVED_DELTA_BASE_DOMAIN: &[u8] = b"specsync.approved-delta-base.v1";
 const EXACT_TEST_OWNER: &str = "@exact:test";
 const EXACT_DELIVERY_OWNER: &str = "@exact:delivery";
 const MAX_ACCEPTANCE_ENTRIES: usize = 100_000;
@@ -1108,6 +1109,18 @@ pub struct ApprovalRecord {
     // enforces exactly that: it trusts absence, and refuses a ledger that walks it back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approved_delta_digests: Option<BTreeMap<String, String>>,
+    // The canonical text each `## MODIFIED` / `## REMOVED` item was approved AGAINST (#843).
+    //
+    // A modified body is a full replacement written against the block as it stood when the
+    // approver read it. When the base branch later changes that same block, re-applying the
+    // body deletes text nobody approved removing. Recording the block's digest at approval lets
+    // materialization and audit tell "the block this change was approved over" from "a block
+    // another change has since rewritten", and refuse the second instead of overwriting it.
+    //
+    // Keyed by `delta_base_key`. `None` is every approval written before this field existed and
+    // reads as unknown, never as violated, exactly like `approved_delta_digests` above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_delta_bases: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -3124,6 +3137,9 @@ fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, Stri
     // after the first — and the workspace would keep shipping a delta that no longer describes
     // the spec it produced. The delta must match its approval for as long as it is evidence.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
+    // Also above the short-circuit, and before anything is written: a body approved over text
+    // the base branch has since rewritten must be refused, never applied over it (#843).
+    ensure_approved_delta_bases_current(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     ensure_tasks_complete(root, &record)?;

@@ -246,8 +246,11 @@ fn cached_workflow_history_is_current(root: &Path, record: &ChangeRecord) -> boo
             .entry(entry.commit.clone())
             .or_insert_with(|| lifecycle_paths_touched_since(root, &entry.commit));
         touched.as_ref().is_some_and(|touched| {
+            // The live check also reads the archive's current state path, which need not end
+            // in `-<id>` once the directory is renamed; treat it as a candidate too.
             !touched.iter().any(|path| {
-                path_is_state_candidate(path, &changes_root, &archive_root, &record.id)
+                *path == archive_state_path
+                    || path_is_state_candidate(path, &changes_root, &archive_root, &record.id)
             })
         })
     })

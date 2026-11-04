@@ -11,3 +11,8 @@ artifact: tasks
 - [x] Wire `change send-back` in the CLI with text and JSON output.
 - [x] Document send-back in the workflow and CLI guides.
 - [x] Record requirement evidence in specs/change, specs/cmd_change and specs/cli_args testing.
+- [x] Review round (e52f77d): list applied items at send-back and refuse orphaned applied text in check and accept.
+- [x] Review round: say "definition approval" in REQ-change-123 and the guides, matching CHANGE-12.b.
+- [x] Review round: honour send-backs in the definition approval event resolver, the scoped-review approver lookup and the scope-expansion summary.
+- [x] Review round: refuse a ledger whose committed send-backs were removed or edited.
+- [x] Review round: finalize test uses a change that owns a spec.

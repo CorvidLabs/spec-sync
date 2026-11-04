@@ -172,14 +172,8 @@ fn only_an_approved_unfinished_change_can_be_sent_back() {
     assert_eq!(load_change(root, &draft.id).unwrap().state, ChangeState::Draft);
 }
 
-/// CHANGE-12 end to end on a real branch: a change sent back after its first check is approved
-/// again, checked, reviewed and finalized, and the archived package, which still carries the
-/// send-back and the cancelled approval, passes the project audit.
-#[test]
-fn a_sent_back_change_finalizes_and_its_archive_passes_audit() {
-    let temp = TempDir::new().unwrap();
-    let root = temp.path();
-    let git = |args: &[&str]| {
+fn git_in(root: &Path) -> impl Fn(&[&str]) + '_ {
+    move |args: &[&str]| {
         assert!(
             Command::new("git")
                 .args(args)
@@ -189,24 +183,40 @@ fn a_sent_back_change_finalizes_and_its_archive_passes_audit() {
                 .success(),
             "git command failed: {args:?}"
         );
-    };
+    }
+}
+
+/// A git repository whose first commit holds the auth spec and a draft section-only change.
+fn committed_spec_change(root: &Path) -> ChangeRecord {
+    let git = git_in(root);
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    fs::write(root.join("README.md"), "base\n").unwrap();
-    git(&["add", "README.md"]);
+    let record = completed_section_only_current_record(root, SEND_BACK_DELTA);
+    auth_spec_owning_session_code(root);
+    git(&["add", "--all"]);
     git(&["commit", "-m", "base"]);
+    record
+}
 
-    let record = current_workflow_record(root, completed_no_spec_record(root));
+/// CHANGE-12 end to end on a real branch, with a change that owns a spec: it is checked, which
+/// applies its delta, sent back, approved again, checked, reviewed and finalized. The archived
+/// package, which still carries the send-back and the cancelled approval, passes the audit.
+#[test]
+fn a_sent_back_change_finalizes_and_its_archive_passes_audit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    let record = committed_spec_change(root);
     approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
     assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
-    git(&["add", "."]);
+    git(&["add", "--all"]);
     git(&["commit", "-m", "first check"]);
 
     send_back_change(root, &record.id, "Scope owner".into(), SEND_BACK_REASON.into()).unwrap();
     approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
     assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
-    git(&["add", "."]);
+    git(&["add", "--all"]);
     git(&["commit", "-m", "check the re-approved scope"]);
     assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
     record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
@@ -217,6 +227,94 @@ fn a_sent_back_change_finalizes_and_its_archive_passes_audit() {
     let ledger: serde_json::Value =
         serde_json::from_slice(&fs::read(destination.join("approvals.json")).unwrap()).unwrap();
     assert_eq!(ledger["send_backs"][0]["actor"], "Scope owner");
+    assert_eq!(ledger["send_backs"][0]["applied_items"][0]["key"], "Purpose");
     let report = audit_project(root);
     assert!(report.errors.is_empty(), "{:?}", report.errors);
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert_eq!(spec.matches("Auth tracks credentials and sessions.").count(), 1, "{spec}");
+}
+
+/// DISCRIMINATOR for CHANGE-12.c (#846 review): a re-scope that drops an item the change had
+/// already applied would leave that text in the spec with nothing owning it. `change check`
+/// refuses, naming the spec file and the section, until the text is taken out of the spec or the
+/// item is kept in the delta.
+#[test]
+fn a_re_scope_that_drops_applied_text_is_refused_until_the_text_is_removed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = verifying_change(root);
+    send_back_change(root, &record.id, "Scope owner".into(), SEND_BACK_REASON.into()).unwrap();
+    fs::write(
+        change_dir(root, &record.id).join("deltas/auth.md"),
+        "## MODIFIED\n\n### SPEC SECTION Invariants\n\nSessions expire.\n",
+    )
+    .unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    let error = check_change(root, Some(&record.id)).map(|_| ()).unwrap_err();
+    assert!(error.contains("specs/auth/auth.spec.md"), "{error}");
+    assert!(error.contains("Purpose"), "{error}");
+
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    let spec = fs::read_to_string(&spec_path)
+        .unwrap()
+        .replace("Auth tracks credentials and sessions.", "Auth.");
+    fs::write(&spec_path, spec).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+}
+
+/// DISCRIMINATOR for CHANGE-12.b (#846 review): every reader of the definition approval honours
+/// the send-back, including the event resolver historical and archived evidence go through.
+#[test]
+fn the_definition_approval_event_resolver_honours_a_send_back() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = verifying_change(root);
+    send_back_change(root, &record.id, "Scope owner".into(), SEND_BACK_REASON.into()).unwrap();
+    let record = load_change(root, &record.id).unwrap();
+    let ledger = load_approvals(root, &record).unwrap();
+    let digest = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .unwrap()
+        .digest
+        .clone();
+    let error = resolve_definition_approval_event(&record, &ledger, &digest, None, "")
+        .map(|_| ())
+        .unwrap_err();
+    assert!(error.contains("sent back"), "{error}");
+}
+
+/// DISCRIMINATOR for CHANGE-12.b (#846 review): deleting a committed send-back from
+/// `approvals.json` does not bring the cancelled approval back.
+#[test]
+fn deleting_a_committed_send_back_does_not_revive_the_cancelled_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    let record = committed_spec_change(root);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    send_back_change(root, &record.id, "Scope owner".into(), SEND_BACK_REASON.into()).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "send back"]);
+
+    let path = change_dir(root, &record.id).join("approvals.json");
+    let mut ledger: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    ledger.as_object_mut().unwrap().remove("send_backs");
+    let mut state: serde_json::Value =
+        serde_json::from_slice(&fs::read(change_dir(root, &record.id).join("state.json")).unwrap())
+            .unwrap();
+    state["state"] = "implementing".into();
+    fs::write(&path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+    fs::write(
+        change_dir(root, &record.id).join("state.json"),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+
+    let error = check_change(root, Some(&record.id)).map(|_| ()).unwrap_err();
+    assert!(error.contains("send-back"), "{error}");
 }

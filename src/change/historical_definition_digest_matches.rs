@@ -1279,7 +1279,9 @@ fn definition_approver_for_review_contract<'a>(
     approvals: &'a ApprovalLedger,
     review: &ScopedReviewRecord,
 ) -> Result<&'a str, String> {
-    if let Some(approval) = approvals.approvals.iter().rev().find(|approval| {
+    // A definition approval a send-back cancelled binds no review (CHANGE-12.b).
+    let cancelled = send_back_cancelled_prefix(approvals);
+    if let Some(approval) = approvals.approvals.iter().skip(cancelled).rev().find(|approval| {
         approval.gate == "definition"
             && (approval.digest == review.contract_digest
                 || approval.definition_pair.as_ref().is_some_and(|pair| {
@@ -1296,6 +1298,7 @@ fn definition_approver_for_review_contract<'a>(
         let approval = approvals
             .approvals
             .get(adoption.source_approval_index as usize)
+            .filter(|_| adoption.source_approval_index as usize >= cancelled)
             .filter(|approval| approval.gate == "definition")
             .ok_or_else(|| {
                 "scoped review scope-adoption approval identity is missing".to_string()
@@ -2249,6 +2252,7 @@ fn accept_change_with_gate(
     require_state(&record, &[ChangeState::Verifying], "accept the change")?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     ensure_definition_approval_valid(root, &record)?;
+    ensure_no_orphaned_applied_text(root, &record)?;
     let mut verification = load_verification(root, &record)?;
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
     validate_verification_for_commit_binding(root, &record, &verification, require_scoped_review)
@@ -3490,7 +3494,8 @@ fn summarize_change_with_effective(
                     .approvals
                     .iter()
                     .enumerate()
-                    .rfind(|(_, approval)| approval.gate == "definition")?;
+                    .rfind(|(_, approval)| approval.gate == "definition")
+                    .filter(|(index, _)| *index >= send_back_cancelled_prefix(&ledger))?;
                 approval.approved_scope.clone().or_else(|| {
                     ledger
                         .scope_adoptions

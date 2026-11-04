@@ -162,11 +162,18 @@ specsync change approve add-passkeys --actor "Ada Reviewer"
 specsync change check add-passkeys --commit
 ```
 
-The person and the reason are appended to `approvals.json` under `send_backs`. Every approval
-recorded before the send-back is kept but no longer counts, so the new scope needs a fresh
-`change approve`, even when it did not change. Spec text the change already applied stays in
-place; the next `change check` converges blocks that already carry the approved body and applies
-the rest. Accepted or archived changes use `change reopen` instead.
+The person and the reason are appended to `approvals.json` under `send_backs`. The definition
+approval recorded before the send-back is kept but no longer counts, so the new scope needs a
+fresh `change approve`, even when it did not change. A committed send-back cannot be deleted to
+bring that approval back: check refuses a ledger whose send-backs differ from the committed one.
+
+Spec text the change already applied stays in place, and the send-back lists it under
+`applied_items`. The next `change check` converges an item the new scope keeps with the same body
+and applies the rest. If the new scope drops an item that was already applied, its text would be
+left in the spec with no change owning it, so `change check` and `change accept` refuse and name
+each such item, for example `specs/auth/auth.spec.md` section `Purpose`. Take that text out of
+the spec (or keep the item in the delta), then check again. Accepted or archived changes use
+`change reopen` instead.
 
 ## 4. Recover accepted or archived evidence
 

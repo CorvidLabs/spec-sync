@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven",
+  "slug": "answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven",
+  "title": "Answer archived change status, change list and change status within 2 seconds on Raven",
+  "description": "Answer archived change status, change list and change status within 2 seconds on Raven",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "84dbb56b245da36b3625440f5e394d85d686cd22",
+  "created_at": 1793753525,
+  "updated_at": 1793805391,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/read_cache.rs",
+    "src/change_tests.rs",
+    "src/change_tests/fast_archived_reads.rs",
+    "specs/change",
+    "hi/speed.md",
+    "INTENT.md",
+    "fledge.toml"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Archived change status, change list and change status return in under 2 seconds on Raven, check stays proportional to the specs touched, read caches are keyed by content digest with a correct invalidation rule, and a benchmark against a Raven-sized fixture guards the budget; output is identical to a live read."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change.3md: refusing gates install no memo and stay live, and two projections of one input in one output share one read; hi SHIP-7 audit without rewalking archives; Leif t811u: never weaken a gate, do not change who approves, native SpecSync state keeps deciding stage gates, do not raise timeouts.",
+    "public_contract": "no"
+  }
+}

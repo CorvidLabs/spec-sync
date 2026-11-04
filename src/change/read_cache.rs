@@ -549,9 +549,10 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     let next = AtomicU64::new(0);
     let results: Mutex<Vec<(usize, Result<(), String>)>> = Mutex::new(Vec::new());
     std::thread::scope(|threads| {
-        for _ in 0..workers {
-            threads.spawn(|| {
-                loop {
+        let workers: Vec<_> = (0..workers)
+            .map(|_| {
+                threads.spawn(|| {
+                    loop {
                     let index = next.fetch_add(1, Ordering::Relaxed) as usize;
                     let Some((_, record)) = pending.get(index) else {
                         break;
@@ -560,8 +561,17 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
                     if let Ok(mut results) = results.lock() {
                         results.push((index, result));
                     }
-                }
-            });
+                    }
+                    worker_test_git_process_count()
+                })
+            })
+            .collect();
+        // Fold each worker's Git processes into this thread's test counter, so the Git budget
+        // guards see prefetched work. A no-op outside tests.
+        for worker in workers {
+            if let Ok(spawned) = worker.join() {
+                add_test_git_processes(spawned);
+            }
         }
     });
     let Ok(results) = results.into_inner() else {

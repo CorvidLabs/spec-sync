@@ -348,6 +348,25 @@ fn record_test_git_process() {
 #[cfg(not(test))]
 fn record_test_git_process() {}
 
+/// The Git processes the current worker thread spawned, for its parent to fold in.
+#[cfg(test)]
+fn worker_test_git_process_count() -> usize {
+    test_git_process_count()
+}
+
+#[cfg(not(test))]
+fn worker_test_git_process_count() -> usize {
+    0
+}
+
+#[cfg(test)]
+fn add_test_git_processes(spawned: usize) {
+    TEST_GIT_PROCESS_COUNT.with(|count| count.set(count.get() + spawned));
+}
+
+#[cfg(not(test))]
+fn add_test_git_processes(_spawned: usize) {}
+
 #[cfg(test)]
 fn reset_test_git_process_count() {
     TEST_GIT_PROCESS_COUNT.with(|count| count.set(0));

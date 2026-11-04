@@ -11,6 +11,7 @@ files:
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
   - src/change/historical_reconciliation.rs
+  - src/change/read_cache.rs
   - src/change_tests/recorded_review_recovery.rs
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests.rs
@@ -21,6 +22,7 @@ files:
   - src/change_tests/substantive_plan.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
+  - src/change_tests/fast_archived_reads.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []

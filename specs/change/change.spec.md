@@ -23,6 +23,7 @@ files:
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/fast_archived_reads.rs
+  - src/change_tests/fast_finalize.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []

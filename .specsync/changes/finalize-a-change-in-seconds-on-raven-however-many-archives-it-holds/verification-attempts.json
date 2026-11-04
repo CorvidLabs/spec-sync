@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793757965,
+      "commit": "b329bc557768c4c3573d2a9f39c136673d2ed57a",
+      "contract_digest": "fcadff57d3493c3f92c80c683bfdfe61e583e075ec7e5c587fd1e24641b7bb2e",
+      "execution_digest": "81cded84a0bc355e2d625420b9f87044afd8549810eb8d5b49586cfc6e1c0348",
+      "workspace_digest": "c24cd01faf0e27b36ff7b93199eb45fc5009c44f35a837b4d524ba205171000b",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "specsync change check finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds (effective contract: change)",
+          "success": false,
+          "exit_code": 1
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-121"
+      ]
+    },
+    {
+      "timestamp": 1793758109,
+      "commit": "f5c4e5db2dca8a72c7e360123b54128a4108284f",
+      "contract_digest": "fcadff57d3493c3f92c80c683bfdfe61e583e075ec7e5c587fd1e24641b7bb2e",
+      "execution_digest": "81cded84a0bc355e2d625420b9f87044afd8549810eb8d5b49586cfc6e1c0348",
+      "workspace_digest": "faa8752684a667b9977cda16e2de2fc3558b45471881ba048966e03410884ead",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-121"
+      ]
+    }
+  ]
+}

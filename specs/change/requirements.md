@@ -1568,3 +1568,14 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
 
+### REQ-change-121
+
+The system SHALL let `change finalize` and `change archive` reuse, for the duration of one command, Git answers that cannot have changed while it runs, so that one finalize does not re-derive every other archived change's history: the persistent workflow-version history verdicts and archive introductions of REQ-change-119 under the same digest and history rule, Git queries that name only full object ids, the repository prefix, and a passing workflow-v2 baseline history verdict keyed by the resolved `HEAD` id, the baseline path, its cutoff and its exact bytes.
+
+#### Acceptance Criteria
+
+- Every finalize and archive verdict, refusal and first error is identical to a live run.
+- Only queries naming full object ids are memoized; queries naming `HEAD`, a branch or the working tree run live, `HEAD` is resolved live on every baseline check, failed Git runs are not stored, and refusals are always re-derived.
+- The memo lives only inside the command's own scope and takes no working-tree snapshot, so the command sees its own writes.
+- The Git processes one finalize spawns grow by at most 12 per other archived change.
+

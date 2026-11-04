@@ -4596,14 +4596,115 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if unowned.is_empty() {
         return Ok(());
     }
+    let hints: Vec<String> = unowned
+        .iter()
+        .map(|path| format!("  - {path}: {}", ownership_hint(root, record, path)))
+        .collect();
     Err(format!(
         "no declared module canonically owns {}: {}. Declare the owning module with `--spec`, \
-         or add the path to an owning spec's `files:` list",
+         or add the path to an owning spec's `files:` list:\n{}",
         if unowned.len() == 1 {
             "this affected path"
         } else {
             "these affected paths"
         },
-        unowned.join(", ")
+        unowned.join(", "),
+        hints.join("\n")
     ))
+}
+
+/// Names the spec to edit for one unowned affected path.
+///
+/// A spec anywhere under the specs directory that already lists the path names its module, so
+/// the fix is declaring it. Otherwise the declared spec whose `files:` entries share the longest
+/// directory with the path is the one to edit. This only words the refusal; ownership is still
+/// decided by `production_source_lacks_canonical_owner_with_evidence`.
+fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
+    let config = crate::config::load_config(root);
+    let specs_root = root.join(&config.specs_dir);
+    let mut stack = vec![specs_root];
+    let mut visited = 0usize;
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            visited += 1;
+            if visited > 10_000 {
+                break;
+            }
+            let entry_path = entry.path();
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                stack.push(entry_path);
+                continue;
+            }
+            if !kind.is_file()
+                || !entry_path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(".spec.md"))
+            {
+                continue;
+            }
+            let Some(parsed) = fs::read_to_string(&entry_path)
+                .ok()
+                .and_then(|content| crate::parser::parse_frontmatter(&content))
+            else {
+                continue;
+            };
+            let lists_path = parsed
+                .frontmatter
+                .files
+                .iter()
+                .any(|file| normalize_project_path(file).is_ok_and(|file| file == path));
+            if !lists_path {
+                continue;
+            }
+            let spec = portable_project_path(root, &entry_path);
+            return match parsed.frontmatter.module {
+                Some(module) if !record.affected_specs.contains(&module) => format!(
+                    "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
+                ),
+                _ => format!("`{spec}` lists it; check that this change declares that spec's module"),
+            };
+        }
+    }
+    let directory_depth = |file: &str| {
+        let ours: Vec<&str> = path.split('/').collect();
+        let theirs: Vec<&str> = file.split('/').collect();
+        ours.iter()
+            .zip(theirs.iter())
+            .take(ours.len().saturating_sub(1).min(theirs.len().saturating_sub(1)))
+            .take_while(|(left, right)| left == right)
+            .count()
+    };
+    let mut best: Option<(usize, String)> = None;
+    for module in &record.affected_specs {
+        let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module) else {
+            continue;
+        };
+        let depth = fs::read_to_string(&spec_path)
+            .ok()
+            .and_then(|content| crate::parser::parse_frontmatter(&content))
+            .map(|parsed| {
+                parsed
+                    .frontmatter
+                    .files
+                    .iter()
+                    .map(|file| directory_depth(file))
+                    .max()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0);
+        if best.as_ref().is_none_or(|(best_depth, _)| depth > *best_depth) {
+            best = Some((depth, portable_project_path(root, &spec_path)));
+        }
+    }
+    match best {
+        Some((_, spec)) => format!("add it to the `files:` list in `{spec}`"),
+        None => "add it to the `files:` list of the spec that owns it".to_string(),
+    }
 }

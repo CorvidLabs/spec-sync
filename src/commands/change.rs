@@ -579,8 +579,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             }
             Ok(())
         }
-        ChangeAction::Audit => {
-            let report = change::audit_project(root);
+        ChangeAction::Audit { archives } => {
+            // `--archives` adds the walk over every archive's own workflow-version history, which
+            // finalize no longer repeats (REQ-change-124). `--strict` alone stays as fast as before.
+            let report = change::audit_project_with_archives(root, archives);
             let passed = report.errors.is_empty();
             match format {
                 OutputFormat::Json => {

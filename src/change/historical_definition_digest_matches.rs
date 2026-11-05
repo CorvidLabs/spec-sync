@@ -3035,7 +3035,7 @@ fn archive_change_with_options(
             destination.display()
         ));
     }
-    ensure_closing_approval_valid(root, &record)?;
+    ensure_archiving_closing_approval_valid(root, &record)?;
     if !allow_delivery_diff
         && let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -3079,7 +3079,11 @@ fn archive_change_with_options(
             .unwrap_or_else(|_| original_state_bytes.clone());
     atomic_write_durable(&accepted_snapshot, &accepted_state_bytes)
         .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
-    let mut simulated = list_all_changes_checked(root)?;
+    // Structural roster (REQ-change-124). The change being archived had its own history checked
+    // by `load_change` and is validated in full below; other archives are read from their own
+    // bytes, and an archive the graph pass relies on proves its own history inside
+    // `AcceptedInputValidationMemo::authenticate`.
+    let mut simulated = list_all_changes_structural(root)?;
     let mut archived_projection = record.clone();
     archived_projection.state = ChangeState::Archived;
     if let Err(error) = match pending_close.as_ref() {
@@ -3833,10 +3837,63 @@ pub fn check_project(root: &Path) -> SddCheckReport {
 /// Audit active change workspaces and living SDD policy/spec coherence.
 ///
 /// Does **not** re-validate archived terminal evidence. Archives are history;
-/// living truth is active workspaces plus specs/policy.
+/// living truth is active workspaces plus specs/policy. The CLI reaches it through
+/// [`audit_project_with_archives`].
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn audit_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
     check_project_with_command_output(root, false)
+}
+
+/// [`audit_project`], and with `archives` also every archived change's own workflow-version
+/// history (REQ-change-124).
+///
+/// `change finalize` and `change archive` judge other archives from their own bytes only, so a
+/// downgrade committed into another archive's history and hidden again by a later commit is
+/// caught here, on demand, rather than re-walked on every finalize. Each failing archive is
+/// reported by ID. The walk reuses the read-scope memo and the persistent history cache of
+/// REQ-change-119 under their existing rules.
+pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckReport {
+    let _scope = ensure_change_read_scope(root);
+    let mut report = check_project_with_command_output(root, false);
+    if archives {
+        for error in archived_workflow_history_errors(root) {
+            if !report.errors.contains(&error) {
+                report.enabled = true;
+                report.errors.push(error);
+            }
+        }
+    }
+    report
+}
+
+/// The workflow-version history failures of every change under the archive, each naming its
+/// change, or the one error that kept the archive from being read.
+fn archived_workflow_history_errors(root: &Path) -> Vec<String> {
+    let active: BTreeSet<String> = match list_changes_checked(root) {
+        Ok(records) => records.into_iter().map(|record| record.id).collect(),
+        Err(error) => return vec![error],
+    };
+    let records = match list_all_changes_structural(root) {
+        Ok(records) => records,
+        Err(error) => return vec![error],
+    };
+    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
+        let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+        prefetch_archived_workflow_histories(root, &entries);
+    }
+    records
+        .values()
+        .filter(|record| !active.contains(&record.id))
+        .filter_map(|record| {
+            validate_workflow_version_history(root, record).err().map(|error| {
+                format!(
+                    "archived change `{}` failed workflow-version history validation: {error}",
+                    record.id
+                )
+            })
+        })
+        .collect()
 }
 
 /// Policy coverage survives same-PR finalization only for an authenticated new

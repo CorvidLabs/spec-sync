@@ -28,3 +28,4 @@ spec: cmd_change.spec.md
 - [x] Disclose a non-empty `verification_ignored_paths` list in `change status` and `change check` text (with the standing note) and in `summary.verification_ignored_paths`, name an invalid entry as the text `Next:` and as a `change ship-status` blocker instead of stale verification (REQ-cmd-change-024, issue #825).
 - [x] Archive-first CI: query HEAD check-runs first in ship-status and rewrite trust guidance and stage copy for verify-locally → review → ship → push the archive tip (REQ-cmd-change-007, REQ-cmd-change-019)
 - [x] Render `approved_deltas` verbatim in single-record change JSON (`status`, `show`, `new`, `answer`, `depend`, `supersede`), from the in-lock mutation snapshot for mutations (REQ-cmd-change-023).
+- [x] Pass `change audit --archives` to `change::audit_project_with_archives`, which also walks every archive's workflow-version history (REQ-cmd-change-027, #856).

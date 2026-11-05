@@ -447,7 +447,16 @@ impl AcceptedInputValidationMemo {
         if let Some(value) = self.authenticated.get(&record.id) {
             return value.clone();
         }
-        let result = authenticate_accepted_evidence(root, record, pending);
+        // An archive is relied on here, as a successor or a sequence owner, so its own
+        // workflow-version history must hold. The full roster already proved that for every
+        // archive (and memoized it); the structural roster finalize uses (REQ-change-124) did not,
+        // so the archive this pass leans on is proven now, and only that one.
+        let result = if record.state == ChangeState::Archived {
+            validate_workflow_version_history(root, record)
+                .and_then(|()| authenticate_accepted_evidence(root, record, pending))
+        } else {
+            authenticate_accepted_evidence(root, record, pending)
+        };
         self.authenticated.insert(record.id.clone(), result.clone());
         result
     }

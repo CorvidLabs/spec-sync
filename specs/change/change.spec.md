@@ -1,6 +1,6 @@
 ---
 module: change
-version: 158
+version: 160
 status: active
 files:
   - src/change.rs
@@ -12,7 +12,9 @@ files:
   - src/change/verification_ignored_paths.rs
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
+  - src/change/send_back.rs
   - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
@@ -23,7 +25,9 @@ files:
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/fast_archived_reads.rs
+  - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
+  - src/change_tests/stale_modified_delta.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -104,13 +108,16 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ReopenCauseV1` | Why accepted evidence was stale despite matching inputs: unanchored verification or unreconstructible legacy acceptance; absent means inputs drifted |
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
+| `AppliedDeltaItem` | One block a change's delta put into a canonical spec or requirements file: module, target, key and body, listed by a send-back |
+| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, whether canonical text had been applied, and the applied items |
+| `SendBackResult` | Deterministic change-plus-audit result returned by the send-back transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
 | `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
 | `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
-| `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen history |
+| `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen and send-back history |
 | `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
 | `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
@@ -200,6 +207,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
 | `recorded_scoped_review_currency` | `root, record` | `Option<ScopedReviewCurrency>` | Classify a change's recorded scoped review against the tree on disk; `None` means no usable review record exists, which is a different question from currency |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
+| `send_back_change` | `root, id, actor, reason` | `Result<SendBackResult, String>` | Move an approved, implementing or verifying change back to draft for re-scoping, append an audited send-back, and cancel the earlier definition approval without removing it |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
 | `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus the exact scoped command the next pass records as evidence; `--strict` only when requested |
@@ -586,5 +594,8 @@ Acceptance Criteria
 | 2026-11-01 | retain-compound-historical-review-inconsistencies-during-anchored-reopen: Retain compound historical review inconsistencies during anchored reopen |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven: Answer archived change status, change list and change status within 2 seconds on Raven |
+| 2026-11-04 | finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds: Finalize a change in seconds on Raven however many archives it holds |
 | 2026-11-04 | name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path: Name the spec to edit when change approve refuses an unowned affected path |
 | 2026-11-04 | make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero: Make the unowned-path ownership hint deterministic and fall back at depth zero |
+| 2026-11-04 | refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text: Refuse a stale modified delta instead of overwriting newer canonical text |
+| 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |

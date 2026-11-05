@@ -1279,7 +1279,9 @@ fn definition_approver_for_review_contract<'a>(
     approvals: &'a ApprovalLedger,
     review: &ScopedReviewRecord,
 ) -> Result<&'a str, String> {
-    if let Some(approval) = approvals.approvals.iter().rev().find(|approval| {
+    // A definition approval a send-back cancelled binds no review (CHANGE-12.b).
+    let cancelled = send_back_cancelled_prefix(approvals);
+    if let Some(approval) = approvals.approvals.iter().skip(cancelled).rev().find(|approval| {
         approval.gate == "definition"
             && (approval.digest == review.contract_digest
                 || approval.definition_pair.as_ref().is_some_and(|pair| {
@@ -1296,6 +1298,7 @@ fn definition_approver_for_review_contract<'a>(
         let approval = approvals
             .approvals
             .get(adoption.source_approval_index as usize)
+            .filter(|_| adoption.source_approval_index as usize >= cancelled)
             .filter(|approval| approval.gate == "definition")
             .ok_or_else(|| {
                 "scoped review scope-adoption approval identity is missing".to_string()
@@ -1928,6 +1931,9 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = read_scope_value(root, |scope| scope.scoped_review_files.get(&key).cloned()) {
         return Ok(cached);
     }
+    if let Some(cached) = memoized_immutable_file(root, commit, path) {
+        return Ok(cached);
+    }
     let object = format!("{commit}:{path}");
     let output = run_scoped_review_git(root, &["show", object.as_str()])?;
     // A failed read is only "absent" when the commit's tree has no such entry; otherwise the blob
@@ -1938,6 +1944,7 @@ fn scoped_review_file_at_commit(
         ));
     }
     let result = output.status.success().then_some(output.stdout);
+    remember_immutable_file(root, commit, path, &result);
     update_read_scope(root, |scope| {
         if scope.scoped_review_files.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
             scope.scoped_review_files.insert(key, result.clone());
@@ -1951,6 +1958,9 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = read_scope_value(root, |scope| scope.scoped_review_texts.get(&key).cloned()) {
         return cached;
     }
+    if let Some(cached) = memoized_immutable_text(root, args) {
+        return cached;
+    }
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(
@@ -1962,6 +1972,7 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
             .map(|value| value.trim().to_string())
             .map_err(|_| "scoped-review Git query returned non-UTF-8 output".to_string())
     };
+    remember_immutable_text(root, args, &result);
     update_read_scope(root, |scope| {
         if scope.scoped_review_texts.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
             scope.scoped_review_texts.insert(key, result.clone());
@@ -2273,6 +2284,7 @@ fn accept_change_with_gate(
     require_state(&record, &[ChangeState::Verifying], "accept the change")?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     ensure_definition_approval_valid(root, &record)?;
+    ensure_no_orphaned_applied_text(root, &record)?;
     let mut verification = load_verification(root, &record)?;
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
     validate_verification_for_commit_binding(root, &record, &verification, require_scoped_review)
@@ -2304,6 +2316,9 @@ fn accept_change_with_gate(
     // Acceptance is the second place deltas reach the canonical spec (`prepare_delta_application`
     // below, when `check` never materialized them), so it gets the same refusal.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
+    // And for the same reason a body approved over canonical text that has since moved is
+    // refused here, before `prepare_pending_delta_application` could write it over (#843).
+    ensure_approved_delta_bases_current(root, &record)?;
     let records = list_changes_checked(root)?;
     // Same as verification: acceptance reports only failures, and the project
     // surfaces report every suppression this gate applied.
@@ -2341,6 +2356,7 @@ fn accept_change_with_gate(
             approved_scope: None,
             scope_migration: None,
             approved_delta_digests: None,
+            approved_delta_bases: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2365,6 +2381,12 @@ fn accept_change_with_gate(
                 // dropping it. The bodies it names were already checked against the superseded
                 // approval earlier in this same call, so it can only record verified wording.
                 approved_delta_digests: Some(delta_body_digests(root, &record)?),
+                // The canonical bases the superseded approval was granted against travel with
+                // it: by acceptance the deltas are applied, so re-reading the tree here would
+                // record this change's own text as its base and forget what it replaced (#843).
+                approved_delta_bases: effective_definition_approval(root, &record, &ledger)?
+                    .approved_delta_bases
+                    .clone(),
             });
         }
         ledger.approvals.push(ApprovalRecord {
@@ -2377,6 +2399,7 @@ fn accept_change_with_gate(
             approved_scope: None,
             scope_migration: None,
             approved_delta_digests: None,
+            approved_delta_bases: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2470,6 +2493,7 @@ fn accept_change_with_gate(
 }
 
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
     // state that determines whether finalization can resume.
     drop(acquire_project_lock(root)?);
@@ -2509,6 +2533,7 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
 }
 
@@ -3514,7 +3539,8 @@ fn summarize_change_with_effective(
                     .approvals
                     .iter()
                     .enumerate()
-                    .rfind(|(_, approval)| approval.gate == "definition")?;
+                    .rfind(|(_, approval)| approval.gate == "definition")
+                    .filter(|(index, _)| *index >= send_back_cancelled_prefix(&ledger))?;
                 approval.approved_scope.clone().or_else(|| {
                     ledger
                         .scope_adoptions
@@ -4009,6 +4035,10 @@ fn check_project_with_command_output(
         terminal_evidence,
         ..SddCheckReport::default()
     };
+    // CHANGE-12.c: a send-back any commit held cannot be deleted later, active or archived.
+    report
+        .errors
+        .extend(send_back_history_errors(root, all_records.values()));
     let policy = if let Some(base) = base_policy.filter(|policy| policy.enabled)
         && current_policy.as_ref() != Some(&base)
     {
@@ -4083,6 +4113,13 @@ fn check_project_with_command_output(
                 && delta_files.is_ok()
                 && let Err(error) = ensure_approved_delta_bodies_unchanged(root, record)
             {
+                report.errors.push(format!("{}: {error}", record.id));
+            } else if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = ensure_approved_delta_bases_current(root, record)
+            {
+                // The refusal `change check` gives for a body approved over canonical text
+                // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
             }
         }

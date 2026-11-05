@@ -392,6 +392,17 @@ specsync change supersede update-ui add-passkeys \
 specsync change adopt --dry-run
 ```
 
+`send-back` returns an approved, implementing or verifying change to draft so its scope can be
+answered again. It needs `--actor` and `--reason`, keeps every earlier approval, and cancels the
+definition approval, so the change must be approved again. Check refuses while an edit the
+change applied before the send-back, and no longer declares, is still in the spec, and says what
+to restore (the pre-change text of a modified or removed block, or taking out an added one):
+
+```bash
+specsync change send-back add-passkeys --actor "Ada" --reason "The session code moved to src/session.rs"
+# answer the scope questions again, then approve and check
+```
+
 `reopen` supports eligible accepted or archived workflow-v2 evidence as well as legacy records:
 
 ```bash

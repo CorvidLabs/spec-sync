@@ -1567,6 +1567,7 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 - Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
+
 ### REQ-change-120
 
 When `change approve` refuses affected paths that no declared module canonically owns, the error SHALL say which spec to edit for each refused path. Ownership itself is still decided exactly as REQ-change-053 requires.
@@ -1577,4 +1578,48 @@ When `change approve` refuses affected paths that no declared module canonically
 - A listing spec that cannot own the path says why: it has no `module:`, or it is not the canonical spec of the declared module it names.
 - Otherwise the refused path names the declared spec whose `files:` entries share the longest directory with the path, comparing whole path components, and says to add the path to that spec's `files:` list. When no declared spec shares any directory with the path (depth 0), the refusal gives the generic message instead of naming a spec.
 - The same paths are refused as before; only the wording of the refusal changes.
+
+### REQ-change-121
+
+The system SHALL let `change finalize` and `change archive` reuse, for the duration of one command, Git answers that cannot have changed while it runs, so that one finalize does not re-derive every other archived change's history: the persistent workflow-version history verdicts and archive introductions of REQ-change-119 under the same digest and history rule, Git queries that name only full object ids, the repository prefix, and a passing workflow-v2 baseline history verdict keyed by the resolved `HEAD` id, the baseline path, its cutoff and its exact bytes.
+
+#### Acceptance Criteria
+
+- Every finalize and archive verdict, refusal and first error is identical to a live run.
+- Only queries naming full object ids are memoized; queries naming `HEAD`, a branch or the working tree run live, `HEAD` is resolved live on every baseline check, failed Git runs are not stored, and refusals are always re-derived.
+- The memo lives only inside the command's own scope and takes no working-tree snapshot, so the command sees its own writes.
+- The Git processes one finalize spawns grow by at most 12 per other archived change.
+
+### REQ-change-122
+
+A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.
+
+#### Acceptance Criteria
+
+- A stale MODIFIED item whose block main rewrote after approval is refused by `change check`, both before and after the first materialization, and the canonical file keeps main's bytes.
+- `change audit` reports the same refusal for that change.
+- The refusal names the module, the requirement or section, and `specsync change approve <id>`.
+- A rebased and re-approved delta materializes, keeping the other change's text it now carries.
+- A block main changed that this change does not touch is not refused.
+- An approval without recorded bases keeps materializing as before.
+
+### REQ-change-123
+
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
+
+#### Acceptance Criteria
+
+- A verifying change sent back can have `affected_paths` answered again, is approved, checked, verified and accepted under its own ID, and an already-applied section is not applied twice.
+- A missing actor or reason is refused, naming `--actor` or `--reason`, and nothing is written.
+- The send-back record keeps the actor, reason and prior state; earlier approvals and `verification.json` are unchanged; a second send-back appends.
+- Until re-approval the definition gate refuses, says the change was sent back, and names `specsync change approve <id>`.
+- A draft, accepted or archived change cannot be sent back.
+- A sent-back change that owns a spec can be finalized and its archive passes the project audit.
+- A re-scope that drops an item the change already applied is refused by check, naming the spec file and the item, until that text is taken out of the spec.
+- The definition approval event resolver refuses an approval that a send-back cancelled.
+- Removing a committed send-back from `approvals.json` is refused and does not bring the cancelled approval back.
+- After a send-back, a change with a REMOVED item materializes and checks again (0xLeif's repro), and a kept ADDED item with a new body replaces the change's earlier body.
+- A dropped MODIFIED item is refused with advice to restore its pre-change text, quoting it; a dropped REMOVED item is listed and refused until the block is restored.
+- A module dropped from `affected_specs` is refused while its Change Log keeps the change's row.
+- A send-back deleted in a later commit is refused by check and reported by the project audit.
 

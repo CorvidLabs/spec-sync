@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "start-the-prefetch-git-count-test-from-a-cold-persistent-cache",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "de59550e60b174b4608271bf19962ef2d630627d",
+      "contract_digest": "66f2ec781d47cc21dccff92f798815302f455db44ffaafea8115cf1a5b0e3e8f",
+      "execution_digest": "f806a9ef2a5f50cecdc53ae7205f74eee499d7f06f3e161dedf29acc4ea334b3",
+      "workspace_digest": "b68f6a2d400a1dcfaf7c500cd33f00d1c94f56d1e764356f234bf65103330011",
+      "timestamp": 1793839830
+    }
+  ]
+}

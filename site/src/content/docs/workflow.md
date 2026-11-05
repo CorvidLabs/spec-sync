@@ -146,6 +146,42 @@ Resume with `specsync change status <id>`. `--json` carries the same verdict as
 is rendered, and as `handoff` on the approve transition. The installed agent skill tells agents to
 clear context only on `safe` and to do what `Before clearing:` names first.
 
+### Send a change back for re-scoping
+
+When an approved, implementing or verifying change turns out to have the wrong scope (for
+example a spec split moved the requirements it edits into another module), send it back to draft
+instead of deleting its workspace:
+
+```bash
+specsync change send-back add-passkeys \
+  --actor "Ada Reviewer" \
+  --reason "The session requirements moved to the sessions spec"
+specsync change answer add-passkeys affected_specs auth,sessions
+# rewrite the deltas for the new scope
+specsync change approve add-passkeys --actor "Ada Reviewer"
+specsync change check add-passkeys --commit
+```
+
+The person and the reason are appended to `approvals.json` under `send_backs`. The definition
+approval recorded before the send-back is kept but no longer counts, so the new scope needs a
+fresh `change approve`, even when it did not change. A committed send-back cannot be deleted to
+bring that approval back: check refuses a ledger that lost or changed a send-back held by any
+earlier commit, and `specsync change audit` reports it.
+
+Spec text the change already applied stays in place, and the send-back lists it under
+`applied_items`, REMOVED items included, with each block's text from before the change. It also
+lists the modules whose Change Log carries the change's row. After a send-back, `change check`
+converges on the canonical tree: a kept item that is already applied (a removed block still gone,
+an added or modified block with the same body) is not applied again, a kept ADDED item with a new
+body replaces the change's own earlier body, and the rest is applied. If the new scope drops an
+item that was already applied, the spec would keep that edit with no change owning it, so
+`change check` and `change accept` refuse and say what to restore for each one, for example
+`specs/auth/auth.spec.md` section `Purpose`: take out a block the change added, or put back the
+pre-change text (quoted in the message) of a block it modified or removed. A module dropped from
+`affected_specs` is refused while its Change Log still has the change's row; remove that row and
+restore its `version:`. Then check again (or keep the item in the delta). Accepted or archived
+changes use `change reopen` instead.
+
 ## 4. Recover accepted or archived evidence
 
 `reopen` also supports workflow-v2. An interrupted finalization can leave an accepted record

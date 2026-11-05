@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ec6d9e2f27ef27fd90ff068f391b5b0021251e75",
+  "contract_digest": "3150a7210bbff3ba386ccf93836ea2993694107ff20f68cd2e54d5c66cc02d69",
+  "execution_digest": "d4920c9aed01d01773ead1a5a23aff129a31217c55d68a628f26db3510fc57f7",
+  "workspace_digest": "9232f753bbea8309db8e7e1cf387f4b2bf476e272cb17983f63f85352f599165",
+  "timestamp": 1793838039
+}

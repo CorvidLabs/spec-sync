@@ -12,3 +12,10 @@ Both tests live in `src/change_tests/fast_archived_reads.rs`. Each builds a Git 
 `subdirectory_project_follows_an_earlier_archive_path_through_a_hidden_downgrade` commits that downgrade on the first dated archive path, reopens the package, and rearchives it on a later date. `workflow_version_state_paths` must name both dates, and `load_change` must refuse the downgrade. On main the earlier date was absent from the path list.
 
 The existing repository-root checks stay in place: `workflow_version_downgrade_then_revert_remains_invalid`, `workflow_version_history_follows_cross_date_rearchive_paths`, and `cached_archived_history_still_refuses_a_later_hidden_downgrade`.
+
+## Requirement evidence
+
+| Requirement | Evidence |
+| --- | --- |
+| REQ-change-043 | `subdirectory_project_follows_an_earlier_archive_path_through_a_hidden_downgrade`, `subdirectory_project_refuses_a_hidden_workflow_downgrade_live_and_cached`, `workflow_version_history_follows_cross_date_rearchive_paths`, `workflow_version_downgrade_then_revert_remains_invalid` |
+| REQ-change-119 | `subdirectory_project_refuses_a_hidden_workflow_downgrade_live_and_cached`, `cached_archived_history_still_refuses_a_later_hidden_downgrade` |

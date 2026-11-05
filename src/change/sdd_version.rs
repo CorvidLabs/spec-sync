@@ -4647,25 +4647,79 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     ))
 }
 
-/// Names the spec to edit for one unowned affected path.
+/// Names what to change for one unowned affected path.
 ///
-/// A spec anywhere under the specs directory that already lists the path names its module, so
-/// the fix is declaring it. Otherwise the declared spec whose `files:` entries share the longest
-/// directory with the path is the one to edit. This only words the refusal; ownership is still
-/// decided by `production_source_lacks_canonical_owner_with_evidence`.
+/// Every undeclared module that would own the path is named, in a fixed order: modules whose
+/// `[modules."<name>"] owns` covers it (sorted by name), then every spec under the specs
+/// directory whose `files:` lists it (sorted by spec path). A listing spec that cannot own the
+/// path says why. When nothing names a module to declare, the declared spec whose `files:` share
+/// the deepest directory with the path is the one to edit; ties name every tied spec, and a path
+/// that shares no directory with any declared spec (depth 0) gets the generic message. Nothing here depends on directory iteration or `--spec` order. This only words
+/// the refusal; ownership is still decided by `production_source_lacks_canonical_owner_with_evidence`.
 fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
     let config = crate::config::load_config(root);
-    let specs_root = root.join(&config.specs_dir);
-    let mut stack = vec![specs_root];
+    let mut declare = Vec::new();
+    let mut explain = Vec::new();
+
+    let mut configured: Vec<&String> = config
+        .modules
+        .keys()
+        .filter(|module| !record.affected_specs.contains(*module))
+        .filter(|module| configured_module_owns_path(&config, module, path))
+        .collect();
+    configured.sort();
+    for module in configured {
+        declare.push(format!(
+            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {module}`"
+        ));
+    }
+
+    for (spec, module) in specs_listing_path(root, &config.specs_dir, path) {
+        match module {
+            None => explain.push(format!(
+                "`{spec}` lists it but has no `module:` in its frontmatter, so it owns nothing"
+            )),
+            Some(module) if !record.affected_specs.contains(&module) => declare.push(format!(
+                "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
+            )),
+            Some(module) => {
+                let canonical = canonical_module_paths(root, &config.specs_dir, &module)
+                    .ok()
+                    .map(|(spec_path, _)| portable_project_path(root, &spec_path));
+                explain.push(match canonical {
+                    Some(canonical) if canonical != spec => format!(
+                        "`{spec}` lists it for declared module `{module}`, but it is not that module's canonical spec `{canonical}`, so the listing does not count"
+                    ),
+                    _ => format!(
+                        "`{spec}` lists it for declared module `{module}`, but that spec does not yet prove ownership; run `specsync check` for the reason"
+                    ),
+                });
+            }
+        }
+    }
+
+    if !declare.is_empty() {
+        explain.extend(declare);
+        return explain.join("; ");
+    }
+    explain.push(closest_declared_spec_hint(root, &config, record, path));
+    explain.join("; ")
+}
+
+/// Every `*.spec.md` under the specs directory whose `files:` lists `path`, as
+/// `(portable spec path, frontmatter module)`, sorted by spec path.
+fn specs_listing_path(root: &Path, specs_dir: &str, path: &str) -> Vec<(String, Option<String>)> {
+    let mut listing = Vec::new();
+    let mut stack = vec![root.join(specs_dir)];
     let mut visited = 0usize;
-    while let Some(directory) = stack.pop() {
+    'walk: while let Some(directory) = stack.pop() {
         let Ok(entries) = fs::read_dir(&directory) else {
             continue;
         };
         for entry in entries.flatten() {
             visited += 1;
             if visited > 10_000 {
-                break;
+                break 'walk;
             }
             let entry_path = entry.path();
             let Ok(kind) = entry.file_type() else {
@@ -4689,33 +4743,43 @@ fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
             else {
                 continue;
             };
-            let lists_path = parsed
+            if parsed
                 .frontmatter
                 .files
                 .iter()
-                .any(|file| normalize_project_path(file).is_ok_and(|file| file == path));
-            if !lists_path {
-                continue;
+                .any(|file| normalize_project_path(file).is_ok_and(|file| file == path))
+            {
+                listing.push((
+                    portable_project_path(root, &entry_path),
+                    parsed.frontmatter.module,
+                ));
             }
-            let spec = portable_project_path(root, &entry_path);
-            return match parsed.frontmatter.module {
-                Some(module) if !record.affected_specs.contains(&module) => format!(
-                    "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
-                ),
-                _ => format!("`{spec}` lists it; check that this change declares that spec's module"),
-            };
         }
     }
-    let directory_depth = |file: &str| {
-        let ours: Vec<&str> = path.split('/').collect();
+    listing.sort();
+    listing
+}
+
+/// The `files:` edit to suggest when no undeclared module would own `path`.
+fn closest_declared_spec_hint(
+    root: &Path,
+    config: &crate::types::SpecSyncConfig,
+    record: &ChangeRecord,
+    path: &str,
+) -> String {
+    let ours: Vec<&str> = path.split('/').collect();
+    let our_directory = &ours[..ours.len().saturating_sub(1)];
+    // Whole path components only, so `src/foo` and `src/foobar` share `src` (depth 1).
+    let shared_depth = |file: &str| {
         let theirs: Vec<&str> = file.split('/').collect();
-        ours.iter()
-            .zip(theirs.iter())
-            .take(ours.len().saturating_sub(1).min(theirs.len().saturating_sub(1)))
+        let their_directory = &theirs[..theirs.len().saturating_sub(1)];
+        our_directory
+            .iter()
+            .zip(their_directory.iter())
             .take_while(|(left, right)| left == right)
             .count()
     };
-    let mut best: Option<(usize, String)> = None;
+    let mut declared: Vec<(usize, String)> = Vec::new();
     for module in &record.affected_specs {
         let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module) else {
             continue;
@@ -4728,17 +4792,39 @@ fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
                     .frontmatter
                     .files
                     .iter()
-                    .map(|file| directory_depth(file))
+                    .filter_map(|file| normalize_project_path(file).ok())
+                    .map(|file| shared_depth(&file))
                     .max()
                     .unwrap_or(0)
             })
             .unwrap_or(0);
-        if best.as_ref().is_none_or(|(best_depth, _)| depth > *best_depth) {
-            best = Some((depth, portable_project_path(root, &spec_path)));
-        }
+        declared.push((depth, portable_project_path(root, &spec_path)));
     }
-    match best {
-        Some((_, spec)) => format!("add it to the `files:` list in `{spec}`"),
-        None => "add it to the `files:` list of the spec that owns it".to_string(),
+    declared.sort_by(|left, right| left.1.cmp(&right.1));
+    declared.dedup_by(|left, right| left.1 == right.1);
+    let best = declared.iter().map(|(depth, _)| *depth).max().unwrap_or(0);
+    let quoted = |specs: Vec<&String>| {
+        specs
+            .iter()
+            .map(|spec| format!("`{spec}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    // Depth 0 shares no directory at all, so no declared spec is a closer guess than any other.
+    if best == 0 {
+        return "add it to the `files:` list of the spec that owns it".to_string();
+    }
+    let closest: Vec<&String> = declared
+        .iter()
+        .filter(|(depth, _)| *depth == best)
+        .map(|(_, spec)| spec)
+        .collect();
+    if closest.len() == 1 {
+        format!("add it to the `files:` list in `{}`", closest[0])
+    } else {
+        format!(
+            "add it to the `files:` list of one of {}",
+            quoted(closest)
+        )
     }
 }

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 157
+version: 158
 status: active
 files:
   - src/change.rs
@@ -587,3 +587,4 @@ Acceptance Criteria
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven: Answer archived change status, change list and change status within 2 seconds on Raven |
 | 2026-11-04 | name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path: Name the spec to edit when change approve refuses an unowned affected path |
+| 2026-11-04 | make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero: Make the unowned-path ownership hint deterministic and fall back at depth zero |

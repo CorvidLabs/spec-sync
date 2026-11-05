@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "3cf5ab2e34e03c5834a68916bf61817d2ddbac52",
+  "contract_digest": "9b68c8e7a10bfe93a18388af1839f6c2854d44c63c9f0f0099cf8f65202bf2ce",
+  "execution_digest": "d2249abe5be91bb996f0c4bba5b47081abd573dab23ad07234921ebab73d7fd3",
+  "workspace_digest": "c3ff47224df8224931bdc015d16a783ca5795d5e0edc5b80fdf22f9384beb1c9",
+  "timestamp": 1793836536
+}

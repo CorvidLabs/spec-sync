@@ -1,6 +1,6 @@
 ---
 id: restore-archived-history-reads-for-a-project-in-a-repository-subdirectory
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 40dcf33a6b0f0b55dcb7f17e8e98be9d55fa2c56
 ---

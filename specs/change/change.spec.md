@@ -1,6 +1,6 @@
 ---
 module: change
-version: 162
+version: 163
 status: active
 files:
   - src/change.rs
@@ -603,3 +603,4 @@ Acceptance Criteria
 | 2026-11-04 | refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text: Refuse a stale modified delta instead of overwriting newer canonical text |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
+| 2026-11-05 | restore-archived-history-reads-for-a-project-in-a-repository-subdirectory: Restore archived history reads for a project in a repository subdirectory |

@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Anchor the dated-archive glob with `:(top,glob)` and the history walk of those paths with `:(top,literal)`.
 - [x] Anchor `lifecycle_paths_touched_since` with `:(top,literal)`.
 - [x] Record the restored behavior on REQ-change-043 and REQ-change-119, and in the change spec.
-- [ ] Leif approves the definition, then reviews and ships. This session does not record those gates.
+- [x] Leif approved the definition (0xLeif, 2026-11-05). Review and ship are lifecycle gates Leif records, not tasks here.

@@ -1,4 +1,47 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793899637,
+      "digest": "b41817ea7745c56b06e6c880c4ed57e44e75164fefdc7a4669b88e9bbcff2900",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "restore-archived-history-reads-for-a-project-in-a-repository-subdirectory",
+        "title": "Restore archived history reads for a project in a repository subdirectory",
+        "description": "restore archived history reads for a project in a repository subdirectory",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "src/change/",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A project rooted in a subdirectory of its Git repository refuses a workflow-version downgrade that a later commit restored, both on a live read and from the warm read cache.",
+          "That same project still follows an earlier dated archive path, so a downgrade that exists only on that path is refused after reopen and rearchive."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "af3da1403ffc90cfab3593c4c502465db89ead32f280e27151a84fd5188ec1d3"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-043": "2af5cc3609496005631ca56f820adae9fab9f4d079a30861e55c1a3e98d98473",
+        "change: REQUIREMENT REQ-change-119": "35b19c691b050f90aaaa7825888861fcf22f6904336893442b9f0aeb84ffc4fc"
+      }
+    }
+  ],
   "reopenings": []
 }

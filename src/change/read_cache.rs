@@ -480,8 +480,11 @@ fn lifecycle_paths_touched_since(root: &Path, commit: &str, head: &str) -> Optio
     if !cached_git_status_success(root, &["merge-base", "--is-ancestor", commit, head]).ok()? {
         return None;
     }
-    let changes = git_repo_relative_path(root, CHANGES_PATH).ok()?;
-    let archive = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
+    // Repository-relative paths, anchored at the repository root. A project in a subdirectory
+    // otherwise makes this invalidation walk match nothing, so a cached pass survives a later
+    // edit of the change's own state (#851).
+    let changes = format!(":(top,literal){}", git_repo_relative_path(root, CHANGES_PATH).ok()?);
+    let archive = format!(":(top,literal){}", git_repo_relative_path(root, ARCHIVE_PATH).ok()?);
     let range = format!("{commit}..{head}");
     let output = scoped_review_git_text(
         root,
@@ -790,7 +793,7 @@ fn archive_introductions_at_commit_uncached(
         let object = format!("{commit}:{path}");
         let Ok(state) = run_git_bounded(
             root,
-            &["show", object.as_str()],
+            &["show", object.as_str(), "--"],
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         ) else {
@@ -809,7 +812,7 @@ fn archive_introductions_at_commit_uncached(
         let object = format!("{commit}:{directory}/approvals.json");
         let approvals = match run_git_bounded(
             root,
-            &["show", object.as_str()],
+            &["show", object.as_str(), "--"],
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         ) {

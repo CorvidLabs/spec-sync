@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "restore-archived-history-reads-for-a-project-in-a-repository-subdirectory",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "cd802912135f000127bec2b5d4ac66d56be6613c",
+  "contract_digest": "b41817ea7745c56b06e6c880c4ed57e44e75164fefdc7a4669b88e9bbcff2900",
+  "execution_digest": "8b866aaae5954ab2f6e121967240816b347e2fd978091577f515d384eaf68554",
+  "workspace_digest": "2b51fbdf9304f76c5832b3759fd5deb851ee1db987b0823115a15114d3ae8013",
+  "timestamp": 1793919243
+}

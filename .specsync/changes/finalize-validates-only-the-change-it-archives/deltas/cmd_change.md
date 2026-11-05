@@ -1,6 +1,6 @@
 ## ADDED
 
-### REQUIREMENT REQ-cmd-change-026
+### REQUIREMENT REQ-cmd-change-027
 
 `specsync change audit` under the global `--strict` flag SHALL also report every archived change whose own workflow-version history fails validation, through the domain's `audit_project_with_strict`, and exit non-zero when it finds one.
 

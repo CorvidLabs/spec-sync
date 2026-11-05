@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "cover-the-send-back-wiring-in-materialization-review-binding-and-the-project-check",
+  "slug": "cover-the-send-back-wiring-in-materialization-review-binding-and-the-project-check",
+  "title": "Cover the send-back wiring in materialization, review binding and the project check",
+  "description": "Cover the send-back wiring in materialization, review binding and the project check",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "b7a80fc2543308003303fcf179c9a5a700eb47a7",
+  "created_at": 1793842199,
+  "updated_at": 1793842393,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change/historical_definition_digest_matches.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "These edits implement REQ-change-123, already approved and archived in this PR (send-an-approved-change-back-to-draft-for-re-scoping); that change's affected_paths omitted the two files. No contract text changes.",
+  "acceptance_criteria": [
+    "A sent-back change converges on its own earlier canonical text, a send-back-cancelled approval binds no review, accept refuses orphaned applied text, and the project check reports a deleted send-back, as REQ-change-123 and send_back_for_rescope.rs already prove."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

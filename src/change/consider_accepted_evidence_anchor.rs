@@ -2919,6 +2919,7 @@ fn resolve_definition_approval_event<'a>(
         .iter()
         .rposition(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
+    ensure_definition_approval_not_sent_back(record, ledger, index)?;
     let terminal = &ledger.approvals[index];
     let Some(legacy_metadata) = terminal.definition_pair.as_ref() else {
         if terminal.digest != expected_current_digest {
@@ -3141,6 +3142,7 @@ fn effective_definition_approval<'a>(
         .iter()
         .rposition(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
+    ensure_definition_approval_not_sent_back(record, ledger, latest_index)?;
     let latest = &ledger.approvals[latest_index];
     if record.workflow_version >= 2 {
         let approved = if let Some(approved) = latest.approved_scope.as_ref() {
@@ -3226,6 +3228,7 @@ fn effective_definition_approval<'a>(
 
 fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let ledger = load_approvals(root, record)?;
+    ensure_committed_send_backs_kept(root, record, &ledger)?;
     effective_definition_approval(root, record, &ledger).map(|_| ())
 }
 

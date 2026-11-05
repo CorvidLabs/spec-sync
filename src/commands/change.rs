@@ -240,6 +240,22 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 ),
             })
         }
+        ChangeAction::SendBack { id, actor, reason } => {
+            change::send_back_change(root, &id, actor, reason).map(|result| match format {
+                OutputFormat::Json => print_json(&result),
+                _ => {
+                    println!(
+                        "{} {} sent back to draft for re-scoping; its approval is cancelled",
+                        "✓".green(),
+                        result.change.id
+                    );
+                    println!(
+                        "  Next: answer the scope questions again with `specsync change answer {} <question> <answer>`, then `specsync change approve {} --actor <name>`",
+                        result.change.id, result.change.id
+                    );
+                }
+            })
+        }
         ChangeAction::Correct {
             id,
             field,

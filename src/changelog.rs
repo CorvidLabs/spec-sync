@@ -51,10 +51,11 @@ pub struct SpecEntry {
 
 /// List spec files tracked by git at a given ref.
 fn list_specs_at_ref(root: &Path, git_ref: &str, specs_dir: &str) -> Vec<String> {
-    let output = Command::new("git")
-        .args(["ls-tree", "-r", "--name-only", git_ref, "--", specs_dir])
-        .current_dir(root)
-        .output();
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["ls-tree", "-r", "--name-only", git_ref, "--", specs_dir])
+            .current_dir(root),
+    );
 
     match output {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
@@ -69,11 +70,10 @@ fn list_specs_at_ref(root: &Path, git_ref: &str, specs_dir: &str) -> Vec<String>
 /// Read a file's contents at a given git ref.
 fn read_file_at_ref(root: &Path, git_ref: &str, file_path: &str) -> Option<String> {
     let spec = format!("{git_ref}:{file_path}");
-    let output = Command::new("git")
-        .args(["show", &spec])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git").args(["show", &spec]).current_dir(root),
+    )
+    .ok()?;
 
     if output.status.success() {
         Some(String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"))
@@ -109,16 +109,17 @@ pub fn parse_range_full(range: &str) -> Option<(String, String, bool)> {
 /// Verify that a git ref resolves to a real commit (`git rev-parse --verify`).
 /// Returns the resolved full hash.
 pub fn resolve_ref(root: &Path, git_ref: &str) -> Result<String, String> {
-    let output = Command::new("git")
-        .args([
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            &format!("{git_ref}^{{commit}}"),
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|e| format!("failed to run git rev-parse: {e}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args([
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                &format!("{git_ref}^{{commit}}"),
+            ])
+            .current_dir(root),
+    )
+    .map_err(|e| format!("failed to run git rev-parse: {e}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -128,11 +129,12 @@ pub fn resolve_ref(root: &Path, git_ref: &str) -> Result<String, String> {
 
 /// Compute the merge-base of two refs (`git merge-base`).
 pub fn merge_base(root: &Path, a: &str, b: &str) -> Result<String, String> {
-    let output = Command::new("git")
-        .args(["merge-base", "--end-of-options", a, b])
-        .current_dir(root)
-        .output()
-        .map_err(|e| format!("failed to run git merge-base: {e}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["merge-base", "--end-of-options", a, b])
+            .current_dir(root),
+    )
+    .map_err(|e| format!("failed to run git merge-base: {e}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {

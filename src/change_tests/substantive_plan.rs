@@ -3457,6 +3457,76 @@ fn batched_git_blob_reads_preserve_binary_payloads_and_order() {
     assert_eq!(git_blob_bytes_batch(root, &object_refs).unwrap(), payloads);
 }
 
+/// A descendant that inherits the child's stdout must not keep the read open
+/// after that child exits. The holder blocks on a fifo the test never writes,
+/// so the only way this returns is by not waiting for the pipe to close.
+///
+/// The success condition is structural: the captured bytes are the child's,
+/// and the holder is still alive. The receive bound only distinguishes "the
+/// read never returned" from a lost wakeup. It is not the behavior under test.
+#[cfg(unix)]
+#[test]
+fn bounded_git_read_returns_while_a_descendant_holds_the_output_pipe() {
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = TempDir::new().unwrap();
+    let fifo = temp.path().join("hold");
+    let pidfile = temp.path().join("holder");
+    let fifo_c = std::ffi::CString::new(fifo.as_os_str().as_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(fifo_c.as_ptr(), 0o600) }, 0);
+    let script = temp.path().join("child.sh");
+    // `$$` is the invoking shell even inside a dash subshell, so the holder
+    // is `$!`. The redirect blocks inside that background shell, which is what
+    // keeps the output pipe open after the direct child exits.
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\n(\n  trap '' HUP\n  read _ < '{}'\n) &\necho $! > '{}'\nprintf 'payload\\n'\nexit 0\n",
+            fifo.display(),
+            pidfile.display()
+        ),
+    )
+    .unwrap();
+    let mut permissions = std::fs::metadata(&script).unwrap().permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&script, permissions).unwrap();
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let script_for_child = script.clone();
+    std::thread::spawn(move || {
+        let mut command = Command::new(script_for_child);
+        let result = run_git_command_bounded(&mut command, &[], None, 1024);
+        let _ = tx.send(result);
+    });
+
+    let result = rx.recv_timeout(Duration::from_secs(15));
+    let holder = std::fs::read_to_string(&pidfile)
+        .ok()
+        .and_then(|text| text.trim().parse::<i32>().ok());
+    let holder_alive = holder.is_some_and(|pid| unsafe { libc::kill(pid, 0) } == 0);
+    if let Some(pid) = holder {
+        unsafe { libc::kill(pid, libc::SIGKILL) };
+    }
+    let output = result
+        .unwrap_or_else(|_| {
+            panic!(
+                "still waiting on a descendant's stdout after the child exited (holder alive: {holder_alive})"
+            )
+        })
+        .expect("child script should run");
+    assert!(
+        output.status.success(),
+        "child script failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"payload\n");
+    assert!(
+        holder_alive,
+        "the descendant must still be alive when the read returns; a closed pipe is the bug returning for the wrong reason"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn bounded_git_runner_times_out_a_silent_process() {

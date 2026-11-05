@@ -1,6 +1,9 @@
 use std::cell::RefCell;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus, Output};
+#[cfg(unix)]
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Host environment keys a git child is allowed to inherit.
 ///
@@ -87,6 +90,382 @@ pub(crate) fn git_cmd(root: &Path) -> Command {
     command.env("LC_ALL", "C");
     command.current_dir(root);
     command
+}
+
+/// A self-pipe that wakes readers blocked in `poll` when the direct child has exited.
+///
+/// Created after the child is spawned so the child cannot inherit it. Both readers poll
+/// the read end and neither consumes the wake byte, so one write wakes every waiter.
+#[cfg(unix)]
+pub(crate) struct OutputWake {
+    read: std::os::unix::io::OwnedFd,
+    write: std::os::unix::io::OwnedFd,
+}
+
+#[cfg(unix)]
+impl OutputWake {
+    pub(crate) fn new() -> io::Result<Self> {
+        use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
+
+        let mut fds = [0; 2];
+        // SAFETY: `fds` is a writable two-int buffer. On success `pipe` opens both ends.
+        let rc = unsafe { libc::pipe(fds.as_mut_ptr()) };
+        if rc != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: both descriptors were just opened by `pipe` and are uniquely owned here.
+        let read = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+        let write = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+        set_cloexec(read.as_raw_fd())?;
+        set_cloexec(write.as_raw_fd())?;
+        Ok(Self { read, write })
+    }
+
+    pub(crate) fn raw_read(&self) -> std::os::unix::io::RawFd {
+        use std::os::unix::io::AsRawFd;
+        self.read.as_raw_fd()
+    }
+
+    /// `stop` is stored before the write, and `poll` returning is ordered after that write.
+    pub(crate) fn signal(&self, stop: &AtomicBool) {
+        use std::os::unix::io::AsRawFd;
+
+        stop.store(true, Ordering::SeqCst);
+        let byte = [1u8];
+        loop {
+            // SAFETY: `write` refers to the pipe end this guard owns, and `byte` is one live byte.
+            let rc = unsafe { libc::write(self.write.as_raw_fd(), byte.as_ptr().cast(), 1) };
+            if rc >= 0 {
+                break;
+            }
+            let error = io::Error::last_os_error();
+            if error.kind() != io::ErrorKind::Interrupted {
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+fn set_cloexec(fd: std::os::unix::io::RawFd) -> io::Result<()> {
+    // SAFETY: `fd` is an open descriptor owned by the caller.
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: `fd` is the same open descriptor; `FD_CLOEXEC` only changes its flag word.
+    let rc = unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) };
+    if rc < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_nonblocking(fd: std::os::unix::io::RawFd) -> io::Result<()> {
+    // SAFETY: `fd` is an open descriptor owned by the caller.
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: `fd` is the same open descriptor; `O_NONBLOCK` only changes its status flags.
+    let rc = unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+    if rc < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Read `reader` until EOF or until `stop` is set.
+///
+/// While the child is still running, each successful read is one buffer and then
+/// `stop` is checked again, so a descendant that keeps the pipe readable after the
+/// child exits cannot hold this function in a drain loop. When `stop` is observed,
+/// one `FIONREAD` snapshot of the bytes already queued is drained and the function
+/// returns. Bytes the child had written by the time it was reaped are in that
+/// snapshot or were already kept. Later descendant writes are not followed.
+/// Past `cap`, further bytes are discarded and `overflow` is set.
+#[cfg(unix)]
+pub(crate) fn read_pipe_until_stop<R>(
+    mut reader: R,
+    stop: &AtomicBool,
+    wake: std::os::unix::io::RawFd,
+    cap: usize,
+    overflow: &AtomicBool,
+) -> io::Result<Vec<u8>>
+where
+    R: Read + std::os::unix::io::AsRawFd,
+{
+    set_nonblocking(reader.as_raw_fd())?;
+    let mut retained = Vec::new();
+    let mut buffer = [0u8; 16 * 1024];
+    loop {
+        if stop.load(Ordering::SeqCst) {
+            drain_queued_snapshot(&mut reader, &mut buffer, &mut retained, cap, overflow)?;
+            return Ok(retained);
+        }
+        match reader.read(&mut buffer) {
+            Ok(0) => return Ok(retained),
+            Ok(read) => retain_bytes(&mut retained, &buffer[..read], cap, overflow),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                // The child can write its last bytes and exit in this window.
+                // Honor stop only after that queued snapshot is taken.
+                if stop.load(Ordering::SeqCst) {
+                    drain_queued_snapshot(&mut reader, &mut buffer, &mut retained, cap, overflow)?;
+                    return Ok(retained);
+                }
+                wait_for_pipe_or_wake(reader.as_raw_fd(), wake)?;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+#[cfg(unix)]
+fn retain_bytes(retained: &mut Vec<u8>, chunk: &[u8], cap: usize, overflow: &AtomicBool) {
+    let remaining = cap.saturating_sub(retained.len());
+    let keep = remaining.min(chunk.len());
+    retained.extend_from_slice(&chunk[..keep]);
+    if keep != chunk.len() {
+        overflow.store(true, Ordering::Release);
+    }
+}
+
+/// Bytes sitting in the pipe right now. A descendant that writes more after this
+/// call does not increase the count, so the following read is finite.
+#[cfg(unix)]
+fn queued_len(fd: std::os::unix::io::RawFd) -> io::Result<usize> {
+    let mut available: libc::c_int = 0;
+    // SAFETY: `fd` is the caller's open pipe read end. `FIONREAD` writes one int.
+    let rc = unsafe { libc::ioctl(fd, libc::FIONREAD, &mut available) };
+    if rc < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(available.max(0) as usize)
+}
+
+#[cfg(unix)]
+fn drain_queued_snapshot<R>(
+    reader: &mut R,
+    buffer: &mut [u8],
+    retained: &mut Vec<u8>,
+    cap: usize,
+    overflow: &AtomicBool,
+) -> io::Result<()>
+where
+    R: Read + std::os::unix::io::AsRawFd,
+{
+    let mut left = queued_len(reader.as_raw_fd())?;
+    while left > 0 {
+        let want = left.min(buffer.len());
+        match reader.read(&mut buffer[..want]) {
+            Ok(0) => return Ok(()),
+            Ok(read) => {
+                retain_bytes(retained, &buffer[..read], cap, overflow);
+                left -= read;
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn wait_for_pipe_or_wake(
+    pipe: std::os::unix::io::RawFd,
+    wake: std::os::unix::io::RawFd,
+) -> io::Result<()> {
+    let mut fds = [
+        libc::pollfd {
+            fd: pipe,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: wake,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
+    loop {
+        // SAFETY: `fds` holds two open descriptors owned for the duration of this wait.
+        let rc = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, -1) };
+        if rc < 0 {
+            let error = io::Error::last_os_error();
+            if error.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(error);
+        }
+        return Ok(());
+    }
+}
+
+/// Collect stdout and stderr, and return when the direct child exits.
+///
+/// Stdin is the null device, matching `Command::output`: the child cannot read
+/// the caller's input. Stdout and stderr are pipes this process owns, so a
+/// grandchild cannot hold the caller's own stdout or stderr. A grandchild that
+/// keeps the child's pipe open does not delay the return: readers stop once the
+/// child has been reaped, after a finite snapshot of the bytes already queued.
+pub(crate) fn output_after_child_exits(command: &mut Command) -> io::Result<Output> {
+    use std::process::Stdio;
+
+    command.stdin(Stdio::null());
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+    let mut child = command.spawn()?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| io::Error::other("failed to capture child stdout"))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| io::Error::other("failed to capture child stderr"))?;
+
+    #[cfg(unix)]
+    {
+        use std::sync::Arc;
+        use std::thread;
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let wake = OutputWake::new().inspect_err(|_| {
+            let _ = child.kill();
+            let _ = child.wait();
+        })?;
+        let wake_fd = wake.raw_read();
+        let stdout_stop = Arc::clone(&stop);
+        let stderr_stop = Arc::clone(&stop);
+        let stdout_reader = thread::spawn(move || {
+            let overflow = AtomicBool::new(false);
+            read_pipe_until_stop(stdout, &stdout_stop, wake_fd, usize::MAX, &overflow)
+        });
+        let stderr_reader = thread::spawn(move || {
+            let overflow = AtomicBool::new(false);
+            read_pipe_until_stop(stderr, &stderr_stop, wake_fd, usize::MAX, &overflow)
+        });
+        let status = child.wait();
+        wake.signal(&stop);
+        let stdout = join_reader(stdout_reader);
+        let stderr = join_reader(stderr_reader);
+        Ok(Output {
+            status: status?,
+            stdout: stdout?,
+            stderr: stderr?,
+        })
+    }
+
+    #[cfg(not(unix))]
+    {
+        collect_output_after_exit_windows(&mut child, stdout, stderr)
+    }
+}
+
+#[cfg(unix)]
+fn join_reader(reader: std::thread::JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u8>> {
+    reader
+        .join()
+        .map_err(|_| io::Error::other("child output reader panicked"))?
+}
+
+/// Run `command` and return when the direct child exits.
+///
+/// Stdout and stderr are `/dev/null` (or the platform null device), not the
+/// caller's pipes. A grandchild of a `status` call therefore cannot keep the
+/// caller's output open after this process exits.
+pub(crate) fn status_without_inherited_output(command: &mut Command) -> io::Result<ExitStatus> {
+    use std::process::Stdio;
+
+    command.stdout(Stdio::null());
+    command.stderr(Stdio::null());
+    command.status()
+}
+
+#[cfg(not(unix))]
+fn collect_output_after_exit_windows(
+    child: &mut std::process::Child,
+    mut stdout: std::process::ChildStdout,
+    mut stderr: std::process::ChildStderr,
+) -> io::Result<Output> {
+    use std::os::windows::io::AsRawHandle;
+    use std::thread;
+    use std::time::Duration;
+
+    let mut out = Vec::new();
+    let mut err = Vec::new();
+    let status = loop {
+        drain_available_windows(stdout.as_raw_handle(), &mut stdout, &mut out)?;
+        drain_available_windows(stderr.as_raw_handle(), &mut stderr, &mut err)?;
+        if let Some(status) = child.try_wait()? {
+            drain_available_windows(stdout.as_raw_handle(), &mut stdout, &mut out)?;
+            drain_available_windows(stderr.as_raw_handle(), &mut stderr, &mut err)?;
+            break status;
+        }
+        thread::sleep(Duration::from_millis(2));
+    };
+    Ok(Output {
+        status,
+        stdout: out,
+        stderr: err,
+    })
+}
+
+#[cfg(not(unix))]
+fn drain_available_windows<R: Read>(
+    handle: std::os::windows::io::RawHandle,
+    reader: &mut R,
+    retained: &mut Vec<u8>,
+) -> io::Result<()> {
+    let available = match windows_pipe_available(handle) {
+        Ok(available) => available,
+        // ERROR_BROKEN_PIPE and ERROR_NO_DATA: the write end closed after the
+        // stream was drained. That is end of stream, not a failed Git call.
+        Err(error) if matches!(error.raw_os_error(), Some(109 | 232)) => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if available == 0 {
+        return Ok(());
+    }
+    let mut limited = reader.take(u64::from(available));
+    limited.read_to_end(retained)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn windows_pipe_available(handle: std::os::windows::io::RawHandle) -> io::Result<u32> {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn PeekNamedPipe(
+            handle: *mut std::ffi::c_void,
+            buffer: *mut std::ffi::c_void,
+            buffer_size: u32,
+            bytes_read: *mut u32,
+            total_bytes_avail: *mut u32,
+            bytes_left: *mut u32,
+        ) -> i32;
+    }
+
+    let mut available = 0u32;
+    // SAFETY: `handle` is the raw pipe handle of a `ChildStdout`/`ChildStderr` this
+    // process owns. `PeekNamedPipe` with a null buffer only reports the queued byte count.
+    let ok = unsafe {
+        PeekNamedPipe(
+            handle.cast(),
+            std::ptr::null_mut(),
+            0,
+            std::ptr::null_mut(),
+            &mut available,
+            std::ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(available)
 }
 
 /// Why a tree cannot be asked how far a spec has fallen behind its source.
@@ -179,10 +558,9 @@ pub fn spec_baseline(root: &Path, spec_file: &str) -> SpecBaseline {
 /// Deliberately private: its `None` is ambiguous, and every caller outside this
 /// module must go through [`spec_baseline`], which disambiguates it.
 fn last_commit_hash(root: &Path, file: &str) -> Option<String> {
-    let output = git_cmd(root)
-        .args(["log", "-1", "--format=%H", "--", file])
-        .output()
-        .ok()?;
+    let output =
+        output_after_child_exits(git_cmd(root).args(["log", "-1", "--format=%H", "--", file]))
+            .ok()?;
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if hash.is_empty() { None } else { Some(hash) }
 }
@@ -197,23 +575,23 @@ pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> u
     // to its state at `spec_commit`, and pure commit counting would report
     // phantom drift. If the working-tree content matches the content at
     // `spec_commit`, there is nothing to catch up on.
-    if let Ok(diff) = git_cmd(root)
-        .args(["diff", "--quiet", spec_commit, "--", source_file])
-        .status()
-        && diff.success()
+    if let Ok(diff) = status_without_inherited_output(git_cmd(root).args([
+        "diff",
+        "--quiet",
+        spec_commit,
+        "--",
+        source_file,
+    ])) && diff.success()
     {
         return 0;
     }
-    let output = match git_cmd(root)
-        .args([
-            "rev-list",
-            "--count",
-            &format!("{spec_commit}..HEAD"),
-            "--",
-            source_file,
-        ])
-        .output()
-    {
+    let output = match output_after_child_exits(git_cmd(root).args([
+        "rev-list",
+        "--count",
+        &format!("{spec_commit}..HEAD"),
+        "--",
+        source_file,
+    ])) {
         Ok(o) => o,
         Err(_) => return 0,
     };
@@ -226,9 +604,7 @@ pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> u
 
 /// Check if the current directory is inside a git repository.
 pub fn is_git_repo(root: &Path) -> bool {
-    git_cmd(root)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
+    output_after_child_exits(git_cmd(root).args(["rev-parse", "--is-inside-work-tree"]))
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -241,9 +617,7 @@ pub fn is_git_repo(root: &Path) -> bool {
 /// git repository" rather than reporting everything current (#558) — it is the
 /// state `git init` leaves behind, which is where the quick start begins.
 pub fn has_commits(root: &Path) -> bool {
-    git_cmd(root)
-        .args(["rev-parse", "--verify", "HEAD"])
-        .output()
+    output_after_child_exits(git_cmd(root).args(["rev-parse", "--verify", "HEAD"]))
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -279,13 +653,13 @@ pub fn source_was_deleted(root: &Path, since: &str, path: &str) -> bool {
     // `<rev>:./<path>` resolves relative to cwd, which is `root`; the
     // repo-root-relative form would answer the wrong question whenever the
     // project sits in a subdirectory of the repository.
-    git_cmd(root)
-        .args(["cat-file", "-e", &format!("{since}:./{path}")])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    status_without_inherited_output(git_cmd(root).args([
+        "cat-file",
+        "-e",
+        &format!("{since}:./{path}"),
+    ]))
+    .map(|s| s.success())
+    .unwrap_or(false)
 }
 
 /// A spec whose staleness could not be measured at all.
@@ -581,6 +955,233 @@ mod tests {
         assert!(
             is_git_repo(&snap),
             "after the closure, default git_cmd is ceiling-free again"
+        );
+    }
+
+    /// Same shape as the bounded Git reader: a background shell inherits the
+    /// child's stdout and blocks on a fifo. The read must return the child's
+    /// bytes while that holder is still alive.
+    #[cfg(unix)]
+    #[test]
+    fn output_returns_while_a_descendant_holds_the_pipe() {
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().unwrap();
+        let fifo = temp.path().join("hold");
+        let pidfile = temp.path().join("holder");
+        let fifo_c = std::ffi::CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo_c.as_ptr(), 0o600) }, 0);
+        let script = temp.path().join("child.sh");
+        fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\n(\n  trap '' HUP\n  read _ < '{}'\n) &\necho $! > '{}'\nprintf 'payload\\n'\nexit 0\n",
+                fifo.display(),
+                pidfile.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&script).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script, permissions).unwrap();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let script_for_child = script.clone();
+        std::thread::spawn(move || {
+            let mut command = Command::new(script_for_child);
+            let _ = tx.send(output_after_child_exits(&mut command));
+        });
+        let result = rx.recv_timeout(std::time::Duration::from_secs(15));
+        let holder = fs::read_to_string(&pidfile)
+            .ok()
+            .and_then(|text| text.trim().parse::<i32>().ok());
+        let holder_alive = holder.is_some_and(|pid| unsafe { libc::kill(pid, 0) } == 0);
+        if let Some(pid) = holder {
+            unsafe { libc::kill(pid, libc::SIGKILL) };
+        }
+        let output = result
+            .unwrap_or_else(|_| {
+                panic!(
+                    "still waiting on a descendant's stdout after the child exited (holder alive: {holder_alive})"
+                )
+            })
+            .expect("child should run");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.stdout, b"payload\n");
+        assert!(
+            holder_alive,
+            "the descendant must still be alive when the read returns"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn status_does_not_hand_the_caller_stdout_to_the_child() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().unwrap();
+        let marker = temp.path().join("stdout-target");
+        let script = temp.path().join("child.sh");
+        fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nexec 3>&1\nif [ /dev/fd/3 -ef /dev/null ]; then echo /dev/null; else echo other; fi > '{}'\n",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&script).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script, permissions).unwrap();
+        let mut command = Command::new(&script);
+        let status = status_without_inherited_output(&mut command).unwrap();
+        assert!(status.success());
+        assert_eq!(
+            fs::read_to_string(&marker).unwrap().trim(),
+            "/dev/null",
+            "a status child must not inherit the caller's stdout"
+        );
+    }
+
+    /// A piped stdin on the command must not survive. `Command::output` replaces
+    /// stdin with the null device. `test -ef` compares device and inode, so the
+    /// check also holds on macOS, where `/dev/fd/N` is not a symlink to read.
+    #[cfg(unix)]
+    #[test]
+    fn output_after_child_exits_nulls_stdin() {
+        use std::process::Stdio;
+
+        let mut command = Command::new("sh");
+        command
+            .arg("-c")
+            .arg("if [ /dev/fd/0 -ef /dev/null ]; then echo /dev/null; else echo other; fi")
+            .stdin(Stdio::piped());
+        let output = output_after_child_exits(&mut command).unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "/dev/null",
+            "stdin must be the null device, not the caller's pipe"
+        );
+    }
+
+    /// The pipe is full and a descendant is blocked in `write` before the read
+    /// starts. Stop is already set. An unbounded drain unblocks that write and
+    /// follows the flood forever. A finite snapshot keeps the payload at the
+    /// head of the pipe and stops at the pipe's capacity.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn stop_keeps_queued_bytes_and_does_not_follow_a_descendant_flood() {
+        use std::fs::File;
+        use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
+
+        let mut fds = [0; 2];
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        // SAFETY: `pipe` just opened both ends and this test owns them.
+        let read = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+        let write = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+        let capacity = pipe_capacity(read.as_raw_fd());
+        let payload = b"payload\n";
+        assert_eq!(
+            unsafe { libc::write(write.as_raw_fd(), payload.as_ptr().cast(), payload.len()) },
+            payload.len() as isize
+        );
+        fill_pipe_until_full(write.as_raw_fd());
+
+        let (tid_tx, tid_rx) = std::sync::mpsc::channel();
+        let flood = std::thread::spawn(move || {
+            // SAFETY: `gettid` takes no pointer and returns this thread's id.
+            let tid = unsafe { libc::syscall(libc::SYS_gettid) };
+            tid_tx.send(tid).unwrap();
+            let chunk = [b'x'; 8192];
+            loop {
+                // SAFETY: `write` is the pipe's write end, owned by this thread.
+                let rc =
+                    unsafe { libc::write(write.as_raw_fd(), chunk.as_ptr().cast(), chunk.len()) };
+                if rc < 0 {
+                    break;
+                }
+            }
+        });
+        let tid = tid_rx.recv().unwrap();
+        while !std::fs::read_to_string(format!("/proc/{tid}/wchan"))
+            .unwrap_or_default()
+            .contains("pipe")
+        {
+            std::thread::yield_now();
+        }
+
+        let stop = AtomicBool::new(true);
+        let wake = OutputWake::new().unwrap();
+        let overflow = AtomicBool::new(false);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(read_pipe_until_stop(
+                File::from(read),
+                &stop,
+                wake.raw_read(),
+                usize::MAX,
+                &overflow,
+            ));
+        });
+        let bytes = rx
+            .recv_timeout(std::time::Duration::from_secs(15))
+            .unwrap_or_else(|_| panic!("a descendant flood kept the read going after stop was set"))
+            .unwrap();
+        assert!(
+            bytes.starts_with(b"payload\n"),
+            "bytes queued at stop were dropped"
+        );
+        assert!(
+            bytes.len() <= capacity,
+            "post-stop drain followed the flood: {} bytes, pipe capacity {capacity}",
+            bytes.len()
+        );
+        drop(flood);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn pipe_capacity(fd: std::os::unix::io::RawFd) -> usize {
+        // SAFETY: `fd` is an open pipe. `F_GETPIPE_SZ` returns its capacity.
+        let size = unsafe { libc::fcntl(fd, libc::F_GETPIPE_SZ) };
+        assert!(size > 0, "F_GETPIPE_SZ failed");
+        size as usize
+    }
+
+    #[cfg(target_os = "linux")]
+    fn fill_pipe_until_full(fd: std::os::unix::io::RawFd) {
+        set_nonblocking(fd).unwrap();
+        let chunk = [b'x'; 8192];
+        loop {
+            // SAFETY: `fd` is the pipe write end this test owns.
+            let rc = unsafe { libc::write(fd, chunk.as_ptr().cast(), chunk.len()) };
+            if rc < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.kind() == std::io::ErrorKind::WouldBlock {
+                    break;
+                }
+                if error.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                panic!("filling the pipe failed: {error}");
+            }
+        }
+        // SAFETY: `fd` is the same write end. Clearing `O_NONBLOCK` makes the
+        // descendant's later `write` block inside the kernel once the pipe is full.
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        assert!(flags >= 0);
+        assert_eq!(
+            unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK) },
+            0
         );
     }
 }

@@ -1,6 +1,6 @@
 ---
 module: cmd_lifecycle
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/lifecycle.rs
@@ -55,6 +55,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
     (#572). A spec that git simply has no record of yet is a different case — there is nothing for
     it to be behind, so the guard passes, matching `stale`'s treatment since #558.
 7. Lifecycle history is appended to frontmatter `lifecycle_log` when `track_history` is enabled
+8. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -121,3 +122,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
 | 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

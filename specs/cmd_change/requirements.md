@@ -412,3 +412,12 @@ The change CLI SHALL expose historical reconciliation as an opt-in scope request
 - The command delegates all validation to the domain and never approves, verifies, archives or merges.
 - JSON carries explicit unproven status for the new mode; text uses plain disclosure without printing digest-bearing internals.
 
+### REQ-cmd-change-026
+
+`specsync change audit` under the global `--strict` flag SHALL also report every archived change whose own workflow-version history fails validation, through the domain's `audit_project_with_strict`, and exit non-zero when it finds one.
+
+#### Acceptance Criteria
+
+- `change audit --strict` exits non-zero and names the archived change when another archive's history holds a hidden workflow-version downgrade.
+- `change audit` without `--strict` reports exactly what it reported before.
+

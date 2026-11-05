@@ -1,6 +1,6 @@
 ---
 module: change
-version: 158
+version: 159
 status: active
 files:
   - src/change.rs
@@ -591,3 +591,4 @@ Acceptance Criteria
 | 2026-11-04 | finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds: Finalize a change in seconds on Raven however many archives it holds |
 | 2026-11-04 | name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path: Name the spec to edit when change approve refuses an unowned affected path |
 | 2026-11-04 | make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero: Make the unowned-path ownership hint deterministic and fall back at depth zero |
+| 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |

@@ -1,6 +1,6 @@
 ---
 id: give-the-macos-release-candidate-qualification-75-minutes-after-v6-2-0-rc-1-timed-out
-state: draft
+state: approved
 type: operations
 base_commit: 2ebe1f44a527f9b04dd73d3326dadd2bd481b055
 ---

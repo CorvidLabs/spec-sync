@@ -7,18 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.0] - Unreleased
+
+Release candidate, not yet published. The published Action download default stays 6.1.2 until a separate post-publication asset and Action check.
+
 ### Added
 
-- Explicit, separately approved historical receipt reconciliation preserves authenticated ancestral packages and frozen manifests, labels old transitions unproven, and requires fresh current verification and scoped review. Normal before/after succession and resource bounds stay strict.
+- `specsync change send-back <id> --actor <name> --reason <text>` returns an approved, implementing or verifying change to draft, so `change answer` can set its scope again before the usual approve, check, review and finalize. It appends a record to `approvals.json` under `send_backs` naming the actor, reason, prior state, cancelled approvals and whether canonical text was applied. Every definition approval recorded before the latest send-back stops counting, even when the scope does not change. Spec text the change already applied stays in place and is not applied twice. Draft, accepted and archived changes are refused; accepted and archived changes keep using `change reopen`. The field is omitted when empty, so existing ledgers keep their bytes (#846, issue #844, REQ-change-123).
+- `specsync change reconcile-history <id> --actor <name> --reason <text>` requests an explicit, separately approved historical receipt reconciliation on an unaccepted workflow-v2 successor. It authenticates the original accepted packages and frozen manifests at the immutable ancestral base, labels the old transitions unproven (`historical-transition-unproven`, `historical_transition_proven: false` in status, audit and finalize), and requires renewed approval, fresh current verification and a fresh scoped review. Normal before/after succession and resource bounds stay strict (#838).
 
 ### Fixed
 
-- Recursive validation of a frozen acceptance receipt reads only its signed inputs, so later asset additions do not exhaust evidence capture. Fresh acceptance and reopen keep full discovery and unchanged resource limits.
-- An active v2 record with an inconsistent historical review workspace can be downgraded through audited reopen only when its entire package exactly matches a remote-default ancestor tree. The complete old review remains untrusted, all non-review digests remain strict, and closing requires fresh verification and scoped review.
+- `specsync change check` refuses a `## MODIFIED` or `## REMOVED` delta whose canonical block changed after approval instead of overwriting the newer text, and `change audit` reports the same before anything is lost. The refusal names the module and block and says to rewrite the delta onto the current text, re-approve and check again. Definition approvals now record `approved_delta_bases`; approvals recorded before this field keep the earlier behaviour (#845, issue #843, REQ-change-122).
+- `specsync change approve` refusing an affected path that no module owns now ends with one line per refused path naming the spec to edit: every spec that already lists the path (sorted, with `add --spec <module>`), otherwise the declared spec whose `files:` share the longest directory, otherwise a generic hint when none shares a directory. Ownership is decided exactly as before; only the wording changes (#841, #853, REQ-change-120).
+- Recursive validation of a frozen acceptance receipt reads only its signed inputs, so later asset additions do not exhaust evidence capture. Fresh acceptance and reopen keep full discovery and unchanged resource limits (#837).
+- An active v2 record with an inconsistent historical review workspace can be downgraded through audited reopen only when its entire package exactly matches a remote-default ancestor tree. The complete old review remains untrusted, all non-review digests remain strict, and closing requires fresh verification and scoped review (#837).
 
 ### Changed
 
-- Advance the main Action binary default to published 6.1.2 after supported-platform asset and Action checks. Immutable `@v6.1.2` remains at its qualified candidate SHA with default 6.1.1; select `version: '6.1.2'` explicitly with that tag. Archive-gate examples pin `@v6.1.2`, and the release validator no longer accepts `@main` for them.
+- `specsync change status`, `show`, `list`, `ship-status` and `audit` on archived changes compute only the asked-for change's terminal evidence and reuse passing workflow-history verdicts and archive introductions from a persistent cache at `specsync/read-cache-v1.json` under the Git common directory, shared by worktrees. An entry is reused only when the archived `state.json` digest, path, build identity and repository prefix match and no later commit touched that change's state. The cache is off in shallow, partial and grafted or replace-ref clones, any cache failure falls back to live reads, and refusals are never cached. On a 129-archive repository a warm archived `change status --json` dropped from about 85 s to about 2 s (#840, REQ-change-119).
+- `specsync change finalize` and archive reuse the same cache and memoize Git queries that name only full object ids; queries naming `HEAD`, a branch or the working tree stay live. On the same repository one finalize dropped from about 58 s to about 6 s. No gate, bound, timeout or approval rule changes (#842, REQ-change-121).
+- The main Action wrapper selects published 6.1.2 after supported-platform asset and Action checks (#836). Immutable `@v6.1.2` keeps its historical 6.1.1 default; select `version: '6.1.2'` with that tag. Archive-gate examples pin a release, and the release validator no longer accepts `@main` for them.
+- Package version and self-built candidate inputs (CI packaged Action consumer, Trust) move to 6.2.0. Documentation examples, archive-gate examples included, pin `@v6.2.0` with `version: '6.2.0'` for use after publication.
 
 ## [6.1.2] - 2026-11-01
 
@@ -3679,7 +3689,8 @@ Published from candidate `v6.1.2-rc.2` (d08d2746), qualified on Ubuntu and macOS
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.2...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.2.0...HEAD
+[6.2.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.2...v6.2.0
 [6.1.2]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.1...v6.1.2
 [6.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.1
 [6.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.0

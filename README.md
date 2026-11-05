@@ -21,11 +21,11 @@ Rust · single binary · 33 languages · no SpecSync API key required
 
 ## Install
 
-The GitHub **6.1.2** release uses the immutable candidate qualified on Ubuntu and
-macOS, and crates.io serves 6.1.2. This separate Action wrapper update selects its
-published binary by default. Confirm availability at your chosen distribution before
-using the 6.1.2 installation pins below; GitHub asset publication does not itself
-establish Homebrew publication.
+This tree prepares **6.2.0**; it has not been published or qualified as a release.
+The published GitHub and crates.io release remains **6.1.2**. The 6.2.0 Action examples
+below are for use after immutable candidate qualification and publication; use the
+published 6.1.2 pins until then. See [the candidate handoff](docs/releases/6.2.0.md).
+GitHub asset publication does not itself establish crates.io or Homebrew publication.
 Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
 the same 6.x version.
 
@@ -44,14 +44,14 @@ brew install CorvidLabs/tap/spec-sync
 ### GitHub Action
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.2
+- uses: CorvidLabs/spec-sync@v6.2.0
   with:
-    version: '6.1.2'
+    version: '6.2.0'
     strict: 'true'
     require-coverage: '100'
 ```
 
-Use the explicit `@v6.1.2` Action and binary pins shown above for release gates.
+After publication use the explicit `@v6.2.0` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
 when using that older tag. This main wrapper's omitted-input default is published
 `6.1.2`, following supported-platform asset and Action checks. The immutable
@@ -62,9 +62,9 @@ its actual consumer checks pass; the immutable `@v6.1.2` ref is never moved here
 Minimal immutable configuration:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.2
+- uses: CorvidLabs/spec-sync@v6.2.0
   with:
-    version: '6.1.2'
+    version: '6.2.0'
 ```
 
 ### Pre-built binaries

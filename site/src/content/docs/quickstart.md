@@ -251,6 +251,8 @@ Then run `specsync check` again until everything passes.
 
 ### GitHub Action
 
+> Candidate example: use 6.2.0 only after publication. Keep the published 6.1.2 pins until then.
+
 ```yaml
 # .github/workflows/specsync.yml
 name: SpecSync
@@ -263,9 +265,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.1.2
+      - uses: CorvidLabs/spec-sync@v6.2.0
         with:
-          version: '6.1.2'
+          version: '6.2.0'
           strict: true
           require-coverage: 80
 ```

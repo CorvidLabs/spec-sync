@@ -3,8 +3,8 @@
 This page is written to be **pasted wholesale into an agent session** in the repository you
 want to adopt spec-sync in. It is also readable on its own.
 
-This guide describes the 6.1 workflow with the published 6.1.2 pins. Install the stable binary and verify
-`specsync --version` prints `specsync 6.1.2` before adoption; historical recovery guidance is
+This guide describes the 6.2 workflow with the published 6.2.0 pins. Install the stable binary and verify
+`specsync --version` prints `specsync 6.2.0` before adoption; historical recovery guidance is
 labeled separately.
 
 ---
@@ -18,15 +18,15 @@ change end to end so the loop is proven rather than assumed.
 
 ## Install
 
-Pin explicitly. Cargo and GitHub serve 6.1.2:
+Pin explicitly. Cargo and GitHub serve 6.2.0:
 
     cargo install specsync
-    specsync --version    # specsync 6.1.2
+    specsync --version    # specsync 6.2.0
 
     # or a GitHub Release asset / git tag:
-    cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.1.2 --locked specsync
+    cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.2.0 --locked specsync
 
-Homebrew (`CorvidLabs/tap/spec-sync`) tracks the published stable; confirm it reports 6.1.2
+Homebrew (`CorvidLabs/tap/spec-sync`) tracks the published stable; confirm it reports 6.2.0
 before relying on it. Prebuilt binaries exist for Linux and
 macOS only; 6.0 publishes no Windows binary (#735).
 
@@ -123,17 +123,17 @@ listed as a warning, so a stray debug file cannot end up in a pushed commit.
 ## 5. Wire CI
 
     # For a candidate instead, choose a release that has binary assets.
-    - uses: CorvidLabs/spec-sync@v6.1.2
+    - uses: CorvidLabs/spec-sync@v6.2.0
       with:
-        version: '6.1.2'
+        version: '6.2.0'
         strict: 'true'
         lifecycle-enforce: 'true'
 
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
-`version` input pins the binary it downloads. Prefer the `@v6.1.2` pins shown above.
+`version` input pins the binary it downloads. Prefer the `@v6.2.0` pins shown above.
 Always pass `version: '6.0.0'` with `@v6.0.0`:
-that tag's Action still defaults the download to `6.0.0-rc.14`, and immutable `@v6.1.2` still
-defaults to `6.1.1`. This commit's omitted-input default is `6.1.2`. Move the floating `@v6` tag
+that tag's Action still defaults the download to `6.0.0-rc.14`, and immutable `@v6.2.0` still
+defaults to `6.1.2`. This commit's omitted-input default is `6.2.0`. Move the floating `@v6` tag
 only after promotion, to a commit whose omitted-input default is the promoted release. The action runs on Linux and macOS runners
 and refuses a Windows runner.
 

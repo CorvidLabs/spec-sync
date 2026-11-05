@@ -1,6 +1,6 @@
 ---
 id: finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds
-state: verifying
+state: archived
 type: bug_fix
 base_commit: df7bace2742ff5910d9b6747ecfda7e639848c7e
 ---

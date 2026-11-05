@@ -7,11 +7,11 @@
   "title": "Finalize a change in seconds on Raven however many archives it holds",
   "description": "Finalize a change in seconds on Raven however many archives it holds",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "df7bace2742ff5910d9b6747ecfda7e639848c7e",
   "created_at": 1793757762,
-  "updated_at": 1793837330,
+  "updated_at": 1793837408,
   "affected_specs": [
     "change"
   ],

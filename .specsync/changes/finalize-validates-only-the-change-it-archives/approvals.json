@@ -90,7 +90,92 @@
         "cmd_change": "908f6c3f8ed5af2bd394ea999ae4b6acf5075b8619f8c8be1df73fb8feef30c5"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793851420,
+      "digest": "4b7aa28bcb3c3f8173d7c4b3a398e8716b18e6a3552c06d2274bf1c0a4b7b407",
+      "note": "Re-scoped after send-back: the full archive-history walk is the opt-in change audit --archives (0xLeif's choice), adding src/cli.rs, cli_args and the docs lines.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-validates-only-the-change-it-archives",
+        "title": "Finalize validates only the change it archives",
+        "description": "Finalize validates only the change it archives",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "docs/ADOPTING.md",
+          "site/src/content/docs/cli.md",
+          "specs/change",
+          "specs/cli_args",
+          "specs/cmd_change",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/historical_reconciliation.rs",
+          "src/change/read_cache.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_finalize.rs",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "One finalize spawns no more Git processes when more archived changes exist; every refusal finalize issues for the change it archives is unchanged; change audit --strict still names a hidden workflow-version downgrade in another archive; a Raven-sized finalize finishes in seconds."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md: refusing gates install no memo and stay live, and only passing verdicts are reused; REQ-change-119 and REQ-change-121 read-cache and finalize-memo rules stay as they are; REQ-change-audit-project-001 keeps the default audit active-only; REQ-change-049 keeps the ordinal-collision check at approve and audit; never weaken a gate for the change being finalized; 0xLeif: the full archive-history walk is opt-in (change audit --archives) so change audit --strict keeps its cost.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "3a9bec69b5f0a50742fa9c10599ff65fb896084cd5eb3d9697f8d49cf95dcbbd",
+        "cli_args": "9d1460d8832b96c9dabb2aa3fa552fae70edee5bb6fb026fa232a926c670ae64",
+        "cmd_change": "1340508e37be5af4c06cc2ff0f7a4e0b6d13f237107b30f51665c93447122c5b"
+      },
+      "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "finalize-validates-only-the-change-it-archives",
+      "actor": "0xLeif",
+      "reason": "0xLeif chose a separate opt-in audit flag for the full archive-history walk instead of --strict, so CI's audit --strict stays fast; the flag needs src/cli.rs and the cli_args spec.",
+      "timestamp": 1793851118,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-124",
+          "content": "The system SHALL let `change finalize` and `change archive` validate in full only the change they archive, reading every other archived change structurally from its own `state.json` bytes without walking its Git workflow-version history, and SHALL keep that per-archive history walk in `change audit --strict`, which names each archived change whose workflow-version history fails.\n\n#### Acceptance Criteria\n\n- The Git processes one finalize spawns do not grow with the number of other archived changes once the persistent read cache is warm. With a cold cache, each other archive adds at most the three reads of the immutable commit that introduced it, and no workflow-version history walk.\n- Every refusal finalize and archive issue for the change being archived is unchanged: its own workflow-version history, evidence, review, deltas, ownership, closing approval and archive integrity are still validated in full.\n- An archived change that finalize or archive relies on, as a dependency, a semantic successor or a sequence owner, still has its own workflow-version history validated before it is relied on.\n- `change audit --strict` refuses a workflow-version downgrade committed into another archive's history and hidden again by a later commit, naming that change, with or without a warm read cache. `change audit` without `--strict` is unchanged."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-027",
+          "content": "`specsync change audit` under the global `--strict` flag SHALL also report every archived change whose own workflow-version history fails validation, through the domain's `audit_project_with_strict`, and exit non-zero when it finds one.\n\n#### Acceptance Criteria\n\n- `change audit --strict` exits non-zero and names the archived change when another archive's history holds a hidden workflow-version downgrade.\n- `change audit` without `--strict` reports exactly what it reported before."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
 }

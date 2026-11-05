@@ -569,7 +569,12 @@ pub enum ChangeAction {
         push: bool,
     },
     /// Audit active change workspaces and living SDD policy/spec coherence
-    Audit,
+    Audit {
+        /// Also re-validate every archived change's own workflow-version history (slow on
+        /// long histories; finalize no longer repeats it)
+        #[arg(long)]
+        archives: bool,
+    },
     /// Adopt the current verified lifecycle in an existing project
     Adopt {
         /// Preview adoption without writing files

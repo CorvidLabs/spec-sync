@@ -373,7 +373,7 @@ specsync change status add-passkeys
 specsync change approve add-passkeys --actor "Ada"
 # implement and test the approved scope
 specsync change check add-passkeys --commit
-specsync change audit
+specsync change audit             # add --archives to also re-walk every archive's history (slow)
 # run the local verify lane, then complete human review (archive-first CI waits for the archive tip)
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys

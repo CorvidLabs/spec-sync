@@ -7,14 +7,14 @@
   "title": "Finalize validates only the change it archives",
   "description": "Finalize validates only the change it archives",
   "kind": "bug_fix",
-  "state": "verifying",
-  "canonical_applied": true,
+  "state": "approved",
   "base_commit": "0723bdca6c7d592baff6fdd8dba84b2de07c875a",
   "created_at": 1793842511,
-  "updated_at": 1793851022,
+  "updated_at": 1793851420,
   "affected_specs": [
     "change",
-    "cmd_change"
+    "cmd_change",
+    "cli_args"
   ],
   "affected_paths": [
     "src/change/validate_loaded_change.rs",
@@ -24,8 +24,12 @@
     "src/change/read_cache.rs",
     "src/change_tests/fast_finalize.rs",
     "src/commands/change.rs",
+    "src/cli.rs",
     "specs/change",
-    "specs/cmd_change"
+    "specs/cmd_change",
+    "specs/cli_args",
+    "docs/ADOPTING.md",
+    "site/src/content/docs/cli.md"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,
@@ -45,7 +49,7 @@
   "dependencies": [],
   "answers": {
     "architecture_risk": "yes",
-    "constraints": "change.3md: refusing gates install no memo and stay live, and only passing verdicts are reused; REQ-change-119 and REQ-change-121 read-cache and finalize-memo rules stay as they are; REQ-change-audit-project-001 keeps the default audit active-only; REQ-change-049 keeps the ordinal-collision check at approve and audit; never weaken a gate for the change being finalized.",
+    "constraints": "change.3md: refusing gates install no memo and stay live, and only passing verdicts are reused; REQ-change-119 and REQ-change-121 read-cache and finalize-memo rules stay as they are; REQ-change-audit-project-001 keeps the default audit active-only; REQ-change-049 keeps the ordinal-collision check at approve and audit; never weaken a gate for the change being finalized; 0xLeif: the full archive-history walk is opt-in (change audit --archives) so change audit --strict keeps its cost.",
     "public_contract": "yes"
   }
 }

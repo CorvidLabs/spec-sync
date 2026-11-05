@@ -145,7 +145,7 @@ fn finalize_judges_other_archives_from_their_own_bytes() {
     let other_state = find_change_dir(root, &other.id).unwrap().join("state.json");
     commit_hidden_workflow_downgrade(root, &other_state);
     let record = reviewed_change_ready_to_finalize(root);
-    // The other archive's history is `change audit --strict`'s to re-walk (REQ-change-124); the
+    // The other archive's history is `change audit --archives`'s to re-walk (REQ-change-124); the
     // change being archived is still judged in full.
     finalize_change(root, &record.id).unwrap();
     assert_eq!(load_change(root, &record.id).unwrap().state, ChangeState::Archived);
@@ -160,13 +160,13 @@ fn strict_audit_still_refuses_a_hidden_downgrade_in_another_archive() {
     finalized_archived_change(root);
     // A passing strict audit stores its verdicts in the persistent cache, so the refusal below is
     // also proof that a warm cache cannot hide the downgrade.
-    let clean = audit_project_with_strict(root, true);
+    let clean = audit_project_with_archives(root, true);
     assert!(clean.errors.is_empty(), "{:?}", clean.errors);
 
     let other_state = find_change_dir(root, &other.id).unwrap().join("state.json");
     commit_hidden_workflow_downgrade(root, &other_state);
 
-    let report = audit_project_with_strict(root, true);
+    let report = audit_project_with_archives(root, true);
     assert!(
         report.errors.iter().any(|error| error.contains(&format!("`{}`", other.id))
             && error.contains("workflow-version history changed immutable identity")),
@@ -174,9 +174,9 @@ fn strict_audit_still_refuses_a_hidden_downgrade_in_another_archive() {
         report.errors
     );
     assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
-    assert_eq!(audit_project_with_strict(root, true).errors, report.errors);
+    assert_eq!(audit_project_with_archives(root, true).errors, report.errors);
     // The default audit stays active-only, exactly as before (REQ-change-audit-project-001).
-    assert_eq!(audit_project(root).errors, audit_project_with_strict(root, false).errors);
+    assert_eq!(audit_project(root).errors, audit_project_with_archives(root, false).errors);
 }
 
 /// The timed finalize benchmark against a Raven-sized project: 124 archived changes

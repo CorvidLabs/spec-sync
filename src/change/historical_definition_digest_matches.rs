@@ -3838,14 +3838,14 @@ pub fn check_project(root: &Path) -> SddCheckReport {
 ///
 /// Does **not** re-validate archived terminal evidence. Archives are history;
 /// living truth is active workspaces plus specs/policy. The CLI reaches it through
-/// [`audit_project_with_strict`].
+/// [`audit_project_with_archives`].
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn audit_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
     check_project_with_command_output(root, false)
 }
 
-/// [`audit_project`], and under `strict` also every archived change's own workflow-version
+/// [`audit_project`], and with `archives` also every archived change's own workflow-version
 /// history (REQ-change-124).
 ///
 /// `change finalize` and `change archive` judge other archives from their own bytes only, so a
@@ -3853,10 +3853,10 @@ pub fn audit_project(root: &Path) -> SddCheckReport {
 /// caught here, on demand, rather than re-walked on every finalize. Each failing archive is
 /// reported by ID. The walk reuses the read-scope memo and the persistent history cache of
 /// REQ-change-119 under their existing rules.
-pub fn audit_project_with_strict(root: &Path, strict: bool) -> SddCheckReport {
+pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
     let mut report = check_project_with_command_output(root, false);
-    if strict {
+    if archives {
         for error in archived_workflow_history_errors(root) {
             if !report.errors.contains(&error) {
                 report.enabled = true;

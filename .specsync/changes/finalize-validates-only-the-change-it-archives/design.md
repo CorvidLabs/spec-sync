@@ -7,7 +7,7 @@ artifact: design
 
 1. `list_all_changes_structural` loads the same roster as `list_all_changes_checked`: active records through `list_changes_checked` (their history still validated), each archived `state.json` parsed and passed through `validate_loaded_change`, husks and tombstones skipped, duplicate IDs refused. It skips only `validate_workflow_version_history` and the history prefetch for archived records. Both loaders share one body, `list_all_changes_loaded(root, walk_archived_history)`, so the structural checks cannot drift apart.
 2. `AcceptedInputValidationMemo::authenticate` validates an archived record's own workflow-version history before authenticating its accepted evidence. That is the one choke point through which an accepted-input graph pass relies on another archive: a semantic successor in `successor_covers_input`, or a sequence owner in `later_sequence_owner_covers_historical_input`. On the full roster this cannot fail, because loading the roster already proved the same verdict (and memoized it in a read scope). On the structural roster it proves exactly the archives the pass leans on, and no others.
-3. `audit_project_with_strict(root, strict)`: under `strict` it adds `archived_workflow_history_errors`, which prefetches and validates every archived record's workflow-version history and reports each failure by change ID. `change audit` passes the global `--strict` flag. `audit_project` and the non-strict audit are unchanged.
+3. `audit_project_with_archives(root, strict)`: under `strict` it adds `archived_workflow_history_errors`, which prefetches and validates every archived record's workflow-version history and reports each failure by change ID. `change audit` passes the global `--strict` flag. `audit_project` and the non-strict audit are unchanged.
 
 ## Per-caller decisions for `list_all_changes_checked`
 
@@ -27,7 +27,7 @@ Kept on the full roster, each because an existing contract or a non-finalize pat
 
 ## Refusals for the change being archived
 
-Unchanged. `finalize_change` still runs `load_change` (its own history), the state, workflow-version and materialization checks, acceptance or finalization evidence and the scoped review. `archive_change_with_options` still runs the closing approval, delivery-diff, accepted-transition, integrity preflight and post-move validation for the target. The only refusal that moves is a history failure in an archive the target does not rely on: today it aborts finalize from inside the roster load, and now `change audit --strict` reports it by ID. A relied-on archive with a broken history is refused as a successor through (2), so the target's stale input is still refused, with that successor named among the rejected successors.
+Unchanged. `finalize_change` still runs `load_change` (its own history), the state, workflow-version and materialization checks, acceptance or finalization evidence and the scoped review. `archive_change_with_options` still runs the closing approval, delivery-diff, accepted-transition, integrity preflight and post-move validation for the target. The only refusal that moves is a history failure in an archive the target does not rely on: today it aborts finalize from inside the roster load, and now `change audit --archives` reports it by ID. A relied-on archive with a broken history is refused as a successor through (2), so the target's stale input is still refused, with that successor named among the rejected successors.
 
 ## What still scales with archives
 

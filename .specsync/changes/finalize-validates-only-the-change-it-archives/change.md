@@ -1,6 +1,6 @@
 ---
 id: finalize-validates-only-the-change-it-archives
-state: verifying
+state: approved
 type: bug_fix
 base_commit: 0723bdca6c7d592baff6fdd8dba84b2de07c875a
 ---
@@ -15,6 +15,7 @@ Finalize validates only the change it archives
 
 - `change`
 - `cmd_change`
+- `cli_args`
 
 ## Acceptance Criteria
 

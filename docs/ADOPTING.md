@@ -222,7 +222,7 @@ The point of archival is not filing — it is that a module accumulates what was
 ## Verify the adoption
 
     specsync check --strict          # 0 warnings, exports documented
-    specsync change audit            # clean; --strict also re-walks every archive's history
+    specsync change audit            # clean; --archives also re-walks every archive's history
     ls .specsync/archive/changes/    # your first change, archived
 
 If all three hold, the loop is real. Report what you set up, what you had to correct in the

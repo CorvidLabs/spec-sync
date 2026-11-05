@@ -105,7 +105,7 @@ verification. When both are set, a successful commit sequence SHALL end with
 Acceptance Criteria
 
 - `change check --commit` leaves recorded verification evidence that
-  `change audit --strict` accepts for that change when the tree is otherwise clean.
+  `change audit --archives` accepts for that change when the tree is otherwise clean.
 - A failing first verification produces no new commits.
 - `--push` without `--commit` fails with an error naming the requirement.
 
@@ -424,10 +424,10 @@ The change CLI SHALL expose historical reconciliation as an opt-in scope request
 
 ### REQ-cmd-change-027
 
-`specsync change audit` under the global `--strict` flag SHALL also report every archived change whose own workflow-version history fails validation, through the domain's `audit_project_with_strict`, and exit non-zero when it finds one.
+`specsync change audit --archives` SHALL also report every archived change whose own workflow-version history fails validation, through the domain's `audit_project_with_archives`, and exit non-zero when it finds one.
 
 #### Acceptance Criteria
 
-- `change audit --strict` exits non-zero and names the archived change when another archive's history holds a hidden workflow-version downgrade.
-- `change audit` without `--strict` reports exactly what it reported before.
+- `change audit --archives` exits non-zero and names the archived change when another archive's history holds a hidden workflow-version downgrade.
+- `change audit` without `--archives`, with or without the global `--strict`, reports exactly what it reported before.
 

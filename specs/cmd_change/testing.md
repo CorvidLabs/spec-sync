@@ -46,4 +46,4 @@ REQ-cmd-change-026: `change send-back` text, `--json` (`change` and `audit`) and
 
 ## Strict audit evidence
 
-REQ-cmd-change-027: `change audit` passes the global `--strict` flag to `change::audit_project_with_strict`. strict_audit_still_refuses_a_hidden_downgrade_in_another_archive (src/change_tests/fast_finalize.rs) proves the report names the archived change whose history hides a downgrade, and that the non-strict report equals `audit_project`'s.
+REQ-cmd-change-027: `change audit` passes its `--archives` flag to `change::audit_project_with_archives`. strict_audit_still_refuses_a_hidden_downgrade_in_another_archive (src/change_tests/fast_finalize.rs) proves the report names the archived change whose history hides a downgrade, and that the non-strict report equals `audit_project`'s.

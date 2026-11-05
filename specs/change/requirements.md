@@ -1556,6 +1556,53 @@ The system SHALL offer explicitly approved historical receipt reconciliation tha
 - Fresh verification and current scoped review are mandatory after new scope approval. The new mode does not fabricate old dates, approvals, source bytes, product acceptance or historical transitions.
 - Ordinary succession retains its actual base-file check and unchanged serialized schema/digests. All resource bounds remain unchanged. Historical mode supports regular-file, missing and directory entries, not symlinks or gitlinks.
 
+### REQ-change-119
+
+The system SHALL answer read-only lifecycle reads (`change status`, `change show`, `change list`, `change ship-status`, `change audit`) without re-deriving work whose inputs have not changed: inside one read scope an archived change's terminal evidence is computed for that change alone, scoped-review Git reads and archive lookups are memoized, and passing archived workflow-version history verdicts and archive introductions are reused across invocations from a cache under the Git directory that is keyed by content digest and invalidated by Git history.
+
+#### Acceptance Criteria
+
+- Output of every read is identical to a live read: same JSON, same refusals, same first error.
+- A cached workflow-version history verdict is reused only when the SHA-256 of the archived `state.json` bytes, its archive path, the build identity and the repository prefix all match, the commit it was computed at is an ancestor of `HEAD`, and no commit in between touched that change's active or archived state paths. Anything else recomputes it live, and only passing verdicts are stored.
+- Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
+- The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
+- The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
+
+### REQ-change-120
+
+When `change approve` refuses affected paths that no declared module canonically owns, the error SHALL say which spec to edit for each refused path. Ownership itself is still decided exactly as REQ-change-053 requires.
+
+#### Acceptance Criteria
+
+- A refused path that some spec under the specs directory already lists in its `files:` names that spec file and its module, and says to declare it with `--spec`. Every such spec is named, sorted by spec path, whatever order the file system returns them in.
+- A listing spec that cannot own the path says why: it has no `module:`, or it is not the canonical spec of the declared module it names.
+- Otherwise the refused path names the declared spec whose `files:` entries share the longest directory with the path, comparing whole path components, and says to add the path to that spec's `files:` list. When no declared spec shares any directory with the path (depth 0), the refusal gives the generic message instead of naming a spec.
+- The same paths are refused as before; only the wording of the refusal changes.
+
+### REQ-change-121
+
+The system SHALL let `change finalize` and `change archive` reuse, for the duration of one command, Git answers that cannot have changed while it runs, so that one finalize does not re-derive every other archived change's history: the persistent workflow-version history verdicts and archive introductions of REQ-change-119 under the same digest and history rule, Git queries that name only full object ids, the repository prefix, and a passing workflow-v2 baseline history verdict keyed by the resolved `HEAD` id, the baseline path, its cutoff and its exact bytes.
+
+#### Acceptance Criteria
+
+- Every finalize and archive verdict, refusal and first error is identical to a live run.
+- Only queries naming full object ids are memoized; queries naming `HEAD`, a branch or the working tree run live, `HEAD` is resolved live on every baseline check, failed Git runs are not stored, and refusals are always re-derived.
+- The memo lives only inside the command's own scope and takes no working-tree snapshot, so the command sees its own writes.
+- The Git processes one finalize spawns grow by at most 12 per other archived change.
+
+### REQ-change-122
+
+A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.
+
+#### Acceptance Criteria
+
+- A stale MODIFIED item whose block main rewrote after approval is refused by `change check`, both before and after the first materialization, and the canonical file keeps main's bytes.
+- `change audit` reports the same refusal for that change.
+- The refusal names the module, the requirement or section, and `specsync change approve <id>`.
+- A rebased and re-approved delta materializes, keeping the other change's text it now carries.
+- A block main changed that this change does not touch is not refused.
+- An approval without recorded bases keeps materializing as before.
+
 ### REQ-change-123
 
 `change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.

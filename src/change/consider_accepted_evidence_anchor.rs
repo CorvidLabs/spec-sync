@@ -744,7 +744,13 @@ fn git_repository_present(root: &Path) -> Result<bool, String> {
     if let Some(present) = read_scope_value(root, |scope| scope.repository_present.clone()) {
         return present;
     }
+    if memoized_repository_present(root) {
+        return Ok(true);
+    }
     let result = git_repository_present_uncached(root);
+    if matches!(result, Ok(true)) {
+        remember_repository_present(root);
+    }
     update_read_scope(root, |scope| {
         scope.repository_present = Some(result.clone());
     });
@@ -2265,49 +2271,10 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
     }
     let mut index: ArchiveIntroductionIndex = BTreeMap::new();
     for commit in commits {
-        let output = run_git_bounded(
-            root,
-            &[
-                "diff-tree",
-                "--root",
-                "-m",
-                "--no-commit-id",
-                "--name-only",
-                "-r",
-                "-z",
-                "--no-renames",
-                "--diff-filter=A",
-                commit,
-                "--",
-                history_pathspec.as_str(),
-            ],
-            None,
-            MAX_GIT_COMMAND_OUTPUT_BYTES,
-        )
-        .map_err(|error| {
-            format!("failed to inspect archived acceptance introduction `{commit}`: {error}")
-        })?;
-        if !output.status.success() {
-            return Err(format!(
-                "failed to inspect archived acceptance introduction `{commit}`"
-            ));
-        }
-        let names = String::from_utf8_lossy(&output.stdout);
-        for path in names.split('\0').filter(|path| !path.is_empty()) {
-            let Some(directory) = path.strip_suffix("/state.json") else {
-                continue;
-            };
-            let Some(package) = directory.strip_prefix(&directory_prefix) else {
-                continue;
-            };
-            if package.is_empty() || package.contains('/') {
-                continue;
-            }
-            let Some(archived) = git_change_record_at(root, commit, path) else {
-                continue;
-            };
-            let approvals = git_object_bytes(root, commit, &format!("{directory}/approvals.json"));
-            let introductions = index.entry(archived.id).or_default();
+        let introduced =
+            archive_introductions_at_commit(root, commit, &history_pathspec, &directory_prefix)?;
+        for (id, directory, approvals) in introduced {
+            let introductions = index.entry(id).or_default();
             if introductions
                 .iter()
                 .any(|existing| existing.commit == commit && existing.directory == directory)
@@ -2316,7 +2283,7 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
             }
             introductions.push(ArchiveIntroduction {
                 commit: commit.to_string(),
-                directory: directory.to_string(),
+                directory,
                 approvals,
             });
         }
@@ -3273,12 +3240,20 @@ enum AcceptedInputValidity {
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
+    if record.state == ChangeState::Archived && read_scope_value(root, |_| Some(())).is_some() {
+        return archived_terminal_evidence_in_scope(root, record);
+    }
     if let Some(cached) = read_scope_value(root, |scope| scope.terminal_evidence.clone()) {
         return terminal_summary_from_cache(record, cached);
     }
     if read_scope_value(root, |_| Some(())).is_some() {
         let result = list_all_changes_checked(root).map(|records| {
-            let (results, _) = terminal_evidence_results_with_records(root, &records, &records);
+            let accepted: BTreeMap<String, ChangeRecord> = records
+                .iter()
+                .filter(|(_, other)| other.state != ChangeState::Archived)
+                .map(|(id, other)| (id.clone(), other.clone()))
+                .collect();
+            let (results, _) = terminal_evidence_results_with_records(root, &accepted, &records);
             results
                 .into_iter()
                 .map(|result| (result.id, result.evidence))
@@ -3302,6 +3277,47 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
             reason: Some(reason),
         },
     }
+}
+
+/// Terminal evidence for one archived record inside a read scope.
+///
+/// An archived record's verdict depends only on its own package and history, never on the other
+/// records (see `terminal_evidence_summary_with_validation_state`), so a read of one archive no
+/// longer authenticates every archive in the repository. The verdict is memoized per scope, and
+/// the shared legacy-baseline context is reused across archives exactly as the batch walk did.
+fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
+    if let Some(cached) = read_scope_value(root, |scope| {
+        scope.archived_terminal_evidence.get(&record.id).cloned()
+    }) {
+        return cached;
+    }
+    if let Err(reason) = list_all_changes_checked(root) {
+        return terminal_summary_from_cache(record, Err(reason));
+    }
+    let mut cache = CHANGE_READ_SCOPES
+        .with(|scopes| {
+            scopes
+                .borrow_mut()
+                .last_mut()
+                .filter(|scope| scope.root == root)
+                .and_then(|scope| scope.archived_integrity_cache.take())
+        })
+        .unwrap_or_default();
+    let summary = terminal_evidence_summary_with_validation_state(
+        root,
+        record,
+        &BTreeMap::new(),
+        &mut BTreeSet::new(),
+        &mut AcceptedInputValidationMemo::default(),
+        &mut cache,
+    );
+    update_read_scope(root, |scope| {
+        scope.archived_integrity_cache = Some(cache);
+        scope
+            .archived_terminal_evidence
+            .insert(record.id.clone(), summary.clone());
+    });
+    summary
 }
 
 fn terminal_summary_from_cache(

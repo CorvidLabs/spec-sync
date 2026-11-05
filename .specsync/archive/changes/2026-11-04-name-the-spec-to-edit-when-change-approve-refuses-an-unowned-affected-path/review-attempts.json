@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path",
+      "reviewer": "Leif 0xLeif GitHub review",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "0d0444346f28de069ccd307c69113de4044860c3",
+      "contract_digest": "5fe8ea36d198acddf257ff0b366e611ca580f8313c2fa35372324f5b6027ee66",
+      "execution_digest": "65ee804581b6501b20b8dbab6b0f568ee588c975e157f95a37ce1f23ee26ff06",
+      "workspace_digest": "7511c51a5a5a3fa848b2baddb14e988c4d3e311ffba37cd4a2e25ae99978f748",
+      "timestamp": 1793806708
+    }
+  ]
+}

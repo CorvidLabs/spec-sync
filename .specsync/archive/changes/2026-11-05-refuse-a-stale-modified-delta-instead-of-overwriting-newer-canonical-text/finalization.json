@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text",
+  "implementation_commit": "ec6d9e2f27ef27fd90ff068f391b5b0021251e75",
+  "implementation_tree": "d501ae9fcaabb721509c4e2bc6b626c490044367",
+  "contract_digest": "3150a7210bbff3ba386ccf93836ea2993694107ff20f68cd2e54d5c66cc02d69",
+  "workspace_digest": "9232f753bbea8309db8e7e1cf387f4b2bf476e272cb17983f63f85352f599165",
+  "closing_digest": "e3f969d827dc880b592479dfb041c0f0ab982caab65073c104f16aa9d5f3d409",
+  "review_digest": "11f4488390033784e9146738267c1ae73225e01626d7f58e7c10be5a42d3912d",
+  "finalization_digest": "3bb44291fde61a9835eff51394575c477199383eb95a7c01945bf1a3065f6dc6",
+  "timestamp": 1793838105
+}

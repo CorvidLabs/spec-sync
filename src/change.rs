@@ -5,4 +5,5 @@ include!("change/consider_accepted_evidence_anchor.rs");
 include!("change/validate_loaded_change.rs");
 include!("change/verification_ignored_paths.rs");
 include!("change/historical_reconciliation.rs");
+include!("change/read_cache.rs");
 include!("change/send_back.rs");

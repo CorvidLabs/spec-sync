@@ -499,6 +499,11 @@ fn git_processes_spawned_by_prefetch_threads_are_counted() {
         }
         test_git_process_count()
     };
+    // Finalize stores passing verdicts in the persistent cache (REQ-change-121), so the setup
+    // above leaves every archive cached; start cold so the prefetch does the per-archive work.
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
     let prefetched = {
         let _scope = begin_change_read_scope(root);
         reset_test_git_process_count();

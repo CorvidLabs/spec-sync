@@ -1,4 +1,69 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793896645,
+      "digest": "2400e329950f327af3b4bd112223961a48036b487becdf07da184d2d5d2cd7d2",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos",
+        "title": "Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes",
+        "description": "cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "git_utils"
+        ],
+        "affected_paths": [
+          ".agents/skills/chough-workflow/",
+          ".chough/",
+          ".github/workflows/release.yml",
+          "CHANGELOG.md",
+          "INTENT.md",
+          "docs/RELEASING.md",
+          "fledge.toml",
+          "hi/speed.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "specs/git_utils/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "src/git_utils.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A memoized fact is dropped after the command itself commits, writes the index or moves a ref, so the next read asks git again.",
+          "A test bounds git process spawns per lifecycle command, and the slowest lifecycle integration test (`eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci`) spawns at most 40% of its 15,563-process baseline.",
+          "Before and after timings and spawn counts are recorded in `testing.md`.",
+          "Committed file contents and tree listings that one command reads at fixed commits come from one `git cat-file --batch` process per repository instead of one `git show` or `git ls-tree` per file.",
+          "The release-candidate lane runs the same test set with a checksum-pinned `cargo-nextest`; no test is removed, ignored, filtered or loosened, and the two tests that are `#[ignore]` today stay the only ignored ones.",
+          "Within one SpecSync command, git is asked each repository fact the command does not itself change (HEAD commit, show-prefix, work-tree and shallow state, origin default branch, index location, fsmonitor and core settings) at most once, and command output is byte-identical to before."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "SPEED-1.c: a cache needs a correct invalidation rule so a memoized repository fact is dropped after the command itself commits or writes the index or moves a ref",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "5206d15deca2aa1c1b38dcb0b366f395d942d077f84b753caacd8e11aa1a99fa",
+        "cmd_change": "0ea20d7e1b536bd49ca5c43a8175bdc71d490aa60b019a831f43fc31d98dfd3c",
+        "git_utils": "7d9a75b5ca3db546322b5827ca5c736f99c1f0f1058e2bd6047a46916f3e1a68"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

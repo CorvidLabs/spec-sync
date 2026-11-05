@@ -7,10 +7,10 @@
   "title": "Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes",
   "description": "cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes",
   "kind": "feature",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "67aa7dc25ab8f1ddb732b906b933bb778e2c86aa",
   "created_at": 1793896272,
-  "updated_at": 1793896565,
+  "updated_at": 1793896645,
   "affected_specs": [
     "git_utils",
     "change",

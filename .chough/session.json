@@ -37,12 +37,13 @@
     "Repository-fact memo (git_utils) scoped to CLI change commands, project lock and read scopes; invalidated by git writes, verification commands, pre-push gate and gh; live-read guard for race checks",
     "Batched cat-file --batch reader for show <rev>:<path> blobs and single-path ls-tree; equality tests incl. binary/empty/missing",
     "Spawn ceilings per command pass: new 13, answer 15, approve 29, check 82, status 50, review 128, finalize 239 (baseline 63/71/89/388/66/323/739); slowest test 5,535 spawns vs 15,563 (35.6%) before the batch reader",
-    "test-nextest task, release-candidate lane, pinned cargo-nextest 0.9.151 install in release.yml (published sha256 verified)"
+    "test-nextest task, release-candidate lane, pinned cargo-nextest 0.9.151 install in release.yml (published sha256 verified)",
+    "change check --commit verified (575ddcd9); fledge verify steps pass on pinned 1.89; pre-push green"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Full nextest suite (t2n), cargo test parity, re-measure slowest test, then change check --commit"
+  "next_action": "Push, open PR, report acceptance gate (native review by Leif)"
 }

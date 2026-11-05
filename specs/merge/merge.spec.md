@@ -1,9 +1,10 @@
 ---
 module: merge
-version: 8
+version: 9
 status: stable
 files:
   - src/merge.rs
+  - src/merge_driver.rs
 db_tables: []
 tracks: [98]
 depends_on:
@@ -32,6 +33,7 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | `conflict_free_side` | `content: &str, side: ConflictSide` | `String` | Rebuild content keeping only one side of every complete hunk; malformed hunks are re-emitted verbatim |
 | `unmerged_paths` | `root: &Path` | `Option<HashSet<String>>` | Paths git reports as unmerged; `None` when git could not answer, never an empty set standing in for "clean" |
 | `cached_unmerged_paths` | `root: &Path` | `Option<HashSet<String>>` | Process-lifetime memoized `unmerged_paths`, keyed by repository root |
+| `merge_contract` | `ancestor: &str, ours: &str, theirs: &str, path: &str` | `MergeContract` | Ancestor-aware merge of one `.spec.md` or `requirements.md` for the git merge driver. Counts both numeric version bumps, unions `files` / `db_tables` / `depends_on` and change-log rows, and unions requirement blocks. Does not replace the marker resolver |
 
 ### Exported Structs/Enums
 
@@ -41,6 +43,7 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | `MergeStatus` | Enum: `Resolved` (auto-resolved), `Manual` (needs human), `Clean` (no conflicts), `Unknown` (scan never ran) |
 | `ConflictHunk` | One complete hunk — `ours: String`, `theirs: String`, `ours_label: String`, `theirs_label: String` |
 | `ConflictSide` | Enum: `Ours` (opener-to-separator text), `Theirs` (separator-to-closer text) |
+| `MergeContract` | Driver result — `content: String`, `clean: bool`. `clean` is true only when the merged text has no conflict markers |
 
 ### Resolution Strategies
 
@@ -72,6 +75,10 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 17. `unmerged_paths` returns `None` — not an empty set — whenever git could not answer, so no caller can read an unasked question as an all-clear
 18. `unmerged_paths` spawns git through `crate::git_utils::git_cmd`, so host secrets and git-override variables are not forwarded
 19. `conflict_hunks` and `document_conflict_hunks` return only complete opener/separator/closer triples, and `document_conflict_hunks` ignores fenced code blocks, so marker-shaped prose (a setext `<h1>` underline, a documented example) is never reported as a conflict
+20. `merge_contract` is the git merge driver, not the marker resolver. Invariants 3–6 still govern `merge_specs`: numeric `version` there is `max(ours, theirs)`, and prose hunks stay manual
+21. When both sides change a numeric `version` from the ancestor, `merge_contract` sets it to ancestor plus both deltas and never below either side. Equal values written with different scalar syntax stay a conflict. A one-sided edit is returned byte-for-byte
+22. The driver unions `files`, `db_tables`, and `depends_on`, and unions change-log rows sorted by the first cell then the row text. A `version` column on rows that are new since the ancestor is renumbered only when every such cell is an integer
+23. Requirement blocks added on one side are kept. The same new requirement ID with two different bodies is kept twice, so `check` can name it. An existing block edited differently on both sides stays a conflict, and so does any other prose both sides changed differently
 
 ## Behavioral Examples
 
@@ -110,6 +117,12 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 - **Given** conflicted spec files exist
 - **When** `merge_specs(root, specs_dir, true, false)` is called
 - **Then** returns `MergeResult` entries with resolution details but does not modify files
+
+### Scenario: Two branches bump the same module
+
+- **Given** the ancestor spec is `version: 5` with one `files:` entry and one change-log row, and each branch sets `version: 6`, adds a different file, and appends a different change-log row
+- **When** `merge_contract` runs in either order
+- **Then** the result is clean, `version: 7`, and both files and both rows are present
 
 ### Scenario: Default merge outside a git repository
 
@@ -164,3 +177,5 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | 2026-07-27 | CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base: Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes |
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-11-05 | v9 / #862: git merge driver counts both version bumps and unions change-log rows, `files:`, and requirement blocks without loosening the marker resolver |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

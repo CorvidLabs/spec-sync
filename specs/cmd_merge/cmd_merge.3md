@@ -23,3 +23,6 @@ Fully implemented and stable. Spec created to achieve 100% file coverage.
 
 @plane z=4 label="Notes"
 - This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+
+@plane z=5 label="Lesson (#862)"
+`merge --install` is what makes `git merge-tree` call `merge-file`. The attribute lines can be committed; the driver command is local git config and points at this executable, so an upgrade runs `--install` again. Until that config exists, git's ordinary merge still applies.

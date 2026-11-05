@@ -20,6 +20,7 @@ mod manifest;
 mod mcp;
 mod mcp_tools_lock;
 mod merge;
+mod merge_driver;
 mod output;
 mod parser;
 mod registry;
@@ -258,7 +259,23 @@ fn run() {
             commands::archive_tasks::cmd_archive_tasks(&root, dry_run, format)
         }
         Command::View { role, spec } => commands::view::cmd_view(&root, &role, spec.as_deref()),
-        Command::Merge { dry_run, all } => commands::merge::cmd_merge(&root, dry_run, all, format),
+        Command::Merge {
+            dry_run,
+            all,
+            install,
+        } => {
+            if install {
+                commands::merge::cmd_install_merge_driver(&root, format);
+            } else {
+                commands::merge::cmd_merge(&root, dry_run, all, format);
+            }
+        }
+        Command::MergeFile {
+            ancestor,
+            current,
+            other,
+            pathname,
+        } => commands::merge::cmd_merge_file(&ancestor, &current, &other, pathname.as_deref()),
         Command::Issues { create } => commands::issues::cmd_issues(&root, format, create),
         Command::New { name, full } => commands::new::cmd_new(&root, &name, full),
         Command::Wizard => commands::wizard::cmd_wizard(&root),

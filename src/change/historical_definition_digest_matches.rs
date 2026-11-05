@@ -3842,7 +3842,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn audit_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
-    check_project_with_command_output(root, false)
+    finish_audit(root, check_project_with_command_output(root, false))
 }
 
 /// [`audit_project`], and with `archives` also every archived change's own workflow-version
@@ -3862,6 +3862,19 @@ pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckRepor
                 report.enabled = true;
                 report.errors.push(error);
             }
+        }
+    }
+    finish_audit(root, report)
+}
+
+/// Living `requirements.md` files are part of project health even when SDD policy
+/// is off. A merge that kept the same requirement ID twice is refused here and
+/// named, the same way `specsync check` refuses it.
+fn finish_audit(root: &Path, mut report: SddCheckReport) -> SddCheckReport {
+    for error in crate::validator::duplicate_requirement_id_errors(root) {
+        if !report.errors.contains(&error) {
+            report.enabled = true;
+            report.errors.push(error);
         }
     }
     report

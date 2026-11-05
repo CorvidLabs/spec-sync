@@ -217,6 +217,21 @@ pub enum Command {
         /// Scan all spec files for conflict markers (not just git-reported)
         #[arg(long)]
         all: bool,
+        /// Register this clone's git merge driver and attribute rules
+        #[arg(long)]
+        install: bool,
+    },
+    /// Three-way merge one contract. Git's merge driver calls this as
+    /// `specsync merge-file %O %A %B %P` and reads the exit status.
+    MergeFile {
+        /// Common ancestor (`%O`)
+        ancestor: std::path::PathBuf,
+        /// Current side, also the file the result is written to (`%A`)
+        current: std::path::PathBuf,
+        /// The other side (`%B`)
+        other: std::path::PathBuf,
+        /// Pathname git passes as `%P`
+        pathname: Option<String>,
     },
     /// Verify GitHub issue references in spec frontmatter
     Issues {

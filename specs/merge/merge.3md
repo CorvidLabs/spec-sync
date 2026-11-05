@@ -30,3 +30,6 @@ CHG-0066 is archived; the implementation it verified is shipped. The public API 
 - Depends on `parser::parse_frontmatter` and `parse_checked_issue_references` for post-resolution structural/YAML validation and `validator::find_spec_files` for all-files scan.
 - Changelog sorting assumes ISO `YYYY-MM-DD` dates so lexicographic order is chronological.
 - `print_results` skips `Clean` entries; `results_to_json` includes all four statuses (`resolved`, `manual`, `clean`, `unknown`).
+
+@plane z=5 label="Lesson (#862)"
+Two finalized branches that each bump one module write the same `version: N+1` and append at the same change-log, `files:`, and `requirements.md` lines, so a plain 3-way merge conflicts. The marker resolver cannot count both bumps: a hunk has no ancestor, so it still takes `max(version)` and still refuses prose. `merge_contract` is the git driver (`merge-file %O %A %B %P`). It has the ancestor, so the version is ancestor plus both deltas, lists and change-log rows union, and a new requirement ID that both sides invented is kept twice for `check` to name. Divergent purpose text stays a conflict. `specsync merge --install` records the driver; without that local config, git's ordinary merge is unchanged.

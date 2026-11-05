@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 31
+version: 32
 status: stable
 files:
   - src/cli.rs
@@ -160,3 +160,5 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
+| 2026-11-05 | v32 / #862: `merge --install` and `merge-file %O %A %B %P` are part of the command grammar |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

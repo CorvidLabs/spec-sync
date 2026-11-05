@@ -52,3 +52,6 @@ Generation bootstrap regressions need end-to-end init then generate fixtures. Co
 
 @plane z=6 label="6.1.1 release corrections"
 Late release findings need real process regressions in text, JSON and batch modes. A successful exit is insufficient: assert the emitted path, parse its frontmatter, and verify coverage and no-overwrite reruns.
+
+@plane z=7 label="Lesson (#862)"
+`merge --install` and `merge-file` are dispatched from `main`. `merge-file` is the git driver entry and writes the current side. It does not change check or change dispatch.

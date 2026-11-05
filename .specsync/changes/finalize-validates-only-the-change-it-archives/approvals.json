@@ -44,6 +44,52 @@
         "change": "3be4c281df6603b1ea9cc411bd9388a2bb61574abd71b13b797d354584b9804b",
         "cmd_change": "9b18ae28701b6c12b9fe36a345da13894aab857dd1853c3c11793c2a779f8f57"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793850992,
+      "digest": "54fc92b38cf341bfab9b44221bbfc55d067bc7908dacf1143480c380e3aee6d7",
+      "note": "Re-approve after merging main: REQ-cmd-change-026 renumbered to 027 (026 taken by #846 send-back).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-validates-only-the-change-it-archives",
+        "title": "Finalize validates only the change it archives",
+        "description": "Finalize validates only the change it archives",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "specs/change",
+          "specs/cmd_change",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/historical_reconciliation.rs",
+          "src/change/read_cache.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_finalize.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "One finalize spawns no more Git processes when more archived changes exist; every refusal finalize issues for the change it archives is unchanged; change audit --strict still names a hidden workflow-version downgrade in another archive; a Raven-sized finalize finishes in seconds."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md: refusing gates install no memo and stay live, and only passing verdicts are reused; REQ-change-119 and REQ-change-121 read-cache and finalize-memo rules stay as they are; REQ-change-audit-project-001 keeps the default audit active-only; REQ-change-049 keeps the ordinal-collision check at approve and audit; never weaken a gate for the change being finalized.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "3be4c281df6603b1ea9cc411bd9388a2bb61574abd71b13b797d354584b9804b",
+        "cmd_change": "908f6c3f8ed5af2bd394ea999ae4b6acf5075b8619f8c8be1df73fb8feef30c5"
+      },
+      "approved_delta_bases": {}
     }
   ],
   "reopenings": []

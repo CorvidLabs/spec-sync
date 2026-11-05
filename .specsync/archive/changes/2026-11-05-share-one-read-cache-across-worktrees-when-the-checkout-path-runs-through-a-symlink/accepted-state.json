@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "share-one-read-cache-across-worktrees-when-the-checkout-path-runs-through-a-symlink",
+  "slug": "share-one-read-cache-across-worktrees-when-the-checkout-path-runs-through-a-symlink",
+  "title": "Share one read cache across worktrees when the checkout path runs through a symlink",
+  "description": "Share one read cache across worktrees when the checkout path runs through a symlink",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6b222ff623079b0b3e328db29e8df078cb80a60d",
+  "created_at": 1793843534,
+  "updated_at": 1793844874,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/read_cache.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-119 already requires the cache under the Git common directory shared by worktrees; this resolves that directory to its canonical path so a symlinked checkout path (macOS /var -> /private/var) names the same file. No contract text changes.",
+  "acceptance_criteria": [
+    "a_second_worktree_reads_warm_from_the_shared_cache passes on macOS: the main and a linked worktree resolve the same persistent cache path even when the checkout path runs through a symlink."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

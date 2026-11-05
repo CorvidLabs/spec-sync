@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793843553,
+      "digest": "5316b564f0f475ed7ad1b7614e613a6466ab96bf829a95682113b5c6a66a4720",
+      "note": "macOS RC qualification blocker found during 6.2.0 prep.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "share-one-read-cache-across-worktrees-when-the-checkout-path-runs-through-a-symlink",
+        "title": "Share one read cache across worktrees when the checkout path runs through a symlink",
+        "description": "Share one read cache across worktrees when the checkout path runs through a symlink",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/read_cache.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-119 already requires the cache under the Git common directory shared by worktrees; this resolves that directory to its canonical path so a symlinked checkout path (macOS /var -> /private/var) names the same file. No contract text changes.",
+        "acceptance_criteria": [
+          "a_second_worktree_reads_warm_from_the_shared_cache passes on macOS: the main and a linked worktree resolve the same persistent cache path even when the checkout path runs through a symlink."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793844873,
+      "digest": "8406d351664a2844f0818b68de449f1f308895166ae2401295d0e8ce71e7afa8",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -119,6 +119,10 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     } else {
         root.join(common_dir)
     };
+    // Git reports the main worktree's common directory relative to the root as given, but a
+    // linked worktree's as an absolute canonical path; canonicalize so a checkout path that runs
+    // through a symlink (macOS `/var` -> `/private/var`) still names the one shared cache file.
+    let common_dir = fs::canonicalize(&common_dir).unwrap_or(common_dir);
     if common_dir.join("info").join("grafts").exists() {
         return None;
     }

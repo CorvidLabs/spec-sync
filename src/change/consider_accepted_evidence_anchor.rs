@@ -3448,10 +3448,27 @@ fn terminal_evidence_summary_with_validation_state(
 }
 
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let records = list_all_changes_checked(root)?;
+    ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+}
+
+/// The closing-approval check `change archive` and `change finalize` run on the change they
+/// archive, judged against the structural roster (REQ-change-124): every gate on `record` is the
+/// same, and only the other archives' own Git history is left to `change audit --strict`.
+fn ensure_archiving_closing_approval_valid(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    ensure_closing_approval_valid_against(root, record, &list_all_changes_structural(root)?)
+}
+
+fn ensure_closing_approval_valid_against(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> Result<(), String> {
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
+    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)
         .map(|_| ())
 }
 

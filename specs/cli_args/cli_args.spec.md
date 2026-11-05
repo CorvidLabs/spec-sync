@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 30
+version: 31
 status: stable
 files:
   - src/cli.rs
@@ -159,3 +159,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
+| 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |

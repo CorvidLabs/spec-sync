@@ -569,7 +569,12 @@ pub enum ChangeAction {
         push: bool,
     },
     /// Audit active change workspaces and living SDD policy/spec coherence
-    Audit,
+    Audit {
+        /// Also re-validate every archived change's own workflow-version history (slow on
+        /// long histories; finalize no longer repeats it)
+        #[arg(long)]
+        archives: bool,
+    },
     /// Adopt the current verified lifecycle in an existing project
     Adopt {
         /// Preview adoption without writing files
@@ -1111,6 +1116,26 @@ mod tests {
             args.extend(missing);
             assert!(Cli::try_parse_from(args).is_err());
         }
+    }
+
+    #[test]
+    fn change_audit_archives_is_opt_in_and_independent_of_strict() {
+        let parse = |args: &[&str]| match Cli::try_parse_from(args).unwrap().command {
+            Some(Command::Change {
+                action: ChangeAction::Audit { archives },
+            }) => archives,
+            _ => panic!("not a change audit"),
+        };
+        assert!(!parse(&["specsync", "change", "audit"]));
+        assert!(!parse(&["specsync", "--strict", "change", "audit"]));
+        assert!(parse(&["specsync", "change", "audit", "--archives"]));
+        assert!(parse(&[
+            "specsync",
+            "--strict",
+            "change",
+            "audit",
+            "--archives"
+        ]));
     }
 
     #[test]

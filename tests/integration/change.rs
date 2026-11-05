@@ -4023,19 +4023,19 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     ///
     /// At 67aa7dc2 they spawned: new 63, answer 71, approve 89, check 388, status 66, review 323,
     /// finalize 739. With repository facts asked once per command and committed objects read
-    /// through one `cat-file --batch` (REQ-git-utils-008, REQ-git-utils-009) they spawn: new 13,
-    /// answer 15, approve 29, check 82, status 50, review 128, finalize 239. Each ceiling is that
-    /// count plus about 10%. `status` keeps 20 working-tree reads on purpose: evidence collection
-    /// reads the tree before and after each capture to catch a concurrent edit, and that race
-    /// check is never answered from memory.
+    /// through one `cat-file --batch` (REQ-git-utils-008, REQ-git-utils-009) they spawn: new 29,
+    /// answer 15, approve 32, check 110, status 53, review 176, finalize 287. Each ceiling is that
+    /// count plus about 10%. Evidence capture keeps its working-tree reads and repository-identity
+    /// reads live on purpose: it reads before and after each capture to catch a concurrent edit,
+    /// and that race check is never answered from memory.
     const CEILINGS: &[(&str, usize)] = &[
-        ("new", 15),
+        ("new", 32),
         ("answer", 17),
-        ("approve", 32),
-        ("check", 90),
-        ("status", 55),
-        ("review", 141),
-        ("finalize", 263),
+        ("approve", 35),
+        ("check", 121),
+        ("status", 58),
+        ("review", 194),
+        ("finalize", 316),
     ];
 
     let temp = TempDir::new().unwrap();

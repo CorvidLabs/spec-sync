@@ -957,8 +957,6 @@ fn git_evidence_with_policy<Hook>(
 where
     Hook: FnMut(usize, &Path),
 {
-    // The before/after comparison below exists to see another process change the tree.
-    let _live = crate::git_utils::live_repository_reads();
     if candidates.len() > MAX_GIT_EVIDENCE_PATHS
         || candidates.iter().map(String::len).sum::<usize>() > MAX_GIT_EVIDENCE_PATH_BYTES
         || candidates.iter().any(|path| path.len() > 4096)
@@ -1002,8 +1000,9 @@ struct InspectedGitCandidates {
 }
 
 fn git_index_fingerprint(root: &Path) -> Result<String, String> {
-    // Compared before and after evidence capture to see the index change underneath it.
-    let _live = crate::git_utils::live_repository_reads();
+    // The two path lookups may come from the command's memoized facts: the fingerprint hashes the
+    // index files' bytes from disk, and turning on a split index rewrites the main index file, so a
+    // change made by another process during capture still changes the fingerprint.
     let index = run_git_required(root, &["rev-parse", "--git-path", "index"], None, 16 * 1024)?;
     let index = parse_git_path(root, &index, "effective Git index")?;
     let shared = run_git_required(root, &["rev-parse", "--shared-index-path"], None, 16 * 1024)?;
@@ -1181,6 +1180,9 @@ fn inspect_git_candidates(
     regular_files_only: bool,
     identify_clean_blobs: bool,
 ) -> Result<InspectedGitCandidates, String> {
+    // Evidence capture inspects twice and compares, to see another process change the tree or the
+    // settings that interpret it, so every read here asks git (REQ-git-utils-008).
+    let _live = crate::git_utils::live_repository_reads();
     let mut stage_entries = BTreeMap::new();
     let batches = candidate_argument_batches(candidates);
     let repo_prefix = git_repo_prefix(root)?;

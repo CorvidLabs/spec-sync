@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 82 and `change finalize` from 739 to 239 (#861).
+- Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. Race checks still read live. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 110 and `change finalize` from 739 to 287; the slowest lifecycle test went from 15,563 git processes and 343s to 5,996 and 95s on macOS (#861).
 - The release-candidate qualification lane runs the unchanged test set under a checksum-pinned `cargo-nextest` (#861).
 
 - Advance the main Action binary default to published 6.2.0 after supported-platform asset and Action checks. Immutable `@v6.2.0` remains at its qualified candidate SHA with default 6.1.2; select `version: '6.2.0'` explicitly with that tag. Current install, migration, adoption and site guidance name 6.2.0.

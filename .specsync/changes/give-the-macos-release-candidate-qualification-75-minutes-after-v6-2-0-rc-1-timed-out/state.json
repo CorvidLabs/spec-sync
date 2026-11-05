@@ -7,10 +7,11 @@
   "title": "Give the macOS release candidate qualification 75 minutes after v6.2.0-rc.1 timed out",
   "description": "Give the macOS release candidate qualification 75 minutes after v6.2.0-rc.1 timed out",
   "kind": "operations",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "2ebe1f44a527f9b04dd73d3326dadd2bd481b055",
   "created_at": 1793857663,
-  "updated_at": 1793857716,
+  "updated_at": 1793857796,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml",

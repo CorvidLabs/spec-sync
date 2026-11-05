@@ -19,6 +19,25 @@
         "REQ-change-043",
         "REQ-change-119"
       ]
+    },
+    {
+      "timestamp": 1793899702,
+      "commit": "fb56ddf3b9b7c67187c2dd6a58824f795622aa67",
+      "contract_digest": "b41817ea7745c56b06e6c880c4ed57e44e75164fefdc7a4669b88e9bbcff2900",
+      "execution_digest": "f7874f2ab72921925ee6270807950fbcb7d81a799bdd89837584950e5b46ab9e",
+      "workspace_digest": "ddc3b6053f01ac457e193214ef5d959081a0050508a3156bdb8442bf06ba323a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-043",
+        "REQ-change-119"
+      ]
     }
   ]
 }

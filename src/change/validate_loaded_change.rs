@@ -419,6 +419,8 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
+    let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    prefetch_archived_workflow_histories(root, &entries);
     for entry in entries {
         let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
         if !entry
@@ -2580,7 +2582,9 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
         matches.push(active);
     }
     let archive = root.join(ARCHIVE_PATH);
-    if let Ok(entries) = fs::read_dir(archive) {
+    if let Some(archived) = archive_index_in_scope(root, id) {
+        matches.extend(archived);
+    } else if let Ok(entries) = fs::read_dir(archive) {
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
                 continue;
@@ -3157,20 +3161,33 @@ fn workflow_v1_record_exists_at_cutoff(
 }
 
 fn validate_workflow_version_history(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let key = format!(
-        "{}:{}:{:?}:{:?}",
-        record.id, record.workflow_version, record.workflow_origin_version, record.state
-    );
+    let key = workflow_version_history_key(record);
     if let Some(result) = read_scope_value(root, |scope| {
         scope.workflow_version_history.get(&key).cloned()
     }) {
         return result;
     }
-    let result = validate_workflow_version_history_uncached(root, record);
+    let result = if cached_workflow_history_is_current(root, record) {
+        // The history half is provably unchanged; the baseline half stays live.
+        validate_workflow_v2_baseline(root, record)
+    } else {
+        let result = validate_workflow_version_history_uncached(root, record);
+        if result.is_ok() {
+            remember_workflow_history_pass(root, record);
+        }
+        result
+    };
     update_read_scope(root, |scope| {
         scope.workflow_version_history.insert(key, result.clone());
     });
     result
+}
+
+fn workflow_version_history_key(record: &ChangeRecord) -> String {
+    format!(
+        "{}:{}:{:?}:{:?}",
+        record.id, record.workflow_version, record.workflow_origin_version, record.state
+    )
 }
 
 fn validate_workflow_version_history_uncached(

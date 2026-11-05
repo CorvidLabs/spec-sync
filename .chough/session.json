@@ -25,7 +25,8 @@
   "decisions": [
     "Agent finding, not a human decision: opt-level 2 test build did not speed the slowest test (386s vs 343s), so an optimized test profile is not the lever; git process spawning is",
     "Leif (2026-11-05 09:21 MST, Herdr orc tab, relayed by orc t18): approved intent SPEED-2.b.1 and SPEED-2.b.2 and the approach: cut SpecSync git process spawns plus cargo nextest in the qualify lane",
-    "Rejected: optimized test profile as the main lever (opt-level 2 measured 386s vs 343s on the slowest test); larger runner (not needed if spawns drop)"
+    "Rejected: optimized test profile as the main lever (opt-level 2 measured 386s vs 343s on the slowest test); larger runner (not needed if spawns drop)",
+    "Leif (2026-11-05 09:35 MST, orc tab): approved the four-part scope; qualify timeout returns to 45 in a one-line follow-up after the next RC's macOS qualify measures well under 45, not in this change"
   ],
   "open_questions": [],
   "completed": [

@@ -1634,7 +1634,7 @@ The system SHALL let `change finalize` and `change archive` validate in full onl
 - An archived change that finalize or archive relies on, as a dependency, a semantic successor or a sequence owner, still has its own workflow-version history validated before it is relied on.
 - `change audit --archives` refuses a workflow-version downgrade committed into another archive's history and hidden again by a later commit, naming that change, with or without a warm read cache. `change audit` without `--strict` is unchanged.
 
-### REQ-change-125
+### REQ-change-126
 
 A bounded Git read SHALL return when the direct child exits and SHALL NOT wait on a descendant's open pipe after that child exits. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join SHALL stay as they are.
 

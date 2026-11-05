@@ -11,4 +11,4 @@ SPEED-1.a. Status of an archived change, `change list` and `change status` retur
 
 SPEED-1.e. SpecSync must never wait on a descendant's open pipe after its child exits.
 
-REQ-git-utils-008 and REQ-change-125 state that contract for the shared collector and the bounded Git runner. The 120 second deadline, the output cap, and the stdin-writer join stay as they are.
+REQ-git-utils-008 and REQ-change-126 state that contract for the shared collector and the bounded Git runner. The 120 second deadline, the output cap, and the stdin-writer join stay as they are.

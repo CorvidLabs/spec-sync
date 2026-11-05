@@ -1023,7 +1023,7 @@ mod tests {
         fs::write(
             &script,
             format!(
-                "#!/bin/sh\nexec 3>&1\nreadlink /dev/fd/3 > '{}'\n",
+                "#!/bin/sh\nexec 3>&1\nif [ /dev/fd/3 -ef /dev/null ]; then echo /dev/null; else echo other; fi > '{}'\n",
                 marker.display()
             ),
         )
@@ -1042,7 +1042,8 @@ mod tests {
     }
 
     /// A piped stdin on the command must not survive. `Command::output` replaces
-    /// stdin with the null device; a pipe here would show up as `pipe:[…]`.
+    /// stdin with the null device. `test -ef` compares device and inode, so the
+    /// check also holds on macOS, where `/dev/fd/N` is not a symlink to read.
     #[cfg(unix)]
     #[test]
     fn output_after_child_exits_nulls_stdin() {
@@ -1051,7 +1052,7 @@ mod tests {
         let mut command = Command::new("sh");
         command
             .arg("-c")
-            .arg("readlink /dev/fd/0")
+            .arg("if [ /dev/fd/0 -ef /dev/null ]; then echo /dev/null; else echo other; fi")
             .stdin(Stdio::piped());
         let output = output_after_child_exits(&mut command).unwrap();
         assert!(

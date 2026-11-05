@@ -9,6 +9,10 @@ families: [CHANGE]
 
 Before anyone writes code, the change should be something a person agreed to in writing. Opening one asks a short, predictable set of questions instead of handing over a blank template, and the contract edit travels with it as a delta anyone can read. Exactly one human approval binds that agreed scope to its content, so an agent cannot quietly widen what was agreed and a later reader can see what was actually promised.
 
+CHANGE-10 is captured from Leif's ask in Grok Bot chat t811u on 2026-11-03: "`change approve` refuses affected paths that no module owns (for example a new module's own `.spec.ts` files), with a fix that requires editing the module's files list; say which spec to edit in the error."
+
+CHANGE-10.a, CHANGE-10.b and CHANGE-10.c quote, verbatim, the optional nits in Leif's GitHub review of #841 (review 5771062363, APPROVED, 2026-11-04 08:33 MST). On 2026-11-04 at 09:25 MST Leif said: "Yes, merge #841 and open the nits follow-up PR."
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -32,3 +36,7 @@ Before anyone writes code, the change should be something a person agreed to in 
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
+- **CHANGE-10**  When `change approve` refuses an affected path that no module owns, the error says which spec to edit.
+  - **CHANGE-10.a**  `ownership_hint` picks the first declared spec even at depth 0, so `lib/new.ts` can be pointed at `specs/billing/billing.spec.md`. Guard on `depth > 0` and fall back to the generic message.
+  - **CHANGE-10.b**  The first-pass walk returns the first undeclared spec that lists the path, in `read_dir` order. That order isn't deterministic across platforms. Collect every match and sort.
+  - **CHANGE-10.c**  Missing tests: the depth-0 fallback, `src/foo` vs `src/foobar`, a glob entry, and the `_ =>` arm.

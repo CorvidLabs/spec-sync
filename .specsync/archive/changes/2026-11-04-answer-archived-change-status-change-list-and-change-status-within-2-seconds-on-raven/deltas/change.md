@@ -2,7 +2,7 @@
 
 ### REQUIREMENT REQ-change-119
 
-The system SHALL answer read-only lifecycle reads (`change status`, `change show`, `change list`, `change ship-status`) without re-deriving work whose inputs have not changed: inside one read scope an archived change's terminal evidence is computed for that change alone, scoped-review Git reads and archive lookups are memoized, and passing archived workflow-version history verdicts and archive introductions are reused across invocations from a cache under the Git directory that is keyed by content digest and invalidated by Git history.
+The system SHALL answer read-only lifecycle reads (`change status`, `change show`, `change list`, `change ship-status`, `change audit`) without re-deriving work whose inputs have not changed: inside one read scope an archived change's terminal evidence is computed for that change alone, scoped-review Git reads and archive lookups are memoized, and passing archived workflow-version history verdicts and archive introductions are reused across invocations from a cache under the Git directory that is keyed by content digest and invalidated by Git history.
 
 #### Acceptance Criteria
 

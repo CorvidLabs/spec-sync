@@ -7,10 +7,10 @@
 // 1. An invocation-scoped archive index, so resolving one change's workspace no longer parses
 //    every archived `state.json` again on each lookup.
 // 2. A persistent cache of archived workflow-version history verdicts, stored under the Git
-//    directory (never in the working tree, so it is never a project input). An entry is reused
-//    only when its content digest still matches the archived `state.json` bytes, the commit it was
-//    computed at is an ancestor of `HEAD`, and no commit between them touched that change's active
-//    or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
+//    common directory so every worktree shares it (never in the working tree, so it is never a
+//    project input). An entry is reused only when its content digest still matches the archived
+//    `state.json` bytes, the commit it was computed at is an ancestor of the scope's `HEAD`, and
+//    no commit between them touched that change's active or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
 //    stored, so a refusal is always re-derived.
 
 const READ_CACHE_SCHEMA: u32 = 1;
@@ -54,6 +54,9 @@ struct PersistentReadCacheFrame {
     /// Commit to the set of lifecycle state paths touched in `commit..HEAD`, or `None` when that
     /// commit is not an ancestor of `HEAD` (or the walk failed), so its entries are unusable.
     touched_since: BTreeMap<String, Option<BTreeSet<String>>>,
+    /// `HEAD` resolved once, to a full commit id, when the frame loaded. Every invalidation walk
+    /// and every stamp in this scope uses this id, never the moving symbolic `HEAD`.
+    head: Option<String>,
 }
 
 fn archive_index_in_scope(root: &Path, id: &str) -> Option<Vec<PathBuf>> {
@@ -97,15 +100,56 @@ fn read_cache_build_identity() -> String {
     )
 }
 
-/// The cache is disabled in a shallow repository: deepening it later could reveal history a
-/// cached verdict never saw.
+/// The cache is disabled whenever the history Git walks is not simply the object graph:
+/// a shallow repository (deepening it could reveal history a verdict never saw), replace refs or
+/// grafts (they rewrite parents and trees without moving `HEAD`), and a partial clone (a missing
+/// blob could make a verdict depend on what happened to be fetched).
 fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
-    if git_output(root, &["rev-parse", "--is-shallow-repository"]).as_deref() != Some("false") {
+    let probe = git_output(
+        root,
+        &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
+    )?;
+    let mut probe = probe.lines();
+    if probe.next() != Some("false") {
         return None;
     }
-    let path = git_output(root, &["rev-parse", "--git-path", READ_CACHE_FILE])?;
-    let path = PathBuf::from(path);
-    Some(if path.is_absolute() { path } else { root.join(path) })
+    let common_dir = PathBuf::from(probe.next()?);
+    let common_dir = if common_dir.is_absolute() {
+        common_dir
+    } else {
+        root.join(common_dir)
+    };
+    if common_dir.join("info").join("grafts").exists() {
+        return None;
+    }
+    let replace_refs = run_git_bounded(
+        root,
+        &["for-each-ref", "--count=1", "--format=%(refname)", "refs/replace/"],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    if !replace_refs.status.success() || !replace_refs.stdout.trim_ascii().is_empty() {
+        return None;
+    }
+    let promisor = run_git_bounded(
+        root,
+        &[
+            "config",
+            "--get-regexp",
+            r"^(extensions\.partialclone|remote\..*\.promisor)$",
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    // Exit 1 means no such key; any match, or any other failure, keeps the cache off.
+    if promisor.status.code() != Some(1) {
+        return None;
+    }
+    // The common directory, not the per-worktree one: worktrees share one object graph, and an
+    // entry is only reused after proving it against the reading worktree's own `HEAD`.
+    Some(common_dir.join(READ_CACHE_FILE))
 }
 
 thread_local! {
@@ -400,6 +444,7 @@ fn with_persistent_read_cache<Value>(
     let (in_read_scope, mut frame) = take_persistent_cache_frame(root)?;
     if frame.loaded.is_none() {
         frame.path = persistent_read_cache_path(root);
+        frame.head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
         let prefix = git_repo_prefix(root).unwrap_or_default();
         let fresh = PersistentReadCache {
             schema: READ_CACHE_SCHEMA,
@@ -425,14 +470,15 @@ fn with_persistent_read_cache<Value>(
     Some(value)
 }
 
-/// Lifecycle state paths touched by any commit in `commit..HEAD`, compared against every parent.
-fn lifecycle_paths_touched_since(root: &Path, commit: &str) -> Option<BTreeSet<String>> {
-    if !cached_git_status_success(root, &["merge-base", "--is-ancestor", commit, "HEAD"]).ok()? {
+/// Lifecycle state paths touched by any commit in `commit..head`, compared against every parent.
+/// `head` is a full commit id resolved once per scope, so both Git calls see the same tip.
+fn lifecycle_paths_touched_since(root: &Path, commit: &str, head: &str) -> Option<BTreeSet<String>> {
+    if !cached_git_status_success(root, &["merge-base", "--is-ancestor", commit, head]).ok()? {
         return None;
     }
     let changes = git_repo_relative_path(root, CHANGES_PATH).ok()?;
     let archive = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
-    let range = format!("{commit}..HEAD");
+    let range = format!("{commit}..{head}");
     let output = scoped_review_git_text(
         root,
         &[
@@ -475,10 +521,16 @@ fn path_is_state_candidate(path: &str, changes_root: &str, archive_root: &str, i
     !directory.contains('/') && directory.ends_with(&format!("-{id}"))
 }
 
+/// The digest and repository path of the archived `state.json`, but only when those bytes parse
+/// to exactly `record`: a verdict is computed for a record, so it may only be keyed by bytes that
+/// say the same thing.
 fn archived_state_cache_key(root: &Path, record: &ChangeRecord) -> Option<(String, String)> {
     let workspace = find_change_dir(root, &record.id).ok()?;
     let state = workspace.join("state.json");
     let bytes = fs::read(&state).ok()?;
+    if serde_json::from_slice::<ChangeRecord>(&bytes).ok().as_ref() != Some(record) {
+        return None;
+    }
     let archive_state_path =
         git_repo_relative_path(root, &portable_project_path(root, &state)).ok()?;
     Some((sha256_hex(&bytes), archive_state_path))
@@ -513,24 +565,24 @@ fn cached_workflow_history_is_current(root: &Path, record: &ChangeRecord) -> boo
         if entry.state_digest != digest || entry.archive_state_path != archive_state_path {
             return false;
         }
+        let Some(head) = frame.head.clone() else {
+            return false;
+        };
         let touched = frame
             .touched_since
             .entry(entry.commit.clone())
-            .or_insert_with(|| lifecycle_paths_touched_since(root, &entry.commit));
+            .or_insert_with(|| lifecycle_paths_touched_since(root, &entry.commit, &head));
         let current = touched.as_ref().is_some_and(|touched| {
+            // The live check also reads the archive's current state path, which need not end
+            // in `-<id>` once the directory is renamed; treat it as a candidate too.
             !touched.iter().any(|path| {
-                path_is_state_candidate(path, &changes_root, &archive_root, &record.id)
+                *path == archive_state_path
+                    || path_is_state_candidate(path, &changes_root, &archive_root, &record.id)
             })
         });
-        // A verdict proven current at `HEAD` is a verdict at `HEAD`: no commit in
-        // `entry.commit..HEAD` touched its state paths, so `entry.commit..later` is untouched
-        // exactly when `HEAD..later` is. Restamping it inside a read scope (where `HEAD` resolves
-        // from the scope's memo) lets the next read check one short range instead of one range
-        // per commit an archive was cached at.
+        // Proven current at `head`: move the entry forward so later reads walk only newer commits.
         if current
-            && read_scope_value(root, |_| Some(())).is_some()
-            && let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
-            && head != entry.commit
+            && entry.commit != head
             && let Some(cache) = frame.loaded.as_mut()
         {
             cache.workflow_history.insert(
@@ -554,10 +606,13 @@ fn remember_workflow_history_pass(root: &Path, record: &ChangeRecord) {
     let Some((digest, archive_state_path)) = archived_state_cache_key(root, record) else {
         return;
     };
-    let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]) else {
-        return;
-    };
+    // The verdict was computed against the scope's HEAD; if HEAD has moved since, it is not known
+    // to hold at either commit, so record nothing.
+    let current = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
     with_persistent_read_cache(root, |_, frame| {
+        let Some(head) = frame.head.clone().filter(|head| current.as_ref() == Some(head)) else {
+            return;
+        };
         if let Some(cache) = frame.loaded.as_mut() {
             let entry = WorkflowHistoryCacheEntry {
                 state_digest: digest,
@@ -589,10 +644,34 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     {
         return;
     }
-    let temporary = path.with_extension(format!("tmp-{}", std::process::id()));
+    // Unique per process and per flush, so concurrent writers (threads or processes) never share
+    // a temporary file; the rename stays atomic.
+    static FLUSH_NONCE: AtomicU64 = AtomicU64::new(0);
+    let temporary = path.with_extension(format!(
+        "tmp-{}-{}",
+        std::process::id(),
+        FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
+    ));
     if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
         let _ = fs::remove_file(&temporary);
     }
+}
+
+/// Whether `commit`'s tree has an entry at the repository-relative `path`, read from tree objects
+/// only, so it answers even when the blob itself is unavailable. `None` when Git cannot say.
+fn commit_tree_lists_path(root: &Path, commit: &str, path: &str) -> Option<bool> {
+    let output = run_git_bounded(
+        root,
+        &["ls-tree", "--full-tree", "-z", "--name-only", commit, "--", path],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .split('\0')
+            .any(|listed| listed == path)
+    })
 }
 
 /// One archived package a commit introduced: `(id, directory, approvals bytes)`.
@@ -714,12 +793,13 @@ fn archive_introductions_at_commit_uncached(
             conclusive = false;
             continue;
         };
-        let Some(archived) = state
-            .status
-            .success()
-            .then(|| serde_json::from_slice::<ChangeRecord>(&state.stdout).ok())
-            .flatten()
-        else {
+        if !state.status.success() {
+            // diff-tree just listed this path as added, so a failed read means the blob is
+            // unavailable (an offline partial clone), not that the archive is absent.
+            conclusive = false;
+            continue;
+        }
+        let Ok(archived) = serde_json::from_slice::<ChangeRecord>(&state.stdout) else {
             continue;
         };
         let object = format!("{commit}:{directory}/approvals.json");
@@ -729,7 +809,15 @@ fn archive_introductions_at_commit_uncached(
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         ) {
-            Ok(output) => output.status.success().then_some(output.stdout),
+            Ok(output) if output.status.success() => Some(output.stdout),
+            Ok(_) => {
+                if commit_tree_lists_path(root, commit, &format!("{directory}/approvals.json"))
+                    != Some(false)
+                {
+                    conclusive = false;
+                }
+                None
+            }
             Err(_) => {
                 conclusive = false;
                 None
@@ -786,9 +874,10 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     let next = AtomicU64::new(0);
     let results: Mutex<Vec<(usize, Result<(), String>)>> = Mutex::new(Vec::new());
     std::thread::scope(|threads| {
-        for _ in 0..workers {
-            threads.spawn(|| {
-                loop {
+        let workers: Vec<_> = (0..workers)
+            .map(|_| {
+                threads.spawn(|| {
+                    loop {
                     let index = next.fetch_add(1, Ordering::Relaxed) as usize;
                     let Some((_, record)) = pending.get(index) else {
                         break;
@@ -797,8 +886,17 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
                     if let Ok(mut results) = results.lock() {
                         results.push((index, result));
                     }
-                }
-            });
+                    }
+                    worker_test_git_process_count()
+                })
+            })
+            .collect();
+        // Fold each worker's Git processes into this thread's test counter, so the Git budget
+        // guards see prefetched work. A no-op outside tests.
+        for worker in workers {
+            if let Ok(spawned) = worker.join() {
+                add_test_git_processes(spawned);
+            }
         }
     });
     let Ok(results) = results.into_inner() else {

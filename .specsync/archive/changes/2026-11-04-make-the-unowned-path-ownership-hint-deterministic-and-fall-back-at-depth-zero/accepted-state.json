@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero",
+  "slug": "make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero",
+  "title": "Make the unowned-path ownership hint deterministic and fall back at depth zero",
+  "description": "Make the unowned-path ownership hint deterministic and fall back at depth zero",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "5e137ece36437d8eaa5b54f481457d8f7444ee49",
+  "created_at": 1793809714,
+  "updated_at": 1793836617,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change_tests/approve_ownership_names_the_spec.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "`ownership_hint` picks the first declared spec even at depth 0, so `lib/new.ts` can be pointed at `specs/billing/billing.spec.md`. Guard on `depth > 0` and fall back to the generic message.",
+    "The first-pass walk returns the first undeclared spec that lists the path, in `read_dir` order. That order isn't deterministic across platforms. Collect every match and sort.",
+    "Missing tests: the depth-0 fallback, `src/foo` vs `src/foobar`, a glob entry, and the `_ =>` arm."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-053 ownership is unchanged and only the refusal wording changes",
+    "public_contract": "no"
+  }
+}

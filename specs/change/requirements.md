@@ -1558,7 +1558,7 @@ The system SHALL offer explicitly approved historical receipt reconciliation tha
 
 ### REQ-change-119
 
-The system SHALL answer read-only lifecycle reads (`change status`, `change show`, `change list`, `change ship-status`) without re-deriving work whose inputs have not changed: inside one read scope an archived change's terminal evidence is computed for that change alone, scoped-review Git reads and archive lookups are memoized, and passing archived workflow-version history verdicts and archive introductions are reused across invocations from a cache under the Git directory that is keyed by content digest and invalidated by Git history.
+The system SHALL answer read-only lifecycle reads (`change status`, `change show`, `change list`, `change ship-status`, `change audit`) without re-deriving work whose inputs have not changed: inside one read scope an archived change's terminal evidence is computed for that change alone, scoped-review Git reads and archive lookups are memoized, and passing archived workflow-version history verdicts and archive introductions are reused across invocations from a cache under the Git directory that is keyed by content digest and invalidated by Git history.
 
 #### Acceptance Criteria
 
@@ -1567,6 +1567,16 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 - Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
+### REQ-change-120
+
+When `change approve` refuses affected paths that no declared module canonically owns, the error SHALL say which spec to edit for each refused path. Ownership itself is still decided exactly as REQ-change-053 requires.
+
+#### Acceptance Criteria
+
+- A refused path that some spec under the specs directory already lists in its `files:` names that spec file and its module, and says to declare it with `--spec`. Every such spec is named, sorted by spec path, whatever order the file system returns them in.
+- A listing spec that cannot own the path says why: it has no `module:`, or it is not the canonical spec of the declared module it names.
+- Otherwise the refused path names the declared spec whose `files:` entries share the longest directory with the path, comparing whole path components, and says to add the path to that spec's `files:` list. When no declared spec shares any directory with the path (depth 0), the refusal gives the generic message instead of naming a spec.
+- The same paths are refused as before; only the wording of the refusal changes.
 
 ### REQ-change-121
 

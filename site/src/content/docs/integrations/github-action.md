@@ -11,17 +11,19 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.2
+- uses: CorvidLabs/spec-sync@v6.2.0
   with:
-    version: '6.1.2'
+    version: '6.2.0'
     strict: 'true'
     require-coverage: '100'
 ```
 
 ---
 
-The stable GitHub `6.1.2` binary is published. The immutable `@v6.1.2` examples
-explicitly select it because that tag's embedded default remains `6.1.1`.
+This tree prepares `6.2.0`; its examples are intended for use only after publication.
+The published stable remains `6.1.2`. Keep the published pins until the new immutable
+candidate has Ubuntu/macOS qualification and release assets. The Action default
+remains published `6.1.2`; this preparation does not advance it.
 
 ## Inputs
 
@@ -54,23 +56,23 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.1.2
+      - uses: CorvidLabs/spec-sync@v6.2.0
         with:
-          version: '6.1.2'
+          version: '6.2.0'
           strict: 'true'
           require-coverage: '100'
 ```
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6.1.2` with
-`version: '6.1.2'`. This separately verified main wrapper defaults to the published
+Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6.2.0` with
+`version: '6.2.0'` for use after publication. This separately verified main wrapper defaults to the published
 `6.1.2` binary; the immutable `@v6.1.2` tag retains default `6.1.1`.
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.2
+- uses: CorvidLabs/spec-sync@v6.2.0
   with:
-    version: '6.1.2'
+    version: '6.2.0'
     strict: 'true'
 ```
 
@@ -105,9 +107,9 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       # The archive gate inputs are newer than v6.1.1, which ignores them. 6.1.2 is the
       # first release that includes them.
-      - uses: CorvidLabs/spec-sync@v6.1.2
+      - uses: CorvidLabs/spec-sync@v6.2.0
         with:
-          version: '6.1.2'
+          version: '6.2.0'
           archive-gate-only: 'true'
 
   specsync:
@@ -117,9 +119,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.1.2
+      - uses: CorvidLabs/spec-sync@v6.2.0
         with:
-          version: '6.1.2'
+          version: '6.2.0'
           strict: 'true'
           require-coverage: '100'
 
@@ -173,9 +175,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.1.2
+      - uses: CorvidLabs/spec-sync@v6.2.0
         with:
-          version: '6.1.2'
+          version: '6.2.0'
           strict: 'true'
           comment: 'true'
 ```
@@ -189,9 +191,9 @@ jobs:
 **Custom token (e.g., for private registries or cross-repo refs):**
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.2
+- uses: CorvidLabs/spec-sync@v6.2.0
   with:
-    version: '6.1.2'
+    version: '6.2.0'
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
 ```
@@ -211,9 +213,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.1.2
+      - uses: CorvidLabs/spec-sync@v6.2.0
         with:
-          version: '6.1.2'
+          version: '6.2.0'
           strict: 'true'
 ```
 
@@ -222,9 +224,9 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.2
+- uses: CorvidLabs/spec-sync@v6.2.0
   with:
-    version: '6.1.2'
+    version: '6.2.0'
     root: './packages/backend'
     strict: 'true'
 ```

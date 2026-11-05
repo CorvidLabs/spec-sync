@@ -1,0 +1,56 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793841182,
+      "digest": "46f7ed25ed7686305a4f1dc0669daa0f4c4c58d8ae8bd7f603bf4ff862cc69ef",
+      "note": "Recorded by a delegated Claude Code agent on the instruction of 0xLeif's session (2026-11-04) to prepare and approve the 6.2.0 release-candidate change; owner review and ship remain with the parent session.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "prepare-specsync-6-2-0-package-metadata-and-release-handoff",
+        "title": "Prepare SpecSync 6.2.0 package metadata and release handoff",
+        "description": "Prepare SpecSync 6.2.0 package metadata and release handoff",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "docs/ADOPTING.md",
+          "docs/releases/6.2.0.md",
+          "site/src/content/"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Release package version, existing self-built candidate inputs and release documentation only; no runtime, canonical API, Action published default, risk or provenance policy changes.",
+        "acceptance_criteria": [
+          "CHANGELOG.md has a 6.2.0 section listing every user-visible change merged since v6.1.2 (#836, #837, #838, #840, #841, #853), with #842, #845 and #846 included and marked pending merge in the handoff, and the Unreleased link compares from v6.2.0. docs/releases/6.2.0.md names the selected source, what release.yml does and does not do on tag, and every remaining gate.",
+          "Cargo.toml and the specsync Cargo.lock entry, the CI packaged Action consumer version and the Trust specsync-version are 6.2.0. The action.yml default, PUBLISHED_ACTION_DEFAULT and the Action docs default row stay published 6.1.2. README and site examples, archive-gate examples included, pin @v6.2.0 with version '6.2.0' for use after publication, and current-install guidance (ADOPTING, MIGRATION, site index) names published 6.1.2.",
+          "No runtime source, canonical spec, dependency, workflow logic, tag or release changes. Before the RC tag, #842, #845 and #846 are either on main and merged into this branch or their CHANGELOG and handoff entries are removed.",
+          "validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass at 6.2.0, and the pre-push gate passes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793852408,
+      "digest": "dc58c170366dc9e70f97ee6113e79d868f2ec7ca6fcdb26ba600654d2c9a3d7b",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

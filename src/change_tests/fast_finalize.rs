@@ -178,3 +178,53 @@ fn strict_audit_still_refuses_a_hidden_downgrade_in_another_archive() {
     // The default audit stays active-only, exactly as before (REQ-change-audit-project-001).
     assert_eq!(audit_project(root).errors, audit_project_with_strict(root, false).errors);
 }
+
+/// The timed finalize benchmark against a Raven-sized project: 124 archived changes
+/// (`SPECSYNC_BENCH_ARCHIVES` changes the count). Run on demand with
+/// `cargo test --release --bin specsync -- --ignored raven_sized_finalize_benchmark --nocapture`.
+/// With `SPECSYNC_BENCH_FIXTURE=<dir>` it builds the project there and stops at a reviewed change
+/// ready to finalize, so two release binaries can be timed against copies of the same tree.
+#[test]
+#[ignore = "timed benchmark; run on demand"]
+fn raven_sized_finalize_benchmark() {
+    let archives = std::env::var("SPECSYNC_BENCH_ARCHIVES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(124);
+    let kept = std::env::var_os("SPECSYNC_BENCH_FIXTURE").map(PathBuf::from);
+    let temp = TempDir::new().unwrap();
+    let root = kept.clone().unwrap_or_else(|| temp.path().to_path_buf());
+    fs::create_dir_all(&root).unwrap();
+    let root = root.as_path();
+    fast_read_repository(root);
+    let built = Instant::now();
+    for _ in 0..archives {
+        finalized_archived_change(root);
+    }
+    eprintln!(
+        "fixture: {archives} archived changes, built in {:.1}s",
+        built.elapsed().as_secs_f64()
+    );
+    if kept.is_some() {
+        let record = reviewed_change_ready_to_finalize(root);
+        eprintln!("fixture ready: `specsync change finalize {}`", record.id);
+        return;
+    }
+    for warm in [false, true] {
+        let record = reviewed_change_ready_to_finalize(root);
+        if !warm && let Some(path) = persistent_read_cache_path(root) {
+            let _ = fs::remove_file(path);
+        }
+        reset_test_git_process_count();
+        let started = Instant::now();
+        finalize_change(root, &record.id).unwrap();
+        eprintln!(
+            "{} finalize: {:.3}s, {} Git processes",
+            if warm { "warm" } else { "cold" },
+            started.elapsed().as_secs_f64(),
+            test_git_process_count()
+        );
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "archive change"]);
+    }
+}

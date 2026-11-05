@@ -1,6 +1,6 @@
 ---
 id: advance-the-published-specsync-6-2-0-action-default-and-current-release-guidance-after-platform-consumer-checks
-state: draft
+state: approved
 type: bug_fix
 base_commit: 40dcf33a6b0f0b55dcb7f17e8e98be9d55fa2c56
 ---

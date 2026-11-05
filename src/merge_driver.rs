@@ -125,6 +125,15 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
     else {
         return merge_text_region(ancestor, ours, theirs);
     };
+    // A side that already holds one ID twice (an earlier kept-twice merge, or a
+    // heading the parser could not tell from an example) cannot be merged by ID:
+    // `find` would pick one body and drop the other.
+    if has_duplicate_block_ids(&base_blocks)
+        || has_duplicate_block_ids(&ours_blocks)
+        || has_duplicate_block_ids(&theirs_blocks)
+    {
+        return merge_text_region(ancestor, ours, theirs);
+    }
 
     let pre = merge_text_region(&base_pre, &ours_pre, &theirs_pre);
     let mut clean = pre.clean;
@@ -152,40 +161,42 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
         let our = ours_blocks.iter().find(|block| block.id == id);
         let their = theirs_blocks.iter().find(|block| block.id == id);
         match (base, our, their) {
-            (None, Some(our), None) => content.push_str(&our.text),
-            (None, None, Some(their)) => content.push_str(&their.text),
+            (None, Some(our), None) => push_block(&mut content, &our.text),
+            (None, None, Some(their)) => push_block(&mut content, &their.text),
             (None, Some(our), Some(their)) if our.text == their.text => {
-                content.push_str(&our.text);
+                push_block(&mut content, &our.text);
             }
             // Both branches allocated this ID. Keep both bodies. `check` names the ID.
             (None, Some(our), Some(their)) => {
-                content.push_str(&our.text);
-                content.push_str(&their.text);
+                push_block(&mut content, &our.text);
+                push_block(&mut content, &their.text);
             }
             (Some(_), Some(our), Some(their)) if our.text == their.text => {
-                content.push_str(&our.text);
+                push_block(&mut content, &our.text);
             }
             (Some(base), Some(our), Some(their)) if our.text == base.text => {
-                content.push_str(&their.text);
+                push_block(&mut content, &their.text);
             }
             (Some(base), Some(our), Some(their)) if their.text == base.text => {
-                content.push_str(&our.text);
+                push_block(&mut content, &our.text);
             }
             (Some(base), Some(our), Some(their)) => {
                 let merged = merge_text_region(&base.text, &our.text, &their.text);
                 clean = clean && merged.clean;
-                content.push_str(&merged.content);
+                push_block(&mut content, &merged.content);
             }
             (Some(_), None, None) => {}
             (Some(base), None, Some(their)) if their.text == base.text => {}
             (Some(base), Some(our), None) if our.text == base.text => {}
-            (Some(base), None, Some(their)) => {
+            // One side deleted the block and the other edited it. The deleting
+            // side is shown empty, so choosing it does not restore the old text.
+            (Some(_), None, Some(their)) => {
                 clean = false;
-                content.push_str(&conflict_block(&base.text, &their.text));
+                push_block(&mut content, &conflict_block("", &their.text));
             }
-            (Some(base), Some(our), None) => {
+            (Some(_), Some(our), None) => {
                 clean = false;
-                content.push_str(&conflict_block(&our.text, &base.text));
+                push_block(&mut content, &conflict_block(&our.text, ""));
             }
             (None, None, None) => {}
         }
@@ -197,6 +208,71 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
 struct ReqBlock {
     id: String,
     text: String,
+}
+
+/// Appends `block`, starting it on its own line. A block whose file had no final
+/// newline would otherwise run straight into the next `### REQ-` heading.
+fn push_block(content: &mut String, block: &str) {
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(block);
+}
+
+fn has_duplicate_block_ids(blocks: &[ReqBlock]) -> bool {
+    let mut seen = BTreeSet::new();
+    blocks.iter().any(|block| !seen.insert(block.id.as_str()))
+}
+
+/// Marks each line that is a fence delimiter or sits inside a fenced code block.
+///
+/// CommonMark rules: at most three leading spaces, then three or more backticks
+/// or tildes (a backtick fence's info string holds no backtick). The fence closes
+/// on a run of the same character at least as long, followed only by spaces or
+/// tabs. An unclosed fence runs to the end of the text.
+fn fenced_lines(lines: &[&str]) -> Vec<bool> {
+    let mut open: Option<(char, usize)> = None;
+    lines
+        .iter()
+        .map(|line| {
+            let bare = line.trim_end_matches(['\n', '\r']);
+            let indent = bare.chars().take_while(|ch| *ch == ' ').count();
+            let run = (indent <= 3).then(|| &bare[indent..]).and_then(|rest| {
+                let marker = rest.chars().next().filter(|ch| matches!(ch, '`' | '~'))?;
+                let length = rest.chars().take_while(|ch| *ch == marker).count();
+                (length >= 3).then_some((marker, length, &rest[length..]))
+            });
+            match (open, run) {
+                (Some((marker, length)), Some((ch, run_length, after)))
+                    if ch == marker && run_length >= length && after.trim().is_empty() =>
+                {
+                    open = None;
+                    true
+                }
+                (Some(_), _) => true,
+                (None, Some((ch, run_length, after))) if !(ch == '`' && after.contains('`')) => {
+                    open = Some((ch, run_length));
+                    true
+                }
+                (None, _) => false,
+            }
+        })
+        .collect()
+}
+
+/// A Markdown ATX heading of level 1 to 3 outside a fence (`#`, `##`, `###`).
+fn is_section_heading(line: &str) -> bool {
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return false;
+    }
+    let rest = &line[indent..];
+    let level = rest.chars().take_while(|ch| *ch == '#').count();
+    (1..=3).contains(&level)
+        && rest[level..]
+            .chars()
+            .next()
+            .is_none_or(|ch| ch == ' ' || ch == '\t')
 }
 
 fn parse_requirement_doc(text: &str) -> Option<(String, Vec<ReqBlock>)> {
@@ -211,17 +287,29 @@ fn parse_requirement_doc(text: &str) -> Option<(String, Vec<ReqBlock>)> {
     if offset < text.len() {
         lines.push((offset, &text[offset..]));
     }
+    let fenced = fenced_lines(&lines.iter().map(|(_, line)| *line).collect::<Vec<_>>());
     let mut starts = Vec::new();
     for (index, (at, line)) in lines.iter().enumerate() {
+        if fenced[index] {
+            continue;
+        }
         let bare = line.trim_end_matches(['\n', '\r']);
         if let Some(id) = requirement_heading_id(bare) {
             if preamble_end.is_none() {
                 preamble_end = Some(*at);
             }
             starts.push((index, id.to_string()));
+        } else if preamble_end.is_some() && is_section_heading(bare) {
+            // A section after the first requirement would be absorbed into the
+            // block before it, and duplicated when both sides add a block there.
+            return None;
         }
     }
-    let preamble_end = preamble_end?;
+    // A scaffold with no requirement yet is all preamble and no blocks, so the
+    // first IDs two branches add are still merged by ID.
+    let Some(preamble_end) = preamble_end else {
+        return Some((text.to_string(), Vec::new()));
+    };
     for (pos, (index, id)) in starts.iter().enumerate() {
         let end = starts
             .get(pos + 1)
@@ -280,8 +368,18 @@ fn merge_changelog(ancestor: &str, ours: &str, theirs: &str) -> ChangelogMerge {
         parse_changelog_table(ours),
         parse_changelog_table(theirs),
     ) {
-        (Some(base), Some(our), Some(their)) if headers_match(&base, &our, &their) => {
-            union_changelog_tables(&base, &our, &their)
+        (Some(base), Some(our), Some(their))
+            if headers_match(&base, &our, &their)
+                && keeps_every_row(&base, &our)
+                && keeps_every_row(&base, &their) =>
+        {
+            let mut merged = union_changelog_tables(&base, &our, &their);
+            if !ours.ends_with('\n') {
+                while merged.content.ends_with('\n') {
+                    merged.content.pop();
+                }
+            }
+            merged
         }
         _ => {
             let merged = merge_text_region(ancestor, ours, theirs);
@@ -367,6 +465,12 @@ fn parse_changelog_table(section: &str) -> Option<ChangeTable> {
     })
 }
 
+/// Whether `side` still holds every ancestor row byte-for-byte. An edited or
+/// removed ancestor row is not an addition, so the union does not apply.
+fn keeps_every_row(base: &ChangeTable, side: &ChangeTable) -> bool {
+    base.rows.iter().all(|row| side.rows.contains(row))
+}
+
 fn headers_match(base: &ChangeTable, ours: &ChangeTable, theirs: &ChangeTable) -> bool {
     let norm = |cells: &[String]| {
         cells
@@ -433,8 +537,12 @@ fn union_changelog_tables(
         }
     }
 
+    let prefix = merge_text_region(&base.prefix, &ours.prefix, &theirs.prefix);
     let suffix = merge_text_region(&base.suffix, &ours.suffix, &theirs.suffix);
-    let mut content = ours.prefix.clone();
+    let mut content = prefix.content;
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
     for row in &rows {
         content.push_str(row);
         content.push('\n');
@@ -442,7 +550,7 @@ fn union_changelog_tables(
     content.push_str(&suffix.content);
     ChangelogMerge {
         content,
-        clean: suffix.clean,
+        clean: prefix.clean && suffix.clean,
         version: assigned,
     }
 }
@@ -481,12 +589,33 @@ fn rewrite_row_cell(row: &str, index: usize, value: &str) -> String {
     format!("| {} |", cells.join(" | "))
 }
 
+/// Cells of one table row. An escaped `\|` is part of a cell, not a delimiter.
 fn table_cells(row: &str) -> Vec<String> {
-    row.trim()
-        .trim_matches('|')
-        .split('|')
-        .map(|cell| cell.trim().to_string())
-        .collect()
+    let inner = row.trim();
+    let inner = inner.strip_prefix('|').unwrap_or(inner);
+    let inner = match inner.strip_suffix('|') {
+        Some(stripped) if !stripped.ends_with('\\') => stripped,
+        _ => inner,
+    };
+    let mut cells = Vec::new();
+    let mut cell = String::new();
+    let mut escaped = false;
+    for ch in inner.chars() {
+        if escaped {
+            cell.push(ch);
+            escaped = false;
+        } else if ch == '\\' {
+            cell.push(ch);
+            escaped = true;
+        } else if ch == '|' {
+            cells.push(cell.trim().to_string());
+            cell.clear();
+        } else {
+            cell.push(ch);
+        }
+    }
+    cells.push(cell.trim().to_string());
+    cells
 }
 
 fn is_separator_row(row: &str) -> bool {
@@ -500,17 +629,20 @@ fn is_separator_row(row: &str) -> bool {
 
 fn split_changelog(body: &str) -> (String, String, String) {
     let lines: Vec<&str> = body.split_inclusive('\n').collect();
-    let Some(start) = lines
-        .iter()
-        .position(|line| line.trim_end_matches(['\n', '\r']) == "## Change Log")
-    else {
+    // A fenced example of a `## Change Log` heading is quoted text, not the section.
+    let fenced = fenced_lines(&lines);
+    let Some(start) = lines.iter().enumerate().position(|(index, line)| {
+        !fenced[index] && line.trim_end_matches(['\n', '\r']) == "## Change Log"
+    }) else {
         return (body.to_string(), String::new(), String::new());
     };
     let end = lines
         .iter()
         .enumerate()
         .skip(start + 1)
-        .find(|(_, line)| line.trim_end_matches(['\n', '\r']).starts_with("## "))
+        .find(|(index, line)| {
+            !fenced[*index] && line.trim_end_matches(['\n', '\r']).starts_with("## ")
+        })
         .map(|(index, _)| index)
         .unwrap_or(lines.len());
     (
@@ -669,7 +801,7 @@ fn merge_present_field(
             return FieldMerge::Keep(format!("{}: []", ours.key));
         }
         for item in combined {
-            lines.push(format!("  - {item}"));
+            lines.push(format!("  - {}", render_list_item(&item)));
         }
         return FieldMerge::Keep(lines.join("\n"));
     }
@@ -709,6 +841,15 @@ fn merge_version_field(
         (Some(base), Some(ours_n), Some(theirs_n)) => combine_versions(base, ours_n, theirs_n),
         _ => None,
     };
+    // Equal values written with different scalar syntax (`6` and `"6"`) stay a
+    // conflict, as do any two styles that differ (merge invariant 21).
+    if combined.is_some() && our_raw != their_raw && quote_style(our_raw) != quote_style(their_raw)
+    {
+        return FieldMerge::Conflict(conflict_block(
+            &ours.lines.join("\n"),
+            &theirs.lines.join("\n"),
+        ));
+    }
     let Some(combined) = combined else {
         if our_raw == their_raw {
             return FieldMerge::Keep(ours.lines.join("\n"));
@@ -750,6 +891,14 @@ fn merge_version_field(
     };
     let line = format!("version: {}", rewrite_scalar(our_raw, &rendered));
     FieldMerge::Keep(line)
+}
+
+/// The quote character a scalar opens with, if any.
+fn quote_style(raw: &str) -> Option<char> {
+    raw.trim()
+        .chars()
+        .next()
+        .filter(|ch| *ch == '"' || *ch == '\'')
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -867,7 +1016,10 @@ fn parse_fields(frontmatter: &str) -> Option<Vec<Field>> {
             let FieldValue::List(items) = &mut field.value else {
                 return None;
             };
-            items.push(line.trim().trim_start_matches("- ").trim().to_string());
+            // The item is a YAML scalar: quotes are not part of the value and an
+            // unquoted ` #` starts a comment. An item this cannot read keeps the
+            // whole frontmatter on the plain text merge.
+            items.push(parse_list_scalar(line.trim().trim_start_matches("- "))?);
             field.lines.push(line.to_string());
             continue;
         }
@@ -909,18 +1061,124 @@ fn split_field_key(line: &str) -> Option<(String, String)> {
     Some((key.to_string(), line[colon + 1..].trim().to_string()))
 }
 
+/// Items of a flow list such as `["src/a,b.rs", src/c.rs]`. A comma inside a
+/// quoted item is part of that item. Anything this cannot read (an unclosed
+/// quote, a nested flow collection) is `None`, so the field is not unioned.
 fn parse_inline_list(value: &str) -> Option<Vec<String>> {
     let inner = value.strip_prefix('[')?.strip_suffix(']')?;
     if inner.trim().is_empty() {
         return Some(Vec::new());
     }
-    Some(
-        inner
-            .split(',')
-            .map(|item| item.trim().trim_matches(['\'', '"']).to_string())
-            .filter(|item| !item.is_empty())
-            .collect(),
-    )
+    let mut items = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut chars = inner.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match quote {
+            Some('"') if ch == '\\' => {
+                current.push(ch);
+                current.push(chars.next()?);
+            }
+            Some(open) if ch == open => {
+                if open == '\'' && chars.peek() == Some(&'\'') {
+                    current.push(ch);
+                    current.push(chars.next()?);
+                } else {
+                    current.push(ch);
+                    quote = None;
+                }
+            }
+            Some(_) => current.push(ch),
+            None if ch == '"' || ch == '\'' => {
+                current.push(ch);
+                quote = Some(ch);
+            }
+            None if matches!(ch, '[' | ']' | '{' | '}') => return None,
+            None if ch == ',' => {
+                items.push(parse_list_scalar(current.trim())?);
+                current.clear();
+            }
+            None => current.push(ch),
+        }
+    }
+    if quote.is_some() {
+        return None;
+    }
+    if !current.trim().is_empty() {
+        items.push(parse_list_scalar(current.trim())?);
+    }
+    Some(items)
+}
+
+/// One list item read as a YAML scalar: the quoted value, or the plain value
+/// before an ` #` comment. `None` for an empty item or text after a closing quote.
+fn parse_list_scalar(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    match raw.chars().next() {
+        Some('"') => {
+            let mut value = String::new();
+            let mut chars = raw[1..].char_indices();
+            while let Some((at, ch)) = chars.next() {
+                match ch {
+                    '\\' => match chars.next()?.1 {
+                        '"' => value.push('"'),
+                        '\\' => value.push('\\'),
+                        _ => return None,
+                    },
+                    '"' => {
+                        return trailing_is_comment(&raw[1 + at + 1..]).then_some(value);
+                    }
+                    other => value.push(other),
+                }
+            }
+            None
+        }
+        Some('\'') => {
+            let mut value = String::new();
+            let body = &raw[1..];
+            let mut chars = body.char_indices().peekable();
+            while let Some((at, ch)) = chars.next() {
+                if ch == '\'' {
+                    if chars.peek().map(|(_, next)| *next) == Some('\'') {
+                        chars.next();
+                        value.push('\'');
+                        continue;
+                    }
+                    return trailing_is_comment(&body[at + 1..]).then_some(value);
+                }
+                value.push(ch);
+            }
+            None
+        }
+        Some(_) => {
+            let value = match raw.find(" #").or_else(|| raw.find("\t#")) {
+                Some(comment) => raw[..comment].trim_end(),
+                None => raw,
+            };
+            (!value.is_empty()).then(|| value.to_string())
+        }
+        None => None,
+    }
+}
+
+fn trailing_is_comment(rest: &str) -> bool {
+    let rest = rest.trim_start();
+    rest.is_empty() || rest.starts_with('#')
+}
+
+/// Renders a merged list item. A plain path stays plain; anything YAML could
+/// read differently is double-quoted.
+fn render_list_item(item: &str) -> String {
+    let plain = !item.is_empty()
+        && !item.starts_with(['-', '?', ':', '!', '&', '*', '|', '>', '%', '@', '`', '#'])
+        && item.chars().all(|ch| {
+            ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '/' | '-' | '+' | '~')
+        });
+    if plain {
+        item.to_string()
+    } else {
+        format!("\"{}\"", item.replace('\\', "\\\\").replace('"', "\\\""))
+    }
 }
 
 fn has_duplicate_keys(fields: &[Field]) -> bool {
@@ -1209,5 +1467,289 @@ mod tests {
         let merged = merge_contract(&base, &ours, &base, "cli.spec.md");
         assert!(merged.clean);
         assert_eq!(merged.content, ours);
+    }
+
+    // P1 (review): a fenced example headed like a requirement must not shadow a
+    // real requirement with that ID and drop it from a "clean" merge.
+    #[test]
+    fn fenced_requirement_example_never_drops_a_real_requirement() {
+        let example = "Example:\n\n```markdown\n### REQ-cli-002\n\nAn example only.\n```\n";
+        let base = requirements(&[]).replace(
+            "# Requirements\n\n",
+            &format!("# Requirements\n\n{example}\n"),
+        );
+        let real =
+            "### REQ-cli-002\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
+        let ours = format!("{base}\n{real}");
+        let theirs = base.replace("The system SHALL start.", "The system SHALL start quickly.");
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/requirements.md");
+            assert!(
+                merged.content.contains("The system SHALL stop."),
+                "real REQ-cli-002 was dropped:\n{}",
+                merged.content
+            );
+            assert!(
+                merged.content.contains("An example only."),
+                "{}",
+                merged.content
+            );
+            if merged.clean {
+                assert!(
+                    merged.content.contains("start quickly"),
+                    "{}",
+                    merged.content
+                );
+            }
+        }
+    }
+
+    // P1 (review): a one-sided edit to the Change Log text before the table must
+    // survive a row union, in either merge order.
+    #[test]
+    fn changelog_prefix_edit_survives_a_row_union_in_either_order() {
+        let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]);
+        let ours = spec(
+            "6",
+            &["src/cli.rs"],
+            &[
+                "| 2026-01-01 | base: initial |",
+                "| 2026-11-05 | change-a: add a |",
+            ],
+        );
+        let theirs = base.replace(
+            "## Change Log\n\n",
+            "## Change Log\n\nNewest rows last.\n\n",
+        );
+        let forward = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        let backward = merge_contract(&base, &theirs, &ours, "specs/cli/cli.spec.md");
+        for merged in [&forward, &backward] {
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("Newest rows last."),
+                "{}",
+                merged.content
+            );
+            assert!(
+                merged.content.contains("change-a: add a"),
+                "{}",
+                merged.content
+            );
+        }
+        assert_eq!(forward.content, backward.content);
+    }
+
+    // P1 (review): a quoted comma inside an inline list item is one path, not two.
+    #[test]
+    fn quoted_comma_in_an_inline_list_stays_one_item() {
+        let make = |files: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 5\nstatus: stable\nfiles: {files}\ndb_tables: []\ndepends_on: []\n---\n\n# CLI\n\n## Purpose\n\nThe command line.\n"
+            )
+        };
+        let base = make(r#"["src/a,b.rs"]"#);
+        let ours = make(r#"["src/a,b.rs", "src/c.rs"]"#);
+        let theirs = make(r#"["src/a,b.rs", "src/d.rs"]"#);
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(!merged.content.contains("- src/a\n"), "{}", merged.content);
+            assert!(!merged.content.contains("- b.rs"), "{}", merged.content);
+            if merged.clean {
+                assert!(merged.content.contains("src/a,b.rs"), "{}", merged.content);
+                assert!(merged.content.contains("src/c.rs"), "{}", merged.content);
+                assert!(merged.content.contains("src/d.rs"), "{}", merged.content);
+            }
+        }
+    }
+
+    // P2: equal versions written with different scalar syntax stay a conflict (invariant 21).
+    #[test]
+    fn version_scalar_syntax_divergence_stays_a_conflict() {
+        let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]);
+        let ours = base.replace("version: 5", "version: 6");
+        let theirs = base.replace("version: 5", "version: \"6\"");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(!merged.clean, "{}", merged.content);
+    }
+
+    // P2: two added blocks from files with no final newline stay on separate lines.
+    #[test]
+    fn appended_blocks_without_a_final_newline_start_on_their_own_line() {
+        let base = requirements(&[]);
+        let ours = format!("{base}\n### REQ-cli-002\n\nThe system SHALL stop.");
+        let theirs = format!("{base}\n### REQ-cli-002\n\nThe system SHALL pause.");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        assert_eq!(
+            merged.content.matches("\n### REQ-cli-002").count(),
+            2,
+            "{}",
+            merged.content
+        );
+    }
+
+    // P2: a deleted-versus-edited requirement shows the deleting side as empty.
+    #[test]
+    fn deleted_versus_edited_requirement_shows_the_deletion() {
+        let block = "### REQ-cli-002\n\nThe system SHALL stop.\n";
+        let base = requirements(&[block]);
+        let ours = requirements(&[]);
+        let theirs = requirements(&["### REQ-cli-002\n\nThe system SHALL stop now.\n"]);
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        assert!(!merged.clean);
+        assert!(
+            merged
+                .content
+                .contains("<<<<<<< ours\n\n=======\n### REQ-cli-002\n\nThe system SHALL stop now."),
+            "{}",
+            merged.content
+        );
+        assert!(
+            !merged.content.contains("SHALL stop.\n"),
+            "{}",
+            merged.content
+        );
+    }
+
+    // P2: an escaped pipe inside a cell survives renumbering.
+    #[test]
+    fn escaped_pipe_in_a_changelog_cell_survives_renumbering() {
+        let table = |rows: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 2\nstatus: stable\nfiles:\n  - src/cli.rs\ndb_tables: []\ndepends_on: []\n---\n\n# CLI\n\n## Change Log\n\n| Version | Date | Change |\n|---------|------|--------|\n| 1 | 2026-01-01 | initial |\n{rows}"
+            )
+        };
+        let base = table("");
+        let ours = table("| 2 | 2026-11-05 | change-a: A \\| B |\n");
+        let theirs = table("| 2 | 2026-11-05 | change-b: C |\n");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(
+            merged.content.contains("change-a: A \\| B |"),
+            "{}",
+            merged.content
+        );
+    }
+
+    // P2: an edited ancestor row is not a new row, so it is not unioned and renumbered.
+    #[test]
+    fn edited_ancestor_changelog_row_is_not_counted_as_new() {
+        let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]);
+        let ours = spec(
+            "5",
+            &["src/cli.rs"],
+            &["| 2026-01-01 | base: initial release |"],
+        );
+        let theirs = spec(
+            "6",
+            &["src/cli.rs"],
+            &[
+                "| 2026-01-01 | base: initial |",
+                "| 2026-11-05 | change-b: add b |",
+            ],
+        );
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(
+            !merged.clean
+                || !(merged.content.contains("base: initial |")
+                    && merged.content.contains("initial release")),
+            "obsolete and edited rows were both kept in a clean merge:\n{}",
+            merged.content
+        );
+    }
+
+    // P2: a fenced `## Change Log` example does not stand in for the real section.
+    #[test]
+    fn fenced_changelog_heading_is_not_the_changelog() {
+        let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]).replace(
+            "The command line.\n",
+            "The command line.\n\n```markdown\n## Change Log\n```\n",
+        );
+        let ours = base.replace("version: 5", "version: 6") + "| 2026-11-05 | change-a: add a |\n";
+        let theirs =
+            base.replace("version: 5", "version: 6") + "| 2026-11-05 | change-b: add b |\n";
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(merged.content.contains("change-a: add a"));
+        assert!(merged.content.contains("change-b: add b"));
+    }
+
+    // P2: the changelog keeps the current side's missing final newline.
+    #[test]
+    fn changelog_union_keeps_a_missing_final_newline() {
+        let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]);
+        let ours = spec(
+            "6",
+            &["src/cli.rs"],
+            &[
+                "| 2026-01-01 | base: initial |",
+                "| 2026-11-05 | change-a: add a |",
+            ],
+        );
+        let ours = ours.trim_end_matches('\n').to_string();
+        let theirs = spec(
+            "6",
+            &["src/cli.rs"],
+            &[
+                "| 2026-01-01 | base: initial |",
+                "| 2026-11-05 | change-b: add b |",
+            ],
+        );
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(!merged.content.ends_with('\n'), "{:?}", merged.content);
+    }
+
+    // P2: a YAML comment on a block-list item is not part of the path.
+    #[test]
+    fn block_list_comment_is_not_part_of_the_item() {
+        let base = spec("5", &["src/base.rs"], &[]);
+        let ours = spec("5", &["src/base.rs # note", "src/a.rs"], &[]);
+        let theirs = spec("5", &["src/base.rs", "src/b.rs"], &[]);
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert_eq!(
+            merged.content.matches("src/base.rs").count(),
+            1,
+            "{}",
+            merged.content
+        );
+    }
+
+    // P2: the first requirements two branches add to an empty scaffold both land.
+    #[test]
+    fn first_ids_added_to_a_heading_free_scaffold_both_land() {
+        let base = "---\nspec: cli.spec.md\n---\n\n# Requirements\n".to_string();
+        let ours = format!("{base}\n### REQ-cli-001\n\nThe system SHALL start.\n");
+        let theirs = format!("{base}\n### REQ-cli-002\n\nThe system SHALL stop.\n");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(merged.content.contains("### REQ-cli-001"));
+        assert!(merged.content.contains("### REQ-cli-002"));
+    }
+
+    // P2: a section after the last requirement is not copied into each added block.
+    #[test]
+    fn trailing_section_is_not_duplicated_by_added_blocks() {
+        let tail = "\n## Notes\n\nShared notes.\n";
+        let base = format!("{}{tail}", requirements(&[]));
+        let ours = base.replace(
+            tail,
+            &format!("\n### REQ-cli-002\n\nThe system SHALL stop.\n{tail}"),
+        );
+        let theirs = base.replace(
+            tail,
+            &format!("\n### REQ-cli-003\n\nThe system SHALL pause.\n{tail}"),
+        );
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        assert!(
+            merged.content.matches("Shared notes.").count() <= 1,
+            "{}",
+            merged.content
+        );
+        assert!(merged.content.contains("SHALL stop."), "{}", merged.content);
+        assert!(
+            merged.content.contains("SHALL pause."),
+            "{}",
+            merged.content
+        );
     }
 }

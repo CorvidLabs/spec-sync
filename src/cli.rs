@@ -218,7 +218,7 @@ pub enum Command {
         #[arg(long)]
         all: bool,
         /// Register this clone's git merge driver and attribute rules
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
     /// Three-way merge one contract. Git's merge driver calls this as
@@ -863,6 +863,17 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(cli.exclude_status, vec!["deprecated", "archived"]);
+    }
+
+    #[test]
+    fn merge_install_refuses_dry_run_and_all() {
+        for flag in ["--dry-run", "--all"] {
+            assert!(
+                Cli::try_parse_from(["specsync", "merge", "--install", flag]).is_err(),
+                "merge --install {flag} parsed"
+            );
+        }
+        assert!(Cli::try_parse_from(["specsync", "merge", "--install"]).is_ok());
     }
 
     #[test]

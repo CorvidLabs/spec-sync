@@ -96,10 +96,52 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
 
 fn attribute_lines(specs_dir: &str) -> Vec<String> {
     let specs_dir = specs_dir.trim_matches('/').replace('\\', "/");
-    vec![
-        format!("{specs_dir}/**/*.spec.md merge=specsync"),
-        format!("{specs_dir}/**/requirements.md merge=specsync"),
-    ]
+    let literal = escape_wildmatch(&specs_dir);
+    ["**/*.spec.md", "**/requirements.md"]
+        .iter()
+        .map(|tail| {
+            format!(
+                "{} merge=specsync",
+                attribute_pattern(&format!("{literal}/{tail}"))
+            )
+        })
+        .collect()
+}
+
+/// Escapes wildmatch metacharacters so a configured directory matches itself.
+fn escape_wildmatch(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if matches!(ch, '*' | '?' | '[' | ']' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
+/// A `.gitattributes` pattern. One with whitespace, a quote, a backslash or a
+/// control character is written in Git's C-style quoted form, so it stays one
+/// pattern instead of splitting into several tokens.
+fn attribute_pattern(pattern: &str) -> String {
+    let needs_quotes = pattern
+        .chars()
+        .any(|ch| ch.is_whitespace() || ch == '"' || ch == '\\' || ch.is_control());
+    if !needs_quotes {
+        return pattern.to_string();
+    }
+    let mut quoted = String::from("\"");
+    for ch in pattern.chars() {
+        match ch {
+            '"' => quoted.push_str("\\\""),
+            '\\' => quoted.push_str("\\\\"),
+            '\t' => quoted.push_str("\\t"),
+            '\n' => quoted.push_str("\\n"),
+            other => quoted.push(other),
+        }
+    }
+    quoted.push('"');
+    quoted
 }
 
 fn write_attribute_lines(root: &Path, lines: &[String]) -> Result<(), String> {
@@ -140,13 +182,16 @@ fn write_attribute_lines(root: &Path, lines: &[String]) -> Result<(), String> {
 fn merge_driver_command() -> Result<String, String> {
     let exe = std::env::current_exe()
         .map_err(|error| format!("cannot locate specsync to register the merge driver: {error}"))?;
-    let exe = exe.to_string_lossy();
-    let quoted = if exe.contains(' ') || exe.contains('"') {
-        format!("\"{}\"", exe.replace('"', "\\\""))
-    } else {
-        exe.to_string()
-    };
-    Ok(format!("{quoted} merge-file %O %A %B %P"))
+    Ok(format!(
+        "{} merge-file %O %A %B %P",
+        shell_quote(&exe.to_string_lossy())
+    ))
+}
+
+/// Single-quotes `text` for the POSIX shell Git runs the driver through. Inside
+/// single quotes nothing is expanded; an embedded `'` closes, escapes and reopens.
+fn shell_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
 }
 
 fn git_config(root: &Path, key: &str, value: &str) -> Result<(), String> {
@@ -194,5 +239,60 @@ pub fn cmd_merge_file(ancestor: &Path, current: &Path, other: &Path, pathname: O
     }
     if !merged.clean {
         process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::*;
+    use std::process::Command;
+
+    #[test]
+    fn shell_quote_keeps_metacharacters_literal() {
+        let path = "/Users/O'Brien/$HOME/`id`/specsync";
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(format!("printf %s {}", shell_quote(path)))
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&output.stdout), path);
+    }
+
+    #[test]
+    fn attribute_lines_match_a_specs_dir_with_spaces_and_brackets() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .unwrap()
+        };
+        assert!(run(&["init", "-q"]).status.success());
+        let specs_dir = "docs/product specs [v2]";
+        fs::write(
+            root.join(".gitattributes"),
+            attribute_lines(specs_dir).join("\n") + "\n",
+        )
+        .unwrap();
+        for path in [
+            "docs/product specs [v2]/cli/cli.spec.md",
+            "docs/product specs [v2]/cli/requirements.md",
+        ] {
+            let output = run(&["check-attr", "merge", "--", path]);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(stdout.ends_with("merge: specsync\n"), "{path}: {stdout}");
+        }
+        let other = run(&[
+            "check-attr",
+            "merge",
+            "--",
+            "docs/product specs v/cli/cli.spec.md",
+        ]);
+        assert!(
+            String::from_utf8_lossy(&other.stdout).ends_with("merge: unspecified\n"),
+            "brackets matched as a character class"
+        );
     }
 }

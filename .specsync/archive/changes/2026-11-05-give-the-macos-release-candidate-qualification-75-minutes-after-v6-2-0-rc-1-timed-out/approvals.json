@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793857716,
+      "digest": "3646ee2de60647f01227652f8541e51967ac75bfc4d3a991d1b0ca3d9e9ebab2",
+      "note": "0xLeif chose to raise the macOS qualification timeout for 6.2.0 and fix the slowness separately.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "give-the-macos-release-candidate-qualification-75-minutes-after-v6-2-0-rc-1-timed-out",
+        "title": "Give the macOS release candidate qualification 75 minutes after v6.2.0-rc.1 timed out",
+        "description": "Give the macOS release candidate qualification 75 minutes after v6.2.0-rc.1 timed out",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/release.yml",
+          "CHANGELOG.md",
+          "docs/releases/6.2.0.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Release workflow job timeout and release notes only; no runtime, canonical API, Action default, risk or provenance policy changes.",
+        "acceptance_criteria": [
+          "The release.yml qualify job allows 75 minutes, so a v6.2.0 candidate that passes every test on macos-15 is not cancelled during the release build; the 6.2.0 notes record rc.1's timeout."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793857863,
+      "digest": "afefb006dcd9b9cd82ee016b3d74e80b6d55ab98e65113bb79530bb34e2814fd",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

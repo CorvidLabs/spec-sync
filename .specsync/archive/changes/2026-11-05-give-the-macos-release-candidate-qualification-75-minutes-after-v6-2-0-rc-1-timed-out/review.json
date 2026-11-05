@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "give-the-macos-release-candidate-qualification-75-minutes-after-v6-2-0-rc-1-timed-out",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ca1268aa3f114fea84c1e9efe5db9f91695c1e86",
+  "contract_digest": "3646ee2de60647f01227652f8541e51967ac75bfc4d3a991d1b0ca3d9e9ebab2",
+  "execution_digest": "1a14f29e9d3c03e23bdbe0a9a1936b033c05987473eb324e480ab8c8bec9defa",
+  "workspace_digest": "456b5bcf484c41cf5ca78525c61d281bba35fc86dcfbb3b9f7f5a115b649b23b",
+  "timestamp": 1793857809
+}

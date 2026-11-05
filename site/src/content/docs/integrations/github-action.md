@@ -20,16 +20,14 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 ---
 
-This tree prepares `6.2.0`; its examples are intended for use only after publication.
-The published stable remains `6.1.2`. Keep the published pins until the new immutable
-candidate has Ubuntu/macOS qualification and release assets. The Action default
-remains published `6.1.2`; this preparation does not advance it.
+The stable GitHub `6.2.0` binary is published. The immutable `@v6.2.0` examples
+explicitly select it because that tag's embedded default remains `6.1.2`.
 
 ## Inputs
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.1.2` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
+| `version` | `6.2.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -66,8 +64,8 @@ jobs:
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
 Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6.2.0` with
-`version: '6.2.0'` for use after publication. This separately verified main wrapper defaults to the published
-`6.1.2` binary; the immutable `@v6.1.2` tag retains default `6.1.1`.
+`version: '6.2.0'`. This separately verified main wrapper defaults to the published
+`6.2.0` binary; the immutable `@v6.2.0` tag retains default `6.1.2`.
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.2.0
@@ -78,11 +76,11 @@ Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6
 
 Always pass `version: '6.0.0'` with `@v6.0.0`. That tag's composite Action still embeds
 default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version` on
-that tag downloads the RC binary. Immutable `@v6.1.2` retains default `6.1.1`;
-explicitly pass `version: '6.1.2'` with it for the new stable binary. This later main
-wrapper defaults to `6.1.2` after actual stable asset and supported-platform Action
+that tag downloads the RC binary. Immutable `@v6.2.0` retains default `6.1.2`;
+explicitly pass `version: '6.2.0'` with it for the new stable binary. This later main
+wrapper defaults to `6.2.0` after actual stable asset and supported-platform Action
 checks. Floating `@v6` advances only after consumer checks of this exact wrapper
-commit. Neither immutable `@v6.1.2` nor `@v6.0.0` is retargeted.
+commit. Neither immutable `@v6.2.0` nor `@v6.0.0` is retargeted.
 
 ---
 
@@ -238,7 +236,7 @@ jobs:
 ```yaml
 - name: Install specsync
   run: |
-    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.1.2/specsync-linux-x86_64.tar.gz | tar xz
+    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.2.0/specsync-linux-x86_64.tar.gz | tar xz
     sudo mv specsync-linux-x86_64 /usr/local/bin/specsync
 
 - name: Spec check

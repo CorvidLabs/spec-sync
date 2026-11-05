@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "advance-the-published-specsync-6-2-0-action-default-and-current-release-guidance-after-platform-consumer-checks",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bf47f380099439a16be41e1cd4db5ca58b51f64c",
+      "contract_digest": "23d05bba9ede830b690cc810e19c1b34feac7e5cbbd32da3f4e9d57ae8aab279",
+      "execution_digest": "f8e5ce3f65177141f1178941a6418cadf8cec9f8077081e425cd412eb91d27e4",
+      "workspace_digest": "a2ec19f3a1b4379042915477d05919478445ae9c2ad87580a48782ea18af5015",
+      "timestamp": 1793889415
+    }
+  ]
+}

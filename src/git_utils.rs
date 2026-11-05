@@ -409,23 +409,25 @@ fn is_repository_fact(args: &[&str]) -> bool {
     }) {
         return false;
     }
-    match args {
+    matches!(
+        args,
         ["rev-parse", ..]
-        | ["rev-list", ..]
-        | ["log", ..]
-        | ["show", ..]
-        | ["ls-tree", ..]
-        | ["merge-base", ..]
-        | ["cat-file", ..]
-        | ["diff-tree", ..]
-        | ["for-each-ref", ..]
-        | ["show-ref", ..] => true,
-        ["symbolic-ref", "--short", _] | ["symbolic-ref", "-q", _] | ["symbolic-ref", _] => true,
-        ["config", "--get", ..]
-        | ["config", "--get-regexp", ..]
-        | ["config", "-z", "--get-regexp", ..] => true,
-        _ => false,
-    }
+            | ["rev-list", ..]
+            | ["log", ..]
+            | ["show", ..]
+            | ["ls-tree", ..]
+            | ["merge-base", ..]
+            | ["cat-file", ..]
+            | ["diff-tree", ..]
+            | ["for-each-ref", ..]
+            | ["show-ref", ..]
+            | ["symbolic-ref", "--short", _]
+            | ["symbolic-ref", "-q", _]
+            | ["symbolic-ref", _]
+            | ["config", "--get", ..]
+            | ["config", "--get-regexp", ..]
+            | ["config", "-z", "--get-regexp", ..]
+    )
 }
 
 /// The git subcommand in `args`, skipping leading `-c key=value` pairs and other global options.
@@ -451,10 +453,10 @@ fn is_read_only_git(args: &[&str]) -> bool {
             | "merge-base" | "check-attr" | "check-ignore" | "diff" | "diff-files" | "diff-tree"
             | "diff-index" | "status" | "for-each-ref" | "show-ref" | "name-rev" | "describe"
             | "var" | "grep" | "blame" | "count-objects" | "hash-object",
-        ) => !args.iter().any(|argument| *argument == "-w"),
+        ) => !args.contains(&"-w"),
         Some("symbolic-ref") => is_repository_fact(args),
         Some("config") => is_repository_fact(args),
-        Some("worktree") => args.iter().any(|argument| *argument == "list"),
+        Some("worktree") => args.contains(&"list"),
         _ => false,
     }
 }

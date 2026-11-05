@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Add the failing `git merge-tree` fixture and the duplicate requirement ID test, and record that both failed before the fix.
 - [x] Implement `merge_contract`, `merge --install`, and `merge-file`.
 - [x] Refuse a repeated requirement ID from `check` and `change audit`, naming the ID.
-- [ ] Leif records `change approve` and `change review` for this change. Not recorded in this session.
+- [x] Leif recorded `change approve` (0xLeif, 2026-11-05). `change review` is a lifecycle gate recorded by Leif, not a task here.

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793899347,
+      "commit": "d91167c6b5b72d625b997abd0e248e23be08aa2a",
+      "contract_digest": "0d6a36b8aad76e77d263bb1b5fb0eb3e442125ef875465562caf5c821b16f08a",
+      "execution_digest": "b553281d425ea1915493596172615a9562ce2f2cf33e68674758262122864862",
+      "workspace_digest": "44902b5a6ba9cea3f88619899630cdd9f7b4e78a965f99070acbb86aa61b9113",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli --spec cli_args --spec cmd_merge --spec merge --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-125",
+        "REQ-cli-012",
+        "REQ-cli-args-023",
+        "REQ-cmd-merge-003",
+        "REQ-merge-004",
+        "REQ-merge-005",
+        "REQ-validator-045"
+      ]
+    }
+  ]
+}

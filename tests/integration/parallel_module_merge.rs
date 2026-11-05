@@ -347,3 +347,37 @@ Acceptance Criteria
         "change audit did not name the duplicate ID\n{audit_text}"
     );
 }
+
+/// REQ-cmd-merge-003. `merge --install` refuses a symlinked `.gitattributes`:
+/// it fails, leaves the link target untouched, and records no driver.
+#[cfg(unix)]
+#[test]
+fn merge_install_refuses_a_symlinked_gitattributes() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let root = tmp.path();
+    git_ok(root, &["init", "-q", "-b", "main"]);
+    fs::create_dir_all(root.join("specs")).unwrap();
+    let target = root.join("elsewhere.attributes");
+    fs::write(&target, "*.txt text\n").unwrap();
+    std::os::unix::fs::symlink(&target, root.join(".gitattributes")).unwrap();
+
+    let output = specsync()
+        .args(["merge", "--install"])
+        .arg("--root")
+        .arg(root)
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "install accepted a symlink");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("refusing to update symlinked .gitattributes"),
+        "stderr did not name the refusal:\n{stderr}"
+    );
+    assert_eq!(fs::read_to_string(&target).unwrap(), "*.txt text\n");
+    let driver = git(root, &["config", "--local", "--get", "merge.specsync.driver"]);
+    assert!(
+        !driver.status.success(),
+        "a driver was recorded despite the refusal: {}",
+        String::from_utf8_lossy(&driver.stdout)
+    );
+}

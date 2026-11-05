@@ -86,6 +86,13 @@
         "hooks: SPEC SECTION Invariants": "aaa544cfade5f2dd61628bc63cf84766fb6938697984b5112d316a413e374d9d",
         "merge: SPEC SECTION Invariants": "7f9bed37cc65f89e54d65f5b2cdc577106a3e527ae22b5d3a7133805c1f5e9af"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793915043,
+      "digest": "5f37a9e9ce50daaa08efe1587781fd9b180b5f1f78deb8e0a5f31c43911c3b0d",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

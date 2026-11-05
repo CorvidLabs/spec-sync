@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Output};
+#[cfg(unix)]
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Host environment keys a git child is allowed to inherit.
@@ -419,7 +420,13 @@ fn drain_available_windows<R: Read>(
     reader: &mut R,
     retained: &mut Vec<u8>,
 ) -> io::Result<()> {
-    let available = windows_pipe_available(handle)?;
+    let available = match windows_pipe_available(handle) {
+        Ok(available) => available,
+        // ERROR_BROKEN_PIPE and ERROR_NO_DATA: the write end closed after the
+        // stream was drained. That is end of stream, not a failed Git call.
+        Err(error) if matches!(error.raw_os_error(), Some(109 | 232)) => return Ok(()),
+        Err(error) => return Err(error),
+    };
     if available == 0 {
         return Ok(());
     }
@@ -431,7 +438,7 @@ fn drain_available_windows<R: Read>(
 #[cfg(not(unix))]
 fn windows_pipe_available(handle: std::os::windows::io::RawHandle) -> io::Result<u32> {
     #[link(name = "kernel32")]
-    extern "system" {
+    unsafe extern "system" {
         fn PeekNamedPipe(
             handle: *mut std::ffi::c_void,
             buffer: *mut std::ffi::c_void,

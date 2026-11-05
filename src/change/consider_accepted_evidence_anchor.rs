@@ -494,7 +494,7 @@ where
     Reader: std::os::windows::io::AsRawHandle,
 {
     #[link(name = "kernel32")]
-    extern "system" {
+    unsafe extern "system" {
         fn PeekNamedPipe(
             handle: *mut std::ffi::c_void,
             buffer: *mut std::ffi::c_void,

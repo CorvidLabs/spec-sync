@@ -7,11 +7,11 @@
   "title": "Share one read cache across worktrees when the checkout path runs through a symlink",
   "description": "Share one read cache across worktrees when the checkout path runs through a symlink",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "6b222ff623079b0b3e328db29e8df078cb80a60d",
   "created_at": 1793843534,
-  "updated_at": 1793844765,
+  "updated_at": 1793845188,
   "affected_specs": [
     "change"
   ],

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "share-one-read-cache-across-worktrees-when-the-checkout-path-runs-through-a-symlink",
+  "implementation_commit": "be6c1eafec38d502fc05622c9cdfd85898bf08df",
+  "implementation_tree": "42108bf35119e45d838c2df1111c7575020fd9df",
+  "contract_digest": "5316b564f0f475ed7ad1b7614e613a6466ab96bf829a95682113b5c6a66a4720",
+  "workspace_digest": "c7358b2e1dcbe5d2211ad0f9e9a822e0b3621d1dff5740499fbc1e75ebdc6dfd",
+  "closing_digest": "8406d351664a2844f0818b68de449f1f308895166ae2401295d0e8ce71e7afa8",
+  "review_digest": "627bd3fdf88e8699670f270bbd90904088e34ba4348694ae1bf048fd42d09774",
+  "finalization_digest": "ff5ee7c4fbb6b0d685042c3fdf69e32ac084eae0d7b49f724402a941f739a845",
+  "timestamp": 1793844874
+}

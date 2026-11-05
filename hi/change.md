@@ -13,6 +13,8 @@ CHANGE-10 is captured from Leif's ask in Grok Bot chat t811u on 2026-11-03: "`ch
 
 CHANGE-10.a, CHANGE-10.b and CHANGE-10.c quote, verbatim, the optional nits in Leif's GitHub review of #841 (review 5771062363, APPROVED, 2026-11-04 08:33 MST). On 2026-11-04 at 09:25 MST Leif said: "Yes, merge #841 and open the nits follow-up PR."
 
+CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #843): "Confirm #843 criteria as written", choosing to "Protect only changes approved from now on". Recorded by corvid-agent.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -40,3 +42,7 @@ CHANGE-10.a, CHANGE-10.b and CHANGE-10.c quote, verbatim, the optional nits in L
   - **CHANGE-10.a**  `ownership_hint` picks the first declared spec even at depth 0, so `lib/new.ts` can be pointed at `specs/billing/billing.spec.md`. Guard on `depth > 0` and fall back to the generic message.
   - **CHANGE-10.b**  The first-pass walk returns the first undeclared spec that lists the path, in `read_dir` order. That order isn't deterministic across platforms. Collect every match and sort.
   - **CHANGE-10.c**  Missing tests: the depth-0 fallback, `src/foo` vs `src/foobar`, a glob entry, and the `_ =>` arm.
+- **CHANGE-11**  A change approved against older contract text never silently overwrites newer text another change put there.
+  - **CHANGE-11.a**  Checking that change stops and names the requirement or section whose text moved.
+  - **CHANGE-11.b**  The project health check (audit) reports the same problem before anything is lost.
+  - **CHANGE-11.c**  The message tells me the way forward: rewrite the change onto the current text and approve it again.

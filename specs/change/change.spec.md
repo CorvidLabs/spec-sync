@@ -1,6 +1,6 @@
 ---
 module: change
-version: 158
+version: 159
 status: active
 files:
   - src/change.rs
@@ -25,6 +25,7 @@ files:
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
+  - src/change_tests/stale_modified_delta.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -590,3 +591,4 @@ Acceptance Criteria
 | 2026-11-04 | finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds: Finalize a change in seconds on Raven however many archives it holds |
 | 2026-11-04 | name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path: Name the spec to edit when change approve refuses an unowned affected path |
 | 2026-11-04 | make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero: Make the unowned-path ownership hint deterministic and fall back at depth zero |
+| 2026-11-04 | refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text: Refuse a stale modified delta instead of overwriting newer canonical text |

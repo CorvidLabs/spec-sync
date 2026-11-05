@@ -1567,6 +1567,7 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 - Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
+
 ### REQ-change-120
 
 When `change approve` refuses affected paths that no declared module canonically owns, the error SHALL say which spec to edit for each refused path. Ownership itself is still decided exactly as REQ-change-053 requires.
@@ -1588,4 +1589,17 @@ The system SHALL let `change finalize` and `change archive` reuse, for the durat
 - Only queries naming full object ids are memoized; queries naming `HEAD`, a branch or the working tree run live, `HEAD` is resolved live on every baseline check, failed Git runs are not stored, and refusals are always re-derived.
 - The memo lives only inside the command's own scope and takes no working-tree snapshot, so the command sees its own writes.
 - The Git processes one finalize spawns grow by at most 12 per other archived change.
+
+### REQ-change-122
+
+A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.
+
+#### Acceptance Criteria
+
+- A stale MODIFIED item whose block main rewrote after approval is refused by `change check`, both before and after the first materialization, and the canonical file keeps main's bytes.
+- `change audit` reports the same refusal for that change.
+- The refusal names the module, the requirement or section, and `specsync change approve <id>`.
+- A rebased and re-approved delta materializes, keeping the other change's text it now carries.
+- A block main changed that this change does not touch is not refused.
+- An approval without recorded bases keeps materializing as before.
 

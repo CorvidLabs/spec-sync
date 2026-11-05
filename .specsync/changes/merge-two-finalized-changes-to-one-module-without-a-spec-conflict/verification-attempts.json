@@ -48,6 +48,30 @@
         "REQ-merge-005",
         "REQ-validator-045"
       ]
+    },
+    {
+      "timestamp": 1793899412,
+      "commit": "ab5944f3d9bf19e7c9da73044b2396d420d81c0c",
+      "contract_digest": "0d6a36b8aad76e77d263bb1b5fb0eb3e442125ef875465562caf5c821b16f08a",
+      "execution_digest": "b553281d425ea1915493596172615a9562ce2f2cf33e68674758262122864862",
+      "workspace_digest": "1f204173b1f4f8dcb2f3030bee9e15f8068b0a068bb32ac8225e0247110c6074",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli --spec cli_args --spec cmd_merge --spec merge --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-125",
+        "REQ-cli-012",
+        "REQ-cli-args-023",
+        "REQ-cmd-merge-003",
+        "REQ-merge-004",
+        "REQ-merge-005",
+        "REQ-validator-045"
+      ]
     }
   ]
 }

@@ -374,7 +374,10 @@ fn merge_install_refuses_a_symlinked_gitattributes() {
         "stderr did not name the refusal:\n{stderr}"
     );
     assert_eq!(fs::read_to_string(&target).unwrap(), "*.txt text\n");
-    let driver = git(root, &["config", "--local", "--get", "merge.specsync.driver"]);
+    let driver = git(
+        root,
+        &["config", "--local", "--get", "merge.specsync.driver"],
+    );
     assert!(
         !driver.status.success(),
         "a driver was recorded despite the refusal: {}",

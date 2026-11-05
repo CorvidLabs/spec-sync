@@ -1,6 +1,6 @@
 ---
 module: github
-version: 47
+version: 48
 status: stable
 files:
   - src/github.rs
@@ -89,6 +89,8 @@ to run the release lane is the authority to create a release tag; that equivalen
 every run and recorded at the job itself, never left to be inferred from a green result. A named
 deployment environment that does not exist is not a gate — GitHub materializes it unprotected on
 first use — so the workflow names no environment rather than publish a gate that gates nothing.
+
+Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -250,3 +252,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
 | 2026-11-01 | advance-the-published-specsync-6-1-2-action-default-and-archive-gate-examples-after-platform-consumer-checks: Advance the published SpecSync 6.1.2 Action default and archive-gate examples after platform consumer checks |
 | 2026-11-05 | advance-the-published-specsync-6-2-0-action-default-and-current-release-guidance-after-platform-consumer-checks: Advance the published SpecSync 6.2.0 Action default and current release guidance after platform consumer checks |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

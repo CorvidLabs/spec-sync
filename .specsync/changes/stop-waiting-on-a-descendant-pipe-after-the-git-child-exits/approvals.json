@@ -1,4 +1,92 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793900177,
+      "digest": "e0b3322f43e8f0bbf0a197ee4bf09c6e4fbe479ebd38ef0560a171e93bba45cb",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "stop-waiting-on-a-descendant-pipe-after-the-git-child-exits",
+        "title": "Stop waiting on a descendant pipe after the git child exits",
+        "description": "stop waiting on a descendant pipe after the git child exits",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "changelog",
+          "cmd_change",
+          "cmd_diff",
+          "cmd_lifecycle",
+          "comment",
+          "git_utils",
+          "github",
+          "hooks",
+          "merge"
+        ],
+        "affected_paths": [
+          "hi/speed.md",
+          "specs/change/change.3md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "specs/git_utils/git_utils.3md",
+          "specs/git_utils/git_utils.spec.md",
+          "specs/git_utils/requirements.md",
+          "specs/git_utils/tasks.md",
+          "specs/git_utils/testing.md",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/substantive_plan.rs",
+          "src/changelog.rs",
+          "src/commands/change.rs",
+          "src/commands/diff.rs",
+          "src/commands/lifecycle.rs",
+          "src/comment.rs",
+          "src/git_utils.rs",
+          "src/github.rs",
+          "src/hooks.rs",
+          "src/merge.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A Git read returns the child's own bytes while a descendant still holds that child's output pipe. A status Git child does not receive the caller's stdout. The existing deadline, output cap, and stdin-writer join checks still pass. SPEED-1, SPEED-1.a, and SPEED-1.e."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "271e8bb655b8b39af008a58aad40e9ffafd9a78c8c9cad08670c0036a72bbc7f",
+        "changelog": "128ecbfce98480a11480f300ae391b6e308d58d2d9220630a20aed1e4ca8b0f4",
+        "cmd_change": "2658701fd4cf7f60f53f0e93d692c1cf58fabe4e78428111f372b18198ed83e6",
+        "cmd_diff": "6edd6f0f04c75a69a34817d100c9cd967014e60b7944b72fcda83e0b2a7cefd2",
+        "cmd_lifecycle": "9f33a8c2bdfcf8741fb7dd6ba632eae0f823e26e89566881e510f642b525c73f",
+        "comment": "509e2e15034bbff230c4190874f8b965940cbafa4d7dd5bf991ab08abe769547",
+        "git_utils": "d069cd52debdb43ba66daee1538707e6a86fd31638a66e5d6b4cfa7f69ab4b11",
+        "github": "f1bc87049cfe0cbb681bab25533692ecaf59505af3f51f8ab300583455f842d4",
+        "hooks": "7119e7b0c88e4624694805214ea3e128d87f63b3ebb72af7c73d4f9b676d4e3c",
+        "merge": "3a9131d549a0c6929a69343288a26a8748ce07530cb45468740a57e207ce5c5f"
+      },
+      "approved_delta_bases": {
+        "changelog: SPEC SECTION Invariants": "dd9d377428a6c8a84ff1b28272e7699032464b1a8847a2e1d3de0586f06399f9",
+        "cmd_change: SPEC SECTION Invariants": "c7ad50a025f494fde4a6b9cc2d13c0040b61172b0d6612a3d92da6c8c4c5d405",
+        "cmd_diff: SPEC SECTION Invariants": "53a9a2b3ad15d16b237fa3821e9bfe1dac178b99088a836f28ac1bef7b9d87c6",
+        "cmd_lifecycle: SPEC SECTION Invariants": "8f3be45528ba3c6a2dad01e64f09d41fa0514f5be18d7bb21ce6520a028b7fa2",
+        "comment: SPEC SECTION Invariants": "974f06d2f143da96c9c265b7d22a236f96bb51b73e2e061ddded219d73449919",
+        "github: SPEC SECTION Invariants": "6c333ecc990e89c5aad3ad08d82e5158b24cbc7d8e2cd8bad4433bf5de054183",
+        "hooks: SPEC SECTION Invariants": "aaa544cfade5f2dd61628bc63cf84766fb6938697984b5112d316a413e374d9d",
+        "merge: SPEC SECTION Invariants": "7f9bed37cc65f89e54d65f5b2cdc577106a3e527ae22b5d3a7133805c1f5e9af"
+      }
+    }
+  ],
   "reopenings": []
 }

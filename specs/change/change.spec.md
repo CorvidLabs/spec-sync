@@ -1,6 +1,6 @@
 ---
 module: change
-version: 163
+version: 164
 status: active
 files:
   - src/change.rs
@@ -605,3 +605,4 @@ Acceptance Criteria
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
 | 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits, so `change status` cannot be stalled by that pipe (#854, #855, SPEED-1, SPEED-1.a) |
 | 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued Git bytes, including on the non-Unix bounded reader |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

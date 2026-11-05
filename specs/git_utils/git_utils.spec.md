@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 14
+version: 15
 status: stable
 files:
   - src/git_utils.rs
@@ -144,3 +144,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits (#854, #855, SPEED-1, SPEED-1.e) |
 | 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued bytes and give the child a null stdin |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

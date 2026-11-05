@@ -1,6 +1,6 @@
 ---
 module: cmd_diff
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/diff.rs
@@ -37,6 +37,7 @@ Implements the `specsync diff` command — shows which specs are affected by sou
 5. Text output delegates to `output::print_diff_markdown`
 6. A non-zero `git diff` exit (bad base ref, not a git repository) fails loud with exit code 1 — it is never treated as an empty change set ("No files changed"), so a failed comparison cannot silently pass in CI
 7. A spec whose `files:` includes a source file that exists-or-should but cannot be read (missing, or not valid UTF-8) is inconclusive: the file is surfaced (`inconclusive_files`), its unreliable export deltas are suppressed, and `diff` exits 1 — an unreadable source must not be silently treated as export-free "no drift" (a non-source file, e.g. a `.md`/`.sql` listed in `files:`, is not a failure)
+8. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -88,3 +89,4 @@ Implements the `specsync diff` command — shows which specs are affected by sou
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

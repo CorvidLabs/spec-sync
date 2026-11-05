@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Return from the bounded Git reader and from `output_after_child_exits` when the direct child exits.
 - [x] Point status Git children at the null device.
 - [x] Record REQ-git-utils-008, REQ-change-126, and SPEED-1.e.
-- [ ] Leif records `change approve` and `change review` for this change. This session does not.
+- [x] Leif recorded `change approve` (0xLeif, 2026-11-05). `change review` is a lifecycle gate Leif records, not a task here.

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793900238,
+      "commit": "0529983edd388255938a3fbe77606ea03a8ec8df",
+      "contract_digest": "e0b3322f43e8f0bbf0a197ee4bf09c6e4fbe479ebd38ef0560a171e93bba45cb",
+      "execution_digest": "90d50be9a53daafa4dee341f729b8a70ab4a75fb38c1cac4a2985ae8a3a3b42b",
+      "workspace_digest": "dda40151009bbd006e690df415c21581833668ad4fcb84d848943aa418e27fc4",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec changelog --spec cmd_change --spec cmd_diff --spec cmd_lifecycle --spec comment --spec git_utils --spec github --spec hooks --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-126",
+        "REQ-git-utils-008"
+      ]
+    }
+  ]
+}

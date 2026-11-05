@@ -1,6 +1,6 @@
 ---
 module: changelog
-version: 5
+version: 6
 status: stable
 files:
   - src/changelog.rs
@@ -49,6 +49,7 @@ Automated changelog generation for spec changes between git refs. Compares specs
 4. Added/removed/modified lists are sorted by spec path (BTreeMap/BTreeSet ordering)
 5. A spec is "modified" only if at least one frontmatter field changed between the two refs
 6. Output formatters (text, json, markdown) share the same ChangelogReport — formatting is decoupled from analysis
+7. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -102,3 +103,4 @@ Automated changelog generation for spec changes between git refs. Compares specs
 | 2026-04-07 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

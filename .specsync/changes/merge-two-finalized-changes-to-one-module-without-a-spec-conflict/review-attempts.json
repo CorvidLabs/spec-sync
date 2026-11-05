@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "merge-two-finalized-changes-to-one-module-without-a-spec-conflict",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "e34e47130010eed1f63d032ac1875942a92dd416",
+      "contract_digest": "0d6a36b8aad76e77d263bb1b5fb0eb3e442125ef875465562caf5c821b16f08a",
+      "execution_digest": "b553281d425ea1915493596172615a9562ce2f2cf33e68674758262122864862",
+      "workspace_digest": "4bbf533ee995f509c7c68894e0782cd701a8111998104ccad775dae86f643335",
+      "timestamp": 1793914909
+    }
+  ]
+}

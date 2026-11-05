@@ -1,6 +1,6 @@
 ---
 module: change
-version: 161
+version: 162
 status: active
 files:
   - src/change.rs
@@ -421,6 +421,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-125, #861). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |
 | 2026-10-10 | Add `change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |

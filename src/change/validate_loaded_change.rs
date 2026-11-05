@@ -1835,9 +1835,14 @@ fn run_verification_child(command: &mut Command) -> std::io::Result<std::process
     // Installing first shrinks that window to the one instruction that publishes
     // the PID, which cannot be known any earlier.
     install_verification_reaper();
+    // A configured command may write to the repository, so nothing git answered before it is
+    // trusted after it (REQ-git-utils-008).
+    crate::git_utils::invalidate_repository_facts();
     let mut child = command.spawn()?;
     let mut group = VerificationChildGroup::arm(child.id() as i32);
-    let status = child.wait()?;
+    let status = child.wait();
+    crate::git_utils::invalidate_repository_facts();
+    let status = status?;
     group.disarm();
     Ok(status)
 }
@@ -1845,7 +1850,10 @@ fn run_verification_child(command: &mut Command) -> std::io::Result<std::process
 #[cfg(not(unix))]
 #[allow(dead_code)]
 fn run_verification_child(command: &mut Command) -> std::io::Result<std::process::ExitStatus> {
-    command.status()
+    crate::git_utils::invalidate_repository_facts();
+    let status = command.status();
+    crate::git_utils::invalidate_repository_facts();
+    status
 }
 
 #[allow(dead_code)]
@@ -2907,6 +2915,8 @@ fn workflow_v2_adoption_git_snapshot(root: &Path) -> Result<WorkflowV2AdoptionGi
 }
 
 fn uncached_optional_git_text(root: &Path, args: &[&str]) -> Result<Option<String>, String> {
+    // Adoption compares two of these snapshots to see a ref moved by another process.
+    let _live = crate::git_utils::live_repository_reads();
     let output = run_git_bounded(root, args, None, MAX_GIT_DIAGNOSTIC_BYTES)?;
     if !output.status.success() {
         return Ok(None);

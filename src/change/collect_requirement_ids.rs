@@ -4213,6 +4213,8 @@ fn stable_discovered_evidence_with_hook_internal<Hook>(
 where
     Hook: FnMut(usize, &Path),
 {
+    // The before/after comparison below exists to see another process change the repository.
+    let _live = crate::git_utils::live_repository_reads();
     let initial_context = repository_context(root)?;
     for attempt in 0..2 {
         let capture =

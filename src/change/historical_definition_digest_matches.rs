@@ -1912,14 +1912,15 @@ fn review_commit_is_current(
 
 fn run_scoped_review_git(root: &Path, args: &[&str]) -> Result<BoundedCommandOutput, String> {
     let limits = lifecycle_validation_limits();
-    let mut command = configured_git_command(root);
-    run_git_command_bounded_with_deadline(
-        &mut command,
-        args,
-        None,
-        limits.git_max_output_bytes,
-        Duration::from_secs(limits.git_timeout_seconds),
-    )
+    memoized_configured_git(root, args, None, limits.git_max_output_bytes, |command, input| {
+        run_git_command_bounded_with_deadline(
+            command,
+            args,
+            input,
+            limits.git_max_output_bytes,
+            Duration::from_secs(limits.git_timeout_seconds),
+        )
+    })
 }
 
 fn scoped_review_file_at_commit(

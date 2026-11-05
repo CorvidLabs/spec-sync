@@ -4019,17 +4019,23 @@ fn status_and_show_json_report_approved_delta_requirements() {
 fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     use std::os::unix::fs::PermissionsExt;
 
-    /// Git processes each lifecycle command may spawn on this small fixture: 40% of what each
-    /// spawned at 67aa7dc2 (new 63, answer 71, approve 89, check 388, status 66, review 323,
-    /// finalize 739).
+    /// Git processes each lifecycle command may spawn on this small fixture.
+    ///
+    /// At 67aa7dc2 they spawned: new 63, answer 71, approve 89, check 388, status 66, review 323,
+    /// finalize 739. With repository facts asked once per command and committed objects read
+    /// through one `cat-file --batch` (REQ-git-utils-008, REQ-git-utils-009) they spawn: new 13,
+    /// answer 15, approve 29, check 82, status 50, review 128, finalize 239. Each ceiling is that
+    /// count plus about 10%. `status` keeps 20 working-tree reads on purpose: evidence collection
+    /// reads the tree before and after each capture to catch a concurrent edit, and that race
+    /// check is never answered from memory.
     const CEILINGS: &[(&str, usize)] = &[
-        ("new", 25),
-        ("answer", 28),
-        ("approve", 35),
-        ("check", 155),
-        ("status", 26),
-        ("review", 129),
-        ("finalize", 295),
+        ("new", 15),
+        ("answer", 17),
+        ("approve", 32),
+        ("check", 90),
+        ("status", 55),
+        ("review", 141),
+        ("finalize", 263),
     ];
 
     let temp = TempDir::new().unwrap();
@@ -4180,7 +4186,13 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     run("status", &["--json", "change", "status", &id]);
     run(
         "review",
-        &["change", "review", &id, "--reviewer", "Independent reviewer"],
+        &[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ],
     );
     run("finalize", &["--json", "change", "finalize", &id]);
 

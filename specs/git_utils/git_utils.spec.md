@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 12
+version: 13
 status: stable
 files:
   - src/git_utils.rs
@@ -31,6 +31,12 @@ Shared git utility functions for querying repository history. Provides the stale
 | `has_commits` | `root: &Path` | `bool` | Whether the repository has any history. An unborn `HEAD` is a work tree by every other test, but nothing can be newer or older than a history that does not exist |
 | `with_discovery_ceiling` | `ceiling: &Path, f: impl FnOnce() -> R` | `R` | Run `f` so git children spawned on this thread set `GIT_CEILING_DIRECTORIES` to `ceiling` after `env_clear`. Restores the previous slot on return or unwind. Default `git_cmd` does not pin a ceiling |
 | `git_cmd` | `root: &Path` | `Command` | Crate-visible `git` spawn: `env_clear`, PATH/locale/home/temp allowlist, `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`, `current_dir(root)`. Ceiling-free unless `with_discovery_ceiling` is in effect |
+| `begin_repository_fact_scope` | `root: &Path` | `RepositoryFactScope` | Open a per-thread repository-fact scope for `root` until the guard drops (REQ-git-utils-008). A scope nested in an open scope for the same root starts from what the outer one knows |
+| `memoized_repository_fact` | `root: &Path, flavor: &'static str, args: &[&str]` | `Option<MemoizedGitOutput>` | The answer an open scope for `root` already holds for this ref-, object- or config-only query; never answers while a discovery ceiling is pinned |
+| `note_repository_git` | `root: &Path, flavor: &'static str, args: &[&str], output: &MemoizedGitOutput` | `()` | Record a completed git answer in every open scope for `root`, or forget every fact when `args` may write. A process that did not exit with a code is never remembered |
+| `invalidate_repository_facts` | — | `()` | Forget every memoized fact and close every batch reader on this thread; called after git writes and external processes |
+| `is_read_only_git_invocation` | `args: &[&str]` | `bool` | Whether running `args` cannot change a memoized fact, skipping leading `-c key=value` options |
+| `batched_git_read` | `root: &Path, flavor: &'static str, command: impl Fn() -> Command, args: &[&str], max_bytes: usize` | `Option<MemoizedGitOutput>` | Answer `show <rev>:<path>` of a blob and single-path `ls-tree --full-tree -z --name-only` from one `git cat-file --batch` child per scope and flavor, with the bytes and status the per-file read gives (REQ-git-utils-009); `None` for any other shape, a non-blob, an object over `max_bytes` or no open scope |
 
 **Exported Types**
 
@@ -38,6 +44,8 @@ Shared git utility functions for querying repository history. Provides the stale
 |------|------|-------------|
 | `SpecBaseline` | enum | `Commit(String)` (measurable), `Untracked` (history exists, spec is not in it — drift is genuinely zero), `Missing(MissingHistory)` (drift is UNKNOWN and must never be reported as zero) |
 | `MissingHistory` | enum | `NotARepository` or `NoCommits` — why a tree cannot be asked how far a spec has fallen behind |
+| `RepositoryFactScope` | struct | Drop guard for one repository-fact scope; lifecycle commands hold one for the CLI command, the project lock and each read scope |
+| `MemoizedGitOutput` | struct | Exit status, stdout and stderr of one git answer, memoized or batched |
 
 **Exported Methods**
 
@@ -57,6 +65,8 @@ Shared git utility functions for querying repository history. Provides the stale
 5. There is no public way to obtain a spec's commit hash without also learning whether the tree has any history: the raw lookup is private, and `SpecBaseline::Commit` is the only value that yields a hash
 6. Default `git_cmd` does not set `GIT_CEILING_DIRECTORIES`. `with_discovery_ceiling` is the only way a git child from this module receives a ceiling, and only for the duration of the closure on that thread
 7. `git_cmd` is crate-visible so other modules (`merge::unmerged_paths`) spawn git through the same cleared-environment allowlist
+8. A repository fact (a `rev-parse`, `symbolic-ref` or `config` read, or a `rev-list`, `log`, `show`, `ls-tree`, `merge-base`, `cat-file`, `diff-tree`, `for-each-ref` or `show-ref` read without stdin) is asked of git at most once per open scope and root. Working-tree and index reads (`ls-files`, `diff`, `diff-files`, `diff-index`, `status`, `check-attr`) are never memoized. Any other git command, and any external process the command runs, forgets every fact and closes every batch reader on the thread
+9. A batched read answers only `HEAD` or a full object id with one literal path, gives the bytes and exit status of the per-file read, and leaves trees shown by `git show` and anything over its bound to the per-file read
 
 ## Behavioral Examples
 
@@ -109,6 +119,7 @@ None (only uses `std::process::Command` for git CLI calls).
 |------|--------|
 | 2026-10-10 | Add `git_utils.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
+| 2026-11-05 | Repository facts are asked once per command and committed objects are read through one `git cat-file --batch` per command (REQ-git-utils-008, REQ-git-utils-009, #861) |
 | 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

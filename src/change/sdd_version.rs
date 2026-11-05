@@ -204,6 +204,8 @@ pub(crate) struct ChangeReadScope {
     /// Every read scope memoizes the delta binding, so one invocation reads each delta once and
     /// `summary` and `approved_deltas` are projections of the same bytes (REQ-change-113).
     _delta_bindings: DeltaBindingMemo,
+    /// Repository facts git answered during this read (REQ-git-utils-008).
+    _facts: crate::git_utils::RepositoryFactScope,
 }
 
 impl Drop for ChangeReadScope {
@@ -229,6 +231,7 @@ pub(crate) fn begin_change_read_scope(root: &Path) -> ChangeReadScope {
     ChangeReadScope {
         root: root.to_path_buf(),
         _delta_bindings: begin_delta_binding_memo(root),
+        _facts: crate::git_utils::begin_repository_fact_scope(root),
     }
 }
 
@@ -600,6 +603,8 @@ impl FramedDigest {
 
 struct ProjectLock {
     file: fs::File,
+    /// Repository facts git answered while this command holds the lock (REQ-git-utils-008).
+    _facts: crate::git_utils::RepositoryFactScope,
 }
 
 impl Drop for ProjectLock {
@@ -634,7 +639,10 @@ fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
             path.display()
         )
     })?;
-    let lock = ProjectLock { file };
+    let lock = ProjectLock {
+        file,
+        _facts: crate::git_utils::begin_repository_fact_scope(root),
+    };
     recover_pending_transaction(root)?;
     Ok(lock)
 }

@@ -414,8 +414,68 @@ fn run_git_bounded(
     input: Option<Vec<u8>>,
     stdout_cap: usize,
 ) -> Result<BoundedCommandOutput, String> {
+    memoized_configured_git(root, args, input, stdout_cap, |command, input| {
+        run_git_command_bounded(command, args, input, stdout_cap)
+    })
+}
+
+/// Run one configured git query for `root`, answering repository facts from the command's open
+/// fact scope and recording what git answered (REQ-git-utils-008). Queries with stdin input are
+/// never memoized, and a fact whose output hit `stdout_cap` is not reused for a larger cap.
+fn memoized_configured_git(
+    root: &Path,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+    stdout_cap: usize,
+    run: impl FnOnce(&mut Command, Option<Vec<u8>>) -> Result<BoundedCommandOutput, String>,
+) -> Result<BoundedCommandOutput, String> {
+    if input.is_none()
+        && let Some(memoized) =
+            crate::git_utils::memoized_repository_fact(root, "configured", args)
+        && memoized.stdout.len() < stdout_cap
+    {
+        return Ok(BoundedCommandOutput {
+            status: memoized.status,
+            stdout: memoized.stdout,
+            stderr: memoized.stderr,
+        });
+    }
+    if input.is_none()
+        && let Some(batched) = crate::git_utils::batched_git_read(
+            root,
+            "configured",
+            || configured_git_command(root),
+            args,
+            stdout_cap.saturating_sub(1),
+        )
+    {
+        crate::git_utils::note_repository_git(root, "configured", args, &batched);
+        return Ok(BoundedCommandOutput {
+            status: batched.status,
+            stdout: batched.stdout,
+            stderr: batched.stderr,
+        });
+    }
+    let had_input = input.is_some();
     let mut command = configured_git_command(root);
-    run_git_command_bounded(&mut command, args, input, stdout_cap)
+    let output = run(&mut command, input)?;
+    if had_input {
+        if !crate::git_utils::is_read_only_git_invocation(args) {
+            crate::git_utils::invalidate_repository_facts();
+        }
+    } else {
+        crate::git_utils::note_repository_git(
+            root,
+            "configured",
+            args,
+            &crate::git_utils::MemoizedGitOutput {
+                status: output.status,
+                stdout: output.stdout.clone(),
+                stderr: output.stderr.clone(),
+            },
+        );
+    }
+    Ok(output)
 }
 
 fn run_git_command_bounded(
@@ -894,6 +954,8 @@ fn git_evidence_with_policy<Hook>(
 where
     Hook: FnMut(usize, &Path),
 {
+    // The before/after comparison below exists to see another process change the tree.
+    let _live = crate::git_utils::live_repository_reads();
     if candidates.len() > MAX_GIT_EVIDENCE_PATHS
         || candidates.iter().map(String::len).sum::<usize>() > MAX_GIT_EVIDENCE_PATH_BYTES
         || candidates.iter().any(|path| path.len() > 4096)

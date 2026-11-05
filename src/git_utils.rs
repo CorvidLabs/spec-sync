@@ -226,9 +226,7 @@ pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> u
 
 /// Check if the current directory is inside a git repository.
 pub fn is_git_repo(root: &Path) -> bool {
-    git_cmd(root)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
+    git_cmd_output(root, &["rev-parse", "--is-inside-work-tree"])
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -241,9 +239,7 @@ pub fn is_git_repo(root: &Path) -> bool {
 /// git repository" rather than reporting everything current (#558) — it is the
 /// state `git init` leaves behind, which is where the quick start begins.
 pub fn has_commits(root: &Path) -> bool {
-    git_cmd(root)
-        .args(["rev-parse", "--verify", "HEAD"])
-        .output()
+    git_cmd_output(root, &["rev-parse", "--verify", "HEAD"])
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -300,6 +296,516 @@ pub struct UnmeasurableSpec {
     /// Each unmeasurable file and why, so the report names the cause rather
     /// than only the effect.
     pub files: Vec<(String, &'static str)>,
+}
+
+// ─── Repository facts (REQ-git-utils-008) ────────────────────────────────
+
+/// What one memoized git query answered.
+#[derive(Clone, Debug)]
+pub(crate) struct MemoizedGitOutput {
+    pub(crate) status: std::process::ExitStatus,
+    pub(crate) stdout: Vec<u8>,
+    pub(crate) stderr: Vec<u8>,
+}
+
+/// One open repository-fact scope: the facts git already answered for `root` in this command.
+struct RepositoryFactFrame {
+    root: PathBuf,
+    facts: std::collections::HashMap<(&'static str, Vec<String>), MemoizedGitOutput>,
+    /// One `git cat-file --batch` child per git command flavor (REQ-git-utils-009).
+    batches: std::collections::HashMap<&'static str, ObjectBatch>,
+}
+
+thread_local! {
+    static REPOSITORY_FACT_SCOPES: RefCell<Vec<RepositoryFactFrame>> = const {
+        RefCell::new(Vec::new())
+    };
+    static LIVE_REPOSITORY_READS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// While held, every git read on this thread asks git: nothing is answered from memoized facts
+/// or a batch reader. Race checks hold one, because they read the repository twice precisely to
+/// see a change made by another process during the command (REQ-git-utils-008).
+#[derive(Debug)]
+pub(crate) struct LiveRepositoryReads {
+    _private: (),
+}
+
+impl Drop for LiveRepositoryReads {
+    fn drop(&mut self) {
+        LIVE_REPOSITORY_READS.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+/// Make every git read on this thread live until the guard drops.
+pub(crate) fn live_repository_reads() -> LiveRepositoryReads {
+    LIVE_REPOSITORY_READS.with(|depth| depth.set(depth.get() + 1));
+    LiveRepositoryReads { _private: () }
+}
+
+fn repository_reads_are_live() -> bool {
+    LIVE_REPOSITORY_READS.with(|depth| depth.get() > 0)
+}
+
+/// Drop guard for one repository-fact scope.
+///
+/// Lifecycle commands hold one for as long as they hold the project lock, and read-only lifecycle
+/// commands for as long as their read scope. Facts never outlive the guard, so a `git commit`
+/// made between two commands (or by a test between two calls) is always seen by the next one.
+/// Scopes are per thread: worker threads spawned inside a command do not memoize.
+#[derive(Debug)]
+pub(crate) struct RepositoryFactScope {
+    root: PathBuf,
+}
+
+impl Drop for RepositoryFactScope {
+    fn drop(&mut self) {
+        REPOSITORY_FACT_SCOPES.with(|scopes| {
+            let removed = scopes.borrow_mut().pop();
+            debug_assert_eq!(
+                removed.as_ref().map(|frame| frame.root.as_path()),
+                Some(self.root.as_path())
+            );
+        });
+    }
+}
+
+/// Open a repository-fact scope for `root` on this thread until the guard drops.
+pub(crate) fn begin_repository_fact_scope(root: &Path) -> RepositoryFactScope {
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        let mut scopes = scopes.borrow_mut();
+        // A scope nested in an open scope for the same root starts from what the outer one already
+        // knows: both live in this command, and invalidation clears every open frame.
+        let facts = scopes
+            .last()
+            .filter(|frame| frame.root == root)
+            .map(|frame| frame.facts.clone())
+            .unwrap_or_default();
+        scopes.push(RepositoryFactFrame {
+            root: root.to_path_buf(),
+            facts,
+            batches: std::collections::HashMap::new(),
+        });
+    });
+    RepositoryFactScope {
+        root: root.to_path_buf(),
+    }
+}
+
+/// Whether `args` asks git a question whose answer only a git write can change.
+///
+/// These read refs, objects and configuration only, never the working tree or the index, so the
+/// files a lifecycle command writes cannot change their answers: `rev-parse` (without `--stdin`),
+/// the read forms of `symbolic-ref` and `config`, and the history and object reads `rev-list`,
+/// `log`, `show`, `ls-tree`, `merge-base`, `cat-file` (single-object forms), `diff-tree`,
+/// `for-each-ref` and `show-ref`. `ls-files`, `diff`, `diff-files`, `diff-index`, `status` and
+/// `check-attr` read the working tree or index and are never memoized.
+fn is_repository_fact(args: &[&str]) -> bool {
+    if args.iter().any(|argument| {
+        matches!(
+            *argument,
+            "--stdin" | "--batch" | "--batch-check" | "--no-index"
+        ) || argument.starts_with("--batch")
+    }) {
+        return false;
+    }
+    match args {
+        ["rev-parse", ..]
+        | ["rev-list", ..]
+        | ["log", ..]
+        | ["show", ..]
+        | ["ls-tree", ..]
+        | ["merge-base", ..]
+        | ["cat-file", ..]
+        | ["diff-tree", ..]
+        | ["for-each-ref", ..]
+        | ["show-ref", ..] => true,
+        ["symbolic-ref", "--short", _] | ["symbolic-ref", "-q", _] | ["symbolic-ref", _] => true,
+        ["config", "--get", ..]
+        | ["config", "--get-regexp", ..]
+        | ["config", "-z", "--get-regexp", ..] => true,
+        _ => false,
+    }
+}
+
+/// The git subcommand in `args`, skipping leading `-c key=value` pairs and other global options.
+fn git_subcommand<'a>(args: &[&'a str]) -> Option<&'a str> {
+    let mut iter = args.iter();
+    while let Some(argument) = iter.next() {
+        match *argument {
+            "-c" | "-C" | "--git-dir" | "--work-tree" | "--namespace" => {
+                iter.next();
+            }
+            option if option.starts_with('-') => {}
+            subcommand => return Some(subcommand),
+        }
+    }
+    None
+}
+
+/// Whether running `args` cannot change any memoized repository fact.
+fn is_read_only_git(args: &[&str]) -> bool {
+    match git_subcommand(args) {
+        Some(
+            "rev-parse" | "show" | "ls-files" | "ls-tree" | "rev-list" | "log" | "cat-file"
+            | "merge-base" | "check-attr" | "check-ignore" | "diff" | "diff-files" | "diff-tree"
+            | "diff-index" | "status" | "for-each-ref" | "show-ref" | "name-rev" | "describe"
+            | "var" | "grep" | "blame" | "count-objects" | "hash-object",
+        ) => !args.iter().any(|argument| *argument == "-w"),
+        Some("symbolic-ref") => is_repository_fact(args),
+        Some("config") => is_repository_fact(args),
+        Some("worktree") => args.iter().any(|argument| *argument == "list"),
+        _ => false,
+    }
+}
+
+/// Whether running `args` cannot change any memoized repository fact, for callers that run git
+/// outside [`note_repository_git`].
+pub(crate) fn is_read_only_git_invocation(args: &[&str]) -> bool {
+    is_read_only_git(args)
+}
+
+/// The memoized answer to `args` for `root` under `flavor`, if a scope for `root` is open and
+/// already holds one. Never answers while a discovery ceiling is pinned.
+pub(crate) fn memoized_repository_fact(
+    root: &Path,
+    flavor: &'static str,
+    args: &[&str],
+) -> Option<MemoizedGitOutput> {
+    if !is_repository_fact(args) || discovery_ceiling_is_set() || repository_reads_are_live() {
+        return None;
+    }
+    let key: (&'static str, Vec<String>) = (
+        flavor,
+        args.iter()
+            .map(|argument| (*argument).to_string())
+            .collect(),
+    );
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        scopes
+            .borrow()
+            .iter()
+            .rev()
+            .filter(|frame| frame.root == root)
+            .find_map(|frame| frame.facts.get(&key).cloned())
+    })
+}
+
+/// Record what git answered for `args`, and forget every fact for `root` after anything that may
+/// write. Call once per git process that ran to completion; a process that could not be started,
+/// timed out or was killed is not an answer and is never remembered.
+pub(crate) fn note_repository_git(
+    root: &Path,
+    flavor: &'static str,
+    args: &[&str],
+    output: &MemoizedGitOutput,
+) {
+    if !is_read_only_git(args) {
+        invalidate_repository_facts();
+        return;
+    }
+    if !is_repository_fact(args) || discovery_ceiling_is_set() || output.status.code().is_none() {
+        return;
+    }
+    let key: (&'static str, Vec<String>) = (
+        flavor,
+        args.iter()
+            .map(|argument| (*argument).to_string())
+            .collect(),
+    );
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        for frame in scopes
+            .borrow_mut()
+            .iter_mut()
+            .filter(|frame| frame.root == root)
+        {
+            frame.facts.insert(key.clone(), output.clone());
+        }
+    });
+}
+
+/// Forget every memoized repository fact on this thread: something outside the fact rules ran,
+/// such as a git write or a configured verification command.
+pub(crate) fn invalidate_repository_facts() {
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        for frame in scopes.borrow_mut().iter_mut() {
+            frame.facts.clear();
+            // A long-lived reader may hold a ref snapshot from before the write.
+            frame.batches.clear();
+        }
+    });
+}
+
+fn discovery_ceiling_is_set() -> bool {
+    DISCOVERY_CEILING.with(|slot| slot.borrow().is_some())
+}
+
+// ─── Batched object reads (REQ-git-utils-009) ────────────────────────────
+
+/// A running `git cat-file --batch` child. Dropping it closes stdin and reaps the child.
+struct ObjectBatch {
+    child: std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+    stdout: std::io::BufReader<std::process::ChildStdout>,
+}
+
+impl Drop for ObjectBatch {
+    fn drop(&mut self) {
+        drop(self.stdin.take());
+        if !matches!(self.child.try_wait(), Ok(Some(_))) {
+            let _ = self.child.kill();
+        }
+        let _ = self.child.wait();
+    }
+}
+
+/// What one batched lookup found.
+enum BatchedObject {
+    /// The name resolves to an object of this type, with these bytes.
+    Found { kind: String, bytes: Vec<u8> },
+    /// Git reports the name missing or ambiguous.
+    Missing,
+}
+
+impl ObjectBatch {
+    fn start(mut command: Command) -> std::io::Result<Self> {
+        use std::process::Stdio;
+        let mut child = command
+            .args(["cat-file", "--batch"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let stdin = child.stdin.take();
+        let stdout = child
+            .stdout
+            .take()
+            .map(std::io::BufReader::new)
+            .ok_or_else(|| std::io::Error::other("cat-file --batch has no stdout"))?;
+        Ok(Self {
+            child,
+            stdin,
+            stdout,
+        })
+    }
+
+    /// Look `name` up. `max_bytes` bounds the object: a larger one is an error, so the caller
+    /// falls back to the per-file read and its own bound.
+    fn read(&mut self, name: &str, max_bytes: usize) -> std::io::Result<BatchedObject> {
+        use std::io::{BufRead, Read, Write};
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or_else(|| std::io::Error::other("cat-file --batch stdin closed"))?;
+        stdin.write_all(name.as_bytes())?;
+        stdin.write_all(b"\n")?;
+        stdin.flush()?;
+        let mut header = String::new();
+        if self.stdout.read_line(&mut header)? == 0 {
+            return Err(std::io::Error::other("cat-file --batch ended"));
+        }
+        let header = header.trim_end_matches('\n');
+        if header.ends_with(" missing") || header.ends_with(" ambiguous") {
+            return Ok(BatchedObject::Missing);
+        }
+        let mut fields = header.split(' ');
+        let (Some(_oid), Some(kind), Some(size), None) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            return Err(std::io::Error::other(format!(
+                "unexpected cat-file --batch header `{header}`"
+            )));
+        };
+        let size: usize = size
+            .parse()
+            .map_err(|_| std::io::Error::other("unreadable cat-file --batch size"))?;
+        let mut bytes = vec![0; size];
+        self.stdout.read_exact(&mut bytes)?;
+        let mut newline = [0_u8; 1];
+        self.stdout.read_exact(&mut newline)?;
+        if size > max_bytes {
+            return Err(std::io::Error::other("object exceeds the read bound"));
+        }
+        Ok(BatchedObject::Found {
+            kind: kind.to_string(),
+            bytes,
+        })
+    }
+}
+
+/// Look up `name` through the open scope's batch reader for `flavor`, starting it with
+/// `command` on first use. `None` when no scope for `root` is open on this thread, a discovery
+/// ceiling is pinned, or the reader failed (the reader is then discarded); callers fall back to
+/// one git process for the read.
+fn batched_object(
+    root: &Path,
+    flavor: &'static str,
+    command: impl FnOnce() -> Command,
+    name: &str,
+    max_bytes: usize,
+) -> Option<BatchedObject> {
+    if name.contains('\n') || discovery_ceiling_is_set() || repository_reads_are_live() {
+        return None;
+    }
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        let mut scopes = scopes.borrow_mut();
+        let frame = scopes.iter_mut().rev().find(|frame| frame.root == root)?;
+        if !frame.batches.contains_key(flavor) {
+            let batch = ObjectBatch::start(command()).ok()?;
+            #[cfg(test)]
+            record_test_batch_start();
+            frame.batches.insert(flavor, batch);
+        }
+        let batch = frame.batches.get_mut(flavor)?;
+        match batch.read(name, max_bytes) {
+            Ok(found) => Some(found),
+            Err(_) => {
+                frame.batches.remove(flavor);
+                None
+            }
+        }
+    })
+}
+
+/// Whether a revision is safe to hand to `cat-file --batch` in place of `ls-tree`/`show`.
+fn batchable_revision(revision: &str) -> bool {
+    revision == "HEAD"
+        || (revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
+}
+
+/// Whether a path names exactly one entry for `ls-tree` and `<rev>:<path>` alike.
+fn batchable_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with([':', '/', '-'])
+        && !path.ends_with('/')
+        && !path.contains(['*', '?', '[', '\\', '\n'])
+        && !path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+}
+
+#[cfg(unix)]
+fn synthetic_status(code: i32) -> std::process::ExitStatus {
+    use std::os::unix::process::ExitStatusExt;
+    std::process::ExitStatus::from_raw(code << 8)
+}
+
+/// Answer `args` from the open scope's batch reader when it is a single committed-object read
+/// with a known answer shape (REQ-git-utils-009):
+///
+/// - `show <rev>:<path>` of a blob: the blob's bytes, exactly as `git show` prints a blob.
+///   A missing object fails with status 128, as `git show` does. A tree or other object type is
+///   not answered here, because `git show` formats those differently.
+/// - `ls-tree --full-tree -z --name-only <rev> -- <path>`: `<path>\0` when the path exists at
+///   `<rev>`, otherwise empty, with status 0 either way, as `ls-tree` reports. Only answered when
+///   `<rev>` resolves to a tree; otherwise `ls-tree` fails, so the read falls back to it.
+///
+/// `<rev>` must be `HEAD` or a full object id, and `<path>` one literal entry. Anything else is
+/// `None`, and the caller runs git as before.
+#[cfg(unix)]
+pub(crate) fn batched_git_read(
+    root: &Path,
+    flavor: &'static str,
+    command: impl Fn() -> Command,
+    args: &[&str],
+    max_bytes: usize,
+) -> Option<MemoizedGitOutput> {
+    match args {
+        ["show", object] => {
+            let (revision, path) = object.split_once(':')?;
+            if !batchable_revision(revision) || !batchable_path(path) {
+                return None;
+            }
+            match batched_object(root, flavor, &command, object, max_bytes)? {
+                BatchedObject::Found { kind, bytes } if kind == "blob" => Some(MemoizedGitOutput {
+                    status: synthetic_status(0),
+                    stdout: bytes,
+                    stderr: Vec::new(),
+                }),
+                BatchedObject::Found { .. } => None,
+                BatchedObject::Missing => Some(MemoizedGitOutput {
+                    status: synthetic_status(128),
+                    stdout: Vec::new(),
+                    stderr: format!("fatal: invalid object name '{object}'.\n").into_bytes(),
+                }),
+            }
+        }
+        [
+            "ls-tree",
+            "--full-tree",
+            "-z",
+            "--name-only",
+            revision,
+            "--",
+            path,
+        ] => {
+            if !batchable_revision(revision) || !batchable_path(path) {
+                return None;
+            }
+            match batched_object(
+                root,
+                flavor,
+                &command,
+                &format!("{revision}^{{tree}}"),
+                usize::MAX,
+            )? {
+                BatchedObject::Found { .. } => {}
+                BatchedObject::Missing => return None,
+            }
+            let stdout = match batched_object(
+                root,
+                flavor,
+                &command,
+                &format!("{revision}:{path}"),
+                usize::MAX,
+            )? {
+                BatchedObject::Found { .. } => format!("{path}\0").into_bytes(),
+                BatchedObject::Missing => Vec::new(),
+            };
+            Some(MemoizedGitOutput {
+                status: synthetic_status(0),
+                stdout,
+                stderr: Vec::new(),
+            })
+        }
+        _ => None,
+    }
+}
+
+#[cfg(not(unix))]
+pub(crate) fn batched_git_read(
+    _root: &Path,
+    _flavor: &'static str,
+    _command: impl Fn() -> Command,
+    _args: &[&str],
+    _max_bytes: usize,
+) -> Option<MemoizedGitOutput> {
+    None
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_BATCH_STARTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn record_test_batch_start() {
+    TEST_BATCH_STARTS.with(|count| count.set(count.get() + 1));
+}
+
+/// Run `git args` in `root` through [`git_cmd`], answering repository facts from the open scope.
+fn git_cmd_output(root: &Path, args: &[&str]) -> std::io::Result<MemoizedGitOutput> {
+    if let Some(memoized) = memoized_repository_fact(root, "git_cmd", args) {
+        return Ok(memoized);
+    }
+    let output = git_cmd(root).args(args).output()?;
+    let output = MemoizedGitOutput {
+        status: output.status,
+        stdout: output.stdout,
+        stderr: output.stderr,
+    };
+    note_repository_git(root, "git_cmd", args, &output);
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -582,5 +1088,324 @@ mod tests {
             is_git_repo(&snap),
             "after the closure, default git_cmd is ceiling-free again"
         );
+    }
+
+    // ─── REQ-git-utils-008: repository facts ────────────────────────────
+
+    fn head_through_memo(root: &Path) -> String {
+        let output = git_cmd_output(root, &["rev-parse", "--verify", "HEAD"]).unwrap();
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    }
+
+    #[test]
+    fn a_fact_read_twice_in_one_scope_is_answered_once() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "a", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let args = ["rev-parse", "--verify", "HEAD"];
+        assert!(memoized_repository_fact(root, "git_cmd", &args).is_none());
+        let first = head_through_memo(root);
+        let memoized = memoized_repository_fact(root, "git_cmd", &args)
+            .expect("the first read is remembered for the rest of the scope");
+        assert_eq!(String::from_utf8(memoized.stdout).unwrap().trim(), first);
+        // A commit made outside SpecSync during an open scope is not seen until a write by the
+        // command itself or the scope ends; this is the command-lifetime contract.
+        assert_eq!(head_through_memo(root), first);
+    }
+
+    #[test]
+    fn a_write_inside_the_scope_forgets_every_fact() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "a", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let before = head_through_memo(root);
+        assert!(is_git_repo(root));
+        git_cmd_output(root, &["commit", "--allow-empty", "-m", "second"]).unwrap();
+        assert!(
+            memoized_repository_fact(root, "git_cmd", &["rev-parse", "--verify", "HEAD"]).is_none(),
+            "a commit by the command itself clears the memo"
+        );
+        let after = head_through_memo(root);
+        assert_ne!(before, after, "the read after the commit asks git again");
+        for write in [
+            &["update-ref", "refs/heads/other", "HEAD"][..],
+            &["switch", "-c", "elsewhere"][..],
+            &["-c", "core.autocrlf=false", "add", "-A"][..],
+            &["config", "core.autocrlf", "false"][..],
+        ] {
+            head_through_memo(root);
+            git_cmd_output(root, write).unwrap();
+            assert!(
+                memoized_repository_fact(root, "git_cmd", &["rev-parse", "--verify", "HEAD"])
+                    .is_none(),
+                "`git {write:?}` must clear the memo"
+            );
+        }
+        head_through_memo(root);
+        invalidate_repository_facts();
+        assert!(
+            memoized_repository_fact(root, "git_cmd", &["rev-parse", "--verify", "HEAD"]).is_none(),
+            "an external process (verification command) clears the memo"
+        );
+    }
+
+    #[test]
+    fn nothing_is_memoized_without_an_open_scope_or_after_it_closes() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "a", "first");
+        let args = ["rev-parse", "--verify", "HEAD"];
+        head_through_memo(root);
+        assert!(memoized_repository_fact(root, "git_cmd", &args).is_none());
+        {
+            let _scope = begin_repository_fact_scope(root);
+            head_through_memo(root);
+            assert!(memoized_repository_fact(root, "git_cmd", &args).is_some());
+        }
+        assert!(memoized_repository_fact(root, "git_cmd", &args).is_none());
+        let other = init_repo();
+        let _scope = begin_repository_fact_scope(other.path());
+        head_through_memo(root);
+        assert!(
+            memoized_repository_fact(root, "git_cmd", &args).is_none(),
+            "a scope for another root does not memoize this one"
+        );
+    }
+
+    #[test]
+    fn working_tree_reads_and_stdin_queries_are_never_facts() {
+        for args in [
+            &["ls-files", "-z"][..],
+            &["status", "--porcelain"][..],
+            &["diff-files", "--name-only"][..],
+            &["check-attr", "-z", "--stdin", "filter"][..],
+            &["cat-file", "--batch"][..],
+            &["rev-parse", "--stdin"][..],
+            &["config", "core.autocrlf", "false"][..],
+            &["symbolic-ref", "HEAD", "refs/heads/x"][..],
+        ] {
+            assert!(!is_repository_fact(args), "{args:?} must not be memoized");
+        }
+        for args in [
+            &["rev-parse", "--show-prefix"][..],
+            &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"][..],
+            &["config", "--get", "core.fsmonitor"][..],
+            &["log", "--format=%H", "HEAD"][..],
+        ] {
+            assert!(is_repository_fact(args), "{args:?} is a repository fact");
+        }
+        assert!(!is_read_only_git(&["-c", "a=b", "commit", "-m", "x"]));
+        assert!(is_read_only_git(&[
+            "-c",
+            "a=b",
+            "diff-files",
+            "--name-only"
+        ]));
+        assert!(!is_read_only_git(&["worktree", "add", "x"]));
+        assert!(!is_read_only_git(&["hash-object", "-w", "f"]));
+    }
+
+    // ─── REQ-git-utils-009: batched object reads ────────────────────────
+
+    fn per_file(root: &Path, args: &[&str]) -> MemoizedGitOutput {
+        let output = git_cmd(root).args(args).output().unwrap();
+        MemoizedGitOutput {
+            status: output.status,
+            stdout: output.stdout,
+            stderr: output.stderr,
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn batched_reads_equal_per_file_reads_from_one_child() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "dir/a.txt", "alpha\n", "first");
+        fs::write(root.join("empty.txt"), "").unwrap();
+        fs::write(root.join("binary.bin"), [0_u8, 159, 146, 150, 0, 10, 13]).unwrap();
+        commit_file(root, "dir/b.txt", "beta", "second");
+        let head = head_through_memo(root);
+        TEST_BATCH_STARTS.with(|count| count.set(0));
+        let _scope = begin_repository_fact_scope(root);
+        let mut reads = Vec::new();
+        for revision in ["HEAD", head.as_str()] {
+            for path in [
+                "dir/a.txt",
+                "dir/b.txt",
+                "empty.txt",
+                "binary.bin",
+                "missing.txt",
+            ] {
+                reads.push(vec!["show".to_string(), format!("{revision}:{path}")]);
+                for listed in [path, "dir"] {
+                    reads.push(
+                        [
+                            "ls-tree",
+                            "--full-tree",
+                            "-z",
+                            "--name-only",
+                            revision,
+                            "--",
+                            listed,
+                        ]
+                        .map(str::to_string)
+                        .to_vec(),
+                    );
+                }
+            }
+        }
+        for read in &reads {
+            let args: Vec<&str> = read.iter().map(String::as_str).collect();
+            let batched = batched_git_read(root, "git_cmd", || git_cmd(root), &args, usize::MAX)
+                .unwrap_or_else(|| panic!("{args:?} should be answered by the batch"));
+            let expected = per_file(root, &args);
+            assert_eq!(batched.stdout, expected.stdout, "{args:?} stdout");
+            assert_eq!(
+                batched.status.success(),
+                expected.status.success(),
+                "{args:?} status"
+            );
+            assert_eq!(
+                batched.status.code(),
+                expected.status.code(),
+                "{args:?} code"
+            );
+        }
+        assert_eq!(
+            TEST_BATCH_STARTS.with(std::cell::Cell::get),
+            1,
+            "{} reads share one cat-file --batch child",
+            reads.len()
+        );
+        // A tree shown with `git show` is formatted, not raw, so it is left to `git show`.
+        assert!(
+            batched_git_read(
+                root,
+                "git_cmd",
+                || git_cmd(root),
+                &["show", "HEAD:dir"],
+                usize::MAX
+            )
+            .is_none()
+        );
+        // Unknown shapes, abbreviated revisions and pathspec magic are not batched.
+        for args in [
+            &["show", "HEAD~1:dir/a.txt"][..],
+            &["show", "HEAD:dir/"][..],
+            &["show", "HEAD:*.txt"][..],
+            &["show", "HEAD"][..],
+            &[
+                "ls-tree",
+                "--full-tree",
+                "-z",
+                "--name-only",
+                "HEAD",
+                "--",
+                "dir/",
+            ][..],
+        ] {
+            assert!(
+                batched_git_read(root, "git_cmd", || git_cmd(root), args, usize::MAX).is_none(),
+                "{args:?} must fall back to git"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_batched_head_read_after_a_commit_sees_the_new_commit() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "one", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let read = |root: &Path| {
+            batched_git_read(
+                root,
+                "git_cmd",
+                || git_cmd(root),
+                &["show", "HEAD:a.txt"],
+                usize::MAX,
+            )
+            .unwrap()
+            .stdout
+        };
+        assert_eq!(read(root), b"one");
+        fs::write(root.join("a.txt"), "two").unwrap();
+        git_cmd_output(root, &["commit", "-am", "second"]).unwrap();
+        assert_eq!(read(root), b"two");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_object_over_the_bound_falls_back_to_git() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "big.txt", &"x".repeat(4096), "big");
+        let _scope = begin_repository_fact_scope(root);
+        assert!(
+            batched_git_read(
+                root,
+                "git_cmd",
+                || git_cmd(root),
+                &["show", "HEAD:big.txt"],
+                1024
+            )
+            .is_none()
+        );
+        assert_eq!(
+            batched_git_read(
+                root,
+                "git_cmd",
+                || git_cmd(root),
+                &["show", "HEAD:big.txt"],
+                8192
+            )
+            .unwrap()
+            .stdout
+            .len(),
+            4096
+        );
+    }
+
+    #[test]
+    fn live_reads_ask_git_even_inside_a_scope() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "a", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let before = head_through_memo(root);
+        // Another process moves HEAD during the command.
+        git(root, &["commit", "--allow-empty", "-m", "elsewhere"]);
+        assert_eq!(
+            head_through_memo(root),
+            before,
+            "an ordinary read is answered from the scope"
+        );
+        {
+            let _live = live_repository_reads();
+            assert!(
+                memoized_repository_fact(root, "git_cmd", &["rev-parse", "--verify", "HEAD"])
+                    .is_none()
+            );
+            assert_ne!(
+                head_through_memo(root),
+                before,
+                "a race check sees the move"
+            );
+            #[cfg(unix)]
+            assert!(
+                batched_git_read(
+                    root,
+                    "git_cmd",
+                    || git_cmd(root),
+                    &["show", "HEAD:a.txt"],
+                    usize::MAX
+                )
+                .is_none()
+            );
+        }
     }
 }

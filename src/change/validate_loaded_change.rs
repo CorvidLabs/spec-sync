@@ -408,7 +408,32 @@ fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord
     result
 }
 
+/// Every active and archived change, with each archived record checked from its own bytes only.
+///
+/// The roster `change finalize` and `change archive` judge the change they archive against
+/// (REQ-change-124). An archived record is parsed from its `state.json` and passed through
+/// `validate_loaded_change`, exactly as [`list_all_changes_checked`] does, but its Git
+/// workflow-version history is not walked: that archive was validated when it was archived, and
+/// re-walking every archive's history on every finalize made the command grow with the number of
+/// archives and the length of history. Active records still come from [`list_changes_checked`],
+/// so their history is still validated, and so is the history of any archive these paths rely
+/// on: `load_change` validates a dependency, and `successor_covers_input` validates an archived
+/// successor before it may cover an input. `change audit --strict` keeps the full walk over every
+/// archive.
+fn list_all_changes_structural(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
+    list_all_changes_loaded(root, false)
+}
+
 fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
+    list_all_changes_loaded(root, true)
+}
+
+/// Loads the active and archived roster. `walk_archived_history` decides whether each archived
+/// record's Git workflow-version history is validated as well.
+fn list_all_changes_loaded(
+    root: &Path,
+    walk_archived_history: bool,
+) -> Result<BTreeMap<String, ChangeRecord>, String> {
     let mut records = BTreeMap::new();
     for record in list_changes_checked(root)? {
         records.insert(record.id.clone(), record);
@@ -420,7 +445,9 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
     let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
-    prefetch_archived_workflow_histories(root, &entries);
+    if walk_archived_history {
+        prefetch_archived_workflow_histories(root, &entries);
+    }
     for entry in entries {
         let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
         if !entry
@@ -450,7 +477,9 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
         let record: ChangeRecord = serde_json::from_str(&content)
             .map_err(|error| format!("invalid archived state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &record.id, &path)?;
-        validate_workflow_version_history(root, &record)?;
+        if walk_archived_history {
+            validate_workflow_version_history(root, &record)?;
+        }
         if records.insert(record.id.clone(), record.clone()).is_some() {
             return Err(format!(
                 "change `{}` exists in multiple active/archive locations",

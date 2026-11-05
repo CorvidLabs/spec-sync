@@ -41,3 +41,7 @@ REQ-cmd-change-023: `status_and_show_json_report_approved_delta_requirements` in
 ## Historical reconciliation evidence
 
 REQ-cmd-change-025: Targeted lifecycle tests plus actual consumer CLI status/finalize JSON inspection verify explicit unproven-history disclosure; normal command output stays unchanged.
+
+## Strict audit evidence
+
+REQ-cmd-change-026: `change audit` passes the global `--strict` flag to `change::audit_project_with_strict`. strict_audit_still_refuses_a_hidden_downgrade_in_another_archive (src/change_tests/fast_finalize.rs) proves the report names the archived change whose history hides a downgrade, and that the non-strict report equals `audit_project`'s.

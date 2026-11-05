@@ -91,3 +91,6 @@ spec: change.spec.md
 - [x] Implement reopen-only recorded review mismatch recovery with exact package anchoring and tamper controls.
 
 - [x] Preserve the complete invalid recorded review, including its claimed hash, as untrusted during bounded reopen-only recovery.
+
+- [x] Let finalize and archive read other archives structurally and validate only the history of the change they archive and of any archive they rely on; move the per-archive history walk to `change audit --strict` (REQ-change-124, #856).
+- [ ] Decide whether to batch the cold archive-introduction reads (three Git processes per introducing commit) behind the closing check without loosening the partial-clone conclusiveness rules.

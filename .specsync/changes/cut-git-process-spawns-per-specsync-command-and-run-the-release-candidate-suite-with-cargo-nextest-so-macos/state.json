@@ -10,7 +10,7 @@
   "state": "draft",
   "base_commit": "67aa7dc25ab8f1ddb732b906b933bb778e2c86aa",
   "created_at": 1793896272,
-  "updated_at": 1793896375,
+  "updated_at": 1793896565,
   "affected_specs": [
     "git_utils",
     "change",
@@ -35,7 +35,8 @@
     "specs/cmd_change/",
     "hi/speed.md",
     ".chough/",
-    ".agents/skills/chough-workflow/"
+    ".agents/skills/chough-workflow/",
+    "INTENT.md"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

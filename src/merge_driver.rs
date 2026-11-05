@@ -842,7 +842,7 @@ fn merge_version_field(
         _ => None,
     };
     // Equal values written with different scalar syntax (`6` and `"6"`) stay a
-    // conflict, as do any two styles that differ (merge invariant 21).
+    // conflict, as do any two styles that differ (merge invariant 22).
     if combined.is_some() && our_raw != their_raw && quote_style(our_raw) != quote_style(their_raw)
     {
         return FieldMerge::Conflict(conflict_block(
@@ -1562,7 +1562,7 @@ mod tests {
         }
     }
 
-    // P2: equal versions written with different scalar syntax stay a conflict (invariant 21).
+    // P2: equal versions written with different scalar syntax stay a conflict (merge invariant 22).
     #[test]
     fn version_scalar_syntax_divergence_stays_a_conflict() {
         let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]);

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 162
+version: 165
 status: active
 files:
   - src/change.rs
@@ -288,7 +288,8 @@ Acceptance Criteria
 
 44. Opening a change fails when `.specsync/sdd.json` exists and cannot be parsed, including when a workflow-v2 baseline is already present. The error says the SDD policy is invalid. A missing policy file still opens a workflow-v2 change. A parsed policy is not treated as absent.
 
-45. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
+45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
+46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
 
 ## Behavioral Examples
 
@@ -603,5 +604,8 @@ Acceptance Criteria
 | 2026-11-04 | refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text: Refuse a stale modified delta instead of overwriting newer canonical text |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
+| 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits, so `change status` cannot be stalled by that pipe (#854, #855, SPEED-1, SPEED-1.a) |
+| 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued Git bytes, including on the non-Unix bounded reader |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | v162 / #862: `change audit` refuses a duplicated requirement ID and names it |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

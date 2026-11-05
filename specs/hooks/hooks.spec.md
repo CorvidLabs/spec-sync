@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 13
+version: 14
 status: stable
 files:
   - src/hooks.rs
@@ -59,6 +59,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
     and failure diagnostic. Spaces, apostrophes, dollar substitutions and
     backticks cannot alter shell syntax or execute directory-name content.
 12. Instruction blocks, the pre-commit hook and Claude Code hook settings are written without U+2013 or U+2014. A new block begins with ``<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->``; uninstall also recognizes the begin sentinel releases up to and including 6.1.1 wrote, by an exact two-form list rather than a prefix. Project-keyed pre-commit blocks are found by their markers whatever body they hold; the unmarked legacy comparison still uses the current hook body, with no frozen copy of an older one
+13. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -136,3 +137,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | 2026-10-10 | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |
 | 2026-10-16 | keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics: Keep project paths literal in generated pre-commit failure diagnostics |
 | 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

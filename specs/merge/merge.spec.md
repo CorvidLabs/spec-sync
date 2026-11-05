@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 9
+version: 10
 status: stable
 files:
   - src/merge.rs
@@ -75,10 +75,11 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 17. `unmerged_paths` returns `None` — not an empty set — whenever git could not answer, so no caller can read an unasked question as an all-clear
 18. `unmerged_paths` spawns git through `crate::git_utils::git_cmd`, so host secrets and git-override variables are not forwarded
 19. `conflict_hunks` and `document_conflict_hunks` return only complete opener/separator/closer triples, and `document_conflict_hunks` ignores fenced code blocks, so marker-shaped prose (a setext `<h1>` underline, a documented example) is never reported as a conflict
-20. `merge_contract` is the git merge driver, not the marker resolver. Invariants 3–6 still govern `merge_specs`: numeric `version` there is `max(ours, theirs)`, and prose hunks stay manual
-21. When both sides change a numeric `version` from the ancestor, `merge_contract` sets it to ancestor plus both deltas and never below either side. Equal values written with different scalar syntax stay a conflict. A one-sided edit is returned byte-for-byte
-22. The driver unions `files`, `db_tables`, and `depends_on`, and unions change-log rows sorted by the first cell then the row text. A `version` column on rows that are new since the ancestor is renumbered only when every such cell is an integer
-23. Requirement blocks added on one side are kept. The same new requirement ID with two different bodies is kept twice, so `check` can name it. An existing block edited differently on both sides stays a conflict, and so does any other prose both sides changed differently
+20. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
+21. `merge_contract` is the git merge driver, not the marker resolver. Invariants 3–6 still govern `merge_specs`: numeric `version` there is `max(ours, theirs)`, and prose hunks stay manual
+22. When both sides change a numeric `version` from the ancestor, `merge_contract` sets it to ancestor plus both deltas and never below either side. Equal values written with different scalar syntax stay a conflict. A one-sided edit is returned byte-for-byte
+23. The driver unions `files`, `db_tables`, and `depends_on`, and unions change-log rows sorted by the first cell then the row text. A `version` column on rows that are new since the ancestor is renumbered only when every such cell is an integer
+24. Requirement blocks added on one side are kept. The same new requirement ID with two different bodies is kept twice, so `check` can name it. An existing block edited differently on both sides stays a conflict, and so does any other prose both sides changed differently
 
 ## Behavioral Examples
 
@@ -177,5 +178,6 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | 2026-07-27 | CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base: Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes |
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | v9 / #862: git merge driver counts both version bumps and unions change-log rows, `files:`, and requirement blocks without loosening the marker resolver |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

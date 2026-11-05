@@ -482,11 +482,12 @@ fn shallow_history_is_complete_for_change(
         return Ok(false);
     };
     let commit_object = format!("{base}^{{commit}}");
-    if !Command::new("git")
-        .args(["cat-file", "-e", commit_object.as_str()])
-        .current_dir(root)
-        .output()
-        .is_ok_and(|output| output.status.success())
+    if !crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["cat-file", "-e", commit_object.as_str()])
+            .current_dir(root),
+    )
+    .is_ok_and(|output| output.status.success())
     {
         return Ok(false);
     }
@@ -494,12 +495,12 @@ fn shallow_history_is_complete_for_change(
         return Ok(false);
     }
     if !references.iter().all(|reference| {
-        Command::new("git")
-            .args(["merge-base", "--is-ancestor", base, reference])
-            .current_dir(root)
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
+        crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args(["merge-base", "--is-ancestor", base, reference])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| status.success())
     }) {
         return Ok(false);
     }
@@ -520,20 +521,20 @@ fn shallow_history_is_complete_for_change(
     })?;
     for boundary in boundaries.lines().filter(|line| !line.trim().is_empty()) {
         let reachable = references.iter().any(|reference| {
-            Command::new("git")
-                .args(["merge-base", "--is-ancestor", boundary, reference])
-                .current_dir(root)
-                .stderr(Stdio::null())
-                .status()
-                .is_ok_and(|status| status.success())
+            crate::git_utils::status_without_inherited_output(
+                Command::new("git")
+                    .args(["merge-base", "--is-ancestor", boundary, reference])
+                    .current_dir(root),
+            )
+            .is_ok_and(|status| status.success())
         });
         if reachable
-            && !Command::new("git")
-                .args(["merge-base", "--is-ancestor", boundary, base])
-                .current_dir(root)
-                .stderr(Stdio::null())
-                .status()
-                .is_ok_and(|status| status.success())
+            && !crate::git_utils::status_without_inherited_output(
+                Command::new("git")
+                    .args(["merge-base", "--is-ancestor", boundary, base])
+                    .current_dir(root),
+            )
+            .is_ok_and(|status| status.success())
         {
             return Ok(false);
         }
@@ -551,21 +552,22 @@ fn historical_change_directories(
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
     let active_state_pathspec = format!(":(top,literal){active_state}");
     let archive_root_pathspec = format!(":(top,literal){archive_root}");
-    let output = Command::new("git")
-        .args([
-            "ls-tree",
-            "-z",
-            "-r",
-            "--full-name",
-            "--name-only",
-            commit,
-            "--",
-            active_state_pathspec.as_str(),
-            archive_root_pathspec.as_str(),
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect correction history at {commit}: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args([
+                "ls-tree",
+                "-z",
+                "-r",
+                "--full-name",
+                "--name-only",
+                commit,
+                "--",
+                active_state_pathspec.as_str(),
+                archive_root_pathspec.as_str(),
+            ])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to inspect correction history at {commit}: {error}"))?;
     if !output.status.success() {
         return Err(format!(
             "failed to inspect trusted correction paths at commit {commit}"
@@ -713,20 +715,21 @@ fn historical_definition_digest_matches(
         }
         let delta_directory = format!("{directory}/deltas");
         let delta_pathspec = format!(":(top,literal){delta_directory}");
-        let output = Command::new("git")
-            .args([
-                "ls-tree",
-                "-z",
-                "-r",
-                "--full-name",
-                "--name-only",
-                commit,
-                "--",
-                delta_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect historical deltas: {error}"))?;
+        let output = crate::git_utils::output_after_child_exits(
+            Command::new("git")
+                .args([
+                    "ls-tree",
+                    "-z",
+                    "-r",
+                    "--full-name",
+                    "--name-only",
+                    commit,
+                    "--",
+                    delta_pathspec.as_str(),
+                ])
+                .current_dir(root),
+        )
+        .map_err(|error| format!("failed to inspect historical deltas: {error}"))?;
         if !output.status.success() {
             return Ok(false);
         }
@@ -803,18 +806,19 @@ fn git_entry_at_commit(
     path: &str,
 ) -> Result<Option<(u32, Vec<u8>)>, String> {
     let pathspec = format!(":(top,literal){path}");
-    let output = Command::new("git")
-        .args([
-            "ls-tree",
-            "-z",
-            "--full-name",
-            commit,
-            "--",
-            pathspec.as_str(),
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect trusted historical entry: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args([
+                "ls-tree",
+                "-z",
+                "--full-name",
+                commit,
+                "--",
+                pathspec.as_str(),
+            ])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to inspect trusted historical entry: {error}"))?;
     if !output.status.success() || output.stdout.is_empty() {
         return Ok(None);
     }
@@ -3492,12 +3496,9 @@ fn scoped_edits_uncommitted(root: &Path, record: &ChangeRecord) -> Option<bool> 
     }
     let mut args = vec!["status", "--porcelain", "--"];
     args.extend(paths);
-    let output = Command::new("git")
-        .args(&args)
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .output()
-        .ok()?;
+    let output =
+        crate::git_utils::output_after_child_exits(Command::new("git").args(&args).current_dir(root))
+            .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -3786,12 +3787,12 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
     // silently selected a different pull-request diff base below.
     let records = list_changes_checked(root)?;
     let policy_changed_from_head = !is_ci_project(root)
-        && Command::new("git")
-            .args(["diff", "--quiet", "HEAD", "--", POLICY_PATH])
-            .current_dir(root)
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| !status.success());
+        && crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args(["diff", "--quiet", "HEAD", "--", POLICY_PATH])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| !status.success());
     let comparison = if policy_changed_from_head {
         "HEAD".to_string()
     } else {

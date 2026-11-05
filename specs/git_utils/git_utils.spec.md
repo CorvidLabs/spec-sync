@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 12
+version: 15
 status: stable
 files:
   - src/git_utils.rs
@@ -31,6 +31,9 @@ Shared git utility functions for querying repository history. Provides the stale
 | `has_commits` | `root: &Path` | `bool` | Whether the repository has any history. An unborn `HEAD` is a work tree by every other test, but nothing can be newer or older than a history that does not exist |
 | `with_discovery_ceiling` | `ceiling: &Path, f: impl FnOnce() -> R` | `R` | Run `f` so git children spawned on this thread set `GIT_CEILING_DIRECTORIES` to `ceiling` after `env_clear`. Restores the previous slot on return or unwind. Default `git_cmd` does not pin a ceiling |
 | `git_cmd` | `root: &Path` | `Command` | Crate-visible `git` spawn: `env_clear`, PATH/locale/home/temp allowlist, `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`, `current_dir(root)`. Ceiling-free unless `with_discovery_ceiling` is in effect |
+| `output_after_child_exits` | `command: &mut Command` | `io::Result<Output>` | Collect stdout and stderr and return when the direct child exits. Stdin is the null device, as with `Command::output`. Both output streams are pipes this process owns. After the child is reaped, one finite snapshot of the bytes already queued is kept. A descendant that keeps writing does not delay the return |
+| `status_without_inherited_output` | `command: &mut Command` | `io::Result<ExitStatus>` | Run `command` with stdout and stderr on the null device and return when the direct child exits, so a descendant cannot keep the caller's output pipes open |
+| `read_pipe_until_stop` | `reader`, `stop: &AtomicBool`, `wake: RawFd`, `cap: usize`, `overflow: &AtomicBool` | `io::Result<Vec<u8>>` | Unix read of one pipe until EOF or until `stop` is set. `stop` is checked between reads. When `stop` is observed, one `FIONREAD` snapshot of the bytes already queued is drained and the function returns. Past `cap`, further bytes are discarded and `overflow` is set |
 
 **Exported Types**
 
@@ -38,6 +41,7 @@ Shared git utility functions for querying repository history. Provides the stale
 |------|------|-------------|
 | `SpecBaseline` | enum | `Commit(String)` (measurable), `Untracked` (history exists, spec is not in it — drift is genuinely zero), `Missing(MissingHistory)` (drift is UNKNOWN and must never be reported as zero) |
 | `MissingHistory` | enum | `NotARepository` or `NoCommits` — why a tree cannot be asked how far a spec has fallen behind |
+| `OutputWake` | struct | Unix self-pipe, created after the child is spawned, that wakes every reader when the direct child has been reaped. Neither reader consumes the wake byte |
 
 **Exported Methods**
 
@@ -45,6 +49,9 @@ Shared git utility functions for querying repository history. Provides the stale
 |--------|-----------|---------|-------------|
 | `reason` | `self: MissingHistory` | `&'static str` | Lowercase reason (`not a git repository` / `repository has no commits`), for machine payloads and mid-sentence use |
 | `sentence` | `self: MissingHistory` | `&'static str` | Sentence-cased reason (`Not a git repository` / `Repository has no commits`), for the head of a human-readable error line |
+| `new` | | `io::Result<OutputWake>` | Open the wake pipe with `FD_CLOEXEC` on both ends |
+| `raw_read` | `&self` | `RawFd` | Read end both output readers poll |
+| `signal` | `&self, stop: &AtomicBool` | | Store `stop` then write one wake byte |
 | `UnmeasurableSpec` | struct | A spec whose staleness could not be measured at all: path, module name, and each unmeasurable file with its reason. Distinct from a fresh spec — a fresh spec was compared and found current, this one had nothing to compare, and counting it fresh spends it against the up-to-date total on evidence never gathered |
 | `StaleInfo` | struct | Staleness summary for a single spec: path, module name, max commits behind, per-file details, and any cited files that no longer exist — a spec is stale on a deletion alone, whatever the threshold, and every renderer needs the cause or a row reads `0 commits behind` with nothing to act on |
 
@@ -57,6 +64,7 @@ Shared git utility functions for querying repository history. Provides the stale
 5. There is no public way to obtain a spec's commit hash without also learning whether the tree has any history: the raw lookup is private, and `SpecBaseline::Commit` is the only value that yields a hash
 6. Default `git_cmd` does not set `GIT_CEILING_DIRECTORIES`. `with_discovery_ceiling` is the only way a git child from this module receives a ceiling, and only for the duration of the closure on that thread
 7. `git_cmd` is crate-visible so other modules (`merge::unmerged_paths`) spawn git through the same cleared-environment allowlist
+8. `output_after_child_exits` returns when the direct child exits. Stdin is the null device. Stdout and stderr are pipes this process owns, not the caller's. When the child-exit signal is observed, the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped (SPEED-1, SPEED-1.e). `status_without_inherited_output` runs the child with both streams on the null device, so a descendant cannot keep the caller's stdout or stderr open after the caller exits
 
 ## Behavioral Examples
 
@@ -84,6 +92,18 @@ Shared git utility functions for querying repository history. Provides the stale
 - **When** `is_git_repo` is called with `repo/packages/foo`
 - **Then** returns true, so staleness, reports, and deletion detection still see the parent work tree
 
+#### Scenario: A descendant keeps the child's output pipe open
+
+- **Given** a child that writes `payload` and exits while a grandchild still holds the child's stdout and is blocked
+- **When** `output_after_child_exits` is called
+- **Then** it returns `payload` while that grandchild is still alive
+
+#### Scenario: A status child must not inherit the caller's stdout
+
+- **Given** a child that records the path of its stdout
+- **When** `status_without_inherited_output` runs it
+- **Then** the recorded path is the null device
+
 #### Scenario: Caller-scoped discovery ceiling
 
 - **Given** a git repository at `repo/` and a directory `repo/tmp/snap` with no `.git` of its own
@@ -97,6 +117,8 @@ Shared git utility functions for querying repository history. Provides the stale
 | Not a git repository | `is_git_repo` returns false; `missing_history` returns `Some(NotARepository)`; `spec_baseline` returns `Missing` |
 | Repository with an unborn `HEAD` | `has_commits` returns false; `missing_history` returns `Some(NoCommits)`; `spec_baseline` returns `Missing` |
 | Git not installed | Treated as "not a git repository": `spec_baseline` returns `Missing`, so callers refuse rather than report zero drift |
+| Child output reader panics | `output_after_child_exits` returns an error |
+| Spawn fails | `output_after_child_exits` and `status_without_inherited_output` return the spawn error |
 | File doesn't exist in git history | `spec_baseline` returns `Untracked`; `git_commits_since` returns 0 |
 
 ## Dependencies
@@ -120,3 +142,6 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits (#854, #855, SPEED-1, SPEED-1.e) |
+| 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued bytes and give the child a null stdin |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

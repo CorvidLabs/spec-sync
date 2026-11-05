@@ -1119,6 +1119,26 @@ mod tests {
     }
 
     #[test]
+    fn change_audit_archives_is_opt_in_and_independent_of_strict() {
+        let parse = |args: &[&str]| match Cli::try_parse_from(args).unwrap().command {
+            Some(Command::Change {
+                action: ChangeAction::Audit { archives },
+            }) => archives,
+            _ => panic!("not a change audit"),
+        };
+        assert!(!parse(&["specsync", "change", "audit"]));
+        assert!(!parse(&["specsync", "--strict", "change", "audit"]));
+        assert!(parse(&["specsync", "change", "audit", "--archives"]));
+        assert!(parse(&[
+            "specsync",
+            "--strict",
+            "change",
+            "audit",
+            "--archives"
+        ]));
+    }
+
+    #[test]
     fn change_correct_requires_supported_values_and_audit_inputs() {
         let cli = Cli::try_parse_from([
             "specsync",

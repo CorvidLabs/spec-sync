@@ -15,6 +15,14 @@ stop waiting on a descendant pipe after the git child exits
 
 - `git_utils`
 - `change`
+- `changelog`
+- `cmd_change`
+- `cmd_diff`
+- `cmd_lifecycle`
+- `comment`
+- `github`
+- `hooks`
+- `merge`
 
 ## Acceptance Criteria
 

@@ -10,10 +10,18 @@
   "state": "draft",
   "base_commit": "40dcf33a6b0f0b55dcb7f17e8e98be9d55fa2c56",
   "created_at": 1793886749,
-  "updated_at": 1793886766,
+  "updated_at": 1793899872,
   "affected_specs": [
     "git_utils",
-    "change"
+    "change",
+    "changelog",
+    "cmd_change",
+    "cmd_diff",
+    "cmd_lifecycle",
+    "comment",
+    "github",
+    "hooks",
+    "merge"
   ],
   "affected_paths": [
     "src/git_utils.rs",

@@ -7,11 +7,11 @@
   "title": "Send an approved change back to draft for re-scoping",
   "description": "Send an approved change back to draft for re-scoping",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "f82eb09e2d3da852ff58e0cfbb734ab6faba724e",
   "created_at": 1793803621,
-  "updated_at": 1793838577,
+  "updated_at": 1793838642,
   "affected_specs": [
     "change",
     "cmd_change",

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "send-an-approved-change-back-to-draft-for-re-scoping",
+  "implementation_commit": "fb516245bedfcecc64302daf1ba203d274c79e63",
+  "implementation_tree": "19aed39bded77137c7fb450b7f04049a2561e8ec",
+  "contract_digest": "79176876ca9fd22500093a70fe52de810202eb4c4807a6e4717635ad51cad78c",
+  "workspace_digest": "d8792f2843a685d3bac72675db53c512c5a47479965c271b74fe86de1a7fa6d8",
+  "closing_digest": "496ef3a95b38f781ba8151cd402ec3cc72973316ec9ff581015aaa5c009a45d9",
+  "review_digest": "889926ddb96c0e30f957c3e59b90417965ce9dbf32c4fcda67c2d9ec82dcaf56",
+  "finalization_digest": "60d06ff62fa60b7bc67db1945b9133be681d7592f6fe88ec87a9fdd8ea994504",
+  "timestamp": 1793838642
+}

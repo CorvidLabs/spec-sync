@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "give-the-macos-release-candidate-qualification-75-minutes-after-v6-2-0-rc-1-timed-out",
+  "slug": "give-the-macos-release-candidate-qualification-75-minutes-after-v6-2-0-rc-1-timed-out",
+  "title": "Give the macOS release candidate qualification 75 minutes after v6.2.0-rc.1 timed out",
+  "description": "Give the macOS release candidate qualification 75 minutes after v6.2.0-rc.1 timed out",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "2ebe1f44a527f9b04dd73d3326dadd2bd481b055",
+  "created_at": 1793857663,
+  "updated_at": 1793857869,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    "CHANGELOG.md",
+    "docs/releases/6.2.0.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Release workflow job timeout and release notes only; no runtime, canonical API, Action default, risk or provenance policy changes.",
+  "acceptance_criteria": [
+    "The release.yml qualify job allows 75 minutes, so a v6.2.0 candidate that passes every test on macos-15 is not cancelled during the release build; the 6.2.0 notes record rc.1's timeout."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

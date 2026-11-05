@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "b8dfab33b12c9baa109fd1b22c743d9112a33e0e",
+  "contract_digest": "7463351a35a6ad008b3879c2b5308874e2d1f2b029d01c01bf1fb1cbcbff40e3",
+  "execution_digest": "7a4ac58ae3a5e8b65a180c95bb7133343f35631148f9d67b24301ebfdb46f74e",
+  "workspace_digest": "7d8c9ef6b5821f8516ef2e5ba81d2bf90978a0f2f669242f49fa41a628f45bb0",
+  "timestamp": 1793837338
+}

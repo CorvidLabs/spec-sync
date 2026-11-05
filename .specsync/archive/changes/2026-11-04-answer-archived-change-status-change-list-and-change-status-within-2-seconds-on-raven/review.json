@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "cd2853b1813fd12e14e9fb72c3bffdc584dcbf1f",
+  "contract_digest": "8510c7cd4f81461e818383f5fc2a7ce91cc0f216880a5dedd823404b4ccaba89",
+  "execution_digest": "a6b07e6cb0f1ec4c36a16f75787a52bd84e497f133d8d3476a86af7ea2a2d9c1",
+  "workspace_digest": "775ef78a02cebcd66be482e98facda458b72565c6a860a486f1bbd9b4c8fe824",
+  "timestamp": 1793836062
+}

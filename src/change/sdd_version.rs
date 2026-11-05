@@ -140,6 +140,12 @@ struct ChangeReadSnapshot {
     workflow_version_history: BTreeMap<String, Result<(), String>>,
     historical_sequence_ledgers: BTreeMap<u64, Result<Vec<Vec<u8>>, String>>,
     terminal_evidence: Option<Result<BTreeMap<String, TerminalEvidenceSummary>, String>>,
+    archived_terminal_evidence: BTreeMap<String, TerminalEvidenceSummary>,
+    archived_integrity_cache: Option<ArchivedIntegrityCache>,
+    scoped_review_texts: BTreeMap<Vec<String>, Result<String, String>>,
+    scoped_review_files: BTreeMap<(String, String), Option<Vec<u8>>>,
+    archive_index: Option<BTreeMap<String, Vec<PathBuf>>>,
+    persistent_cache: PersistentReadCacheFrame,
 }
 
 impl ChangeReadSnapshot {
@@ -160,6 +166,12 @@ impl ChangeReadSnapshot {
             workflow_version_history: BTreeMap::new(),
             historical_sequence_ledgers: BTreeMap::new(),
             terminal_evidence: None,
+            archived_terminal_evidence: BTreeMap::new(),
+            archived_integrity_cache: None,
+            scoped_review_texts: BTreeMap::new(),
+            scoped_review_files: BTreeMap::new(),
+            archive_index: None,
+            persistent_cache: PersistentReadCacheFrame::default(),
         }
     }
 }
@@ -203,6 +215,9 @@ impl Drop for ChangeReadScope {
                 removed.as_ref().map(|scope| scope.root.as_path()),
                 Some(self.root.as_path())
             );
+            if let Some(scope) = removed.as_ref() {
+                flush_persistent_read_cache(&scope.persistent_cache);
+            }
         });
     }
 }
@@ -332,6 +347,25 @@ fn record_test_git_process() {
 
 #[cfg(not(test))]
 fn record_test_git_process() {}
+
+/// The Git processes the current worker thread spawned, for its parent to fold in.
+#[cfg(test)]
+fn worker_test_git_process_count() -> usize {
+    test_git_process_count()
+}
+
+#[cfg(not(test))]
+fn worker_test_git_process_count() -> usize {
+    0
+}
+
+#[cfg(test)]
+fn add_test_git_processes(spawned: usize) {
+    TEST_GIT_PROCESS_COUNT.with(|count| count.set(count.get() + spawned));
+}
+
+#[cfg(not(test))]
+fn add_test_git_processes(_spawned: usize) {}
 
 #[cfg(test)]
 fn reset_test_git_process_count() {
@@ -4612,14 +4646,201 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if unowned.is_empty() {
         return Ok(());
     }
+    let hints: Vec<String> = unowned
+        .iter()
+        .map(|path| format!("  - {path}: {}", ownership_hint(root, record, path)))
+        .collect();
     Err(format!(
         "no declared module canonically owns {}: {}. Declare the owning module with `--spec`, \
-         or add the path to an owning spec's `files:` list",
+         or add the path to an owning spec's `files:` list:\n{}",
         if unowned.len() == 1 {
             "this affected path"
         } else {
             "these affected paths"
         },
-        unowned.join(", ")
+        unowned.join(", "),
+        hints.join("\n")
     ))
+}
+
+/// Names what to change for one unowned affected path.
+///
+/// Every undeclared module that would own the path is named, in a fixed order: modules whose
+/// `[modules."<name>"] owns` covers it (sorted by name), then every spec under the specs
+/// directory whose `files:` lists it (sorted by spec path). A listing spec that cannot own the
+/// path says why. When nothing names a module to declare, the declared spec whose `files:` share
+/// the deepest directory with the path is the one to edit; ties name every tied spec, and a path
+/// that shares no directory with any declared spec (depth 0) gets the generic message. Nothing here depends on directory iteration or `--spec` order. This only words
+/// the refusal; ownership is still decided by `production_source_lacks_canonical_owner_with_evidence`.
+fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
+    let config = crate::config::load_config(root);
+    let mut declare = Vec::new();
+    let mut explain = Vec::new();
+
+    let mut configured: Vec<&String> = config
+        .modules
+        .keys()
+        .filter(|module| !record.affected_specs.contains(*module))
+        .filter(|module| configured_module_owns_path(&config, module, path))
+        .collect();
+    configured.sort();
+    for module in configured {
+        declare.push(format!(
+            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {module}`"
+        ));
+    }
+
+    for (spec, module) in specs_listing_path(root, &config.specs_dir, path) {
+        match module {
+            None => explain.push(format!(
+                "`{spec}` lists it but has no `module:` in its frontmatter, so it owns nothing"
+            )),
+            Some(module) if !record.affected_specs.contains(&module) => declare.push(format!(
+                "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
+            )),
+            Some(module) => {
+                let canonical = canonical_module_paths(root, &config.specs_dir, &module)
+                    .ok()
+                    .map(|(spec_path, _)| portable_project_path(root, &spec_path));
+                explain.push(match canonical {
+                    Some(canonical) if canonical != spec => format!(
+                        "`{spec}` lists it for declared module `{module}`, but it is not that module's canonical spec `{canonical}`, so the listing does not count"
+                    ),
+                    _ => format!(
+                        "`{spec}` lists it for declared module `{module}`, but that spec does not yet prove ownership; run `specsync check` for the reason"
+                    ),
+                });
+            }
+        }
+    }
+
+    if !declare.is_empty() {
+        explain.extend(declare);
+        return explain.join("; ");
+    }
+    explain.push(closest_declared_spec_hint(root, &config, record, path));
+    explain.join("; ")
+}
+
+/// Every `*.spec.md` under the specs directory whose `files:` lists `path`, as
+/// `(portable spec path, frontmatter module)`, sorted by spec path.
+fn specs_listing_path(root: &Path, specs_dir: &str, path: &str) -> Vec<(String, Option<String>)> {
+    let mut listing = Vec::new();
+    let mut stack = vec![root.join(specs_dir)];
+    let mut visited = 0usize;
+    'walk: while let Some(directory) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            visited += 1;
+            if visited > 10_000 {
+                break 'walk;
+            }
+            let entry_path = entry.path();
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                stack.push(entry_path);
+                continue;
+            }
+            if !kind.is_file()
+                || !entry_path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(".spec.md"))
+            {
+                continue;
+            }
+            let Some(parsed) = fs::read_to_string(&entry_path)
+                .ok()
+                .and_then(|content| crate::parser::parse_frontmatter(&content))
+            else {
+                continue;
+            };
+            if parsed
+                .frontmatter
+                .files
+                .iter()
+                .any(|file| normalize_project_path(file).is_ok_and(|file| file == path))
+            {
+                listing.push((
+                    portable_project_path(root, &entry_path),
+                    parsed.frontmatter.module,
+                ));
+            }
+        }
+    }
+    listing.sort();
+    listing
+}
+
+/// The `files:` edit to suggest when no undeclared module would own `path`.
+fn closest_declared_spec_hint(
+    root: &Path,
+    config: &crate::types::SpecSyncConfig,
+    record: &ChangeRecord,
+    path: &str,
+) -> String {
+    let ours: Vec<&str> = path.split('/').collect();
+    let our_directory = &ours[..ours.len().saturating_sub(1)];
+    // Whole path components only, so `src/foo` and `src/foobar` share `src` (depth 1).
+    let shared_depth = |file: &str| {
+        let theirs: Vec<&str> = file.split('/').collect();
+        let their_directory = &theirs[..theirs.len().saturating_sub(1)];
+        our_directory
+            .iter()
+            .zip(their_directory.iter())
+            .take_while(|(left, right)| left == right)
+            .count()
+    };
+    let mut declared: Vec<(usize, String)> = Vec::new();
+    for module in &record.affected_specs {
+        let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module) else {
+            continue;
+        };
+        let depth = fs::read_to_string(&spec_path)
+            .ok()
+            .and_then(|content| crate::parser::parse_frontmatter(&content))
+            .map(|parsed| {
+                parsed
+                    .frontmatter
+                    .files
+                    .iter()
+                    .filter_map(|file| normalize_project_path(file).ok())
+                    .map(|file| shared_depth(&file))
+                    .max()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0);
+        declared.push((depth, portable_project_path(root, &spec_path)));
+    }
+    declared.sort_by(|left, right| left.1.cmp(&right.1));
+    declared.dedup_by(|left, right| left.1 == right.1);
+    let best = declared.iter().map(|(depth, _)| *depth).max().unwrap_or(0);
+    let quoted = |specs: Vec<&String>| {
+        specs
+            .iter()
+            .map(|spec| format!("`{spec}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    // Depth 0 shares no directory at all, so no declared spec is a closer guess than any other.
+    if best == 0 {
+        return "add it to the `files:` list of the spec that owns it".to_string();
+    }
+    let closest: Vec<&String> = declared
+        .iter()
+        .filter(|(depth, _)| *depth == best)
+        .map(|(_, spec)| spec)
+        .collect();
+    if closest.len() == 1 {
+        format!("add it to the `files:` list in `{}`", closest[0])
+    } else {
+        format!(
+            "add it to the `files:` list of one of {}",
+            quoted(closest)
+        )
+    }
 }

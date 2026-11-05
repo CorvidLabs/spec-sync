@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero",
+  "implementation_commit": "3cf5ab2e34e03c5834a68916bf61817d2ddbac52",
+  "implementation_tree": "0c88a4019b8416ee933bd2f01a9d3be1903a9c35",
+  "contract_digest": "9b68c8e7a10bfe93a18388af1839f6c2854d44c63c9f0f0099cf8f65202bf2ce",
+  "workspace_digest": "c3ff47224df8224931bdc015d16a783ca5795d5e0edc5b80fdf22f9384beb1c9",
+  "closing_digest": "dad322844ad48b88a75865d08e25d78bfb62b8eabac7b882ec7c1ac4fb7d1b3b",
+  "review_digest": "2521bc058019a666d223c26ce8aa40df01685e47b1dfff52139adc348f130126",
+  "finalization_digest": "11ca0368d66f271c527a0dd37a2f9ff2c63ace5a108d9fe6c20908ba4087ebdc",
+  "timestamp": 1793836617
+}

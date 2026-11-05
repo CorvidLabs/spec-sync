@@ -95,6 +95,25 @@
         "REQ-change-124",
         "REQ-cmd-change-027"
       ]
+    },
+    {
+      "timestamp": 1793851019,
+      "commit": "d0cdcab4938f5daa5605d515fa27b84993b527fb",
+      "contract_digest": "54fc92b38cf341bfab9b44221bbfc55d067bc7908dacf1143480c380e3aee6d7",
+      "execution_digest": "8fdcd255ef5e9af039f405314d9b2b32ee594f5c0457b4a62f530b8d414b8f19",
+      "workspace_digest": "3c6429fc1c3dd11eb72a5bf5a2fb94ae10fc542f443c360dd4a4127e12209e17",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-124",
+        "REQ-cmd-change-027"
+      ]
     }
   ]
 }

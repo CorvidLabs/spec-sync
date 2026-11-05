@@ -622,6 +622,10 @@ Acceptance Criteria
   workflow v1.
 - Workflow-origin history boundedly follows every reachable canonical dated archive state path for
   the exact change ID, so archive→reopen→rearchive moves preserve the immutable creation anchor.
+- That history is read with repository-root pathspecs (`:(top,glob)` to discover dated archive
+  paths, `:(top,literal)` to walk them). A project rooted in a subdirectory of its Git repository
+  still sees every dated path and still refuses a workflow-version downgrade that a later commit
+  restored.
 - The one CHG-0068 adoption fails closed and requests full trusted history when its immutable
   allowlisted commit/blob anchor is unavailable.
 
@@ -1564,6 +1568,7 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 
 - Output of every read is identical to a live read: same JSON, same refusals, same first error.
 - A cached workflow-version history verdict is reused only when the SHA-256 of the archived `state.json` bytes, its archive path, the build identity and the repository prefix all match, the commit it was computed at is an ancestor of `HEAD`, and no commit in between touched that change's active or archived state paths. Anything else recomputes it live, and only passing verdicts are stored.
+- That invalidation walk uses `:(top,literal)` pathspecs. A project rooted in a subdirectory of its Git repository does not reuse a cached pass across a commit that touched the change's state, including a workflow-version downgrade that a later commit restored.
 - Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.

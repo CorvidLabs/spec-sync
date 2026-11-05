@@ -3282,6 +3282,12 @@ fn validate_workflow_version_history_uncached(
         return Ok(());
     }
     let state_paths = workflow_version_state_paths(root, record)?;
+    // These paths are already repository-relative. `:(top)` keeps Git from resolving them
+    // against the project directory, which would apply `git_repo_prefix` a second time (#851).
+    let state_pathspecs: Vec<String> = state_paths
+        .iter()
+        .map(|path| format!(":(top,literal){path}"))
+        .collect();
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let mut arguments = vec![
@@ -3292,7 +3298,7 @@ fn validate_workflow_version_history_uncached(
         "HEAD",
         "--",
     ];
-    arguments.extend(state_paths.iter().map(String::as_str));
+    arguments.extend(state_pathspecs.iter().map(String::as_str));
     let commits = scoped_review_git_text(root, &arguments)
         .map_err(|_| "failed to enumerate workflow-version history".to_string())?;
     let commits: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
@@ -3373,7 +3379,16 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
     }
 
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
-    let pathspec = format!(":(glob){archive_root}/*-{}/state.json", record.id.as_str());
+    // `:(top,glob)` matches `archive_introduction_index`: the path is repository-relative, and
+    // the command runs in the project directory. Without `top`, a non-empty `git_repo_prefix`
+    // is applied twice and the archived history is empty (#851). Only the dated directory is a
+    // pattern; the archive root is escaped so a project directory such as `app[1]` matches
+    // itself rather than a character class.
+    let pathspec = format!(
+        ":(top,glob){}/*-{}/state.json",
+        escape_glob_pathspec(&archive_root),
+        escape_glob_pathspec(record.id.as_str())
+    );
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let commits = scoped_review_git_text(
@@ -4263,3 +4278,15 @@ fn today() -> String {
 #[cfg(test)]
 #[path = "../change_tests.rs"]
 mod tests;
+
+/// Escapes the characters a Git `glob` pathspec treats as wildcards, so `text` matches only itself.
+fn escape_glob_pathspec(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        if matches!(character, '*' | '?' | '[' | ']' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}

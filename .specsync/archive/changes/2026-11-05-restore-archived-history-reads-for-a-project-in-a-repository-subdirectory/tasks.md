@@ -1,0 +1,12 @@
+---
+change: restore-archived-history-reads-for-a-project-in-a-repository-subdirectory
+artifact: tasks
+---
+
+# Tasks
+
+- [x] Add the subdirectory fixture and confirm both new tests fail on main.
+- [x] Anchor the dated-archive glob with `:(top,glob)` and the history walk of those paths with `:(top,literal)`.
+- [x] Anchor `lifecycle_paths_touched_since` with `:(top,literal)`.
+- [x] Record the restored behavior on REQ-change-043 and REQ-change-119, and in the change spec.
+- [x] Leif approved the definition (0xLeif, 2026-11-05). Review and ship are lifecycle gates Leif records, not tasks here.

@@ -609,3 +609,122 @@ fn a_pass_is_stored_only_for_the_state_it_was_computed_for() {
     let scoped = git_processes_for_one_scoped_read(root, &record.id).0.unwrap_err();
     assert_eq!(scoped, live);
 }
+
+/// A Git repository whose SpecSync project is `app/`, so `git rev-parse --show-prefix` is `app/`
+/// when history queries run with the project root as their working directory.
+fn subdirectory_project() -> (TempDir, PathBuf) {
+    subdirectory_project_named("app")
+}
+
+/// The same repository shape with the project in a directory called `name`.
+fn subdirectory_project_named(name: &str) -> (TempDir, PathBuf) {
+    let temp = TempDir::new().unwrap();
+    let repository = temp.path();
+    quiet_git(repository, &["init", "-b", "main"]);
+    quiet_git(repository, &["config", "user.email", "test@example.com"]);
+    quiet_git(repository, &["config", "user.name", "Test"]);
+    fs::write(repository.join("README.md"), "repository root\n").unwrap();
+    quiet_git(repository, &["add", "README.md"]);
+    quiet_git(repository, &["commit", "-m", "repository root"]);
+    let root = repository.join(name);
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    quiet_git(&root, &["add", "seed.txt"]);
+    quiet_git(&root, &["commit", "-m", "seed"]);
+    assert_eq!(git_repo_prefix(&root).unwrap(), format!("{name}/"));
+    (temp, root)
+}
+
+/// Archives one workflow-v2 change by moving its package, the same shape the cross-date history
+/// test uses, inside whatever project `root` is.
+fn archived_workflow_record(root: &Path) -> ChangeRecord {
+    let mut record = current_workflow_record(root, completed_no_spec_record(root));
+    record.state = ChangeState::Accepted;
+    save_change(root, &record).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "record accepted workflow identity"]);
+    let archive = root.join(ARCHIVE_PATH).join(format!("2026-07-14-{}", record.id));
+    fs::create_dir_all(archive.parent().unwrap()).unwrap();
+    fs::rename(change_dir(root, &record.id), &archive).unwrap();
+    record.state = ChangeState::Archived;
+    write_json(&archive.join("state.json"), &record).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive on first date"]);
+    record
+}
+
+// Issue #851. A project in a repository subdirectory double-applies `git_repo_prefix` when a
+// history pathspec lacks `:(top)`, so a hidden workflow-version downgrade is invisible to the
+// live walk and to the read cache's invalidation walk. Both must still refuse it.
+#[test]
+fn subdirectory_project_refuses_a_hidden_workflow_downgrade_live_and_cached() {
+    let (_temp, root) = subdirectory_project();
+    let record = archived_workflow_record(&root);
+    git_processes_for_one_scoped_read(&root, &record.id)
+        .0
+        .expect("clean archived history in a subdirectory project is readable");
+
+    let state_path = find_change_dir(&root, &record.id).unwrap().join("state.json");
+    commit_hidden_workflow_downgrade(&root, &state_path);
+
+    let live = archived_status_read(&root, &record.id).unwrap_err();
+    assert!(
+        live.contains("workflow-version history changed immutable identity"),
+        "{live}"
+    );
+    let scoped = git_processes_for_one_scoped_read(&root, &record.id).0.unwrap_err();
+    assert_eq!(scoped, live);
+}
+
+// Issue #851. The dated-archive glob is what admits an earlier package directory. A downgrade
+// committed only on that earlier path, then hidden by a reopen and a later rearchive, is still
+// part of the change's workflow-version history when the project is not the repository root.
+#[test]
+fn subdirectory_project_follows_an_earlier_archive_path_through_a_hidden_downgrade() {
+    let (_temp, root) = subdirectory_project();
+    follows_an_earlier_archive_path_through_a_hidden_downgrade(&root);
+}
+
+// A project directory whose name holds glob metacharacters. Interpolated unescaped into a
+// `:(top,glob)` pathspec, `app[1]` is a character class that matches `app1`, never `app[1]`, so
+// the dated-archive discovery finds nothing and the hidden downgrade is invisible again.
+#[test]
+fn glob_metacharacter_project_directory_follows_an_earlier_archive_path() {
+    let (_temp, root) = subdirectory_project_named("app[1]");
+    follows_an_earlier_archive_path_through_a_hidden_downgrade(&root);
+}
+
+fn follows_an_earlier_archive_path_through_a_hidden_downgrade(root: &Path) {
+    let root = root.to_path_buf();
+    let mut record = archived_workflow_record(&root);
+    let first_archive = find_change_dir(&root, &record.id).unwrap();
+    commit_hidden_workflow_downgrade(&root, &first_archive.join("state.json"));
+
+    fs::rename(&first_archive, change_dir(&root, &record.id)).unwrap();
+    record.state = ChangeState::Verifying;
+    save_change(&root, &record).unwrap();
+    quiet_git(&root, &["add", "--all"]);
+    quiet_git(&root, &["commit", "-m", "reopen archived record"]);
+
+    let second_archive = root.join(ARCHIVE_PATH).join(format!("2026-07-15-{}", record.id));
+    fs::rename(change_dir(&root, &record.id), &second_archive).unwrap();
+    record.state = ChangeState::Archived;
+    write_json(&second_archive.join("state.json"), &record).unwrap();
+    quiet_git(&root, &["add", "--all"]);
+    quiet_git(&root, &["commit", "-m", "rearchive on second date"]);
+
+    let state_paths = workflow_version_state_paths(&root, &record).unwrap();
+    assert!(
+        state_paths.iter().any(|path| path.contains("2026-07-14-")),
+        "earlier archive path missing from {state_paths:?}"
+    );
+    assert!(
+        state_paths.iter().any(|path| path.contains("2026-07-15-")),
+        "current archive path missing from {state_paths:?}"
+    );
+    let error = load_change(&root, &record.id).unwrap_err();
+    assert!(
+        error.contains("workflow-version history changed immutable identity"),
+        "{error}"
+    );
+}

@@ -1939,7 +1939,10 @@ fn scoped_review_file_at_commit(
         return Ok(cached);
     }
     let object = format!("{commit}:{path}");
-    let output = run_scoped_review_git(root, &["show", object.as_str()])?;
+    // The trailing `--` makes Git parse `object` as a revision only. Without it, a missing path
+    // holding glob characters (a project in `app[1]/`) falls back to a pathspec, prints nothing
+    // and exits 0, which would read as an empty file that exists.
+    let output = run_scoped_review_git(root, &["show", object.as_str(), "--"])?;
     // A failed read is only "absent" when the commit's tree has no such entry; otherwise the blob
     // is unavailable (an offline partial clone), which must neither pass as absent nor be memoized.
     if !output.status.success() && commit_tree_lists_path(root, commit, path) != Some(false) {

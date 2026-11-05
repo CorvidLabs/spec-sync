@@ -1,6 +1,6 @@
 ---
 module: change
-version: 165
+version: 167
 status: active
 files:
   - src/change.rs
@@ -271,7 +271,7 @@ Acceptance Criteria
 28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
 29. The 5.0 ledger migration backfills reopening digest fields idempotently from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
 30. Canonical module path resolution treats missing and inert local registries as absent fallbacks while non-inert unparsable registries still fail closed with the established parse diagnostic.
-31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves.
+31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves, including when the project root is a subdirectory of the Git repository. The discovery glob, the history walk of those paths, and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root with `:(top)`, so a non-empty repository prefix is not applied twice.
 32. The workflow-v2 baseline retains its exact introduction bytes at every bounded touching commit and readable parent, rejecting rewrite-then-restore history.
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
 34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons. Folding them into `context.md` is a convention, not a `next_action` gate. Finalize and ship name the bundle path in text and JSON without making that fold the next action.
@@ -400,6 +400,7 @@ Acceptance Criteria
 | An active v2 finalization has a mismatched historical review workspace but its entire raw package matches the current remote-default tree | Reopen may record that exact Git anchor and downgrade to verifying after all other authentication checks; ordinary acceptance/archive remain strict and fresh verification plus scoped review are required |
 | The mismatched package is modified, unanchored, not active v2, or has any other invalid finalization digest | Recovery refuses without changing lifecycle or evidence bytes |
 | The exactly recorded mismatched old review also has an inconsistent review hash | Reopen-only recovery preserves both as untrusted at the same anchor; finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch remains refused |
+| A workflow-version downgrade is committed and then restored, including when the project root is a subdirectory of the Git repository | Load, status, and a warm read cache refuse with `workflow-version history changed immutable identity`, and a downgrade that exists only on an earlier dated archive path is still seen after reopen and rearchive |
 
 ## Dependencies
 
@@ -424,6 +425,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |
 | 2026-10-10 | Add `change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |
@@ -607,5 +609,6 @@ Acceptance Criteria
 | 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits, so `change status` cannot be stalled by that pipe (#854, #855, SPEED-1, SPEED-1.a) |
 | 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued Git bytes, including on the non-Unix bounded reader |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
+| 2026-11-05 | restore-archived-history-reads-for-a-project-in-a-repository-subdirectory: Restore archived history reads for a project in a repository subdirectory |
 | 2026-11-05 | v162 / #862: `change audit` refuses a duplicated requirement ID and names it |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

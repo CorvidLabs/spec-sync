@@ -1,6 +1,6 @@
 ---
 id: finalize-validates-only-the-change-it-archives
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 0723bdca6c7d592baff6fdd8dba84b2de07c875a
 ---

@@ -7,11 +7,11 @@
   "title": "Finalize validates only the change it archives",
   "description": "Finalize validates only the change it archives",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "0723bdca6c7d592baff6fdd8dba84b2de07c875a",
   "created_at": 1793842511,
-  "updated_at": 1793851583,
+  "updated_at": 1793852012,
   "affected_specs": [
     "change",
     "cmd_change",

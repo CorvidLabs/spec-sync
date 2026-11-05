@@ -3002,6 +3002,52 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         return Ok(());
     };
 
+    validate_workflow_v2_baseline_history(
+        root,
+        &head,
+        &baseline_path,
+        baseline.cutoff_commit.as_deref(),
+        &current_bytes,
+    )?;
+    if record.workflow_version != 1 {
+        return Ok(());
+    }
+    let cutoff = baseline.cutoff_commit.as_deref().ok_or_else(|| {
+        "workflow-v1 state is not eligible after root workflow-v2 adoption".to_string()
+    })?;
+    if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
+        return Err(format!(
+            "workflow-v1 change {} was not present at the trusted pre-v2 cutoff {}",
+            record.id, cutoff
+        ));
+    }
+    Ok(())
+}
+
+/// The record-independent half of `validate_workflow_v2_baseline`: the baseline's reachable
+/// history at the commit `head` names. Every query names `head` by its resolved id rather than
+/// `HEAD`, so the verdict is exactly a verdict about that commit and, inside a history scope, a
+/// passing one is reused for the other archived changes finalize and archive validate.
+fn validate_workflow_v2_baseline_history(
+    root: &Path,
+    head: &str,
+    baseline_path: &str,
+    cutoff_commit: Option<&str>,
+    current_bytes: &[u8],
+) -> Result<(), String> {
+    // A read scope memoizes by the literal `HEAD` its own reads used; elsewhere every query names
+    // the resolved id, and only then is a passing verdict shared under that id.
+    let revision = if read_scope_value(root, |_| Some(())).is_some() {
+        "HEAD"
+    } else {
+        head
+    };
+    let memoize = revision == head;
+    if memoize
+        && memoized_baseline_history_ok(root, head, baseline_path, cutoff_commit, current_bytes)
+    {
+        return Ok(());
+    }
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let history = scoped_review_git_text(
@@ -3011,9 +3057,9 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
             "--reverse",
             "--full-history",
             max_count.as_str(),
-            "HEAD",
+            revision,
             "--",
-            baseline_path.as_str(),
+            baseline_path,
         ],
     )
     .map_err(|_| "failed to enumerate workflow-v2 baseline history".to_string())?;
@@ -3025,8 +3071,8 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         ));
     }
     if history.is_empty() {
-        if let Some(cutoff) = baseline.cutoff_commit.as_deref()
-            && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, &head])?
+        if let Some(cutoff) = cutoff_commit
+            && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, head])?
         {
             return Err(
                 "uncommitted workflow-v2 baseline cutoff is not an ancestor of HEAD".into(),
@@ -3039,9 +3085,9 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
                 "log",
                 "--format=%H",
                 "--diff-filter=A",
-                "HEAD",
+                revision,
                 "--",
-                baseline_path.as_str(),
+                baseline_path,
             ],
         )
         .map_err(|_| "failed to locate workflow-v2 baseline introduction".to_string())?;
@@ -3063,7 +3109,7 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
             return Err("workflow-v2 baseline introduction has ambiguous parents".into());
         }
         let parents = &fields[1..];
-        match (parents.first().copied(), baseline.cutoff_commit.as_deref()) {
+        match (parents.first().copied(), cutoff_commit) {
             (None, None) => {}
             (Some(first_parent), Some(cutoff))
                 if cached_git_status_success(
@@ -3078,17 +3124,17 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
             }
         }
         for parent in parents {
-            if scoped_review_file_at_commit(root, parent, &baseline_path)?.is_some() {
+            if scoped_review_file_at_commit(root, parent, baseline_path)?.is_some() {
                 return Err("workflow-v2 baseline existed before its claimed introduction".into());
             }
         }
-        let introduced_bytes = scoped_review_file_at_commit(root, introduction, &baseline_path)?
+        let introduced_bytes = scoped_review_file_at_commit(root, introduction, baseline_path)?
             .ok_or_else(|| {
                 "workflow-v2 baseline introduction is missing its exact bytes".to_string()
             })?;
         for commit in &history {
             let bytes =
-                scoped_review_file_at_commit(root, commit, &baseline_path)?.ok_or_else(|| {
+                scoped_review_file_at_commit(root, commit, baseline_path)?.ok_or_else(|| {
                     "workflow-v2 baseline was deleted in reachable history".to_string()
                 })?;
             if bytes != introduced_bytes {
@@ -3109,7 +3155,7 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
             }
             for parent in &fields[1..] {
                 if let Some(parent_bytes) =
-                    scoped_review_file_at_commit(root, parent, &baseline_path)?
+                    scoped_review_file_at_commit(root, parent, baseline_path)?
                     && parent_bytes != introduced_bytes
                 {
                     return Err(
@@ -3118,29 +3164,20 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
                 }
             }
         }
-        let committed_bytes = scoped_review_file_at_commit(root, "HEAD", &baseline_path)?
+        let committed_bytes = scoped_review_file_at_commit(root, revision, baseline_path)?
             .ok_or_else(|| "committed workflow-v2 baseline was deleted".to_string())?;
-        if introduced_bytes != committed_bytes || committed_bytes != current_bytes {
+        if introduced_bytes != committed_bytes || committed_bytes.as_slice() != current_bytes {
             return Err("workflow-v2 baseline changed after its introduction".into());
         }
     }
 
-    if let Some(cutoff) = baseline.cutoff_commit.as_deref()
-        && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, "HEAD"])?
+    if let Some(cutoff) = cutoff_commit
+        && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, revision])?
     {
         return Err("workflow-v2 baseline cutoff is not reachable from HEAD".into());
     }
-    if record.workflow_version != 1 {
-        return Ok(());
-    }
-    let cutoff = baseline.cutoff_commit.as_deref().ok_or_else(|| {
-        "workflow-v1 state is not eligible after root workflow-v2 adoption".to_string()
-    })?;
-    if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
-        return Err(format!(
-            "workflow-v1 change {} was not present at the trusted pre-v2 cutoff {}",
-            record.id, cutoff
-        ));
+    if memoize {
+        remember_baseline_history_ok(root, head, baseline_path, cutoff_commit, current_bytes);
     }
     Ok(())
 }
@@ -4085,7 +4122,11 @@ fn cached_git_status_success(root: &Path, args: &[&str]) -> Result<bool, String>
     {
         return value;
     }
+    if let Some(cached) = memoized_immutable_status(root, args) {
+        return cached;
+    }
     let result = run_git_bounded(root, args, None, 1024).map(|output| output.status.success());
+    remember_immutable_status(root, args, &result);
     update_read_scope(root, |scope| {
         if scope.git_status_queries.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
             scope.git_status_queries.insert(key, result.clone());
@@ -4099,9 +4140,13 @@ fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, Str
 }
 
 fn git_repo_prefix(root: &Path) -> Result<String, String> {
+    if let Some(prefix) = memoized_repo_prefix(root) {
+        return Ok(prefix);
+    }
     let prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
         .ok_or_else(|| "unable to determine project path within Git repository".to_string())?
         .replace('\\', "/");
+    remember_repo_prefix(root, &prefix);
     Ok(prefix)
 }
 

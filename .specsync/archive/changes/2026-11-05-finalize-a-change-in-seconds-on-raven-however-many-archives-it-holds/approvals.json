@@ -1,0 +1,88 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif (scope approved in Grok Bot chat t813u, recorded by corvid-agent)",
+      "timestamp": 1793757799,
+      "digest": "fcadff57d3493c3f92c80c683bfdfe61e583e075ec7e5c587fd1e24641b7bb2e",
+      "note": "Leif asked in t813u for SpecSync archive and everything to work fast; scope is the finalize and archive Git reuse in REQ-change-121, with no gate, bound or approval change.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds",
+        "title": "Finalize a change in seconds on Raven however many archives it holds",
+        "description": "Finalize a change in seconds on Raven however many archives it holds",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/read_cache.rs src/change/validate_loaded_change.rs src/change/historical_definition_digest_matches.rs src/change/consider_accepted_evidence_anchor.rs src/change_tests/fast_finalize.rs src/change_tests.rs specs/change"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "SpecSync archive (finalize) no longer takes minutes on Raven: the Git processes one finalize spawns grow by a small bounded number per other archived change instead of re-walking every archive's history, and every verdict and refusal is identical to a live run."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md: refusing gates stay live and only passing verdicts are reused; REQ-change-119's digest and history rule for the persistent cache; Leif t811u and t813u: never weaken a gate, do not change who approves, native SpecSync state keeps deciding stage gates, do not raise timeouts.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c3d973d05983722902809ec056fab526476ede14e1310d029061fa36941caafe"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793835695,
+      "digest": "7463351a35a6ad008b3879c2b5308874e2d1f2b029d01c01bf1fb1cbcbff40e3",
+      "note": "Re-approve scope with affected_paths split into one entry per path (PR #842 review).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds",
+        "title": "Finalize a change in seconds on Raven however many archives it holds",
+        "description": "Finalize a change in seconds on Raven however many archives it holds",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/fast_finalize.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "SpecSync archive (finalize) no longer takes minutes on Raven: the Git processes one finalize spawns grow by a small bounded number per other archived change instead of re-walking every archive's history, and every verdict and refusal is identical to a live run."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md: refusing gates stay live and only passing verdicts are reused; REQ-change-119's digest and history rule for the persistent cache; Leif t811u and t813u: never weaken a gate, do not change who approves, native SpecSync state keeps deciding stage gates, do not raise timeouts.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c3d973d05983722902809ec056fab526476ede14e1310d029061fa36941caafe"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793837407,
+      "digest": "22d95cedc6f83c66c03e9e10f900a8ed17127320f72b47b6bdc94384718e8757",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

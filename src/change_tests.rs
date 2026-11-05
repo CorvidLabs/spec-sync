@@ -29,4 +29,6 @@ include!("change_tests/recorded_review_recovery.rs");
 include!("change_tests/historical_reconciliation.rs");
 
 include!("change_tests/fast_archived_reads.rs");
+
+include!("change_tests/fast_finalize.rs");
 include!("change_tests/approve_ownership_names_the_spec.rs");

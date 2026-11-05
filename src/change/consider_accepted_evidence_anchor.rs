@@ -744,7 +744,13 @@ fn git_repository_present(root: &Path) -> Result<bool, String> {
     if let Some(present) = read_scope_value(root, |scope| scope.repository_present.clone()) {
         return present;
     }
+    if memoized_repository_present(root) {
+        return Ok(true);
+    }
     let result = git_repository_present_uncached(root);
+    if matches!(result, Ok(true)) {
+        remember_repository_present(root);
+    }
     update_read_scope(root, |scope| {
         scope.repository_present = Some(result.clone());
     });

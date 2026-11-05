@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds",
+  "implementation_commit": "b8dfab33b12c9baa109fd1b22c743d9112a33e0e",
+  "implementation_tree": "02bb4e1e9feb85c11ed1ca6a249c9bb943e1681a",
+  "contract_digest": "7463351a35a6ad008b3879c2b5308874e2d1f2b029d01c01bf1fb1cbcbff40e3",
+  "workspace_digest": "7d8c9ef6b5821f8516ef2e5ba81d2bf90978a0f2f669242f49fa41a628f45bb0",
+  "closing_digest": "22d95cedc6f83c66c03e9e10f900a8ed17127320f72b47b6bdc94384718e8757",
+  "review_digest": "e0cad47911b8efb038b018ff737290d037b318111333429bd607ff27b3d4fb8f",
+  "finalization_digest": "2e16566b66905e01fd41559cda6a83326d4d0db8320fef4ea06b6c939e40776c",
+  "timestamp": 1793837408
+}

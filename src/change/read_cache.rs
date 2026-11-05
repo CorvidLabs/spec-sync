@@ -1,6 +1,8 @@
 // Read-path caches for lifecycle status, list and show.
 //
-// Two layers, both read-only commands only (a `ChangeReadScope` must be installed):
+// Two layers. Read-only commands get both through a `ChangeReadScope`; finalize and archive get
+// only the persistent, Git-keyed layer through a `HistoryCacheScope` (REQ-change-121). Neither
+// command moves `HEAD`, which the per-scope `touched_since` memo relies on.
 //
 // 1. An invocation-scoped archive index, so resolving one change's workspace no longer parses
 //    every archived `state.json` again on each lookup.
@@ -150,18 +152,296 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     Some(common_dir.join(READ_CACHE_FILE))
 }
 
+thread_local! {
+    /// History cache frames for mutating commands, which install no `ChangeReadScope`.
+    static HISTORY_CACHE_SCOPES: RefCell<Vec<(PathBuf, PersistentReadCacheFrame)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// Lets a mutating lifecycle command (finalize, archive) reuse the persistent, Git-keyed history
+/// verdicts and archive introductions while every other read stays live (REQ-change-121).
+///
+/// Only the two entries whose validity Git history proves are shared: a workflow-version history
+/// verdict reused under the same digest and history rule as a read scope, and the archive
+/// packages an immutable commit introduced. No working-tree snapshot is taken, so the command
+/// still sees its own writes.
+struct HistoryCacheScope {
+    root: PathBuf,
+}
+
+fn begin_history_cache_scope(root: &Path) -> HistoryCacheScope {
+    HISTORY_CACHE_SCOPES.with(|scopes| {
+        scopes
+            .borrow_mut()
+            .push((root.to_path_buf(), PersistentReadCacheFrame::default()));
+    });
+    IMMUTABLE_GIT_MEMOS.with(|memos| {
+        memos
+            .borrow_mut()
+            .push((root.to_path_buf(), ImmutableGitMemo::default()));
+    });
+    HistoryCacheScope {
+        root: root.to_path_buf(),
+    }
+}
+
+impl Drop for HistoryCacheScope {
+    fn drop(&mut self) {
+        IMMUTABLE_GIT_MEMOS.with(|memos| {
+            memos.borrow_mut().pop();
+        });
+        HISTORY_CACHE_SCOPES.with(|scopes| {
+            let removed = scopes.borrow_mut().pop();
+            debug_assert_eq!(
+                removed.as_ref().map(|(root, _)| root.as_path()),
+                Some(self.root.as_path())
+            );
+            if let Some((_, frame)) = removed.as_ref() {
+                flush_persistent_read_cache(frame);
+            }
+        });
+    }
+}
+
+thread_local! {
+    /// Answers to Git queries that name only immutable objects, kept for one history scope.
+    static IMMUTABLE_GIT_MEMOS: RefCell<Vec<(PathBuf, ImmutableGitMemo)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// Inside a history scope, finalize and archive re-ask Git the same questions once per archived
+/// change: the bytes of a path at a full commit id, a full commit id's parents, whether one full
+/// commit id is an ancestor of another, and the repository prefix. Each answer is a pure function
+/// of objects named by full id (or of the checkout location), so it cannot change while the
+/// command runs. Queries that name `HEAD`, a branch, or the working tree are never memoized here;
+/// the workflow-v2 baseline history verdict is memoized only under the full id `HEAD` resolved to.
+#[derive(Default)]
+struct ImmutableGitMemo {
+    files: BTreeMap<(String, String), Option<Vec<u8>>>,
+    texts: BTreeMap<Vec<String>, Result<String, String>>,
+    statuses: BTreeMap<Vec<String>, Result<bool, String>>,
+    prefix: Option<String>,
+    repository_present: bool,
+    /// Passing workflow-v2 baseline history verdicts, keyed by everything the verdict reads.
+    baseline_history_ok: BTreeSet<BaselineHistoryKey>,
+}
+
+/// Resolved head id, baseline path, cutoff commit, and current baseline bytes.
+type BaselineHistoryKey = (String, String, Option<String>, Vec<u8>);
+
+fn baseline_history_key(
+    head: &str,
+    baseline_path: &str,
+    cutoff_commit: Option<&str>,
+    current_bytes: &[u8],
+) -> BaselineHistoryKey {
+    (
+        head.to_string(),
+        baseline_path.to_string(),
+        cutoff_commit.map(str::to_string),
+        current_bytes.to_vec(),
+    )
+}
+
+fn memoized_baseline_history_ok(
+    root: &Path,
+    head: &str,
+    baseline_path: &str,
+    cutoff_commit: Option<&str>,
+    current_bytes: &[u8],
+) -> bool {
+    if !is_full_object_id(head) {
+        return false;
+    }
+    let key = baseline_history_key(head, baseline_path, cutoff_commit, current_bytes);
+    immutable_git_memo(root, |memo| Some(memo.baseline_history_ok.contains(&key))).unwrap_or(false)
+}
+
+fn remember_baseline_history_ok(
+    root: &Path,
+    head: &str,
+    baseline_path: &str,
+    cutoff_commit: Option<&str>,
+    current_bytes: &[u8],
+) {
+    if !is_full_object_id(head) {
+        return;
+    }
+    let key = baseline_history_key(head, baseline_path, cutoff_commit, current_bytes);
+    immutable_git_memo(root, |memo| {
+        if memo.baseline_history_ok.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            memo.baseline_history_ok.insert(key);
+        }
+        Some(())
+    });
+}
+
+fn memoized_repository_present(root: &Path) -> bool {
+    immutable_git_memo(root, |memo| Some(memo.repository_present)).unwrap_or(false)
+}
+
+fn remember_repository_present(root: &Path) {
+    immutable_git_memo(root, |memo| {
+        memo.repository_present = true;
+        Some(())
+    });
+}
+
+fn is_full_object_id(value: &str) -> bool {
+    matches!(value.len(), 40 | 64)
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// Whether `args` is a query whose answer depends only on objects named by full id.
+fn names_only_immutable_objects(args: &[&str]) -> bool {
+    match args {
+        ["rev-list", "--parents", "-n", "1", commit] => is_full_object_id(commit),
+        ["merge-base", "--is-ancestor", ancestor, descendant] => {
+            is_full_object_id(ancestor) && is_full_object_id(descendant)
+        }
+        _ => false,
+    }
+}
+
+fn immutable_git_memo<Value>(
+    root: &Path,
+    use_memo: impl FnOnce(&mut ImmutableGitMemo) -> Option<Value>,
+) -> Option<Value> {
+    IMMUTABLE_GIT_MEMOS.with(|memos| {
+        let mut memos = memos.borrow_mut();
+        let (memo_root, memo) = memos.last_mut()?;
+        if memo_root != root {
+            return None;
+        }
+        use_memo(memo)
+    })
+}
+
+fn memoized_immutable_file(root: &Path, commit: &str, path: &str) -> Option<Option<Vec<u8>>> {
+    if !is_full_object_id(commit) {
+        return None;
+    }
+    let key = (commit.to_string(), path.to_string());
+    immutable_git_memo(root, |memo| memo.files.get(&key).cloned())
+}
+
+fn remember_immutable_file(root: &Path, commit: &str, path: &str, bytes: &Option<Vec<u8>>) {
+    if !is_full_object_id(commit) {
+        return;
+    }
+    immutable_git_memo(root, |memo| {
+        if memo.files.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            memo.files
+                .insert((commit.to_string(), path.to_string()), bytes.clone());
+        }
+        Some(())
+    });
+}
+
+fn memoized_immutable_text(root: &Path, args: &[&str]) -> Option<Result<String, String>> {
+    if !names_only_immutable_objects(args) {
+        return None;
+    }
+    let key: Vec<String> = args.iter().map(|argument| (*argument).to_string()).collect();
+    immutable_git_memo(root, |memo| memo.texts.get(&key).cloned())
+}
+
+fn remember_immutable_text(root: &Path, args: &[&str], result: &Result<String, String>) {
+    if !names_only_immutable_objects(args) {
+        return;
+    }
+    let key: Vec<String> = args.iter().map(|argument| (*argument).to_string()).collect();
+    immutable_git_memo(root, |memo| {
+        if memo.texts.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            memo.texts.insert(key, result.clone());
+        }
+        Some(())
+    });
+}
+
+fn memoized_immutable_status(root: &Path, args: &[&str]) -> Option<Result<bool, String>> {
+    if !names_only_immutable_objects(args) {
+        return None;
+    }
+    let key: Vec<String> = args.iter().map(|argument| (*argument).to_string()).collect();
+    immutable_git_memo(root, |memo| memo.statuses.get(&key).cloned())
+}
+
+fn remember_immutable_status(root: &Path, args: &[&str], result: &Result<bool, String>) {
+    // A failed run (timeout, spawn error) is not an answer about the objects; ask again.
+    if !names_only_immutable_objects(args) || result.is_err() {
+        return;
+    }
+    let key: Vec<String> = args.iter().map(|argument| (*argument).to_string()).collect();
+    immutable_git_memo(root, |memo| {
+        if memo.statuses.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            memo.statuses.insert(key, result.clone());
+        }
+        Some(())
+    });
+}
+
+fn memoized_repo_prefix(root: &Path) -> Option<String> {
+    immutable_git_memo(root, |memo| memo.prefix.clone())
+}
+
+fn remember_repo_prefix(root: &Path, prefix: &str) {
+    immutable_git_memo(root, |memo| {
+        memo.prefix = Some(prefix.to_string());
+        Some(())
+    });
+}
+
+fn take_persistent_cache_frame(root: &Path) -> Option<(bool, PersistentReadCacheFrame)> {
+    if read_scope_value(root, |_| Some(())).is_some() {
+        return CHANGE_READ_SCOPES.with(|scopes| {
+            scopes
+                .borrow_mut()
+                .last_mut()
+                .filter(|scope| scope.root == root)
+                .map(|scope| (true, std::mem::take(&mut scope.persistent_cache)))
+        });
+    }
+    HISTORY_CACHE_SCOPES.with(|scopes| {
+        scopes
+            .borrow_mut()
+            .last_mut()
+            .filter(|(scope_root, _)| scope_root == root)
+            .map(|(_, frame)| (false, std::mem::take(frame)))
+    })
+}
+
+fn return_persistent_cache_frame(root: &Path, in_read_scope: bool, frame: PersistentReadCacheFrame) {
+    if in_read_scope {
+        CHANGE_READ_SCOPES.with(|scopes| {
+            if let Some(scope) = scopes
+                .borrow_mut()
+                .last_mut()
+                .filter(|scope| scope.root == root)
+            {
+                scope.persistent_cache = frame;
+            }
+        });
+    } else {
+        HISTORY_CACHE_SCOPES.with(|scopes| {
+            if let Some((_, slot)) = scopes
+                .borrow_mut()
+                .last_mut()
+                .filter(|(scope_root, _)| scope_root == root)
+            {
+                *slot = frame;
+            }
+        });
+    }
+}
+
 fn with_persistent_read_cache<Value>(
     root: &Path,
     use_cache: impl FnOnce(&Path, &mut PersistentReadCacheFrame) -> Value,
 ) -> Option<Value> {
-    read_scope_value(root, |_| Some(()))?;
-    let mut frame = CHANGE_READ_SCOPES.with(|scopes| {
-        scopes
-            .borrow_mut()
-            .last_mut()
-            .filter(|scope| scope.root == root)
-            .map(|scope| std::mem::take(&mut scope.persistent_cache))
-    })?;
+    let (in_read_scope, mut frame) = take_persistent_cache_frame(root)?;
     if frame.loaded.is_none() {
         frame.path = persistent_read_cache_path(root);
         frame.head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
@@ -186,15 +466,7 @@ fn with_persistent_read_cache<Value>(
         frame.loaded = Some(loaded.unwrap_or(fresh));
     }
     let value = use_cache(root, &mut frame);
-    CHANGE_READ_SCOPES.with(|scopes| {
-        if let Some(scope) = scopes
-            .borrow_mut()
-            .last_mut()
-            .filter(|scope| scope.root == root)
-        {
-            scope.persistent_cache = frame;
-        }
-    });
+    return_persistent_cache_frame(root, in_read_scope, frame);
     Some(value)
 }
 
@@ -561,7 +833,13 @@ fn archive_introductions_at_commit_uncached(
 /// the scope. The walk still visits every archive in order and returns the same first error; this
 /// only moves independent Git reads off the critical path. Outside a read scope it does nothing.
 fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<fs::DirEntry>]) {
-    if read_scope_value(root, |_| Some(())).is_none() {
+    let in_history_scope = HISTORY_CACHE_SCOPES.with(|scopes| {
+        scopes
+            .borrow()
+            .last()
+            .is_some_and(|(scope_root, _)| scope_root == root)
+    });
+    if read_scope_value(root, |_| Some(())).is_none() && !in_history_scope {
         return;
     }
     let mut pending = Vec::new();

@@ -23,6 +23,7 @@ files:
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/fast_archived_reads.rs
+  - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
@@ -586,5 +587,6 @@ Acceptance Criteria
 | 2026-11-01 | retain-compound-historical-review-inconsistencies-during-anchored-reopen: Retain compound historical review inconsistencies during anchored reopen |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | answer-archived-change-status-change-list-and-change-status-within-2-seconds-on-raven: Answer archived change status, change list and change status within 2 seconds on Raven |
+| 2026-11-04 | finalize-a-change-in-seconds-on-raven-however-many-archives-it-holds: Finalize a change in seconds on Raven however many archives it holds |
 | 2026-11-04 | name-the-spec-to-edit-when-change-approve-refuses-an-unowned-affected-path: Name the spec to edit when change approve refuses an unowned affected path |
 | 2026-11-04 | make-the-unowned-path-ownership-hint-deterministic-and-fall-back-at-depth-zero: Make the unowned-path ownership hint deterministic and fall back at depth zero |

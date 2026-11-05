@@ -252,11 +252,12 @@ fn strip_spec_prefix(s: &str) -> &str {
 
 /// Detect the current git branch name.
 pub fn detect_branch(root: &Path) -> Option<String> {
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(root),
+    )
+    .ok()?;
     if output.status.success() {
         Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {

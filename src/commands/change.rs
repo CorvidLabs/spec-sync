@@ -2537,29 +2537,32 @@ fn wait_for_head_check_runs(
 }
 
 fn git_commit_present(root: &Path, commit: &str) -> Result<bool, String> {
-    let output = std::process::Command::new("git")
-        .args(["cat-file", "-e", &format!("{commit}^{{commit}}")])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git cat-file failed: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["cat-file", "-e", &format!("{commit}^{{commit}}")])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("git cat-file failed: {error}"))?;
     Ok(output.status.success())
 }
 
 fn git_is_ancestor(root: &Path, maybe_ancestor: &str, tip: &str) -> Result<bool, String> {
-    let output = std::process::Command::new("git")
-        .args(["merge-base", "--is-ancestor", maybe_ancestor, tip])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git merge-base failed: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["merge-base", "--is-ancestor", maybe_ancestor, tip])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("git merge-base failed: {error}"))?;
     Ok(output.status.success())
 }
 
 fn git_rev_parse(root: &Path, rev: &str) -> Result<String, String> {
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "--verify", rev])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git rev-parse failed: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["rev-parse", "--verify", rev])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("git rev-parse failed: {error}"))?;
     if !output.status.success() {
         return Err(format!("git rev-parse {rev} failed"));
     }
@@ -2567,11 +2570,12 @@ fn git_rev_parse(root: &Path, rev: &str) -> Result<String, String> {
 }
 
 fn git_diff_name_only(root: &Path, from: &str, to: &str) -> Result<Vec<String>, String> {
-    let output = std::process::Command::new("git")
-        .args(["diff", "--name-only", from, to])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git diff failed: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["diff", "--name-only", from, to])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("git diff failed: {error}"))?;
     if !output.status.success() {
         return Err("git diff --name-only failed".into());
     }
@@ -2583,11 +2587,12 @@ fn git_diff_name_only(root: &Path, from: &str, to: &str) -> Result<Vec<String>, 
 }
 
 fn git_show_name_only(root: &Path, commit: &str) -> Result<Vec<String>, String> {
-    let output = std::process::Command::new("git")
-        .args(["show", "--pretty=format:", "--name-only", commit])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git show failed: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["show", "--pretty=format:", "--name-only", commit])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("git show failed: {error}"))?;
     if !output.status.success() {
         return Err("git show --name-only failed".into());
     }
@@ -2599,11 +2604,12 @@ fn git_show_name_only(root: &Path, commit: &str) -> Result<Vec<String>, String> 
 }
 
 fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
-    let output = std::process::Command::new("git")
-        .args(["status", "--porcelain", "-z"])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git status failed: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["status", "--porcelain", "-z"])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("git status failed: {error}"))?;
     if !output.status.success() {
         return Err("git status failed".into());
     }
@@ -4441,11 +4447,12 @@ fn run_checked_commit(
 }
 
 fn run_git(root: &std::path::Path, args: &[&str]) -> Result<(), String> {
-    let output = std::process::Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
     if !output.status.success() {
         return Err(format!(
             "git {} failed: {}",
@@ -4490,11 +4497,12 @@ fn git_commit_lifecycle(
         );
     }
     let left_out = stage_lifecycle_paths(root, scope, include_tracked_edits)?;
-    let status = std::process::Command::new("git")
-        .args(["diff", "--cached", "--quiet"])
-        .current_dir(root)
-        .status()
-        .map_err(|error| format!("failed to inspect staged changes: {error}"))?;
+    let status = crate::git_utils::status_without_inherited_output(
+        std::process::Command::new("git")
+            .args(["diff", "--cached", "--quiet"])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to inspect staged changes: {error}"))?;
     if status.success() {
         return Ok(LifecycleCommit {
             committed: false,
@@ -4535,18 +4543,19 @@ fn stage_lifecycle_paths(
     let prefix = git_output_text(root, &["rev-parse", "--show-prefix"])?
         .trim_end_matches(['\n', '\r'])
         .to_string();
-    let output = std::process::Command::new("git")
-        .args([
-            "status",
-            "--porcelain=v1",
-            "-z",
-            "--untracked-files=all",
-            "--",
-            ".",
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to run git status: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args([
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+                "--",
+                ".",
+            ])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to run git status: {error}"))?;
     if !output.status.success() {
         return Err(format!(
             "git status failed: {}",
@@ -4615,11 +4624,12 @@ fn path_is_within(path: &str, scope: &str) -> bool {
 }
 
 fn git_output_text(root: &Path, args: &[&str]) -> Result<String, String> {
-    let output = std::process::Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
     if !output.status.success() {
         return Err(format!(
             "git {} failed: {}",

@@ -1076,11 +1076,12 @@ fn estimate_status_age(
     // Fallback: use git to find last modification date of the spec file
     // Normalize path separators for git (backslashes on Windows break git path matching)
     let git_path = spec_rel.replace('\\', "/");
-    let output = std::process::Command::new("git")
-        .args(["log", "-1", "--format=%ct", "--", &git_path])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["log", "-1", "--format=%ct", "--", &git_path])
+            .current_dir(root),
+    )
+    .ok()?;
 
     let timestamp_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let timestamp: u64 = timestamp_str.parse().ok()?;

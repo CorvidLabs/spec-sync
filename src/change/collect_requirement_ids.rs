@@ -3,12 +3,12 @@ fn commit_is_ancestor_of_head(root: &Path, commit: &str) -> bool {
     if git_output(root, &["rev-parse", "--verify", commit]).is_none() {
         return false;
     }
-    Command::new("git")
-        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.success())
 }
 
 fn project_path_is_absent_at(root: &Path, commit: &str, path: &str) -> bool {
@@ -4783,12 +4783,12 @@ fn build_semantic_succession_evidence(
     let base = record.base_commit.as_deref().ok_or_else(|| {
         "semantic succession requires a definition-signed base commit".to_string()
     })?;
-    let ancestor = Command::new("git")
-        .args(["merge-base", "--is-ancestor", base, "HEAD"])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .map_err(|error| format!("failed to validate succession base ancestry: {error}"))?;
+    let ancestor = crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", base, "HEAD"])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to validate succession base ancestry: {error}"))?;
     if !ancestor.success() {
         return Err(format!(
             "semantic succession base commit `{base}` is not an ancestor of HEAD"

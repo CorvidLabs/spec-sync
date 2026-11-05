@@ -1,6 +1,6 @@
 ---
 module: change
-version: 161
+version: 164
 status: active
 files:
   - src/change.rs
@@ -287,6 +287,8 @@ Acceptance Criteria
 43. A draft whose affected modules have substantive lessons, or whose project names a principles file, is asked which of those constrain it once the rest of the interview is answered, and "none" is a complete answer stored in the stable scope. A draft with neither is not asked. A change that has left draft without that answer is not sent back to the interview. Re-answering affected specs clears the answer. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each contain substantive text. A change that did not select a plan does not gain one. Opening, showing, or asking status computes a briefing of those lessons and of that principles file. The excerpt is bounded, a scaffold-only context is omitted, and an unreadable file does not fail the command.
 
 44. Opening a change fails when `.specsync/sdd.json` exists and cannot be parsed, including when a workflow-v2 baseline is already present. The error says the SDD policy is invalid. A missing policy file still opens a workflow-v2 change. A parsed policy is not treated as absent.
+
+45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
 
 ## Behavioral Examples
 
@@ -601,3 +603,6 @@ Acceptance Criteria
 | 2026-11-04 | refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text: Refuse a stale modified delta instead of overwriting newer canonical text |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
+| 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits, so `change status` cannot be stalled by that pipe (#854, #855, SPEED-1, SPEED-1.a) |
+| 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued Git bytes, including on the non-Unix bounded reader |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

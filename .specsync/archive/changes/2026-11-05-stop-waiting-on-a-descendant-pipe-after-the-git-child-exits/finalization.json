@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "stop-waiting-on-a-descendant-pipe-after-the-git-child-exits",
+  "implementation_commit": "ffa975fffa915924e1730a1a73ed08518f218c9c",
+  "implementation_tree": "2e1ffe8ff61ad353e8c4c398b76b4af60bb37b3f",
+  "contract_digest": "e0b3322f43e8f0bbf0a197ee4bf09c6e4fbe479ebd38ef0560a171e93bba45cb",
+  "workspace_digest": "c9edcd7b562b45953ab151048f63809e19515167db7dd0035a8ef5358bf690b9",
+  "closing_digest": "5f37a9e9ce50daaa08efe1587781fd9b180b5f1f78deb8e0a5f31c43911c3b0d",
+  "review_digest": "06b7f59c10d0ce46da7dd205d1fc3a24c95d21151ae5f6d63431e39f35e1dc17",
+  "finalization_digest": "3a47c3521c569da7a76f4ea286d2d734bd31656feb1fd259c506566964e4be0d",
+  "timestamp": 1793915043
+}

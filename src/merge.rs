@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 
-use crate::git_utils::git_cmd;
+use crate::git_utils::{git_cmd, output_after_child_exits};
 use crate::parser::{parse_checked_issue_references, parse_frontmatter};
 use crate::validator::find_spec_files;
 
@@ -255,10 +255,11 @@ fn fence_marker(trimmed: &str) -> Option<String> {
 /// collapses the two reports an all-clear it never verified, which is the same
 /// fail-open that made a conflicted tree pass `check`.
 pub fn unmerged_paths(root: &Path) -> Option<HashSet<String>> {
-    let output = match git_cmd(root)
-        .args(["diff", "--name-only", "--diff-filter=U"])
-        .output()
-    {
+    let output = match output_after_child_exits(git_cmd(root).args([
+        "diff",
+        "--name-only",
+        "--diff-filter=U",
+    ])) {
         Ok(output) => output,
         // git could not run at all. That is UNKNOWN, not clean — see the
         // contract above. Returning an empty set here would tell every caller

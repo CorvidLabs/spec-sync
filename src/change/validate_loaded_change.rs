@@ -1082,11 +1082,12 @@ fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) ->
 }
 
 fn git_worktree_is_clean(root: &Path) -> Option<bool> {
-    let output = Command::new("git")
-        .args(["status", "--porcelain"])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(root),
+    )
+    .ok()?;
     output.status.success().then_some(output.stdout.is_empty())
 }
 
@@ -3564,29 +3565,28 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
     let Some(commit) = evidence.commit.as_deref() else {
         return git_output(root, &["rev-parse", "HEAD"]).is_none();
     };
-    Command::new("git")
-        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.success())
 }
 
 fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool {
     let Some(remote_default) = remote_default_ref(root) else {
         return false;
     };
-    let head_is_integrated = Command::new("git")
-        .args([
+    let head_is_integrated = crate::git_utils::status_without_inherited_output(
+        Command::new("git").args([
             "merge-base",
             "--is-ancestor",
             "HEAD",
             remote_default.as_str(),
         ])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success());
+        .current_dir(root),
+    )
+    .is_ok_and(|status| status.success());
     if !head_is_integrated {
         return false;
     }
@@ -3600,25 +3600,25 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
     };
     let remote_state = format!("{remote_default}:{repo_state}");
     let repo_workspace_pathspec = format!(":(top,literal){repo_workspace}");
-    let state_exists = Command::new("git")
-        .args(["cat-file", "-e", remote_state.as_str()])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success());
+    let state_exists = crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["cat-file", "-e", remote_state.as_str()])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.success());
     state_exists
-        && Command::new("git")
-            .args([
-                "diff",
-                "--quiet",
-                remote_default.as_str(),
-                "--",
-                repo_workspace_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
+        && crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args([
+                    "diff",
+                    "--quiet",
+                    remote_default.as_str(),
+                    "--",
+                    repo_workspace_pathspec.as_str(),
+                ])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| status.success())
 }
 
 #[cfg(test)]

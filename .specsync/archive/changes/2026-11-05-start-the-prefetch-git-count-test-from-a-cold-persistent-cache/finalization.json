@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "start-the-prefetch-git-count-test-from-a-cold-persistent-cache",
+  "implementation_commit": "de59550e60b174b4608271bf19962ef2d630627d",
+  "implementation_tree": "c7464907fa1439a31e7d766fcbd510ebc395bbab",
+  "contract_digest": "66f2ec781d47cc21dccff92f798815302f455db44ffaafea8115cf1a5b0e3e8f",
+  "workspace_digest": "b68f6a2d400a1dcfaf7c500cd33f00d1c94f56d1e764356f234bf65103330011",
+  "closing_digest": "8bec28cdda44b0e9a7f72d4a25c56691e7eaaf12bb58e00a1bbb6693a427c761",
+  "review_digest": "2a6fd30bb6b66e4f8b27c5b52becfd2c9aade9b6aa4d346e5ff45cd6427a05fa",
+  "finalization_digest": "e31c32d413c0594d40dabc1971aec204e5197da8490022629852dc594db7ff5a",
+  "timestamp": 1793839897
+}

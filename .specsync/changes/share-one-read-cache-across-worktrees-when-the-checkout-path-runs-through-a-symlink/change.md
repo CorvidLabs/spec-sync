@@ -1,6 +1,6 @@
 ---
 id: share-one-read-cache-across-worktrees-when-the-checkout-path-runs-through-a-symlink
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 6b222ff623079b0b3e328db29e8df078cb80a60d
 ---

@@ -2302,7 +2302,10 @@ fn prepare_module_application(
     delta: &str,
     prepared: &mut PreparedMaterialization,
 ) -> Result<(), String> {
-    let converging = record.canonical_applied;
+    // A change that was sent back may already carry its earlier scope's text in the canonical
+    // tree, so it converges even though the send-back cleared `canonical_applied`.
+    let ledger = load_approvals(root, record).unwrap_or_default();
+    let converging = record.canonical_applied || !ledger.send_backs.is_empty();
     let items = parse_delta(delta)?;
     let (spec_path, requirements_path) = canonical_module_paths(root, specs_dir, module)?;
     let mut spec = fs::read_to_string(&spec_path)
@@ -2324,6 +2327,12 @@ fn prepare_module_application(
         if converging && delta_item_is_applied(&spec, &requirements, item) {
             continue;
         }
+        let operation =
+            if sent_back_added_block_is_own(&ledger, module, item, &spec, &requirements) {
+                DeltaOperation::Modified
+            } else {
+                item.operation
+            };
         match item.target {
             DeltaTarget::Requirement => {
                 requirements = apply_markdown_block(
@@ -2331,7 +2340,7 @@ fn prepare_module_application(
                     "### ",
                     &item.key,
                     &item.content,
-                    item.operation,
+                    operation,
                 )?;
             }
             DeltaTarget::SpecSection => {
@@ -2340,7 +2349,7 @@ fn prepare_module_application(
                     "## ",
                     &item.key,
                     &item.content,
-                    item.operation,
+                    operation,
                 )?;
             }
         }

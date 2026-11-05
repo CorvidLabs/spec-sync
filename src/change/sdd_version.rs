@@ -1353,6 +1353,10 @@ pub struct ApprovalLedger {
     pub scope_adoptions: Vec<ScopeAdoptionV1>,
     #[serde(default)]
     pub reopenings: Vec<ReopenRecord>,
+    /// Audited send-backs to draft for re-scoping (#844). Each one cancels every approval
+    /// recorded before it without removing any of them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub send_backs: Vec<SendBackRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -3289,6 +3293,7 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
     ensure_definition_approval_valid(root, &record)?;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
+    ensure_no_orphaned_applied_text(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     // The gate judges the change being verified as verifying, the state this attempt records

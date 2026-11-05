@@ -15,6 +15,8 @@ CHANGE-10.a, CHANGE-10.b and CHANGE-10.c quote, verbatim, the optional nits in L
 
 CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #843): "Confirm #843 criteria as written", choosing to "Protect only changes approved from now on". Recorded by corvid-agent.
 
+CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -46,3 +48,7 @@ CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
   - **CHANGE-11.a**  Checking that change stops and names the requirement or section whose text moved.
   - **CHANGE-11.b**  The project health check (audit) reports the same problem before anything is lost.
   - **CHANGE-11.c**  The message tells me the way forward: rewrite the change onto the current text and approve it again.
+- **CHANGE-12**  When a change's scope turns out wrong after approval, I can send it back to be re-scoped instead of deleting it by hand.
+  - **CHANGE-12.a**  Sending it back needs a named person and a reason, and both stay in the change's history.
+  - **CHANGE-12.b**  Sending it back cancels its approval, so the new scope needs a fresh one.
+  - **CHANGE-12.c**  Nothing already recorded about the change is lost.

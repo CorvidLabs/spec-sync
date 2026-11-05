@@ -877,6 +877,9 @@ fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
 }
 
 fn repository_context_uncached(root: &Path) -> Result<RepositoryContext, String> {
+    // Evidence capture compares this before and after to see another process change the
+    // repository identity, so it is never answered from memoized facts (REQ-git-utils-008).
+    let _live = crate::git_utils::live_repository_reads();
     if !git_repository_present(root)? {
         let canonical = root
             .canonicalize()
@@ -999,6 +1002,8 @@ struct InspectedGitCandidates {
 }
 
 fn git_index_fingerprint(root: &Path) -> Result<String, String> {
+    // Compared before and after evidence capture to see the index change underneath it.
+    let _live = crate::git_utils::live_repository_reads();
     let index = run_git_required(root, &["rev-parse", "--git-path", "index"], None, 16 * 1024)?;
     let index = parse_git_path(root, &index, "effective Git index")?;
     let shared = run_git_required(root, &["rev-parse", "--shared-index-path"], None, 16 * 1024)?;

@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [6.2.0] - Unreleased
+### Changed
 
-Release candidate, not yet published. The published Action download default stays 6.1.2 until a separate post-publication asset and Action check.
+- Advance the main Action binary default to published 6.2.0 after supported-platform asset and Action checks. Immutable `@v6.2.0` remains at its qualified candidate SHA with default 6.1.2; select `version: '6.2.0'` explicitly with that tag. Current install, migration, adoption and site guidance name 6.2.0.
+
+## [6.2.0] - 2026-11-05
+
+Published from candidate `v6.2.0-rc.2` (40dcf33a), qualified on Ubuntu and macOS. The immutable `@v6.2.0` Action tag embeds download default 6.1.2; pass `version: '6.2.0'` with it.
 
 ### Added
 

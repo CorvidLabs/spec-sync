@@ -7,10 +7,10 @@
   "title": "Start the prefetch Git-count test from a cold persistent cache",
   "description": "Start the prefetch Git-count test from a cold persistent cache",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "30be7ea14fb279875e39084f6624fb54c694c8a1",
   "created_at": 1793839748,
-  "updated_at": 1793839774,
+  "updated_at": 1793839797,
   "affected_specs": [
     "change"
   ],

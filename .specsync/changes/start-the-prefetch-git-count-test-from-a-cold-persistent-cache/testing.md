@@ -5,4 +5,4 @@ artifact: testing
 
 # Testing
 
-<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->
+`cargo test --bin specsync -- git_processes_spawned_by_prefetch_threads_are_counted` failed on the #842 tip (10 vs 86) and passes after the fix.

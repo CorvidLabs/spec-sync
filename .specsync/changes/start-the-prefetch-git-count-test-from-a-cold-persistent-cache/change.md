@@ -1,6 +1,6 @@
 ---
 id: start-the-prefetch-git-count-test-from-a-cold-persistent-cache
-state: draft
+state: approved
 type: bug_fix
 base_commit: 30be7ea14fb279875e39084f6624fb54c694c8a1
 ---

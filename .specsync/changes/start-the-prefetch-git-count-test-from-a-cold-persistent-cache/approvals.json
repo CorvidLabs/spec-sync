@@ -1,4 +1,38 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793839797,
+      "digest": "66f2ec781d47cc21dccff92f798815302f455db44ffaafea8115cf1a5b0e3e8f",
+      "note": "Test-only fix for #842 CI.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "start-the-prefetch-git-count-test-from-a-cold-persistent-cache",
+        "title": "Start the prefetch Git-count test from a cold persistent cache",
+        "description": "Start the prefetch Git-count test from a cold persistent cache",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test-only fix: finalize now caches passing history verdicts (REQ-change-121), so the test clears the persistent cache before measuring; no contract text changes.",
+        "acceptance_criteria": [
+          "git_processes_spawned_by_prefetch_threads_are_counted passes with finalize caching history verdicts, measuring the prefetch from a cold persistent cache."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
   "reopenings": []
 }

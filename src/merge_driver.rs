@@ -202,6 +202,9 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
         }
     }
 
+    // The assembled file ends with whichever block sorts last. Keep the
+    // current side's final-newline state, as every other region does.
+    let content = restore_region_newline(ours, content);
     MergeContract { content, clean }
 }
 
@@ -324,7 +327,12 @@ fn parse_requirement_doc(text: &str) -> Option<(String, Vec<ReqBlock>)> {
 }
 
 fn requirement_heading_id(line: &str) -> Option<&str> {
-    let rest = line.strip_prefix("### ")?.trim();
+    // An ATX heading may be indented by up to three spaces; four is indented code.
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+    let rest = line[indent..].strip_prefix("### ")?.trim();
     let token = rest.split_whitespace().next().unwrap_or(rest);
     let token =
         token.trim_matches(|ch: char| matches!(ch, ':' | ',' | '.' | ';' | ')' | '(' | ']' | '['));
@@ -1751,5 +1759,29 @@ mod tests {
             "{}",
             merged.content
         );
+    }
+
+    // Review (2906dc30): the merged requirements file keeps the current side's final newline.
+    #[test]
+    fn requirements_union_keeps_the_current_final_newline() {
+        let base = requirements(&[]);
+        let ours = format!("{base}\n### REQ-cli-002\n\nThe system SHALL stop.\n");
+        let theirs = format!("{base}\n### REQ-cli-003\n\nThe system SHALL pause.");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(merged.content.ends_with('\n'), "{:?}", merged.content);
+        let merged = merge_contract(&base, &theirs, &ours, "specs/cli/requirements.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(!merged.content.ends_with('\n'), "{:?}", merged.content);
+    }
+
+    // Review (2906dc30): an ATX heading indented by up to three spaces is a requirement heading.
+    #[test]
+    fn indented_requirement_heading_is_a_block() {
+        assert_eq!(
+            requirement_heading_id("   ### REQ-cli-002"),
+            Some("REQ-cli-002")
+        );
+        assert_eq!(requirement_heading_id("    ### REQ-cli-002"), None);
     }
 }

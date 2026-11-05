@@ -107,7 +107,12 @@ fn only_archived_specs_in(dir: &Path) -> bool {
 }
 
 fn requirement_heading_id(line: &str) -> Option<&str> {
-    let rest = line.strip_prefix("### ")?.trim();
+    // An ATX heading may be indented by up to three spaces; four is indented code.
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+    let rest = line[indent..].strip_prefix("### ")?.trim();
     let token = rest.split_whitespace().next().unwrap_or(rest);
     let token = token.trim_matches(|ch: char| {
         matches!(ch, ':' | ',' | '.' | ';' | ')' | '(' | ']' | '[')
@@ -243,5 +248,14 @@ One.
         let errors = duplicate_requirement_id_errors(root);
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert!(errors[0].contains("REQ-live-001"), "{errors:?}");
+    }
+
+    #[test]
+    fn indented_atx_requirement_headings_are_counted() {
+        let text = "  ### REQ-auth-002\n\nOne.\n\n   ### REQ-auth-002\n\nTwo.\n";
+        let errors = duplicate_requirement_errors_in(text, "specs/auth/requirements.md");
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let code = "    ### REQ-auth-002\n\n    ### REQ-auth-002\n";
+        assert!(duplicate_requirement_errors_in(code, "x").is_empty());
     }
 }

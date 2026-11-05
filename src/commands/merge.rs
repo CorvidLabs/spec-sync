@@ -95,8 +95,14 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
 }
 
 fn attribute_lines(specs_dir: &str) -> Vec<String> {
-    let specs_dir = specs_dir.trim_matches('/').replace('\\', "/");
-    let literal = escape_wildmatch(&specs_dir);
+    let mut specs_dir = specs_dir.replace('\\', "/");
+    // `./specs` and `specs` name the same directory, but a `.gitattributes`
+    // pattern starting with `./` never matches.
+    while let Some(rest) = specs_dir.strip_prefix("./") {
+        specs_dir = rest.trim_start_matches('/').to_string();
+    }
+    let specs_dir = specs_dir.trim_matches('/');
+    let literal = escape_wildmatch(specs_dir);
     ["**/*.spec.md", "**/requirements.md"]
         .iter()
         .map(|tail| {
@@ -294,5 +300,26 @@ mod install_tests {
             String::from_utf8_lossy(&other.stdout).ends_with("merge: unspecified\n"),
             "brackets matched as a character class"
         );
+    }
+
+    #[test]
+    fn dot_prefixed_specs_dir_matches_the_contracts() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .unwrap()
+        };
+        assert!(run(&["init", "-q"]).status.success());
+        fs::write(
+            root.join(".gitattributes"),
+            attribute_lines("./specs/").join("\n") + "\n",
+        )
+        .unwrap();
+        let output = run(&["check-attr", "merge", "--", "specs/x/x.spec.md"]);
+        assert!(String::from_utf8_lossy(&output.stdout).ends_with("merge: specsync\n"));
     }
 }

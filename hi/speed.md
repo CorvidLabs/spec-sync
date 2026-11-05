@@ -11,6 +11,8 @@ Captured from Leif's ask in Grok Bot chat t811u on 2026-11-03: "Leif wants the w
 
 Captured from Leif's follow-up in Grok Bot chat t813u on 2026-11-03: "I also want to make sure that SpecSync changes and archive and everything are working fast and all the tools are working good. I've had reports that sometimes SpecSync archive takes like three minutes to run". SPEED-2 is that ask, in his words.
 
+Approved by Leif in the Herdr orc tab on 2026-11-05 09:21 MST (relayed by the orc, choice "Approve intent + approach") for issue #861, after v6.2.0-rc.1's macOS qualification timed out at 45 minutes: "macOS RC qualification finishes well under 45 min so the timeout returns to 45, without dropping or weakening any test". SPEED-2.b.1 and SPEED-2.b.2 are that intent. The approved approach is to cut SpecSync's git process spawns and run the suite with cargo nextest in the qualify lane.
+
 ## Criteria
 
 - **SPEED-1**  No command should keep an agent waiting minutes.
@@ -21,3 +23,5 @@ Captured from Leif's follow-up in Grok Bot chat t813u on 2026-11-03: "I also wan
 - **SPEED-2**  SpecSync changes and archive and everything are working fast.
   - **SPEED-2.a**  SpecSync archive does not take like three minutes to run.
   - **SPEED-2.b**  The whole suite runs fast.
+    - **SPEED-2.b.1**  macOS release-candidate qualification finishes well under 45 minutes, so its timeout returns to 45.
+    - **SPEED-2.b.2**  No test is dropped or weakened to make it faster.

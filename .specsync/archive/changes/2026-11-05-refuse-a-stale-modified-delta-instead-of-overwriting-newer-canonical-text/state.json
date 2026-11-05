@@ -7,11 +7,11 @@
   "title": "Refuse a stale modified delta instead of overwriting newer canonical text",
   "description": "Refuse a stale modified delta instead of overwriting newer canonical text",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "f82eb09e2d3da852ff58e0cfbb734ab6faba724e",
   "created_at": 1793802368,
-  "updated_at": 1793838021,
+  "updated_at": 1793838215,
   "affected_specs": [
     "change"
   ],

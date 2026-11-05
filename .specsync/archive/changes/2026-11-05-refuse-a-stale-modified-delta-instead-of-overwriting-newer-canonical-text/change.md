@@ -1,6 +1,6 @@
 ---
 id: refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f82eb09e2d3da852ff58e0cfbb734ab6faba724e
 ---

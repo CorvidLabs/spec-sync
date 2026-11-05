@@ -34,3 +34,12 @@ artifact: testing
 - `cargo clippy -- -D warnings` passes. `--all-targets` reports lints only on pre-existing lines outside this change.
 - The macOS CI qualify time is measured on the next release candidate; the timeout stays 75 until then (Leif, 2026-11-05).
 - Observed during testing, not caused by this change: `fsmonitor_valid_and_ident_conversion_fail_closed` hung once in a full run when other agents ran the same test concurrently; its own `git update-index --fsmonitor-valid` setup blocked on shared fsmonitor daemons. Alone it passes in 5s, and it passed in the final full run.
+
+## Requirement evidence
+
+| Requirement | Evidence |
+| --- | --- |
+| REQ-git-utils-008 | git_utils tests a_fact_read_twice_in_one_scope_is_answered_once, a_write_inside_the_scope_forgets_every_fact, nothing_is_memoized_without_an_open_scope_or_after_it_closes, working_tree_reads_and_stdin_queries_are_never_facts, live_reads_ask_git_even_inside_a_scope |
+| REQ-git-utils-009 | git_utils tests batched_reads_equal_per_file_reads_from_one_child, a_batched_head_read_after_a_commit_sees_the_new_commit, an_object_over_the_bound_falls_back_to_git |
+| REQ-change-125 | integration test lifecycle_commands_stay_within_git_spawn_ceilings; slowest lifecycle test measured at 5,996 git spawns against the 6,225 bound (PATH shim count, recorded above) |
+| REQ-cmd-change-028 | the full lifecycle CLI suite (tests/integration/change.rs, 479 tests) passes unchanged; ship_push_never_commits_an_unrelated_untracked_file and the check --commit tests exercise reads after the command's own commit; change_adopt_rolls_back_when_comparison_ref_moves_during_publication proves race checks still see a concurrent ref move |

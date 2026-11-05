@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793905543,
+      "commit": "bd5507fede840e6d6b36a2b21fc07c0c882198ec",
+      "contract_digest": "2400e329950f327af3b4bd112223961a48036b487becdf07da184d2d5d2cd7d2",
+      "execution_digest": "c4b1f159dc4589fbbbfc6dd205392054ed28ce33b7f38af110386390a97cf97d",
+      "workspace_digest": "51ee21faf7a3fea2bbdb43b8dd58ba4900319d72009d8697f2ae72b5a208e33f",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --spec git_utils",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "specsync change check cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos (effective contract: git_utils)",
+          "success": false,
+          "exit_code": 1
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-125",
+        "REQ-cmd-change-028",
+        "REQ-git-utils-008",
+        "REQ-git-utils-009"
+      ]
+    },
+    {
+      "timestamp": 1793905562,
+      "commit": "bd5507fede840e6d6b36a2b21fc07c0c882198ec",
+      "contract_digest": "2400e329950f327af3b4bd112223961a48036b487becdf07da184d2d5d2cd7d2",
+      "execution_digest": "c4b1f159dc4589fbbbfc6dd205392054ed28ce33b7f38af110386390a97cf97d",
+      "workspace_digest": "196a1d537caf85b55e36de73194923250568267be7dc2f501f5b578fba0bbc2f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --spec git_utils",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-125",
+        "REQ-cmd-change-028",
+        "REQ-git-utils-008",
+        "REQ-git-utils-009"
+      ]
+    }
+  ]
+}

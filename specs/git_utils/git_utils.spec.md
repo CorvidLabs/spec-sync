@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 13
+version: 14
 status: stable
 files:
   - src/git_utils.rs
@@ -35,6 +35,7 @@ Shared git utility functions for querying repository history. Provides the stale
 | `memoized_repository_fact` | `root: &Path, flavor: &'static str, args: &[&str]` | `Option<MemoizedGitOutput>` | The answer an open scope for `root` already holds for this ref-, object- or config-only query; never answers while a discovery ceiling is pinned |
 | `note_repository_git` | `root: &Path, flavor: &'static str, args: &[&str], output: &MemoizedGitOutput` | `()` | Record a completed git answer in every open scope for `root`, or forget every fact when `args` may write. A process that did not exit with a code is never remembered |
 | `invalidate_repository_facts` | — | `()` | Forget every memoized fact and close every batch reader on this thread; called after git writes and external processes |
+| `live_repository_reads` | — | `LiveRepositoryReads` | Make every git read on this thread ask git until the guard drops: no memoized fact and no batch reader answers. Race checks hold one, because they read twice to see another process change the repository |
 | `is_read_only_git_invocation` | `args: &[&str]` | `bool` | Whether running `args` cannot change a memoized fact, skipping leading `-c key=value` options |
 | `batched_git_read` | `root: &Path, flavor: &'static str, command: impl Fn() -> Command, args: &[&str], max_bytes: usize` | `Option<MemoizedGitOutput>` | Answer `show <rev>:<path>` of a blob and single-path `ls-tree --full-tree -z --name-only` from one `git cat-file --batch` child per scope and flavor, with the bytes and status the per-file read gives (REQ-git-utils-009); `None` for any other shape, a non-blob, an object over `max_bytes` or no open scope |
 
@@ -46,6 +47,7 @@ Shared git utility functions for querying repository history. Provides the stale
 | `MissingHistory` | enum | `NotARepository` or `NoCommits` — why a tree cannot be asked how far a spec has fallen behind |
 | `RepositoryFactScope` | struct | Drop guard for one repository-fact scope; lifecycle commands hold one for the CLI command, the project lock and each read scope |
 | `MemoizedGitOutput` | struct | Exit status, stdout and stderr of one git answer, memoized or batched |
+| `LiveRepositoryReads` | struct | Drop guard returned by `live_repository_reads`; nests, and reads are live while any is held |
 
 **Exported Methods**
 
@@ -65,7 +67,7 @@ Shared git utility functions for querying repository history. Provides the stale
 5. There is no public way to obtain a spec's commit hash without also learning whether the tree has any history: the raw lookup is private, and `SpecBaseline::Commit` is the only value that yields a hash
 6. Default `git_cmd` does not set `GIT_CEILING_DIRECTORIES`. `with_discovery_ceiling` is the only way a git child from this module receives a ceiling, and only for the duration of the closure on that thread
 7. `git_cmd` is crate-visible so other modules (`merge::unmerged_paths`) spawn git through the same cleared-environment allowlist
-8. A repository fact (a `rev-parse`, `symbolic-ref` or `config` read, or a `rev-list`, `log`, `show`, `ls-tree`, `merge-base`, `cat-file`, `diff-tree`, `for-each-ref` or `show-ref` read without stdin) is asked of git at most once per open scope and root. Working-tree and index reads (`ls-files`, `diff`, `diff-files`, `diff-index`, `status`, `check-attr`) are never memoized. Any other git command, and any external process the command runs, forgets every fact and closes every batch reader on the thread
+8. A repository fact (a `rev-parse`, `symbolic-ref` or `config` read, or a `rev-list`, `log`, `show`, `ls-tree`, `merge-base`, `cat-file`, `diff-tree`, `for-each-ref` or `show-ref` read without stdin) is asked of git at most once per open scope and root. Working-tree and index reads (`ls-files`, `diff`, `diff-files`, `diff-index`, `status`, `check-attr`) are never memoized. Any other git command, and any external process the command runs, forgets every fact and closes every batch reader on the thread. While a `live_repository_reads` guard is held, nothing is answered from memory, so race checks that read before and after still see another process's change
 9. A batched read answers only `HEAD` or a full object id with one literal path, gives the bytes and exit status of the per-file read, and leaves trees shown by `git show` and anything over its bound to the per-file read
 
 ## Behavioral Examples
@@ -131,3 +133,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |

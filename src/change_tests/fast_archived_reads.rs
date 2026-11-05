@@ -613,6 +613,11 @@ fn a_pass_is_stored_only_for_the_state_it_was_computed_for() {
 /// A Git repository whose SpecSync project is `app/`, so `git rev-parse --show-prefix` is `app/`
 /// when history queries run with the project root as their working directory.
 fn subdirectory_project() -> (TempDir, PathBuf) {
+    subdirectory_project_named("app")
+}
+
+/// The same repository shape with the project in a directory called `name`.
+fn subdirectory_project_named(name: &str) -> (TempDir, PathBuf) {
     let temp = TempDir::new().unwrap();
     let repository = temp.path();
     quiet_git(repository, &["init", "-b", "main"]);
@@ -621,12 +626,12 @@ fn subdirectory_project() -> (TempDir, PathBuf) {
     fs::write(repository.join("README.md"), "repository root\n").unwrap();
     quiet_git(repository, &["add", "README.md"]);
     quiet_git(repository, &["commit", "-m", "repository root"]);
-    let root = repository.join("app");
+    let root = repository.join(name);
     fs::create_dir_all(&root).unwrap();
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     quiet_git(&root, &["add", "seed.txt"]);
     quiet_git(&root, &["commit", "-m", "seed"]);
-    assert_eq!(git_repo_prefix(&root).unwrap(), "app/");
+    assert_eq!(git_repo_prefix(&root).unwrap(), format!("{name}/"));
     (temp, root)
 }
 
@@ -677,6 +682,20 @@ fn subdirectory_project_refuses_a_hidden_workflow_downgrade_live_and_cached() {
 #[test]
 fn subdirectory_project_follows_an_earlier_archive_path_through_a_hidden_downgrade() {
     let (_temp, root) = subdirectory_project();
+    follows_an_earlier_archive_path_through_a_hidden_downgrade(&root);
+}
+
+// A project directory whose name holds glob metacharacters. Interpolated unescaped into a
+// `:(top,glob)` pathspec, `app[1]` is a character class that matches `app1`, never `app[1]`, so
+// the dated-archive discovery finds nothing and the hidden downgrade is invisible again.
+#[test]
+fn glob_metacharacter_project_directory_follows_an_earlier_archive_path() {
+    let (_temp, root) = subdirectory_project_named("app[1]");
+    follows_an_earlier_archive_path_through_a_hidden_downgrade(&root);
+}
+
+fn follows_an_earlier_archive_path_through_a_hidden_downgrade(root: &Path) {
+    let root = root.to_path_buf();
     let mut record = archived_workflow_record(&root);
     let first_archive = find_change_dir(&root, &record.id).unwrap();
     commit_hidden_workflow_downgrade(&root, &first_archive.join("state.json"));

@@ -793,7 +793,7 @@ fn archive_introductions_at_commit_uncached(
         let object = format!("{commit}:{path}");
         let Ok(state) = run_git_bounded(
             root,
-            &["show", object.as_str()],
+            &["show", object.as_str(), "--"],
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         ) else {
@@ -812,7 +812,7 @@ fn archive_introductions_at_commit_uncached(
         let object = format!("{commit}:{directory}/approvals.json");
         let approvals = match run_git_bounded(
             root,
-            &["show", object.as_str()],
+            &["show", object.as_str(), "--"],
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         ) {

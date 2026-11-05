@@ -3380,8 +3380,14 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
     // `:(top,glob)` matches `archive_introduction_index`: the path is repository-relative, and
     // the command runs in the project directory. Without `top`, a non-empty `git_repo_prefix`
-    // is applied twice and the archived history is empty (#851).
-    let pathspec = format!(":(top,glob){archive_root}/*-{}/state.json", record.id.as_str());
+    // is applied twice and the archived history is empty (#851). Only the dated directory is a
+    // pattern; the archive root is escaped so a project directory such as `app[1]` matches
+    // itself rather than a character class.
+    let pathspec = format!(
+        ":(top,glob){}/*-{}/state.json",
+        escape_glob_pathspec(&archive_root),
+        escape_glob_pathspec(record.id.as_str())
+    );
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let commits = scoped_review_git_text(
@@ -4272,3 +4278,15 @@ fn today() -> String {
 #[cfg(test)]
 #[path = "../change_tests.rs"]
 mod tests;
+
+/// Escapes the characters a Git `glob` pathspec treats as wildcards, so `text` matches only itself.
+fn escape_glob_pathspec(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        if matches!(character, '*' | '?' | '[' | ']' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}

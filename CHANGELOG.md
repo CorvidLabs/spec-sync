@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.2.0 after supported-platform asset and Action checks. Immutable `@v6.2.0` remains at its qualified candidate SHA with default 6.1.2; select `version: '6.2.0'` explicitly with that tag. Current install, migration, adoption and site guidance name 6.2.0.
 
+### Fixed
+
+- Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
+
 ## [6.2.0] - 2026-11-05
 
 Published from candidate `v6.2.0-rc.2` (40dcf33a), qualified on Ubuntu and macOS. The immutable `@v6.2.0` Action tag embeds download default 6.1.2; pass `version: '6.2.0'` with it.
@@ -22,7 +26,6 @@ Published from candidate `v6.2.0-rc.2` (40dcf33a), qualified on Ubuntu and macOS
 
 ### Fixed
 
-- Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851).
 - `specsync change check` refuses a `## MODIFIED` or `## REMOVED` delta whose canonical block changed after approval instead of overwriting the newer text, and `change audit` reports the same before anything is lost. The refusal names the module and block and says to rewrite the delta onto the current text, re-approve and check again. Definition approvals now record `approved_delta_bases`; approvals recorded before this field keep the earlier behaviour (#845, issue #843, REQ-change-122).
 - `specsync change approve` refusing an affected path that no module owns now ends with one line per refused path naming the spec to edit: every spec that already lists the path (sorted, with `add --spec <module>`), otherwise the declared spec whose `files:` share the longest directory, otherwise a generic hint when none shares a directory. Ownership is decided exactly as before; only the wording changes (#841, #853, REQ-change-120).
 - Worktrees of one repository share one archived-read cache even when the checkout path runs through a symlink (macOS `/var` -> `/private/var`): the Git common directory is canonicalized before the cache path is formed (#857).

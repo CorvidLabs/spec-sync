@@ -177,10 +177,13 @@ fn set_nonblocking(fd: std::os::unix::io::RawFd) -> io::Result<()> {
 
 /// Read `reader` until EOF or until `stop` is set.
 ///
-/// Bytes already written are kept. After `stop` is set this returns without waiting
-/// for a descendant to close the write end. Past `cap`, further bytes are discarded
-/// and `overflow` is set, but reading continues so a full pipe cannot stall the child
-/// before the parent reaps it.
+/// While the child is still running, each successful read is one buffer and then
+/// `stop` is checked again, so a descendant that keeps the pipe readable after the
+/// child exits cannot hold this function in a drain loop. When `stop` is observed,
+/// one `FIONREAD` snapshot of the bytes already queued is drained and the function
+/// returns. Bytes the child had written by the time it was reaped are in that
+/// snapshot or were already kept. Later descendant writes are not followed.
+/// Past `cap`, further bytes are discarded and `overflow` is set.
 #[cfg(unix)]
 pub(crate) fn read_pipe_until_stop<R>(
     mut reader: R,
@@ -196,71 +199,121 @@ where
     let mut retained = Vec::new();
     let mut buffer = [0u8; 16 * 1024];
     loop {
-        let eof = drain_nonblocking(&mut reader, &mut buffer, &mut retained, cap, overflow)?;
-        if eof || stop.load(Ordering::SeqCst) {
+        if stop.load(Ordering::SeqCst) {
+            drain_queued_snapshot(&mut reader, &mut buffer, &mut retained, cap, overflow)?;
             return Ok(retained);
         }
-        let mut fds = [
-            libc::pollfd {
-                fd: reader.as_raw_fd(),
-                events: libc::POLLIN,
-                revents: 0,
-            },
-            libc::pollfd {
-                fd: wake,
-                events: libc::POLLIN,
-                revents: 0,
-            },
-        ];
-        loop {
-            // SAFETY: `fds` holds two open descriptors owned for the duration of this read.
-            let rc = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, -1) };
-            if rc < 0 {
-                let error = io::Error::last_os_error();
-                if error.kind() == io::ErrorKind::Interrupted {
-                    continue;
+        match reader.read(&mut buffer) {
+            Ok(0) => return Ok(retained),
+            Ok(read) => retain_bytes(&mut retained, &buffer[..read], cap, overflow),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                // The child can write its last bytes and exit in this window.
+                // Honor stop only after that queued snapshot is taken.
+                if stop.load(Ordering::SeqCst) {
+                    drain_queued_snapshot(&mut reader, &mut buffer, &mut retained, cap, overflow)?;
+                    return Ok(retained);
                 }
-                return Err(error);
+                wait_for_pipe_or_wake(reader.as_raw_fd(), wake)?;
             }
-            break;
-        }
-    }
-}
-
-#[cfg(unix)]
-fn drain_nonblocking<R: Read>(
-    reader: &mut R,
-    buffer: &mut [u8],
-    retained: &mut Vec<u8>,
-    cap: usize,
-    overflow: &AtomicBool,
-) -> io::Result<bool> {
-    loop {
-        match reader.read(buffer) {
-            Ok(0) => return Ok(true),
-            Ok(read) => {
-                let remaining = cap.saturating_sub(retained.len());
-                let keep = remaining.min(read);
-                retained.extend_from_slice(&buffer[..keep]);
-                if keep != read {
-                    overflow.store(true, Ordering::Release);
-                }
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(false),
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(error),
         }
     }
 }
 
+#[cfg(unix)]
+fn retain_bytes(retained: &mut Vec<u8>, chunk: &[u8], cap: usize, overflow: &AtomicBool) {
+    let remaining = cap.saturating_sub(retained.len());
+    let keep = remaining.min(chunk.len());
+    retained.extend_from_slice(&chunk[..keep]);
+    if keep != chunk.len() {
+        overflow.store(true, Ordering::Release);
+    }
+}
+
+/// Bytes sitting in the pipe right now. A descendant that writes more after this
+/// call does not increase the count, so the following read is finite.
+#[cfg(unix)]
+fn queued_len(fd: std::os::unix::io::RawFd) -> io::Result<usize> {
+    let mut available: libc::c_int = 0;
+    // SAFETY: `fd` is the caller's open pipe read end. `FIONREAD` writes one int.
+    let rc = unsafe { libc::ioctl(fd, libc::FIONREAD, &mut available) };
+    if rc < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(available.max(0) as usize)
+}
+
+#[cfg(unix)]
+fn drain_queued_snapshot<R>(
+    reader: &mut R,
+    buffer: &mut [u8],
+    retained: &mut Vec<u8>,
+    cap: usize,
+    overflow: &AtomicBool,
+) -> io::Result<()>
+where
+    R: Read + std::os::unix::io::AsRawFd,
+{
+    let mut left = queued_len(reader.as_raw_fd())?;
+    while left > 0 {
+        let want = left.min(buffer.len());
+        match reader.read(&mut buffer[..want]) {
+            Ok(0) => return Ok(()),
+            Ok(read) => {
+                retain_bytes(retained, &buffer[..read], cap, overflow);
+                left -= read;
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn wait_for_pipe_or_wake(
+    pipe: std::os::unix::io::RawFd,
+    wake: std::os::unix::io::RawFd,
+) -> io::Result<()> {
+    let mut fds = [
+        libc::pollfd {
+            fd: pipe,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: wake,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
+    loop {
+        // SAFETY: `fds` holds two open descriptors owned for the duration of this wait.
+        let rc = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, -1) };
+        if rc < 0 {
+            let error = io::Error::last_os_error();
+            if error.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(error);
+        }
+        return Ok(());
+    }
+}
+
 /// Collect stdout and stderr, and return when the direct child exits.
 ///
-/// Both streams are pipes this process owns, so a grandchild cannot hold the
-/// caller's own stdout or stderr. A grandchild that keeps the child's pipe open
-/// does not delay the return: readers stop once the child has been reaped.
+/// Stdin is the null device, matching `Command::output`: the child cannot read
+/// the caller's input. Stdout and stderr are pipes this process owns, so a
+/// grandchild cannot hold the caller's own stdout or stderr. A grandchild that
+/// keeps the child's pipe open does not delay the return: readers stop once the
+/// child has been reaped, after a finite snapshot of the bytes already queued.
 pub(crate) fn output_after_child_exits(command: &mut Command) -> io::Result<Output> {
     use std::process::Stdio;
 
+    command.stdin(Stdio::null());
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
     let mut child = command.spawn()?;
@@ -985,6 +1038,142 @@ mod tests {
             fs::read_to_string(&marker).unwrap().trim(),
             "/dev/null",
             "a status child must not inherit the caller's stdout"
+        );
+    }
+
+    /// A piped stdin on the command must not survive. `Command::output` replaces
+    /// stdin with the null device; a pipe here would show up as `pipe:[…]`.
+    #[cfg(unix)]
+    #[test]
+    fn output_after_child_exits_nulls_stdin() {
+        use std::process::Stdio;
+
+        let mut command = Command::new("sh");
+        command
+            .arg("-c")
+            .arg("readlink /dev/fd/0")
+            .stdin(Stdio::piped());
+        let output = output_after_child_exits(&mut command).unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "/dev/null",
+            "stdin must be the null device, not the caller's pipe"
+        );
+    }
+
+    /// The pipe is full and a descendant is blocked in `write` before the read
+    /// starts. Stop is already set. An unbounded drain unblocks that write and
+    /// follows the flood forever. A finite snapshot keeps the payload at the
+    /// head of the pipe and stops at the pipe's capacity.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn stop_keeps_queued_bytes_and_does_not_follow_a_descendant_flood() {
+        use std::fs::File;
+        use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
+
+        let mut fds = [0; 2];
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        // SAFETY: `pipe` just opened both ends and this test owns them.
+        let read = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+        let write = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+        let capacity = pipe_capacity(read.as_raw_fd());
+        let payload = b"payload\n";
+        assert_eq!(
+            unsafe { libc::write(write.as_raw_fd(), payload.as_ptr().cast(), payload.len()) },
+            payload.len() as isize
+        );
+        fill_pipe_until_full(write.as_raw_fd());
+
+        let (tid_tx, tid_rx) = std::sync::mpsc::channel();
+        let flood = std::thread::spawn(move || {
+            // SAFETY: `gettid` takes no pointer and returns this thread's id.
+            let tid = unsafe { libc::syscall(libc::SYS_gettid) };
+            tid_tx.send(tid).unwrap();
+            let chunk = [b'x'; 8192];
+            loop {
+                // SAFETY: `write` is the pipe's write end, owned by this thread.
+                let rc =
+                    unsafe { libc::write(write.as_raw_fd(), chunk.as_ptr().cast(), chunk.len()) };
+                if rc < 0 {
+                    break;
+                }
+            }
+        });
+        let tid = tid_rx.recv().unwrap();
+        while !std::fs::read_to_string(format!("/proc/{tid}/wchan"))
+            .unwrap_or_default()
+            .contains("pipe")
+        {
+            std::thread::yield_now();
+        }
+
+        let stop = AtomicBool::new(true);
+        let wake = OutputWake::new().unwrap();
+        let overflow = AtomicBool::new(false);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(read_pipe_until_stop(
+                File::from(read),
+                &stop,
+                wake.raw_read(),
+                usize::MAX,
+                &overflow,
+            ));
+        });
+        let bytes = rx
+            .recv_timeout(std::time::Duration::from_secs(15))
+            .unwrap_or_else(|_| panic!("a descendant flood kept the read going after stop was set"))
+            .unwrap();
+        assert!(
+            bytes.starts_with(b"payload\n"),
+            "bytes queued at stop were dropped"
+        );
+        assert!(
+            bytes.len() <= capacity,
+            "post-stop drain followed the flood: {} bytes, pipe capacity {capacity}",
+            bytes.len()
+        );
+        drop(flood);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn pipe_capacity(fd: std::os::unix::io::RawFd) -> usize {
+        // SAFETY: `fd` is an open pipe. `F_GETPIPE_SZ` returns its capacity.
+        let size = unsafe { libc::fcntl(fd, libc::F_GETPIPE_SZ) };
+        assert!(size > 0, "F_GETPIPE_SZ failed");
+        size as usize
+    }
+
+    #[cfg(target_os = "linux")]
+    fn fill_pipe_until_full(fd: std::os::unix::io::RawFd) {
+        set_nonblocking(fd).unwrap();
+        let chunk = [b'x'; 8192];
+        loop {
+            // SAFETY: `fd` is the pipe write end this test owns.
+            let rc = unsafe { libc::write(fd, chunk.as_ptr().cast(), chunk.len()) };
+            if rc < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.kind() == std::io::ErrorKind::WouldBlock {
+                    break;
+                }
+                if error.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                panic!("filling the pipe failed: {error}");
+            }
+        }
+        // SAFETY: `fd` is the same write end. Clearing `O_NONBLOCK` makes the
+        // descendant's later `write` block inside the kernel once the pipe is full.
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        assert!(flags >= 0);
+        assert_eq!(
+            unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK) },
+            0
         );
     }
 }

@@ -388,27 +388,140 @@ fn configured_git_command(root: &Path) -> Command {
     command
 }
 
+/// Windows stand-in for [`crate::git_utils::read_pipe_until_stop`].
+///
+/// `PeekNamedPipe` reports a finite queued count. After `stop` is set, one such
+/// snapshot is read and the function returns, so a descendant that keeps the
+/// pipe open cannot hold the join. An empty pipe waits 2 ms, the same cadence
+/// as the parent's `try_wait` loop, and that wait ends when `stop` is set.
 #[cfg(not(unix))]
-fn read_bounded_pipe<Reader: Read>(
+fn read_bounded_pipe<Reader>(
     mut reader: Reader,
     cap: usize,
     overflow: Arc<AtomicBool>,
-) -> std::io::Result<Vec<u8>> {
+    stop: Arc<AtomicBool>,
+) -> std::io::Result<Vec<u8>>
+where
+    Reader: Read + std::os::windows::io::AsRawHandle,
+{
     let mut retained = Vec::with_capacity(cap.min(64 * 1024));
     let mut buffer = [0_u8; 16 * 1024];
     loop {
-        let read = reader.read(&mut buffer)?;
-        if read == 0 {
-            break;
+        if stop.load(Ordering::SeqCst) {
+            drain_windows_snapshot(&mut reader, &mut buffer, &mut retained, cap, &overflow)?;
+            return Ok(retained);
         }
-        let remaining = cap.saturating_sub(retained.len());
-        let keep = remaining.min(read);
-        retained.extend_from_slice(&buffer[..keep]);
-        if keep != read {
-            overflow.store(true, Ordering::Release);
+        match windows_queued(&reader) {
+            Ok(0) => std::thread::sleep(Duration::from_millis(2)),
+            Ok(queued) => {
+                let want = usize::try_from(queued).unwrap_or(buffer.len()).min(buffer.len());
+                match reader.read(&mut buffer[..want]) {
+                    Ok(0) => return Ok(retained),
+                    Ok(read) => {
+                        retain_bounded(&mut retained, &buffer[..read], cap, &overflow);
+                        if stop.load(Ordering::SeqCst) {
+                            drain_windows_snapshot(
+                                &mut reader,
+                                &mut buffer,
+                                &mut retained,
+                                cap,
+                                &overflow,
+                            )?;
+                            return Ok(retained);
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(error) => return Err(error),
+                }
+            }
+            Err(error) if windows_pipe_closed(&error) => return Ok(retained),
+            Err(error) => return Err(error),
         }
     }
-    Ok(retained)
+}
+
+#[cfg(not(unix))]
+fn retain_bounded(retained: &mut Vec<u8>, chunk: &[u8], cap: usize, overflow: &AtomicBool) {
+    let remaining = cap.saturating_sub(retained.len());
+    let keep = remaining.min(chunk.len());
+    retained.extend_from_slice(&chunk[..keep]);
+    if keep != chunk.len() {
+        overflow.store(true, Ordering::Release);
+    }
+}
+
+#[cfg(not(unix))]
+fn drain_windows_snapshot<Reader>(
+    reader: &mut Reader,
+    buffer: &mut [u8],
+    retained: &mut Vec<u8>,
+    cap: usize,
+    overflow: &AtomicBool,
+) -> std::io::Result<()>
+where
+    Reader: Read + std::os::windows::io::AsRawHandle,
+{
+    let queued = match windows_queued(reader) {
+        Ok(queued) => queued,
+        Err(error) if windows_pipe_closed(&error) => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let mut left = usize::try_from(queued).unwrap_or(usize::MAX);
+    while left > 0 {
+        let want = left.min(buffer.len());
+        match reader.read(&mut buffer[..want]) {
+            Ok(0) => return Ok(()),
+            Ok(read) => {
+                retain_bounded(retained, &buffer[..read], cap, overflow);
+                left -= read;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn windows_pipe_closed(error: &std::io::Error) -> bool {
+    // ERROR_BROKEN_PIPE and ERROR_NO_DATA: the write end is gone.
+    matches!(error.raw_os_error(), Some(109 | 232))
+}
+
+#[cfg(not(unix))]
+fn windows_queued<Reader>(reader: &Reader) -> std::io::Result<u32>
+where
+    Reader: std::os::windows::io::AsRawHandle,
+{
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn PeekNamedPipe(
+            handle: *mut std::ffi::c_void,
+            buffer: *mut std::ffi::c_void,
+            buffer_size: u32,
+            bytes_read: *mut u32,
+            total_bytes_avail: *mut u32,
+            bytes_left: *mut u32,
+        ) -> i32;
+    }
+
+    let mut available = 0u32;
+    // SAFETY: `handle` is the raw pipe handle of a `ChildStdout`/`ChildStderr`
+    // this process owns. A null buffer asks only for the queued byte count.
+    let ok = unsafe {
+        PeekNamedPipe(
+            reader.as_raw_handle().cast(),
+            std::ptr::null_mut(),
+            0,
+            std::ptr::null_mut(),
+            &mut available,
+            std::ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(available)
 }
 
 fn run_git_bounded(
@@ -476,10 +589,9 @@ fn run_git_command_bounded_with_deadline(
     let overflow = Arc::new(AtomicBool::new(false));
     let stdout_overflow = Arc::clone(&overflow);
     let stderr_overflow = Arc::clone(&overflow);
-    // The wake pipe is opened after spawn, so the child cannot inherit it.
     // Readers return when the direct child is reaped even if a descendant
-    // still holds the output pipe.
-    #[cfg(unix)]
+    // still holds the output pipe. The wake pipe is opened after spawn, so
+    // the child cannot inherit it.
     let stop = Arc::new(AtomicBool::new(false));
     #[cfg(unix)]
     let wake = match crate::git_utils::OutputWake::new() {
@@ -494,9 +606,7 @@ fn run_git_command_bounded_with_deadline(
     };
     #[cfg(unix)]
     let wake_fd = wake.raw_read();
-    #[cfg(unix)]
     let stdout_stop = Arc::clone(&stop);
-    #[cfg(unix)]
     let stderr_stop = Arc::clone(&stop);
     let stdout_reader = std::thread::spawn(move || {
         #[cfg(unix)]
@@ -511,7 +621,7 @@ fn run_git_command_bounded_with_deadline(
         }
         #[cfg(not(unix))]
         {
-            read_bounded_pipe(stdout, stdout_cap, stdout_overflow)
+            read_bounded_pipe(stdout, stdout_cap, stdout_overflow, stdout_stop)
         }
     });
     let stderr_reader = std::thread::spawn(move || {
@@ -527,7 +637,7 @@ fn run_git_command_bounded_with_deadline(
         }
         #[cfg(not(unix))]
         {
-            read_bounded_pipe(stderr, MAX_GIT_DIAGNOSTIC_BYTES, stderr_overflow)
+            read_bounded_pipe(stderr, MAX_GIT_DIAGNOSTIC_BYTES, stderr_overflow, stderr_stop)
         }
     });
     let writer = input.map(|input| {
@@ -572,6 +682,9 @@ fn run_git_command_bounded_with_deadline(
         }
         std::thread::sleep(Duration::from_millis(2));
     };
+    // Store before the wake write so a reader that observes the byte also
+    // observes stop. Windows has no wake pipe; the store itself ends its wait.
+    stop.store(true, Ordering::SeqCst);
     #[cfg(unix)]
     wake.signal(&stop);
     let stdout = stdout_reader

@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 13
+version: 14
 status: stable
 files:
   - src/git_utils.rs
@@ -31,9 +31,9 @@ Shared git utility functions for querying repository history. Provides the stale
 | `has_commits` | `root: &Path` | `bool` | Whether the repository has any history. An unborn `HEAD` is a work tree by every other test, but nothing can be newer or older than a history that does not exist |
 | `with_discovery_ceiling` | `ceiling: &Path, f: impl FnOnce() -> R` | `R` | Run `f` so git children spawned on this thread set `GIT_CEILING_DIRECTORIES` to `ceiling` after `env_clear`. Restores the previous slot on return or unwind. Default `git_cmd` does not pin a ceiling |
 | `git_cmd` | `root: &Path` | `Command` | Crate-visible `git` spawn: `env_clear`, PATH/locale/home/temp allowlist, `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`, `current_dir(root)`. Ceiling-free unless `with_discovery_ceiling` is in effect |
-| `output_after_child_exits` | `command: &mut Command` | `io::Result<Output>` | Collect stdout and stderr and return when the direct child exits. Both streams are pipes this process owns. A descendant that keeps the child's pipe open does not delay the return |
+| `output_after_child_exits` | `command: &mut Command` | `io::Result<Output>` | Collect stdout and stderr and return when the direct child exits. Stdin is the null device, as with `Command::output`. Both output streams are pipes this process owns. After the child is reaped, one finite snapshot of the bytes already queued is kept. A descendant that keeps writing does not delay the return |
 | `status_without_inherited_output` | `command: &mut Command` | `io::Result<ExitStatus>` | Run `command` with stdout and stderr on the null device and return when the direct child exits, so a descendant cannot keep the caller's output pipes open |
-| `read_pipe_until_stop` | `reader`, `stop: &AtomicBool`, `wake: RawFd`, `cap: usize`, `overflow: &AtomicBool` | `io::Result<Vec<u8>>` | Unix read of one pipe until EOF or until `stop` is set. Bytes already written are kept. Past `cap`, further bytes are discarded, `overflow` is set, and reading continues so a full pipe cannot stall the child |
+| `read_pipe_until_stop` | `reader`, `stop: &AtomicBool`, `wake: RawFd`, `cap: usize`, `overflow: &AtomicBool` | `io::Result<Vec<u8>>` | Unix read of one pipe until EOF or until `stop` is set. `stop` is checked between reads. When `stop` is observed, one `FIONREAD` snapshot of the bytes already queued is drained and the function returns. Past `cap`, further bytes are discarded and `overflow` is set |
 
 **Exported Types**
 
@@ -64,7 +64,7 @@ Shared git utility functions for querying repository history. Provides the stale
 5. There is no public way to obtain a spec's commit hash without also learning whether the tree has any history: the raw lookup is private, and `SpecBaseline::Commit` is the only value that yields a hash
 6. Default `git_cmd` does not set `GIT_CEILING_DIRECTORIES`. `with_discovery_ceiling` is the only way a git child from this module receives a ceiling, and only for the duration of the closure on that thread
 7. `git_cmd` is crate-visible so other modules (`merge::unmerged_paths`) spawn git through the same cleared-environment allowlist
-8. `output_after_child_exits` returns when the direct child exits. A descendant that still holds that child's stdout or stderr does not delay the return, and those streams are pipes this process owns, not the caller's. `status_without_inherited_output` runs the child with both streams on the null device, so a descendant cannot keep the caller's stdout or stderr open after the caller exits (SPEED-1, SPEED-1.e)
+8. `output_after_child_exits` returns when the direct child exits. Stdin is the null device. Stdout and stderr are pipes this process owns, not the caller's. When the child-exit signal is observed, the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped (SPEED-1, SPEED-1.e). `status_without_inherited_output` runs the child with both streams on the null device, so a descendant cannot keep the caller's stdout or stderr open after the caller exits
 
 ## Behavioral Examples
 
@@ -143,3 +143,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits (#854, #855, SPEED-1, SPEED-1.e) |
+| 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued bytes and give the child a null stdin |

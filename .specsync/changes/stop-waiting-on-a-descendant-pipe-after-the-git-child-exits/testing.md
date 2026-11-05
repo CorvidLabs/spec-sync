@@ -9,4 +9,8 @@ artifact: testing
 
 `status_does_not_hand_the_caller_stdout_to_the_child` records the path of the child's stdout and requires the null device.
 
+`stop_keeps_queued_bytes_and_does_not_follow_a_descendant_flood` fills the pipe, blocks a descendant in `write`, then reads with stop already set. The payload at the head is kept and the length does not exceed the pipe capacity. A receive bound only reports that the flood was followed.
+
+`output_after_child_exits_nulls_stdin` points a command whose stdin was a pipe at the null device.
+
 These stay as they were, and were re-run after the fix: `bounded_git_runner_times_out_a_silent_process`, `timed_out_git_runner_reaps_child_and_joins_blocked_writer`, `timed_out_git_runner_reaps_child_before_child_can_make_progress`.

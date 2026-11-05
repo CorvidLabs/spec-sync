@@ -26,6 +26,8 @@ spec: git_utils.spec.md
 | `discovery_ceiling_does_not_leak_after_the_closure` | After the closure returns, default `git_cmd` is ceiling-free again |
 | `output_returns_while_a_descendant_holds_the_pipe` | `output_after_child_exits` returns the child's bytes while a grandchild still holds the output pipe (#855, SPEED-1.e) |
 | `status_does_not_hand_the_caller_stdout_to_the_child` | `status_without_inherited_output` points the child's stdout at the null device (#854) |
+| `output_after_child_exits_nulls_stdin` | A piped stdin is replaced with the null device, matching `Command::output` |
+| `stop_keeps_queued_bytes_and_does_not_follow_a_descendant_flood` | With stop already set and a descendant blocked in `write` on a full pipe, the payload at the head is kept and the read does not exceed the pipe capacity |
 
 ## Behavioral Verification
 

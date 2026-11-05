@@ -47,17 +47,18 @@ fn acceptance_entry_digest_at_commit(
 ) -> Result<String, String> {
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
-    let added = Command::new("git")
-        .args([
-            "worktree",
-            "add",
-            "--detach",
-            tree.to_string_lossy().as_ref(),
-            commit,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
+    let added = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args([
+                "worktree",
+                "add",
+                "--detach",
+                tree.to_string_lossy().as_ref(),
+                commit,
+            ])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
     if !added.status.success() {
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
@@ -66,15 +67,16 @@ fn acceptance_entry_digest_at_commit(
         ));
     }
     let result = acceptance_entry_digest_in_tree(&tree, predecessor_id, path);
-    let removed = Command::new("git")
-        .args([
-            "worktree",
-            "remove",
-            "--force",
-            tree.to_string_lossy().as_ref(),
-        ])
-        .current_dir(root)
-        .output();
+    let removed = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args([
+                "worktree",
+                "remove",
+                "--force",
+                tree.to_string_lossy().as_ref(),
+            ])
+            .current_dir(root),
+    );
     let _ = fs::remove_dir_all(&temporary);
     if !removed.is_ok_and(|output| output.status.success()) {
         return Err("failed to remove succession base workspace".into());
@@ -127,17 +129,17 @@ fn semantic_tuple_transition_is_valid(
     // against -- the working tree, whose base ancestry `accept_change_with_gate` checked against
     // HEAD -- so that is where the successor entry is read from.
     let closing = anchor == WORKING_TREE_CLOSING_EVIDENCE_ANCHOR;
-    let ancestor = Command::new("git")
-        .args([
-            "merge-base",
-            "--is-ancestor",
-            base,
-            if closing { "HEAD" } else { anchor.as_str() },
-        ])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .map_err(|error| format!("failed to validate accepted transition ancestry: {error}"))?;
+    let ancestor = crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args([
+                "merge-base",
+                "--is-ancestor",
+                base,
+                if closing { "HEAD" } else { anchor.as_str() },
+            ])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to validate accepted transition ancestry: {error}"))?;
     if !ancestor.success() {
         return Ok(false);
     }
@@ -386,6 +388,7 @@ fn configured_git_command(root: &Path) -> Command {
     command
 }
 
+#[cfg(not(unix))]
 fn read_bounded_pipe<Reader: Read>(
     mut reader: Reader,
     cap: usize,
@@ -473,10 +476,59 @@ fn run_git_command_bounded_with_deadline(
     let overflow = Arc::new(AtomicBool::new(false));
     let stdout_overflow = Arc::clone(&overflow);
     let stderr_overflow = Arc::clone(&overflow);
-    let stdout_reader =
-        std::thread::spawn(move || read_bounded_pipe(stdout, stdout_cap, stdout_overflow));
+    // The wake pipe is opened after spawn, so the child cannot inherit it.
+    // Readers return when the direct child is reaped even if a descendant
+    // still holds the output pipe.
+    #[cfg(unix)]
+    let stop = Arc::new(AtomicBool::new(false));
+    #[cfg(unix)]
+    let wake = match crate::git_utils::OutputWake::new() {
+        Ok(wake) => wake,
+        Err(error) => {
+            drop(stdout);
+            drop(stderr);
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!("failed to watch Git output: {error}"));
+        }
+    };
+    #[cfg(unix)]
+    let wake_fd = wake.raw_read();
+    #[cfg(unix)]
+    let stdout_stop = Arc::clone(&stop);
+    #[cfg(unix)]
+    let stderr_stop = Arc::clone(&stop);
+    let stdout_reader = std::thread::spawn(move || {
+        #[cfg(unix)]
+        {
+            crate::git_utils::read_pipe_until_stop(
+                stdout,
+                &stdout_stop,
+                wake_fd,
+                stdout_cap,
+                &stdout_overflow,
+            )
+        }
+        #[cfg(not(unix))]
+        {
+            read_bounded_pipe(stdout, stdout_cap, stdout_overflow)
+        }
+    });
     let stderr_reader = std::thread::spawn(move || {
-        read_bounded_pipe(stderr, MAX_GIT_DIAGNOSTIC_BYTES, stderr_overflow)
+        #[cfg(unix)]
+        {
+            crate::git_utils::read_pipe_until_stop(
+                stderr,
+                &stderr_stop,
+                wake_fd,
+                MAX_GIT_DIAGNOSTIC_BYTES,
+                &stderr_overflow,
+            )
+        }
+        #[cfg(not(unix))]
+        {
+            read_bounded_pipe(stderr, MAX_GIT_DIAGNOSTIC_BYTES, stderr_overflow)
+        }
     });
     let writer = input.map(|input| {
         let mut stdin = child.stdin.take();
@@ -520,6 +572,8 @@ fn run_git_command_bounded_with_deadline(
         }
         std::thread::sleep(Duration::from_millis(2));
     };
+    #[cfg(unix)]
+    wake.signal(&stop);
     let stdout = stdout_reader
         .join()
         .map_err(|_| "Git stdout reader panicked".to_string())
@@ -1916,17 +1970,18 @@ fn reconstruct_legacy_at_anchor(
 ) -> Result<(Vec<u8>, AcceptanceManifestV1), String> {
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
-    let added = Command::new("git")
-        .args([
-            "worktree",
-            "add",
-            "--detach",
-            tree.to_string_lossy().as_ref(),
-            anchor,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
+    let added = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args([
+                "worktree",
+                "add",
+                "--detach",
+                tree.to_string_lossy().as_ref(),
+                anchor,
+            ])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
     if !added.status.success() {
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
@@ -1985,23 +2040,25 @@ fn reconstruct_legacy_at_anchor(
     let removed = if force_remove_failure {
         None
     } else {
-        Command::new("git")
-            .args([
-                "worktree",
-                "remove",
-                "--force",
-                tree.to_string_lossy().as_ref(),
-            ])
-            .current_dir(root)
-            .output()
-            .ok()
+        crate::git_utils::output_after_child_exits(
+            Command::new("git")
+                .args([
+                    "worktree",
+                    "remove",
+                    "--force",
+                    tree.to_string_lossy().as_ref(),
+                ])
+                .current_dir(root),
+        )
+        .ok()
     };
     if !removed.is_some_and(|output| output.status.success()) {
         // Reclaim the registration if remove failed; ignore further hygiene errors.
-        let _ = Command::new("git")
-            .args(["worktree", "prune"])
-            .current_dir(root)
-            .output();
+        let _ = crate::git_utils::output_after_child_exits(
+            Command::new("git")
+                .args(["worktree", "prune"])
+                .current_dir(root),
+        );
     }
     let _ = fs::remove_dir_all(&temporary);
     result
@@ -4114,12 +4171,12 @@ fn ensure_git_ancestor(
     descendant: &str,
     label: &str,
 ) -> Result<(), String> {
-    let status = Command::new("git")
-        .args(["merge-base", "--is-ancestor", ancestor, descendant])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .map_err(|error| format!("failed to inspect {label} ancestry: {error}"))?;
+    let status = crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", ancestor, descendant])
+            .current_dir(root),
+    )
+    .map_err(|error| format!("failed to inspect {label} ancestry: {error}"))?;
     if !status.success() {
         return Err(format!(
             "`{ancestor}` is not an ancestor of {label} `{descendant}`"

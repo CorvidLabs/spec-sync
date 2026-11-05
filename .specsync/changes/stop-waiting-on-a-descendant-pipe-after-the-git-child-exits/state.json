@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "stop-waiting-on-a-descendant-pipe-after-the-git-child-exits",
+  "slug": "stop-waiting-on-a-descendant-pipe-after-the-git-child-exits",
+  "title": "Stop waiting on a descendant pipe after the git child exits",
+  "description": "stop waiting on a descendant pipe after the git child exits",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "40dcf33a6b0f0b55dcb7f17e8e98be9d55fa2c56",
+  "created_at": 1793886749,
+  "updated_at": 1793886766,
+  "affected_specs": [
+    "git_utils",
+    "change"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/collect_requirement_ids.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/changelog.rs",
+    "src/commands/change.rs",
+    "src/commands/diff.rs",
+    "src/commands/lifecycle.rs",
+    "src/comment.rs",
+    "src/github.rs",
+    "src/hooks.rs",
+    "src/merge.rs",
+    "hi/speed.md",
+    "specs/git_utils/git_utils.spec.md",
+    "specs/git_utils/git_utils.3md",
+    "specs/git_utils/requirements.md",
+    "specs/git_utils/tasks.md",
+    "specs/git_utils/testing.md",
+    "specs/change/change.spec.md",
+    "specs/change/change.3md",
+    "specs/change/requirements.md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A Git read returns the child's own bytes while a descendant still holds that child's output pipe. A status Git child does not receive the caller's stdout. The existing deadline, output cap, and stdin-writer join checks still pass. SPEED-1, SPEED-1.a, and SPEED-1.e."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

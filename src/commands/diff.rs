@@ -46,11 +46,11 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
     // Get list of files changed since base ref.
     // `--end-of-options` ensures `base` is always parsed as a revision, never as
     // a git flag — even if it's user-supplied and starts with `-`.
-    let output = match std::process::Command::new("git")
-        .args(["diff", "--name-only", "--end-of-options", base])
-        .current_dir(root)
-        .output()
-    {
+    let output = match crate::git_utils::output_after_child_exits(
+        std::process::Command::new("git")
+            .args(["diff", "--name-only", "--end-of-options", base])
+            .current_dir(root),
+    ) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("Failed to run git diff: {e}");

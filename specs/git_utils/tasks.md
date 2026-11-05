@@ -6,6 +6,8 @@ spec: git_utils.spec.md
 
 - No open tasks.
 
+- [x] Return from a Git child's output when that child exits, even if a descendant still holds the pipe (#854, #855, SPEED-1.e).
+
 ## Done
 
 - [x] Extract shared git helpers from stale/report behavior

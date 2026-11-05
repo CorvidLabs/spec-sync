@@ -200,11 +200,12 @@ pub struct IssueVerification {
 
 /// Auto-detect the GitHub repository from git remote origin.
 pub fn detect_repo(root: &Path) -> Option<String> {
-    let output = Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["remote", "get-url", "origin"])
+            .current_dir(root),
+    )
+    .ok()?;
 
     if !output.status.success() {
         return None;

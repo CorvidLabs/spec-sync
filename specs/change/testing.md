@@ -8,6 +8,8 @@ REQ-change-108: `change_new_refuses_a_broken_sdd_policy` writes `{` to `.specsyn
 
 REQ-change-096: `timed_out_git_runner_reaps_child_and_joins_blocked_writer` and `timed_out_git_runner_reaps_child_before_child_can_make_progress` capture PID after spawn in the parent, require a deadline error, assert ECHILD after runner cleanup, and observe the stdin writer join. The latter stops the child before starting the deadline. Neither test depends on a child-written readiness file. Cleanup and writer-join mutations must fail these assertions.
 
+REQ-change-125: `bounded_git_read_returns_while_a_descendant_holds_the_output_pipe` runs a child that exits while a grandchild blocks on a fifo holding the child's stdout. The assertion is the child's bytes and that the grandchild is still alive, not a duration. A receive bound only reports that the read never returned. The deadline, cap, and stdin-writer tests above stay as they are.
+
 `REQ-change-050` / `REQ-change-068`: `active_directory_with_files_and_no_state_is_still_open` reports a workspace that holds a nested file but no `state.json` as unreadable without dropping its healthy sibling, and `located_change_sequences` refuses it. An empty `deltas/` husk is skipped, so the sequence gate still succeeds. `.github/scripts/test-archive-readiness.sh` requires the same split from the Archive check: `broken-notes` stays open on `specsync change status`, and a lone empty `deltas/` husk is ready to merge.
 
 The legacy reconstruction authentication control also asserts that missing actor/reason and a tampered closing digest fail without writing lifecycle state. Existing current-manifest and unanchored-commit reopening tests cover the other recovery causes.

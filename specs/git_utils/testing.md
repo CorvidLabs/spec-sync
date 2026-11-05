@@ -24,6 +24,8 @@ spec: git_utils.spec.md
 | `is_git_repo_detects_project_inside_repository_subdirectory` | `true` for a directory with no `.git` of its own that sits inside a real repository |
 | `discovery_ceiling_isolates_a_subdirectory_from_host_walk_up` | `with_discovery_ceiling(parent(snap))` makes `is_git_repo(snap)` false; nested project stays true outside the closure |
 | `discovery_ceiling_does_not_leak_after_the_closure` | After the closure returns, default `git_cmd` is ceiling-free again |
+| `output_returns_while_a_descendant_holds_the_pipe` | `output_after_child_exits` returns the child's bytes while a grandchild still holds the output pipe (#855, SPEED-1.e) |
+| `status_does_not_hand_the_caller_stdout_to_the_child` | `status_without_inherited_output` points the child's stdout at the null device (#854) |
 
 ## Behavioral Verification
 

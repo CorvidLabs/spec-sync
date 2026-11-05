@@ -184,11 +184,12 @@ const PRE_COMMIT_END_PREFIX: &str = "# <<< specsync:pre-commit:";
 const LEGACY_PRE_COMMIT_MARKER: &str = "# --- spec-sync pre-commit hook ---";
 
 fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--git-path", "hooks"])
-        .output()
+    let output =
+        crate::git_utils::output_after_child_exits(Command::new("git").arg("-C").arg(root).args([
+            "rev-parse",
+            "--git-path",
+            "hooks",
+        ]))
         .map_err(|error| format!("failed to resolve Git hooks path: {error}"))?;
     if !output.status.success() {
         return Err(format!(
@@ -230,12 +231,13 @@ fn hook_project_identity(root: &Path) -> Result<(String, String, String), String
     let project_root = root
         .canonicalize()
         .map_err(|error| format!("failed to resolve project root: {error}"))?;
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .map_err(|error| format!("failed to resolve Git worktree root: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["rev-parse", "--show-toplevel"]),
+    )
+    .map_err(|error| format!("failed to resolve Git worktree root: {error}"))?;
     if !output.status.success() {
         return Err("failed to resolve Git worktree root".into());
     }

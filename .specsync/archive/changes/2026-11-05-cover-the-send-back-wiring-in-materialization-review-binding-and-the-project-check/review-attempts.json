@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "cover-the-send-back-wiring-in-materialization-review-binding-and-the-project-check",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f85feada51dafd727f0b36cea448722329de0963",
+      "contract_digest": "4fbf6b38265da8be2f1659cb2ab53428f1c0d14ef92a07da2e358c90d06b054b",
+      "execution_digest": "de1fc426cf68a19e1b5123ad4f85ef7cd16529e12ec43c366035913226e495b4",
+      "workspace_digest": "7bbf8e759f390f9f63225eb3332d82a3d8e4d4adadb015ab0d18d09d0d59033c",
+      "timestamp": 1793842286
+    }
+  ]
+}

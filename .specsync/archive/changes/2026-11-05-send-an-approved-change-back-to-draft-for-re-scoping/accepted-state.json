@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "send-an-approved-change-back-to-draft-for-re-scoping",
+  "slug": "send-an-approved-change-back-to-draft-for-re-scoping",
+  "title": "Send an approved change back to draft for re-scoping",
+  "description": "Send an approved change back to draft for re-scoping",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "f82eb09e2d3da852ff58e0cfbb734ab6faba724e",
+  "created_at": 1793803621,
+  "updated_at": 1793838642,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "INTENT.md",
+    "hi/change.md",
+    "specs/change",
+    "specs/cmd_change",
+    "specs/cli_args",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/workflow.md",
+    "src/change.rs",
+    "src/change/send_back.rs",
+    "src/change/sdd_version.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests.rs",
+    "src/change_tests/send_back_for_rescope.rs",
+    "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+    "src/cli.rs",
+    "src/commands/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "When a change's scope turns out wrong after approval, I can send it back to be re-scoped instead of deleting it by hand.",
+    "Sending it back needs a named person and a reason, and both stay in the change's history.",
+    "Sending it back cancels its approval, so the new scope needs a fresh one.",
+    "Nothing already recorded about the change is lost."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "CHANGE-6.c: changing scope costs a fresh approval, so a send-back cancels every earlier approval. CHANGE-12.c: append-only, nothing recorded is removed. Accepted and archived changes keep using change reopen. Never weaken a gate. Leif chose 'Both A and B' on 2026-11-04; this change is option A only.",
+    "public_contract": "yes"
+  }
+}

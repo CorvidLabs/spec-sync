@@ -41,3 +41,5 @@ REQ-cmd-change-023: `status_and_show_json_report_approved_delta_requirements` in
 ## Historical reconciliation evidence
 
 REQ-cmd-change-025: Targeted lifecycle tests plus actual consumer CLI status/finalize JSON inspection verify explicit unproven-history disclosure; normal command output stays unchanged.
+
+REQ-cmd-change-026: `change send-back` text, `--json` (`change` and `audit`) and non-zero draft refusal were inspected with the built binary on a scratch project; the command only delegates to `change::send_back_change`.

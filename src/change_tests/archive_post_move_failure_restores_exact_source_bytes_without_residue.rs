@@ -3240,6 +3240,7 @@ fn scope_adoption_fails_closed_when_anchor_is_unavailable_or_replayed() {
             changes,
         }],
         reopenings: Vec::new(),
+        send_backs: Vec::new(),
     };
     let error =
         validate_scope_adoption(root, &record, &ledger, 0, &ledger.approvals[0]).unwrap_err();

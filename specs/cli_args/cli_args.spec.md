@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 29
+version: 30
 status: stable
 files:
   - src/cli.rs
@@ -158,3 +158,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
 | 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
+| 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |

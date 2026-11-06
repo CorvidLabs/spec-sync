@@ -34,5 +34,18 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+      "actor": "0xLeif",
+      "reason": "Add the affected spec 'change' (still --no-spec-change) so the production file has a canonical owner at ship. Leif approved (orc tab, 2026-11-06, 'Yes, add the spec').",
+      "timestamp": 1793981141,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": true
+    }
+  ]
 }

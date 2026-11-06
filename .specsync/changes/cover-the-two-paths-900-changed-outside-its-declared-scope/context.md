@@ -13,3 +13,5 @@ artifact: context
 Leif reviewed both at 1b21d31f as part of #900. On 2026-11-06, relayed by orc t18, he said "Do the covering change": option A, with acceptance criteria CHANGE-6.d and CHANGE-13.b.
 
 Ruled out: reverting either file (that would undo a P1 fix or fail a test) and editing the archived package.
+
+The first cycle was approved at 4cdb2b36, verified at 31d657fd and reviewed by Leif. Then `change ship` refused: "acceptance input `src/change/collect_requirement_ids.rs` is production source without deterministic canonical ownership". With `--no-spec-change` and no affected spec, nothing owned that production file. `ship-status` had reported the change "ready to finalize". Leif said "Yes, add the spec" (2026-11-06, relayed by orc t18). The change was sent back, and `change` was added as its affected spec. Its files list owns `src/change/collect_requirement_ids.rs`, and `tests/integration/change.rs` is owned as a governed test. `--no-spec-change` stays, as in 27 archived changes.

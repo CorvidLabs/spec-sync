@@ -7,12 +7,13 @@
   "title": "Cover the two paths #900 changed outside its declared scope",
   "description": "Cover the two paths #900 changed outside its declared scope",
   "kind": "bug_fix",
-  "state": "verifying",
-  "canonical_applied": true,
+  "state": "draft",
   "base_commit": "ccc35abd6013041c37d2737e2dcb3290996f9b58",
   "created_at": 1793978831,
-  "updated_at": 1793979503,
-  "affected_specs": [],
+  "updated_at": 1793981169,
+  "affected_specs": [
+    "change"
+  ],
   "affected_paths": [
     "src/change/collect_requirement_ids.rs",
     "tests/integration/change.rs"
@@ -34,6 +35,7 @@
   "dependencies": [],
   "answers": {
     "architecture_risk": "yes",
+    "constraints": "change.3md 'Approvals are claims; relayed decisions (#633)': a relay is covered by no digest, so correction_prefix_digest hashes correction_digest_projection like corrected_view_digest. This change only declares two files #900 already changed; the change spec owns src/change/collect_requirement_ids.rs through its files list, and there is no spec text change. Leif: 'Do the covering change' (CHANGE-6.d, CHANGE-13.b) and 'Yes, add the spec' (2026-11-06, relayed by orc t18). Never weaken a gate, bound or test.",
     "public_contract": "no"
   }
 }

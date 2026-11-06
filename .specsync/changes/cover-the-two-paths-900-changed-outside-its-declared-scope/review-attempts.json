@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "31d657fd082edfd93783d65f2ae533a853dc8dbe",
+      "contract_digest": "9ce2c1796e3e0e1a104ad192da150f3434d4dff0e92a02baefd3888c269e8574",
+      "execution_digest": "c87803cb7c46480872d902bf18516a4cc860232bf8d1d401d10fe89c1c5be80d",
+      "workspace_digest": "493ec27686ebbcf1f9ccc0cc38e1bec3e0943cf0d30aef6cf950ca415d18f63c",
+      "timestamp": 1793980785
+    }
+  ]
+}

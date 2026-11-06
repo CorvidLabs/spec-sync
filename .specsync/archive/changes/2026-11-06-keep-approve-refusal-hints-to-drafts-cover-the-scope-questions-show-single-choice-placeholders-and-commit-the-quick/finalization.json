@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick",
+  "implementation_commit": "c60b4f47666db37759b99a2f27c786e54352dbbc",
+  "implementation_tree": "6f170eb1677b954452b3aa0a53c412904612b252",
+  "contract_digest": "482c4a659ca8e7faf2cbfeaf481c0c163c7c924abe28eeb0c95e21ca5911ae87",
+  "workspace_digest": "d40c96e423b6092a8dd6152981700e8b6076b14e7f61423d11822fdaaaf3c9bd",
+  "closing_digest": "6cda85e98f8966b8e3921239d103f33d954acadec2f857efb49bb37e2f57ae44",
+  "review_digest": "3767d100449c8ffde5fa715b62ed567b9158930966a1cc131918abfba795b489",
+  "finalization_digest": "ecdbab9f95006148a2ccb104ca13779e18b0cc6001a13724757316752328ab83",
+  "timestamp": 1793977134
+}

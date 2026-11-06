@@ -6,7 +6,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 
 <!-- hi:index -->
 - [agent](hi/agent.md): AGENT (15 criteria)
-- [change](hi/change.md): CHANGE (33 criteria)
+- [change](hi/change.md): CHANGE (38 criteria)
 - [check](hi/check.md): CHECK (21 criteria)
 - [ci](hi/ci.md): CI (12 criteria)
 - [coverage](hi/coverage.md): COVERAGE (10 criteria)

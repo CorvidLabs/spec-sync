@@ -1,0 +1,62 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793970971,
+      "digest": "482c4a659ca8e7faf2cbfeaf481c0c163c7c924abe28eeb0c95e21ca5911ae87",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick",
+        "title": "Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917)",
+        "description": "Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917)",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "site/src/content/docs/index.md",
+          "specs/change/",
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A draft without an affected path is refused with `specsync change answer <id> affected_paths \"<path>\"` named, and a draft without an affected spec (and no justified no-spec change) with `specsync change answer <id> affected_specs \"<module>\"`; running them moves approval on (REQ-change-133, DOCS-3.a).",
+          "An approved, implementing or verifying record that fails the same definition checks is refused with the same condition text and no `change answer` command, because that command refuses outside draft (REQ-change-133).",
+          "The approval guard refuses exactly the definitions it refused before; only refusal text changes.",
+          "The landing page Quick Start commits the files it created before the first change, so following it as written leaves a clean tree when the reader pushes; landing_page_change_workflow_runs_from_its_quick_start starts from exactly the documented state with no harness commit (DOCS-1).",
+          "The new unit tests and the two changed integration tests fail at 2b30841d and pass after the change; the README and the other landing-page tests keep passing.",
+          "The unfinished-interview refusal shows the first question choices as the placeholder whenever it has any (`<yes|no>`, `<none>` for constraints) and `\"<answer>\"` only when it has none, as REQ-change-133 says."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "specs/change/change.3md: refusal reasons name the concrete remediation while the predicates stay unchanged (the stale accepted-change reasons precedent, and the z=15 #883 lesson); a remediation must be runnable in the record's state, so change answer is named only for drafts; read-only text views keep their generic diagnostic. No principles file is configured.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "cb98538efcf3548ddb8cc7202df857fe6c853e897dbff27d5d9a4bd306887133"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-133": "62bc3596fb32e644349cdb5bad93e4646978f64c6a1cb1f526616bfc1fe78ca4"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793977133,
+      "digest": "6cda85e98f8966b8e3921239d103f33d954acadec2f857efb49bb37e2f57ae44",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

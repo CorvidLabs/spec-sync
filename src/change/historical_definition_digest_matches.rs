@@ -2203,6 +2203,11 @@ pub fn record_scoped_review_with_verdict(
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
+    // Refused before anything is written, so the change stays `verifying` (REQ-change-129).
+    // After the configuration refusal, in the order finalize and status use.
+    if let Some(upstream) = upstream_archive_of(root, &record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
     let reviewer = validate_scoped_reviewer_claim(&reviewer)?;
@@ -2512,6 +2517,10 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         &[ChangeState::Verifying, ChangeState::Accepted],
         "finalize the change",
     )?;
+    // Named before the trusted-transition preflight, which would refuse with "found 0".
+    if let Some(upstream) = upstream_archive_of(root, &record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
     if record.workflow_version < 2 {
         return Err(format!(
             "{} uses the legacy workflow; after reopen run `specsync change accept {} --actor <name>` then `specsync change archive {}` (do not use finalize — it would write finalization evidence without a matching acceptance closing approval)",
@@ -3288,6 +3297,17 @@ pub fn summarize_change_with_strict(
 /// gathered only as far as the state needs. Text-mode `status` prints this on every change,
 /// and an archived record's terminal-evidence walk over the whole archive would turn that line
 /// into a minutes-long wait for a verdict that is `safe` regardless.
+/// Never `Safe`: review and finalize refuse a change the remote default already archived, so a
+/// fresh session must first rebase off the stale copy (REQ-change-129).
+fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
+    HandoffSummary {
+        readiness: HandoffReadiness::NotYet,
+        reason: "this change is already archived on the remote default, so review and finalize refuse it here".into(),
+        resume: format!("specsync change status {id}"),
+        before_clearing: vec![upstream_archive_message(id, upstream)],
+    }
+}
+
 pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     let sequence_frozen = sequence_ledger_freeze_next_action(root).is_some();
     let mut signals = HandoffSignals {
@@ -3305,6 +3325,9 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     };
     if sequence_frozen {
         return classify_handoff(&record.id, &signals);
+    }
+    if let Some(upstream) = upstream_archive_of(root, record) {
+        return upstream_archive_handoff(&record.id, &upstream);
     }
     match record.state {
         ChangeState::Archived => {}
@@ -3613,10 +3636,13 @@ fn summarize_change_with_effective(
     // is the one next action right after a sequence freeze (REQ-change-115).
     let verification_ignored = (record.state != ChangeState::Archived)
         .then(|| ensure_change_clear_of_verification_ignored(root, record));
+    let upstream_archive = upstream_archive_of(root, record);
     let next_action = if let Some(remediation) = sequence_freeze.clone() {
         remediation
     } else if let Some(Err(error)) = &verification_ignored {
         verification_ignored_paths_next_action(error, &record.id)
+    } else if let Some(upstream) = &upstream_archive {
+        upstream_archive_message(&record.id, upstream)
     } else {
         match record.state {
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
@@ -3735,7 +3761,10 @@ fn summarize_change_with_effective(
             ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
         }
     };
-    let handoff = classify_handoff(
+    let handoff = if let Some(upstream) = &upstream_archive {
+        upstream_archive_handoff(&record.id, upstream)
+    } else {
+        classify_handoff(
         &record.id,
         &HandoffSignals {
             state: record.state,
@@ -3760,7 +3789,8 @@ fn summarize_change_with_effective(
                     && record.workflow_version < 2
                     && ensure_closing_approval_valid(root, record).is_err()),
         },
-    );
+        )
+    };
     ChangeSummary {
         id: record.id.clone(),
         title: record.title.clone(),

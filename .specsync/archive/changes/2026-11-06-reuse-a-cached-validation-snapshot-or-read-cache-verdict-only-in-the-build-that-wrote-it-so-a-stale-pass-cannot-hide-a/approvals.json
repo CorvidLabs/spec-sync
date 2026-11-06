@@ -1,0 +1,63 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793947588,
+      "digest": "a8f11bd74c811566b41fa464891d4845094a06db441ab37e2c1ac31a8552bde2",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a",
+        "title": "Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878)",
+        "description": "Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878)",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "INTENT.md",
+          "build.rs",
+          "hi/check.md",
+          "specs/change/",
+          "specs/hash_cache/",
+          "src/change/read_cache.rs",
+          "src/change_tests/fast_archived_reads.rs",
+          "src/hash_cache.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A validation snapshot recorded by any other build, including one that reports the same package version and one written before #878, is not replayed: a default specsync check re-validates the spec and reports the refusal this build makes (a duplicated requirement ID in the #878 case), while a snapshot recorded by this build still replays.",
+          "Both bindings come from one build fingerprint compiled in by build.rs over src/, Cargo.toml, Cargo.lock and build.rs; dropping it from either digest fails a test (mutation), and the end-to-end repro (released 6.2.0 then this build) reports the duplicate instead of All specs unchanged.",
+          "The persistent read cache written by another build of the same version, such as a sibling worktree sharing the Git common directory, is not loaded; its passing verdicts are recomputed live."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "SPEED-1.c: a cache keyed by content digest needs a correct invalidation rule, and a build that judges differently must never reuse another build's result; specs/change/change.3md: a stale pass must not stand as the answer; the 95% plan: failing test first, never weaken a test, gate or bound; Leif chose approach B (build fingerprint) over an explicit rules-version constant",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "105b4bfd329d18e92a47714e9e06b3fab737295cb6501328dfbd92c844abe0b0",
+        "hash_cache": "f6b8fa78239e4e3d9acc5c5ac4288116948d1dca6657a5397152ca2f98e6c3a3"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793982686,
+      "digest": "b1725ce356fa68e7858f01e376003feea34485f19c846351dcf5038064460561",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

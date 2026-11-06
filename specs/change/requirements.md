@@ -1768,6 +1768,15 @@ Acceptance Criteria
 - Verdicts completed before the deadline are in the read cache afterwards, so the next run does not redo them.
 - The report names the phase and progress, for example `archive-introduction index` and `140/214`.
 
+### REQ-change-134
+
+The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
+
+#### Acceptance Criteria
+
+- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
+- Removing the fingerprint from the read-cache identity fails that test.
+
 ### REQ-change-140
 
 Inside a change read scope, the workflow-version history of every archived change SHALL be answered from one lifecycle-state history index per command, built from a fixed number of Git walks from `HEAD` over the lifecycle state paths of the changes root and the archive root. Each archive's candidate state paths, its oldest-first state-path history and its history commits' parents SHALL be derived from that index, and every archive SHALL still be fully validated. A cold archived `change status` SHALL NOT spawn more Git processes as the project holds more archives (SPEED-1.a.1). The index SHALL never change a verdict: each archive SHALL be accepted or refused exactly as the per-archive check would, with the same first refusal and message, the same non-canonical archive path refusal, and the same per-archive history and parent bounds. When the index cannot be built (over its commit bound or output limit, or a Git call fails), each archive SHALL fall back to the per-archive check.

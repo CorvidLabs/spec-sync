@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 34
+version: 35
 status: stable
 files:
   - src/cli.rs
@@ -124,6 +124,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v35: the `doctor` subcommand: `--fix`, `--dry-run` (needs `--fix`), repeatable `--close-late <id|all>` (needs `--fix`, `--actor` and `--reason`), `--actor`, `--reason` (REQ-cli-args-025, #833) |
 | 2026-10-10 | Add `cli_args.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |

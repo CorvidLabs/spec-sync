@@ -580,6 +580,7 @@ companions are described in [`site/src/content/docs/companion-files.md`](../site
 | `agent-artifacts.json` | Digest of each installed agent skill/command file | yes | `agents install` |
 | `changes/<id>/` | One active change workspace (5.3) | yes | `change …` |
 | `archive/changes/YYYY-MM-DD-<id>/` | Finalized changes, with `lesson-bundle.md` | yes | `change finalize` |
+| `archive/closed-late/YYYY-MM-DD-<id>/` | Changes closed late: the package byte for byte plus `late-close.json` (`verified: false`); SpecSync 6.0 to 6.2 never read it | yes | `doctor --fix --close-late` |
 
 This repository dogfoods the layout; see its own [`.specsync/`](../.specsync/) and
 [`.specsync/sdd.json`](../.specsync/sdd.json).

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 68
+version: 69
 status: active
 files:
   - src/commands/change.rs
@@ -125,6 +125,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v69: `specsync doctor` (`cmd_doctor`, a submodule of the change commands) prints every finding with its fix class, what `--fix` applied and what `--dry-run` would do, in text or JSON; `change status` and `ship-status` report a closed-late change instead of refusing it (REQ-cmd-change-035, REQ-change-143, #833) |
 | 2026-11-05 | v62: `change ship` refuses an open task and names `specsync change ship <id>` with its flags; `change ship-status` reports it as a blocker and names it before the next step; `change check --commit` refusals name `--commit` (REQ-cmd-change-031, #892). |
 | 2026-11-05 | v57: `specsync change` handlers read repository facts and committed objects through the per-command memo and batch reader, and clear them after their own git writes (REQ-cmd-change-028, #861). |
 | 2026-10-10 | Add `cmd_change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |

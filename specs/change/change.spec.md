@@ -1,6 +1,6 @@
 ---
 module: change
-version: 186
+version: 187
 status: active
 files:
   - src/change.rs
@@ -466,6 +466,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v187: `specsync doctor`'s late close moves a merged but never-archived package byte for byte into `.specsync/archive/closed-late/<date>-<id>/` with `late-close.json` (`verified: false`); it reads no delivery evidence and adds no change state, so SpecSync 6.0 to 6.2 never read it. A collision member's acknowledgement is dropped and recorded. 6.3 reports a closed-late change in status and ship-status, refuses it in every lifecycle verb, and reserves its ID in `change new` (REQ-change-143, #833) |
 | 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | Codex review of #903: a workflow-v2 finalization stopped after acceptance, with its workspace still active, is gated too; status, ship-status and ship name its open task (`open_tasks_block`), and a review refusal names `--reviewer=<claim>` (REQ-change-131, REQ-cmd-change-031, #892). |
 | 2026-11-05 | v174: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |

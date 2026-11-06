@@ -380,4 +380,13 @@ fn a_sequence_ledger_freeze_outranks_the_upstream_archive_guidance() {
         next_line.contains("sequence ledger"),
         "text status Next names something else: {next_line}\n{text}"
     );
+
+    let ship = run(&root, &["change", "ship-status", ID]);
+    let ship_text = String::from_utf8_lossy(&ship.stdout).into_owned();
+    let freeze = ship_text.find("sequence ledger");
+    let upstream = ship_text.find("already archived");
+    assert!(
+        freeze.is_some() && upstream.is_none_or(|at| freeze < Some(at)),
+        "ship-status does not lead with the freeze:\n{ship_text}"
+    );
 }

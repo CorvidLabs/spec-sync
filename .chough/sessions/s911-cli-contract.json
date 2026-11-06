@@ -1,0 +1,42 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-5ec57dd0b73e95fb89aa0c29",
+    "head": "EVT-8b24b432c86ce9e9c4d608dc",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Make the cli contracts describe an inherited SPECSYNC_VERIFICATION_CONTEXT, not a SpecSync-made verification child (#911, #848/D4 follow-up)",
+  "intent_scope": "",
+  "modules": [
+    "cli"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": null,
+  "references": {
+    "criteria": [
+      "SHIP-1.c.1",
+      "SHIP-1.c.2"
+    ],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Orc t18 (2026-11-06): take #911 up to 'ready for approval' only, in a fresh worktree off origin/main; no approval, no PR push",
+    "Agent reading, for Leif to confirm at approval: the intent is SHIP-1.c.1 and SHIP-1.c.2, which Leif already approved (2026-11-05 20:24 MST); no new HI criteria"
+  ],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [],
+  "run_consents": [],
+  "next_action": "Failing-first cli contract pin, then specsync change new for #911"
+}

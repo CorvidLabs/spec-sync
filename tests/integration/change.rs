@@ -3855,7 +3855,20 @@ fn status_and_show_json_report_approved_delta_requirements() {
         "summary",
     ];
     previous.sort();
-    assert_eq!(keys, previous, "one new top-level key and nothing else");
+    // REQ-cmd-change-relayed-decision-001 (#633): an approved change also carries the approval it
+    // records as `recorded_claims`, and a draft, which records none, omits the key.
+    let mut approved_keys = previous.clone();
+    approved_keys.push("recorded_claims");
+    approved_keys.sort();
+    assert_eq!(
+        keys, approved_keys,
+        "one new top-level key, plus the recorded approval claim, and nothing else"
+    );
+    assert_eq!(
+        status["recorded_claims"],
+        serde_json::json!([{"gate": "definition", "name": "Reviewer"}]),
+        "{status}"
+    );
     let mut draft_keys = draft_keys;
     draft_keys.sort();
     assert_eq!(draft_keys, previous);

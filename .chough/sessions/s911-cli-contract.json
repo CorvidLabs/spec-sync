@@ -40,5 +40,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Run fledge lanes run verify and pre-push on pinned 1.89 at the change check --commit tip, push, open PR (Fixes #911), report 'ready for review'; record verify-lane evidence in Chough only after ship"
+  "next_action": "Run targeted pins and pre-push at the change check --commit tip, push, open PR (Fixes #911), send 'ready for Leif's GitHub review #911 at <head>'; no SpecSync review is recorded until Leif reviews on GitHub"
 }

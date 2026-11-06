@@ -1257,7 +1257,8 @@ Acceptance Criteria
 - A frozen sequence ledger, a definition changed after its approval, an invalid correction
   ledger, stale legacy terminal evidence, and an archive whose terminal evidence is
   `corrupt-history` are `not-yet`, and the step named is the repair the lifecycle already requires
-  (clear the freeze, re-approve, restore the ledger, reopen, restore the archive package).
+  (clear the freeze, re-approve, restore the ledger, reopen, restore the archive from trusted
+  history).
 - A Draft is never `safe`: open questions, stub artifacts, and a complete-but-unapproved
   definition are each `conditional`, and the steps name answering, finishing the artifacts, or
   approving — approval is the first boundary a fresh session can resume from.
@@ -1272,11 +1273,18 @@ Acceptance Criteria
 - An accepted workflow-v2 change and an archived change whose terminal evidence authenticates
   (including `historical-transition-unproven`) are `safe`.
 - For an archived change whose terminal evidence is `corrupt-history`, the step before clearing
-  and the summary's next action are one string: `git restore --source=HEAD --staged --worktree --
-  <package>` when the package's tracked files differ from `HEAD`, otherwise the same restore from
-  the commit that archived the package (named by `git log -1 --diff-filter=A --format=%H --
-  <package>/state.json`) followed by a commit, and in every case then `specsync change status
-  <id>`. Running that step on a tampered archive returns `authenticated-history` and `safe`.
+  and the summary's next action are one string ending with `specsync change status <id>`:
+  `git restore --source=HEAD --staged --worktree -- <package>` when the package's tracked files
+  differ from `HEAD`; the same restore from the commit that archived the package (named by
+  `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
+  package matches `HEAD` but not that commit; and, when the package still matches the commit
+  that archived it or no package or repository can answer, `specsync change status <id> --json`
+  to read what `terminal_evidence.reason` names and restore that from trusted Git history, since
+  a package restore would change nothing. Running the named step through a shell on a tampered
+  archive returns `authenticated-history` and `safe`.
+- Every change ID and path interpolated into a printed command is single-quoted as one shell
+  word, so a change ID or archive directory carrying shell metacharacters cannot turn the
+  copied step into a different command.
 - `handoff_summary` judges an archived record from the same terminal-evidence verdict
   `ChangeSummary` carries, so the text line cannot call an archive `safe` that JSON reports as
   `corrupt-history`.

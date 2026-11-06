@@ -1,6 +1,6 @@
 ---
 module: change
-version: 170
+version: 171
 status: active
 files:
   - src/change.rs
@@ -12,6 +12,7 @@ files:
   - src/change/verification_ignored_paths.rs
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
+  - src/change/read_deadline.rs
   - src/change/send_back.rs
   - src/change_tests/recorded_review_recovery.rs
   - src/change_tests/send_back_for_rescope.rs
@@ -76,12 +77,15 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | Name | Description |
 |------|-------------|
 | `LESSON_BUNDLE_FILE` | Filename of the lesson bundle written into an archive, shared with the command layer so the two cannot name different files |
+| `READ_TIMEOUT_EXIT_CODE` | Exit status (124) of a read-only lifecycle command stopped by its `--timeout` deadline (REQ-change-137) |
 | `SDD_VERSION` | Current SDD project-layout version written by initialization |
 
 **Exported Types**
 
 | Type | Description |
 |------|-------------|
+| `ReadDeadline` | When a read must stop and the limit it was given; copied to worker threads |
+| `ReadDeadlineGuard` | Clears this thread's read deadline when dropped (REQ-change-137) |
 | `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
@@ -157,6 +161,12 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
+| `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
+| `check_read_deadline` | `phase, done, total` | `Result<(), String>` | Call between items of a long read phase; past the deadline the command's thread flushes its read caches, reports and exits 124, and a worker gets `Err` |
+| `current_read_deadline` | — | `Option<ReadDeadline>` | This thread's deadline, to hand to a worker |
+| `read_deadline_passed` | — | `bool` | Whether this thread's deadline has passed |
+| `read_timeout_secs` | `flag: Option<u64>` | `Option<u64>` | `--timeout` when given, else `SPECSYNC_TIMEOUT` when it is a whole number of seconds, else none (REQ-cmd-change-032) |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `acceptance_entries` | `root: &Path, record: &ChangeRecord` | `Vec<AcceptanceInputEntryV1>` | Accepted acceptance-input entries, so `change show --json` can surface the `specsync.acceptance-entry.v1` digests `change supersede --digest` requires; empty when evidence is absent |
 | `accumulated_lessons` | `root, modules` | `Vec<(String, usize)>` | Substantive-prose line count for each module context that holds any, so a new change can be pointed at what its modules already learned |
@@ -622,3 +632,4 @@ Acceptance Criteria
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | S9: one `diff-tree --stdin` for the archive-introduction index (REQ-change-135); the workflow-v1 cutoff check comes from the cutoff tree and is cached by the cutoff commit (REQ-change-136); read-only commands take a deadline that reports the phase and resume command (REQ-change-137) |

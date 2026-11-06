@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `change status`, `show`, `list` and `ship-status` take `--timeout <secs>` (or `SPECSYNC_TIMEOUT`). A read past its deadline writes nothing, keeps its completed verdicts in the read cache, prints the phase, its progress and the exact resume command (text, or JSON with `--json`), and exits 124 (REQ-change-137, REQ-cmd-change-032).
+
 ### Changed
 
+- `specsync change status` of an archived change no longer walks history once per archive-introducing commit or once per workflow-v1 change. On the spec-sync repository (320 archives), a cold read goes from 14,482 to 5,580 git processes (111 s to 30 s on a loaded Mac), and a warm read from 262 to 111 (49 s to 5.9 s). The archive-introduction index comes from one `git diff-tree --stdin`, not one per commit (REQ-change-135). Whether a workflow-v1 change existed at the pre-v2 cutoff is read from the cutoff commit's tree and cached under that immutable commit (REQ-change-136). Prefetch workers start from the command's repository facts (REQ-git-utils-011). A cold read still grows with the archive count; #915 tracks that (S9).
 - Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. Race checks still read live. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 110 and `change finalize` from 739 to 287; the slowest lifecycle test went from 15,563 git processes and 343s to 5,996 and 95s on macOS (#861).
 - The release-candidate qualification lane runs the unchanged test set under a checksum-pinned `cargo-nextest` (#861).
 

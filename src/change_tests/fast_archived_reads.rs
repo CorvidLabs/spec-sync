@@ -82,6 +82,13 @@ fn archived_status_git_processes_do_not_grow_with_other_archives() {
 /// archived change. Most real archives look like this: their archived workflow-v1 changes must
 /// each be shown to have existed at the cutoff.
 fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
+    legacy_repository(root, legacy);
+    finalized_archived_change(root)
+}
+
+/// A repository with `legacy` archived workflow-v1 changes committed as the trusted pre-v2
+/// cutoff, then adopted to workflow v2.
+fn legacy_repository(root: &Path, legacy: usize) {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -112,7 +119,6 @@ fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
     adopt(root, false, None).unwrap();
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
-    finalized_archived_change(root)
 }
 
 /// Git processes one warm `change status` of an archived change spawns in a repository holding
@@ -500,9 +506,10 @@ fn path_is_state_candidate_matches_only_one_change_s_state_paths() {
     ));
 }
 
-/// The timed benchmark against a Raven-sized project: 124 archived changes and 120 specs.
-/// Run on demand (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES`,
-/// `SPECSYNC_BENCH_SPECS` and `SPECSYNC_BENCH_ACTIVE` change the fixture size.
+/// The timed benchmark against a Raven-sized project: 124 archived changes, 120 specs and 24
+/// archived workflow-v1 changes from before the project adopted workflow v2. Run on demand
+/// (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES`, `SPECSYNC_BENCH_SPECS`,
+/// `SPECSYNC_BENCH_LEGACY` and `SPECSYNC_BENCH_ACTIVE` change the fixture size.
 #[test]
 #[ignore = "timed benchmark; run with `fledge run bench-archived-reads`"]
 fn raven_sized_archived_status_benchmark() {
@@ -514,9 +521,14 @@ fn raven_sized_archived_status_benchmark() {
     };
     let archives = size("SPECSYNC_BENCH_ARCHIVES", 124);
     let specs = size("SPECSYNC_BENCH_SPECS", 120);
+    let legacy = size("SPECSYNC_BENCH_LEGACY", 24);
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    fast_read_repository(root);
+    if legacy == 0 {
+        fast_read_repository(root);
+    } else {
+        legacy_repository(root, legacy);
+    }
     for index in 0..specs {
         let module = format!("bench-{index}");
         fs::create_dir_all(root.join("specs").join(&module)).unwrap();
@@ -542,7 +554,7 @@ fn raven_sized_archived_status_benchmark() {
         ids.push(finalized_archived_change(root).id);
     }
     eprintln!(
-        "fixture: {archives} archived changes, {specs} specs, built in {:.1}s",
+        "fixture: {archives} archived changes, {legacy} workflow-v1 archives, {specs} specs, built in {:.1}s",
         built.elapsed().as_secs_f64()
     );
     let target = ids.last().unwrap().clone();

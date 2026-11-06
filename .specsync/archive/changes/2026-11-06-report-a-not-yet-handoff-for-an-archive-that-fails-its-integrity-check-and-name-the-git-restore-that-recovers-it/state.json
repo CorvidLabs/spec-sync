@@ -7,11 +7,11 @@
   "title": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
   "description": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793935528,
-  "updated_at": 1793983818,
+  "updated_at": 1793984511,
   "affected_specs": [
     "change",
     "cmd_change"

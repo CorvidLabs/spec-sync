@@ -1,6 +1,6 @@
 ---
 module: change
-version: 185
+version: 186
 status: active
 files:
   - src/change.rs
@@ -659,3 +659,4 @@ Acceptance Criteria
 | 2026-11-06 | keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick: Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917) |
 | 2026-11-06 | S9: one `diff-tree --stdin` for the archive-introduction index (REQ-change-135); the workflow-v1 cutoff check comes from the cutoff tree and is cached by the cutoff commit (REQ-change-136); read-only commands take a deadline that reports the phase and resume command (REQ-change-137) |
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
+| 2026-11-06 | hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected: Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths |

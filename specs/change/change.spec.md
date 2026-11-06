@@ -28,6 +28,7 @@ files:
   - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/open_task_gate.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []

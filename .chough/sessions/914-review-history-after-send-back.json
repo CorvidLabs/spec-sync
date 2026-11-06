@@ -34,17 +34,20 @@
     "decided: history binds any recorded definition approval, currency binds only a post-send-back approval, because a pre-send-back review was valid evidence when recorded (CHANGE-12.c) and must never let finalize through (CHANGE-12.b)",
     "rejected: dropping pre-send-back attempts at send-back, because CHANGE-12.c and the append-only committed history forbid losing evidence",
     "failed: an explicit send-back check in review currency, because it is unreachable (a byte-identical re-approval records a live approval with the same digest; any other re-scope already fails the contract check); removed, and the definition no longer claims a pre-send-back review never counts after an identical re-approval",
-    "Leif decided \"Leif via orc t18: approve intent CHANGE-12.d and the scope of let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval\": \"Ok yes I approve all\" (orc tab, 2026-11-06 06:1x MST, in reply to the orc's morning brief; relayed by orc t18, who recorded the native approval as 0xLeif); recorded by ss-914 Claude agent; a relayed claim, not authenticated"
+    "Leif decided \"Leif via orc t18: approve intent CHANGE-12.d and the scope of let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval\": \"Ok yes I approve all\" (orc tab, 2026-11-06 06:1x MST, in reply to the orc's morning brief; relayed by orc t18, who recorded the native approval as 0xLeif); recorded by ss-914 Claude agent; a relayed claim, not authenticated",
+    "orc t18 (2026-11-06): #901 first, #914 next, #902 after; never record a SpecSync review as Leif unless he reviewed on GitHub; send 'ready for Leif's GitHub review #N at <head>'"
   ],
   "open_questions": [],
   "completed": [
     "Red first: a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes fails on main cd8cab5e ('Review: recorded (unreadable)' after the send-back)",
-    "Implemented and tested in a throwaway clone (patch kept): history binds any recorded approval; 15 focused unit + 4 integration tests green; the new unit test fails on main code at 'the review history stays readable after a send-back'"
+    "Implemented and tested in a throwaway clone (patch kept): history binds any recorded approval; 15 focused unit + 4 integration tests green; the new unit test fails on main code at 'the review history stays readable after a send-back'",
+    "Fix applied at c2830a2e: history binds any recorded definition approval, currency only a post-send-back one; a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes (integration) and a_review_recorded_before_a_send_back_is_history_and_a_fresh_one_counts (unit) green, 15 send-back/scoped-review unit tests green",
+    "Merged origin/main 918b6c56 (#899) at 4dd598ad; lesson moved to plane z=17 so it never duplicates #901's z=16"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Implement (fix-914.patch applied), check --commit, verify on pinned 1.89, PR (Fixes #914), ready for review"
+  "next_action": "change check --commit, verify on pinned 1.89 with Homebrew python first on PATH, pre-push, push, open PR (Fixes #914), ready for Leif's GitHub review"
 }

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+  "slug": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+  "title": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+  "description": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "884a33d3c0cb95680dae786ff25688569ee16c96",
+  "created_at": 1793928410,
+  "updated_at": 1793928430,
+  "affected_specs": [
+    "git_utils"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Test harness only: two git_utils unit tests exec a script they just wrote, which Linux can refuse with ETXTBSY while another test thread forks. Running the script through sh changes no public behavior, requirement or spec text.",
+  "acceptance_criteria": [
+    "Both git_utils unit tests that run a script they just wrote run it through sh and keep their assertions unchanged, A Linux stress run of git_utils::tests that failed 9 of 300 rounds with ETXTBSY on main fails 0 of 300 rounds with the change, No gate or timeout or assertion is loosened"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

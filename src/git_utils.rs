@@ -494,8 +494,9 @@ pub(crate) fn memoized_repository_fact(
 }
 
 /// Record what git answered for `args`, and forget every fact for `root` after anything that may
-/// write. Call once per git process that ran to completion; a process that could not be started,
-/// timed out or was killed is not an answer and is never remembered.
+/// write. Call once per git process that ran to completion. Only a successful answer is
+/// remembered: a failed query, or a process that could not be started, timed out or was killed,
+/// is asked again next time (REQ-git-utils-008).
 pub(crate) fn note_repository_git(
     root: &Path,
     flavor: &'static str,
@@ -506,7 +507,7 @@ pub(crate) fn note_repository_git(
         invalidate_repository_facts();
         return;
     }
-    if !is_repository_fact(args) || discovery_ceiling_is_set() || output.status.code().is_none() {
+    if !is_repository_fact(args) || discovery_ceiling_is_set() || !output.status.success() {
         return;
     }
     let key: (&'static str, Vec<String>) = (
@@ -544,33 +545,131 @@ fn discovery_ceiling_is_set() -> bool {
 
 // ─── Batched object reads (REQ-git-utils-009) ────────────────────────────
 
+/// How long one batched lookup may take before its child is killed: the same wall-clock bound a
+/// per-file git read has.
+const BATCH_READ_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// A running `git cat-file --batch` child. Dropping it closes stdin and reaps the child.
 struct ObjectBatch {
-    child: std::process::Child,
+    child: std::sync::Arc<std::sync::Mutex<std::process::Child>>,
     stdin: Option<std::process::ChildStdin>,
     stdout: std::io::BufReader<std::process::ChildStdout>,
+    deadline: std::time::Duration,
+    watchdog: BatchWatchdog,
+    /// The commit `HEAD` named when this reader first resolved it; every later `HEAD` read in the
+    /// reader's lifetime uses it (REQ-git-utils-009).
+    head: Option<String>,
+}
+
+/// Kills the batch child when an armed lookup outlives its deadline, so a stalled object store
+/// cannot hang the command; the blocked read then sees the pipe close and fails.
+struct BatchWatchdog {
+    state: std::sync::Arc<(std::sync::Mutex<WatchdogState>, std::sync::Condvar)>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+#[derive(Default)]
+struct WatchdogState {
+    armed_until: Option<std::time::Instant>,
+    closed: bool,
+}
+
+impl BatchWatchdog {
+    fn start(child: std::sync::Arc<std::sync::Mutex<std::process::Child>>) -> Self {
+        let state = std::sync::Arc::new((
+            std::sync::Mutex::new(WatchdogState::default()),
+            std::sync::Condvar::new(),
+        ));
+        let watched = std::sync::Arc::clone(&state);
+        let thread = std::thread::spawn(move || {
+            let (lock, wake) = &*watched;
+            let Ok(mut current) = lock.lock() else { return };
+            loop {
+                if current.closed {
+                    return;
+                }
+                current = match current.armed_until {
+                    Some(until) => {
+                        let now = std::time::Instant::now();
+                        if now >= until {
+                            if let Ok(mut child) = child.lock() {
+                                let _ = child.kill();
+                            }
+                            return;
+                        }
+                        match wake.wait_timeout(current, until - now) {
+                            Ok((guard, _)) => guard,
+                            Err(_) => return,
+                        }
+                    }
+                    None => match wake.wait(current) {
+                        Ok(guard) => guard,
+                        Err(_) => return,
+                    },
+                };
+            }
+        });
+        Self {
+            state,
+            thread: Some(thread),
+        }
+    }
+
+    fn set(&self, armed_until: Option<std::time::Instant>) {
+        let (lock, wake) = &*self.state;
+        if let Ok(mut current) = lock.lock() {
+            current.armed_until = armed_until;
+            wake.notify_all();
+        }
+    }
+}
+
+impl Drop for BatchWatchdog {
+    fn drop(&mut self) {
+        let (lock, wake) = &*self.state;
+        if let Ok(mut current) = lock.lock() {
+            current.closed = true;
+            wake.notify_all();
+        }
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 impl Drop for ObjectBatch {
     fn drop(&mut self) {
         drop(self.stdin.take());
-        if !matches!(self.child.try_wait(), Ok(Some(_))) {
-            let _ = self.child.kill();
+        if let Ok(mut child) = self.child.lock() {
+            if !matches!(child.try_wait(), Ok(Some(_))) {
+                let _ = child.kill();
+            }
+            let _ = child.wait();
         }
-        let _ = self.child.wait();
     }
 }
 
 /// What one batched lookup found.
 enum BatchedObject {
-    /// The name resolves to an object of this type, with these bytes.
-    Found { kind: String, bytes: Vec<u8> },
+    /// The name resolves to this object, of this type, with these bytes.
+    Found {
+        oid: String,
+        kind: String,
+        bytes: Vec<u8>,
+    },
     /// Git reports the name missing or ambiguous.
     Missing,
 }
 
 impl ObjectBatch {
-    fn start(mut command: Command) -> std::io::Result<Self> {
+    fn start(command: Command) -> std::io::Result<Self> {
+        Self::start_with_deadline(command, BATCH_READ_DEADLINE)
+    }
+
+    fn start_with_deadline(
+        mut command: Command,
+        deadline: std::time::Duration,
+    ) -> std::io::Result<Self> {
         use std::process::Stdio;
         let mut child = command
             .args(["cat-file", "--batch"])
@@ -584,16 +683,48 @@ impl ObjectBatch {
             .take()
             .map(std::io::BufReader::new)
             .ok_or_else(|| std::io::Error::other("cat-file --batch has no stdout"))?;
+        let child = std::sync::Arc::new(std::sync::Mutex::new(child));
+        let watchdog = BatchWatchdog::start(std::sync::Arc::clone(&child));
         Ok(Self {
             child,
             stdin,
             stdout,
+            deadline,
+            watchdog,
+            head: None,
         })
     }
 
-    /// Look `name` up. `max_bytes` bounds the object: a larger one is an error, so the caller
-    /// falls back to the per-file read and its own bound.
+    /// The commit `HEAD` names for this reader: the memoized `HEAD` when `known` has it,
+    /// otherwise resolved once through the reader and kept for its lifetime.
+    fn head(&mut self, known: Option<String>) -> std::io::Result<String> {
+        if let Some(head) = &self.head {
+            return Ok(head.clone());
+        }
+        let head = match known {
+            Some(head) => head,
+            None => match self.read("HEAD", usize::MAX)? {
+                BatchedObject::Found { oid, kind, .. } if kind == "commit" => oid,
+                _ => return Err(std::io::Error::other("HEAD does not name a commit")),
+            },
+        };
+        self.head = Some(head.clone());
+        Ok(head)
+    }
+
+    /// Look `name` up, killing the child if it does not answer within the deadline.
     fn read(&mut self, name: &str, max_bytes: usize) -> std::io::Result<BatchedObject> {
+        self.watchdog
+            .set(Some(std::time::Instant::now() + self.deadline));
+        let found = self.read_unwatched(name, max_bytes);
+        self.watchdog.set(None);
+        found
+    }
+
+    /// Look `name` up. `max_bytes` bounds the object: a larger one is an error, raised from the
+    /// header before any payload is read, so the caller discards this reader and falls back to
+    /// the per-file read and its own bound.
+    fn read_unwatched(&mut self, name: &str, max_bytes: usize) -> std::io::Result<BatchedObject> {
         use std::io::{BufRead, Read, Write};
         let stdin = self
             .stdin
@@ -611,7 +742,7 @@ impl ObjectBatch {
             return Ok(BatchedObject::Missing);
         }
         let mut fields = header.split(' ');
-        let (Some(_oid), Some(kind), Some(size), None) =
+        let (Some(oid), Some(kind), Some(size), None) =
             (fields.next(), fields.next(), fields.next(), fields.next())
         else {
             return Err(std::io::Error::other(format!(
@@ -621,14 +752,15 @@ impl ObjectBatch {
         let size: usize = size
             .parse()
             .map_err(|_| std::io::Error::other("unreadable cat-file --batch size"))?;
+        if size > max_bytes {
+            return Err(std::io::Error::other("object exceeds the read bound"));
+        }
         let mut bytes = vec![0; size];
         self.stdout.read_exact(&mut bytes)?;
         let mut newline = [0_u8; 1];
         self.stdout.read_exact(&mut newline)?;
-        if size > max_bytes {
-            return Err(std::io::Error::other("object exceeds the read bound"));
-        }
         Ok(BatchedObject::Found {
+            oid: oid.to_string(),
             kind: kind.to_string(),
             bytes,
         })
@@ -646,7 +778,21 @@ fn batched_object(
     name: &str,
     max_bytes: usize,
 ) -> Option<BatchedObject> {
-    if name.contains('\n') || discovery_ceiling_is_set() || repository_reads_are_live() {
+    if name.contains('\n') {
+        return None;
+    }
+    with_batch(root, flavor, command, |batch| batch.read(name, max_bytes))
+}
+
+/// Run `use_batch` on the open scope's batch reader for `flavor`, starting it with `command` on
+/// first use. A reader that fails is discarded, since a half-read answer may still be in its pipe.
+fn with_batch<Answer>(
+    root: &Path,
+    flavor: &'static str,
+    command: impl FnOnce() -> Command,
+    use_batch: impl FnOnce(&mut ObjectBatch) -> std::io::Result<Answer>,
+) -> Option<Answer> {
+    if discovery_ceiling_is_set() || repository_reads_are_live() {
         return None;
     }
     REPOSITORY_FACT_SCOPES.with(|scopes| {
@@ -659,14 +805,52 @@ fn batched_object(
             frame.batches.insert(flavor, batch);
         }
         let batch = frame.batches.get_mut(flavor)?;
-        match batch.read(name, max_bytes) {
-            Ok(found) => Some(found),
+        match use_batch(batch) {
+            Ok(answer) => Some(answer),
             Err(_) => {
                 frame.batches.remove(flavor);
                 None
             }
         }
     })
+}
+
+/// The object id `revision` names for batched reads: a full object id as given, and `HEAD` as the
+/// memoized HEAD commit. When the memo does not know HEAD yet, the batch resolves it once and the
+/// answer is remembered as `rev-parse --verify HEAD`, so every later read in the scope, batched or
+/// not, sees the same commit (REQ-git-utils-009).
+#[cfg(unix)]
+fn batched_revision(
+    root: &Path,
+    flavor: &'static str,
+    command: impl FnOnce() -> Command,
+    revision: &str,
+) -> Option<String> {
+    if revision != "HEAD" {
+        return Some(revision.to_string());
+    }
+    let verify_head = ["rev-parse", "--verify", "HEAD"];
+    let known = [&verify_head[..], &["rev-parse", "HEAD"][..]]
+        .iter()
+        .find_map(|args| memoized_repository_fact(root, flavor, args))
+        .and_then(|fact| String::from_utf8(fact.stdout).ok())
+        .map(|stdout| stdout.trim().to_string())
+        .filter(|head| batchable_revision(head) && head != "HEAD");
+    let learned = known.is_none();
+    let head = with_batch(root, flavor, command, |batch| batch.head(known))?;
+    if learned {
+        note_repository_git(
+            root,
+            flavor,
+            &verify_head,
+            &MemoizedGitOutput {
+                status: synthetic_status(0),
+                stdout: format!("{head}\n").into_bytes(),
+                stderr: Vec::new(),
+            },
+        );
+    }
+    Some(head)
 }
 
 /// Whether a revision is safe to hand to `cat-file --batch` in place of `ls-tree`/`show`.
@@ -718,12 +902,21 @@ pub(crate) fn batched_git_read(
             if !batchable_revision(revision) || !batchable_path(path) {
                 return None;
             }
-            match batched_object(root, flavor, &command, object, max_bytes)? {
-                BatchedObject::Found { kind, bytes } if kind == "blob" => Some(MemoizedGitOutput {
-                    status: synthetic_status(0),
-                    stdout: bytes,
-                    stderr: Vec::new(),
-                }),
+            let revision = batched_revision(root, flavor, &command, revision)?;
+            match batched_object(
+                root,
+                flavor,
+                &command,
+                &format!("{revision}:{path}"),
+                max_bytes,
+            )? {
+                BatchedObject::Found { kind, bytes, .. } if kind == "blob" => {
+                    Some(MemoizedGitOutput {
+                        status: synthetic_status(0),
+                        stdout: bytes,
+                        stderr: Vec::new(),
+                    })
+                }
                 BatchedObject::Found { .. } => None,
                 BatchedObject::Missing => Some(MemoizedGitOutput {
                     status: synthetic_status(128),
@@ -744,6 +937,7 @@ pub(crate) fn batched_git_read(
             if !batchable_revision(revision) || !batchable_path(path) {
                 return None;
             }
+            let revision = batched_revision(root, flavor, &command, revision)?;
             match batched_object(
                 root,
                 flavor,
@@ -1369,6 +1563,96 @@ mod tests {
             .stdout
             .len(),
             4096
+        );
+    }
+
+    #[test]
+    fn a_failed_query_is_never_memoized() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "a", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let args = ["rev-parse", "--verify", "refs/heads/not-there"];
+        let output = git_cmd_output(root, &args).unwrap();
+        assert!(!output.status.success());
+        assert!(
+            memoized_repository_fact(root, "git_cmd", &args).is_none(),
+            "a failed git query is asked again next time (REQ-git-utils-008)"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn batched_head_reads_resolve_head_through_the_memo() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "one", "first");
+        let read = |root: &Path, path: &str| {
+            batched_git_read(
+                root,
+                "git_cmd",
+                || git_cmd(root),
+                &["show", &format!("HEAD:{path}")],
+                usize::MAX,
+            )
+            .unwrap()
+            .stdout
+        };
+        {
+            // HEAD read first, then a batched read: the batch reads at the memoized HEAD.
+            let _scope = begin_repository_fact_scope(root);
+            let head = head_through_memo(root);
+            fs::write(root.join("a.txt"), "two").unwrap();
+            git(root, &["commit", "-am", "elsewhere"]);
+            assert_eq!(read(root, "a.txt"), b"one");
+            assert_eq!(head_through_memo(root), head);
+        }
+        {
+            // Batched read first: it pins HEAD for the rest of the scope, memo included.
+            let _scope = begin_repository_fact_scope(root);
+            assert_eq!(read(root, "a.txt"), b"two");
+            let head = head_through_memo(root);
+            fs::write(root.join("a.txt"), "three").unwrap();
+            git(root, &["commit", "-am", "elsewhere again"]);
+            assert_eq!(read(root, "a.txt"), b"two");
+            assert_eq!(head_through_memo(root), head);
+        }
+    }
+
+    /// A stand-in for `git cat-file --batch` that runs `script` in `sh`.
+    fn fake_batch(script: &str) -> Command {
+        let mut command = Command::new("sh");
+        command.args(["-c", script]);
+        command
+    }
+
+    #[test]
+    fn an_oversized_object_is_refused_from_its_header() {
+        // The header claims more than the bound and the payload never comes: the read must
+        // refuse from the header instead of waiting for, or allocating, the payload.
+        let mut batch = ObjectBatch::start_with_deadline(
+            fake_batch("read line; echo \"$line blob 4096\"; exec sleep 30"),
+            std::time::Duration::from_secs(60),
+        )
+        .unwrap();
+        let started = std::time::Instant::now();
+        assert!(batch.read("HEAD:big.txt", 16).is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
+
+    #[test]
+    fn a_stalled_batch_read_is_killed_at_its_deadline() {
+        let mut batch = ObjectBatch::start_with_deadline(
+            fake_batch("exec sleep 30"),
+            std::time::Duration::from_millis(300),
+        )
+        .unwrap();
+        let started = std::time::Instant::now();
+        assert!(batch.read("HEAD:a.txt", usize::MAX).is_err());
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(10),
+            "the read gave up after {:?}",
+            started.elapsed()
         );
     }
 

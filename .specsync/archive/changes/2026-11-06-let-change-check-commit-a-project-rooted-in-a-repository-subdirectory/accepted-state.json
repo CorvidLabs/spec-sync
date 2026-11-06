@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "let-change-check-commit-a-project-rooted-in-a-repository-subdirectory",
+  "slug": "let-change-check-commit-a-project-rooted-in-a-repository-subdirectory",
+  "title": "Let change check commit a project rooted in a repository subdirectory",
+  "description": "Let change check commit a project rooted in a repository subdirectory",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "884a33d3c0cb95680dae786ff25688569ee16c96",
+  "created_at": 1793932044,
+  "updated_at": 1793934131,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "tests/integration.rs",
+    "tests/integration/subdirectory_check_commit.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "In a project rooted in a subdirectory of its Git repository, `change check <id> --commit` on a change whose source and materialized spec live in the project completes: it commits the materialized spec and the verification evidence, as it does at the repository root.",
+    "Working-tree evidence capture reads Git's modified-path output relative to the project, so the change's own spec (`app/specs/<module>/<module>.spec.md` from Git, `specs/<module>/<module>.spec.md` in the project) is in scope.",
+    "A path Git reports outside the project or outside the change's candidates is still refused with the same out-of-scope error naming that path.",
+    "A project at the repository root behaves exactly as before. No gate is loosened.",
+    "The auditor's subdirectory steps are an integration test that fails on main first."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

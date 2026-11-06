@@ -2320,6 +2320,45 @@ fn indirect_recursive_lifecycle_subcommands_fail_once_with_context() {
     }
 }
 
+// Verifies REQ-cli-003 at the contract level (#911, SHIP-1.c.1, SHIP-1.c.2).
+//
+// Honest label: CONTRACT PIN. The two tests above pin the guard's behavior; this fails when the cli
+// contracts go back to describing a verification child that SpecSync makes. SpecSync sets
+// `SPECSYNC_VERIFICATION_CONTEXT` on no child of its own, because verification executes no
+// configured command (REQ-change-023), so the guard only ever sees a context an outside caller set.
+#[test]
+fn cli_contracts_describe_an_inherited_verification_context_not_a_child() {
+    let requirement =
+        tracked_requirement("specs/cli/requirements.md", "REQ-cli-003").expect("REQ-cli-003");
+    assert!(
+        requirement.contains("inherited `SPECSYNC_VERIFICATION_CONTEXT`")
+            && requirement.contains("REQ-change-023"),
+        "REQ-cli-003 must name the inherited marker and cite REQ-change-023: {requirement}"
+    );
+    let retired = [
+        "configured verification child",
+        "configured verification children",
+        "a verification child calling",
+    ];
+    for relative in [
+        "specs/cli/requirements.md",
+        "specs/cli/cli.spec.md",
+        "specs/cli/cli.3md",
+        "specs/cli/context.md",
+        "specs/cli/testing.md",
+        "specs/cli/tasks.md",
+        "docs/HLD.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still describes a SpecSync-made verification child: `{phrase}`"
+            );
+        }
+    }
+}
+
 // Verifies REQ-cmd-migrate-002 and REQ-cli-args-007.
 #[test]
 fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
@@ -3040,6 +3079,202 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
         "handoff prose never carries a digest, got:\n{}",
         lines[0]
     );
+}
+
+// Verifies REQ-change-123 through the built binary (#914). A change that was reviewed, then sent
+// back, re-answered, re-approved and re-checked is reviewed again and finalizes. The review
+// recorded before the send-back stays in its history, unchanged, and until the fresh review
+// `change status` calls it stale and names `change review` rather than calling it unreadable.
+#[test]
+fn a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    // Workflow-v2 baseline is byte-compared; keep committed LF JSON as LF on Windows.
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let invoke = |args: &[&str]| {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        specsync().args(&full).output().unwrap()
+    };
+    let run = |args: &[&str]| -> String {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Archive a greeting",
+        "--kind",
+        "documentation",
+        "--path",
+        "docs/greeting.md",
+        "--no-spec-change",
+        "--rationale",
+        "Documentation-only behavior does not alter a technical contract",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The greeting is archived"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let active_dir = root.join(".specsync/changes").join(&id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap()).unwrap();
+    assert_eq!(state["workflow_version"], 2, "reproduced under workflow v2");
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let artifact = artifact.as_str().unwrap();
+        let content = if artifact == "tasks" {
+            "# Tasks\n\n- [x] Archive the greeting.\n".to_string()
+        } else {
+            format!("# {artifact}\n\nComplete evidence for the greeting.\n")
+        };
+        fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+    }
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    fs::write(root.join("docs/greeting.md"), "# Greeting\n\nHello.\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement greeting"]);
+    run(&["change", "check", &id, "--commit"]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let first_attempts: Value =
+        serde_json::from_str(&fs::read_to_string(active_dir.join("review-attempts.json")).unwrap())
+            .unwrap();
+    assert_eq!(first_attempts["reviews"].as_array().unwrap().len(), 1);
+
+    // The scope turns out wrong after the review: send it back, re-answer, re-approve, re-check.
+    run(&[
+        "change",
+        "send-back",
+        &id,
+        "--actor",
+        "Scope owner",
+        "--reason",
+        "the criteria must change",
+    ]);
+    run(&[
+        "change",
+        "answer",
+        &id,
+        "acceptance_criteria",
+        "The greeting is archived and dated",
+    ]);
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    run(&["change", "check", &id, "--commit"]);
+
+    // Before the fresh review the earlier one is stale, not unreadable, and nothing ships on it.
+    let status: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
+    assert_eq!(status["summary"]["approval_valid"], true, "{status}");
+    assert!(
+        status["summary"]["next_action"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("specsync change review {id}")),
+        "{status}"
+    );
+    let ship_status = run(&["change", "ship-status", &id]);
+    let review_line = ship_status
+        .lines()
+        .find(|line| line.trim_start().starts_with("Review:"))
+        .unwrap_or_else(|| panic!("no Review: line in\n{ship_status}"));
+    assert!(
+        review_line.contains("stale") && !review_line.contains("unreadable"),
+        "the pre-send-back review is stale history, not unreadable evidence:\n{ship_status}"
+    );
+    assert!(
+        !invoke(&["change", "ship", &id]).status.success(),
+        "a review recorded before the send-back must not ship the change"
+    );
+
+    // The fresh review records, and finalize archives the change with both attempts kept.
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let finalized: Value =
+        serde_json::from_str(&run(&["--json", "change", "finalize", &id])).unwrap();
+    let archive_dir = root.join(".specsync/archive/changes").join(
+        PathBuf::from(finalized["archived"].as_str().unwrap())
+            .file_name()
+            .unwrap(),
+    );
+    let archived_attempts: Value = serde_json::from_str(
+        &fs::read_to_string(archive_dir.join("review-attempts.json")).unwrap(),
+    )
+    .unwrap();
+    let reviews = archived_attempts["reviews"].as_array().unwrap();
+    assert_eq!(reviews.len(), 2, "{archived_attempts}");
+    assert_eq!(
+        reviews[0], first_attempts["reviews"][0],
+        "the pre-send-back review is kept unchanged"
+    );
+    let archived: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
+    assert_eq!(archived["change"]["state"], "archived", "{archived}");
 }
 
 // Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a",
+  "implementation_commit": "c3d15857c0a21811f69314f866d6c3f47013b49e",
+  "implementation_tree": "db01dcb9a6c0b18c82174dc0819895e8bfe3f0c9",
+  "contract_digest": "a8f11bd74c811566b41fa464891d4845094a06db441ab37e2c1ac31a8552bde2",
+  "workspace_digest": "37e0b37408fc713afd9eaa97980ed8752f7b05e47d77041550e4f4d61f4e66ee",
+  "closing_digest": "b1725ce356fa68e7858f01e376003feea34485f19c846351dcf5038064460561",
+  "review_digest": "eb3a734aae5061707a9172fcc0e4e87841f520bacb49f3890453a6f6e5eec940",
+  "finalization_digest": "01f4ed1c573b501b6fb6250f9efad5694e632d886645d5b6b59b7b2537f80b17",
+  "timestamp": 1793982686
+}

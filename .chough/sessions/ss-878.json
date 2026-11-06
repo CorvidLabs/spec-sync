@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-5eda35538468379614c0683f",
-    "head": "EVT-3bdf36fa469b03ec02a5820e",
+    "head": "EVT-f011781aa6f7bea66d5754ea",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,7 +12,7 @@
     "change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -32,7 +32,8 @@
     "Leif (2026-11-05 20:20 MST, orc tab, relayed by orc t18): CHECK-1.d approved as written; #878 approach \"B: build fingerprint\"",
     "Leif (2026-11-05 22:10 MST, relayed by orc t18): \"Both in one\": bind hash_cache validation snapshots AND the persistent read cache to the build fingerprint in one change, a test for each; REQ-change-134 (133 is ss-docs')",
     "Rejected: an explicit VALIDATION_RULES_VERSION constant (the issue's suggestion); it closes #878 but the next rule added without a bump repeats it",
-    "Leif standing rules (relayed by orc t18): merge-only updates of an approved PR merge at the new head without re-asking (22:43); agent commits keep the worktree identity 0xLeif, approvals/reviews in his name only through the orc (23:24)"
+    "Leif standing rules (relayed by orc t18): merge-only updates of an approved PR merge at the new head without re-asking (22:43); agent commits keep the worktree identity 0xLeif, approvals/reviews in his name only through the orc (23:24)",
+    "Orc t18 (2026-11-06, Leif's overnight delegation): approved the #878 definition at 888fec15, matching his 'B' and 'Both in one'; native approval recorded by the orc as 0xLeif"
   ],
   "open_questions": [],
   "completed": [
@@ -41,9 +42,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a (#878), relayed from Leif by the orc t18"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "After the relayed scope approval: build.rs fingerprint, bind both caches, mutants, e2e repro, verify"
 }

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts",
+  "slug": "make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts",
+  "title": "Make the ship-status product stage advertise only a command its state accepts",
+  "description": "Make the ship-status product stage advertise only a command its state accepts",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
+  "created_at": 1793943656,
+  "updated_at": 1793976534,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "For an `accepted` or `archived` change whose verification is no longer current for this content, the `ship-status` product-tip stage action names `specsync change reopen <id> --actor <name> --reason <text>` instead of `change check --commit`, which refuses those states.",
+    "For a `draft` change the stage action names `specsync change approve <id> --actor <name>` instead of `change check --commit`; approved, implementing and verifying changes keep `change check <id> --commit`.",
+    "A unit test drives every state through the product stage with stale verification and asserts the advertised `specsync change` verb is one whose state guard admits that state. It fails on main first (draft and accepted advertise `check`).",
+    "The top-level `ship_next`, readiness, stage ids and every gate are unchanged."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

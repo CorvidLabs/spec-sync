@@ -1,6 +1,6 @@
 ---
 id: retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands
-state: draft
+state: approved
 type: documentation
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

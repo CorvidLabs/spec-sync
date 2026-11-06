@@ -7,10 +7,10 @@
   "title": "Retire the contract clauses that promise change check runs configured verification commands",
   "description": "Retire the contract clauses that promise change check runs configured verification commands",
   "kind": "documentation",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793935721,
-  "updated_at": 1793936085,
+  "updated_at": 1793936432,
   "affected_specs": [
     "change",
     "cmd_comment"

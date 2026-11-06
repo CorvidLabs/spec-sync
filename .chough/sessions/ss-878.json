@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-5eda35538468379614c0683f",
-    "head": "EVT-f011781aa6f7bea66d5754ea",
+    "head": "EVT-ffee847a844a15bf1ea5988a",
     "legacy": null
   },
   "schema_version": 2,
@@ -42,7 +42,9 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a (#878 PR), queued for Leif's morning via the orc t18; then change ship with no commit in between"
+  ],
   "run_consents": [],
-  "next_action": "After the relayed scope approval: build.rs fingerprint, bind both caches, mutants, e2e repro, verify"
+  "next_action": "After the relayed review: specsync change ship reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a, push the archive tip, wait for CI, merge pinned when green and unblocked"
 }

@@ -1,6 +1,6 @@
 ---
 id: refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 884a33d3c0cb95680dae786ff25688569ee16c96
 ---

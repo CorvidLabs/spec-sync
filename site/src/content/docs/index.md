@@ -54,6 +54,7 @@ specsync change answer add-auth acceptance_criteria "login() returns true" --jso
 # then complete the selected artifacts and the auth delta (Workflow Guide)
 specsync change approve add-auth --actor "Ada"
 specsync change check add-auth --commit
+# run your local verify lane; CI does not test a tip whose change is still open
 # after the human implementation review:
 specsync change review add-auth --reviewer "Ada"
 specsync change finalize add-auth

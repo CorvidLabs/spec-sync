@@ -4143,12 +4143,23 @@ fn load_legacy_archive_baseline_context(
                 .map(|snapshot| (entry.id.clone(), snapshot))
         })
         .collect::<Result<_, _>>()?;
-    validate_legacy_archive_introductions(root, &baseline, &snapshots)?;
+    validate_legacy_archive_introductions_cached(root, &baseline_digest, &baseline, &snapshots)?;
 
     Ok(LegacyArchiveBaselineContext {
         baseline,
         snapshots,
     })
+}
+
+/// `validate_legacy_archive_introductions` for `load_legacy_archive_baseline_context`.
+fn validate_legacy_archive_introductions_cached(
+    root: &Path,
+    baseline_digest: &str,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Result<(), String> {
+    let _ = baseline_digest;
+    validate_legacy_archive_introductions(root, baseline, snapshots)
 }
 
 fn validate_legacy_archive_introductions(

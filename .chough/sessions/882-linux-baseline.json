@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9981e6f60a84ff1828167485",
-    "head": "EVT-ecdfed3c61ac84d7bc18f155",
+    "head": "EVT-c92fb04f4021f4d2239d8f79",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -25,7 +25,11 @@
     "requirements": [
       "REQ-github-025"
     ],
-    "cases": [],
+    "cases": [
+      "TC-github-linux-baseline-lockstep",
+      "TC-github-linux-arm64-glibc-download-starts-on-baseline",
+      "TC-github-linux-arm64-musl-download-starts-anywhere"
+    ],
     "design": [],
     "files": []
   },
@@ -40,7 +44,8 @@
     "rejected: ARM64-only scope and documenting cargo install as the only ARM64 fallback because Leif chose both arches plus an aarch64 musl download",
     "decided: record the release baseline as REQ-github-024 in the github spec because the release-matrix contract has lived there since CHG-0075 and the Windows drop, and Chough evidence needs a native contract",
     "rejected: a no-spec change like CHG-0048 because the github spec owns the release distribution contract",
-    "decided: renumber the release-baseline requirement from REQ-github-024 to REQ-github-025 because spec-sync#886 (branch fix/886-comment-readonly-token, approved) already holds 024 (orc t18); scope unchanged"
+    "decided: renumber the release-baseline requirement from REQ-github-024 to REQ-github-025 because spec-sync#886 (branch fix/886-comment-readonly-token, approved) already holds 024 (orc t18); scope unchanged",
+    "Leif (2026-11-05, orc tab, relayed by orc t18): 'Approve' — scope approval of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose at 83458275, recorded natively by the orc as 0xLeif; instruction: build, verify, PR (Fixes #882), 'ready for review'; no tag or publish"
   ],
   "open_questions": [],
   "completed": [
@@ -56,14 +61,19 @@
     "Shipped: archived at 2bc2ba92",
     "Captured approved INSTALL-1, 1.a, 1.b, 1.c in hi/install.md (Leif's approval relayed by orc t18, 20:35 MST)",
     "Failing test first: .github/scripts/linux-baseline.py + test-linux-baseline.py written; red recorded in the change testing.md (v6.2.0 ARM64 rejected with GLIBC_2.39 on ubuntu:22.04 and debian:12; 15 structural failures on the unmodified tree); positive control passes on new-recipe ARM64 archives",
-    "Defined native change build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (operations, spec github, REQ-github-025 delta, 11 acceptance criteria, all artifacts complete)"
+    "Defined native change build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (operations, spec github, REQ-github-025 delta, 11 acceptance criteria, all artifacts complete)",
+    "Failing tests: d90cbc8292c6a5c07e3ca34155628eaeb9a8b2a6"
   ],
-  "observations": [],
-  "bugs": [],
+  "observations": [
+    "OBS-tc-github-linux-baseline-lockstep-8d3fbcb70a07759eebbe4095",
+    "OBS-tc-github-linux-arm64-glibc-download-starts-on-baseline-c9cfc037fd1400b5587015c3",
+    "OBS-tc-github-linux-arm64-musl-download-starts-anywhere-4accc748063adeedf526da3e"
+  ],
+  "bugs": [
+    "BUG-linux-arm64-release-download-does-not-start-on-debian-12-or-ubuntu-22-0-23eb0fe0f3eb7815d6dc3284"
+  ],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (via orc t18)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After the orc confirms approval: re-run the red and record it as Chough evidence, then implement the workflow, CI, validator and docs changes"
+  "next_action": "Implement: release.yml/rc-assets.yml matrices + check step, ci.yml linux-baseline job, validator, fledge task, docs; then rerun the three cases green"
 }

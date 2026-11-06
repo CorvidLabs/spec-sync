@@ -3085,6 +3085,65 @@ if the floor call is removed from this function"
         }
     }
 
+    // #690: the product-tip stage must never advertise a command its own state machine
+    // refuses. For each state whose product stage is not done, the advertised `specsync change`
+    // verb must be one whose guard admits that state.
+    #[test]
+    fn ship_stage_product_action_is_accepted_by_the_state_machine() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let mut record = draft_fixture(root);
+        let tip = HeadTip {
+            tip_class: "product".into(),
+            tip_sha: Some("0".repeat(40)),
+            parent_sha: None,
+        };
+        let admitted = |verb: &str, state: ChangeState| match verb {
+            "answer" | "approve" => state == ChangeState::Draft,
+            "check" => matches!(
+                state,
+                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+            ),
+            "reopen" => matches!(state, ChangeState::Accepted | ChangeState::Archived),
+            other => panic!("unexpected advertised verb `{other}`"),
+        };
+        for state in [
+            ChangeState::Draft,
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+            ChangeState::Accepted,
+            ChangeState::Archived,
+        ] {
+            record.state = state;
+            // Verification present but no longer current for this content.
+            let stages = ship_stages(
+                &record,
+                &tip,
+                Some(&"1".repeat(40)),
+                true,
+                false,
+                ShipReviewStatus::Missing,
+                false,
+            );
+            let product = stages
+                .iter()
+                .find(|stage| stage["id"] == "product_tip")
+                .expect("product stage");
+            assert_eq!(product["status"], "current", "{state:?}");
+            let action = product["action"].as_str().unwrap();
+            let verb = action
+                .split("specsync change ")
+                .nth(1)
+                .and_then(|rest| rest.split_whitespace().next())
+                .unwrap_or_else(|| panic!("{state:?}: no `specsync change` command in {action}"));
+            assert!(
+                admitted(verb, state),
+                "{state:?}: product stage advertises `{verb}`, which refuses that state: {action}"
+            );
+        }
+    }
+
     fn draft_fixture(root: &Path) -> ChangeRecord {
         change::write_default_policy(root, Vec::new()).expect("write default policy");
         change::create_change(

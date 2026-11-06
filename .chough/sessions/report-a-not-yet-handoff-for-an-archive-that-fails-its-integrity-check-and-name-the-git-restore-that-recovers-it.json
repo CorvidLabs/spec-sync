@@ -40,7 +40,9 @@
     "Leif (2026-11-05 22:07 MST, orc tab, relayed by orc t18): \"Record and merge\" for #901 at db2e3ab4; superseded the same evening when orc t18 directed option 1 under the standing rule: fix the Codex P1 (unquoted shell words) and P2a (no-op package restore) in #901 test-first, file P2b",
     "decided: send-back as 'ss-s3 Claude agent' (orc t18 instruction) because answer is draft-only and the fix adds a third recovery case to the approved criteria and REQ-change-093",
     "rejected: exporting commands::merge::shell_quote because src/commands/merge.rs belongs to cmd_merge, outside the approved paths; a private one-line copy in the change domain instead",
-    "Leif (2026-11-05, orc tab, relayed by orc t18): \"Approve\" re-approval of the sent-back scope (shell quoting + third recovery case); native definition approval recorded at 5abcc2c7"
+    "Leif (2026-11-05, orc tab, relayed by orc t18): \"Approve\" re-approval of the sent-back scope (shell quoting + third recovery case); native definition approval recorded at 5abcc2c7",
+    "Leif (2026-11-05 22:43 MST, standing rule relayed by orc t18): a PR he approved that only takes an origin/main merge (bookkeeping/changelog/version conflicts, reviewed content unchanged, checks green again) is merged at the new head without asking again, and the report says so; any change to reviewed content comes back for review",
+    "decided: restore the shared .chough/session.json from origin/main and drop the byte-identical adopt copy because orc t18 asked each branch to commit only its own session file and history"
   ],
   "open_questions": [],
   "completed": [

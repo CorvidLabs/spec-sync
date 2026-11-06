@@ -13,6 +13,11 @@ Thank you for your interest in contributing to SpecSync! This guide will help yo
 
 ### Development Setup
 
+Use rustup's `cargo` and `rustc` shims for repository checks so they honor `rust-toolchain.toml`.
+On macOS, a Homebrew Cargo earlier on PATH can select a different compiler and Clippy. Put
+`~/.cargo/bin` first (`export PATH="$HOME/.cargo/bin:$PATH"`) and check `rustc --version` before
+running the verification lane; it should match the repository's pinned toolchain.
+
 ```bash
 # Clone the repo
 git clone https://github.com/CorvidLabs/spec-sync.git
@@ -34,12 +39,17 @@ cargo fmt
 ### Before every push (required, keep it fast)
 
 ```bash
+specsync change audit --strict
 fledge lanes run pre-push
 # or: ./scripts/pre-push-gate.sh
 ```
 
 Runs **fmt + cargo check + strict path/spec coverage** only (target: ~seconds–2 min warm).  
 Does **not** run full `cargo test` or clippy — those are `fledge lanes run verify` / CI. Do not push red.
+
+The separate `change audit --strict` also runs in CI's lifecycle and Trust gates. It checks
+active change coherence, including whether changed paths are declared in `affected_paths`;
+`change check --commit` and the pre-push lane do not replace it.
 
 ### Running Locally
 

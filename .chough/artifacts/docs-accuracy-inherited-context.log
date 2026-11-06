@@ -1,0 +1,82 @@
+SPECSYNC_VERIFICATION_CONTEXT=docs-accuracy-audit target/release/specsync check
+exit=1
+error: recursive lifecycle verification detected while executing `docs-accuracy-audit`; verification commands must not invoke specsync check or change verification
+
+SPECSYNC_VERIFICATION_CONTEXT=docs-accuracy-audit target/release/specsync change
+exit=2
+Manage verified spec-driven development change workspaces
+
+Usage: specsync change [OPTIONS] <COMMAND>
+
+Commands:
+  new                Create a draft change and return the deterministic interview
+  answer             Answer one deterministic interview question
+  depend             Declare deterministic ordering between active changes
+  supersede          Adopt one exact predecessor path/module obligation before definition approval
+  reconcile-history  Request explicitly unproven historical receipt reconciliation; requires fresh scope approval
+  list               List active changes
+  show               Show one change, its gate health, and next questions
+  status             Show lifecycle status for one change or all active changes
+  ship-status        Report ship readiness: tip class, trust guidance, stages, and merge risk
+  pr                 Archive the change if needed, push the branch, and open or reuse the pull request
+  ship               Preflight ship readiness and finalize when the change is ready
+  approve            Record the mandatory definition approval
+  review             Record a scoped human review of the current implementation
+  reopen             Reopen stale accepted evidence for a fresh verification and closing approval
+  send-back          Send an approved, implementing or verifying change back to draft for re-scoping
+  correct            Correct supported accepted interview metadata through append-only audit evidence
+  correct-owner      Correct one or more exact canonical owners used by accepted delivery evidence
+  finalize           Finalize and archive the reviewed change on its existing pull request. Writes an archive tip for the same PR — merge only after finalize; merging first orphans verification evidence and blocks every earlier accepted change sharing a delivery input from archiving until this one is finalized
+  check              Materialize approved deltas and run targeted verification for one change
+  audit              Audit active change workspaces and living SDD policy/spec coherence
+  adopt              Adopt the current verified lifecycle in an existing project
+  help               Print this message or the help of the given subcommand(s)
+
+Options:
+      --strict                     Treat warnings as errors
+      --require-coverage <N>       Fail if file coverage percent is below this threshold
+      --root <ROOT>                Project root directory (default: cwd)
+      --format <FORMAT>            Output format: text, json, markdown, github, table, or csv [default: text] [possible values: text, json, markdown, github, table, csv]
+      --json                       Output results as JSON (shorthand for --format json)
+      --enforcement <MODE>         Enforcement mode: strict (default, exit 1 on errors), enforce-new (block unspecced files), warn (exit 0). Overrides the `enforcement` field in .specsync/config.toml [possible values: warn, enforce-new, strict]
+      --exclude-status <STATUSES>  Exclude specs with these statuses (comma-separated, e.g. "deprecated,archived")
+      --only-status <STATUSES>     Only include specs with these statuses (comma-separated, e.g. "active,stable")
+  -h, --help                       Print help (see more with '--help')
+
+SPECSYNC_VERIFICATION_CONTEXT=docs-accuracy-audit target/release/specsync lifecycle
+exit=2
+Manage spec lifecycle statuses (promote, demote, set, status)
+
+Usage: specsync lifecycle [OPTIONS] <COMMAND>
+
+Commands:
+  promote       Advance a spec to the next lifecycle status
+  demote        Move a spec back to the previous lifecycle status
+  set           Set a spec to a specific lifecycle status
+  status        Show lifecycle status of specs (all or filtered)
+  history       Show transition history for a spec
+  guard         Dry-run guard evaluation — check if a transition would pass guards
+  auto-promote  Auto-promote all specs that pass their guards
+  enforce       CI enforcement — validate lifecycle rules, exit non-zero on violations
+  help          Print this message or the help of the given subcommand(s)
+
+Options:
+      --strict                     Treat warnings as errors
+      --require-coverage <N>       Fail if file coverage percent is below this threshold
+      --root <ROOT>                Project root directory (default: cwd)
+      --format <FORMAT>            Output format: text, json, markdown, github, table, or csv [default: text] [possible values: text, json, markdown, github, table, csv]
+      --json                       Output results as JSON (shorthand for --format json)
+      --enforcement <MODE>         Enforcement mode: strict (default, exit 1 on errors), enforce-new (block unspecced files), warn (exit 0). Overrides the `enforcement` field in .specsync/config.toml [possible values: warn, enforce-new, strict]
+      --exclude-status <STATUSES>  Exclude specs with these statuses (comma-separated, e.g. "deprecated,archived")
+      --only-status <STATUSES>     Only include specs with these statuses (comma-separated, e.g. "active,stable")
+  -h, --help                       Print help (see more with '--help')
+
+Follow-up with syntactically complete read-only subcommands (bare groups above only exercised clap):
+SPECSYNC_VERIFICATION_CONTEXT=docs-accuracy-audit target/release/specsync change status
+exit=1
+error: recursive lifecycle verification detected while executing `docs-accuracy-audit`; verification commands must not invoke specsync check or change verification
+
+SPECSYNC_VERIFICATION_CONTEXT=docs-accuracy-audit target/release/specsync lifecycle status
+exit=1
+error: recursive lifecycle verification detected while executing `docs-accuracy-audit`; verification commands must not invoke specsync check or change verification
+

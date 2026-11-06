@@ -1,7 +1,7 @@
 {
   "history_cursor": {
-    "cycle": "CYC-77fc38eaa36690ee07a65bc5",
-    "head": "EVT-f1c2780a10fac297d6ff3ceb",
+    "cycle": "CYC-1065c5c22b515680e600a375",
+    "head": "EVT-756c5461b761c21bc9620910",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "CI-3.b",
   "modules": [],
   "stage": {
-    "current": "intent",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -33,9 +33,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Native approval of keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Merge #896 pinned on green, 0 behind main"
+  "next_action": "New cycle from intent after reset: Chough stopped at intent but native SpecSync shows keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token archived, merged in #896 (f736032d). advance and skip refuse plan->build on an archived change (refused:native-archived), so reset to accept and let the native:archived gate close the cycle. No human decision recorded.. Create or record the native change (specsync change new, then chough checkpoint --native-change <id>) and set the next action."
 }

@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9981e6f60a84ff1828167485",
-    "head": "EVT-4919eaff0f156d02e1aaf1ae",
+    "head": "EVT-2b79f0edb616cadc06d5cc56",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "accept",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1

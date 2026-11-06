@@ -1,7 +1,7 @@
 {
   "history_cursor": {
-    "cycle": "CYC-f3c49d109b87a4e0eb408c9b",
-    "head": "EVT-b7c7f96c42c357b4d13c02c4",
+    "cycle": "CYC-139c8164b162a72517af5198",
+    "head": "EVT-16b9b4f13623755d077d3931",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "plan",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -48,9 +48,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval for reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Merge #894 pinned on green"
+  "next_action": "New cycle from plan after reset: Legacy checkpoint adopted from .chough/session.json. Chough stopped at plan but native SpecSync shows reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes archived, merged in #894 (560af9f1). advance refuses plan->build on an archived change (refused:native-archived), so reset to accept and let the native:archived gate close the cycle. No human decision recorded.. Create or record the native change (specsync change new, then chough checkpoint --native-change <id>) and set the next action."
 }

@@ -320,6 +320,7 @@ fn a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finali
 // to find out, and write no second archive.
 #[test]
 fn review_and_finalize_stop_when_the_upstream_archive_cannot_be_read() {
+=======
     let temp = TempDir::new().unwrap();
     let (root, base, verified) = verified_feature(&temp);
     run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
@@ -497,4 +498,78 @@ fn the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root() {
     }
     assert_eq!(state(&root), "verifying");
     assert!(!root.join(".specsync/archive").exists());
+}
+
+// #908. A project-wide sequence-ledger freeze outranks the upstream-archive guidance: rebasing
+// does not clear a freeze, so text status, JSON `next_action` and the JSON handoff must all name
+// the freeze first, and agree.
+#[test]
+fn a_sequence_ledger_freeze_outranks_the_upstream_archive_guidance() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let archived = git(&root, &["rev-parse", "HEAD"]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(
+        &root,
+        &[
+            "push",
+            "-q",
+            "origin",
+            &format!("{archived}:refs/heads/main"),
+        ],
+    );
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    squash_onto_base(&root, &base, &verified);
+
+    // An acknowledgement naming ids that never existed freezes the ledger project-wide.
+    let ledger_path = root.join(".specsync/change-sequence.json");
+    let mut ledger: Value = fs::read_to_string(&ledger_path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_else(|| serde_json::json!({"schema_version": 1, "sequence": 0, "id": ID}));
+    ledger["acknowledged_collisions"] =
+        serde_json::json!([{"sequence": 1, "ids": ["CHG-0001-first", "CHG-0001-second"]}]);
+    fs::write(&ledger_path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(next.contains("sequence ledger"), "next_action: {next}");
+    let handoff = &status["summary"]["handoff"];
+    let first = handoff["before_clearing"][0].as_str().unwrap_or_default();
+    assert!(
+        !first.contains("already archived"),
+        "handoff names the upstream archive before the freeze: {handoff}"
+    );
+
+    let text = run_ok(&root, &["change", "status", ID]);
+    let next_line = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("Next:"))
+        .unwrap_or_default();
+    assert!(
+        next_line.contains("sequence ledger"),
+        "text status Next names something else: {next_line}\n{text}"
+    );
+>>>>>>> b57ae704 (Add: change definition and failing test for the upstream handoff priority (#908))
 }

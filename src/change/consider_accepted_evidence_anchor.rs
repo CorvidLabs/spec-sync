@@ -4877,7 +4877,7 @@ fn archived_state_paths_for(
             "--full-tree",
             reference,
             "--",
-            &format!("{archive_root}/"),
+            &format!(":(top,literal){archive_root}/"),
         ],
         None,
         MAX_GIT_COMMAND_OUTPUT_BYTES,

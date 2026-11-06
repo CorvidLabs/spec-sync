@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-83ddb8eb50f02bba39384260",
-    "head": "EVT-258ba6628be6929d2394f4d1",
+    "head": "EVT-d44eed92e18fcfdbec150ba2",
     "legacy": null
   },
   "schema_version": 2,
@@ -53,12 +53,15 @@
     "Failing first: 3 contract-pin tests fail on main ad50bdef (OBS-product-test-7d30046026e1f771b8545980)",
     "Characterization: REQ-change-019 and REQ-change-061 tests pass on main; both fail under a mutation of the guarded code (projection clear / evidence_gap_detail branch), source restored",
     "change check --commit verified on merged tree (ec68878f); verify lane, site tests/lint/build and pre-push green on pinned 1.89",
-    "Filed #895 (merge driver conflicts when Change Log opens with a stray row), at Leif's request"
+    "Filed #895 (merge driver conflicts when Change Log opens with a stray row), at Leif's request",
+    "Merged origin/main 560af9f1 (#894), clean; release binary rebuilt on pinned 1.89"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands (specsync change review, recorded by the orc for Leif), then ship"
+  ],
   "run_consents": [],
-  "next_action": "Push, open PR (Fixes #848), send 'ready for review' to t18; then change B (#884)"
+  "next_action": "After Leif's review: change ship retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands, commit archive tip, push, wait for CI, merge pinned to head on Leif's word"
 }

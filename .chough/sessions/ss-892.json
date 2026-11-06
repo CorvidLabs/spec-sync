@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-369a08c5a8254031a28c2723",
-    "head": "EVT-99b093fa0de150bf67cae873",
+    "head": "EVT-560f4307796dc7df22f15b14",
     "legacy": null
   },
   "schema_version": 2,
@@ -54,12 +54,15 @@
     "Filed #892 (SS-M05 issue) as authorized",
     "Captured CHANGE-14, CHANGE-14.a, CHANGE-14.b, CHANGE-14.c in hi/change.md",
     "Drafted native change refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run with deltas REQ-change-131, REQ-change-132, REQ-cmd-change-031",
-    "Failing gate-level test open_task_gate_refuses_and_names_the_command_that_recovers is red on unmodified code"
+    "Failing gate-level test open_task_gate_refuses_and_names_the_command_that_recovers is red on unmodified code",
+    "Built and verified #892; PR #903 open (Fixes #892)"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run (PR #903), relayed from Leif by the orc t18; then change ship with no commit in between"
+  ],
   "run_consents": [],
-  "next_action": "Build: unit tests, open-task parser and sentence, gates at check/verify/review/finalize/ship, status and ship-status"
+  "next_action": "After the relayed review is recorded: specsync change ship refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run, push the archive tip, wait for CI, merge only on Leif's relayed decision pinned with --match-head-commit"
 }

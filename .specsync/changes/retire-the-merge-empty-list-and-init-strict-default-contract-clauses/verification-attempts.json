@@ -76,6 +76,25 @@
         "REQ-cmd-init-004",
         "REQ-merge-001"
       ]
+    },
+    {
+      "timestamp": 1793945588,
+      "commit": "db47430d12d4d89bbfb20db04873558245e67ee0",
+      "contract_digest": "8bafced7731d0f92f0dd9c31db3e8f8d3df86dd85f08b428883ed441326530ab",
+      "execution_digest": "451c24dda98dc1ea1bbf8060ff5b5c5dd3bc197965cf7c68f527171da1031f03",
+      "workspace_digest": "ee6d79c73f02346edce6ff1a90a0bc3b9854bb0a01978c56adc8ce01426a8d9b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_init --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-init-004",
+        "REQ-merge-001"
+      ]
     }
   ]
 }

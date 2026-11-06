@@ -607,7 +607,8 @@ fn doctor_fix_backfills_a_5_0_ledger_once() {
     )
     .unwrap();
 
-    let other = finding(&findings(root), "other-version-record", "adopt-trust");
+    let found = findings(root);
+    let other = finding(&found, "other-version-record", "adopt-trust");
     assert_eq!(other["fix"]["class"], "safe", "{other}");
     assert!(
         other["fix"]["command"]
@@ -822,19 +823,24 @@ fn late_close_refusals_write_nothing() {
         assert!(refusal.contains(needle), "expected `{needle}`:\n{refusal}");
         assert_eq!(tree(&root), before, "refused `{}` wrote", args.join(" "));
     };
-    let late = |id: &str, actor: &str, reason: &str| {
-        vec![
-            "doctor".to_string(),
-            "--fix".into(),
-            "--close-late".into(),
-            id.into(),
-            "--actor".into(),
-            actor.into(),
-            "--reason".into(),
-            reason.into(),
+    fn late(id: &str, actor: &str, reason: &str) -> Vec<String> {
+        [
+            "doctor",
+            "--fix",
+            "--close-late",
+            id,
+            "--actor",
+            actor,
+            "--reason",
+            reason,
         ]
-    };
-    let as_refs = |args: &[String]| args.iter().map(String::as_str).collect::<Vec<_>>();
+        .iter()
+        .map(|argument| (*argument).to_string())
+        .collect()
+    }
+    fn as_refs(args: &[String]) -> Vec<&str> {
+        args.iter().map(String::as_str).collect()
+    }
     refuse(&as_refs(&late(BLOCKER, " ", REASON)), "--actor");
     refuse(&as_refs(&late(BLOCKER, ACTOR, " ")), "--reason");
 

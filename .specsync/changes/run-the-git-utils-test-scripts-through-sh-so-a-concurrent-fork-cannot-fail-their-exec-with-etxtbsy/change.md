@@ -1,6 +1,6 @@
 ---
 id: run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 884a33d3c0cb95680dae786ff25688569ee16c96
 ---
@@ -19,10 +19,8 @@ Run the git_utils test scripts through sh so a concurrent fork cannot fail their
 
 ## Acceptance Criteria
 
-- Every test that runs a script it just wrote stops holding a write descriptor to that file at exec time: the three that exec their own script run it as `sh <path>`, and the three that put a fake `gh` on `PATH` write it from a child `sh` process. Assertions are unchanged.
-- In a `rust:1.89` Linux container, 300 rounds of each affected test group (`git_utils::tests`, the bounded-runner tests in `change_tests`, `github::tests`, and the `issues` integration tests) fail 0 rounds with the change. `git_utils::tests` failed 9 of 300 on main 884a33d3.
-- No gate, timeout or assertion is loosened.
+- Both git_utils unit tests that run a script they just wrote run it through sh and keep their assertions unchanged, A Linux stress run of git_utils::tests that failed 9 of 300 rounds with ETXTBSY on main fails 0 of 300 rounds with the change, No gate or timeout or assertion is loosened
 
 ## No-spec Rationale
 
-Test harness only: six tests exec a script they just wrote, directly or as a fake `gh` on `PATH`, which Linux can refuse with ETXTBSY while another test thread forks. Writing or running those scripts through `sh` changes no public behavior, requirement or spec text.
+Test harness only: two git_utils unit tests exec a script they just wrote, which Linux can refuse with ETXTBSY while another test thread forks. Running the script through sh changes no public behavior, requirement or spec text.

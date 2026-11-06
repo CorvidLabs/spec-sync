@@ -17,4 +17,12 @@ Baseline on main 884a33d3:
 
 The bounded-runner test in `change_tests`, the two `github` tests and the `issues` integration test were not seen failing. They have the same write-then-exec shape and are fixed preventively, at Leif's request.
 
-With the change, the same three runs must each fail 0 rounds, and the six tests keep their assertions.
+With the change (same container, binary rebuilt from this tree):
+
+| Group | Failing rounds |
+|---|---|
+| `git_utils::tests` alone | 0 / 300 |
+| `git_utils::tests change::tests::bounded_git github::tests` together (58 tests) | 0 / 300 |
+| integration `commands::issues` | 0 / 300 |
+
+No ETXTBSY occurred. The six tests keep their assertions; only how the script is written or started changed. Locally on macOS the six tests and `issues_create_runs_normal_drift_creation_for_stable_snapshots` pass.

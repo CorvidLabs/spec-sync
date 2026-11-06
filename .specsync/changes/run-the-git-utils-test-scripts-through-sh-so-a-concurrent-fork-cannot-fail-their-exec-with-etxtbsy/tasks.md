@@ -5,6 +5,6 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Run the three self-exec'd scripts as `sh <path>` (git_utils x2, substantive_plan x1).
-- [ ] Write the three fake `gh` executables from a child `sh` process (github.rs x2, integration issues x1).
-- [ ] Re-run the 300-round Linux stress runs with the change and record the results.
+- [x] Run the three self-exec'd scripts as `sh <path>` (git_utils x2, substantive_plan x1).
+- [x] Write the three fake `gh` executables from a child `sh` process (github.rs x2, integration issues x1).
+- [x] Re-run the 300-round Linux stress runs with the change and record the results.

@@ -965,7 +965,6 @@ mod tests {
     #[test]
     fn output_returns_while_a_descendant_holds_the_pipe() {
         use std::os::unix::ffi::OsStrExt;
-        use std::os::unix::fs::PermissionsExt;
 
         let temp = TempDir::new().unwrap();
         let fifo = temp.path().join("hold");
@@ -982,14 +981,12 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut permissions = fs::metadata(&script).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&script, permissions).unwrap();
-
         let (tx, rx) = std::sync::mpsc::channel();
         let script_for_child = script.clone();
         std::thread::spawn(move || {
-            let mut command = Command::new(script_for_child);
+            // Through `sh`, not exec of the fresh file: see #885 (ETXTBSY).
+            let mut command = Command::new("sh");
+            command.arg(script_for_child);
             let _ = tx.send(output_after_child_exits(&mut command));
         });
         let result = rx.recv_timeout(std::time::Duration::from_secs(15));
@@ -1022,8 +1019,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn status_does_not_hand_the_caller_stdout_to_the_child() {
-        use std::os::unix::fs::PermissionsExt;
-
         let temp = TempDir::new().unwrap();
         let marker = temp.path().join("stdout-target");
         let script = temp.path().join("child.sh");
@@ -1035,10 +1030,11 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut permissions = fs::metadata(&script).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&script, permissions).unwrap();
-        let mut command = Command::new(&script);
+        // Run the script through `sh` instead of exec'ing the file just written:
+        // another test thread forking while that write was open would make the
+        // exec fail with ETXTBSY (#885).
+        let mut command = Command::new("sh");
+        command.arg(&script);
         let status = status_without_inherited_output(&mut command).unwrap();
         assert!(status.success());
         assert_eq!(

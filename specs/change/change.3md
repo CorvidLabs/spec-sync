@@ -368,11 +368,14 @@ is CI's job. The verifier is the same in-process spec↔code pass as `specsync c
 test/build commands are not executed, so there is no verification child to reap and no Cargo
 build-directory lock for this path to wait on. The wait-notice helpers remain as unused derivation
 code covered by unit tests; they are not on the `verify_change` path.
+The rest of this section records how those unwired helpers were designed while `change check`
+still spawned the commands; none of it runs on a lifecycle path today (REQ-change-023,
+REQ-change-091).
 
 What is true, and all that is claimed: Cargo's line reaches the operator on inherited stderr, and
 it names neither the file, nor the holder, nor a remedy. This notice is ADDITIVE to it — the path,
 the holder's PID where the platform reports one, the remediation, and an emitter that is SpecSync
-rather than the child, printed before the child starts rather than after it has blocked.
+rather than the child, printed before the child started rather than after it had blocked.
 
 Three deliberate refusals, each of which would have made the notice worse than silence:
 
@@ -434,7 +437,7 @@ verification command that read the controlling terminal would stop on `SIGTTIN` 
 tostop`, on `SIGTTOU` when writing) instead of prompting — and because `wait` does not pass
 `WUNTRACED`, a stopped child hangs the check rather than merely pausing. Verification commands are
 non-interactive by contract item 5, so this is a cost accepted, not a case handled. Ctrl-C still
-reaches the child, because the handler forwards the signal it received rather than assuming the
+reached the child, because the handler forwarded the signal it received rather than assuming the
 terminal delivered it to both.
 
 A second accepted cost, and the lesson the first `change check` of #721 taught by failing on this
@@ -655,5 +658,8 @@ A merge can leave one requirement ID twice in `requirements.md`. `change audit` 
 @plane z=14 label="Working-tree paths from a subdirectory"
 Issue #879. Git commands do not agree on where a path starts. `git diff-files --name-only` names paths from the repository root even when it runs in a subdirectory project, while `ls-files` names them from the working directory. Working-tree evidence capture compared `diff-files` output with project-relative candidates, so a project in `app/` refused its own materialized spec as out of scope. The fix removes the repository prefix before the scope check and keeps Git's own spelling in the refusal. When a new Git call reads paths back, check which root that command reports from; do not assume it matches the pathspec you passed.
 
-@plane z=16 label="History is not currency"
+@plane z=15 label="Retire the predecessor (#848)"
+REQ-change-015 required a quiet reporting mode that executed every configured verification command, and it stayed current for months after REQ-change-058 said that mode SHALL NOT exist and REQ-change-023 said `change check` runs no configured command. Five sibling clauses kept implying execution in smaller ways: a command failure listed among the diagnostics, native commands that run exactly once, routing that a change receives, an init instruction that no longer exists. They were retired or made to cite REQ-change-023, and the dead runner, Cargo classifier and routing helpers were kept with qualified contracts rather than deleted (Leif, decision d). Contract pins in `tests/integration` now fail if a current contract promises execution again. When a rule is reversed, search the module's requirements, companions and the public site for the old promise in other words, not only the clause that was edited.
+
+@plane z=17 label="History is not currency"
 Issue #914. One function, `definition_approver_for_review_contract`, answered two questions: is this past review attempt valid evidence, and does this review count now. The send-back rule (CHANGE-12.b) belongs only to the second. Applied to the first, it turned the review recorded before a send-back into invalid history, so every later `change review` was refused and nothing short of rewriting append-only history recovered it, while status named the refused command as the next step. Validating history now binds a recorded approval at any ledger index, including one a send-back cancelled; currency still binds only an approval the latest send-back did not cancel. When a gate is added for currency, check every caller that validates records already written: a record that was valid when it was written stays valid history even when it no longer counts. The repro became the failing-first integration test, run through the binary under workflow v2 from approve to finalize.

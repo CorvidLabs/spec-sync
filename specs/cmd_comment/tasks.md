@@ -17,8 +17,8 @@ spec: cmd_comment.spec.md
 - [x] Documented the unified pipeline: marketplace action + CI both use `specsync comment` for identical output
 - [x] Verified the wrapper reuses `check`'s validation + `compute_exit_code` and renders via `comment::render_check_comment`
 - [x] Confirmed the renderer is covered by `comment` inline tests (`test_render_check_comment_*`, `test_suggestion_for_*`)
-- [x] Prevented configured SDD verification child output from contaminating comment stdout while preserving execution and failure reporting
-- [x] Added end-to-end coverage proving comment mode is quiet while ordinary lifecycle checking still streams configured command output
+- [x] Kept configured SDD verification output out of comment stdout. Since #543 `comment` executes no configured command, so nothing can reach it (REQ-cmd-comment-003, #848)
+- [x] Added end-to-end coverage that neither `comment` nor `change check` spawns a configured command (`neither_comment_nor_change_check_spawns_configured_project_commands`)
 - [x] Made project CI capture comment output with quiet Cargo and a defensive UTF-8-safe byte cap
 - [x] Fail closed before rendering/posting when checked manifest discovery is inconclusive — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
 

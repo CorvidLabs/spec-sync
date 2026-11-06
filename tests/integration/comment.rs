@@ -154,6 +154,112 @@ fn neither_comment_nor_change_check_spawns_configured_project_commands() {
         .stdout(predicate::str::contains("binary: rustc").not());
 }
 
+// Verifies REQ-cmd-comment-003 and REQ-cmd-comment-004 at the contract level (#848,
+// SHIP-1.c.1, SHIP-1.c.2).
+//
+// Honest label: CONTRACT PIN. The test above pins the behavior; this one fails when a current
+// cmd_comment contract goes back to saying that `comment` executes a configured verification
+// command, folds lifecycle failures into its verdict, or that `change check` streams one.
+#[test]
+fn comment_contracts_say_no_configured_verification_command_runs() {
+    let requirements = "specs/cmd_comment/requirements.md";
+    let protocol =
+        tracked_requirement(requirements, "REQ-cmd-comment-003").expect("REQ-cmd-comment-003");
+    assert!(
+        protocol.contains("executes no configured SDD verification command"),
+        "REQ-cmd-comment-003 must say why nothing reaches stdout but the report: {protocol}"
+    );
+    assert!(
+        tracked_text(requirements).contains(
+            "`comment` executes no configured SDD verification command (REQ-cmd-comment-003)"
+        ),
+        "the top-level acceptance list must cite the rule that owns comment's no-spawn behavior"
+    );
+    let no_folding =
+        tracked_requirement(requirements, "REQ-cmd-comment-004").expect("REQ-cmd-comment-004");
+    for clause in [
+        "SHALL report spec-check results only and SHALL NOT fold SDD lifecycle findings into them.",
+        "Lifecycle errors and warnings are absent from the reported error and warning totals.",
+        "Lifecycle state does not contribute to the command's exit status.",
+    ] {
+        assert!(
+            no_folding.contains(clause),
+            "REQ-cmd-comment-004 is the rule that replaced lifecycle folding and must keep \
+             `{clause}`: {no_folding}"
+        );
+    }
+    for id in ["REQ-cmd-comment-001", "REQ-cmd-comment-002"] {
+        assert!(
+            tracked_requirement(requirements, id).is_none(),
+            "{id} folds SDD lifecycle failures into the comment, which REQ-cmd-comment-004 \
+             reversed, so it stays retired"
+        );
+    }
+    let retired = [
+        "still execute and fail closed in comment mode",
+        "verification command output is captured away from stdout",
+        "the command still executes and affects lifecycle status",
+        "while `change check` streams it",
+        "while preserving execution and failure reporting",
+        "lifecycle checking still streams configured command output",
+    ];
+    for relative in [
+        "specs/cmd_comment/requirements.md",
+        "specs/cmd_comment/cmd_comment.spec.md",
+        "specs/cmd_comment/context.md",
+        "specs/cmd_comment/cmd_comment.3md",
+        "specs/cmd_comment/testing.md",
+        "specs/cmd_comment/tasks.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still says a configured command runs: `{phrase}`"
+            );
+        }
+    }
+}
+
+// Verifies REQ-cmd-comment-003 and REQ-cmd-comment-004 through the shipped binary (#848).
+//
+// Honest label: DISCRIMINATOR by side effect. The test above only shows the configured command's
+// output is absent, which a regression to the retired "execute but suppress child output" path
+// would also satisfy. Here the configured command creates a file, so running it at all leaves
+// evidence. The control runs the same probe directly and requires the file, so the absence below
+// is not explained by a probe that never works.
+#[cfg(unix)]
+#[test]
+fn comment_does_not_spawn_a_configured_command_even_silently() {
+    let temp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&temp);
+    let sentinel = root.join("configured-command-ran");
+    let probe = format!("touch {}", sentinel.display());
+
+    let control = std::process::Command::new("touch")
+        .arg(&sentinel)
+        .status()
+        .unwrap();
+    assert!(
+        control.success() && sentinel.exists(),
+        "control: the probe must create the sentinel when it runs"
+    );
+    fs::remove_file(&sentinel).unwrap();
+
+    setup_active_change(&root, &[probe.as_str()]);
+    specsync()
+        .env("CI", "true")
+        .env_remove("GITHUB_WORKSPACE")
+        .args(["--root", root.to_str().unwrap(), "comment"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("SpecSync:"));
+    assert!(
+        !sentinel.exists(),
+        "comment must not execute a configured verification command, even with its output hidden"
+    );
+}
+
 #[test]
 fn ci_captures_comment_with_quiet_cargo_and_a_defensive_byte_cap() {
     let workflow =

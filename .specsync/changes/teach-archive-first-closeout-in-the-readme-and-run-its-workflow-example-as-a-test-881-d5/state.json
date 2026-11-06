@@ -7,10 +7,11 @@
   "title": "Teach archive-first closeout in the README and run its workflow example as a test (#881, D5)",
   "description": "Teach archive-first closeout in the README and run its workflow example as a test (#881, D5)",
   "kind": "documentation",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793935395,
-  "updated_at": 1793936169,
+  "updated_at": 1793939368,
   "affected_specs": [],
   "affected_paths": [
     "README.md",

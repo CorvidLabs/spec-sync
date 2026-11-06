@@ -390,3 +390,66 @@ fn a_sequence_ledger_freeze_outranks_the_upstream_archive_guidance() {
         "ship-status does not lead with the freeze:\n{ship_text}"
     );
 }
+
+// #937 part 2, fixed in #934. A `verification_ignored_paths` refusal outranks the upstream
+// archive in `next_action`, so the JSON handoff must carry the same refusal instead of falling
+// back to a lifecycle-only verdict that never names it (and reads `safe` for some states).
+#[test]
+fn a_verification_ignored_paths_refusal_reaches_the_handoff_of_an_upstream_archived_change() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let archived = git(&root, &["rev-parse", "HEAD"]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(
+        &root,
+        &[
+            "push",
+            "-q",
+            "origin",
+            &format!("{archived}:refs/heads/main"),
+        ],
+    );
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    squash_onto_base(&root, &base, &verified);
+
+    // An entry that hides the change's own affected path refuses check, review and finalize.
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value = serde_json::from_slice(&fs::read(&policy_path).unwrap()).unwrap();
+    policy["verification_ignored_paths"] = serde_json::json!(["src/auth.rs"]);
+    fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        next.contains("verification_ignored_paths"),
+        "next_action: {next}"
+    );
+    let handoff = &status["summary"]["handoff"];
+    assert_eq!(handoff["readiness"], "not_yet", "{handoff}");
+    let first = handoff["before_clearing"][0].as_str().unwrap_or_default();
+    assert!(
+        first.contains("verification_ignored_paths"),
+        "handoff does not carry the ignored-path refusal: {handoff}"
+    );
+}

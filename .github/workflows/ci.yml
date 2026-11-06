@@ -7,76 +7,16 @@ permissions:
   checks: write
 
 on:
+  # No path filter: every pull request to main and every push to main starts CI,
+  # and `classify` (.github/scripts/classify-ci-paths.sh) alone picks the lane.
+  # A filter here once let a pull request that changed only unlisted paths
+  # (#941: .chough/ records) skip CI entirely, so `Required CI gate` never
+  # reported and the pull request could not merge (CI-6, REQ-github-026).
+  # .github/scripts/test-ci-trigger-paths.py fails if a filter returns.
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'specs/**'
-      - '.specsync/**'
-      - 'hi/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'action.yml'
-      - 'examples/**'
-      - 'fledge.toml'
-      - 'site/**'
-      - 'vscode-extension/**'
-      - '.github/scripts/**'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/pages.yml'
-      # `Required CI gate` is a required status check, so any path that cannot
-      # trigger this workflow can never report it and blocks its PR forever.
-      # Documentation-only changes hit that: the gate sat "Expected — waiting for
-      # status to be reported" with nothing able to report it. Every mergeable
-      # path must reach the gate; `classify` decides what work actually runs.
-      - 'docs/**'
-      - '*.md'
-      - '.github/workflows/finalize-change.yml'
-      - '.github/workflows/lifecycle-policy-guard.yml'
-      - '.github/workflows/post-merge-archive.yml'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/rc-assets.yml'
-      - '.github/workflows/trust.yml'
-      - 'CHANGELOG.md'
-      - 'README.md'
-      - 'SECURITY.md'
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'specs/**'
-      - '.specsync/**'
-      - 'hi/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'action.yml'
-      - 'examples/**'
-      - 'fledge.toml'
-      - 'site/**'
-      - 'vscode-extension/**'
-      - '.github/scripts/**'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/pages.yml'
-      # `Required CI gate` is a required status check, so any path that cannot
-      # trigger this workflow can never report it and blocks its PR forever.
-      # Documentation-only changes hit that: the gate sat "Expected — waiting for
-      # status to be reported" with nothing able to report it. Every mergeable
-      # path must reach the gate; `classify` decides what work actually runs.
-      - 'docs/**'
-      - '*.md'
-      - '.github/workflows/finalize-change.yml'
-      - '.github/workflows/lifecycle-policy-guard.yml'
-      - '.github/workflows/post-merge-archive.yml'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/rc-assets.yml'
-      - '.github/workflows/trust.yml'
-      - 'CHANGELOG.md'
-      - 'README.md'
-      - 'SECURITY.md'
   workflow_dispatch:
 
 concurrency:
@@ -442,6 +382,8 @@ jobs:
         run: python3 .github/scripts/test-required-ci-gate.py
       - name: Test the Linux release baseline lockstep
         run: python3 .github/scripts/test-linux-baseline.py
+      - name: Test that every pull request starts CI
+        run: python3 .github/scripts/test-ci-trigger-paths.py
 
   action-consumer:
     name: Packaged GitHub Action consumer

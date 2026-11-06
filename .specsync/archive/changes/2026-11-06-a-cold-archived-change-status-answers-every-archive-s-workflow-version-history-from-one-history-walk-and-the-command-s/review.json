@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "522e629edb0fe90f57e741616f4cda678dad56f0",
+  "contract_digest": "7926a3d1ddeb5a668e9e3e9faf254be1cade499764cf0df281bb63bc7d5f1435",
+  "execution_digest": "555f48cf781909c7128c23cd87a380198f8aaedb8373eed985eacef9559f31ca",
+  "workspace_digest": "46790351a1f7f689b279ce6ce5a70f68e2705ad642b97406dac358e8d50a9e2b",
+  "timestamp": 1793994218
+}

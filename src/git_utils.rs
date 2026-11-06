@@ -692,6 +692,9 @@ struct RepositoryFactFrame {
     facts: std::collections::HashMap<(&'static str, Vec<String>), MemoizedGitOutput>,
     /// One `git cat-file --batch` child per git command flavor (REQ-git-utils-010).
     batches: std::collections::HashMap<&'static str, ObjectBatch>,
+    /// False in a worker thread's seeded scope: it never starts a batch reader, so a command
+    /// keeps one `cat-file --batch` child per root however many workers it runs.
+    batch_reader: bool,
 }
 
 thread_local! {
@@ -763,11 +766,63 @@ pub(crate) fn begin_repository_fact_scope(root: &Path) -> RepositoryFactScope {
             root: root.to_path_buf(),
             facts,
             batches: std::collections::HashMap::new(),
+            batch_reader: true,
         });
     });
     RepositoryFactScope {
         root: root.to_path_buf(),
     }
+}
+
+/// What the open scopes for one root know on this thread, to seed a read-only worker thread.
+#[derive(Clone, Debug)]
+pub(crate) struct RepositoryFactSeed {
+    root: PathBuf,
+    facts: std::collections::HashMap<(&'static str, Vec<String>), MemoizedGitOutput>,
+}
+
+/// The facts this thread's open scopes for `root` hold, for worker threads that only read
+/// (REQ-git-utils-011). `None` when no scope for `root` is open, reads are live, or a discovery
+/// ceiling is pinned; a worker then runs without a scope, as before.
+pub(crate) fn repository_fact_seed(root: &Path) -> Option<RepositoryFactSeed> {
+    if repository_reads_are_live() || discovery_ceiling_is_set() {
+        return None;
+    }
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        let scopes = scopes.borrow();
+        let mut frames = scopes.iter().filter(|frame| frame.root == root).peekable();
+        frames.peek()?;
+        let mut facts = std::collections::HashMap::new();
+        for frame in frames {
+            facts.extend(
+                frame
+                    .facts
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone())),
+            );
+        }
+        Some(RepositoryFactSeed {
+            root: root.to_path_buf(),
+            facts,
+        })
+    })
+}
+
+/// Open a scope on a read-only worker thread that starts from `seed` (REQ-git-utils-011). The
+/// worker memoizes what it asks in its own scope, never starts a batch reader, and must not write
+/// to the repository; the facts it was seeded with stay true because nothing in the command writes
+/// while its workers run.
+pub(crate) fn begin_seeded_repository_fact_scope(seed: RepositoryFactSeed) -> RepositoryFactScope {
+    let root = seed.root.clone();
+    REPOSITORY_FACT_SCOPES.with(|scopes| {
+        scopes.borrow_mut().push(RepositoryFactFrame {
+            root: seed.root,
+            facts: seed.facts,
+            batches: std::collections::HashMap::new(),
+            batch_reader: false,
+        });
+    });
+    RepositoryFactScope { root }
 }
 
 /// Whether `args` asks git a question whose answer only a git write can change.
@@ -1189,6 +1244,12 @@ fn with_batch<Answer>(
     }
     REPOSITORY_FACT_SCOPES.with(|scopes| {
         let mut scopes = scopes.borrow_mut();
+        if scopes
+            .iter()
+            .any(|frame| frame.root == root && !frame.batch_reader)
+        {
+            return None;
+        }
         // One reader per root: a nested scope for the same root uses the reader an enclosing
         // scope already started, and a new reader belongs to the outermost scope for the root,
         // so it outlives the nested scope that first needed it (REQ-git-utils-010).
@@ -2197,6 +2258,63 @@ mod tests {
             assert_eq!(read(root), b"one");
         }
         assert_eq!(TEST_BATCH_STARTS.with(std::cell::Cell::get), 1);
+    }
+
+    #[test]
+    fn a_seeded_worker_scope_starts_from_the_parents_facts() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "one", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let head = head_through_memo(root);
+        let seed = repository_fact_seed(root).expect("an open scope gives a seed");
+        // A commit by another process after seeding: the worker answers from the seed.
+        git(root, &["commit", "--allow-empty", "-m", "elsewhere"]);
+        let root_path = root.to_path_buf();
+        let (seen, memoized, batched) = std::thread::spawn(move || {
+            let _facts = begin_seeded_repository_fact_scope(seed);
+            let memoized =
+                memoized_repository_fact(&root_path, "git_cmd", &["rev-parse", "--verify", "HEAD"])
+                    .is_some();
+            let seen = head_through_memo(&root_path);
+            #[cfg(unix)]
+            let batched = batched_git_read(
+                &root_path,
+                "git_cmd",
+                || git_cmd(&root_path),
+                &["show", "HEAD:a.txt"],
+                usize::MAX,
+            )
+            .is_some();
+            #[cfg(not(unix))]
+            let batched = false;
+            (seen, memoized, batched)
+        })
+        .join()
+        .unwrap();
+        assert!(memoized, "the parent's fact is in the worker's scope");
+        assert_eq!(seen, head);
+        assert!(
+            !batched,
+            "a seeded worker scope never starts a batch reader"
+        );
+    }
+
+    #[test]
+    fn no_seed_without_a_scope_or_while_reads_are_live() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "one", "first");
+        assert!(repository_fact_seed(root).is_none());
+        let _scope = begin_repository_fact_scope(root);
+        head_through_memo(root);
+        {
+            let _live = live_repository_reads();
+            assert!(repository_fact_seed(root).is_none());
+        }
+        let other = init_repo();
+        assert!(repository_fact_seed(other.path()).is_none());
+        assert!(repository_fact_seed(root).is_some());
     }
 
     #[test]

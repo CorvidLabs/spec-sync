@@ -1246,8 +1246,10 @@ Acceptance Criteria
 - `classify_handoff` is a pure function of `HandoffSignals`; every branch has a unit test that
   needs no repository.
 - A frozen sequence ledger, a definition changed after its approval, an invalid correction
-  ledger, and stale legacy terminal evidence are `not-yet`, and the step named is the repair the
-  lifecycle already requires (clear the freeze, re-approve, restore the ledger, reopen).
+  ledger, stale legacy terminal evidence, and an archive whose terminal evidence is
+  `corrupt-history` are `not-yet`, and the step named is the repair the lifecycle already requires
+  (clear the freeze, re-approve, restore the ledger, reopen, restore the archive from trusted
+  history).
 - A Draft is never `safe`: open questions, stub artifacts, and a complete-but-unapproved
   definition are each `conditional`, and the steps name answering, finishing the artifacts, or
   approving — approval is the first boundary a fresh session can resume from.
@@ -1259,7 +1261,24 @@ Acceptance Criteria
   `specsync change check <id> --commit`; one whose verification is current is `safe` whether the
   scoped review has been recorded yet or not, and the reason says which step a fresh session
   resumes at.
-- An accepted workflow-v2 change and an archived change are `safe`.
+- An accepted workflow-v2 change and an archived change whose terminal evidence authenticates
+  (including `historical-transition-unproven`) are `safe`.
+- For an archived change whose terminal evidence is `corrupt-history`, the step before clearing
+  and the summary's next action are one string ending with `specsync change status <id>`:
+  `git restore --source=HEAD --staged --worktree -- <package>` when the package's tracked files
+  differ from `HEAD`; the same restore from the commit that archived the package (named by
+  `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
+  package matches `HEAD` but not that commit; and, when the package still matches the commit
+  that archived it or no package or repository can answer, `specsync change status <id> --json`
+  to read what `terminal_evidence.reason` names and restore that from trusted Git history, since
+  a package restore would change nothing. Running the named step through a shell on a tampered
+  archive returns `authenticated-history` and `safe`.
+- Every change ID and path interpolated into a printed command is single-quoted as one shell
+  word, so a change ID or archive directory carrying shell metacharacters cannot turn the
+  copied step into a different command.
+- `handoff_summary` judges an archived record from the same terminal-evidence verdict
+  `ChangeSummary` carries, so the text line cannot call an archive `safe` that JSON reports as
+  `corrupt-history`.
 - `ChangeSummary` carries the decision as `handoff`, so JSON consumers read the same verdict the
   text line prints.
 
@@ -1601,7 +1620,7 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 
 ### REQ-change-123
 
-`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and `change status` SHALL report it stale rather than unreadable. A send-back SHALL record how many review attempts preceded it, and a scoped review recorded before the latest send-back SHALL NOT be current, even when the re-approved definition has the same digest; for a send-back recorded without that count, a review SHALL count only when its timestamp is later than the send-back's. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
 
 #### Acceptance Criteria
 
@@ -1618,6 +1637,11 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 - A dropped MODIFIED item is refused with advice to restore its pre-change text, quoting it; a dropped REMOVED item is listed and refused until the block is restored.
 - A module dropped from `affected_specs` is refused while its Change Log keeps the change's row.
 - A send-back deleted in a later commit is refused by check and reported by the project audit.
+- A change reviewed before its send-back is re-approved, re-checked and reviewed again, and finalize archives it with both review attempts in its history, the first unchanged (#914).
+- After a send-back that changes the scope, `change status` reports the earlier review stale with the re-review next action, and `change ship` refuses it.
+- A review bound only to an approval a send-back cancelled is never current.
+- After a send-back with an unchanged scope and a `change check` without `--commit`, `change status` names `change review`, `change ship-status` reports the earlier review stale, and `change ship` refuses until a fresh review is recorded (#960).
+- A send-back records the number of review attempts before it; a review recorded before the latest send-back is never current, and a send-back without that count compares timestamps.
 
 ### REQ-change-124
 
@@ -1679,16 +1703,6 @@ Acceptance Criteria
 - Without an upstream archive, a squash before finalize still reviews and finalizes.
 - An unarchived record whose archive `HEAD` already contains is not refused.
 
-### REQ-change-133
-
-When `change approve` refuses a draft because it has no acceptance criterion or its deterministic interview is unfinished, the refusal SHALL name the `specsync change answer` command that supplies the missing answer. The approval guard SHALL refuse exactly the definitions it refused before.
-
-Acceptance Criteria
-- With no acceptance criterion, the refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
-- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices (such as `<yes|no>`) as the answer placeholder.
-- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
-- A definition that approval refused before is still refused.
-
 ### REQ-change-131
 
 A lifecycle command that verifies a change, records a passing scoped review of it, or finalizes it SHALL refuse while the change's selected `tasks.md` has an open task, a `[ ]` checkbox outside fenced code. The refusal SHALL come before the command writes any record. This SHALL hold for a task reopened after a passing check, although checkbox state is outside the approval and verification digests. The refusal SHALL name:
@@ -1714,6 +1728,55 @@ A lifecycle command that verifies a change, records a passing scoped review of i
 - With one open task on an approved change, text and JSON status name the task file, the task's line and text, and then `specsync change check <id>`.
 - After a passing check with one task reopened, text and JSON status name the open task before the review step.
 
+### REQ-change-133
+
+When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
+
+Acceptance Criteria
+- With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
+- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
+- A definition that approval refused before is still refused.
+
+### REQ-change-134
+
+The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
+
+#### Acceptance Criteria
+
+- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
+- Removing the fingerprint from the read-cache identity fails that test.
+
+### REQ-change-135
+
+The archive-introduction index SHALL be built from one `git log` walk of the archive root that names the paths each commit added, and SHALL read package bytes through the per-command object batch reader, so the Git processes a cold archived `change status` spawns SHALL NOT grow with the number of commits that introduced archives. The index SHALL hold the same introductions, and every refusal it backs SHALL be unchanged (SPEED-1.a).
+
+Acceptance Criteria
+- `cold_archive_introduction_index_does_not_grow_with_archive_introductions`: a cold index build spawns fewer than 3 more Git processes after 4 more archive-introducing commits.
+- The index built from one walk equals the per-commit index on the same history, including merge commits and packages added in more than one commit.
+- The deterministic history bound still refuses a history over it.
+
+### REQ-change-136
+
+Whether a workflow-v1 change existed at the trusted pre-v2 cutoff SHALL be decided from the cutoff commit's own tree, read once per command for all workflow-v1 changes, and the verdict SHALL be kept in the persistent read cache keyed by the cutoff commit, which never changes. A warm archived `change status` SHALL NOT spawn more Git processes as the project holds more workflow-v1 changes (SPEED-1.a, SPEED-1.c).
+
+Acceptance Criteria
+- `warm_archived_status_git_processes_do_not_grow_with_legacy_changes`: six more workflow-v1 changes add fewer than 3 Git processes.
+- A workflow-v1 change absent at the cutoff, added after it, or present at it only under another id is still refused with the existing message.
+- A workflow-v1 change archived or moved after the cutoff is still accepted.
+- A hidden workflow downgrade is still refused, cached or not.
+
+### REQ-change-137
+
+A read-only lifecycle read given a deadline SHALL stop at the next phase boundary once the deadline passes, SHALL write nothing to the change, SHALL flush every verdict it completed to the persistent read cache, and SHALL report the phase it was in, its progress within that phase when known, and the exact command that resumes it.
+
+Acceptance Criteria
+- A read stopped by its deadline leaves every change file byte-identical.
+- Verdicts completed before the deadline are in the read cache afterwards, so the next run does not redo them.
+- The report names the phase and progress, for example `archive-introduction index` and `140/214`.
+
 ### REQ-change-139
 
 The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
@@ -1721,6 +1784,23 @@ The upstream-archive lookup SHALL identify the remote default's archive of a cha
 Acceptance Criteria
 - A renamed or undated upstream package of the change is found.
 - The lookup uses one tree listing and one batched blob read of the archive directory, plus per-match work only for a matching package.
+
+### REQ-change-140
+
+Inside a change read scope, the workflow-version history of every archived change SHALL be answered from one lifecycle-state history index per command, built from a fixed number of Git walks from `HEAD` over the lifecycle state paths of the changes root and the archive root. Each archive's candidate state paths, its oldest-first state-path history and its history commits' parents SHALL be derived from that index, and every archive SHALL still be fully validated. A cold archived `change status` SHALL NOT spawn more Git processes as the project holds more archives (SPEED-1.a.1). The index SHALL never change a verdict: each archive SHALL be accepted or refused exactly as the per-archive check would, with the same first refusal and message, the same non-canonical archive path refusal, and the same per-archive history and parent bounds. When the index cannot be built (over its commit bound or output limit, or a Git call fails), each archive SHALL fall back to the per-archive check.
+
+Acceptance Criteria
+- `cold_archived_status_git_processes_do_not_grow_with_archives`: four more archives add fewer than 3 Git processes to a cold archived status.
+- Index-derived candidate paths, history and parents equal the per-archive Git answers on histories with merges, moved or re-archived packages, root commits, a project in a subdirectory, a non-canonical archive path, a deleted creation anchor, a changed identity and a history over the per-archive bound.
+- With the index unavailable, every verdict equals today's.
+
+### REQ-change-141
+
+When the lifecycle-state history index answers, the state-file reads and path-exists checks behind archived workflow-version validation SHALL run on the command's own thread through its one object batch reader (REQ-git-utils-010), with a read deadline check between archives (REQ-change-137). A state blob the commit's tree lists but Git cannot read SHALL still refuse, and SHALL never be treated or cached as absent. Prefetch workers (REQ-git-utils-011) SHALL remain the path when the index does not answer.
+
+Acceptance Criteria
+- A listed state blob that cannot be read refuses the archive and leaves no cached absence.
+- A cold archived status past its `--timeout` still exits 124 with the phase and progress.
 
 ### REQ-change-142
 

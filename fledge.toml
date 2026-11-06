@@ -34,6 +34,11 @@ cmd = "python3 .github/scripts/test-required-ci-gate.py"
 [tasks.linux-baseline-test]
 cmd = "python3 .github/scripts/test-linux-baseline.py"
 
+# Every pull request starts CI: ci.yml has no path filter, and .chough-only and scripts-only
+# changes classify into a lane that reports the Required CI gate (CI-6, #941).
+[tasks.ci-trigger-paths-test]
+cmd = "python3 .github/scripts/test-ci-trigger-paths.py"
+
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
 
@@ -79,6 +84,7 @@ steps = [
   "release-candidate-test",
   "ci-gate-test",
   "linux-baseline-test",
+  "ci-trigger-paths-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
 
@@ -103,6 +109,7 @@ steps = [
   "release-candidate-test",
   "ci-gate-test",
   "linux-baseline-test",
+  "ci-trigger-paths-test",
 ]
 
 # Used by .trust.toml [lifecycle] for the GitHub Trust action only.
@@ -130,5 +137,6 @@ steps = [
   "release-candidate-test",
   "ci-gate-test",
   "linux-baseline-test",
+  "ci-trigger-paths-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

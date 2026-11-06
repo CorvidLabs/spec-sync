@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "419db6dfb2ac5e98e8c7d882f0655acd46fddc30",
+  "contract_digest": "ddcb788a7e6dda1490b8a798fbc1ba1d6ecbe03eca2510e8244a44ee0bcd3652",
+  "execution_digest": "061ca41b5d4401b1fb8501a7991d64ac30270e157732eea4bd7e0035b550c18c",
+  "workspace_digest": "681f78266845330b43f09d771b7b7ffdcba2bb154b291681a8f4a3b9832ed42d",
+  "timestamp": 1793981035
+}

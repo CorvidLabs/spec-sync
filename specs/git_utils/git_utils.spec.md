@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 15
+version: 16
 status: stable
 files:
   - src/git_utils.rs
@@ -34,6 +34,13 @@ Shared git utility functions for querying repository history. Provides the stale
 | `output_after_child_exits` | `command: &mut Command` | `io::Result<Output>` | Collect stdout and stderr and return when the direct child exits. Stdin is the null device, as with `Command::output`. Both output streams are pipes this process owns. After the child is reaped, one finite snapshot of the bytes already queued is kept. A descendant that keeps writing does not delay the return |
 | `status_without_inherited_output` | `command: &mut Command` | `io::Result<ExitStatus>` | Run `command` with stdout and stderr on the null device and return when the direct child exits, so a descendant cannot keep the caller's output pipes open |
 | `read_pipe_until_stop` | `reader`, `stop: &AtomicBool`, `wake: RawFd`, `cap: usize`, `overflow: &AtomicBool` | `io::Result<Vec<u8>>` | Unix read of one pipe until EOF or until `stop` is set. `stop` is checked between reads. When `stop` is observed, one `FIONREAD` snapshot of the bytes already queued is drained and the function returns. Past `cap`, further bytes are discarded and `overflow` is set |
+| `begin_repository_fact_scope` | `root: &Path` | `RepositoryFactScope` | Open a per-thread repository-fact scope for `root` until the guard drops (REQ-git-utils-009). A scope nested in an open scope for the same root starts from what the outer one knows |
+| `memoized_repository_fact` | `root: &Path, flavor: &'static str, args: &[&str]` | `Option<MemoizedGitOutput>` | The answer an open scope for `root` already holds for this ref-, object- or config-only query; never answers while a discovery ceiling is pinned |
+| `note_repository_git` | `root: &Path, flavor: &'static str, args: &[&str], output: &MemoizedGitOutput` | `()` | Record a completed git answer in every open scope for `root`, or forget every fact when `args` may write. A process that did not exit with a code is never remembered |
+| `invalidate_repository_facts` | — | `()` | Forget every memoized fact and close every batch reader on this thread; called after git writes and external processes |
+| `live_repository_reads` | — | `LiveRepositoryReads` | Make every git read on this thread ask git until the guard drops: no memoized fact and no batch reader answers. Race checks hold one, because they read twice to see another process change the repository |
+| `is_read_only_git_invocation` | `args: &[&str]` | `bool` | Whether running `args` cannot change a memoized fact, skipping leading `-c key=value` options |
+| `batched_git_read` | `root: &Path, flavor: &'static str, command: impl Fn() -> Command, args: &[&str], max_bytes: usize` | `Option<MemoizedGitOutput>` | Answer `show <rev>:<path>` (with or without a trailing `--`) of a blob and single-path `ls-tree --full-tree -z --name-only` from one `git cat-file --batch` child per scope and flavor, with the bytes and status the per-file read gives (REQ-git-utils-010); `None` for any other shape, a non-blob, an object over `max_bytes` or no open scope |
 
 **Exported Types**
 
@@ -42,6 +49,9 @@ Shared git utility functions for querying repository history. Provides the stale
 | `SpecBaseline` | enum | `Commit(String)` (measurable), `Untracked` (history exists, spec is not in it — drift is genuinely zero), `Missing(MissingHistory)` (drift is UNKNOWN and must never be reported as zero) |
 | `MissingHistory` | enum | `NotARepository` or `NoCommits` — why a tree cannot be asked how far a spec has fallen behind |
 | `OutputWake` | struct | Unix self-pipe, created after the child is spawned, that wakes every reader when the direct child has been reaped. Neither reader consumes the wake byte |
+| `RepositoryFactScope` | struct | Drop guard for one repository-fact scope; lifecycle commands hold one for the CLI command, the project lock and each read scope |
+| `MemoizedGitOutput` | struct | Exit status, stdout and stderr of one git answer, memoized or batched |
+| `LiveRepositoryReads` | struct | Drop guard returned by `live_repository_reads`; nests, and reads are live while any is held |
 
 **Exported Methods**
 
@@ -65,6 +75,8 @@ Shared git utility functions for querying repository history. Provides the stale
 6. Default `git_cmd` does not set `GIT_CEILING_DIRECTORIES`. `with_discovery_ceiling` is the only way a git child from this module receives a ceiling, and only for the duration of the closure on that thread
 7. `git_cmd` is crate-visible so other modules (`merge::unmerged_paths`) spawn git through the same cleared-environment allowlist
 8. `output_after_child_exits` returns when the direct child exits. Stdin is the null device. Stdout and stderr are pipes this process owns, not the caller's. When the child-exit signal is observed, the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped (SPEED-1, SPEED-1.e). `status_without_inherited_output` runs the child with both streams on the null device, so a descendant cannot keep the caller's stdout or stderr open after the caller exits
+9. A repository fact (a `rev-parse`, `symbolic-ref` or `config` read, or a `rev-list`, `log`, `show`, `ls-tree`, `merge-base`, `cat-file`, `diff-tree`, `for-each-ref` or `show-ref` read without stdin) is asked of git at most once per open scope and root. Working-tree and index reads (`ls-files`, `diff`, `diff-files`, `diff-index`, `status`, `check-attr`) are never memoized. Any other git command, and any external process the command runs, forgets every fact and closes every batch reader on the thread. While a `live_repository_reads` guard is held, nothing is answered from memory, so race checks that read before and after still see another process's change
+10. A batched read answers only `HEAD` or a full object id with one literal path, gives the bytes and exit status of the per-file read, and leaves trees shown by `git show` and anything over its bound to the per-file read A batched `ls-tree` listing walks the parent trees for the entry and never loads the object it names, so a gitlink or a partial-clone blob is listed as `ls-tree` lists it; a tree this clone does not hold falls back to `ls-tree`. `git config` lookups with scope or format options (`--local`, `-z` and the like) before `--get`, `--get-all` or `--get-regexp` are read-only facts
 
 ## Behavioral Examples
 
@@ -131,6 +143,7 @@ None (only uses `std::process::Command` for git CLI calls).
 |------|--------|
 | 2026-10-10 | Add `git_utils.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
+| 2026-11-05 | Repository facts are asked once per command and committed objects are read through one `git cat-file --batch` per command (REQ-git-utils-008, REQ-git-utils-009, #861) |
 | 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
@@ -145,3 +158,5 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits (#854, #855, SPEED-1, SPEED-1.e) |
 | 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued bytes and give the child a null stdin |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
+| 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
+| 2026-11-06 | #861's repository-fact and batch-read requirements are REQ-git-utils-009 and REQ-git-utils-010. Its archived package names them REQ-git-utils-008 and 009 because #864 took 008 first; the archive is left as reviewed |

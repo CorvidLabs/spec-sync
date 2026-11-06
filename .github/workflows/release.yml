@@ -277,10 +277,14 @@ jobs:
             os: ubuntu-latest
             fledge_asset: fledge-linux-x86_64
             fledge_sha256: bebbd9b9f377468b377ee1e177aef96992ee8f8d9f075f9fe2323153f2e165ec
+            nextest_asset: cargo-nextest-0.9.151-x86_64-unknown-linux-gnu.tar.gz
+            nextest_sha256: 1d4ce302b820c41f4b89c5fb9bce45f0f0c94882c1cf08fc360caf08be6e7df4
           - platform: macos
             os: macos-15
             fledge_asset: fledge-macos-x86_64
             fledge_sha256: 5c52a05710918d8bf566546fdaa8f32792b169bbefad46addb6009837f7819d2
+            nextest_asset: cargo-nextest-0.9.151-universal-apple-darwin.tar.gz
+            nextest_sha256: d1d7d025d4bfc9fb154cd76aea3949bd78534829a0589abefa6e5dd4edb135dd
     permissions:
       contents: read
     steps:
@@ -319,6 +323,24 @@ jobs:
           chmod +x "${RUNNER_TEMP}/${ASSET}"
           mv "${RUNNER_TEMP}/${ASSET}" "${RUNNER_TEMP}/fledge"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Install pinned cargo-nextest
+        env:
+          ASSET: ${{ matrix.nextest_asset }}
+          EXPECTED_SHA256: ${{ matrix.nextest_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.151"
+          curl -fsSL -o "${RUNNER_TEMP}/${ASSET}" "${base}/${ASSET}"
+          actual_sha256="$(shasum -a 256 "${RUNNER_TEMP}/${ASSET}" | awk '{print $1}')"
+          if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
+            echo "::error::cargo-nextest checksum mismatch: ${actual_sha256}"
+            exit 1
+          fi
+          tar -xzf "${RUNNER_TEMP}/${ASSET}" -C "${RUNNER_TEMP}" cargo-nextest
+          chmod +x "${RUNNER_TEMP}/cargo-nextest"
+          "${RUNNER_TEMP}/cargo-nextest" nextest --version
 
       - name: Run immutable release-candidate lane
         run: fledge lanes run release-candidate

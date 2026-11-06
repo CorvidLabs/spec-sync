@@ -4,6 +4,12 @@ cmd = "cargo build --release"
 [tasks.test]
 cmd = "cargo test"
 
+# The same test set as `test` (the crate is binary-only, so there are no doc-tests that nextest
+# would skip), one process per test. The release-candidate lane uses it because macOS pays for
+# every process spawn and nextest schedules the slow lifecycle tests first (#861).
+[tasks.test-nextest]
+cmd = "cargo nextest run --no-fail-fast"
+
 [tasks.lint]
 cmd = "cargo clippy -- -D warnings"
 
@@ -103,8 +109,8 @@ steps = ["check-types"]
 # immutable RC tag. Keep platform qualification here so local reproduction
 # and every hosted runner share one command surface.
 [lanes.release-candidate]
-description = "Immutable release-candidate qualification (tests + release build)"
-steps = ["test", "build"]
+description = "Immutable release-candidate qualification (tests under cargo-nextest + release build)"
+steps = ["test-nextest", "build"]
 
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"

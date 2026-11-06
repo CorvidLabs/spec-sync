@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-3d16c5bac65db6223577f77f",
-    "head": "EVT-f68ef5ecc8c6b5ac38a3534b",
+    "head": "EVT-3765788c5a9284ff486c0ae3",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -31,7 +31,8 @@
     "Leif (relayed by orc t18, 2026-11-05 evening): approved the shared relayed_by shape in ch-d7's proposal section 1: decided_by, words verbatim, where incl. relay chain, recorded_by; all required, non-blank, <=4096 B, unknown keys refused, absent not null; boundary line 'a relayed claim, not authenticated'. Use exactly that shape in SpecSync approval/review records and status, plus the #633 wording narrowing",
     "decided: SpecSync flags match Chough's (--words, --where, --recorded-by) and decided_by is copied from --actor/--reviewer because one record must not name two deciders",
     "Leif (2026-11-05 20:19 MST, Herdr orc tab, relayed by orc t18): intent \"Approve\" as proposed (retire CHANGE-6.b, add CHANGE-6.d, CHANGE-13 + 13.a-d, SHIP-2.e); review digest \"Keep it out\"; ss-testgaps' CHANGE-13 moves to CHANGE-14",
-    "Leif (2026-11-05 20:35 MST, Herdr orc tab, relayed by orc t18): approved at 6a40e2a2 ('Approve', recorded by orc), then 'Yes, amend and re-approve': send back, amend the recorded_claims Public API row to Result<Vec<RecordedClaim>, String>, re-approve"
+    "Leif (2026-11-05 20:35 MST, Herdr orc tab, relayed by orc t18): approved at 6a40e2a2 ('Approve', recorded by orc), then 'Yes, amend and re-approve': send back, amend the recorded_claims Public API row to Result<Vec<RecordedClaim>, String>, re-approve",
+    "Leif (2026-11-05, Herdr orc tab, relayed by orc t18): re-approval recorded by orc as 0xLeif at c7c3ee5e per 'Yes, amend and re-approve'"
   ],
   "open_questions": [],
   "completed": [
@@ -54,9 +55,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Native scope approval of record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication (orc relays Leif's decision)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "Send ready for approval at the amended commit; after re-approval implement"
 }

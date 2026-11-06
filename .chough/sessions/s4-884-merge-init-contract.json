@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-c43fea15a35000bbf6cb3cd4",
-    "head": "EVT-3bdf306467ca9c7a21bc55be",
+    "head": "EVT-829404b1071ba6c29ad0ed08",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,7 +12,7 @@
     "cmd_init"
   ],
   "stage": {
-    "current": "build",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -34,19 +34,19 @@
     "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" for UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted; decision (e) leave init --help unchanged",
     "Leif (2026-11-05, orc tab, relayed by orc t18): 'Approve' for change B scope; native definition approval recorded as 0xLeif by the orc at 77eec49c",
     "Leif (2026-11-05, orc tab, relayed by orc t18): standing rule: main-merge-only head moves (bookkeeping conflicts, no change to reviewed content, checks green) need no new OK",
-    "Leif (2026-11-05 23:24 MST, relayed by orc t18): agent commits keep the worktree git identity (0xLeif) as author; no rewrites; native approvals/reviews in his name only through the orc"
+    "Leif (2026-11-05 23:24 MST, relayed by orc t18): agent commits keep the worktree git identity (0xLeif) as author; no rewrites; native approvals/reviews in his name only through the orc",
+    "Leif (2026-11-06, review via orc t18 overnight delegation): implementation review of PR #913 recorded as 0xLeif (pass) at 30c184c2; ship and merge pinned on green"
   ],
   "open_questions": [],
   "completed": [
     "Captured UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 with hi on leif/884-merge-init-contract",
-    "change check --commit verified on merged tree; verify lane green on pinned 1.89"
+    "change check --commit verified on merged tree; verify lane green on pinned 1.89",
+    "Shipped: archived at c894a1f6"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Implementation review of retire-the-merge-empty-list-and-init-strict-default-contract-clauses (specsync change review, recorded by the orc for Leif), then ship"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After Leif's review: change ship retire-the-merge-empty-list-and-init-strict-default-contract-clauses, push archive tip, merge PR on green pinned to head"
+  "next_action": "Push archive tip, merge PR #913 on green pinned to head"
 }

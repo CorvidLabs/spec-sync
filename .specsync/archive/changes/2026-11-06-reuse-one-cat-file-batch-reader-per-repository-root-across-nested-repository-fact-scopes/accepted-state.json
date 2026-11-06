@@ -7,11 +7,11 @@
   "title": "Reuse one cat-file batch reader per repository root across nested repository-fact scopes",
   "description": "Reuse one cat-file batch reader per repository root across nested repository-fact scopes",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793934651,
-  "updated_at": 1793934926,
+  "updated_at": 1793935946,
   "affected_specs": [
     "git_utils"
   ],

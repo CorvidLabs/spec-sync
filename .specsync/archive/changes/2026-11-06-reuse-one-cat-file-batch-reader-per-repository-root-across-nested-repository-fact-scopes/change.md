@@ -1,6 +1,6 @@
 ---
 id: reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

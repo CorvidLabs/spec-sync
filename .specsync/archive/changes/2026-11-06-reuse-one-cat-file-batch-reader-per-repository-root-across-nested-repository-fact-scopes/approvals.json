@@ -40,6 +40,13 @@
       "approved_delta_bases": {
         "git_utils: REQUIREMENT REQ-git-utils-010": "b89da961481aae4a33563d60e9341bcbe58e051745a865559d9639aab0de6ac4"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793935945,
+      "digest": "fcfee694d52b79e875f8ff2781248cdd0baa24dc72e854294fa2f75871517860",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

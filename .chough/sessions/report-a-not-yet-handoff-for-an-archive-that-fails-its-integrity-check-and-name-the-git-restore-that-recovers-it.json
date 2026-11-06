@@ -57,7 +57,9 @@
     "OBS-product-test-167c1dc7ef56460da9f79442",
     "OBS-product-test-779bc49d16e9a58a6685d19a",
     "OBS-product-test-428ee81e19dd07f4e73779c9",
-    "OBS-product-test-fa3e114c08086d98d0991461"
+    "OBS-product-test-fa3e114c08086d98d0991461",
+    "OBS-product-test-55d127983926e7a4dd727da6",
+    "OBS-product-test-8675bce722e7427d2e9712ad"
   ],
   "bugs": [],
   "blockers": [],
@@ -65,5 +67,5 @@
     "Leif via orc t18: fresh scoped review of #901 after check --commit and verify; then ship with no commit between"
   ],
   "run_consents": [],
-  "next_action": "check --commit, verify, push, ready for review with Codex thread IDs"
+  "next_action": "verify on final head, pre-push, push, ready for review with PRRT thread replies; no .chough writes until after ship"
 }

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 57
+version: 58
 status: active
 files:
   - src/commands/change.rs
@@ -188,3 +188,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
+| 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |

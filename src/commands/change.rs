@@ -915,6 +915,11 @@ fn text_mode_next_action(
     questions: &[InterviewQuestion],
 ) -> String {
     let id = record.id.as_str();
+    // An archive of this id on the remote default makes review and finalize refuse; name it
+    // instead of a state-local step that would fail (REQ-cmd-change-028).
+    if let Some(upstream) = change::upstream_archive_of(root, record) {
+        return change::upstream_archive_message(id, &upstream);
+    }
     // The same refusal every later verb would give, named before any state-local step
     // (REQ-change-115). It carries entry paths and rule text only, never a digest.
     if record.state != ChangeState::Archived
@@ -1047,6 +1052,10 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             "{refusal}; fix `.specsync/sdd.json` before check, review or finalize"
         ));
     }
+    let upstream_archive = change::upstream_archive_of(root, record);
+    if let Some(upstream) = &upstream_archive {
+        blockers.push(change::upstream_archive_message(&record.id, upstream));
+    }
     if matches!(
         record.state,
         ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
@@ -1166,7 +1175,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             })
         });
 
-    let ship_next = if ready_to_finalize {
+    let ship_next = if let Some(upstream) = &upstream_archive {
+        change::upstream_archive_message(&record.id, upstream)
+    } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(
         record.state,

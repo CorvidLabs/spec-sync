@@ -5,8 +5,8 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Integration test: upstream archive present -> review refuses before acceptance with the named cause; status and ship-status not safe; finalize refuses with the same cause. Fails first on main.
-- [ ] Integration test: no upstream archive -> squash, review, finalize archives (#690 guard).
-- [ ] Shared check over `archive_introduction_index` returning reference and commit.
-- [ ] Wire it into review, handoff/status, ship-status and finalize.
-- [ ] Deltas, CHANGELOG entry, requirement evidence.
+- [x] Integration test: upstream archive present -> review refuses before acceptance with the named cause; status and ship-status not safe; finalize refuses with the same cause. Fails first on main.
+- [x] Integration test: no upstream archive -> squash, review, finalize archives (#690 guard).
+- [x] Shared check over `archive_introduction_index` returning reference and commit.
+- [x] Wire it into review, handoff/status, ship-status and finalize.
+- [x] Deltas, CHANGELOG entry, requirement evidence.

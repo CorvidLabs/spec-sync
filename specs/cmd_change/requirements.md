@@ -431,3 +431,11 @@ The change CLI SHALL expose historical reconciliation as an opt-in scope request
 - `change audit --archives` exits non-zero and names the archived change when another archive's history holds a hidden workflow-version downgrade.
 - `change audit` without `--archives`, with or without the global `--strict`, reports exactly what it reported before.
 
+### REQ-cmd-change-028
+
+`change status` and `change ship-status` SHALL report a change that is already archived upstream with the reference, the archive commit and the next step, in text and JSON, and SHALL NOT name finalize or ship as its next action.
+
+Acceptance Criteria
+- Text output names the reference, commit and the merge or rebase step.
+- JSON readiness is not `safe`.
+

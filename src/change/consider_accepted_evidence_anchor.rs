@@ -4663,3 +4663,58 @@ fn validate_accepted_inputs_recursive(
     memo.validity.insert(record.id.clone(), result.clone());
     result
 }
+
+/// An archive of a change that the remote default branch holds and `HEAD` does not (#694).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UpstreamArchive {
+    /// The remote default reference, such as `origin/main`.
+    pub(crate) reference: String,
+    /// The commit on that reference that added the archived package.
+    pub(crate) commit: String,
+}
+
+/// The remote default's archive of `record`, when this branch does not contain it.
+///
+/// An unarchived record whose id the remote default already archived is a stale copy: closing it
+/// again would write a second archive, so finalize refuses it, and review, status and ship-status
+/// must say so first instead of reporting it ready (REQ-change-127). An archive that `HEAD`
+/// already contains is not reported: that is the reopen-and-rearchive path, which keeps working.
+/// When Git cannot answer, this returns `None` and every other gate still applies.
+pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<UpstreamArchive> {
+    if record.state == ChangeState::Archived {
+        return None;
+    }
+    let reference = remote_default_ref(root)?;
+    let index = archive_introduction_index(root).ok()?;
+    index.get(&record.id)?.iter().find_map(|introduction| {
+        let on_reference = commit_is_ancestor(root, &introduction.commit, &reference)?;
+        let in_head = commit_is_ancestor(root, &introduction.commit, "HEAD")?;
+        (on_reference && !in_head).then(|| UpstreamArchive {
+            reference: reference.clone(),
+            commit: introduction.commit.clone(),
+        })
+    })
+}
+
+/// The one sentence review, finalize, status and ship-status print for an upstream archive.
+pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> String {
+    format!(
+        "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; merge or rebase onto `{reference}`, whose archive is authoritative, instead of closing it a second time",
+        reference = upstream.reference,
+        commit = upstream.commit,
+    )
+}
+
+/// `Some(true)` when `ancestor` is an ancestor of `descendant`, `Some(false)` when it is not,
+/// `None` when Git could not say.
+fn commit_is_ancestor(root: &Path, ancestor: &str, descendant: &str) -> Option<bool> {
+    let status = crate::git_utils::status_without_inherited_output(
+        crate::git_utils::git_cmd(root).args(["merge-base", "--is-ancestor", ancestor, descendant]),
+    )
+    .ok()?;
+    match status.code() {
+        Some(0) => Some(true),
+        Some(1) => Some(false),
+        _ => None,
+    }
+}

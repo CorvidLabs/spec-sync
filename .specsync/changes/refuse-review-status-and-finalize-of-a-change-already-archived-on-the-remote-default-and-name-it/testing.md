@@ -11,3 +11,17 @@ New file `tests/integration/archived_upstream.rs`, built from the auditor's squa
 2. No upstream archive (no remote): the same squash, then `change review` and `change finalize` succeed and the package is archived.
 
 Case 1 must fail on main 884a33d3 before the fix. Case 2 must pass before and after.
+
+## Results
+
+`tests/integration/archived_upstream.rs`:
+
+- `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance` failed on main 884a33d3 (`change review` recorded a pass with handoff `safe`). With the change it passes: review, status, ship-status and finalize all name `origin/main` and the archive commit, the record stays `verifying`, and no second archive is written.
+- `a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finalizes` passed before and after (#690 guard).
+
+## Requirement evidence
+
+| Requirement | Evidence |
+| --- | --- |
+| REQ-change-127 | `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance`, `a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finalizes` |
+| REQ-cmd-change-028 | `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance` |

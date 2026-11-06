@@ -1,0 +1,52 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-e08f7052312cfd6b8bbd4f85",
+    "head": "EVT-459152ae6bae1d3f66642e83",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Let a change that merged long ago but was never archived be closed late in one audited step that records it as never re-checked (#833, SHIP-12)",
+  "intent_scope": "SHIP",
+  "modules": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "close-a-change-that-merged-but-was-never-archived-in-one-audited-late-close-that-records-it-as-never-re-checked",
+  "references": {
+    "criteria": [
+      "SHIP-12",
+      "SHIP-12.a",
+      "SHIP-12.b",
+      "SHIP-12.c",
+      "SHIP-12.d",
+      "SHIP-12.e",
+      "SHIP-12.f"
+    ],
+    "requirements": [
+      "REQ-change-143"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Leif via orc t18 ('Capture all + approve design', 2026-11-06): capture SHIP-12 and .a-.f verbatim; D1 closed_late is a new terminal state (rejected: archived plus a marker, which could pass as verified); D2 drafts closable, recorded never approved; D3 several IDs all-or-nothing plus --dry-run (--all-merged deferred); D4 this PR first; it Fixes #833; the reopen overflow is #976 in its own PR (REQ-change-144)."
+  ],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif's scope approval of the close-late change, relayed by orc t18"
+  ],
+  "run_consents": [],
+  "next_action": "Send 'ready for approval' to orc t18; then write the failing tests (testing.md 1-8) and record that they fail on main f7180c34"
+}

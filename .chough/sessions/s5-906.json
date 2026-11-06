@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-63f012bed1de50d9896143fe",
-    "head": "EVT-380b8b38cc725291651c00a5",
+    "head": "EVT-d55af887ba60cc6f2caf81b0",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -31,7 +31,8 @@
   "decisions": [
     "decided: #906 needs no new HI criteria because DOCS-2 (closeout: verify, implementation review, archive before push) and DOCS-1/DOCS-1.a (examples run as written; CI fails when one stops working), approved by Leif 2026-11-05 20:22 MST (relayed by orc t18), cover it; its scope approval queues for Leif",
     "decided: leif/906-verify-step is stacked on #917 (0b209a5c) because both edit tests/integration/documented_workflows.rs; merge main after #912 and #917 land",
-    "decided: the fixture's verify lane is `specsync check --strict` run on the current tip, because the fixture has no product test suite and SpecSync itself never runs or observes a project lane"
+    "decided: the fixture's verify lane is `specsync check --strict` run on the current tip, because the fixture has no product test suite and SpecSync itself never runs or observes a project lane",
+    "Leif decided \"Scope approval of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif; queued for his morning, recorded by orc)\": \"Ok yes I approve all\" (orc tab, 06:1x MST 2026-11-06, relayed by orc t18; native approval recorded as 0xLeif by the orc at 2043e73c); recorded by claude (ss-docs); a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
@@ -40,9 +41,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif; queued for his morning, recorded by orc)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "After approval: landing-page verify line, CHANGELOG, verify lane, check --commit"
 }

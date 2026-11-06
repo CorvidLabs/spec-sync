@@ -7,10 +7,11 @@
   "title": "Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878)",
   "description": "Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878)",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
   "created_at": 1793947359,
-  "updated_at": 1793947588,
+  "updated_at": 1793950175,
   "affected_specs": [
     "hash_cache",
     "change"

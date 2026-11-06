@@ -14,6 +14,10 @@ const CACHE_FILE: &str = "hashes.json";
 const CACHE_FORMAT_VERSION: u32 = 1;
 /// Per-spec validation snapshot schema.
 const SNAPSHOT_VERSION: u32 = 1;
+/// SHA-256 of every source and manifest this binary was compiled from (`build.rs`, #878). Two
+/// builds that report the same package version can still judge the same bytes differently, so a
+/// cached result is replayed only by the build whose fingerprint it carries (REQ-hash-cache-005).
+pub(crate) const BUILD_FINGERPRINT: &str = env!("SPECSYNC_BUILD_FINGERPRINT");
 
 /// Normalize a relative path to use forward slashes on all platforms.
 /// This ensures cache keys are consistent across Windows and Unix.
@@ -281,6 +285,23 @@ fn validation_input_digest(
     global_inputs: &[String],
     spec_inventory: &[String],
 ) -> String {
+    validation_input_digest_for_build(
+        BUILD_FINGERPRINT,
+        root,
+        spec_path,
+        global_inputs,
+        spec_inventory,
+    )
+}
+
+/// [`validation_input_digest`] as the build with `build_fingerprint` computes it.
+fn validation_input_digest_for_build(
+    build_fingerprint: &str,
+    root: &Path,
+    spec_path: &Path,
+    global_inputs: &[String],
+    spec_inventory: &[String],
+) -> String {
     let mut hasher = Sha256::new();
     update_digest(
         &mut hasher,
@@ -288,6 +309,7 @@ fn validation_input_digest(
         &CACHE_FORMAT_VERSION.to_string(),
     );
     update_digest(&mut hasher, "specsync_version", env!("CARGO_PKG_VERSION"));
+    update_digest(&mut hasher, "build_fingerprint", build_fingerprint);
 
     let mut inventory = spec_inventory.to_vec();
     inventory.sort();
@@ -1004,6 +1026,70 @@ mod tests {
         )
         .unwrap();
         (spec_path, vec!["specs/auth/auth.spec.md".to_string()])
+    }
+
+    /// A clean snapshot for the duplicated-ID project, bound to the build with `build_fingerprint`.
+    fn clean_snapshot_from_build(
+        build_fingerprint: &str,
+        root: &Path,
+        spec_path: &Path,
+        inventory: &[String],
+    ) -> CachedValidationSnapshot {
+        let mut snapshot = CachedValidationSnapshot {
+            snapshot_version: SNAPSHOT_VERSION,
+            spec_path: "specs/auth/auth.spec.md".into(),
+            errors: vec![],
+            warnings: vec![],
+            notices: vec![],
+            input_digest: validation_input_digest_for_build(
+                build_fingerprint,
+                root,
+                spec_path,
+                &[],
+                inventory,
+            ),
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = validation_snapshot_digest(&snapshot);
+        snapshot
+    }
+
+    /// Verifies REQ-hash-cache-005 (#878). A snapshot from another build of this same package
+    /// version is not replayed, and the same snapshot from this build is: the build fingerprint,
+    /// and nothing else, decides.
+    #[test]
+    fn only_the_build_that_recorded_a_snapshot_replays_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        assert_eq!(
+            BUILD_FINGERPRINT.len(),
+            64,
+            "build.rs compiles in a SHA-256"
+        );
+        let mut cache = HashCache::default();
+
+        cache.snapshots.insert(
+            "specs/auth/auth.spec.md".into(),
+            clean_snapshot_from_build(&"0".repeat(64), root, &spec_path, &inventory),
+        );
+        assert!(
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "another build of this version must re-validate"
+        );
+
+        cache.snapshots.insert(
+            "specs/auth/auth.spec.md".into(),
+            clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory),
+        );
+        assert!(
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some(),
+            "this build replays its own snapshot"
+        );
     }
 
     /// Verifies REQ-hash-cache-005 (#878). DISCRIMINATOR: a build from before the duplicate-ID

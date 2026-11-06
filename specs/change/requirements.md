@@ -1794,6 +1794,14 @@ Acceptance Criteria
 - A listed state blob that cannot be read refuses the archive and leaves no cached absence.
 - A cold archived status past its `--timeout` still exits 124 with the phase and progress.
 
+### REQ-change-139
+
+The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
+
+Acceptance Criteria
+- A renamed or undated upstream package of the change is found.
+- The lookup uses one tree listing and one batched blob read of the archive directory, plus per-match work only for a matching package.
+
 ### REQ-change-145
 
 When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.

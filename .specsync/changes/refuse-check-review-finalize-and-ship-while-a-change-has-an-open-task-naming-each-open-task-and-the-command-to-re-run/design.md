@@ -18,7 +18,7 @@ artifact: design
   - ship: `specsync change ship <id>` with `--dry-run`, `--push` and `--wait` as given.
 - Where the gate runs, each time before any record is written:
   - review: after state and approval checks, for a `pass` verdict only. A non-pass verdict on unfinished work stays legitimate.
-  - finalize: after the legacy and materialization checks, for both Verifying and Accepted (resume).
+  - finalize: after the legacy and materialization checks, before acceptance, for a Verifying change. A resumed finalization (Accepted) already passed the gate when it was accepted, and its workspace may already be in the archive. `post_move_same_pr_finalization_resumes_across_dates_without_another_approval` caught the first cut, which also gated the resume.
   - ship: right before its readiness refusal, so the message is not doubled.
   - ship-status: an incomplete-tasks blocker, so `ready_to_finalize` is false.
 - Status: for Approved, Implementing and Verifying, with a current approval and complete artifacts, `Next:` becomes `<next step>, then <what it would otherwise say>`. This holds in the CLI text and in the library JSON `next_action`. Sequence-freeze and `verification_ignored_paths` actions still come first.

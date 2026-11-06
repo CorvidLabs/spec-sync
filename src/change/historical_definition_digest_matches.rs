@@ -2548,10 +2548,11 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
                 .into(),
         );
     }
-    // Before acceptance writes anything, and for a resumed finalization too: no digest sees a
-    // task reopened after the passing check (REQ-change-131).
-    ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     if record.state == ChangeState::Verifying {
+        // Before acceptance writes anything: no digest sees a task reopened after the passing
+        // check (REQ-change-131). A resumed finalization (`Accepted`) already passed this gate
+        // when it was accepted, and its workspace may already sit in the archive.
+        ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
     } else {
         let verification = load_verification(root, &record)?;

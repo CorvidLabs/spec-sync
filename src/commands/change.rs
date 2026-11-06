@@ -74,17 +74,20 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 print_transition_with_handoff(root, &record, format, "historical reconciliation requested; old file transitions remain unproven; fresh definition approval required")
             })
         }
-        ChangeAction::List => {
+        ChangeAction::List { timeout } => {
+            let _deadline = read_deadline_for("change list", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             change::list_changes(root)
                 .and_then(|roster| print_roster(root, &roster, format, strict))
         }
-        ChangeAction::Show { id } => {
+        ChangeAction::Show { id, timeout } => {
+            let _deadline = read_deadline_for("change show", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             change::load_change(root, &id)
                 .and_then(|record| print_record(root, &record, format, true, strict))
         }
-        ChangeAction::Status { id } => {
+        ChangeAction::Status { id, timeout } => {
+            let _deadline = read_deadline_for("change status", timeout, format);
             // A broken policy must not look like "no principles". `rules` already
             // fails here; status was still printing a briefing as if the file parsed.
             if let Err(error) = change::configured_principles_file(root) {
@@ -108,7 +111,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
         }
-        ChangeAction::ShipStatus { id } => {
+        ChangeAction::ShipStatus { id, timeout } => {
+            let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
                 change::load_change(root, &id)
@@ -682,6 +686,45 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     }
 }
 
+/// The read deadline for a read-only command, from `--timeout` or `SPECSYNC_TIMEOUT`
+/// (REQ-cmd-change-032). The resume command is this invocation without its timeout.
+fn read_deadline_for(
+    command: &str,
+    timeout: Option<u64>,
+    format: OutputFormat,
+) -> Option<change::ReadDeadlineGuard> {
+    let limit = change::read_timeout_secs(timeout)?;
+    let resume = resume_command_without_timeout(std::env::args().skip(1));
+    Some(change::begin_read_deadline(
+        limit,
+        command,
+        &resume,
+        matches!(format, OutputFormat::Json),
+    ))
+}
+
+/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed.
+fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String {
+    let mut kept = vec!["specsync".to_string()];
+    let mut args = args.peekable();
+    while let Some(argument) = args.next() {
+        if argument == "--timeout" {
+            args.next();
+            continue;
+        }
+        if argument.starts_with("--timeout=") {
+            continue;
+        }
+        kept.push(
+            if argument.is_empty() || argument.contains(char::is_whitespace) {
+                format!("'{}'", argument.replace('\'', "'\\''"))
+            } else {
+                argument
+            },
+        );
+    }
+    kept.join(" ")
+}
 fn print_record(
     root: &Path,
     record: &ChangeRecord,
@@ -1042,18 +1085,35 @@ fn text_mode_next_action(
             format!("run `specsync change approve {id} --actor <name>`")
         }
         ChangeState::Approved | ChangeState::Implementing => {
-            format!("run `specsync change check {id}`")
+            open_tasks_first(root, record, format!("run `specsync change check {id}`"))
         }
-        ChangeState::Verifying => {
+        ChangeState::Verifying => open_tasks_first(
+            root,
+            record,
             format!(
                 "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — scoped review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving"
-            )
-        }
-        ChangeState::Accepted if record.workflow_version >= 2 => {
-            format!("run `specsync change ship {id}` or `specsync change finalize {id}`")
-        }
+            ),
+        ),
+        ChangeState::Accepted if record.workflow_version >= 2 => open_tasks_first(
+            root,
+            record,
+            format!("run `specsync change ship {id}` or `specsync change finalize {id}`"),
+        ),
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
-        ChangeState::Archived => "no further action".into(),
+        // An archive that fails its integrity check is not finished: name the same restore the
+        // JSON next action and the handoff carry (#880). Path and literals only, no digest.
+        ChangeState::Archived => change::corrupt_archive_recovery_for_guidance(root, record)
+            .unwrap_or_else(|| "no further action".into()),
+    }
+}
+
+/// `action`, preceded by the change's open tasks when it has any. Checkbox state is outside every
+/// digest, so no currency check above can see them, and every verb `action` names would refuse
+/// (REQ-change-132).
+fn open_tasks_first(root: &Path, record: &ChangeRecord, action: String) -> String {
+    match change::open_tasks_next_step(root, record) {
+        Some(step) => format!("{step}, then {action}"),
+        None => action,
     }
 }
 
@@ -1145,6 +1205,15 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     let upstream_archive = change::upstream_archive_of(root, record);
     if let Some(upstream) = &upstream_archive {
         blockers.push(change::upstream_archive_message(&record.id, upstream));
+    }
+    // No digest sees checkbox state, so the currency blockers below cannot report an open task;
+    // check, review, finalize and ship would each refuse it (REQ-cmd-change-031). A change already
+    // archived upstream is told that instead.
+    let open_tasks_step = (upstream_archive.is_none() && change::open_tasks_block(record))
+        .then(|| change::open_tasks_next_step(root, record))
+        .flatten();
+    if let Some(step) = &open_tasks_step {
+        blockers.push(format!("tasks.md contains incomplete tasks: {step}"));
     }
     if matches!(
         record.state,
@@ -1287,11 +1356,18 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         // "no verification evidence recorded yet" on a line whose whole job is to name
         // a runnable command. Blockers already render on their own `Blocker:` lines, so
         // repeating one here bought nothing and cost the reader their next step.
-        current_stage
-            .get("action")
-            .and_then(|value| value.as_str())
-            .unwrap_or(lifecycle_next.as_str())
-            .to_string()
+        let stage_action = stages
+            .iter()
+            .find(|stage| stage.get("status").and_then(|value| value.as_str()) == Some("current"))
+            .and_then(|stage| stage.get("action"))
+            .and_then(|value| value.as_str());
+        match (stage_action, &open_tasks_step) {
+            // A stage's action is about evidence; the open tasks come first (REQ-cmd-change-031).
+            (Some(action), Some(step)) => format!("{step}, then {action}"),
+            (Some(action), None) => action.to_string(),
+            // `lifecycle_next` already names any open tasks.
+            (None, _) => lifecycle_next.clone(),
+        }
     };
 
     let trust = build_ship_trust(root, &tip);
@@ -1630,11 +1706,11 @@ fn open_archive_candidates(root: &Path) -> Result<Vec<ArchiveCandidate>, String>
 
 /// Whether the Archive check may tell this workspace to run `change ship`.
 ///
-/// A blocking review, a legacy workflow, or a review recorded against a different
-/// commit cannot be archived by that command. The same proof is in
-/// `.github/scripts/archive-readiness.sh`: verdict `pass`, workflow v2, and
-/// `implementation_commit` equal to HEAD. Anything the check cannot prove stays
-/// on `change status`.
+/// A blocking review, a legacy workflow, a review recorded against a different
+/// commit, or a copy the remote default already archived cannot be archived by
+/// that command. The same proof is in `.github/scripts/archive-readiness.sh`:
+/// verdict `pass`, workflow v2, `implementation_commit` equal to HEAD, and no
+/// upstream archive. Anything the check cannot prove stays on `change status`.
 fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) -> bool {
     if record.workflow_version < 2 || record.state != change::ChangeState::Verifying {
         return false;
@@ -1657,9 +1733,13 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     else {
         return false;
     };
-    git_rev_parse(root, "HEAD")
+    let reviewed_at_head = git_rev_parse(root, "HEAD")
         .ok()
-        .is_some_and(|head| head == commit)
+        .is_some_and(|head| head == commit);
+    // Asked last, so Git runs only for a copy that would otherwise ship. `ship` refuses a
+    // change the remote default already archived (REQ-change-129); naming it here sent the
+    // operator to a certain refusal instead of to `change status`, which names the recovery.
+    reviewed_at_head && change::upstream_archive_of(root, record).is_none()
 }
 
 fn pull_request_sentence(root: &Path) -> Result<String, String> {
@@ -1803,6 +1883,24 @@ impl ShipReviewStatus {
     }
 }
 
+/// The product-tip action, named only as a command whose state guard admits the change's state
+/// (#690, REQ-cmd-change-033). `check` refuses a draft and an accepted or archived change, so
+/// those get the step their own state machine takes: approve, or reopen the stale evidence.
+fn product_stage_action(record: &ChangeRecord) -> String {
+    let id = record.id.as_str();
+    match record.state {
+        ChangeState::Draft => format!(
+            "run `specsync change approve {id} --actor <name>` once the definition is complete; `change check` refuses a draft"
+        ),
+        ChangeState::Accepted | ChangeState::Archived => format!(
+            "run `specsync change reopen {id} --actor <name> --reason <text>`; the verification is no longer current for this content and `change check` refuses an accepted or archived change"
+        ),
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => format!(
+            "run `specsync change check {id} --commit` and the local verify lane; archive-first CI does not test a tip with an open change, so do not wait on remote CI here"
+        ),
+    }
+}
+
 fn ship_stages(
     record: &ChangeRecord,
     tip: &HeadTip,
@@ -1829,7 +1927,7 @@ fn ship_stages(
         "action": if product_done {
             "product verification evidence is current for this content".to_string()
         } else {
-            format!("run `specsync change check {id} --commit` and the local verify lane; archive-first CI does not test a tip with an open change, so do not wait on remote CI here")
+            product_stage_action(record)
         },
     }));
 
@@ -2284,6 +2382,28 @@ fn discovered_pr_base(root: &Path) -> Option<String> {
         .filter(|base| !base.is_empty())
 }
 
+/// `change ship --wait-timeout-secs` when the flag is not given; the clap default in `cli.rs`,
+/// pinned to it by `ship_wait_timeout_default_matches_the_cli`.
+const SHIP_WAIT_TIMEOUT_DEFAULT_SECS: u64 = 900;
+
+/// The `change ship` command line that repeats an invocation with these flags.
+fn ship_command(id: &str, dry_run: bool, push: bool, wait: bool, wait_timeout_secs: u64) -> String {
+    let mut command = format!("specsync change ship {id}");
+    for (given, flag) in [
+        (dry_run, " --dry-run"),
+        (push, " --push"),
+        (wait, " --wait"),
+    ] {
+        if given {
+            command.push_str(flag);
+        }
+    }
+    if wait && wait_timeout_secs != SHIP_WAIT_TIMEOUT_DEFAULT_SECS {
+        command.push_str(&format!(" --wait-timeout-secs {wait_timeout_secs}"));
+    }
+    command
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_ship(
     root: &Path,
@@ -2427,6 +2547,18 @@ fn run_ship(
     if first_id.as_deref() != Some(record.id.as_str()) && !open.is_empty() {
         // One document. Printing here and returning Err made JSON mode emit two.
         return Err(before);
+    }
+    // Before the generic readiness refusal, so the command to re-run is this one, flags and all
+    // (REQ-cmd-change-031). A change already archived upstream gets that blocker below instead.
+    if change::open_tasks_block(&record)
+        && change::upstream_archive_of(root, &record).is_none()
+        && let Some(refusal) = change::open_tasks_refusal(
+            root,
+            &record,
+            &ship_command(&record.id, dry_run, push, wait, wait_timeout_secs),
+        )
+    {
+        return Err(refusal);
     }
     if !ready {
         let action = report["ship_next"]
@@ -3172,6 +3304,65 @@ if the floor call is removed from this function"
         }
     }
 
+    // #690: the product-tip stage must never advertise a command its own state machine
+    // refuses. For each state whose product stage is not done, the advertised `specsync change`
+    // verb must be one whose guard admits that state.
+    #[test]
+    fn ship_stage_product_action_is_accepted_by_the_state_machine() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let mut record = draft_fixture(root);
+        let tip = HeadTip {
+            tip_class: "product".into(),
+            tip_sha: Some("0".repeat(40)),
+            parent_sha: None,
+        };
+        let admitted = |verb: &str, state: ChangeState| match verb {
+            "answer" | "approve" => state == ChangeState::Draft,
+            "check" => matches!(
+                state,
+                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+            ),
+            "reopen" => matches!(state, ChangeState::Accepted | ChangeState::Archived),
+            other => panic!("unexpected advertised verb `{other}`"),
+        };
+        for state in [
+            ChangeState::Draft,
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+            ChangeState::Accepted,
+            ChangeState::Archived,
+        ] {
+            record.state = state;
+            // Verification present but no longer current for this content.
+            let stages = ship_stages(
+                &record,
+                &tip,
+                Some(&"1".repeat(40)),
+                true,
+                false,
+                ShipReviewStatus::Missing,
+                false,
+            );
+            let product = stages
+                .iter()
+                .find(|stage| stage["id"] == "product_tip")
+                .expect("product stage");
+            assert_eq!(product["status"], "current", "{state:?}");
+            let action = product["action"].as_str().unwrap();
+            let verb = action
+                .split("specsync change ")
+                .nth(1)
+                .and_then(|rest| rest.split_whitespace().next())
+                .unwrap_or_else(|| panic!("{state:?}: no `specsync change` command in {action}"));
+            assert!(
+                admitted(verb, state),
+                "{state:?}: product stage advertises `{verb}`, which refuses that state: {action}"
+            );
+        }
+    }
+
     fn draft_fixture(root: &Path) -> ChangeRecord {
         change::write_default_policy(root, Vec::new()).expect("write default policy");
         change::create_change(
@@ -3210,6 +3401,81 @@ if the floor call is removed from this function"
         change::write_default_policy(root, vec!["true".to_string()]).expect("policy");
         git_in(root, &["add", "."]);
         git_in(root, &["commit", "-m", "base"]);
+    }
+
+    /// #902: a copy of a change that the remote default already archived is not an archive
+    /// candidate to ship, even with a passing review at `HEAD` and its verification (the review
+    /// predates the upstream archive). The pull-request sentence that `change pr` and the
+    /// Archive check print then names `change status`, which carries #889's recovery.
+    #[test]
+    fn an_upstream_archived_copy_is_not_told_to_ship() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        let id = reviewed_change_fixture(&root);
+        let workspace = root.join(".specsync/changes").join(&id);
+        let reviewed = git_rev_parse(&root, "HEAD").unwrap();
+        let record = change::load_change(&root, &id).unwrap();
+        assert!(
+            archive_candidate_can_ship(&root, &record, &workspace),
+            "control: a passing review at HEAD with no upstream archive ships"
+        );
+        let review = fs::read(workspace.join("review.json")).unwrap();
+        let attempts = fs::read(workspace.join("review-attempts.json")).unwrap();
+
+        // Archive it, publish that as origin's default branch, then return to the reviewed copy.
+        change::finalize_change(&root, &id).expect("finalize");
+        git_in(&root, &["add", "--all"]);
+        git_in(&root, &["commit", "-q", "-m", "archive", "--allow-empty"]);
+        let archived = git_rev_parse(&root, "HEAD").unwrap();
+        let origin = temp.path().join("origin.git");
+        git_in(
+            temp.path(),
+            &[
+                "init",
+                "-q",
+                "--bare",
+                "-b",
+                "main",
+                origin.to_str().unwrap(),
+            ],
+        );
+        git_in(
+            &root,
+            &["remote", "add", "origin", origin.to_str().unwrap()],
+        );
+        git_in(
+            &root,
+            &[
+                "push",
+                "-q",
+                "origin",
+                &format!("{archived}:refs/heads/main"),
+            ],
+        );
+        git_in(&root, &["fetch", "-q", "origin"]);
+        git_in(&root, &["remote", "set-head", "origin", "main"]);
+        git_in(&root, &["checkout", "-q", "-B", "stale-copy", &reviewed]);
+        fs::write(workspace.join("review.json"), &review).unwrap();
+        fs::write(workspace.join("review-attempts.json"), &attempts).unwrap();
+
+        let stale = change::load_change(&root, &id).unwrap();
+        assert_eq!(stale.state, ChangeState::Verifying);
+        assert!(
+            change::upstream_archive_of(&root, &stale).is_some(),
+            "fixture: origin/main must hold an archive HEAD does not contain"
+        );
+        assert!(
+            !archive_candidate_can_ship(&root, &stale, &workspace),
+            "an upstream-archived copy must not be told to ship"
+        );
+        let sentence = pull_request_sentence(&root).unwrap();
+        assert!(
+            sentence.contains(&format!("Run `specsync change status {id}`")),
+            "{sentence}"
+        );
+        assert!(!sentence.contains("specsync change ship"), "{sentence}");
     }
 
     /// Drives one change to `Verifying` with committed verification and a current scoped
@@ -3810,6 +4076,81 @@ if the floor call is removed from this function"
     /// satisfied and the whole class of changes goes permanently red. That is the failure
     /// #689 removed from the verification half, and trading a false green for a permanent
     /// false red is not a fix.
+    /// Verifies REQ-cmd-change-031 (Codex review of #903). DISCRIMINATOR: a workflow-v2 change
+    /// accepted by a finalization that stopped before the archive move, with a task reopened
+    /// before the retry status points at. ship-status lists the task as a blocker and names it
+    /// first, the text status names it, and ship refuses naming the task and its own command.
+    #[test]
+    fn ship_names_a_task_reopened_after_acceptance() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Ship a task reopened after acceptance".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: vec![ArtifactKind::Tasks],
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "implement"]);
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record verification"]);
+        // Acceptance binds verification to HEAD, so verify the committed tree once more.
+        change::check_change(root, Some(&id)).expect("check the committed tree");
+        // A finalization that stopped here: accepted, still in its workspace.
+        let accepted = change::accept_change(root, &id, None, None).expect("accept");
+        assert_eq!(accepted.state, ChangeState::Accepted);
+        assert!(accepted.workflow_version >= 2, "the fixture is workflow v2");
+        let tasks = root.join(".specsync/changes").join(&id).join("tasks.md");
+        fs::write(&tasks, "# Tasks\n\n- [ ] Reopened after acceptance.\n").expect("reopen");
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(report["ready_to_finalize"], false, "{report}");
+        let blockers = report["blockers"].as_array().expect("blockers");
+        assert!(
+            blockers
+                .iter()
+                .any(|blocker| blocker.as_str().is_some_and(|text| text
+                    .starts_with("tasks.md contains incomplete tasks: finish the 1 open task"))),
+            "ship-status lists the reopened task: {blockers:?}"
+        );
+        let next = report["ship_next"].as_str().expect("ship_next");
+        assert!(next.starts_with("finish the 1 open task"), "{next}");
+        let text = text_mode_next_action(root, &record, &[]);
+        assert!(text.starts_with("finish the 1 open task"), "{text}");
+
+        let refusal = run_ship(
+            root,
+            Some(&id),
+            false,
+            false,
+            false,
+            900,
+            OutputFormat::Json,
+            false,
+        )
+        .expect_err("ship refuses the open task");
+        assert!(
+            refusal.starts_with("tasks.md contains incomplete tasks"),
+            "{refusal}"
+        );
+        assert!(
+            refusal.ends_with(&format!("then re-run `specsync change ship {id}`")),
+            "{refusal}"
+        );
+    }
+
     #[test]
     fn ship_status_is_ready_when_the_scoped_review_is_current() {
         let temp = TempDir::new().expect("temp project");
@@ -4470,13 +4811,15 @@ fn run_checked_commit(
         }
     };
 
+    // A refusal names this invocation, flags and all, as the command to re-run (REQ-change-131).
+    let invocation = change::CheckInvocation {
+        strict,
+        commit: true,
+        push,
+    };
     let verify = |label: &str| -> Result<Option<String>, String> {
         say(label);
-        let record = if strict {
-            change::check_change_with_strict(root, id, true)?
-        } else {
-            change::check_change(root, id)?
-        };
+        let record = change::check_change_as(root, id, invocation)?;
         Ok(record.map(|record| record.commit.unwrap_or_default()))
     };
 
@@ -4974,5 +5317,60 @@ mod ship_next_action_tests {
             archive_sentence_without_command(&sentence),
             "This pull request is not finished. Archive `sooner-accept` first. Still open: `sooner-accept`, `later-verify`."
         );
+    }
+}
+
+#[cfg(test)]
+mod ship_command_tests {
+    use super::*;
+    use crate::cli::{Cli, Command};
+    use clap::Parser;
+
+    /// The command an open-task refusal names leaves the timeout out exactly when it is the
+    /// default, so this constant must be the CLI's default.
+    #[test]
+    fn ship_wait_timeout_default_matches_the_cli() {
+        let parsed =
+            Cli::try_parse_from(["specsync", "change", "ship", "guide", "--wait"]).unwrap();
+        match parsed.command {
+            Some(Command::Change {
+                action:
+                    ChangeAction::Ship {
+                        wait_timeout_secs, ..
+                    },
+            }) => assert_eq!(wait_timeout_secs, SHIP_WAIT_TIMEOUT_DEFAULT_SECS),
+            _ => panic!("`change ship` parses as a ship action"),
+        }
+    }
+
+    /// Verifies REQ-cmd-change-031: the named ship command repeats the flags it was given.
+    #[test]
+    fn ship_command_repeats_its_flags() {
+        assert_eq!(
+            ship_command("guide", false, false, false, 900),
+            "specsync change ship guide"
+        );
+        assert_eq!(
+            ship_command("guide", true, false, false, 900),
+            "specsync change ship guide --dry-run"
+        );
+        assert_eq!(
+            ship_command("guide", false, true, true, 900),
+            "specsync change ship guide --push --wait"
+        );
+        assert_eq!(
+            ship_command("guide", false, true, true, 60),
+            "specsync change ship guide --push --wait --wait-timeout-secs 60"
+        );
+        assert_eq!(
+            ship_command("guide", false, false, false, 60),
+            "specsync change ship guide",
+            "the timeout only matters with --wait"
+        );
+        let words: Vec<String> = ship_command("guide", false, true, true, 60)
+            .split(' ')
+            .map(str::to_string)
+            .collect();
+        Cli::try_parse_from(&words).expect("the named command parses");
     }
 }

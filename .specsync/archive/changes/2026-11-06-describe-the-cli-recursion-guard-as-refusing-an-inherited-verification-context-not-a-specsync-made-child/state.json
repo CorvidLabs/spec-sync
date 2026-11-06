@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child",
+  "slug": "describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child",
+  "title": "Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child",
+  "description": "Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "5ff95d10b0fb9d9bbb3d3fbd15f35d1d261f173c",
+  "created_at": 1793951427,
+  "updated_at": 1793976405,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "specs/cli/requirements.md",
+    "specs/cli/cli.spec.md",
+    "specs/cli/cli.3md",
+    "docs/HLD.md",
+    "tests/integration/change.rs",
+    "tests/integration/helpers.rs",
+    "CHANGELOG.md",
+    "hi/ship.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "SHIP-1.c.1: REQ-cli-003 says the dispatcher refuses a check, change or lifecycle command that runs under an inherited SPECSYNC_VERIFICATION_CONTEXT and cites REQ-change-023 for SpecSync setting that marker on no child of its own; the cli spec Purpose, the cli.3md context plane and the docs/HLD.md failure-mode row no longer describe a SpecSync-made verification child.",
+    "SHIP-1.c.2: cli_contracts_describe_an_inherited_verification_context_not_a_child fails on main and passes after the change.",
+    "Runtime behavior is unchanged: no file under src/ changes, and indirect_recursive_lifecycle_check_fails_once_with_context and indirect_recursive_lifecycle_subcommands_fail_once_with_context still pass unmodified."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks",
+    "testing",
+    "plan",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md lesson: a successor that contradicts its predecessor does not retire it, someone has to; this change retires the cli predecessors. Leif's decision (d) on #848: the dead runner stays, only its contracts are qualified. No runtime change. Strictness stays: no gate, bound, timeout or existing assertion is loosened.",
+    "public_contract": "no"
+  }
+}

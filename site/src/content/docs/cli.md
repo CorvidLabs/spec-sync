@@ -369,7 +369,7 @@ specsync change answer add-passkeys acceptance_criteria "Passkey login works"
 # answer remaining questions and complete the selected artifacts before approval
 specsync change list
 specsync change show add-passkeys
-specsync change status add-passkeys
+specsync change status add-passkeys          # --timeout <secs> bounds a read; exit 124 names how to resume
 specsync change approve add-passkeys --actor "Ada"
 # implement and test the approved scope
 specsync change check add-passkeys --commit
@@ -442,6 +442,30 @@ approved scope changed, or a semantic delta body was edited after the approval t
 cases JSON and text `Next:` name `change approve`, the handoff is `not yet`, and `change audit`
 reports the refusal `change check` gives. Editing `plan.md` or another execution artifact after
 approval stales verification, not approval.
+
+#### Read timeouts
+
+`change status`, `change show`, `change list` and `change ship-status` accept `--timeout <secs>`. Without it they read `SPECSYNC_TIMEOUT`, and with neither there is no limit. Long phases check the deadline between items, such as each commit of the archive-introduction index or each archive's workflow history. Once it has passed, the command:
+
+- writes nothing to any change,
+- keeps every verdict it completed in the read cache under the Git directory, so a rerun continues from there,
+- prints the phase, its progress and the exact command that resumes the work,
+- exits **124**.
+
+A read that never reaches a long phase finishes and prints its normal output, even with `--timeout 0`.
+
+```text
+specsync: change ship-status timed out after 30s during archive-introduction index (140/214). Nothing was written. Completed work is cached, so rerunning continues from there:
+  specsync change ship-status add-passkeys
+```
+
+With `--json` the report goes to stdout:
+
+```json
+{"error":"timeout","command":"change status","timeout_secs":30,"phase":"archive-introduction index","progress":"140/214","wrote":false,"resume":"specsync change status add-passkeys --json"}
+```
+
+A tool that bounds SpecSync with its own timer can pass that limit as `--timeout`, and it gets the phase instead of a bare timeout.
 
 `change status <id> --json` and `change show <id> --json` also carry a top-level
 `approved_deltas` array, one entry per affected module, sorted by module. `change answer`,

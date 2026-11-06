@@ -36,6 +36,7 @@ cargo install specsync          # crates.io serves 6.2.0
 specsync --version              # specsync 6.2.0
 specsync init                   # .specsync/config.toml; change workflow off
 specsync add-spec auth          # scaffold a spec after you write a source file
+# fill in specs/auth/ (the spec and its companions; Spec Format guide)
 specsync check                  # the product: validate specs against code
 specsync check --strict         # warnings become errors
 specsync coverage               # see what's covered
@@ -47,12 +48,23 @@ specsync mcp                    # MCP server for AI agents
 
 # Optional: verified change workflow (SDD). Off until:
 specsync change adopt
+git add -A && git commit -m "Add SpecSync and adopt the change workflow"
 specsync change new "Add auth" --spec auth --path src/auth.ts --json
+# answer each question it returns, for example:
+specsync change answer add-auth acceptance_criteria "login() returns true" --json
+# then complete the selected artifacts and the auth delta (Workflow Guide)
 specsync change approve add-auth --actor "Ada"
 specsync change check add-auth --commit
+# run your local verify lane; CI does not test a tip whose change is still open
+# after the human implementation review:
 specsync change review add-auth --reviewer "Ada"
 specsync change finalize add-auth
+# then push the archive commit, wait for CI, and merge
 ```
+
+Approval refuses a definition that is still missing an answer or an artifact, and names the next
+`specsync change answer` command or the unfinished file. The [Workflow Guide](workflow.md) walks
+through each step.
 
 ---
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906",
+  "implementation_commit": "990de72b4e897bfdb651a56cf37dfe3a833df5e4",
+  "implementation_tree": "d80e56a8f57ef68057ad746806db8a5106529c70",
+  "contract_digest": "f34643f157163666efaec214b35d4f4f340fc0f063f64f2731467f16551ff902",
+  "workspace_digest": "d4746072515f18ae0c63302ffbe7908583d00807121c58a4cb4ce54dc6456b80",
+  "closing_digest": "b6d25313185aede7036aab910f46a44d63867b547d3475ba63a476480e042230",
+  "review_digest": "e211048eca231526e6e382ac1d7561269d55f77b242c481bbd8e7cf7091cfa32",
+  "finalization_digest": "1e8668206a9a6c415ce4676e8ffa6514989f9b1979f297ab6f6774949246d5d3",
+  "timestamp": 1793980841
+}

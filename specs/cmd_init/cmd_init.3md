@@ -27,3 +27,6 @@ Implemented for 6.0. Fresh projects write SDD off, do not detect or run project 
 @plane z=4 label="Notes"
 - `ensure_hashes_gitignored` is `pub`, so it is callable outside `cmd_init` — `commands::migrate` is the one other caller — and is unit-tested directly. `rehash` does not call it.
 - Part of the command layer — orchestrates `config::detect_source_dirs` rather than containing domain logic.
+
+@plane z=5 label="SDD off in every directory (#884)"
+v12 made fresh init write SDD off, but REQ-cmd-init-004 still promised Git repositories the strict defaults and testing.md still cited a test that no longer existed. `SddPolicy::default()` keeping `true` for a field missing from an older `sdd.json` is a different path from fresh init, and the requirement now says so. `init_contracts_leave_sdd_off_for_git_repositories` fails if either promise returns or a cited test name goes stale.

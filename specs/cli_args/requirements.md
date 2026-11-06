@@ -254,6 +254,13 @@ Acceptance Criteria
 - `merge-file` takes the ancestor path, the current path, the other path, and an optional pathname.
 - Existing global flags still parse around both commands.
 
+### REQ-cli-args-024
+
+The `change status`, `change show`, `change list` and `change ship-status` subcommands SHALL accept an optional `--timeout <secs>` argument taking a whole number of seconds; a value that is not a non-negative integer SHALL be refused by argument parsing.
+
+Acceptance Criteria
+- `specsync change status --timeout 30` parses; `--timeout -1` and `--timeout abc` are refused.
+
 ### REQ-cli-args-relayed-decision-001
 
 The `change approve` and `change review` grammar SHALL accept optional `--words`, `--where` and `--recorded-by` strings, and the `--actor` and `--reviewer` help SHALL say that the name is a recorded claim, not authenticated identity.

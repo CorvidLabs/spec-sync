@@ -179,13 +179,28 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         return Err("description is empty".into());
     }
     if record.acceptance_criteria.is_empty() {
-        return Err("at least one acceptance criterion is required".into());
+        return Err(unfinished_definition_refusal(
+            record,
+            "at least one acceptance criterion is required",
+            "acceptance_criteria",
+            "\"<observable outcome>\"",
+        ));
     }
     if record.affected_paths.is_empty() {
-        return Err("at least one affected path is required".into());
+        return Err(unfinished_definition_refusal(
+            record,
+            "at least one affected path is required",
+            "affected_paths",
+            "\"<path>\"",
+        ));
     }
     if record.affected_specs.is_empty() && !record.no_spec_change {
-        return Err("affected specs are required unless no_spec_change is justified".into());
+        return Err(unfinished_definition_refusal(
+            record,
+            "affected specs are required unless no_spec_change is justified",
+            "affected_specs",
+            "\"<module>\"",
+        ));
     }
     for module in &record.affected_specs {
         crate::commands::validate_module_name(module)
@@ -215,8 +230,13 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
                 .into(),
         );
     }
-    if !next_questions_for(root, record).is_empty() {
-        return Err("the deterministic interview is incomplete".into());
+    let remaining = next_questions_for(root, record);
+    if !remaining.is_empty() {
+        return Err(if record.state == ChangeState::Draft {
+            interview_incomplete_refusal(&record.id, &remaining)
+        } else {
+            INTERVIEW_INCOMPLETE.into()
+        });
     }
     if let Some(policy) = load_policy_checked(root)?
         && let Some(principles) = policy.principles_file
@@ -232,6 +252,51 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         }
     }
     validate_artifacts(root, record)
+}
+
+const INTERVIEW_INCOMPLETE: &str = "the deterministic interview is incomplete";
+
+/// The refusal for a definition missing `question`'s answer (REQ-change-133). Only a draft is
+/// told to run `change answer`, which refuses every other state; a record past draft reaches
+/// this through check, verification or audit and keeps the bare condition.
+fn unfinished_definition_refusal(
+    record: &ChangeRecord,
+    condition: &str,
+    question: &str,
+    placeholder: &str,
+) -> String {
+    if record.state == ChangeState::Draft {
+        format!(
+            "{condition}; run `specsync change answer {} {question} {placeholder}`",
+            record.id
+        )
+    } else {
+        condition.to_string()
+    }
+}
+
+/// A draft's refusal for an unfinished interview: every question still open, and the
+/// `change answer` command for the first one (REQ-change-133). A question with choices shows
+/// them as the placeholder (`<yes|no>`, `<none>`); one without takes free text.
+fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
+    let open = remaining
+        .iter()
+        .map(|question| format!("`{}`", question.id))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let Some(first) = remaining.first() else {
+        return INTERVIEW_INCOMPLETE.into();
+    };
+    let placeholder = if first.choices.is_empty() {
+        "\"<answer>\"".to_string()
+    } else {
+        format!("<{}>", first.choices.join("|"))
+    };
+    format!(
+        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run \
+         `specsync change answer {id} {} {placeholder}`",
+        first.id
+    )
 }
 
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
@@ -710,20 +775,148 @@ fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))
 }
 
-fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+/// How many open tasks a refusal or next action names one by one; the rest are counted.
+const OPEN_TASKS_NAMED: usize = 5;
+/// How many characters of one task's text a refusal quotes.
+const OPEN_TASK_TEXT_CHARS: usize = 80;
+/// The start of every open-task refusal. It is the whole refusal text from before #892, kept so
+/// anything that matched it still matches.
+const OPEN_TASKS_REFUSAL: &str = "tasks.md contains incomplete tasks";
+
+/// An unchecked `[ ]` task outside fenced code: its 1-based line and its quotable text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OpenTask {
+    line: usize,
+    text: String,
+}
+
+/// Every open task in `content`, found by the same parser that blanks checkbox state for the
+/// definition digest, so what counts as a task cannot differ between the two.
+fn open_tasks_in(content: &[u8]) -> Vec<OpenTask> {
+    let mut line = 1;
+    let mut counted_to = 0;
+    markdown_task_checkbox_offsets(content)
+        .into_iter()
+        .filter(|offset| content[*offset] == b' ')
+        .map(|offset| {
+            line += content[counted_to..offset]
+                .iter()
+                .filter(|byte| **byte == b'\n')
+                .count();
+            counted_to = offset;
+            let end = content[offset..]
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .map_or(content.len(), |length| offset + length);
+            // `offset` is the box's inner byte and `offset + 1` its `]`; the parser guarantees
+            // the line continues at least that far.
+            let text = String::from_utf8_lossy(&content[offset + 2..end]);
+            OpenTask {
+                line,
+                text: quotable_task_text(&text),
+            }
+        })
+        .collect()
+}
+
+/// Task text as one safe quoted phrase: trimmed, without control characters, with quote marks
+/// and backticks made plain, and cut at [`OPEN_TASK_TEXT_CHARS`].
+fn quotable_task_text(text: &str) -> String {
+    let plain: String = text
+        .chars()
+        .filter(|character| !character.is_control())
+        .map(|character| match character {
+            '`' | '"' => '\'',
+            other => other,
+        })
+        .collect();
+    let plain = plain.trim();
+    if plain.chars().count() <= OPEN_TASK_TEXT_CHARS {
+        return plain.to_string();
+    }
+    let mut cut: String = plain.chars().take(OPEN_TASK_TEXT_CHARS).collect();
+    cut.push_str("...");
+    cut
+}
+
+/// The open tasks of a change whose effective definition selects `tasks.md`; empty otherwise.
+fn open_tasks(root: &Path, record: &ChangeRecord) -> Result<Vec<OpenTask>, String> {
     let effective = effective_change_definition(root, record)?;
-    if !effective.selected_artifacts.contains(&ArtifactKind::Tasks) {
+    open_tasks_selected(root, &record.id, &effective.selected_artifacts)
+}
+
+/// [`open_tasks`] for a caller that already holds the effective artifact selection.
+fn open_tasks_selected(
+    root: &Path,
+    id: &str,
+    selected: &[ArtifactKind],
+) -> Result<Vec<OpenTask>, String> {
+    if !selected.contains(&ArtifactKind::Tasks) {
+        return Ok(Vec::new());
+    }
+    let path = change_dir(root, id).join("tasks.md");
+    let content = fs::read(&path).map_err(|error| error.to_string())?;
+    Ok(open_tasks_in(&content))
+}
+
+/// "finish the 1 open task in `<file>` (line 4: "...") and mark it `[x]`": the one sentence
+/// every refusal, status line and ship-status blocker uses for open tasks.
+fn open_tasks_sentence(id: &str, open: &[OpenTask]) -> String {
+    let mut listed = open
+        .iter()
+        .take(OPEN_TASKS_NAMED)
+        .map(|task| format!("line {}: \"{}\"", task.line, task.text))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let unnamed = open.len().saturating_sub(OPEN_TASKS_NAMED);
+    if unnamed > 0 {
+        listed.push_str(&format!("; and {unnamed} more"));
+    }
+    let (count, close) = if open.len() == 1 {
+        ("1 open task".to_string(), "mark it `[x]`")
+    } else {
+        (format!("{} open tasks", open.len()), "mark each one `[x]`")
+    };
+    format!("finish the {count} in `{CHANGES_PATH}/{id}/tasks.md` ({listed}) and {close}")
+}
+
+/// Whether an open task blocks this change's next lifecycle verb: an approved, implementing or
+/// verifying change, or a workflow-v2 finalization that stopped after acceptance. Once that
+/// workspace has moved into the archive its `tasks.md` is no longer read, so nothing is named.
+pub fn open_tasks_block(record: &ChangeRecord) -> bool {
+    matches!(
+        record.state,
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+    ) || (record.state == ChangeState::Accepted && record.workflow_version >= 2)
+}
+
+/// What has to happen before this change can be checked, reviewed or finalized: its open tasks
+/// by line and text, and how to close them (REQ-change-132). `None` when every selected task is
+/// done, when the change does not select `tasks.md`, or when the file cannot be read, which the
+/// refusing verbs report themselves.
+pub fn open_tasks_next_step(root: &Path, record: &ChangeRecord) -> Option<String> {
+    let open = open_tasks(root, record).ok()?;
+    (!open.is_empty()).then(|| open_tasks_sentence(&record.id, &open))
+}
+
+/// The refusal a verb gives while this change has an open task, naming `rerun`, the exact
+/// command to run once the tasks are done (REQ-change-131). `None` when nothing is open.
+pub fn open_tasks_refusal(root: &Path, record: &ChangeRecord, rerun: &str) -> Option<String> {
+    open_tasks_next_step(root, record)
+        .map(|step| format!("{OPEN_TASKS_REFUSAL}: {step}, then re-run `{rerun}`"))
+}
+
+/// Refuse while the change's selected `tasks.md` has an open task (REQ-change-131). Unlike
+/// [`open_tasks_refusal`], an unreadable `tasks.md` is an error here, never a pass.
+fn ensure_tasks_complete(root: &Path, record: &ChangeRecord, rerun: &str) -> Result<(), String> {
+    let open = open_tasks(root, record)?;
+    if open.is_empty() {
         return Ok(());
     }
-    let path = change_dir(root, &record.id).join("tasks.md");
-    let content = fs::read(&path).map_err(|error| error.to_string())?;
-    if markdown_task_checkbox_offsets(&content)
-        .into_iter()
-        .any(|offset| content[offset] == b' ')
-    {
-        return Err("tasks.md contains incomplete tasks".into());
-    }
-    Ok(())
+    Err(format!(
+        "{OPEN_TASKS_REFUSAL}: {}, then re-run `{rerun}`",
+        open_tasks_sentence(&record.id, &open)
+    ))
 }
 
 fn acceptance_criteria_have_evidence(

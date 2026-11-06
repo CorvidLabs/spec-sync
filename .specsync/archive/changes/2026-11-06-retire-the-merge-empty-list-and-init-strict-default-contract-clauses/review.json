@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-the-merge-empty-list-and-init-strict-default-contract-clauses",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "30c184c248bf15f6a0eb9c178b777c6c2f3db52e",
+  "contract_digest": "8bafced7731d0f92f0dd9c31db3e8f8d3df86dd85f08b428883ed441326530ab",
+  "execution_digest": "451c24dda98dc1ea1bbf8060ff5b5c5dd3bc197965cf7c68f527171da1031f03",
+  "workspace_digest": "4a736869d051d9deadd3fcc7d962af5116ab49aaca333ef3635f81b5d2e8d24e",
+  "timestamp": 1793946485
+}

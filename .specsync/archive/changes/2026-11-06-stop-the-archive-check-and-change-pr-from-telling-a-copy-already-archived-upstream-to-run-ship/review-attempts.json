@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c21f5356a918c41212d2bce99f31d71a6dbd56f2",
+      "contract_digest": "780d81f87efe901319df11a136c6b36dc7e450a802631dccd20ca73175954ebe",
+      "execution_digest": "7f17f9798e1f75537b9441b36ea674441f58ca1a40a13a637a2f577916bca7cc",
+      "workspace_digest": "02f2f30c71db98ebe3f09e40986b5d0c8b7c1fefa9ce67c8f4c4173bb8eb4026",
+      "timestamp": 1793988276
+    }
+  ]
+}

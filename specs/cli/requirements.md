@@ -71,13 +71,14 @@ Acceptance Criteria
 
 ### REQ-cli-003
 
-The root CLI dispatcher SHALL fail closed when a configured verification child re-enters lifecycle checking or mutation.
+The root CLI dispatcher SHALL fail closed when a `check`, `change`, or `lifecycle` command runs under an inherited `SPECSYNC_VERIFICATION_CONTEXT`.
 
 Acceptance Criteria
 
 - `check`, `change`, and `lifecycle` command families consult the inherited verification context before dispatch.
 - A blocked nested command exits non-zero with one actionable diagnostic.
 - Commands outside the lifecycle boundary preserve current dispatch behavior.
+- SpecSync sets that marker on no child of its own, because verification executes no configured command (REQ-change-023), so the refusal applies only to a context a caller outside SpecSync supplies.
 
 ### REQ-cli-004
 

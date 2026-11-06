@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "retire-the-merge-empty-list-and-init-strict-default-contract-clauses",
+  "slug": "retire-the-merge-empty-list-and-init-strict-default-contract-clauses",
+  "title": "Retire the merge empty-list and init strict-default contract clauses",
+  "description": "Retire the merge empty-list and init strict-default contract clauses",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "560af9f10e608ce4c506612b0d1d2ae13378807d",
+  "created_at": 1793941184,
+  "updated_at": 1793946543,
+  "affected_specs": [
+    "merge",
+    "cmd_init"
+  ],
+  "affected_paths": [
+    "specs/merge/requirements.md",
+    "specs/merge/merge.spec.md",
+    "specs/merge/context.md",
+    "specs/merge/merge.3md",
+    "specs/merge/testing.md",
+    "specs/cmd_init/requirements.md",
+    "specs/cmd_init/cmd_init.spec.md",
+    "specs/cmd_init/testing.md",
+    "specs/cmd_init/cmd_init.3md",
+    "tests/integration/helpers.rs",
+    "tests/integration/commands/specsync_process.rs",
+    "CHANGELOG.md",
+    "hi/upkeep.md",
+    "hi/setup.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "UPKEEP-3.b: REQ-merge-001 and the top-level acceptance list say a failed Git discovery returns None and yields one Unknown result that names the missing precondition and --all, writes nothing and exits non-zero, and list Unknown among the result statuses; context.md, merge.3md and testing.md no longer call it an empty list or a safe no-op.",
+    "SETUP-1.a.1: REQ-cmd-init-004 says a Git repository receives enabled false and require_change_for_meaningful_files false like any other directory and keeps SddPolicy::default() for omitted fields apart from fresh init; the user story and testing.md no longer promise the change workflow on after setup.",
+    "UPKEEP-3.b.1 and SETUP-1.a.2: merge_contracts_call_a_failed_git_discovery_unknown and init_contracts_leave_sdd_off_for_git_repositories fail on main and pass after the change, and each also fails when its module testing.md cites a test name that no function declares.",
+    "default_merge_outside_git_exits_nonzero_and_names_the_unperformed_scan pins the exit code the reworded REQ-merge-001 states, and fails when the Unknown arm of cmd_merge stops exiting 1.",
+    "Runtime behavior is unchanged: no file under src/ changes, and the existing merge and init tests pass unmodified."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks",
+    "research",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change.3md lesson: a successor that contradicts its predecessor does not retire it, someone has to; this change retires the predecessors. No runtime behavior changes (Leif, decision e: init --help stays). Strictness stays: no gate, bound, timeout or existing assertion is loosened.",
+    "public_contract": "no"
+  }
+}

@@ -72,5 +72,18 @@
       }
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication",
+      "actor": "claude (ss-d7)",
+      "reason": "Leif (2026-11-05 20:35 MST, Herdr orc tab, relayed by orc t18): \"Yes, amend and re-approve\". Amend the one Public API row: recorded_claims returns Result<Vec<RecordedClaim>, String> so change status can refuse a malformed relayed_by record and name its git checkout recovery.",
+      "timestamp": 1793936189,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": false
+    }
+  ]
 }

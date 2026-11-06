@@ -7,10 +7,10 @@
   "title": "Record relayed human decisions on approvals and reviews as claims, not authentication",
   "description": "Record relayed human decisions on approvals and reviews as claims, not authentication",
   "kind": "feature",
-  "state": "approved",
+  "state": "draft",
   "base_commit": "b179a4f254af1ddada0671eece1f8616729e2eff",
   "created_at": 1793935372,
-  "updated_at": 1793936116,
+  "updated_at": 1793936189,
   "affected_specs": [
     "change",
     "cmd_change",

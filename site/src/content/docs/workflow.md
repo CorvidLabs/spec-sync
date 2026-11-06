@@ -78,6 +78,14 @@ specsync change finalize add-passkeys
 # push the archive commit, wait for required checks, then merge on GitHub
 ```
 
+A change whose `tasks.md` still has an open box (`- [ ]`) is refused by `change check`, `change review` (a passing verdict), `change finalize` and `change ship`, before any of them writes a record. That includes a box reopened after a passing check. Ticking a box is outside the approval and verification digests, so closing a task never costs a fresh approval or a fresh check. The refusal names each open task by line and the exact command to run once the work is done:
+
+```text
+error: tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/add-passkeys/tasks.md` (line 4: "Prove the fix.") and mark it `[x]`, then re-run `specsync change check add-passkeys --commit`
+```
+
+Finish the work, tick the box, and run that command. `change status` and `change ship-status` name the same open tasks before their next step.
+
 CI is archive-first. The `Archive` check runs before anything else and every other job depends
 on it, so a pushed tip with any open change fails `Archive` and runs nothing else. Verification
 and review are local; the full CI lane runs once, on the archived tip. If that lane fails, push a

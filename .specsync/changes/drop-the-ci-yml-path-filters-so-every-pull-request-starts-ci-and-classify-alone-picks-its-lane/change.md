@@ -1,6 +1,6 @@
 ---
 id: drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane
-state: draft
+state: approved
 type: operations
 base_commit: 7ae7245f97e7cfd66cd80ce39b611becb1095642
 ---

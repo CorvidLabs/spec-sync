@@ -54,12 +54,13 @@
     "Sent back to draft as claude (ss-d7) quoting that decision; amended only the recorded_claims row",
     "Moved Chough records to per-change session ss-633-relayed-decisions; shared .chough/session.json restored to main's copy (orc coordination)",
     "Codex review on e5716ab2: fixed P1 verdict re-run, P1 correction digests, P2 decider-on-read in bbc46189 with tests; filed #904 for uncommitted review.json recovery",
-    "Merged origin/main twice (af50d85e, efd30230); rebased Public API delta onto #889 rows (29a18a80)"
+    "Merged origin/main twice (af50d85e, efd30230); rebased Public API delta onto #889 rows (29a18a80)",
+    "Second Codex round on 29a18a80: write APIs validate all relay fields; decider check over every review attempt; review-history comparisons ignore relayed_by (tests mutation-checked)"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "check --commit, verify lane, then ready for review to t18 with thread replies"
+  "next_action": "check --commit, verify lane, ready for review with thread IDs"
 }

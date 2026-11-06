@@ -1227,6 +1227,16 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
         "the review's reviewer",
     )
     .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    // Every attempt, not only the latest projection: earlier attempts stay uncommitted until ship
+    // too, so no Git prefix check would notice an edited one (#900 review).
+    ensure_read_relays_name_their_deciders(
+        attempts
+            .reviews
+            .iter()
+            .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &attempts_path, message))?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
 }
@@ -1259,7 +1269,10 @@ fn validate_scoped_review_attempts(
             .map_err(|error| format!("invalid committed scoped review history: {error}"))?;
         if committed.schema_version != 1
             || attempts.reviews.len() < committed.reviews.len()
-            || attempts.reviews[..committed.reviews.len()] != committed.reviews
+            || !reviews_match_ignoring_relays(
+                &attempts.reviews[..committed.reviews.len()],
+                &committed.reviews,
+            )
         {
             return Err(
                 "scoped review attempt history removed or rewrote committed evidence".into(),
@@ -1531,7 +1544,9 @@ fn validate_scoped_review_history_transition(
     {
         return Err("scoped review history moved evidence outside finalization".into());
     }
-    if current_ledger == previous_ledger {
+    if current_ledger.schema_version == previous_ledger.schema_version
+        && reviews_match_ignoring_relays(&current_ledger.reviews, &previous_ledger.reviews)
+    {
         return Ok(());
     }
     // Appending a review and moving the package can land in ONE commit: the whole
@@ -1541,7 +1556,10 @@ fn validate_scoped_review_history_transition(
     // survive byte-identical — and only the count restriction is relaxed across a move,
     // where a squash can legitimately collapse several attempts into one commit.
     let appended_only = current_ledger.reviews.len() > previous_ledger.reviews.len()
-        && current_ledger.reviews[..previous_ledger.reviews.len()] == previous_ledger.reviews;
+        && reviews_match_ignoring_relays(
+            &current_ledger.reviews[..previous_ledger.reviews.len()],
+            &previous_ledger.reviews,
+        );
     if appended_only
         && (current_path != previous_path
             || current_ledger.reviews.len() == previous_ledger.reviews.len() + 1)

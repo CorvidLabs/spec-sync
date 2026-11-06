@@ -14,3 +14,4 @@ artifact: tasks
 - [x] Update CLI help, README, the workflow and CLI guides, and the CHANGELOG.
 - [x] Record requirement evidence in the module testing files.
 - [x] Codex review of #900: keep `--verdict` in the named re-run, leave relays out of correction digests, and check the decider on read; file #904 for the uncommitted-review recovery.
+- [x] Second Codex round on #900: validate relay fields in the write APIs, check every review attempt's decider, ignore relays in review-history comparisons.

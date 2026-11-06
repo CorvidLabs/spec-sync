@@ -156,6 +156,19 @@ fn ensure_relay_names_the_decider(
     decider: &str,
     flag: &str,
 ) -> Result<(), String> {
+    // A library caller can build `RelayedDecision` directly, so the write APIs check every field
+    // here, not only in `relayed_decision`: a record the next read refuses must never be written
+    // (#900 review).
+    if let Some(relay) = relayed_by {
+        for (key, text) in [
+            ("decided_by", relay.decided_by.as_str()),
+            ("words", relay.words.as_str()),
+            ("where", relay.where_.as_str()),
+            ("recorded_by", relay.recorded_by.as_str()),
+        ] {
+            check_relayed_field(text).map_err(|problem| format!("relayed_by `{key}` {problem}"))?;
+        }
+    }
     match relayed_by {
         Some(relay) if relay.decided_by != decider => Err(format!(
             "the relayed decision says `{}` decided, but {flag} records `{decider}`; one record \
@@ -197,6 +210,21 @@ fn ensure_read_relays_name_their_deciders<'a>(
             .map_err(|error| format!("recorded relayed_by does not match its record: {error}"))?;
     }
     Ok(())
+}
+
+/// Review history as the append-only comparisons judge it: without relayed decisions. An older
+/// 6.x binary that records the next attempt rewrites `review-attempts.json` without the key, and
+/// that rewrite must not read as removed or rewritten evidence (#900 review). Every relay that
+/// is present is still validated on read.
+fn reviews_match_ignoring_relays(left: &[ScopedReviewRecord], right: &[ScopedReviewRecord]) -> bool {
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            let mut left = left.clone();
+            let mut right = right.clone();
+            left.relayed_by = None;
+            right.relayed_by = None;
+            left == right
+        })
 }
 
 /// A read refusal caused by a malformed relay record names restoring the file from Git.

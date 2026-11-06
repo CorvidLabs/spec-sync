@@ -291,3 +291,91 @@ fn a_read_relay_must_name_its_own_record_decider() {
     assert!(error.contains("git checkout HEAD -- "), "{error}");
     assert!(recorded_claims(root, &record).is_err());
 }
+
+/// DISCRIMINATOR for the #900 review: a library caller that builds `RelayedDecision` directly
+/// cannot write a blank or oversized field that the next read would refuse.
+#[test]
+fn the_write_apis_validate_every_relay_field() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    let approvals = change_dir(root, &record.id).join("approvals.json");
+    let before = fs::read(&approvals).unwrap();
+    let mut blank = relay("Ada");
+    blank.words = "  ".into();
+    let mut long = relay("Ada");
+    long.recorded_by = "x".repeat(4097);
+    for (relay, expected) in [
+        (blank, "relayed_by `words` must not be blank"),
+        (long, "relayed_by `recorded_by` is 4097 bytes"),
+    ] {
+        let error =
+            approve_definition_with_relay(root, &record.id, Some("Ada".into()), None, false, Some(relay))
+                .unwrap_err();
+        assert!(error.contains(expected), "{error}");
+    }
+    assert_eq!(fs::read(&approvals).unwrap(), before);
+}
+
+/// DISCRIMINATOR for the #900 review: every review attempt's relay must name that attempt's
+/// reviewer, not only the latest projection's.
+#[test]
+fn every_review_attempt_relay_must_name_its_reviewer() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    let workspace = change_dir(root, &record.id);
+    let mut latest = review_record(Some(relay("Ada")));
+    latest.change_id = record.id.clone();
+    let mut earlier = latest.clone();
+    earlier.verdict = ScopedReviewVerdict::Block;
+    earlier.relayed_by = Some(relay("Mallory"));
+    fs::write(workspace.join(SCOPED_REVIEW_FILE), json_content(&latest).unwrap()).unwrap();
+    let attempts = ScopedReviewAttemptLedger {
+        schema_version: 1,
+        reviews: vec![earlier, latest],
+    };
+    fs::write(
+        workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE),
+        json_content(&attempts).unwrap(),
+    )
+    .unwrap();
+    let error = load_scoped_review(root, &record).unwrap_err();
+    assert!(error.contains("says `Mallory` decided"), "{error}");
+    assert!(error.contains(SCOPED_REVIEW_ATTEMPTS_FILE), "{error}");
+}
+
+/// DISCRIMINATOR for the #900 review: an older 6.x binary that records the next attempt drops
+/// `relayed_by` from the earlier ones, and that rewrite is not read as removed evidence. Any
+/// other edit to a committed attempt still is.
+#[test]
+fn review_history_comparisons_ignore_relays_but_not_other_edits() {
+    let relayed = review_record(Some(relay("Ada")));
+    let dropped = review_record(None);
+    let mut next = review_record(None);
+    next.timestamp += 60;
+    let ledger = |reviews: Vec<ScopedReviewRecord>| ScopedReviewAttemptLedger {
+        schema_version: 1,
+        reviews,
+    };
+    let path = ".specsync/changes/add-auth/review-attempts.json".to_string();
+    let previous = (path.clone(), ledger(vec![relayed.clone()]));
+    let rewritten_by_older = (path.clone(), ledger(vec![dropped.clone(), next.clone()]));
+    validate_scoped_review_history_transition(Some(&previous), Some(&rewritten_by_older), false)
+        .unwrap();
+    validate_scoped_review_history_transition(
+        Some(&previous),
+        Some(&(path.clone(), ledger(vec![dropped]))),
+        false,
+    )
+    .unwrap();
+    let mut edited = relayed;
+    edited.verdict = ScopedReviewVerdict::Block;
+    let error = validate_scoped_review_history_transition(
+        Some(&previous),
+        Some(&(path, ledger(vec![edited, next]))),
+        false,
+    )
+    .unwrap_err();
+    assert!(error.contains("removed or rewrote committed evidence"), "{error}");
+}

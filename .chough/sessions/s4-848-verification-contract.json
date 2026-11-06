@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-83ddb8eb50f02bba39384260",
-    "head": "EVT-13065d5970889b05551ae27d",
+    "head": "EVT-258ba6628be6929d2394f4d1",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -33,7 +33,8 @@
     "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted",
     "Agent finding, not a human decision: change check runs no configured verification command (evaluate_spec_code_sync in-process; runner/classifier/routing helpers are dead code); contracts must be reconciled to that, runtime unchanged",
     "Agent plan, pending Leif: two changes, two PRs, sequential in this worktree (#848 first, #884 from origin/main afterwards)",
-    "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" (SHIP-1.c.1, SHIP-1.c.2, UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted) and a-e \"Accept all\": (a) retire REQ-cmd-comment-001/002 in change A; (b) reword the site rows in change A; (c) file a follow-up issue for the configured-commands warning; (d) keep the dead helpers, qualify their contracts; (e) leave init --help unchanged"
+    "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" (SHIP-1.c.1, SHIP-1.c.2, UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted) and a-e \"Accept all\": (a) retire REQ-cmd-comment-001/002 in change A; (b) reword the site rows in change A; (c) file a follow-up issue for the configured-commands warning; (d) keep the dead helpers, qualify their contracts; (e) leave init --help unchanged",
+    "Leif (2026-11-05 20:40 MST, orc tab, relayed by orc t18): 'Approve' for change A scope; native definition approval recorded as 0xLeif by the orc at 0d75daf0"
   ],
   "open_questions": [],
   "completed": [
@@ -55,9 +56,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands (specsync change approve, recorded by the orc for Leif)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After Leif's approval: run scratchpad apply_a_edits.py, tick tasks, change check --commit, verify lane, open PR, ready for review"
+  "next_action": "Apply companion/site/lesson/CHANGELOG edits, change check, run pins and verify lane, PR (Fixes #848), ready for review"
 }

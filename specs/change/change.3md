@@ -651,3 +651,6 @@ Issue #851. Git resolves a pathspec from the working directory unless it carries
 
 @plane z=13 label="Lesson (#862)"
 A merge can leave one requirement ID twice in `requirements.md`. `change audit` names that ID and fails, including when SDD policy is off. The archive-history walk stays opt-in behind `--archives`. Fenced examples are not IDs.
+
+@plane z=14 label="Retire the predecessor (#848)"
+REQ-change-015 required a quiet reporting mode that executed every configured verification command, and it stayed current for months after REQ-change-058 said that mode SHALL NOT exist and REQ-change-023 said `change check` runs no configured command. Five sibling clauses kept implying execution in smaller ways: a command failure listed among the diagnostics, native commands that run exactly once, routing that a change receives, an init instruction that no longer exists. They were retired or made to cite REQ-change-023, and the dead runner, Cargo classifier and routing helpers were kept with qualified contracts rather than deleted (Leif, decision d). Contract pins in `tests/integration` now fail if a current contract promises execution again. When a rule is reversed, search the module's requirements, companions and the public site for the old promise in other words, not only the clause that was edited.

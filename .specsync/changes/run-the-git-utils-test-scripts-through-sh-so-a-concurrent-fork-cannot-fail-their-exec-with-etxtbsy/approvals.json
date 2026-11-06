@@ -40,5 +40,18 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+      "actor": "0xLeif",
+      "reason": "Leif, 2026-11-05 18:57 MST via orc terminal t18 ('Yes, re-approve'): state.json acceptance_criteria still held the pre-widening sentence while the change.md Leif approved at 62947eeb listed the widened criteria; re-answer them to match, no change in substance. Executed by Claude.",
+      "timestamp": 1793930278,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": true
+    }
+  ]
 }

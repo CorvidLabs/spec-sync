@@ -42,17 +42,19 @@
   "completed": [
     "Reproduced on main ad50bdef with the audit fixture: JSON handoff safe beside corrupt-history; text Next 'no further action' and Handoff safe; the named tail 'specsync change check' prints 'Nothing to check'",
     "Prototype (reverted, patches in scratchpad): git restore named command recovers tampered archive; committed damage recovers from the archiving commit and stays authenticated after commit",
-    "Implemented (variant A): CorruptArchive signal, not-yet handoff, one restore step for handoff/JSON next/text Next/ship-status; red then green; auditor fixture recovers; perf follow-up #897 filed"
+    "Implemented (variant A): CorruptArchive signal, not-yet handoff, one restore step for handoff/JSON next/text Next/ship-status; red then green; auditor fixture recovers; perf follow-up #897 filed",
+    "fledge lanes run verify green on merged tree (pinned 1.89): 2825 unit + 484 integration, strict specs 62/62"
   ],
   "observations": [
     "OBS-product-test-03accb387b007d6f0caf0ac6",
     "OBS-product-test-167c1dc7ef56460da9f79442",
     "OBS-product-test-779bc49d16e9a58a6685d19a",
-    "OBS-product-test-428ee81e19dd07f4e73779c9"
+    "OBS-product-test-428ee81e19dd07f4e73779c9",
+    "OBS-product-test-fa3e114c08086d98d0991461"
   ],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "change check --commit, fledge lanes run verify, merge origin/main, pre-push, push, PR (Fixes #880), ready for review"
+  "next_action": "pre-push gate, push, open PR (Fixes #880), send ready for review to t18"
 }

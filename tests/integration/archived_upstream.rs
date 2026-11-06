@@ -219,7 +219,7 @@ fn a_change_already_archived_on_the_remote_default_is_named_and_refused_before_a
         text.contains("already archived")
             && text.contains("origin/main")
             && text.contains(&archived[..12])
-            && (text.contains("merge or rebase") || text.contains("Merge or rebase"))
+            && text.contains("rebase this branch onto `origin/main`")
     };
 
     let review = run(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
@@ -273,6 +273,20 @@ fn a_change_already_archived_on_the_remote_default_is_named_and_refused_before_a
         !root.join(".specsync/archive").exists(),
         "finalize wrote a second archive"
     );
+
+    // The named next step must actually recover (review thread on #889): drop the commit that
+    // added the unarchived copy the message names, and the change reads as archived.
+    let copy = format!(".specsync/changes/{ID}");
+    assert!(
+        review_text.contains(&format!("`{copy}/`")),
+        "the refusal does not name the unarchived copy to delete:\n{review_text}"
+    );
+    // The branch holds nothing but the squash, so dropping that commit is a reset onto the
+    // remote default. Merging, or deleting the copy in a new commit, fails history integrity.
+    git(&root, &["reset", "-q", "--hard", "origin/main"]);
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    assert_eq!(status["summary"]["state"], "archived", "{status}");
 }
 
 // #690 guard: with no upstream archive the same squash still closes normally.

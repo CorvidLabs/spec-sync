@@ -2202,11 +2202,12 @@ pub fn record_scoped_review_with_verdict(
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
     // Refused before anything is written, so the change stays `verifying` (REQ-change-129).
+    // After the configuration refusal, in the order finalize and status use.
     if let Some(upstream) = upstream_archive_of(root, &record) {
         return Err(upstream_archive_message(&record.id, &upstream));
     }
-    ensure_change_clear_of_verification_ignored(root, &record)?;
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
     let reviewer = validate_scoped_reviewer_claim(&reviewer)?;

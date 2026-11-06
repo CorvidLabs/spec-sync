@@ -43,5 +43,20 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
     let message = upstream_archive_message(&unarchived.id, &upstream);
     assert!(message.contains("already archived on `origin/main`"), "{message}");
     assert!(message.contains(&archive_commit), "{message}");
-    assert!(message.contains("merge or rebase onto `origin/main`"), "{message}");
+    assert!(message.contains("rebase this branch onto `origin/main`"), "{message}");
+    assert!(
+        message.contains(&format!("`.specsync/changes/{}/`", unarchived.id)),
+        "{message}"
+    );
+
+    // Only the states review and finalize act on are checked, so status for an earlier state
+    // never builds the archive index (review thread on #889).
+    for state in [ChangeState::Draft, ChangeState::Approved, ChangeState::Implementing] {
+        let mut early = unarchived.clone();
+        early.state = state;
+        assert_eq!(upstream_archive_of(&root, &early), None, "{state:?}");
+    }
+    let mut accepted = unarchived.clone();
+    accepted.state = ChangeState::Accepted;
+    assert!(upstream_archive_of(&root, &accepted).is_some());
 }

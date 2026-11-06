@@ -918,11 +918,6 @@ fn text_mode_next_action(
     questions: &[InterviewQuestion],
 ) -> String {
     let id = record.id.as_str();
-    // An archive of this id on the remote default makes review and finalize refuse; name it
-    // instead of a state-local step that would fail (REQ-cmd-change-029).
-    if let Some(upstream) = change::upstream_archive_of(root, record) {
-        return change::upstream_archive_message(id, &upstream);
-    }
     // The same refusal every later verb would give, named before any state-local step
     // (REQ-change-115). It carries entry paths and rule text only, never a digest.
     if record.state != ChangeState::Archived
@@ -931,6 +926,11 @@ fn text_mode_next_action(
         return format!(
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
+    }
+    // After the project-wide refusals above, in the same order as JSON status: an archive of
+    // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).
+    if let Some(upstream) = change::upstream_archive_of(root, record) {
+        return change::upstream_archive_message(id, &upstream);
     }
     match record.state {
         ChangeState::Draft if !questions.is_empty() => {

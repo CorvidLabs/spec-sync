@@ -4820,7 +4820,9 @@ pub(crate) struct UpstreamArchive {
 /// already contains is not reported: that is the reopen-and-rearchive path, which keeps working.
 /// When Git cannot answer, this returns `None` and every other gate still applies.
 pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<UpstreamArchive> {
-    if record.state == ChangeState::Archived {
+    // Only the states review and finalize act on. Earlier states never reach the refusal, and
+    // building the archive index for every draft would grow status with unrelated archives.
+    if !matches!(record.state, ChangeState::Verifying | ChangeState::Accepted) {
         return None;
     }
     let reference = remote_default_ref(root)?;
@@ -4838,7 +4840,7 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
 /// The one sentence review, finalize, status and ship-status print for an upstream archive.
 pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> String {
     format!(
-        "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; merge or rebase onto `{reference}`, whose archive is authoritative, instead of closing it a second time",
+        "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; rebase this branch onto `{reference}`, whose archive is authoritative, dropping the commit that added `{CHANGES_PATH}/{id}/` (or reset to `{reference}` when the branch has nothing else), instead of closing it a second time. Merging, or deleting the copy in a new commit, leaves history that fails integrity",
         reference = upstream.reference,
         commit = upstream.commit,
     )

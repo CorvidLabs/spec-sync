@@ -448,6 +448,15 @@ Acceptance Criteria
 - Text output names the reference, the commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy.
 - JSON readiness is not `safe`.
 
+### REQ-cmd-change-033
+
+The `change ship-status` product-tip stage SHALL advertise only a `specsync change` command whose state guard admits the change's current state: `change approve` for a draft, `change check <id> --commit` for approved, implementing and verifying, and `change reopen <id> --actor <name> --reason <text>` for accepted and archived changes whose verification is no longer current.
+
+Acceptance Criteria
+- An accepted or archived change with stale verification is told to reopen, not to check.
+- A draft is told to approve, not to check.
+- Approved, implementing and verifying changes are still told to check.
+
 ### REQ-cmd-change-relayed-decision-001
 
 `change approve` and `change review` SHALL take an optional relayed decision through `--words`, `--where` and `--recorded-by`, recording `decided_by` from `--actor` or `--reviewer`. `change status <id>` and `change show <id>` SHALL show the effective approval's actor and the latest review's reviewer and verdict, each marked as a recorded claim, not authenticated, and any relayed decision beside the record it belongs to, followed by the shared boundary sentence. JSON output SHALL carry the same data under `recorded_claims`.

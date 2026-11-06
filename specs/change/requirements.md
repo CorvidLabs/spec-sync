@@ -1740,6 +1740,15 @@ Acceptance Criteria
 - An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
 - A definition that approval refused before is still refused.
 
+### REQ-change-134
+
+The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
+
+#### Acceptance Criteria
+
+- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
+- Removing the fingerprint from the read-cache identity fails that test.
+
 ### REQ-change-135
 
 The archive-introduction index SHALL be built from one `git log` walk of the archive root that names the paths each commit added, and SHALL read package bytes through the per-command object batch reader, so the Git processes a cold archived `change status` spawns SHALL NOT grow with the number of commits that introduced archives. The index SHALL hold the same introductions, and every refusal it backs SHALL be unchanged (SPEED-1.a).
@@ -1768,14 +1777,13 @@ Acceptance Criteria
 - Verdicts completed before the deadline are in the read cache afterwards, so the next run does not redo them.
 - The report names the phase and progress, for example `archive-introduction index` and `140/214`.
 
-### REQ-change-134
+### REQ-change-139
 
-The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
+The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
 
-#### Acceptance Criteria
-
-- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
-- Removing the fingerprint from the read-cache identity fails that test.
+Acceptance Criteria
+- A renamed or undated upstream package of the change is found.
+- The lookup uses one tree listing and one batched blob read of the archive directory, plus per-match work only for a matching package.
 
 ### REQ-change-140
 

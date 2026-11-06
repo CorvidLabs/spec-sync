@@ -36,7 +36,7 @@ explicitly select it because that tag's embedded default remains `6.1.2`.
 | `lifecycle-enforce` | `false` | Run lifecycle enforcement after the strict spec check |
 | `require-archived` | `false` | Run the archive gate first. Fails before downloading or running anything when an SDD change under `.specsync/changes/` is still open. Repositories without `.specsync/changes/` pass. Needs `python3` on the runner |
 | `archive-gate-only` | `false` | Run only the archive gate (implies `require-archived`) and skip the download, spec check and comment. Use it in a first job that every other job `needs:` |
-| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and `pull-requests: write`. Without it, as on fork pull requests, the step warns and writes the result to the job summary; the check result is unchanged |
+| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and `pull-requests: write`. The wrapper on `main` after #886 falls back to the job summary on HTTP 403; immutable `@v6.2.0` does not include that fallback |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments. Override if using a PAT for cross-repo access |
 
 ---
@@ -185,7 +185,12 @@ jobs:
 - If `comment: 'true'`, also runs `specsync comment`
 - Posts the markdown output as a PR comment (or updates an existing SpecSync comment)
 - Requires `pull-requests: write` permission and the `pull_request` event trigger
-- If GitHub refuses the token (HTTP 403), as it does for the read-only token fork pull requests get, the step emits a warning naming the missing permission and writes the result to the job summary instead. The check's result is unchanged. Any other comment error still fails the step
+- The wrapper on `main` after [#886](https://github.com/CorvidLabs/spec-sync/pull/886) handles
+  GitHub's HTTP 403 refusal (for example, a read-only fork PR token) by warning about the missing
+  permission and writing the result to the job summary. The check result is unchanged; other
+  comment errors fail the step. This fallback is **not in immutable `@v6.2.0`**, used in the
+  examples above: a refused comment still fails that wrapper. Binary `version:` does not change
+  the wrapper's behavior; its `uses:` revision does.
 
 **Custom token (e.g., for private registries or cross-repo refs):**
 
@@ -272,5 +277,5 @@ Releases up to and including 6.2.0 predate this floor
 they have no aarch64 musl download. On those versions use `specsync-linux-x86_64-musl`, a newer
 runner image, or `cargo install specsync --locked`.
 
-Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
-under WSL, or build it from source with `cargo install specsync`.
+Native Windows is unsupported and no Windows binary is published. On a Windows workstation,
+run the Linux version inside WSL 2, including any `cargo install specsync --locked` build.

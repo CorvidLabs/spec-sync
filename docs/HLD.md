@@ -2,7 +2,7 @@
 
 This document explains how SpecSync works end to end: the binary, the validation engine, the
 verified change lifecycle, the evidence it leaves in Git, and the CI, Trust and release machinery
-around it. It describes **SpecSync 6.0.0** as it exists on `main`. Claims are traceable to files in this
+around it. It describes **SpecSync 6.2.0** and the changes on `main` as of 2026-11-06. Claims are traceable to files in this
 repository, linked inline. Where something could not be established from the code, it says
 **Unknown**.
 
@@ -229,11 +229,13 @@ sequenceDiagram
     loop each changed spec
         C->>V: validate_spec
         V->>P: parse frontmatter, sections, Public API rows
-        V->>V: files exist, stay in root, required sections
+        V->>V: safe source mappings, draft planned-file and section rules
         V->>S: db_tables vs replayed migrations
-        V->>X: extract exports per source file
-        X-->>V: exported symbols
-        V->>V: spec-only symbol = error, code-only export = warning
+        opt status is neither draft nor review
+            V->>X: extract exports per source file
+            X-->>V: exported symbols
+            V->>V: spec-only symbol = error, code-only export = warning
+        end
     end
     C->>V: compute coverage (--require-coverage)
     C->>H: save cache (only when there are no errors)
@@ -253,14 +255,16 @@ Stage by stage, per [`src/commands/check.rs`](../src/commands/check.rs) (`cmd_ch
    sources and global inputs are all unchanged **replay** their stored findings; they do not
    silently pass.
 4. **Structure.** `module`, `version`, `status` and a non-empty `files` list are required. Every
-   listed file must exist inside the root. Frontmatter is read by a hand-written line parser, not a
+   listed path must stay inside the root. A missing file is an error except for a draft's planned
+   mapping when `require_draft_files` is false (the default), which produces a notice. Frontmatter is read by a hand-written line parser, not a
    YAML library, and duplicate keys are errors ([`src/parser.rs`](../src/parser.rs)).
 5. **Sections.** The configured required sections (defaults: Purpose, Public API, Invariants,
-   Behavioral Examples, Error Cases, Dependencies, Change Log). Draft specs skip this.
+   Behavioral Examples, Error Cases, Dependencies, Change Log). Draft specs skip required-section
+   validation; review specs may omit Public API. Unfinished scaffold text can still warn.
 6. **Schema.** When `schema_dir` is set, documented tables and columns are checked against the
    migrations replayed in filename order. A documented column missing from the schema is an error;
    an undocumented column or a type mismatch is a warning.
-7. **API surface.** The first backtick span in the first cell of Public API table rows is compared
+7. **API surface.** Draft and review specs skip export comparison. For other statuses, the first backtick span in the first cell of Public API table rows is compared
    with the exports of the spec's `files`. A symbol the spec lists but the code lacks is an
    **error** (the document is lying). An export the spec omits is a **warning** (the document is
    incomplete), and `--strict` makes it fail.
@@ -301,6 +305,9 @@ stateDiagram-v2
     Accepted --> Archived: same finalize call<br/>move to dated archive
     Accepted --> Verifying: change reopen<br/>actor + reason
     Archived --> Verifying: change reopen<br/>un-archive, actor + reason
+    Approved --> Draft: change send-back<br/>send_back_change
+    Implementing --> Draft: change send-back<br/>send_back_change
+    Verifying --> Draft: change send-back<br/>send_back_change
     Archived --> [*]
 ```
 
@@ -427,10 +434,10 @@ sequenceDiagram
     D->>V: compare this change's specs with code
     V-->>D: findings
     D->>D: verification.json bound to HEAD + digests, state Verifying
-    CMD->>G: git add -A, git commit "chore(lifecycle): materialize id"
+    CMD->>G: stage_lifecycle_paths, commit "chore(lifecycle): materialize id"
     CMD->>D: check_change (pass 2, against the committed tree)
     D->>D: verification.json re-anchored to the new HEAD
-    CMD->>G: git add -A, git commit "chore(lifecycle): record id verification"
+    CMD->>G: stage_lifecycle_paths, commit "chore(lifecycle): record id verification"
     opt --push
         CMD->>G: git push
     end
@@ -442,10 +449,11 @@ modules in `affected_specs` plus the specs whose `files:` fall inside `affected_
 module with no spec on disk fails by name (contract 5 in
 [`specs/change/change.spec.md`](../specs/change/change.spec.md)).
 
-**Staging warning.** Both commits use `git add -A` (`git_commit_all`). That stages every modified
-and every untracked, non-ignored file in the working tree, not just the change's paths. Before
-`--commit` (or `change ship --push`, which uses the same helper), make sure `git status` shows
-nothing you do not mean to commit.
+**Staging boundary.** `git_commit_lifecycle` calls `stage_lifecycle_paths`: tracked edits and
+untracked files owned by the change (its workspace, specs and ledgers) are staged explicitly.
+Other untracked files stay out and are named in a warning. Already-staged files remain staged.
+Stage new source files that belong to the delivery before `--commit`; inspect tracked edits too,
+because these commits include them. Finalize and ship use the same staging boundary.
 
 ### 4.5 Review and finalize (or `change ship`)
 
@@ -456,6 +464,7 @@ sequenceDiagram
     participant CMD as commands/change.rs
     participant D as change.rs
     participant FS as .specsync/
+    participant G as git
     participant GH as GitHub
 
     R->>CMD: change review id --reviewer "Ada"
@@ -469,9 +478,12 @@ sequenceDiagram
     D->>FS: closing approval, finalization.json, state Accepted
     D->>FS: move to archive/changes/YYYY-MM-DD-id/, state Archived
     D->>FS: lesson-bundle.md (best effort)
+    CMD->>G: stage_lifecycle_paths, commit "chore(lifecycle): archive id"
     opt change ship --push [--wait]
-        CMD->>CMD: git add -A, commit "chore(lifecycle): archive id", git push
-        CMD->>GH: poll check-runs for HEAD every 10 s (needs GITHUB_TOKEN)
+        CMD->>G: git push
+        opt --wait
+            CMD->>GH: poll check-runs for HEAD every 10 s (needs GITHUB_TOKEN)
+        end
     end
     R->>GH: merge the PR once the archive tip is green
 ```
@@ -500,13 +512,14 @@ sequenceDiagram
     Dev->>CI: push / open PR
     Dev->>T: push / open PR
     CI->>CI: Archive: every change under .specsync/changes/ is archived (runs first)
+    T->>T: Archive: require every change to be archived before Trust
     Note over CI: an open change fails Archive and every other job is skipped
     par CI
         CI->>CI: classify changed paths (full, site, vscode, archive_only, review_only)
         CI->>CI: preflight: verification commits exist and are ancestors of HEAD
         CI->>CI: lifecycle gate: specsync change audit --strict
         CI->>CI: test + clippy, fmt, hi check, audit, coverage, spec-check, site, vscode, action consumer
-        opt a verifying change needs review
+        opt full-lane pull request
             CI->>CI: SpecSync scoped review (corvid-pet comment on the PR)
         end
         CI->>CI: SpecSync implementation ready
@@ -527,9 +540,10 @@ archive-first: the `Archive` job
 everything else and every other job depends on it, so a tip with an open change runs nothing
 else. Verification and scoped review happen locally before `change ship`; the full lane then runs
 on the archived tip itself. No tip reuses a green product parent any more: the lane is chosen from
-the whole pull request, and only a pull request that changes nothing but archive packages skips
-the heavy product lane. Documentation-only paths still run the full lane, so every PR can report the required
-gate. Branch protection on `main` requires the `Required CI gate` context, which passes only when
+the whole pull request. Root README and `docs/` changes select the full lane; ordinary site-only
+documentation selects the site lane. The landing-page contract is a special full-lane path.
+Archive-only and review-only packages have their own classifications. Branch protection on
+`main` requires the `Required CI gate` context, which passes only when
 `SpecSync implementation ready` does. That job needs every job that can finish before it, the
 lifecycle preflight and the lifecycle gate included. A job passes when it succeeded, or when it was
 skipped because classify deselected it. A selected job that was skipped was skipped because
@@ -551,7 +565,8 @@ them.
 specs/<module>/
 ├── <module>.spec.md   contract: frontmatter + required sections, checked against code
 ├── requirements.md    stable REQ-<module>-<n> IDs, SHALL statements, acceptance criteria
-├── context.md         decisions, key files, lessons folded in after archival
+├── context.md         decisions and fallback lesson source
+├── <module>.3md       optional context plane followed by lesson planes
 ├── tasks.md           open work
 ├── testing.md         requirement-to-test evidence
 └── design.md          optional, when design artifacts are enabled
@@ -591,6 +606,7 @@ erDiagram
     CHANGE_RECORD ||--|| APPROVAL_LEDGER : "approvals.json"
     APPROVAL_LEDGER ||--o{ APPROVAL : "definition, acceptance, finalization"
     APPROVAL_LEDGER ||--o{ REOPEN : "audited reopenings"
+    APPROVAL_LEDGER ||--o{ SEND_BACK : "audited re-scoping and cancelled approvals"
     CHANGE_RECORD ||--o| VERIFICATION : "verification.json"
     CHANGE_RECORD ||--o{ VERIFICATION_ATTEMPT : "verification-attempts.json"
     CHANGE_RECORD ||--o| SCOPED_REVIEW : "review.json"
@@ -685,9 +701,9 @@ symbols. Main dependencies: `clap`, `serde`/`serde_json`, `toml`, `regex`, `walk
 | Lane | Steps | When |
 |---|---|---|
 | `pre-push` | `cargo fmt --check`, `cargo check`, strict spec check with 100% coverage | before every push ([`scripts/pre-push-gate.sh`](../scripts/pre-push-gate.sh)) |
-| `verify` | fmt, clippy, check, `cargo test`, release build, spec-check, release-candidate test | before calling work done |
+| `verify` | fmt, clippy, check, `cargo test`, release build, spec-check, release-candidate, CI-gate and Linux-baseline guard tests | before calling work done |
 | `trust-lifecycle` | `cargo check` only | the Trust action's lifecycle step |
-| `release-candidate` | `cargo test`, release build | the release workflow, per platform |
+| `release-candidate` | `cargo nextest run --no-fail-fast`, release build | the release workflow, per platform |
 | `ci` / `repo` | everything, including site and VS Code builds | full local reproduction |
 
 ### 6.2 Release
@@ -788,7 +804,7 @@ does and does not enforce is written down in [`docs/ci-confidence.md`](ci-confid
 | Code exports a symbol the spec omits | Warning; fails with `--strict` | `validate_spec` |
 | Config file present but unloadable | Command stops, no silent defaults | `refuse_unloadable_config` in `commands/mod.rs` |
 | Process dies mid-write during a lifecycle mutation | The next lifecycle command takes `change.lock`, finds `change-transaction.json`, verifies its integrity envelope and restores the original bytes | `recover_pending_transaction` |
-| Two lifecycle commands at once | The second blocks on the exclusive lock. Recursive calls (a verification child calling `check` or `change`) are refused by `SPECSYNC_VERIFICATION_CONTEXT` | `acquire_project_lock`, `main.rs` |
+| Two lifecycle commands at once | The second blocks on the exclusive lock. A `check`, `change` or `lifecycle` that inherits `SPECSYNC_VERIFICATION_CONTEXT` from a caller is refused; SpecSync itself starts no verification child (REQ-change-023) | `acquire_project_lock`, `main.rs` |
 | Delta body edited after approval | Materialization and acceptance refuse and name the modules | invariant 38 |
 | Code or tests change after verification | Verification is stale; `change check` again | `recorded_verification_is_current` |
 | Implementation commit after review | Review is stale; review again. Only lifecycle JSON under the change directory may change between review and finalize | invariant 22 |
@@ -796,7 +812,7 @@ does and does not enforce is written down in [`docs/ci-confidence.md`](ci-confid
 | PR merged while a change is still active | The workspace is stranded on `main`; follow `change status` and `change audit` | [`AGENTS.md`](../AGENTS.md) rule 4 |
 | Finalizing two changes in one sitting | Each archive write stales the other change's evidence | [`AGENTS.md`](../AGENTS.md) rule 2 |
 | Approved deltas not materialized when CI runs | `change check` refuses to write in CI and asks for a local run and commit | `materialize_change_deltas` (`is_ci_project`) |
-| `change check --commit` or `change ship --push` with unrelated files in the tree | They are committed too: `git_commit_all` runs `git add -A`. Clean or stash the tree first | `git_commit_all` in `commands/change.rs` |
+| `change check --commit`, finalize or ship with unrelated files in the tree | Tracked edits and already-staged files are included. Unrelated untracked files remain unstaged and are reported; stage new delivery source explicitly | `stage_lifecycle_paths` in `commands/change.rs` |
 | `--commit` second verification fails | The first `materialize` commit is already made; fix and rerun | `run_checked_commit` |
 | Very large Git histories or outputs | Git calls are bounded: 8 MiB output, 30 s per call, at most 1000 descendant commits and 32 parents inspected for review freshness | [`src/lifecycle-validation-limits.json`](../src/lifecycle-validation-limits.json) |
 | GitHub check runs for `ship-status` / `ship --wait` | One page of 100 runs, 10 s request deadline, `--wait` polls every 10 s up to 900 s by default; without `GITHUB_TOKEN` it falls back to local guidance | `fetch_commit_check_summary`, `wait_for_head_check_runs` |
@@ -824,7 +840,9 @@ lose anything the lifecycle has not recorded
 | Standalone site retired | Docs moved to the CorvidLabs hub; Pages keeps redirects and badges | [`site/src/lib/hub.ts`](../site/src/lib/hub.ts) |
 | Windows not a 6.0 target | Neither built nor published (#735) | [`CONTRIBUTING.md`](../CONTRIBUTING.md), [`docs/ci-confidence.md`](ci-confidence.md) |
 
-Module-level decisions live beside each module in `specs/<module>/context.md`. Product intent,
+Module-level decisions live beside each module. When `specs/<module>/<module>.3md` parses,
+its first plane is context and later planes supply lessons; otherwise lesson reading falls back
+to `context.md`. Product intent,
 as plain criteria, lives in [`INTENT.md`](../INTENT.md) and [`hi/`](../hi/).
 
 ## 10. Glossary

@@ -1,0 +1,34 @@
+bun install v1.3.14 (0d9b296a)
+
++ @types/node@20.19.37
++ @types/vscode@1.110.0
++ @vscode/vsce@2.32.0
++ esbuild@0.24.2
++ typescript@5.9.3
+
+184 packages installed [5.56s]
+▶️ Running task: vscode-compile
+$ tsc -p ./ --noEmit
+✅ vscode-compile (3.6s)
+▶️ Running task: vscode-package
+$ esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --minify && vsce package --no-dependencies --no-yarn
+
+  out/extension.js  11.8kb
+
+⚡ Done in 8ms
+ INFO  Files included in the VSIX:
+specsync-1.0.0.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ LICENSE.txt 
+   ├─ README.md [1.66 KB]
+   ├─ bun.lock [44.35 KB]
+   ├─ icon.png [2.34 KB]
+   ├─ icon.svg [0.43 KB]
+   ├─ package.json [2.85 KB]
+   └─ out/
+      └─ extension.js [11.83 KB]
+
+ DONE  Packaged: /Users/leif/Development/_CorvidLabs/_worktrees/ss-docs-accuracy/vscode-extension/specsync-1.0.0.vsix (9 files, 30.69 KB)
+✅ vscode-package (2.1s)

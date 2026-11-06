@@ -15,8 +15,9 @@ result and genuine decisions still needed, then perform authorized recovery step
 ```text
 new → interview → artifacts and delta → one human scope approval → implement →
 check (when requirements change) → cases run → gate → commit with .chough/ →
-check --commit → push, CI → human implementation review → review → ship/finalize →
-clear gate, stage advance → push archive, CI → merge
+check --commit → local verify → open/update PR → human implementation review →
+review → ship/finalize (creates archive commit) → clear gate, stage advance →
+push archive, CI → merge
 ```
 
 Between `check --commit` and finalize, nothing writes to `.chough/` and nothing is
@@ -79,8 +80,11 @@ action status names.
 
 ## Review, archive, merge
 
-Push only after the applicable local gates and observe required CI at the actual tip.
-After the human reviews the change package, diff, delta and evidence:
+This repository uses archive-first CI: an open change fails Archive and the product lane does
+not run. Verify locally before human review. A pre-archive push may open or back up the PR,
+but is not a product CI result. Before every push, run the repository pre-push gate and
+`specsync change audit --strict`. After the human reviews the change package, diff, delta and
+evidence:
 
 ```sh
 specsync change review <id> --reviewer "<agent-account>"

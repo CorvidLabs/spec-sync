@@ -92,3 +92,5 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Integrate and qualify one immutable candidate SHA on Ubuntu and macOS before stable publication
 - [x] After real stable asset/checksum/Action smoke gates, activate the separately frozen main/floating-default 6.1.1 patch; preserve immutable v6.1.1 default 6.1.0 and explicit-version guidance
 - [x] Archive-first CI: match the `Archive` check exactly in `is_trust_relevant_check_name` and record REQ-github-023
+
+- [x] Add maintained Mermaid parsing and source-backed lifecycle correspondence checks with negative controls; correct reference documentation against audited command/source evidence (REQ-github-027, DOCS-4/DOCS-5/DOCS-5.a).

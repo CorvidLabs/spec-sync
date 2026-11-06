@@ -8,8 +8,8 @@ Thank you for your interest in contributing to SpecSync! This guide will help yo
 
 - [Rust](https://rustup.rs/) 1.89 or newer (the CI toolchain is pinned; see `rust-toolchain.toml`)
 - Git
-- Linux or macOS. Windows is neither built nor published as a 6.0 target (#735); the code still
-  compiles there, but CI does not qualify it and no release asset exists for it.
+- Linux or macOS. On Windows, use Linux through WSL 2. Native Windows builds are unsupported
+  and no Windows release asset is published.
 
 ### Development Setup
 
@@ -75,7 +75,9 @@ Use the [Feature Request](https://github.com/CorvidLabs/spec-sync/issues/new?tem
 
 ### Documentation
 
-The documentation marketing site lives in `site/` (Astro + MDX). To work on docs locally:
+Documentation content lives in `site/` (Astro + MDX) and is published on the
+[CorvidLabs hub](https://corvidlabs.xyz/spec-sync/docs/). The standalone Pages site now serves
+redirects and badges. To check the local content and redirect build:
 
 ```bash
 cd site
@@ -85,7 +87,9 @@ bun run build     # production build → site/dist/
 bun test          # run all site tests
 ```
 
-Docs content lives in `site/src/content/docs/`. The site is deployed automatically to GitHub Pages on every push to `main` via `.github/workflows/pages.yml`.
+Docs content lives in `site/src/content/docs/`. `.github/workflows/pages.yml` deploys the
+standalone redirects to GitHub Pages on pushes to `main`; that is separate from the hub's
+deployment. Verify the canonical hub pages after its deployment when checking published copy.
 
 ### Pull Requests
 

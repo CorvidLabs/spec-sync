@@ -34,5 +34,19 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality",
+      "actor": "0xLeif",
+      "reason": "Re-scope affected_specs to [change]: the test-only clock hook lives in src/change/validate_loaded_change.rs, which specs/change owns, so acceptance needs that module in scope (#986). Content unchanged.",
+      "timestamp": 1794001786,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 1,
+      "canonical_applied": true
+    }
+  ]
 }

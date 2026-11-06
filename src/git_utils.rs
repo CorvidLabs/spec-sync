@@ -802,10 +802,25 @@ fn is_repository_fact(args: &[&str]) -> bool {
             | ["symbolic-ref", "--short", _]
             | ["symbolic-ref", "-q", _]
             | ["symbolic-ref", _]
-            | ["config", "--get", ..]
-            | ["config", "--get-regexp", ..]
-            | ["config", "-z", "--get-regexp", ..]
-    )
+    ) || is_config_read(args)
+}
+
+/// Whether `args` is a `git config` lookup: optional scope and format options, then `--get`,
+/// `--get-all` or `--get-regexp` and at least one more argument. Anything else may write.
+fn is_config_read(args: &[&str]) -> bool {
+    let ["config", options @ ..] = args else {
+        return false;
+    };
+    let mut rest = options.iter();
+    for option in rest.by_ref() {
+        match *option {
+            "--local" | "--global" | "--system" | "--worktree" | "-z" | "--null" | "--includes"
+            | "--no-includes" | "--bool" | "--int" | "--path" => {}
+            "--get" | "--get-all" | "--get-regexp" => return rest.next().is_some(),
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// The git subcommand in `args`, skipping leading `-c key=value` pairs and other global options.
@@ -1247,6 +1262,27 @@ fn batchable_path(path: &str) -> bool {
             .any(|part| part.is_empty() || part == "." || part == "..")
 }
 
+/// The mode and hex object id of the entry called `name` in a raw tree object, if it has one.
+fn tree_entry<'tree>(
+    tree: &'tree [u8],
+    name: &str,
+    hash_len: usize,
+) -> Option<(&'tree [u8], String)> {
+    let mut rest = tree;
+    while !rest.is_empty() {
+        let space = rest.iter().position(|byte| *byte == b' ')?;
+        let nul = space + rest[space..].iter().position(|byte| *byte == 0)?;
+        let end = nul + 1 + hash_len;
+        let hash = rest.get(nul + 1..end)?;
+        if &rest[space + 1..nul] == name.as_bytes() {
+            let oid = hash.iter().map(|byte| format!("{byte:02x}")).collect();
+            return Some((&rest[..space], oid));
+        }
+        rest = &rest[end..];
+    }
+    None
+}
+
 #[cfg(unix)]
 fn synthetic_status(code: i32) -> std::process::ExitStatus {
     use std::os::unix::process::ExitStatusExt;
@@ -1315,31 +1351,50 @@ pub(crate) fn batched_git_read(
                 return None;
             }
             let revision = batched_revision(root, flavor, &command, revision)?;
-            match batched_object(
+            let listing = |stdout: Vec<u8>| MemoizedGitOutput {
+                status: synthetic_status(0),
+                stdout,
+                stderr: Vec::new(),
+            };
+            let BatchedObject::Found {
+                oid: root_tree,
+                kind,
+                bytes: mut tree,
+            } = batched_object(
                 root,
                 flavor,
                 &command,
                 &format!("{revision}^{{tree}}"),
                 usize::MAX,
-            )? {
-                BatchedObject::Found { .. } => {}
-                BatchedObject::Missing => return None,
-            }
-            let stdout = match batched_object(
-                root,
-                flavor,
-                &command,
-                &format!("{revision}:{path}"),
-                usize::MAX,
-            )? {
-                BatchedObject::Found { .. } => format!("{path}\0").into_bytes(),
-                BatchedObject::Missing => Vec::new(),
+            )?
+            else {
+                return None;
             };
-            Some(MemoizedGitOutput {
-                status: synthetic_status(0),
-                stdout,
-                stderr: Vec::new(),
-            })
+            if kind != "tree" {
+                return None;
+            }
+            // Walk the parent trees and look for the entry itself, without loading the object
+            // it names: a gitlink or a partial-clone blob is listed by `ls-tree` even though its
+            // object is not in this repository.
+            let hash_len = root_tree.len() / 2;
+            let parts: Vec<&str> = path.split('/').collect();
+            for (index, part) in parts.iter().enumerate() {
+                let Some((mode, oid)) = tree_entry(&tree, part, hash_len) else {
+                    return Some(listing(Vec::new()));
+                };
+                if index + 1 == parts.len() {
+                    return Some(listing(format!("{path}\0").into_bytes()));
+                }
+                if mode != b"40000" {
+                    return Some(listing(Vec::new()));
+                }
+                match batched_object(root, flavor, &command, &oid, usize::MAX)? {
+                    BatchedObject::Found { kind, bytes, .. } if kind == "tree" => tree = bytes,
+                    // A tree this clone does not hold: let `ls-tree` answer.
+                    _ => return None,
+                }
+            }
+            None
         }
         _ => None,
     }
@@ -2021,6 +2076,74 @@ mod tests {
             "the read gave up after {:?}",
             started.elapsed()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_batched_listing_finds_an_entry_whose_object_is_not_local() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "dir/a.txt", "a", "first");
+        // A gitlink names a commit that lives in another repository.
+        let absent = "1234567890abcdef1234567890abcdef12345678";
+        for path in ["sub", "dir/nested-sub"] {
+            git(
+                root,
+                &[
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    &format!("160000,{absent},{path}"),
+                ],
+            );
+        }
+        git(root, &["commit", "-m", "gitlinks"]);
+        let _scope = begin_repository_fact_scope(root);
+        for path in [
+            "sub",
+            "dir/nested-sub",
+            "dir/a.txt",
+            "dir",
+            "missing",
+            "dir/missing",
+            "sub/inside",
+            "dir/a.txt/inside",
+        ] {
+            let args = [
+                "ls-tree",
+                "--full-tree",
+                "-z",
+                "--name-only",
+                "HEAD",
+                "--",
+                path,
+            ];
+            let expected = per_file(root, &args);
+            assert!(expected.status.success(), "{path}");
+            let batched = batched_git_read(root, "git_cmd", || git_cmd(root), &args, usize::MAX)
+                .unwrap_or_else(|| panic!("{path} should be answered by the batch"));
+            assert_eq!(batched.stdout, expected.stdout, "{path}");
+            assert_eq!(batched.status.code(), expected.status.code(), "{path}");
+        }
+    }
+
+    #[test]
+    fn scoped_config_lookups_are_read_only_facts() {
+        for args in [
+            &["config", "--local", "--get", "filter.lfs.process"][..],
+            &["config", "--local", "-z", "--get-regexp", "^filter"][..],
+            &["config", "--get-all", "remote.origin.url"][..],
+        ] {
+            assert!(is_read_only_git(args), "{args:?} only reads");
+            assert!(is_repository_fact(args), "{args:?} is a repository fact");
+        }
+        for args in [
+            &["config", "--local", "filter.lfs.process", "x"][..],
+            &["config", "--local", "--unset", "filter.lfs.process"][..],
+            &["config", "--get"][..],
+        ] {
+            assert!(!is_read_only_git(args), "{args:?} may write");
+        }
     }
 
     #[test]

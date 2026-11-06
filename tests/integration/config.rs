@@ -619,6 +619,105 @@ fn action_supports_a_quoted_trusted_release_mirror() {
     );
 }
 
+/// The `run:` script of the action step called `name`, dedented.
+fn action_step_script(name: &str) -> String {
+    let action = fs::read_to_string("action.yml").expect("action.yml should be readable");
+    let lines: Vec<&str> = action.lines().collect();
+    let step = lines
+        .iter()
+        .position(|line| line.trim() == format!("- name: {name}"))
+        .unwrap_or_else(|| panic!("action.yml has no step `{name}`"));
+    let run = (step..lines.len())
+        .find(|index| lines[*index].trim() == "run: |")
+        .expect("the step has a block run script");
+    let key_indent = lines[run].len() - lines[run].trim_start().len();
+    let mut script = String::new();
+    for line in &lines[run + 1..] {
+        let indent = line.len() - line.trim_start().len();
+        if !line.trim().is_empty() && indent <= key_indent {
+            break;
+        }
+        script.push_str(line.get(key_indent + 2..).unwrap_or(""));
+        script.push('\n');
+    }
+    script
+}
+
+/// Run the action's `Post PR Comment` script against a fake `gh` in `mode`.
+#[cfg(unix)]
+fn run_comment_step(mode: &str) -> (std::process::Output, String) {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = TempDir::new().unwrap();
+    let bin = tmp.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    // The fake answers the lookup (GET), create (POST with -f) and update (-X PATCH) calls.
+    let gh = r#"#!/bin/bash
+args="$*"
+kind=lookup
+case "$args" in
+  *"-X PATCH"*) kind=update ;;
+  *" -f "*) kind=create ;;
+esac
+case "$FAKE_GH_MODE:$kind" in
+  forbid-lookup:lookup|forbid-create:create|forbid-update:update)
+    echo "gh: Resource not accessible by integration (HTTP 403)" >&2; exit 1 ;;
+  server-error:create)
+    echo "gh: Internal Server Error (HTTP 500)" >&2; exit 1 ;;
+  forbid-update:lookup) echo 123 ;;
+esac
+exit 0
+"#;
+    fs::write(bin.join("gh"), gh).unwrap();
+    fs::set_permissions(bin.join("gh"), fs::Permissions::from_mode(0o755)).unwrap();
+    let summary = tmp.path().join("summary.md");
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(action_step_script("Post PR Comment"))
+        .env(
+            "PATH",
+            format!("{}:{}", bin.display(), std::env::var("PATH").unwrap()),
+        )
+        .env("FAKE_GH_MODE", mode)
+        .env("SPECSYNC_MARKDOWN", "## SpecSync check passed")
+        .env("GITHUB_STEP_SUMMARY", &summary)
+        .env("GH_TOKEN", "read-only")
+        .env("PR_NUMBER", "7")
+        .env("REPO", "owner/repo")
+        .output()
+        .unwrap();
+    (output, fs::read_to_string(&summary).unwrap_or_default())
+}
+
+#[cfg(unix)]
+#[test]
+fn a_comment_the_token_may_not_post_leaves_the_check_result_unchanged() {
+    for mode in ["forbid-lookup", "forbid-create", "forbid-update"] {
+        let (output, summary) = run_comment_step(mode);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success(),
+            "{mode}: a refused comment must not fail the step\n{stdout}{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains("::warning") && stdout.contains("pull-requests: write"),
+            "{mode}: the warning names the missing permission\n{stdout}"
+        );
+        assert!(
+            summary.contains("## SpecSync check passed"),
+            "{mode}: the comment body still reaches the job summary\n{summary}"
+        );
+    }
+    let (output, _) = run_comment_step("server-error");
+    assert!(
+        !output.status.success(),
+        "an error other than a refused token still fails the step"
+    );
+    let (output, _) = run_comment_step("ok");
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Posted SpecSync PR comment"));
+}
+
 // ─── Hands-on findings: v4 init-registry, draft visibility, fix routing ────
 
 #[test]

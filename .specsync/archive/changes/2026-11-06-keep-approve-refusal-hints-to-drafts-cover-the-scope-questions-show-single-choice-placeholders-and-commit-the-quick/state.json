@@ -7,11 +7,11 @@
   "title": "Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917)",
   "description": "Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917)",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "937508347cf321d2d45fd33fb3ca6916d08d87c7",
   "created_at": 1793948489,
-  "updated_at": 1793974861,
+  "updated_at": 1793977176,
   "affected_specs": [
     "change"
   ],

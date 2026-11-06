@@ -38,5 +38,18 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906",
+      "actor": "0xLeif",
+      "reason": "Leif chose option A (orc tab, 2026-11-06): the landing page also tells the reader to fill in specs/auth/ after add-spec, so the verify lane stays strict; that line goes beyond the approved wording.",
+      "timestamp": 1793976168,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": false
+    }
+  ]
 }

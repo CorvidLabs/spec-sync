@@ -1,6 +1,6 @@
 ---
 id: make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906
-state: approved
+state: draft
 type: documentation
 base_commit: 0b209a5c1398b9e9b881ced48a3145b17e8492b9
 ---

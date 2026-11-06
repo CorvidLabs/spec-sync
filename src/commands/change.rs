@@ -2216,7 +2216,6 @@ fn discovered_pr_base(root: &Path) -> Option<String> {
         .filter(|base| !base.is_empty())
 }
 
-#[allow(clippy::too_many_arguments)]
 /// `change ship --wait-timeout-secs` when the flag is not given; the clap default in `cli.rs`,
 /// pinned to it by `ship_wait_timeout_default_matches_the_cli`.
 const SHIP_WAIT_TIMEOUT_DEFAULT_SECS: u64 = 900;
@@ -2239,6 +2238,7 @@ fn ship_command(id: &str, dry_run: bool, push: bool, wait: bool, wait_timeout_se
     command
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ship(
     root: &Path,
     id: Option<&str>,

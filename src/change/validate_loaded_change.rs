@@ -4498,11 +4498,15 @@ fn lifecycle_state_history_disabled() -> bool {
     }
 }
 
+/// A lifecycle-state history built on this thread: its root, the `HEAD` commit it was walked
+/// from, and the answer (`None` when the walk could not answer).
+type LifecycleStateHistorySlot = (PathBuf, String, Option<std::rc::Rc<LifecycleStateHistory>>);
+
 thread_local! {
-    /// The last lifecycle-state history built on this thread: its root, the `HEAD` commit it was
-    /// walked from, and the answer. History reachable from one commit never changes, so the
-    /// answer stays true for that root and commit; it is only consulted inside a read scope.
-    static LIFECYCLE_STATE_HISTORY: RefCell<Option<(PathBuf, String, Option<std::rc::Rc<LifecycleStateHistory>>)>> =
+    /// The last lifecycle-state history built on this thread. History reachable from one commit
+    /// never changes, so the answer stays true for that root and commit; it is only consulted
+    /// inside a read scope.
+    static LIFECYCLE_STATE_HISTORY: RefCell<Option<LifecycleStateHistorySlot>> =
         const { RefCell::new(None) };
 }
 

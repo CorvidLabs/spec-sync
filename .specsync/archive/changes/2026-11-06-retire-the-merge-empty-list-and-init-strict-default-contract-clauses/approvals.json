@@ -58,6 +58,13 @@
         "cmd_init: REQUIREMENT REQ-cmd-init-004": "c2f9b462502814db8443275fa4df84de699740df181585cc0e316d1c2bd340f2",
         "merge: REQUIREMENT REQ-merge-001": "bba1b9afea81aecb9d2ca2e26f2c7d942d5d1bed8b99dc0bd927d0636f9112c8"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793946541,
+      "digest": "0a3c21f16ad5271727e1557cd33ad4de218d6e37a93ce3adff572b3ab93916ff",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 id: build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose
-state: draft
+state: approved
 type: operations
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

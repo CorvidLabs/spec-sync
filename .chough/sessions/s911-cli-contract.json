@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-5ec57dd0b73e95fb89aa0c29",
-    "head": "EVT-8b24b432c86ce9e9c4d608dc",
+    "head": "EVT-942e4456d943546af8a0d3ac",
     "legacy": null
   },
   "schema_version": 2,
@@ -16,7 +16,7 @@
     "callers": [],
     "iteration": 1
   },
-  "native_change": null,
+  "native_change": "describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child",
   "references": {
     "criteria": [
       "SHIP-1.c.1",
@@ -36,7 +36,9 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Scope approval of describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child (specsync change approve, recorded by the orc for Leif); intent reading: covered by Leif's SHIP-1.c.1/1.c.2"
+  ],
   "run_consents": [],
-  "next_action": "Failing-first cli contract pin, then specsync change new for #911"
+  "next_action": "After approval: apply scratchpad c/apply_c_edits.py, tick tasks, change check --commit, verify lane; no PR push until told"
 }

@@ -10,12 +10,17 @@
   "state": "draft",
   "base_commit": "884a33d3c0cb95680dae786ff25688569ee16c96",
   "created_at": 1793928410,
-  "updated_at": 1793928430,
+  "updated_at": 1793928629,
   "affected_specs": [
-    "git_utils"
+    "git_utils",
+    "change",
+    "github"
   ],
   "affected_paths": [
-    "src/git_utils.rs"
+    "src/git_utils.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/github.rs",
+    "tests/integration/commands/issues.rs"
   ],
   "no_spec_change": true,
   "no_spec_change_rationale": "Test harness only: two git_utils unit tests exec a script they just wrote, which Linux can refuse with ETXTBSY while another test thread forks. Running the script through sh changes no public behavior, requirement or spec text.",

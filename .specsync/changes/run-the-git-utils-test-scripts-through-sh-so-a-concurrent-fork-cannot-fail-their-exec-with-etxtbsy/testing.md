@@ -5,6 +5,16 @@ artifact: testing
 
 # Testing
 
-Failing first: on main 884a33d3, in a `rust:1.89` container, `specsync-<hash> git_utils::tests --test-threads=16` run 300 times failed 9 rounds with ETXTBSY (`status_does_not_hand_the_caller_stdout_to_the_child` 7, `output_returns_while_a_descendant_holds_the_pipe` 2).
+All runs use a `rust:1.89` Linux container, the test binary built from the tree under test, and `--test-threads=16`, 300 rounds each.
 
-With the change: the same 300-round run must fail 0 rounds, and the two tests keep their assertions (the child's stdout is the null device; the read returns the child's bytes while the descendant is alive).
+Baseline on main 884a33d3:
+
+| Group | Failing rounds | Failures |
+|---|---|---|
+| `git_utils::tests` alone | 9 / 300 | status test 7, descendant-pipe test 2, all ETXTBSY |
+| `git_utils::tests change::tests::bounded_git github::tests` together (58 tests) | 5 / 300 | status test 5, all ETXTBSY |
+| integration `commands::issues` | 0 / 300 | none |
+
+The bounded-runner test in `change_tests`, the two `github` tests and the `issues` integration test were not seen failing. They have the same write-then-exec shape and are fixed preventively, at Leif's request.
+
+With the change, the same three runs must each fail 0 rounds, and the six tests keep their assertions.

@@ -5,6 +5,6 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Run the status test's script through `sh` instead of exec'ing it.
-- [ ] Run the descendant-pipe test's script through `sh` instead of exec'ing it.
-- [ ] Re-run the 300-round Linux stress run with the change and record the result.
+- [ ] Run the three self-exec'd scripts as `sh <path>` (git_utils x2, substantive_plan x1).
+- [ ] Write the three fake `gh` executables from a child `sh` process (github.rs x2, integration issues x1).
+- [ ] Re-run the 300-round Linux stress runs with the change and record the results.

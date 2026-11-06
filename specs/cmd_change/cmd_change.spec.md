@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 60
+version: 61
 status: active
 files:
   - src/commands/change.rs

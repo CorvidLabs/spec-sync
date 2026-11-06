@@ -1543,11 +1543,11 @@ fn open_archive_candidates(root: &Path) -> Result<Vec<ArchiveCandidate>, String>
 
 /// Whether the Archive check may tell this workspace to run `change ship`.
 ///
-/// A blocking review, a legacy workflow, or a review recorded against a different
-/// commit cannot be archived by that command. The same proof is in
-/// `.github/scripts/archive-readiness.sh`: verdict `pass`, workflow v2, and
-/// `implementation_commit` equal to HEAD. Anything the check cannot prove stays
-/// on `change status`.
+/// A blocking review, a legacy workflow, a review recorded against a different
+/// commit, or a copy the remote default already archived cannot be archived by
+/// that command. The same proof is in `.github/scripts/archive-readiness.sh`:
+/// verdict `pass`, workflow v2, `implementation_commit` equal to HEAD, and no
+/// upstream archive. Anything the check cannot prove stays on `change status`.
 fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) -> bool {
     if record.workflow_version < 2 || record.state != change::ChangeState::Verifying {
         return false;
@@ -1570,9 +1570,13 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     else {
         return false;
     };
-    git_rev_parse(root, "HEAD")
+    let reviewed_at_head = git_rev_parse(root, "HEAD")
         .ok()
-        .is_some_and(|head| head == commit)
+        .is_some_and(|head| head == commit);
+    // Asked last, so Git runs only for a copy that would otherwise ship. `ship` refuses a
+    // change the remote default already archived (REQ-change-129); naming it here sent the
+    // operator to a certain refusal instead of to `change status`, which names the recovery.
+    reviewed_at_head && change::upstream_archive_of(root, record).is_none()
 }
 
 fn pull_request_sentence(root: &Path) -> Result<String, String> {

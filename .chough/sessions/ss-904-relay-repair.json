@@ -28,7 +28,8 @@
   "open_questions": [],
   "completed": [
     "Stacked worktree ss-904 on #900 head 83db636b; proposal sent to orc t18; named IDs REQ-change-/REQ-cmd-change-/REQ-cli-args-relay-repair-001 registered by orc",
-    "Failing first: 6 #904 discriminators in tests/integration/relayed_decision.rs fail on 83db636b (5 because the refusal names git checkout HEAD, not repair-relays; 1 because the repair-relays subcommand does not exist); the archived-package guard and the 10 #900 tests pass"
+    "Failing first: 6 #904 discriminators in tests/integration/relayed_decision.rs fail on 83db636b (5 because the refusal names git checkout HEAD, not repair-relays; 1 because the repair-relays subcommand does not exist); the archived-package guard and the 10 #900 tests pass",
+    "Failing first extended: 8 #904 discriminators fail on 83db636b (5 name git checkout HEAD instead of repair-relays; 3 hit the missing repair-relays subcommand: nothing damaged, archived refusal, not-JSON refusal); the archived guard and the 10 #900 tests pass. Implementation drafted outside the tree (scratchpad draft-904/relay_repair.rs)"
   ],
   "observations": [],
   "bugs": [],

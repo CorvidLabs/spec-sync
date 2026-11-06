@@ -974,3 +974,67 @@ fn an_archived_damaged_relay_still_names_git_checkout_and_that_command_recovers(
         project.run(&["change", "status", ID]).success();
     }
 }
+
+/// DISCRIMINATOR for #904: `repair-relays` on an archived change refuses, because finalize
+/// committed the package, and names `git checkout HEAD -- <archived package>`, which recovers it.
+#[test]
+fn repair_relays_on_an_archived_change_names_git_checkout_and_that_command_recovers() {
+    let project = Project::in_the_review_to_ship_window();
+    project.run(&["change", "finalize", ID]).success();
+    let archive = project.archive_dir();
+    let package = archive
+        .strip_prefix(&project.root)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    let review = archive.join("review.json");
+    let original = fs::read_to_string(&review).unwrap();
+    fs::write(&review, &damaged(&original)[0]).unwrap();
+
+    let error = project.refusal(&["change", "repair-relays", ID]);
+    assert!(error.contains("archived"), "{error}");
+    assert!(
+        error.contains(&format!("git checkout HEAD -- {package}")),
+        "{error}"
+    );
+    assert_eq!(
+        fs::read_to_string(&review).unwrap(),
+        damaged(&original)[0],
+        "the refusal writes nothing"
+    );
+
+    project.git(&["checkout", "HEAD", "--", &package]);
+    assert_eq!(fs::read_to_string(&review).unwrap(), original);
+    project.run(&["change", "status", ID]).success();
+}
+
+/// DISCRIMINATOR for #904: a committed file that is no longer JSON at all is damaged beyond a
+/// relay. `repair-relays` writes nothing and names `git checkout HEAD -- <file>`, which recovers it.
+#[test]
+fn repair_relays_on_a_committed_file_that_is_not_json_names_git_checkout_and_it_recovers() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-m", "approve"]);
+    let relative = format!(".specsync/changes/{ID}/approvals.json");
+    let original = fs::read_to_string(project.approvals_path()).unwrap();
+    fs::write(project.approvals_path(), "{ \"approvals\": [").unwrap();
+
+    let error = project.refusal(&["change", "repair-relays", ID]);
+    assert!(error.contains("not JSON"), "{error}");
+    assert!(
+        error.contains(&format!("git checkout HEAD -- {relative}")),
+        "{error}"
+    );
+    assert_eq!(
+        fs::read_to_string(project.approvals_path()).unwrap(),
+        "{ \"approvals\": ["
+    );
+
+    project.git(&["checkout", "HEAD", "--", &relative]);
+    assert_eq!(
+        fs::read_to_string(project.approvals_path()).unwrap(),
+        original
+    );
+    project.run(&["change", "status", ID]).success();
+}

@@ -1,6 +1,6 @@
 ---
 id: describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child
-state: approved
+state: implementing
 type: documentation
 base_commit: 5ff95d10b0fb9d9bbb3d3fbd15f35d1d261f173c
 ---

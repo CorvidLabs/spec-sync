@@ -1,6 +1,6 @@
 ---
 module: github
-version: 49
+version: 50
 status: stable
 files:
   - src/github.rs
@@ -196,35 +196,34 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 
 | Date | Change |
 |------|--------|
-| 2026-10-10 | Add `github.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
-| 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out of scope sections |
 | 2026-04-06 | Initial spec for v3.3.0 |
+| 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out of scope sections |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-17 | CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur: Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries |
 | 2026-07-17 | Hardened release validation for inline security guidance and runner-local candidate mirrors |
 | 2026-07-20 | CHG-0060-prepare-the-specsync-5-2-0-feature-release-bump-accurate-release-metadata-and-c: Prepare the SpecSync 5.2.0 feature release: bump accurate release metadata and changelog, update the GitHub Action default to 5.2.0, document the native migrate 5.0 ledger backfill, batch correct-owner, inert registry stub tolerance, squash-merged archive trust, and legacy archive repair, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries |
-| 2026-07-22 | CHG-0063: Fail closed on inaccessible repositories/provider failures and bound globally deduplicated issue verification |
-| 2026-07-22 | CHG-0063 follow-up: Move issue reads, listing, and verification to explicit-token in-process REST, strictly parse encoded issue listings, and disable `gh` read providers |
-| 2026-07-22 | CHG-0063 review fix: Bind every pagination link to the requested repository issues endpoint and query semantics |
-| 2026-07-22 | CHG-0063 independent-review follow-up: Bound raw issue-list pages and reject null or non-object pull-request markers before filtering |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Validate every raw issue/pull-request item as open with exact URL identity and canonical decimal number spelling, and reject raw duplicates before PR filtering |
 | 2026-07-22 | CHG-0063 final agent review: reject pull-request payloads from direct issue-detail reads |
+| 2026-07-22 | CHG-0063 follow-up: Move issue reads, listing, and verification to explicit-token in-process REST, strictly parse encoded issue listings, and disable `gh` read providers |
+| 2026-07-22 | CHG-0063 independent-review follow-up: Bound raw issue-list pages and reject null or non-object pull-request markers before filtering |
+| 2026-07-22 | CHG-0063 review fix: Bind every pagination link to the requested repository issues endpoint and query semantics |
+| 2026-07-22 | CHG-0063: Fail closed on inaccessible repositories/provider failures and bound globally deduplicated issue verification |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068 adversarial hardening: Preserve NUL filename boundaries in trusted-policy matching |
+| 2026-07-30 | CHG-0068 adversarial hardening: Protect root Action manifests from optimized trust reuse |
+| 2026-07-30 | CHG-0068 review hardening: Pin privileged archive checkout and make trust-policy protection descendant- and rename-safe |
+| 2026-07-30 | CHG-0068 review hardening: Reject archive rewrite-then-restore history |
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 | 2026-07-30 | CHG-0068: Bind archive digests to v2 execution/review evidence, preserve v1 full validation, and make scoped review fork-safe |
-| 2026-07-30 | CHG-0068: Share native/hosted review bounds, authenticate review check provenance and append-only attempts, and preserve v2 archive validation across squash/rebase integration |
 | 2026-07-30 | CHG-0068: Make merged-fork archive publication base-controlled, bound archive reconstruction, and protect the complete workflow/local-Action check-production surface |
-| 2026-07-30 | CHG-0068 review hardening: Pin privileged archive checkout and make trust-policy protection descendant- and rename-safe |
-| 2026-07-30 | CHG-0068 adversarial hardening: Protect root Action manifests from optimized trust reuse |
-| 2026-07-30 | CHG-0068 adversarial hardening: Preserve NUL filename boundaries in trusted-policy matching |
-| 2026-07-30 | CHG-0068 review hardening: Reject archive rewrite-then-restore history |
+| 2026-07-30 | CHG-0068: Share native/hosted review bounds, authenticate review check provenance and append-only attempts, and preserve v2 archive validation across squash/rebase integration |
 | 2026-08-01 | CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi: Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model |
 | 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind cross-platform release qualification, final tagging, and publication to one immutable RC commit while making Ubuntu the ordinary-PR integration authority |
 | 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows |
-| 2026-08-02 | CHG-0077: Reuse authenticated product-tip CI across bounded metadata-only descendants and prevent cancelled republications from poisoning an earlier exact-SHA success |
-| 2026-08-02 | CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre: Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result |
-| 2026-08-02 | CHG-0077 review hardening: Traverse parent-bound workflow-v2 archives, bind reusable job checks to exact jobs, and ignore unsuccessful policy republications without rejecting GitHub-rewritten check URLs |
 | 2026-08-02 | CHG-0077 late review hardening: Match native manifest spelling, empty-manifest, and unsigned timestamp semantics without tracking interpreter bytecode |
+| 2026-08-02 | CHG-0077 review hardening: Traverse parent-bound workflow-v2 archives, bind reusable job checks to exact jobs, and ignore unsuccessful policy republications without rejecting GitHub-rewritten check URLs |
+| 2026-08-02 | CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre: Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result |
+| 2026-08-02 | CHG-0077: Reuse authenticated product-tip CI across bounded metadata-only descendants and prevent cancelled republications from poisoning an earlier exact-SHA success |
 | 2026-08-02 | CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change: Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint |
 | 2026-08-04 | CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate: Let documentation-only pull requests reach the required CI gate |
 | 2026-08-06 | CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes: Decide pull requests in seconds instead of minutes |
@@ -234,23 +233,25 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 | 2026-08-26 | bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty: Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty |
 | 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |
 | 2026-09-09 | pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not: Pin the GitHub Action version default to published release 6.0.0-rc.14 so consumers without an explicit version do not 404 on missing v6.0.0 (#628) |
-| 2026-09-10 | publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0: Publish floating v6 at a commit whose Action default is 6.0.0; do not point v6 at immutable v6.0.0 |
-| 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Set the Action omitted-input default on main to shipped 6.0.0 and document that @v6.0.0 still embeds 6.0.0-rc.14 |
-| 2026-09-10 | rc-qualification-requires-ubuntu-and-macos-only-windows-is-not-a-6-0-target: RC qualification requires Ubuntu and macOS only; Windows is not a 6.0 target |
 | 2026-09-10 | correct-remaining-specsync-6-0-docs-after-the-stable-ship: Correct remaining SpecSync 6.0 docs after the stable ship |
+| 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Set the Action omitted-input default on main to shipped 6.0.0 and document that @v6.0.0 still embeds 6.0.0-rc.14 |
+| 2026-09-10 | publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0: Publish floating v6 at a commit whose Action default is 6.0.0; do not point v6 at immutable v6.0.0 |
+| 2026-09-10 | rc-qualification-requires-ubuntu-and-macos-only-windows-is-not-a-6-0-target: RC qualification requires Ubuntu and macOS only; Windows is not a 6.0 target |
 | 2026-09-26 | required-ci-gate-fails-when-the-lifecycle-gate-fails: Required CI gate fails when the lifecycle gate fails |
 | 2026-10-09 | release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix: Release SpecSync 6.0.1 with the Git LFS object-id evidence fix |
-| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
+| 2026-10-10 | Add `github.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-11 | release-specsync-6-1-0: Release SpecSync 6.1.0 |
+| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
-| 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
-| 2026-10-15 | Keep the Action default on published assets while immutable 6.1.1 qualification and later wrapper advancement remain separate |
-| 2026-10-15 | keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion: Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion |
 | 2026-10-15 | Conditional post-publication wrapper delivery advances the published binary default without changing the immutable CLI release identity |
+| 2026-10-15 | Keep the Action default on published assets while immutable 6.1.1 qualification and later wrapper advancement remain separate |
 | 2026-10-15 | advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks: Advance the published SpecSync 6.1.1 Action default after platform consumer checks |
-| 2026-11-01 | v44: archive-first CI. `is_trust_relevant_check_name` matches the `Archive` job exactly; REQ-github-023 makes `Archive` the first CI job that every other job depends on, and the full lane runs on the archived tip with no parent trust reuse |
-| 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
+| 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
+| 2026-10-15 | keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion: Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion |
 | 2026-11-01 | advance-the-published-specsync-6-1-2-action-default-and-archive-gate-examples-after-platform-consumer-checks: Advance the published SpecSync 6.1.2 Action default and archive-gate examples after platform consumer checks |
+| 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
+| 2026-11-01 | v44: archive-first CI. `is_trust_relevant_check_name` matches the `Archive` job exactly; REQ-github-023 makes `Archive` the first CI job that every other job depends on, and the full lane runs on the archived tip with no parent trust reuse |
 | 2026-11-05 | advance-the-published-specsync-6-2-0-action-default-and-current-release-guidance-after-platform-consumer-checks: Advance the published SpecSync 6.2.0 Action default and current release guidance after platform consumer checks |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-06 | build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose: Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline |
+| 2026-11-06 | keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token: Keep a passing check green when the Action's PR comment is refused for a read-only token |

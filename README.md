@@ -180,11 +180,17 @@ specsync change approve add-passkeys --actor "Ada"
 
 # implement the approved contract and run product tests
 specsync change check add-passkeys --commit
-# push after local gates; wait for required CI and complete human implementation review
+# run the local verify lane; CI does not test a tip whose change is still open
+# after the human implementation review of the package, diff, delta and evidence:
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
-# no commit between review and finalize; commit/push the archive, wait for CI, then merge
+# no commit between review and finalize; finalize commits the archive move
+# then push the archive commit, wait for CI on that tip, and merge
 ```
+
+The hosted Archive gate refuses while any change is open, so the closeout is archive-first:
+finish it locally before you wait on CI. A push before the review only shows the work early:
+expect the Archive gate red and do not wait on it.
 
 The scope approval binds human-approved content. The reviewer may be that same person.
 Actor/reviewer labels and stored provider declarations are claims, not authenticated identity;

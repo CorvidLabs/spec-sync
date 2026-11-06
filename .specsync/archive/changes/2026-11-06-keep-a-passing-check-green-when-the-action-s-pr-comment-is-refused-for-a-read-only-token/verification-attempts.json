@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793936331,
+      "commit": "d2d6bd53347377f32af7993f826aaaa1042084b1",
+      "contract_digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+      "execution_digest": "a6c041166af72166cf73384132656319365f521a0dc8fb396db4db2f93385b8f",
+      "workspace_digest": "2f262d64d10a80a921ffbb616191937f9b8c5da54a2842a5f7a479375a46ff4c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-024"
+      ]
+    },
+    {
+      "timestamp": 1793936349,
+      "commit": "2be66720f96744201d9d5b39dda3cd5ad239095c",
+      "contract_digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+      "execution_digest": "a6c041166af72166cf73384132656319365f521a0dc8fb396db4db2f93385b8f",
+      "workspace_digest": "5d073ffa080be7359d59eced28d77148e0588ff0486402fcc90377267a35c7e8",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-024"
+      ]
+    },
+    {
+      "timestamp": 1793938784,
+      "commit": "fc0b7b164e88961f6cb897620b0959e3472235f3",
+      "contract_digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+      "execution_digest": "a6c041166af72166cf73384132656319365f521a0dc8fb396db4db2f93385b8f",
+      "workspace_digest": "d94ddb48160547d826d3dc993fc13e88307a0b21a7358f564eb5e01367e2b128",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-024"
+      ]
+    },
+    {
+      "timestamp": 1793938813,
+      "commit": "a23429c67a082ff9883433ee4c96cc5e6315ac98",
+      "contract_digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+      "execution_digest": "a6c041166af72166cf73384132656319365f521a0dc8fb396db4db2f93385b8f",
+      "workspace_digest": "d94ddb48160547d826d3dc993fc13e88307a0b21a7358f564eb5e01367e2b128",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-024"
+      ]
+    },
+    {
+      "timestamp": 1793938813,
+      "commit": "564adc3168af7a8676513ccf51443f425bcbc4da",
+      "contract_digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+      "execution_digest": "a6c041166af72166cf73384132656319365f521a0dc8fb396db4db2f93385b8f",
+      "workspace_digest": "d94ddb48160547d826d3dc993fc13e88307a0b21a7358f564eb5e01367e2b128",
+      "acceptance_input_digest": "f9e2bfd1fb2c662ba134edc32edfac50876a923d05b4b3dd603d5edbae07bb41",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5f3b015921abfa9a4fb7734af4ca2e6912c0a69875a318956d88bbcd2326dff2",
+            "entry_digest": "744e9ee347ca19cd6905f3b23eefe9adf94c30cf052f5d3663fdf9b269f85e63",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "INTENT.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d3b40bfd735879adb7a7456e2b469d7bc11ff7fe3744549db4a0f317c0e67aba",
+            "entry_digest": "bd6fe576b2190311993c0d41dd7fa2ee55894d5a569dc1bf2abdaede6d70809f",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "action.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5bb0d603bad1544c588557aeeb8b5ca8ba69c88f95c197c60164811091589916",
+            "entry_digest": "2514cafc10e21bada942ad49aacddf97cc37924148689efe704bccd39a52672d",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "hi/ci.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c789a2f5b426d9805d9f896a6b13058b51c3f14716a58ef3568634e34ac7ccd4",
+            "entry_digest": "8c199fa540657de809871b0b7681ea297bd50086b9ca1a1ff08c86906bb2768a",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/github-action.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "08895a103ae3c86bbc318ef4485e46c3fa348fcd7719f05638c7c30ffa95961b",
+            "entry_digest": "1e4c3f1a7486d46c51e026ed1c4e84ea87d24ff33cf8c1ef85db5807baf70378",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/github/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "56b2f63c4cd47aed196a117e398c483fd6fb334992aff18b4726caf5cd6ca857",
+            "entry_digest": "5fef5be52688097bfb0b8aac23be0290131aba130877efc66218dbe1210fb34c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/github.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "813d6c3f54832108a87cbdef8bcb82c989fc429a87c953d84c3b35d3d15395fb",
+            "entry_digest": "0b80f991dd6f93559ab0d78cdfc8a44cb92cb3b20ed70d60a930d2761200ea25",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/github.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "775a1104532907e4b8691ec7db9f6c4ffec67a727e1939027fa8e2fdc033edb5",
+            "entry_digest": "9ab94b67d917a2e1c9c00d1d787b0e4e9a92db164d5e614576a7eaf07cc1080c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "84073d18db0c25701d37a43f894b9273a0eec077fae08ccce248cb3da48021bf",
+            "entry_digest": "77c0d8dc260ba46be6c30dc8a60734d501ddcf06616936de5909799ba8a420fd",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bd13f2e7c3e036b59a0e4484bf1ea2757e187778eb341450e0639405aa0ece9f",
+            "entry_digest": "4b52fe869c9354bf53b5ca401f1472fca3a1b1efaf480431c6fcf5a10825e8b8",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "86f27d3f7cba32fc20ac1a26117a85ac4bbb493aa2c1f4e39e1bfcb753fa9c9f",
+            "entry_digest": "90a5fc695e3475472f35332b32a7aa78cfdc78d4430993caafd0f7db8a72d72e",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "tests/integration/config.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fa681b2aa0adcc68a2d6bb47f677e26c1e1338ccf0e0c949f3a6855f4b5142c4",
+            "entry_digest": "7e6737b1785bbad3def2559028f813be186ba43435a9540509df849aa8b27e45",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-024"
+      ]
+    }
+  ]
+}

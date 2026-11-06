@@ -65,6 +65,28 @@ specsync change approve add-passkeys --actor "Ada"
 
 Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the scoped human review are refreshed.
 
+An approval shows what was approved, not who approved it: its digest binds the content, and `--actor` is a recorded claim that SpecSync does not authenticate. The same holds for `--reviewer`.
+
+### Relayed decisions
+
+When an agent records a decision a person made somewhere else, it says who decided, their exact words, where they said it and which agent is recording it:
+
+```bash
+specsync change approve add-passkeys --actor "Ada" \
+  --words "Approve the passkey scope" \
+  --where "team chat, 2026-11-05 21:40 MST, relayed by the release agent" \
+  --recorded-by "release agent"
+```
+
+`change review` takes the same three flags. The record is stored as `relayed_by` (`decided_by`, `words`, `where`, `recorded_by`), with `decided_by` taken from `--actor` or `--reviewer`. All three flags go together: giving only some is refused, naming the missing ones, and a relayed approval needs an explicit `--actor`. `change status` prints it under the approval or review it belongs to:
+
+```text
+  Approval: Ada (a recorded claim, not authenticated)
+    Relayed: Ada said "Approve the passkey scope" (team chat, 2026-11-05 21:40 MST, relayed by the release agent); recorded by release agent; a relayed claim, not authenticated: it records who is said to have decided, not proof that they did.
+```
+
+A relayed decision is a claim too. It satisfies no gate, and no digest covers it; the finalization review digest leaves it out, so older 6.x binaries read archives that carry one. If a hand-edited `relayed_by` cannot be read, the command names `git checkout HEAD -- <file>` to restore the recorded file.
+
 ## 3. Check, Review, and Finalize
 
 ```bash

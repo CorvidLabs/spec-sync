@@ -1,0 +1,223 @@
+## ADDED
+
+### REQUIREMENT REQ-change-relayed-decision-001
+
+A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.
+
+#### Acceptance Criteria
+
+- All four fields are required when the record is present, each non-blank and at most 4096 bytes; `words` is stored exactly as given.
+- `decided_by` is the approval's actor or the review's reviewer; a relay naming anyone else is refused before anything is written.
+- An approval or review written without a relay omits the `relayed_by` key, so its bytes match what a binary that predates the record writes.
+- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field, and names restoring the file from Git with `git checkout <commit> -- <path>`.
+- The finalization review digest is computed over the review with `relayed_by` left out, so a 6.x binary that drops the unknown key computes the same digest; a later edit to a relay record is therefore not detected, exactly like an edit to an approval's actor.
+- A `--portable-5-0-1` approval carries the relay on both records of the pair.
+- `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
+
+## MODIFIED
+
+### REQUIREMENT REQ-change-001
+
+The system SHALL require exactly one recorded scope approval, naming the person it is claimed for, for each new meaningful change and SHALL record finalization as automated terminal evidence rather than a second approval. The approval binds content by digest; its actor is a recorded claim that SpecSync does not authenticate.
+
+#### Acceptance Criteria
+
+- The scope approval exposes no force or emergency bypass.
+- Scope approval binds only stable intent, acceptance criteria, public-contract/risk declarations,
+  and affected spec/path/dependency/supersession scope.
+- Implementation notes, task progress, test/evidence plans, semantic-delta materialization,
+  canonical materialization, and lifecycle metadata preserve scope approval but invalidate
+  automated execution evidence and scoped review when their bound digest changes.
+- An added, removed, or replaced affected spec/path, acceptance criterion, dependency,
+  supersession obligation, or changed intent/classification requires renewed scope approval and
+  status explains the exact change in plain language.
+- Independent scoped review and current verification remain mandatory before same-PR finalization.
+- The historical CHG-0068 definition preimage remains explicitly unavailable and no equivalence
+  proof is claimed; one compile-time allowlist freezes its exact source approval, adoption
+  commit/blob, stable-scope digest, authorization, and non-material classifications without
+  appending a second approval.
+- Historical closing approvals remain readable and verifiable without being required for new
+  workflow-version-2 changes.
+- The approval digest covers the approved content and never the actor, so an approval shows what was approved and not who approved it; an actor label, or a relayed decision, is a claim and not authentication.
+
+### SPEC SECTION Public API
+
+**Exported Constants**
+
+| Name | Description |
+|------|-------------|
+| `RECORDED_CLAIM_BOUNDARY` | The words `change status` prints beside an approval's actor and a review's reviewer: a recorded claim, not authenticated |
+| `RELAYED_CLAIM_BOUNDARY` | The boundary sentence printed with every relayed decision, shared word for word with Chough |
+| `LESSON_BUNDLE_FILE` | Filename of the lesson bundle written into an archive, shared with the command layer so the two cannot name different files |
+| `SDD_VERSION` | Current SDD project-layout version written by initialization |
+
+**Exported Types**
+
+| Type | Description |
+|------|-------------|
+| `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
+| `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
+| `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
+| `UpstreamArchive` | The remote default reference and the commit on it that archived a change this branch holds unarchived (#694) |
+| `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration, plus the opt-in `verification_ignored_paths` directory prefixes left out of the verification project-input digest (empty by default and omitted when empty) |
+| `SuccessionObligation` | Definition-bound predecessor path, canonical owner module, and full predecessor entry digest |
+| `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
+| `AcceptanceOwnerCorrection` | Sequenced human-authored exact path/module ownership correction for acceptance evidence |
+| `ChangeRecord` | Durable machine state for one change workspace, including an explicit legacy-or-single-workflow version and omitted-when-empty supersedes/correction evidence |
+| `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
+| `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
+| `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
+| `ApprovalRecord` | Actor claim, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, the optional per-module semantic delta body digests a definition gate approved, and the optional `relayed_by` decision an agent relayed; the digest binds content, never the actor |
+| `RelayedDecision` | Shared relayed-decision claim: `decided_by`, verbatim `words`, `where` (including any relay chain) and `recorded_by`; all four required, non-blank and at most 4096 bytes, with `null` and unknown keys refused on read; covered by no digest |
+| `RecordedClaim` | Status projection of the effective definition approval or the latest scoped review: gate, named actor or reviewer, review verdict, optional relayed decision; carries no digest |
+| `ApprovedScopeV1` | Canonical stable intent, acceptance contract, risk declarations, and affected scope bound by one human approval |
+| `NonMaterialScopeChangeCategory` | Closed implementation, test/evidence, canonical-materialization, and lifecycle-metadata classification set |
+| `NonMaterialScopeChangeV1` | Path and concise evidence-backed classification for one approval-preserving migration change |
+| `ScopeApprovalMigrationV1` | Historical embedded migration shape retained only to authenticate the allowlisted CHG-0068 anchor blob; it is not accepted as a general live projection bridge |
+| `ScopeAdoptionSourcePreimageStatus` | Explicit declaration that the one allowlisted legacy approval preimage is unavailable |
+| `ScopeAdoptionEquivalenceClaim` | Explicit declaration that the allowlisted adoption makes no cryptographic equivalence claim |
+| `ScopeAdoptionAnchorV1` | Exact historical commit, approval index, and approval-ledger blob digest |
+| `ScopeAdoptionAuthorizationV1` | Actor, recording time, and truthful reason for the one allowlisted adoption exception |
+| `ScopeAdoptionV1` | Frozen adopted stable scope, anchor, authorization, and non-material classification evidence |
+| `DefinitionApprovalPairRole` | Current/full or legacy/projected role for one marked portable definition member |
+| `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
+| `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, stale/current input digests, the staleness cause when the digests are equal, and an optional exact remote-default Git anchor when reopening a recorded review-workspace mismatch |
+| `ReopenCauseV1` | Why accepted evidence was stale despite matching inputs: unanchored verification or unreconstructible legacy acceptance; absent means inputs drifted |
+| `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
+| `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
+| `AppliedDeltaItem` | One block a change's delta put into a canonical spec or requirements file: module, target, key and body, listed by a send-back |
+| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, whether canonical text had been applied, and the applied items |
+| `SendBackResult` | Deterministic change-plus-audit result returned by the send-back transition |
+| `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
+| `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
+| `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
+| `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
+| `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
+| `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
+| `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen and send-back history |
+| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
+| `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
+| `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
+| `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
+| `SemanticSuccessionTupleV1` | Exact predecessor, path, module, old-entry digest, and new-entry digest transition |
+| `SemanticSuccessionEvidenceV1` | Versioned sorted one-to-one closing evidence for approved supersedes obligations |
+| `VerificationRecord` | Commit-bound verification result with separate stable-scope and volatile-execution digests, commands, requirement coverage, and optional acceptance manifest/succession evidence |
+| `ScopedReviewVerdict` | Explicit passing or blocking conclusion for one scoped human review |
+| `ScopedReviewProvenanceProvider` | Stored provenance-provider declaration; identity authentication requires separately enforced external policy |
+| `ScopedReviewProvenanceV1` | Versioned required GitHub Actions check binding carried by review evidence |
+| `ScopedReviewRecord` | Stable reviewer claim, required-check provenance, explicit verdict, implementation commit, scope/execution/workspace digests, review timestamp bound before finalization, and the optional `relayed_by` decision, which the finalization review digest leaves out |
+| `ScopedReviewCurrency` | Three-valued answer to whether a recorded scoped review still holds: current, stale carrying what moved, or unavailable when the guarantee could not be evaluated at all |
+| `reason` | Why a scoped review is not current, for the callers that render a blocker or a warning |
+| `FinalizationRecord` | Automated non-approval evidence binding implementation commit/tree, contract/workspace/closing/review digests, archive identity, and a domain-separated finalization digest |
+| `ChangeReadScope` | Crate-private invocation guard that owns one bounded read-only lifecycle snapshot |
+| `InterviewQuestion` | Stable deterministic question with choices and recommendation |
+| `LessonBriefing` | One module context that already holds substantive lessons: path, line count, bounded excerpt, and whether the excerpt was cut |
+| `OpenChangeBriefing` | Lessons for the change's modules plus the configured principles file, computed when a change is opened and never stored on the record |
+| `PrinciplesBriefing` | The project's principles file: path, bounded excerpt, whether the excerpt was cut, and whether the file could not be read |
+| `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
+| `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
+| `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
+| `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
+| `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
+| `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
+| `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, the validated `verification_ignored_paths` list (omitted when empty or invalid), exactly one next action, a handoff verdict, and optional terminal evidence |
+| `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
+| `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
+| `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
+| `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
+| `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
+| `LifecycleCommitScope` | Crate-private answer to what one change's lifecycle commit may stage: the untracked paths the lifecycle wrote or the change owns, and the runtime files (lock, transaction journal) it must neither stage nor report |
+
+**Exported Functions**
+
+| Function | Parameters | Returns | Description |
+|----------|------------|---------|-------------|
+| `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
+| `acceptance_entries` | `root: &Path, record: &ChangeRecord` | `Vec<AcceptanceInputEntryV1>` | Accepted acceptance-input entries, so `change show --json` can surface the `specsync.acceptance-entry.v1` digests `change supersede --digest` requires; empty when evidence is absent |
+| `accumulated_lessons` | `root, modules` | `Vec<(String, usize)>` | Substantive-prose line count for each module context that holds any, so a new change can be pointed at what its modules already learned |
+| `active_change_id` | `root` | `Option<String>` | The change a bare lifecycle command acts on: the single active approved/implementing/verifying record — the same states `check_change` selects — or none |
+| `add_acceptance_owner_correction` | `root, id, path, module, actor, reason` | `Result<ChangeRecord, String>` | Append one audited exact canonical owner correction to a reopened already-applied change |
+| `add_acceptance_owner_corrections` | `root, id, entries, actor, reason` | `Result<ChangeRecord, String>` | Validate every exact path/module owner correction, then append all as sequenced audit entries in one transactional write |
+| `add_dependency` | `root, id, dependency` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, declares ordering between active changes, and invalidates stale approval digests |
+| `add_dependency_with_snapshot` | `root, id, dependency` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the dependency mutation with its full in-transaction machine snapshot |
+| `add_missing_acceptance_owner_corrections` | `root, id, module, actor, reason` | `Result<ChangeRecord, String>` | Discover production-source affected paths lacking canonical ownership for a module and append them as one transactional batch |
+| `add_supersedes_obligation` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then adds one definition-bound semantic succession obligation to a draft |
+| `add_supersedes_obligation_with_snapshot` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the supersession mutation with its full in-transaction machine snapshot |
+| `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or atomically enable SDD — writing an enabled policy when none exists and flipping `enabled` on one written off by `init`, failing closed on a policy it cannot parse — activate workflow v2 without stranding cutoff-ineligible legacy records or rewriting legacy policy, and import OpenSpec or Spec Kit artifacts |
+| `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then persists an interview answer and updates adaptive artifacts |
+| `answer_question_with_snapshot` | `root, id, question, answer` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the answer mutation with its full in-transaction machine snapshot |
+| `approval_current_for_guidance` | `root, record` | `bool` | Whether an approved, implementing, or verifying change's definition approval still covers its approved scope and the semantic delta bodies it recorded — the predicate behind `ChangeSummary.approval_valid` — for human next-action guidance without printing a digest |
+| `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
+| `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
+| `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
+| `approve_definition_with_relay` | `root, id, actor, note, portable_v501, relayed_by` | `Result<ChangeRecord, String>` | Record a definition approval (or the portable pair) carrying an optional relayed decision; a relay whose `decided_by` is not the explicit `--actor` is refused before anything is written |
+| `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
+| `artifacts_complete_for_guidance` | `root, record` | `bool` | Lightweight selected-artifact completeness for human next-action guidance without digest loaders |
+| `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence. A duplicated requirement ID in a living `requirements.md` is an error and is named |
+| `audit_project_with_archives` | `root: &Path, archives: bool` | `SddCheckReport` | `audit_project`, and with `archives` also every archived change's own workflow-version history, each failure named by change ID; the walk finalize no longer repeats (REQ-change-124). Duplicate requirement IDs are reported whether or not `--archives` is set |
+| `backfill_reopen_digests` | `root: &Path, dry_run: bool` | `Result<ReopenBackfillReport, String>` | Backfill 5.1 reopening digest fields on 5.0.1-era ledgers with verified, idempotent, dry-run-aware writes |
+| `begin_change_read_scope` | `root: &Path` | `ChangeReadScope` | Install one invocation-scoped read snapshot for list/show/status and project reports |
+| `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare this change's specs to code |
+| `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with warnings failing as they do under `specsync check --strict` |
+| `check_project` | `root: &Path` | `SddCheckReport` | Full lifecycle integrity including archive terminal evidence (tests and rare callers; not the default CLI path) |
+| `classify_handoff` | `id, signals` | `HandoffSummary` | Pure classification of handoff readiness from `HandoffSignals`; the only source of the verdict, so text and JSON cannot disagree |
+| `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
+| `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
+| `create_change` | `root: &Path, request: CreateChangeRequest` | `Result<ChangeRecord, String>` | Create a sequential draft workspace and adaptive artifacts |
+| `detect_verification_commands` | `root: &Path` | `Vec<String>` | Detect explicit fledge, Cargo, Bun, or Swift test commands |
+| `effective_change_definition` | `root, record` | `Result<EffectiveChangeDefinition, String>` | Validate and project original metadata through its ordered correction history |
+| `finalize_change` | `root, id` | `Result<PathBuf, String>` | Validate current verification/review evidence and transactionally produce the dated same-PR archive |
+| `find_change_dir` | Resolves a change's workspace wherever it lives, active or archived — the single answer to where a change's artifacts are |
+| `floor_sequence_ledger_to_committed` | `root: &Path` | `Result<Option<(u64, u64)>, String>` | Raise a working-tree sequence ledger to the committed high-water mark before staging, returning the previous and adopted values so the caller can disclose the raise, or `None` when the ledger is already at or above it |
+| `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs — never the archive-history walk for an Archived record — and classify them; the same verdict `ChangeSummary.handoff` carries |
+| `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
+| `lifecycle_commit_scope` | `root, id` | `Result<LifecycleCommitScope, String>` | The one answer to which untracked paths a lifecycle commit for this change may stage: its workspace, its archive package, each affected spec's canonical file and companions, and the lifecycle ledgers — never its `affected_paths` prefixes; `Err` when the change cannot be loaded |
+| `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read, including a directory that holds a regular file but no `state.json`; a husk with no regular file is not a change; `Err` only when the changes directory itself is unreadable |
+| `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
+| `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
+| `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
+| `configured_principles_file` | `root` | `Result<Option<String>, String>` | The configured principles file, or the error when `.specsync/sdd.json` cannot be read |
+| `principles_file_is_present` | `root`, `path` | `Result<bool, String>` | Whether that path is a file inside the project. An absolute path or `..` is an error |
+| `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
+| `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
+| `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
+| `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
+| `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
+| `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
+| `record_scoped_review_with_relay` | `root, id, reviewer, verdict, relayed_by` | `Result<ScopedReviewRecord, String>` | Record a scoped review carrying an optional relayed decision whose `decided_by` must be the validated reviewer claim |
+| `recorded_claims` | `root, record` | `Result<Vec<RecordedClaim>, String>` | Read-only projection of the effective definition approval (never one a send-back cancelled) and the latest scoped review, with any relayed decision; empty when neither exists, and an error naming the `git checkout` recovery when a relay record cannot be read |
+| `relayed_decision` | `rerun, decided_by, words, where_, recorded_by` | `Result<Option<RelayedDecision>, String>` | Build the optional record from command flags: none given is `None`; some given is refused naming every missing flag and the full `rerun` command; a blank or over-4096-byte field is refused naming its flag |
+| `recorded_scoped_review_currency` | `root, record` | `Option<ScopedReviewCurrency>` | Classify a change's recorded scoped review against the tree on disk; `None` means no usable review record exists, which is a different question from currency |
+| `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
+| `send_back_change` | `root, id, actor, reason` | `Result<SendBackResult, String>` | Move an approved, implementing or verifying change back to draft for re-scoping, append an audited send-back, and cancel the earlier definition approval without removing it |
+| `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
+| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
+| `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus the exact scoped command the next pass records as evidence; `--strict` only when requested |
+| `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Compare this change's specs to code in-process and record commit/contract evidence |
+| `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
+| `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |
+| `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
+| `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` for an archive already in `HEAD` (reopen) or when Git cannot answer |
+| `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy |
+| `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
+
+**Exported Methods**
+
+| Method | Description |
+|--------|-------------|
+| `as_str` | Return the stable serialized name for a change state, kind, or correction field |
+| `parse` | Parse user-facing change-kind, artifact, or supported correction-field names into typed values |
+| `file_name` | Resolve an adaptive artifact to its safe Markdown filename |
+| `is_clean` | Return true when a ledger backfill recorded no per-change failures |
+| `is_degraded` | Return true when at least one workspace could not be read, so no caller may draw a conclusion from a missing record |
+
+Acceptance Criteria
+
+- Nested lifecycle commands still fail once with the established deterministic contextual error.
+- The process marker and diagnostic helper remain private binary implementation details.
+- Correction inspection exposes typed portable records without exposing mutable ledger internals.
+- Acceptance-owner corrections expose only immutable audit fields and never mutable internal ledgers.
+
+| `enable_historical_reconciliation` | Request definition-bound unproven historical receipt reconciliation; require fresh approval and closing gates |
+| `HistoricalReceiptWitnessV1` | Immutable predecessor identity, package digest and frozen manifest digest |
+| `HistoricalReconciliationEvidenceV1` | Explicit unproven status, immutable base anchor and sorted exact receipt witnesses |

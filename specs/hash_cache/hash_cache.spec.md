@@ -1,9 +1,10 @@
 ---
 module: hash_cache
-version: 9
+version: 10
 status: stable
 files:
   - src/hash_cache.rs
+  - build.rs
 db_tables: []
 tracks: [90]
 depends_on:
@@ -17,6 +18,12 @@ depends_on:
 Uses SHA-256 content hashing to track which spec files, companion files, and source files have changed since the last validation run. Enables incremental validation — only specs with detected changes are re-validated, significantly improving performance on large projects.
 
 ## Public API
+
+**Exported Constants**
+
+| Name | Description |
+|------|-------------|
+| `BUILD_FINGERPRINT` | SHA-256 of `src/`, `Cargo.toml`, `Cargo.lock` and `build.rs` as this binary was compiled (from `build.rs`). The validation snapshot digest and the read-cache identity frame it, so neither cache crosses builds (REQ-hash-cache-005, REQ-change-134) |
 
 **Exported Structs**
 
@@ -129,6 +136,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | #878: a validation snapshot replays only in the build that recorded it. `build.rs` compiles in a fingerprint of `src/`, `Cargo.toml`, `Cargo.lock` and `build.rs`, and the snapshot input digest frames it, so a clean result cached by an earlier build of the same version is re-validated (REQ-hash-cache-005). |
 | 2026-10-10 | Add `hash_cache.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
@@ -139,3 +147,4 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
 | 2026-08-15 | Persist and replay per-spec validation snapshots so a warm `check` cannot drop findings (#429) |
 | 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |
+| 2026-11-06 | reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a: Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878) |

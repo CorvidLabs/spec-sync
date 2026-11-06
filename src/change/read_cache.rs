@@ -100,13 +100,15 @@ fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
     index
 }
 
-/// The package version plus the bundled validation limits, so a build that judges history
-/// differently never reuses another build's verdicts.
+/// The package version plus the build fingerprint, so a build that judges history differently
+/// never reuses another build's verdicts (REQ-change-134). The version alone named no code: every
+/// build of one version shared it, sibling worktrees included, since the cache lives in the Git
+/// common directory (#878). The fingerprint covers the bundled validation limits too.
 fn read_cache_build_identity() -> String {
     format!(
         "{}+{}",
         env!("CARGO_PKG_VERSION"),
-        sha256_hex(include_str!("../lifecycle-validation-limits.json").as_bytes())
+        crate::hash_cache::BUILD_FINGERPRINT
     )
 }
 
@@ -966,6 +968,13 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
         pending.push((key, record));
     }
     if pending.len() < 2 {
+        return;
+    }
+    // With the command's lifecycle-state history index, each archive's check needs no history
+    // walk of its own, and its state-file reads go through this thread's one batch reader. The
+    // archive walk then validates them here, in order, with a deadline check between archives
+    // (REQ-change-141). Workers have no batch reader, so they would only add processes.
+    if lifecycle_state_history(root).is_some() {
         return;
     }
     let workers = std::thread::available_parallelism()

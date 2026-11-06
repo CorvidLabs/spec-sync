@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-096f4a0939f690b73c151837",
-    "head": "EVT-7c1c23150bd8aca3e8b79485",
+    "head": "EVT-9092b52c27e443d9218618f8",
     "legacy": null
   },
   "schema_version": 2,
@@ -36,14 +36,18 @@
     "Agent finding, not a human decision: text status on an authenticated archive here costs 0.55s today, ~10.7s with the JSON-equal check (variant A), ~3.7s with an own-package-only check (variant C); the extra ~7s is the project roster walk (73 rev-list + 73 log over legacy CHG archives) the persistent read cache does not absorb",
     "Agent: per-change Chough session per orc t18 coordination; shared session.json adopted byte-for-byte under the #861 change key",
     "Leif (2026-11-05 20:42 MST, orc tab, relayed by orc t18): intent \"Approve\" for CHANGE-7.a.1 and CHANGE-7.a.2 as worded; scope \"A + perf follow-up\"; native definition approval recorded as 0xLeif at 7e6192a9",
-    "rejected: variant C (own-package-only text check, ~3.7s) because text could disagree with JSON when the roster check fails, which is the D3 defect class"
+    "rejected: variant C (own-package-only text check, ~3.7s) because text could disagree with JSON when the roster check fails, which is the D3 defect class",
+    "Leif (2026-11-05 22:07 MST, orc tab, relayed by orc t18): \"Record and merge\" for #901 at db2e3ab4; superseded the same evening when orc t18 directed option 1 under the standing rule: fix the Codex P1 (unquoted shell words) and P2a (no-op package restore) in #901 test-first, file P2b",
+    "decided: send-back as 'ss-s3 Claude agent' (orc t18 instruction) because answer is draft-only and the fix adds a third recovery case to the approved criteria and REQ-change-093",
+    "rejected: exporting commands::merge::shell_quote because src/commands/merge.rs belongs to cmd_merge, outside the approved paths; a private one-line copy in the change domain instead"
   ],
   "open_questions": [],
   "completed": [
     "Reproduced on main ad50bdef with the audit fixture: JSON handoff safe beside corrupt-history; text Next 'no further action' and Handoff safe; the named tail 'specsync change check' prints 'Nothing to check'",
     "Prototype (reverted, patches in scratchpad): git restore named command recovers tampered archive; committed damage recovers from the archiving commit and stays authenticated after commit",
     "Implemented (variant A): CorruptArchive signal, not-yet handoff, one restore step for handoff/JSON next/text Next/ship-status; red then green; auditor fixture recovers; perf follow-up #897 filed",
-    "fledge lanes run verify green on merged tree (pinned 1.89): 2825 unit + 484 integration, strict specs 62/62"
+    "fledge lanes run verify green on merged tree (pinned 1.89): 2825 unit + 484 integration, strict specs 62/62",
+    "Codex P1/P2a fixed test-first (2 new unit tests red on db2e3ab4, green now); P2b filed as #905"
   ],
   "observations": [
     "OBS-product-test-03accb387b007d6f0caf0ac6",
@@ -55,8 +59,8 @@
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
-    "Leif via orc t18: scoped implementation review of report-a-not-yet-handoff-... (PR for #880); then review + ship with no commit between"
+    "Leif via orc t18: re-approve report-a-not-yet-handoff-... after the send-back (third recovery case + shell quoting), then a fresh scoped review"
   ],
   "run_consents": [],
-  "next_action": "Wait for orc t18 review decision; tree untouched until then"
+  "next_action": "After re-approval: change check --commit, verify lane (pinned 1.89), ready for review"
 }

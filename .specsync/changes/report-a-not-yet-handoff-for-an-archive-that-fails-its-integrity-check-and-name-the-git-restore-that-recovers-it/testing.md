@@ -20,6 +20,15 @@ Failing test first, through the built binary, under workflow v2.
 
 ## Results
 
+After the Codex review of #901 (P1 quoting, P2 outside-package restore), test-first on db2e3ab4:
+
+- `corrupt_archive_restore_quotes_every_interpolated_word` failed on db2e3ab4 (`sh` could not parse the unquoted command for ID `safe;touch PWNED $(touch PWNED2) it's`) and passes: every runnable command in each step round-trips through `sh` to the exact argv, and nothing runs in the sandbox.
+- `corrupt_archive_restore_names_the_package_only_when_the_package_changed` failed on db2e3ab4 (an intact package got the no-op archiving-commit restore) and passes: a real committed archive yields the status-JSON pointer when intact, the HEAD restore after an uncommitted edit, and the archiving-commit restore after the edit is committed.
+- The integration test now runs the printed commands verbatim through a shell, with the quoted words.
+
+Earlier results:
+
+
 - Red first: `a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it` with the source at main ad50bdef failed exactly on the defect: JSON `handoff.readiness` `safe` beside `terminal_evidence` `corrupt-history` (the authenticated checks before the tamper passed).
 - Green: with the fix it passes, covering the uncommitted HEAD restore run verbatim, the committed tamper restored from the archiving commit, text `Next:`/`Handoff:`, and `ship-status`.
 - Unit: `handoff_corrupt_archive_is_not_yet_and_names_the_restore` (HEAD, archiving-commit and unlocated forms; freeze still first), `corrupt_archive_signal_is_only_for_an_archived_corrupt_history_record`, and every existing `handoff_*` test pass. `strict_check_reports_standalone_unprovable_archived_history` now pins the new exact next action and asserts the handoff agrees. Its first run caught a real bug: outside a work tree `git diff` runs as `--no-index` and exits 1, so the probe now confirms the repository first.

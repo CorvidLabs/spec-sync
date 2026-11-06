@@ -3138,11 +3138,11 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         "{json}"
     );
     let step = handoff["before_clearing"][0].as_str().unwrap().to_string();
-    let restore_from_head = format!("git restore --source=HEAD --staged --worktree -- {package}");
+    let restore_from_head = format!("git restore --source=HEAD --staged --worktree -- '{package}'");
     assert_eq!(
         step,
         format!(
-            "run `{restore_from_head}` to put back the committed archive, then `specsync change status {id}`"
+            "run `{restore_from_head}` to put back the committed archive, then `specsync change status '{id}'`"
         )
     );
     assert_eq!(
@@ -3168,15 +3168,27 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
     // Reading status changes nothing: the tampered bytes are still there to restore.
     assert_eq!(fs::read(&verification).unwrap(), tampered);
 
-    // Run the named command verbatim.
+    // Run the named command verbatim, through a shell, exactly as an operator would paste it.
+    let shell = |command: &str| -> String {
+        let output = bash_command()
+            .arg("-c")
+            .arg(command)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "`{command}` failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
     let named = step
         .split('`')
         .nth(1)
         .expect("the step names its command in backticks");
     assert_eq!(named, restore_from_head);
-    let words: Vec<&str> = named.split_whitespace().collect();
-    assert_eq!(words[0], "git");
-    git(&words[1..]);
+    shell(named);
     assert_eq!(fs::read(&verification).unwrap(), original);
     assert_eq!(
         git(&["status", "--porcelain"]),
@@ -3196,13 +3208,13 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         .unwrap()
         .to_string();
     let find_archiving_commit =
-        format!("git log -1 --diff-filter=A --format=%H -- {package}/state.json");
+        format!("git log -1 --diff-filter=A --format=%H -- '{package}/state.json'");
     let restore_from_commit =
-        format!("git restore --source=<commit> --staged --worktree -- {package}");
+        format!("git restore --source=<commit> --staged --worktree -- '{package}'");
     assert_eq!(
         step,
         format!(
-            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status {id}`"
+            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status '{id}'`"
         )
     );
     assert_eq!(json["summary"]["next_action"], step);
@@ -3214,12 +3226,9 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         "{text}"
     );
 
-    let find_words: Vec<&str> = find_archiving_commit.split_whitespace().collect();
-    let archiving_commit = git(&find_words[1..]);
+    let archiving_commit = shell(&find_archiving_commit);
     assert_eq!(archiving_commit, git(&["rev-parse", "HEAD~1"]));
-    let restore = restore_from_commit.replace("<commit>", &archiving_commit);
-    let restore_words: Vec<&str> = restore.split_whitespace().collect();
-    git(&restore_words[1..]);
+    shell(&restore_from_commit.replace("<commit>", &archiving_commit));
     git(&[
         "commit",
         "-m",

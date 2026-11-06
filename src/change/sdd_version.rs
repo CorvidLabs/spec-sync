@@ -1743,15 +1743,20 @@ pub struct HandoffSignals {
     pub corrupt_archive: Option<CorruptArchive>,
 }
 
-/// Where an archive that fails its integrity check can be restored from. Holds a path and a
-/// flag, never a digest, so the recovery built from it can reach a text line verbatim.
+/// Where an archive that fails its integrity check can be restored from. Holds a path at most,
+/// never a digest, so the recovery built from it can reach a text line verbatim.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CorruptArchive {
-    /// The archive package relative to the project root, or `None` when the change does not
-    /// resolve to exactly one archive directory.
-    pub package: Option<String>,
+pub enum CorruptArchive {
     /// The package's tracked files differ from `HEAD`, so `HEAD` still holds committed bytes.
-    pub differs_from_head: bool,
+    /// `package` is relative to the project root.
+    DiffersFromHead { package: String },
+    /// The package matches `HEAD` but not the commit that archived it: the damage is committed,
+    /// and that commit holds the trusted bytes.
+    DamageCommitted { package: String },
+    /// No package restore would help: the package does not resolve to one archive directory,
+    /// Git cannot answer, or the package still matches the commit that archived it, so the
+    /// evidence that failed lies outside it (the shared legacy baseline, another record).
+    OutsidePackage,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

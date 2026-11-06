@@ -726,12 +726,11 @@ fn strict_check_reports_standalone_unprovable_archived_history() {
         report.terminal_evidence[0].evidence.validity,
         TerminalEvidenceValidity::CorruptHistory
     );
-    // The package is not known to differ from `HEAD`, so the trusted bytes are named at the
-    // commit that archived it; the dead `specsync change check` tail is gone (#880).
+    // No repository here, so no package restore can be named: the step points at the evidence
+    // the status JSON reports, and the dead `specsync change check` tail is gone (#880).
     let summary = summarize_change(root, &record);
-    let package = format!("{ARCHIVE_PATH}/2026-07-14-{}", record.id);
     let step = format!(
-        "run `git restore --source=<commit> --staged --worktree -- {package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {package}/state.json`), commit the restore, then run `specsync change status {}`",
+        "run `specsync change status '{0}' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status '{0}'`",
         record.id
     );
     assert_eq!(summary.next_action, step);

@@ -3499,20 +3499,34 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
 
 /// The step that restores an archive failing its integrity check, ending with the status read
 /// that confirms it. When the package differs from `HEAD` the committed bytes are one command
-/// away; when the damage is committed, the commit that archived the package holds them. Built
-/// from literals, the change ID and the package path only — never a digest.
+/// away; when the damage is committed, the commit that archived the package holds them; when the
+/// package is intact, the failing evidence is elsewhere and the status JSON names it. Built from
+/// literals, the change ID and the package path only — never a digest — and every interpolated
+/// word is shell-quoted, because a change ID or archive directory may carry `;`, `$` or spaces and
+/// the step is meant to be copied into a shell (#901 review).
 fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
-    match (&corrupt.package, corrupt.differs_from_head) {
-        (Some(package), true) => format!(
-            "run `git restore --source=HEAD --staged --worktree -- {package}` to put back the committed archive, then `specsync change status {id}`"
+    let status = format!("specsync change status {}", shell_quote(id));
+    match corrupt {
+        CorruptArchive::DiffersFromHead { package } => format!(
+            "run `git restore --source=HEAD --staged --worktree -- {}` to put back the committed archive, then `{status}`",
+            shell_quote(package)
         ),
-        (Some(package), false) => format!(
-            "run `git restore --source=<commit> --staged --worktree -- {package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {package}/state.json`), commit the restore, then run `specsync change status {id}`"
+        CorruptArchive::DamageCommitted { package } => format!(
+            "run `git restore --source=<commit> --staged --worktree -- {}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {}`), commit the restore, then run `{status}`",
+            shell_quote(package),
+            shell_quote(&format!("{package}/state.json"))
         ),
-        (None, _) => format!(
-            "restore the archive for {id} under `{ARCHIVE_PATH}/` from trusted Git history, then run `specsync change status {id}`"
+        CorruptArchive::OutsidePackage => format!(
+            "run `{status} --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `{status}`"
         ),
     }
+}
+
+/// Single-quotes `text` as one POSIX shell word: nothing inside single quotes is expanded, and an
+/// embedded `'` closes, escapes and reopens. The same quoting `commands::merge` uses for the
+/// merge-driver command line.
+fn shell_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
 }
 
 /// The restore step for an archived record whose terminal evidence is `corrupt-history`, for the
@@ -3527,8 +3541,8 @@ pub fn corrupt_archive_recovery_for_guidance(root: &Path, record: &ChangeRecord)
 }
 
 /// The corrupt-archive signal for one record: `Some` only for an archived record whose terminal
-/// evidence is `corrupt-history`. Locating the package and asking Git whether it differs from
-/// `HEAD` happens on that path alone, so an archive that authenticates costs nothing extra.
+/// evidence is `corrupt-history`. Locating the package and asking Git where its trusted bytes are
+/// happens on that path alone, so an archive that authenticates costs nothing extra.
 fn corrupt_archive_signal(
     root: &Path,
     record: &ChangeRecord,
@@ -3549,24 +3563,40 @@ fn corrupt_archive_signal(
                 .ok()
                 .map(|relative| relative.to_string_lossy().replace('\\', "/"))
         });
-    // Inside a work tree, `git diff --quiet HEAD` exits 1 exactly when tracked content differs
-    // from `HEAD`, staged or not. Outside one, `git diff` silently becomes `--no-index`, compares
-    // a path named `HEAD`, and also exits 1, so the repository is confirmed first. Any other
-    // outcome — no repository, no `HEAD` — leaves the flag false, and the recovery then names
-    // the archiving commit rather than a `HEAD` that may not hold the archive.
-    let differs_from_head = package.as_deref().is_some_and(|package| {
-        git_repository_present(root).unwrap_or(false)
-            && crate::git_utils::status_without_inherited_output(
-                Command::new("git")
-                    .args(["diff", "--quiet", "HEAD", "--", package])
-                    .current_dir(root),
-            )
-            .is_ok_and(|status| status.code() == Some(1))
-    });
-    Some(CorruptArchive {
-        package,
-        differs_from_head,
-    })
+    // Outside a work tree `git diff` silently becomes `--no-index`, compares a path named `HEAD`,
+    // and exits 1 as if the package differed, so the repository is confirmed first.
+    let Some(package) = package.filter(|_| git_repository_present(root).unwrap_or(false)) else {
+        return Some(CorruptArchive::OutsidePackage);
+    };
+    // Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly when the
+    // package's tracked content differs from that commit, staged or not.
+    let differs_from = |commit: &str| {
+        crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args(["diff", "--quiet", commit, "--", &package])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| status.code() == Some(1))
+    };
+    if differs_from("HEAD") {
+        return Some(CorruptArchive::DiffersFromHead { package });
+    }
+    let state = format!("{package}/state.json");
+    let archiving_commit = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["log", "-1", "--diff-filter=A", "--format=%H", "--", &state])
+            .current_dir(root),
+    )
+    .ok()
+    .filter(|output| output.status.success())
+    .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    .filter(|commit| !commit.is_empty());
+    // A package that still matches the commit that archived it is not what failed: restoring it
+    // would change nothing and leave the next session blocked on the same verdict.
+    match archiving_commit {
+        Some(commit) if differs_from(&commit) => Some(CorruptArchive::DamageCommitted { package }),
+        _ => Some(CorruptArchive::OutsidePackage),
+    }
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,

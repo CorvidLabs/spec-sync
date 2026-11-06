@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "db2e3ab4d52fdacfe97ca378c7f8b6dbdff64ef4",
+      "contract_digest": "21ddd8847a1a8c110b57ccd017de8869f6c248cf19694c4ce61b4891767b931a",
+      "execution_digest": "6da66bbb73245af7a091c8dd198ddf3c86332ed9d124ca2cff8a9c7ddf6a6e2a",
+      "workspace_digest": "4055d8c2602769e7be5bfbf9feccdd94b098d7143709122a46d160923307d319",
+      "timestamp": 1793941482
+    }
+  ]
+}

@@ -703,6 +703,7 @@ fn a_send_back_answers_review_order_by_attempt_count_and_falls_back_to_time() {
         execution_digest: None,
         workspace_digest: "c".repeat(64),
         timestamp,
+        relayed_by: None,
     };
     let send_back = |cancelled_review_attempts: Option<usize>| SendBackRecord {
         schema_version: 1,

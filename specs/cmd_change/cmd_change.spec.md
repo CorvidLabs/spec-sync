@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 68
+version: 69
 status: active
 files:
   - src/commands/change.rs
@@ -199,3 +199,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | `change status`, `show`, `list` and `ship-status` take `--timeout <secs>` or `SPECSYNC_TIMEOUT`; a timed-out read exits 124 with the phase, progress and resume command (REQ-cmd-change-032, S9) |
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship: Stop the Archive check and change pr from telling a copy already archived upstream to run ship |
+| 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |

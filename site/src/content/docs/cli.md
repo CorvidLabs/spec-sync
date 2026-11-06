@@ -500,9 +500,15 @@ A tool that links to a requirement not yet in `requirements.md` should accept it
 `summary.approval_valid` is true and the module's `delta_intact` is `true`, and should label it
 pending until `materialized` is `true`.
 
-Reviewer labels and stored provider declarations do not authenticate identity. Local finalization
-checks recorded content and history; authenticated provenance requires separately configured
-hosted checks and policy verification. The scope approver may perform the implementation review.
+Actor and reviewer labels, relayed decisions and stored provider declarations do not authenticate
+identity. Local finalization checks recorded content and history; authenticated provenance
+requires separately configured hosted checks and policy verification. The scope approver may
+perform the implementation review.
+
+`change approve` and `change review` take an optional relayed decision for a decision a person
+made elsewhere: `--words "<their exact words>" --where "<where and when>" --recorded-by "<agent>"`,
+all three together. `change status` shows each approval and review as a recorded claim, with any
+relayed decision on the next line; `--json` carries them under `recorded_claims`.
 
 Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale. A predecessor entry signed under a reserved exact owner (`@exact:test`, `@exact:delivery`) can be adopted by any module that owns the path now through `[modules."<name>"] owns` in `.specsync/config.toml`; no reopen or owner correction is needed.
 

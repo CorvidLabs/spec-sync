@@ -1,6 +1,6 @@
 ---
 module: change
-version: 174
+version: 175
 status: active
 files:
   - src/change.rs
@@ -296,6 +296,7 @@ Acceptance Criteria
 
 45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
 46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
+47. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 
 ## Behavioral Examples
 
@@ -431,6 +432,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v175: a passing legacy-baseline introduction proof is kept in the persistent read cache, so an archived read of one legacy archive no longer re-walks every introduction commit and legacy archive tree; a refusal is always re-derived (#901). |
 | 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
 | 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-127, #861). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |

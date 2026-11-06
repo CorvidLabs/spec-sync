@@ -1,6 +1,6 @@
 ---
 id: hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f7180c3481814c7b05671fb413b1ffec5de829e2
 ---

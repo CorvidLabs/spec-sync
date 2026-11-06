@@ -1,0 +1,48 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-63f012bed1de50d9896143fe",
+    "head": "EVT-380b8b38cc725291651c00a5",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "#906: the README and landing-page workflow tests fail if the documented local verify step is missing or comes after the scoped review; the fixture's verify lane actually runs",
+  "intent_scope": "DOCS",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906",
+  "references": {
+    "criteria": [
+      "DOCS-2",
+      "DOCS-1",
+      "DOCS-1.a"
+    ],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "decided: #906 needs no new HI criteria because DOCS-2 (closeout: verify, implementation review, archive before push) and DOCS-1/DOCS-1.a (examples run as written; CI fails when one stops working), approved by Leif 2026-11-05 20:22 MST (relayed by orc t18), cover it; its scope approval queues for Leif",
+    "decided: leif/906-verify-step is stacked on #917 (0b209a5c) because both edit tests/integration/documented_workflows.rs; merge main after #912 and #917 land",
+    "decided: the fixture's verify lane is `specsync check --strict` run on the current tip, because the fixture has no product test suite and SpecSync itself never runs or observes a project lane"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Failing test at 3758d970: landing_page_change_workflow_runs_from_its_quick_start fails at change review (no verify step); README passes, and fails at review with its verify line removed (mutation run locally, then restored)"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Scope approval of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif; queued for his morning, recorded by orc)"
+  ],
+  "run_consents": [],
+  "next_action": "After approval: landing-page verify line, CHANGELOG, verify lane, check --commit"
+}

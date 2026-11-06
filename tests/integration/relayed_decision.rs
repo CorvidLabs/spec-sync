@@ -527,36 +527,36 @@ fn a_relayed_review_finalizes_and_its_review_digest_leaves_the_relay_out() {
     assert!(text.contains(REVIEW_WORDS), "{text}");
 }
 
-/// DISCRIMINATOR for the read side of the shared shape: a hand-edited relay (an unknown key, or
-/// `null`) is refused, the refusal names restoring the file from Git, and that command recovers.
+/// DISCRIMINATOR for the read side of the shared shape: a hand-edited relay (an unknown key,
+/// `null`, or a decider that is not the record's own) is refused, the refusal names
+/// `specsync change repair-relays`, and that command puts the committed original back byte for
+/// byte (#904; before it, this refusal named `git checkout HEAD`, which only worked here).
 #[test]
-fn a_malformed_relay_record_is_refused_naming_git_checkout_and_that_command_recovers() {
+fn a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_commit_back() {
     let project = Project::ready_to_approve();
     project.approve_relayed();
     project.git(&["add", "--all"]);
     project.git(&["commit", "-m", "approve"]);
-    let relative = format!(".specsync/changes/{ID}/approvals.json");
     let original = fs::read_to_string(project.approvals_path()).unwrap();
+    let position = project.approvals()["approvals"].as_array().unwrap().len();
 
-    for (from, replacement) in [
-        (
-            "\"relayed_by\": {",
-            "\"relayed_by\": {\n        \"signed\": true,",
-        ),
-        ("\"relayed_by\": {", "\"relayed_by\": null, \"unused\": {"),
-        // One record names one decider, on read as on write (#900 review).
-        ("\"decided_by\": \"Ada\"", "\"decided_by\": \"Mallory\""),
-    ] {
-        let edited = original.replacen(from, replacement, 1);
-        assert_ne!(edited, original);
+    for edited in damaged(&original) {
         fs::write(project.approvals_path(), edited).unwrap();
-        let refused = project.run(&["change", "status", ID]).failure();
-        let error = String::from_utf8(refused.get_output().stderr.clone()).unwrap();
+        let error = project.refusal(&["change", "status", ID]);
         assert!(error.contains("relayed_by"), "{error}");
-        let recovery = format!("git checkout HEAD -- {relative}");
-        assert!(error.contains(&recovery), "{error}");
+        assert!(error.contains(&repair_command()), "{error}");
 
-        project.git(&["checkout", "HEAD", "--", &relative]);
+        let repaired = project.stdout(&["change", "repair-relays", ID]);
+        assert!(
+            repaired.contains(&format!(
+                "approvals.json approval {position}: put back from HEAD"
+            )),
+            "{repaired}"
+        );
+        assert_eq!(
+            fs::read_to_string(project.approvals_path()).unwrap(),
+            original
+        );
         project.run(&["change", "status", ID]).success();
     }
 }
@@ -643,4 +643,334 @@ fn a_refused_blocking_review_names_a_rerun_that_keeps_the_verdict() {
             .unwrap();
     assert_eq!(review["verdict"], "block");
     assert_eq!(review["relayed_by"], expected_relay(REVIEW_WORDS));
+}
+
+// spec-sync#904 (CHANGE-13.e to CHANGE-13.g, drafted, awaiting Leif): a damaged relay is repaired
+// by one named command whether or not its file is committed. `change review` writes `review.json`
+// and `review-attempts.json` after `change check --commit`, and nothing is committed between
+// review and ship, so in that window `HEAD` holds neither file and `git checkout HEAD` cannot
+// restore them. `review.json` is a copy of the last attempt, so each restores the other; a relay
+// with no surviving copy is removed, never the approval or attempt it sits on.
+
+fn repair_command() -> String {
+    format!("specsync change repair-relays {ID}")
+}
+
+/// The three damages the reader refuses, applied to the first relay in `original`: an unknown
+/// key, `null`, and a decider that is not the record's own actor or reviewer.
+fn damaged(original: &str) -> Vec<String> {
+    damaged_at(original, |text, from, to| text.replacen(from, to, 1))
+}
+
+/// The same three damages, applied to the last relay in `original`.
+fn damaged_last(original: &str) -> Vec<String> {
+    damaged_at(original, |text, from, to| {
+        let at = text.rfind(from).unwrap();
+        format!("{}{to}{}", &text[..at], &text[at + from.len()..])
+    })
+}
+
+fn damaged_at(original: &str, replace: impl Fn(&str, &str, &str) -> String) -> Vec<String> {
+    let decider = format!("\"decided_by\": \"{ACTOR}\"");
+    [
+        (
+            "\"relayed_by\": {",
+            "\"relayed_by\": {\n    \"signed\": true,",
+        ),
+        ("\"relayed_by\": {", "\"relayed_by\": null, \"unused\": {"),
+        (decider.as_str(), "\"decided_by\": \"Mallory\""),
+    ]
+    .into_iter()
+    .map(|(from, to)| {
+        let edited = replace(original, from, to);
+        assert_ne!(edited, original);
+        edited
+    })
+    .collect()
+}
+
+impl Project {
+    fn review_path(&self) -> PathBuf {
+        self.workspace().join("review.json")
+    }
+
+    fn attempts_path(&self) -> PathBuf {
+        self.workspace().join("review-attempts.json")
+    }
+
+    fn attempts(&self) -> Vec<Value> {
+        let ledger: Value =
+            serde_json::from_slice(&fs::read(self.attempts_path()).unwrap()).unwrap();
+        ledger["reviews"].as_array().unwrap().clone()
+    }
+
+    /// Whether `HEAD` holds a copy of the project file at `relative`.
+    fn committed(&self, relative: &str) -> bool {
+        Command::new("git")
+            .args(["cat-file", "-e", &format!("HEAD:{relative}")])
+            .current_dir(&self.root)
+            .status()
+            .unwrap()
+            .success()
+    }
+
+    fn head(&self) -> String {
+        let output = Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&self.root)
+            .output()
+            .unwrap();
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    }
+
+    fn refusal(&self, args: &[&str]) -> String {
+        String::from_utf8(self.run(args).failure().get_output().stderr.clone()).unwrap()
+    }
+
+    /// Approved and verified with a relay, then reviewed with a relay: the review-to-ship window,
+    /// asserted, with `HEAD` holding neither review file.
+    fn in_the_review_to_ship_window() -> Self {
+        let project = Self::ready_to_approve();
+        project.approve_relayed();
+        project.implemented_and_checked();
+        project.review_relayed();
+        for file in ["review.json", "review-attempts.json"] {
+            let relative = format!(".specsync/changes/{ID}/{file}");
+            assert!(
+                !project.committed(&relative),
+                "HEAD already holds {relative}"
+            );
+        }
+        project
+    }
+}
+
+/// DISCRIMINATOR for #904: in the review-to-ship window a damaged `review.json` relay is refused
+/// naming `repair-relays`, not `git checkout HEAD`, and that command puts the review back from
+/// its twin, the last attempt, byte for byte. Nothing is committed, and the change finalizes.
+#[test]
+fn a_damaged_review_relay_in_the_review_to_ship_window_is_repaired_by_the_named_command() {
+    let project = Project::in_the_review_to_ship_window();
+    let head = project.head();
+    let original = fs::read_to_string(project.review_path()).unwrap();
+
+    for edited in damaged(&original) {
+        fs::write(project.review_path(), edited).unwrap();
+        let error = project.refusal(&["change", "status", ID]);
+        assert!(error.contains("relayed_by"), "{error}");
+        assert!(error.contains(&repair_command()), "{error}");
+        assert!(
+            !error.contains("git checkout HEAD"),
+            "HEAD holds no review.json in this window: {error}"
+        );
+
+        let repaired = project.stdout(&["change", "repair-relays", ID]);
+        assert!(
+            repaired.contains("review.json: put back from review-attempts.json attempt 1"),
+            "{repaired}"
+        );
+        assert_eq!(fs::read_to_string(project.review_path()).unwrap(), original);
+        project.run(&["change", "status", ID]).success();
+    }
+
+    assert_eq!(
+        project.head(),
+        head,
+        "nothing is committed between review and ship"
+    );
+    project.run(&["change", "finalize", ID]).success();
+}
+
+/// DISCRIMINATOR for #904: a damaged relay on the last review attempt is refused by the next step
+/// of the window, finalize, naming `repair-relays`, which puts it back from `review.json`.
+#[test]
+fn a_damaged_relay_on_the_last_review_attempt_is_put_back_from_review_json() {
+    let project = Project::in_the_review_to_ship_window();
+    let original = fs::read_to_string(project.attempts_path()).unwrap();
+
+    for edited in damaged_last(&original) {
+        fs::write(project.attempts_path(), edited).unwrap();
+        let error = project.refusal(&["change", "finalize", ID]);
+        assert!(error.contains("relayed_by"), "{error}");
+        assert!(error.contains(&repair_command()), "{error}");
+
+        let repaired = project.stdout(&["change", "repair-relays", ID]);
+        assert!(
+            repaired.contains("review-attempts.json attempt 1: put back from review.json"),
+            "{repaired}"
+        );
+        assert_eq!(
+            fs::read_to_string(project.attempts_path()).unwrap(),
+            original
+        );
+    }
+
+    project.run(&["change", "finalize", ID]).success();
+}
+
+/// DISCRIMINATOR for #904 and REQ-change-046: a block, then a pass, both uncommitted. A damaged
+/// relay on the block has no surviving copy (`HEAD` has none, and `review.json` is the pass), so
+/// the repair removes that relay and reports it. Both attempts stay, and the block stays a block.
+#[test]
+fn a_damaged_relay_with_no_surviving_copy_is_removed_and_every_attempt_and_verdict_stays() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.implemented_and_checked();
+    project
+        .run(&[
+            "change",
+            "review",
+            ID,
+            "--reviewer",
+            ACTOR,
+            "--verdict",
+            "block",
+            "--words",
+            "Block it",
+            "--where",
+            WHERE,
+            "--recorded-by",
+            AGENT,
+        ])
+        .success();
+    project.review_relayed();
+    let review = fs::read_to_string(project.review_path()).unwrap();
+    let original = fs::read_to_string(project.attempts_path()).unwrap();
+    let pass = project.attempts()[1].clone();
+
+    let edited = original.replacen(
+        &format!("\"decided_by\": \"{ACTOR}\""),
+        "\"decided_by\": \"Mallory\"",
+        1,
+    );
+    assert_ne!(edited, original);
+    fs::write(project.attempts_path(), edited).unwrap();
+    let error = project.refusal(&["change", "finalize", ID]);
+    assert!(error.contains(&repair_command()), "{error}");
+
+    let report: Value =
+        serde_json::from_str(&project.stdout(&["--json", "change", "repair-relays", ID])).unwrap();
+    let mut removed = expected_relay("Block it");
+    removed["decided_by"] = Value::from("Mallory");
+    assert_eq!(
+        report["repairs"],
+        serde_json::json!([{
+            "file": "review-attempts.json",
+            "record": 1,
+            "action": "removed",
+            "removed": removed,
+        }]),
+        "{report}"
+    );
+
+    let attempts = project.attempts();
+    assert_eq!(attempts.len(), 2, "no attempt is removed");
+    assert_eq!(attempts[0]["verdict"], "block", "the block stays a block");
+    assert_eq!(attempts[0]["reviewer"], ACTOR);
+    assert!(attempts[0].get("relayed_by").is_none(), "{}", attempts[0]);
+    assert_eq!(attempts[1], pass);
+    assert_eq!(fs::read_to_string(project.review_path()).unwrap(), review);
+    project.run(&["change", "finalize", ID]).success();
+}
+
+/// DISCRIMINATOR for #904: an `approvals.json` damaged before its first commit has no copy of
+/// the original anywhere, so the repair removes the relay and reports it in text. The approval
+/// stays, with its digest, and status shows it as a claim with no relay.
+#[test]
+fn a_damaged_approval_relay_before_its_first_commit_is_removed_and_the_approval_stays() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    assert!(!project.committed(&format!(".specsync/changes/{ID}/approvals.json")));
+    let approval = project.last_approval();
+    let original = fs::read_to_string(project.approvals_path()).unwrap();
+    let position = project.approvals()["approvals"].as_array().unwrap().len();
+    fs::write(
+        project.approvals_path(),
+        original.replacen(
+            &format!("\"decided_by\": \"{ACTOR}\""),
+            "\"decided_by\": \"Mallory\"",
+            1,
+        ),
+    )
+    .unwrap();
+    let error = project.refusal(&["change", "status", ID]);
+    assert!(error.contains(&repair_command()), "{error}");
+    assert!(!error.contains("git checkout HEAD"), "{error}");
+
+    let repaired = project.stdout(&["change", "repair-relays", ID]);
+    assert!(
+        repaired.contains(&format!("approvals.json approval {position}: removed")),
+        "{repaired}"
+    );
+    assert!(
+        repaired.contains("Mallory"),
+        "the removed value is shown: {repaired}"
+    );
+
+    let after = project.approvals();
+    assert_eq!(after["approvals"].as_array().unwrap().len(), position);
+    let mut expected = approval;
+    expected.as_object_mut().unwrap().remove("relayed_by");
+    assert_eq!(project.last_approval(), expected);
+    assert_eq!(
+        project.status_json()["recorded_claims"],
+        serde_json::json!([{"gate": "definition", "name": ACTOR}])
+    );
+}
+
+/// DISCRIMINATOR for #904: with nothing damaged the repair says so and writes nothing.
+#[test]
+fn repair_relays_with_nothing_damaged_says_so_and_writes_nothing() {
+    let project = Project::in_the_review_to_ship_window();
+    let files = [
+        project.approvals_path(),
+        project.review_path(),
+        project.attempts_path(),
+    ];
+    let before: Vec<String> = files
+        .iter()
+        .map(|path| fs::read_to_string(path).unwrap())
+        .collect();
+
+    let text = project.stdout(&["change", "repair-relays", ID]);
+    assert!(
+        text.contains(&format!("No relayed decision in {ID} needs repair.")),
+        "{text}"
+    );
+    let after: Vec<String> = files
+        .iter()
+        .map(|path| fs::read_to_string(path).unwrap())
+        .collect();
+    assert_eq!(after, before);
+}
+
+/// GUARD for #904: finalize and ship commit the archive they write, so an archived package is
+/// always at `HEAD`, its damaged relay still names `git checkout HEAD -- <archived file>`, and
+/// that command recovers it.
+#[test]
+fn an_archived_damaged_relay_still_names_git_checkout_and_that_command_recovers() {
+    let project = Project::in_the_review_to_ship_window();
+    project.run(&["change", "finalize", ID]).success();
+    let archived = project.archive_dir().join("review.json");
+    let relative = archived
+        .strip_prefix(&project.root)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    assert!(project.committed(&relative), "finalize commits {relative}");
+    let original = fs::read_to_string(&archived).unwrap();
+
+    for edited in damaged(&original) {
+        fs::write(&archived, edited).unwrap();
+        let error = project.refusal(&["change", "status", ID]);
+        assert!(error.contains("relayed_by"), "{error}");
+        assert!(
+            error.contains(&format!("git checkout HEAD -- {relative}")),
+            "{error}"
+        );
+        assert!(!error.contains("repair-relays"), "{error}");
+
+        project.git(&["checkout", "HEAD", "--", &relative]);
+        project.run(&["change", "status", ID]).success();
+    }
 }

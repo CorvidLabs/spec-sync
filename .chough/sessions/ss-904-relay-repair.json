@@ -1,0 +1,41 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-9a543b07ff4ef64901555579",
+    "head": "EVT-de3087cd008e6f64dad37486",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "spec-sync#904: a damaged relayed_by refusal names one recovery that works whether or not the file is committed (specsync change repair-relays), never removing an approval or review attempt",
+  "intent_scope": "CHANGE",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": null,
+  "references": {
+    "criteria": [],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [],
+  "open_questions": [],
+  "completed": [
+    "Stacked worktree ss-904 on #900 head 83db636b; proposal sent to orc t18; named IDs REQ-change-/REQ-cmd-change-/REQ-cli-args-relay-repair-001 registered by orc",
+    "Failing first: 6 #904 discriminators in tests/integration/relayed_decision.rs fail on 83db636b (5 because the refusal names git checkout HEAD, not repair-relays; 1 because the repair-relays subcommand does not exist); the archived-package guard and the 10 #900 tests pass"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif: approve the #904 intent (CHANGE-13.e/f/g as drafted) and design (specsync change repair-relays), and decide the no-copy case (remove the damaged relayed_by, recommended, or refuse). Proposal logged by orc t18 for Leif's morning."
+  ],
+  "run_consents": [],
+  "next_action": "Wait for Leif's intent and design decision (via orc t18). Then capture CHANGE-13.e-g with hi, write the SpecSync change (named REQ-*-relay-repair-001 IDs) and send 'ready for approval'"
+}

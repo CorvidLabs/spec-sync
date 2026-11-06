@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-5ec57dd0b73e95fb89aa0c29",
-    "head": "EVT-7e290d6fd929baf3ff835252",
+    "head": "EVT-73ea024a6f9f7131a2e54176",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "cli"
   ],
   "stage": {
-    "current": "build",
+    "current": "test",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -40,5 +40,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Apply scratchpad c/apply_c_edits.py, tick tasks, merge origin/main, change check --commit, verify lane on pinned 1.89, open PR (Fixes #911), report 'ready for review'"
+  "next_action": "Run fledge lanes run verify and pre-push on pinned 1.89 at the change check --commit tip, push, open PR (Fixes #911), report 'ready for review'; record verify-lane evidence in Chough only after ship"
 }

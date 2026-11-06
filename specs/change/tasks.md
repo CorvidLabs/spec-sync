@@ -98,3 +98,4 @@ spec: change.spec.md
 - [x] Read `git diff-files` paths relative to the project in working-tree evidence capture, so `change check --commit` works in a subdirectory project, and keep Git's path in the out-of-scope refusal (#879, REQ-change-128).
 - [ ] Decide whether to batch the cold archive-introduction reads (three Git processes per introducing commit) behind the closing check without loosening the partial-clone conclusiveness rules.
 - [x] Find the remote default's archive of a change by the id in each package's `state.json`, with one tree listing and one batched read (#907, REQ-change-139).
+- [x] Report cannot-tell, never no archive, when the remote default's archive cannot be read, and read its root as a literal pathspec (#946, #962, REQ-change-142).

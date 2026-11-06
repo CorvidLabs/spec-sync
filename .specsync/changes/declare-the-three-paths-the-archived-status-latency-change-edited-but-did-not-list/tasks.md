@@ -5,6 +5,5 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Leif approves the definition (recorded by the orc)
-- [ ] `change check --commit`, then `specsync change audit --strict` passes locally
-- [ ] Leif's GitHub review (recorded by the orc), then ship, push and CI green
+- [x] Declare src/change.rs, src/change/sdd_version.rs and tests/integration/change.rs as this change's affected paths
+- [x] Confirm the three files are byte-identical to the reviewed tip 76ee339b

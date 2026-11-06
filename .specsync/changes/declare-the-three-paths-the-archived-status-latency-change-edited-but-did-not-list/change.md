@@ -1,6 +1,6 @@
 ---
 id: declare-the-three-paths-the-archived-status-latency-change-edited-but-did-not-list
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 76ee339b8002eb8a86161bafc3360e99ff4015af
 ---

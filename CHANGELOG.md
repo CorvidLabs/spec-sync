@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The contracts now give one answer about configured verification commands: `change check` does not run `.specsync/sdd.json` `verification_commands`. REQ-change-015 (a reporting mode that ran them) and REQ-cmd-comment-001/002 (comments folding lifecycle failures) are retired, REQ-change-019, 027, 030, 061 and 069 and REQ-cmd-comment-003 cite the rule, and the comparison pages say your CI runs the project's tests. Contract-pin tests fail if a current contract promises execution again. No runtime change (#848).
 - An approval is described as what it is: a record bound by digest to the content it approved, whose actor is an unauthenticated claim. HI CHANGE-6.b ("a coding agent can never grant that approval to itself") is retired for CHANGE-6.d, and REQ-change-001 says the same (#633).
 
 - Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. Race checks still read live. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 110 and `change finalize` from 739 to 287; the slowest lifecycle test went from 15,563 git processes and 343s to 5,996 and 95s on macOS (#861).

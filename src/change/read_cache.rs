@@ -915,6 +915,7 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     // Workers only read, so each starts from what this command already knows about the
     // repository and memoizes its own reads (REQ-git-utils-011).
     let seed = crate::git_utils::repository_fact_seed(root);
+    let deadline = current_read_deadline();
     let (next_ref, pending_ref, results_ref) = (&next, &pending, &results);
     std::thread::scope(|threads| {
         let workers: Vec<_> = (0..workers)
@@ -922,7 +923,11 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
                 let seed = seed.clone();
                 threads.spawn(move || {
                     let _facts = seed.map(crate::git_utils::begin_seeded_repository_fact_scope);
+                    let _deadline = begin_worker_read_deadline(deadline);
                     loop {
+                    if check_read_deadline("archived workflow history", 0, 0).is_err() {
+                        break;
+                    }
                     let index = next_ref.fetch_add(1, Ordering::Relaxed) as usize;
                     let Some((_, record)) = pending_ref.get(index) else {
                         break;
@@ -947,6 +952,7 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     let Ok(results) = results.into_inner() else {
         return;
     };
+    let completed = results.len();
     for (index, result) in results {
         let (key, record) = &pending[index];
         if result.is_ok() {
@@ -956,6 +962,21 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
             scope.workflow_version_history.insert(key.clone(), result);
         });
     }
+    // Workers stop at the deadline; what they finished is recorded above, so the report can keep it.
+    let _ = check_read_deadline("archived workflow history", completed, pending.len());
+}
+
+/// Write every open persistent read cache on this thread, so a read stopped by its deadline keeps
+/// the verdicts it completed (REQ-change-137).
+fn flush_open_read_caches() {
+    HISTORY_CACHE_SCOPES.with(|scopes| {
+        if let Ok(scopes) = scopes.try_borrow() {
+            for (_, frame) in scopes.iter() {
+                flush_persistent_read_cache(frame);
+            }
+        }
+    });
+    flush_change_read_scope_caches();
 }
 
 /// Whether the persistent read cache already knows that workflow-v1 change `id` had a workflow-v1

@@ -74,17 +74,20 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 print_transition_with_handoff(root, &record, format, "historical reconciliation requested; old file transitions remain unproven; fresh definition approval required")
             })
         }
-        ChangeAction::List => {
+        ChangeAction::List { timeout } => {
+            let _deadline = read_deadline_for("change list", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             change::list_changes(root)
                 .and_then(|roster| print_roster(root, &roster, format, strict))
         }
-        ChangeAction::Show { id } => {
+        ChangeAction::Show { id, timeout } => {
+            let _deadline = read_deadline_for("change show", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             change::load_change(root, &id)
                 .and_then(|record| print_record(root, &record, format, true, strict))
         }
-        ChangeAction::Status { id } => {
+        ChangeAction::Status { id, timeout } => {
+            let _deadline = read_deadline_for("change status", timeout, format);
             // A broken policy must not look like "no principles". `rules` already
             // fails here; status was still printing a briefing as if the file parsed.
             if let Err(error) = change::configured_principles_file(root) {
@@ -108,7 +111,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
         }
-        ChangeAction::ShipStatus { id } => {
+        ChangeAction::ShipStatus { id, timeout } => {
+            let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
                 change::load_change(root, &id)
@@ -643,6 +647,45 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     }
 }
 
+/// The read deadline for a read-only command, from `--timeout` or `SPECSYNC_TIMEOUT`
+/// (REQ-cmd-change-032). The resume command is this invocation without its timeout.
+fn read_deadline_for(
+    command: &str,
+    timeout: Option<u64>,
+    format: OutputFormat,
+) -> Option<change::ReadDeadlineGuard> {
+    let limit = change::read_timeout_secs(timeout)?;
+    let resume = resume_command_without_timeout(std::env::args().skip(1));
+    Some(change::begin_read_deadline(
+        limit,
+        command,
+        &resume,
+        matches!(format, OutputFormat::Json),
+    ))
+}
+
+/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed.
+fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String {
+    let mut kept = vec!["specsync".to_string()];
+    let mut args = args.peekable();
+    while let Some(argument) = args.next() {
+        if argument == "--timeout" {
+            args.next();
+            continue;
+        }
+        if argument.starts_with("--timeout=") {
+            continue;
+        }
+        kept.push(
+            if argument.is_empty() || argument.contains(char::is_whitespace) {
+                format!("'{}'", argument.replace('\'', "'\\''"))
+            } else {
+                argument
+            },
+        );
+    }
+    kept.join(" ")
+}
 fn print_record(
     root: &Path,
     record: &ChangeRecord,

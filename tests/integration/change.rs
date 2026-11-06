@@ -3416,6 +3416,122 @@ const VIP_NOTE: &str = "SpecSync cannot tell whether project tests or CI read fi
 // workarounds the issue tried: the record never stales verification before the review, the review
 // passes and finalize accepts it with an uncommitted edit under the prefix.
 // Verifies REQ-change-114 and REQ-cmd-change-024.
+/// Every file under `.specsync/`, with its bytes.
+fn specsync_tree_bytes(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    let mut files = std::collections::BTreeMap::new();
+    let mut pending = vec![root.join(".specsync")];
+    while let Some(dir) = pending.pop() {
+        for entry in fs::read_dir(&dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                files.insert(path.clone(), fs::read(&path).unwrap());
+            }
+        }
+    }
+    files
+}
+
+// REQ-cmd-change-032, REQ-change-137: a read past its deadline exits 124, names the phase and the
+// exact resume command, and writes nothing; the resume command gives the full verdict.
+#[test]
+fn an_archived_status_past_its_timeout_exits_124_and_names_how_to_resume() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    fixture.run(&["change", "check", &id, "--commit"]).success();
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ])
+        .success();
+    fixture.run(&["change", "finalize", &id]).success();
+    fixture.git(&["add", "--all"]);
+    fixture.git(&["commit", "--allow-empty", "-m", "archive the change"]);
+    let before = specsync_tree_bytes(&fixture.root);
+
+    for timeout in [["--timeout", "0"], ["--timeout=0", ""]] {
+        let mut args = vec!["change", "status", id.as_str(), "--json"];
+        args.extend(timeout.iter().filter(|argument| !argument.is_empty()));
+        let output = fixture.run(&args).code(124).get_output().stdout.clone();
+        let report: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(report["error"], "timeout", "{report}");
+        assert_eq!(report["wrote"], false);
+        assert_eq!(report["command"], "change status");
+        assert!(
+            report["phase"]
+                .as_str()
+                .is_some_and(|phase| !phase.is_empty())
+        );
+        let resume = report["resume"].as_str().unwrap();
+        assert!(resume.starts_with("specsync "), "{resume}");
+        assert!(
+            resume.contains(&format!("change status {id} --json")),
+            "{resume}"
+        );
+        assert!(!resume.contains("--timeout"), "{resume}");
+    }
+    let from_env = specsync()
+        .env("SPECSYNC_TIMEOUT", "0")
+        .args([
+            "--root",
+            fixture.root_arg(),
+            "change",
+            "status",
+            &id,
+            "--json",
+        ])
+        .assert()
+        .code(124)
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&from_env).unwrap()["error"],
+        "timeout"
+    );
+    // Text `change status` of an archived change is cheap and reaches no long phase, so it
+    // completes; `ship-status` reads the archive-introduction index and reports in text.
+    let text = fixture
+        .run(&["change", "ship-status", &id, "--timeout", "0"])
+        .code(124)
+        .get_output()
+        .stderr
+        .clone();
+    let text = String::from_utf8(text).unwrap();
+    assert!(
+        text.contains("change ship-status timed out after 0s during")
+            && text.contains("Nothing was written")
+            && text.contains(&format!(
+                "specsync --root {} change ship-status {id}",
+                fixture.root_arg()
+            )),
+        "{text}"
+    );
+    assert_eq!(
+        specsync_tree_bytes(&fixture.root),
+        before,
+        "a timed-out read writes nothing"
+    );
+
+    let full = fixture.status_json();
+    assert_eq!(full["change"]["state"], "archived", "{full}");
+    assert_eq!(
+        full["summary"]["terminal_evidence"]["validity"], "authenticated-history",
+        "{full}"
+    );
+    for bad in ["-1", "abc"] {
+        fixture
+            .run(&["change", "status", &id, "--timeout", bad])
+            .failure()
+            .code(2);
+    }
+}
+
 #[test]
 fn listed_tool_records_do_not_stale_review_through_the_cli() {
     let fixture = VerificationIgnoredCli::new(&[".chough/"]);

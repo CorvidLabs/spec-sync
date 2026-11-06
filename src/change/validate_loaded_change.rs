@@ -448,7 +448,9 @@ fn list_all_changes_loaded(
     if walk_archived_history {
         prefetch_archived_workflow_histories(root, &entries);
     }
-    for entry in entries {
+    let total = entries.len();
+    for (index, entry) in entries.into_iter().enumerate() {
+        check_read_deadline("archived change validation", index, total)?;
         let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
         if !entry
             .file_type()

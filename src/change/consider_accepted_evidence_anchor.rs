@@ -2536,7 +2536,9 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
     // One `diff-tree --stdin` lists what every uncached commit added (REQ-change-135); a commit
     // it did not answer is read on its own, as before.
     let listings = archive_introduction_listings(root, &commits, &history_pathspec);
-    for commit in commits {
+    let total = commits.len();
+    for (done, commit) in commits.into_iter().enumerate() {
+        check_read_deadline("archive-introduction index", done, total)?;
         let listed = listings
             .as_ref()
             .and_then(|listings| listings.get(commit))

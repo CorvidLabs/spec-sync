@@ -150,3 +150,45 @@ fn an_unreadable_upstream_archive_listing_is_reported_not_read_as_absent() {
     assert!(message.contains("origin/main"), "{message}");
     assert!(message.contains("git fetch"), "{message}");
 }
+
+// #962. A project in a repository subdirectory whose name starts with pathspec magic. Passed to
+// `git ls-tree` as a plain pathspec, `:!app/.specsync/archive/` reads as an exclude, the listing
+// fails, and the upstream archive is missed. Read literally from the top, it is found. The
+// project is built as `app` and renamed on both branches, so only the lookup meets the name.
+#[test]
+fn upstream_archive_is_found_in_a_project_directory_named_like_pathspec_magic() {
+    let (temp, app) = subdirectory_project_named("app");
+    let repository = temp.path();
+    let base = quiet_git(repository, &["rev-parse", "HEAD"]).trim().to_string();
+    let archived = archived_workflow_record(&app);
+    let rename_to_magic = |message: &str| {
+        // Ignored files the checkout left behind under the old name go first.
+        let _ = fs::remove_dir_all(repository.join(":!app"));
+        fs::rename(repository.join("app"), repository.join(":!app")).unwrap();
+        quiet_git(repository, &["add", "--all"]);
+        quiet_git(repository, &["commit", "-q", "-m", message]);
+        quiet_git(repository, &["rev-parse", "HEAD"]).trim().to_string()
+    };
+    let archive_commit = rename_to_magic("move the project under a pathspec-magic name");
+
+    let remote = TempDir::new().unwrap();
+    let origin = remote.path().join("origin.git");
+    quiet_git(
+        remote.path(),
+        &["init", "--bare", "-b", "main", origin.to_str().unwrap()],
+    );
+    quiet_git(repository, &["remote", "add", "origin", origin.to_str().unwrap()]);
+    quiet_git(repository, &["push", "origin", "HEAD:refs/heads/main"]);
+    quiet_git(repository, &["fetch", "origin"]);
+    quiet_git(repository, &["remote", "set-head", "origin", "main"]);
+    quiet_git(repository, &["checkout", "-q", "-b", "stale", &base]);
+    rename_to_magic("the stale branch moves the project too");
+    let root = repository.join(":!app");
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    let upstream = upstream_archive_of(&root, &unarchived)
+        .expect("an archive under a pathspec-magic directory name must still be found");
+    assert_eq!(upstream.reference, "origin/main");
+    assert_eq!(upstream.commit, archive_commit);
+}

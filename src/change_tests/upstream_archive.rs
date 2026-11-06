@@ -60,10 +60,45 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
             "{state:?}"
         );
     }
-    assert!(is_dated_package_for(&format!("2026-07-14-{}", unarchived.id), &unarchived.id));
-    assert!(!is_dated_package_for(&format!("2026-07-14-x-{}", unarchived.id), &unarchived.id));
-    assert!(!is_dated_package_for(&format!("x-{}", unarchived.id), &unarchived.id));
     let mut accepted = unarchived.clone();
     accepted.state = ChangeState::Accepted;
     assert!(upstream_archive_of(&root, &accepted).is_some());
+}
+
+// #907. An upstream archive is identified by the id in its `state.json`, as `find_change_dir`
+// does, not by a `YYYY-MM-DD-<id>` directory name: a renamed or undated package still counts.
+#[test]
+fn upstream_archive_is_found_by_its_state_record_not_its_directory_name() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("work");
+    fs::create_dir_all(&root).unwrap();
+    quiet_git(&root, &["init", "-b", "main"]);
+    quiet_git(&root, &["config", "user.email", "test@example.com"]);
+    quiet_git(&root, &["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    quiet_git(&root, &["add", "seed.txt"]);
+    quiet_git(&root, &["commit", "-m", "seed"]);
+    let base = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let archived = archived_workflow_record(&root);
+    let dated = format!("{ARCHIVE_PATH}/2026-07-14-{}", archived.id);
+    let renamed = format!("{ARCHIVE_PATH}/legacy-package");
+    quiet_git(&root, &["mv", &dated, &renamed]);
+    quiet_git(&root, &["commit", "-m", "rename the archived package"]);
+
+    let origin = temp.path().join("origin.git");
+    quiet_git(
+        temp.path(),
+        &["init", "--bare", "-b", "main", origin.to_str().unwrap()],
+    );
+    quiet_git(&root, &["remote", "add", "origin", origin.to_str().unwrap()]);
+    quiet_git(&root, &["push", "origin", "HEAD:refs/heads/main"]);
+    quiet_git(&root, &["fetch", "origin"]);
+    quiet_git(&root, &["remote", "set-head", "origin", "main"]);
+    quiet_git(&root, &["checkout", "-q", "-b", "stale", &base]);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    let upstream = upstream_archive_of(&root, &unarchived)
+        .expect("a renamed upstream package must still be found by its state record");
+    assert_eq!(upstream.reference, "origin/main");
 }

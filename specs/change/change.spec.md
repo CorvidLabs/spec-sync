@@ -1,6 +1,6 @@
 ---
 module: change
-version: 187
+version: 189
 status: active
 files:
   - src/change.rs
@@ -651,6 +651,7 @@ Acceptance Criteria
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | find-an-upstream-archive-by-the-id-in-its-state-record-rather-than-its-directory-name: Find an upstream archive by the id in its state record rather than its directory name |
 | 2026-11-06 | reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a: Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878) |
 | 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |
 | 2026-11-06 | report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it: Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it |
@@ -663,3 +664,4 @@ Acceptance Criteria
 | 2026-11-06 | S9: one `diff-tree --stdin` for the archive-introduction index (REQ-change-135); the workflow-v1 cutoff check comes from the cutoff tree and is cached by the cutoff commit (REQ-change-136); read-only commands take a deadline that reports the phase and resume command (REQ-change-137) |
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged: Require a fresh review after a send-back even when the scope comes back unchanged |
+| 2026-11-06 | a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s: A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader |

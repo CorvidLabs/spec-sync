@@ -13,3 +13,4 @@ artifact: tasks
 - [x] Show recorded claims and relays in `change status` text and JSON.
 - [x] Update CLI help, README, the workflow and CLI guides, and the CHANGELOG.
 - [x] Record requirement evidence in the module testing files.
+- [x] Codex review of #900: keep `--verdict` in the named re-run, leave relays out of correction digests, and check the decider on read; file #904 for the uncommitted-review recovery.

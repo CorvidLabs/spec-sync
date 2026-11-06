@@ -3772,7 +3772,8 @@ fn correction_prefix_digest(
     digest.frame(b"change-id", record.id.as_bytes());
     digest.frame(b"count", corrections.len().to_string().as_bytes());
     for correction in corrections {
-        let bytes = serde_json::to_vec(correction)
+        // Without the embedded approvals' relayed decisions (#633), like `corrected_view_digest`.
+        let bytes = serde_json::to_vec(&correction_digest_projection(correction))
             .map_err(|error| format!("failed to hash correction prefix: {error}"))?;
         digest.frame(b"correction", &bytes);
     }

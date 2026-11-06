@@ -176,6 +176,29 @@ fn scoped_review_digest(review: &ScopedReviewRecord) -> Result<String, String> {
         .map_err(|error| format!("failed to hash scoped review: {error}"))
 }
 
+/// A correction event as its digests hash it: the two approvals it embeds lose `relayed_by`, so
+/// corrections recorded before this field existed keep their digests and an older 6.x binary
+/// that drops the key computes the same ones.
+fn correction_digest_projection(correction: &CorrectionRecord) -> CorrectionRecord {
+    let mut projected = correction.clone();
+    projected.superseded_definition_approval.relayed_by = None;
+    projected.superseded_closing_approval.relayed_by = None;
+    projected
+}
+
+/// A relay read back from a ledger must still name its record's own actor or reviewer: one
+/// record names one decider, on read as on write.
+fn ensure_read_relays_name_their_deciders<'a>(
+    records: impl IntoIterator<Item = (&'a str, Option<&'a RelayedDecision>)>,
+    flag: &str,
+) -> Result<(), String> {
+    for (decider, relay) in records {
+        ensure_relay_names_the_decider(relay, decider, flag)
+            .map_err(|error| format!("recorded relayed_by does not match its record: {error}"))?;
+    }
+    Ok(())
+}
+
 /// A read refusal caused by a malformed relay record names restoring the file from Git.
 fn with_relayed_read_recovery(root: &Path, path: &Path, message: String) -> String {
     if !message.contains("relayed_by") {
@@ -242,6 +265,11 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
                 format!("invalid independent scoped review evidence: {error}"),
             )
         })?;
+        ensure_read_relays_name_their_deciders(
+            [(review.reviewer.as_str(), review.relayed_by.as_ref())],
+            "the review's reviewer",
+        )
+        .map_err(|message| with_relayed_read_recovery(root, &review_path, message))?;
         claims.push(RecordedClaim {
             gate: "review".into(),
             name: review.reviewer.clone(),

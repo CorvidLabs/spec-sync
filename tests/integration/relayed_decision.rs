@@ -538,11 +538,16 @@ fn a_malformed_relay_record_is_refused_naming_git_checkout_and_that_command_reco
     let relative = format!(".specsync/changes/{ID}/approvals.json");
     let original = fs::read_to_string(project.approvals_path()).unwrap();
 
-    for replacement in [
-        "\"relayed_by\": {\n        \"signed\": true,",
-        "\"relayed_by\": null, \"unused\": {",
+    for (from, replacement) in [
+        (
+            "\"relayed_by\": {",
+            "\"relayed_by\": {\n        \"signed\": true,",
+        ),
+        ("\"relayed_by\": {", "\"relayed_by\": null, \"unused\": {"),
+        // One record names one decider, on read as on write (#900 review).
+        ("\"decided_by\": \"Ada\"", "\"decided_by\": \"Mallory\""),
     ] {
-        let edited = original.replacen("\"relayed_by\": {", replacement, 1);
+        let edited = original.replacen(from, replacement, 1);
         assert_ne!(edited, original);
         fs::write(project.approvals_path(), edited).unwrap();
         let refused = project.run(&["change", "status", ID]).failure();
@@ -587,4 +592,55 @@ fn relayed_words_are_escaped_in_text_status() {
         text.contains("said \"Approve\\u{1b}[31m it\\nnow\""),
         "{text}"
     );
+}
+
+/// DISCRIMINATOR for the #900 review (P1): a blocking review refused for an incomplete relay
+/// names a re-run that keeps `--verdict block`, and running it records a block, not a pass.
+#[test]
+fn a_refused_blocking_review_names_a_rerun_that_keeps_the_verdict() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.implemented_and_checked();
+    let refused = project
+        .run(&[
+            "change",
+            "review",
+            ID,
+            "--reviewer",
+            ACTOR,
+            "--verdict",
+            "block",
+            "--words",
+            REVIEW_WORDS,
+        ])
+        .failure();
+    let error = String::from_utf8(refused.get_output().stderr.clone()).unwrap();
+    assert!(
+        error.contains(&format!(
+            "specsync change review {ID} --reviewer <who decided> --verdict block --words"
+        )),
+        "{error}"
+    );
+    project
+        .run(&[
+            "change",
+            "review",
+            ID,
+            "--reviewer",
+            ACTOR,
+            "--verdict",
+            "block",
+            "--words",
+            REVIEW_WORDS,
+            "--where",
+            WHERE,
+            "--recorded-by",
+            AGENT,
+        ])
+        .success();
+    let review: Value =
+        serde_json::from_slice(&fs::read(project.workspace().join("review.json")).unwrap())
+            .unwrap();
+    assert_eq!(review["verdict"], "block");
+    assert_eq!(review["relayed_by"], expected_relay(REVIEW_WORDS));
 }

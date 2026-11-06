@@ -20,3 +20,5 @@ CLI tests in `tests/integration/relayed_decision.rs` drive the built binary thro
 | REQ-cli-args-relayed-decision-001 | grammar test for the three flags on approve and review |
 
 The tests are written first and fail against `b179a4f2` (unknown flags, missing record). `fledge lanes run verify` runs before review.
+
+Codex review of #900 (`e5716ab2`): the rerun named for an incomplete relayed review now keeps `--verdict` (and `--note`/`--portable-5-0-1` for approve); both correction digests hash embedded approvals without `relayed_by`; and a relay read back must name its record's own actor or reviewer. Tests: `a_refused_blocking_review_names_a_rerun_that_keeps_the_verdict`, `correction_digests_leave_embedded_relays_out` and `a_read_relay_must_name_its_own_record_decider`, plus a decider-mismatch case in the malformed-relay CLI test, which runs the recovery. The two unit tests fail with their fix removed. The uncommitted-`review.json` recovery gap is #904.

@@ -217,3 +217,77 @@ fn recorded_claims_skip_an_approval_a_send_back_cancelled() {
     assert_eq!(claims[0].name, "Bea");
     assert_eq!(claims[0].relayed_by, None);
 }
+
+/// DISCRIMINATOR for the #900 review (P1): a correction event embeds the approvals it supersedes,
+/// and both correction digests hash it. They hash it without the relayed decision, so a
+/// correction over a relayed approval keeps the digest an older 6.x binary computes after
+/// dropping the key, and every recorded correction keeps its digest.
+#[test]
+fn correction_digests_leave_embedded_relays_out() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    let plain = correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release reviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap()
+    .correction;
+    assert_eq!(
+        corrected_view_digest(&plain.prior_view_digest, &plain).unwrap(),
+        plain.corrected_view_digest,
+        "a correction without a relay keeps its recorded digest"
+    );
+    let mut relayed = plain.clone();
+    relayed.superseded_definition_approval.relayed_by = Some(relay("Release reviewer"));
+    relayed.superseded_closing_approval.relayed_by = Some(relay("Release reviewer"));
+    assert!(
+        serde_json::to_string(&relayed).unwrap().contains("relayed_by"),
+        "the relay stays in the stored event"
+    );
+    assert_eq!(
+        corrected_view_digest(&relayed.prior_view_digest, &relayed).unwrap(),
+        plain.corrected_view_digest
+    );
+    let change = load_change(root, &record.id).unwrap();
+    assert_eq!(
+        correction_prefix_digest(&change, std::slice::from_ref(&relayed)).unwrap(),
+        correction_prefix_digest(&change, std::slice::from_ref(&plain)).unwrap()
+    );
+}
+
+/// DISCRIMINATOR for the #900 review (P2): one record names one decider on read as on write. A
+/// hand-edited relay naming someone other than the approval's actor is refused, naming the
+/// `git checkout` recovery.
+#[test]
+fn a_read_relay_must_name_its_own_record_decider() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    approve_definition_with_relay(
+        root,
+        &record.id,
+        Some("Ada".into()),
+        None,
+        false,
+        Some(relay("Ada")),
+    )
+    .unwrap();
+    let path = change_dir(root, &record.id).join("approvals.json");
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(
+        &path,
+        text.replacen("\"decided_by\": \"Ada\"", "\"decided_by\": \"Mallory\"", 1),
+    )
+    .unwrap();
+    let record = load_change(root, &record.id).unwrap();
+    let error = load_approvals(root, &record).unwrap_err();
+    assert!(error.contains("says `Mallory` decided"), "{error}");
+    assert!(error.contains("git checkout HEAD -- "), "{error}");
+    assert!(recorded_claims(root, &record).is_err());
+}

@@ -183,7 +183,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             relay_where,
             recorded_by,
         } => change::relayed_decision(
-            &format!("specsync change approve {id} --actor <who decided>"),
+            // The re-run keeps every flag that changes what is recorded (#900 review).
+            &format!(
+                "specsync change approve {id} --actor <who decided>{}{}",
+                if note.is_some() { " --note \"<your note>\"" } else { "" },
+                if portable_5_0_1 { " --portable-5-0-1" } else { "" }
+            ),
             actor.as_deref(),
             words,
             relay_where,
@@ -230,7 +235,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             relay_where,
             recorded_by,
         } => change::relayed_decision(
-            &format!("specsync change review {id} --reviewer <who decided>"),
+            // The re-run keeps the verdict: dropping `--verdict block` would record a pass (#900
+            // review).
+            &format!("specsync change review {id} --reviewer <who decided> --verdict {verdict}"),
             Some(reviewer.trim()),
             words,
             relay_where,

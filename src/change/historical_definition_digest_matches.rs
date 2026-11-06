@@ -99,6 +99,9 @@ fn initial_correction_view_digest(record: &ChangeRecord) -> Result<String, Strin
 }
 
 fn corrected_view_digest(previous: &str, record: &CorrectionRecord) -> Result<String, String> {
+    // The embedded approvals are hashed without their relayed decision (#633), as the review
+    // digest is, so an older 6.x binary that drops the key computes the same digest.
+    let record = &correction_digest_projection(record);
     let payload = CorrectionDigestPayload {
         schema_version: record.schema_version,
         sequence: record.sequence,
@@ -1219,6 +1222,11 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
             format!("invalid scoped review attempt history: {error}"),
         )
     })?;
+    ensure_read_relays_name_their_deciders(
+        [(review.reviewer.as_str(), review.relayed_by.as_ref())],
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
 }

@@ -815,7 +815,7 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
     let path = find_change_dir(root, &record.id)?.join("approvals.json");
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&content).map_err(|error| {
+    let ledger: ApprovalLedger = serde_json::from_str(&content).map_err(|error| {
         let message = error.to_string();
         if message.contains("missing field `stale_acceptance_input_digest`")
             || message.contains("missing field `current_acceptance_input_digest`")
@@ -824,7 +824,16 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
         } else {
             with_relayed_read_recovery(root, &path, message)
         }
-    })
+    })?;
+    ensure_read_relays_name_their_deciders(
+        ledger
+            .approvals
+            .iter()
+            .map(|approval| (approval.actor.as_str(), approval.relayed_by.as_ref())),
+        "the approval's actor",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    Ok(ledger)
 }
 
 /// Accepted acceptance-input entries for a change, or an empty list when it has no

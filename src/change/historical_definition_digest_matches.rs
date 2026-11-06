@@ -3795,15 +3795,15 @@ fn summarize_change_with_effective(
     };
     // Checkbox state is outside every digest the currency helpers above compare, so an open task
     // never shows up as staleness. Name it before the step it would refuse (REQ-change-132).
-    let next_action = match (record.state, effective) {
-        (
-            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying,
-            Some(definition),
-        ) if sequence_freeze.is_none()
-            && !matches!(verification_ignored, Some(Err(_)))
-            && upstream_archive.is_none()
-            && approval_valid
-            && artifacts_complete =>
+    // A workflow-v2 change accepted by a finalization that stopped before the archive move is
+    // told the same, so the retry it is pointed at does not refuse it unexplained.
+    let next_action = match effective {
+        Some(definition)
+            if open_tasks_block(record)
+                && sequence_freeze.is_none()
+                && !matches!(verification_ignored, Some(Err(_)))
+                && upstream_archive.is_none()
+                && (record.state == ChangeState::Accepted || (approval_valid && artifacts_complete)) =>
         {
             match open_tasks_selected(root, &record.id, &definition.selected_artifacts) {
                 Ok(open) if !open.is_empty() => format!(

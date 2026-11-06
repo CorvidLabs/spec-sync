@@ -964,9 +964,11 @@ fn text_mode_next_action(
                 "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — scoped review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving"
             ),
         ),
-        ChangeState::Accepted if record.workflow_version >= 2 => {
-            format!("run `specsync change ship {id}` or `specsync change finalize {id}`")
-        }
+        ChangeState::Accepted if record.workflow_version >= 2 => open_tasks_first(
+            root,
+            record,
+            format!("run `specsync change ship {id}` or `specsync change finalize {id}`"),
+        ),
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
     }
@@ -1074,13 +1076,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // No digest sees checkbox state, so the currency blockers below cannot report an open task;
     // check, review, finalize and ship would each refuse it (REQ-cmd-change-031). A change already
     // archived upstream is told that instead.
-    let open_tasks_step = (upstream_archive.is_none()
-        && matches!(
-            record.state,
-            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-        ))
-    .then(|| change::open_tasks_next_step(root, record))
-    .flatten();
+    let open_tasks_step = (upstream_archive.is_none() && change::open_tasks_block(record))
+        .then(|| change::open_tasks_next_step(root, record))
+        .flatten();
     if let Some(step) = &open_tasks_step {
         blockers.push(format!("tasks.md contains incomplete tasks: {step}"));
     }
@@ -2397,10 +2395,8 @@ fn run_ship(
     }
     // Before the generic readiness refusal, so the command to re-run is this one, flags and all
     // (REQ-cmd-change-031). A change already archived upstream gets that blocker below instead.
-    if matches!(
-        record.state,
-        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-    ) && change::upstream_archive_of(root, &record).is_none()
+    if change::open_tasks_block(&record)
+        && change::upstream_archive_of(root, &record).is_none()
         && let Some(refusal) = change::open_tasks_refusal(
             root,
             &record,
@@ -3791,6 +3787,81 @@ if the floor call is removed from this function"
     /// satisfied and the whole class of changes goes permanently red. That is the failure
     /// #689 removed from the verification half, and trading a false green for a permanent
     /// false red is not a fix.
+    /// Verifies REQ-cmd-change-031 (Codex review of #903). DISCRIMINATOR: a workflow-v2 change
+    /// accepted by a finalization that stopped before the archive move, with a task reopened
+    /// before the retry status points at. ship-status lists the task as a blocker and names it
+    /// first, the text status names it, and ship refuses naming the task and its own command.
+    #[test]
+    fn ship_names_a_task_reopened_after_acceptance() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Ship a task reopened after acceptance".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: vec![ArtifactKind::Tasks],
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "implement"]);
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record verification"]);
+        // Acceptance binds verification to HEAD, so verify the committed tree once more.
+        change::check_change(root, Some(&id)).expect("check the committed tree");
+        // A finalization that stopped here: accepted, still in its workspace.
+        let accepted = change::accept_change(root, &id, None, None).expect("accept");
+        assert_eq!(accepted.state, ChangeState::Accepted);
+        assert!(accepted.workflow_version >= 2, "the fixture is workflow v2");
+        let tasks = root.join(".specsync/changes").join(&id).join("tasks.md");
+        fs::write(&tasks, "# Tasks\n\n- [ ] Reopened after acceptance.\n").expect("reopen");
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(report["ready_to_finalize"], false, "{report}");
+        let blockers = report["blockers"].as_array().expect("blockers");
+        assert!(
+            blockers
+                .iter()
+                .any(|blocker| blocker.as_str().is_some_and(|text| text
+                    .starts_with("tasks.md contains incomplete tasks: finish the 1 open task"))),
+            "ship-status lists the reopened task: {blockers:?}"
+        );
+        let next = report["ship_next"].as_str().expect("ship_next");
+        assert!(next.starts_with("finish the 1 open task"), "{next}");
+        let text = text_mode_next_action(root, &record, &[]);
+        assert!(text.starts_with("finish the 1 open task"), "{text}");
+
+        let refusal = run_ship(
+            root,
+            Some(&id),
+            false,
+            false,
+            false,
+            900,
+            OutputFormat::Json,
+            false,
+        )
+        .expect_err("ship refuses the open task");
+        assert!(
+            refusal.starts_with("tasks.md contains incomplete tasks"),
+            "{refusal}"
+        );
+        assert!(
+            refusal.ends_with(&format!("then re-run `specsync change ship {id}`")),
+            "{refusal}"
+        );
+    }
+
     #[test]
     fn ship_status_is_ready_when_the_scoped_review_is_current() {
         let temp = TempDir::new().expect("temp project");

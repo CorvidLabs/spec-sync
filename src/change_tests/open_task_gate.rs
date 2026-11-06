@@ -145,6 +145,15 @@ fn a_resumed_finalization_still_in_its_workspace_refuses_a_reopened_task() {
     assert!(done.contains("- [x] "), "the fixture selects a ticked task: {done}");
     fs::write(&tasks, done.replacen("- [x] ", "- [ ] ", 1)).unwrap();
 
+    // Status points at the retry and names the task first (REQ-change-132).
+    let next = summarize_change(root, &load_change(root, &record.id).unwrap()).next_action;
+    assert!(next.starts_with("finish the 1 open task in "), "{next}");
+    assert!(
+        next.ends_with(&format!("then run `specsync change finalize {}`", record.id)),
+        "{next}"
+    );
+    assert!(open_tasks_block(&load_change(root, &record.id).unwrap()));
+
     let refusal = finalize_change(root, &record.id).unwrap_err();
     assert!(refusal.starts_with(OPEN_TASKS_REFUSAL), "{refusal}");
     let named = format!("then re-run `specsync change finalize {}`", record.id);
@@ -159,5 +168,8 @@ fn a_resumed_finalization_still_in_its_workspace_refuses_a_reopened_task() {
     fs::write(&tasks, &done).unwrap();
     let archive = finalize_change(root, &record.id).unwrap();
     assert!(archive.starts_with(root.join(ARCHIVE_PATH)), "{}", archive.display());
+    // A moved workspace names no task: its tasks.md is no longer read.
+    fs::write(archive.join("tasks.md"), done.replacen("- [x] ", "- [ ] ", 1)).unwrap();
+    assert_eq!(open_tasks_next_step(root, &load_change(root, &record.id).unwrap()), None);
     assert_eq!(load_change(root, &record.id).unwrap().state, ChangeState::Archived);
 }

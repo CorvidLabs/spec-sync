@@ -815,6 +815,16 @@ fn open_tasks_sentence(id: &str, open: &[OpenTask]) -> String {
     format!("finish the {count} in `{CHANGES_PATH}/{id}/tasks.md` ({listed}) and {close}")
 }
 
+/// Whether an open task blocks this change's next lifecycle verb: an approved, implementing or
+/// verifying change, or a workflow-v2 finalization that stopped after acceptance. Once that
+/// workspace has moved into the archive its `tasks.md` is no longer read, so nothing is named.
+pub fn open_tasks_block(record: &ChangeRecord) -> bool {
+    matches!(
+        record.state,
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+    ) || (record.state == ChangeState::Accepted && record.workflow_version >= 2)
+}
+
 /// What has to happen before this change can be checked, reviewed or finalized: its open tasks
 /// by line and text, and how to close them (REQ-change-132). `None` when every selected task is
 /// done, when the change does not select `tasks.md`, or when the file cannot be read, which the

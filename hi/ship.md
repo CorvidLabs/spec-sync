@@ -52,3 +52,4 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
   - **SHIP-12.d**  Closing late asks who is authorizing it and why, and that reason stays in the change's history.
   - **SHIP-12.e**  A change whose pull request has not merged cannot be closed late.
   - **SHIP-12.f**  I can close several at once, and each one is recorded as if I had closed it alone.
+  - **SHIP-12.g**  A change closed late does not trip up an older version of SpecSync, and that older version never counts it as checked.

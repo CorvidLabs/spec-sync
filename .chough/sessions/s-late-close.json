@@ -1,11 +1,11 @@
 {
   "history_cursor": {
     "cycle": "CYC-e08f7052312cfd6b8bbd4f85",
-    "head": "EVT-459152ae6bae1d3f66642e83",
+    "head": "EVT-1ced061022c6834e8c7480c4",
     "legacy": null
   },
   "schema_version": 2,
-  "objective": "Let a change that merged long ago but was never archived be closed late in one audited step that records it as never re-checked (#833, SHIP-12)",
+  "objective": "specsync doctor: report every change problem with its fix; close merged-but-unarchived changes late into .specsync/archive/closed-late/, which 6.0-6.2 never read (#833, SHIP-12, RECOVER-3)",
   "intent_scope": "SHIP",
   "modules": [
     "change",
@@ -18,7 +18,7 @@
     "callers": [],
     "iteration": 1
   },
-  "native_change": "close-a-change-that-merged-but-was-never-archived-in-one-audited-late-close-that-records-it-as-never-re-checked",
+  "native_change": "add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync",
   "references": {
     "criteria": [
       "SHIP-12",
@@ -27,26 +27,38 @@
       "SHIP-12.c",
       "SHIP-12.d",
       "SHIP-12.e",
-      "SHIP-12.f"
+      "SHIP-12.f",
+      "SHIP-12.g",
+      "RECOVER-3",
+      "RECOVER-3.a",
+      "RECOVER-3.b",
+      "RECOVER-3.c",
+      "RECOVER-3.d"
     ],
     "requirements": [
-      "REQ-change-143"
+      "REQ-change-143",
+      "REQ-cmd-change-035",
+      "REQ-cli-args-025"
     ],
     "cases": [],
     "design": [],
     "files": []
   },
   "decisions": [
-    "Leif via orc t18 ('Capture all + approve design', 2026-11-06): capture SHIP-12 and .a-.f verbatim; D1 closed_late is a new terminal state (rejected: archived plus a marker, which could pass as verified); D2 drafts closable, recorded never approved; D3 several IDs all-or-nothing plus --dry-run (--all-merged deferred); D4 this PR first; it Fixes #833; the reopen overflow is #976 in its own PR (REQ-change-144)."
+    "Leif via orc t18 ('Capture all + approve design', 2026-11-06): capture SHIP-12 and .a-.f verbatim; D1 closed_late is a new terminal state (rejected: archived plus a marker, which could pass as verified); D2 drafts closable, recorded never approved; D3 several IDs all-or-nothing plus --dry-run (--all-merged deferred); D4 this PR first; it Fixes #833; the reopen overflow is #976 in its own PR (REQ-change-144).",
+    "Leif via orc t18 (new direction, 2026-11-06): build it as specsync doctor; the late close is one doctor fix stored where 6.x never reads; ship in 6.3.0 with no new state (rejected: closed_late ChangeState, which 6.0-6.2 cannot parse; rejected: top-level .specsync/closed-late/, which 6.x treats as a project input).",
+    "Leif via orc t18 ('Capture + recommended design'): capture SHIP-12.g and RECOVER-3 .a-.d verbatim; D2 stale verification is report-only; D3 --close-late <id>... or all with --actor/--reason; D4 the 6.0.0/6.2.0 compat test runs in CI; D5 a collision member drops and records its acknowledgement; IDs REQ-change-143 (reworded), REQ-cmd-change-035, REQ-cli-args-025. Remove the never-approved close-late draft."
   ],
   "open_questions": [],
-  "completed": [],
+  "completed": [
+    "Proof: real 6.0.0, 6.0.1, 6.1.0, 6.1.1, 6.1.2, 6.2.0 and main ignore .specsync/archive/closed-late/ (synthetic fixture and site clone); limits L1-L4 recorded in research.md"
+  ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
-    "Leif's scope approval of the close-late change, relayed by orc t18"
+    "Leif's scope approval of the doctor change, relayed by orc t18"
   ],
   "run_consents": [],
-  "next_action": "Send 'ready for approval' to orc t18; then write the failing tests (testing.md 1-8) and record that they fail on main f7180c34"
+  "next_action": "Send 'ready for approval' to orc t18; then write the failing tests and record that they fail on 1276e314"
 }

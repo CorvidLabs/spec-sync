@@ -1682,6 +1682,18 @@ Acceptance Criteria
 - Without an upstream archive, a squash before finalize still reviews and finalizes.
 - An unarchived record whose archive `HEAD` already contains is not refused.
 
+### REQ-change-133
+
+When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
+
+Acceptance Criteria
+- With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
+- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
+- A definition that approval refused before is still refused.
+
 ### REQ-change-131
 
 A lifecycle command that verifies a change, records a passing scoped review of it, or finalizes it SHALL refuse while the change's selected `tasks.md` has an open task, a `[ ]` checkbox outside fenced code. The refusal SHALL come before the command writes any record. This SHALL hold for a task reopened after a passing check, although checkbox state is outside the approval and verification digests. The refusal SHALL name:
@@ -1707,15 +1719,31 @@ A lifecycle command that verifies a change, records a passing scoped review of i
 - With one open task on an approved change, text and JSON status name the task file, the task's line and text, and then `specsync change check <id>`.
 - After a passing check with one task reopened, text and JSON status name the open task before the review step.
 
-### REQ-change-133
+### REQ-change-135
 
-When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
+The archive-introduction index SHALL be built from one `git log` walk of the archive root that names the paths each commit added, and SHALL read package bytes through the per-command object batch reader, so the Git processes a cold archived `change status` spawns SHALL NOT grow with the number of commits that introduced archives. The index SHALL hold the same introductions, and every refusal it backs SHALL be unchanged (SPEED-1.a).
 
 Acceptance Criteria
-- With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
-- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
-- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
-- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
-- An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
-- A definition that approval refused before is still refused.
+- `cold_archive_introduction_index_does_not_grow_with_archive_introductions`: a cold index build spawns fewer than 3 more Git processes after 4 more archive-introducing commits.
+- The index built from one walk equals the per-commit index on the same history, including merge commits and packages added in more than one commit.
+- The deterministic history bound still refuses a history over it.
+
+### REQ-change-136
+
+Whether a workflow-v1 change existed at the trusted pre-v2 cutoff SHALL be decided from the cutoff commit's own tree, read once per command for all workflow-v1 changes, and the verdict SHALL be kept in the persistent read cache keyed by the cutoff commit, which never changes. A warm archived `change status` SHALL NOT spawn more Git processes as the project holds more workflow-v1 changes (SPEED-1.a, SPEED-1.c).
+
+Acceptance Criteria
+- `warm_archived_status_git_processes_do_not_grow_with_legacy_changes`: six more workflow-v1 changes add fewer than 3 Git processes.
+- A workflow-v1 change absent at the cutoff, added after it, or present at it only under another id is still refused with the existing message.
+- A workflow-v1 change archived or moved after the cutoff is still accepted.
+- A hidden workflow downgrade is still refused, cached or not.
+
+### REQ-change-137
+
+A read-only lifecycle read given a deadline SHALL stop at the next phase boundary once the deadline passes, SHALL write nothing to the change, SHALL flush every verdict it completed to the persistent read cache, and SHALL report the phase it was in, its progress within that phase when known, and the exact command that resumes it.
+
+Acceptance Criteria
+- A read stopped by its deadline leaves every change file byte-identical.
+- Verdicts completed before the deadline are in the read cache afterwards, so the next run does not redo them.
+- The report names the phase and progress, for example `archive-introduction index` and `140/214`.
 

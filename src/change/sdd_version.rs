@@ -224,6 +224,17 @@ impl Drop for ChangeReadScope {
     }
 }
 
+/// Write the persistent read cache of every open change read scope on this thread.
+fn flush_change_read_scope_caches() {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        if let Ok(scopes) = scopes.try_borrow() {
+            for scope in scopes.iter() {
+                flush_persistent_read_cache(&scope.persistent_cache);
+            }
+        }
+    });
+}
+
 pub(crate) fn begin_change_read_scope(root: &Path) -> ChangeReadScope {
     CHANGE_READ_SCOPES.with(|scopes| {
         scopes.borrow_mut().push(ChangeReadSnapshot::new(root));

@@ -77,6 +77,274 @@ fn archived_status_git_processes_do_not_grow_with_other_archives() {
     );
 }
 
+/// A repository whose first `legacy` changes were made under workflow v1 and committed as the
+/// trusted pre-v2 cutoff, then adopted workflow v2 and finalized one change. Returns that
+/// archived change. Most real archives look like this: their archived workflow-v1 changes must
+/// each be shown to have existed at the cutoff.
+fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
+    legacy_repository(root, legacy);
+    finalized_archived_change(root)
+}
+
+/// A repository with `legacy` archived workflow-v1 changes committed as the trusted pre-v2
+/// cutoff, then adopted to workflow v2.
+fn legacy_repository(root: &Path, legacy: usize) {
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.version = 1;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    for _ in 0..legacy {
+        let record = completed_no_spec_record(root);
+        assert_eq!(record.workflow_version, 1);
+        // Carried through the workflow-v1 lifecycle to its archive, as most real legacy
+        // changes were before their project adopted workflow v2.
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        accept_change(root, &record.id, Some("Acceptor".into()), None).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "accept legacy change"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        archive_change(root, &record.id).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "archive legacy change"]);
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "--allow-empty", "-m", "trusted workflow-v1 cutoff"]);
+    quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    adopt(root, false, None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+}
+
+/// Git processes one warm `change status` of an archived change spawns in a repository holding
+/// `legacy` workflow-v1 changes.
+fn warm_archived_status_processes_with_legacy_changes(legacy: usize) -> usize {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let target = repository_with_legacy_changes(root, legacy);
+    git_processes_for_one_scoped_read(root, &target.id).0.unwrap();
+    let (result, processes) = git_processes_for_one_scoped_read(root, &target.id);
+    result.unwrap();
+    processes
+}
+
+// S9 (SPEED-1.a): an archived change's status must not walk history once per workflow-v1 change
+// in the project. On this repository 73 such walks are about 49 s of a warm read.
+#[test]
+fn warm_archived_status_git_processes_do_not_grow_with_legacy_changes() {
+    let with_two = warm_archived_status_processes_with_legacy_changes(2);
+    let with_eight = warm_archived_status_processes_with_legacy_changes(8);
+    eprintln!(
+        "warm archived status Git processes: {with_two} with two workflow-v1 changes, \
+         {with_eight} with eight"
+    );
+    assert!(
+        with_eight < with_two + 3,
+        "six more workflow-v1 changes added {} Git processes to one warm archived status read \
+         ({with_two} with two, {with_eight} with eight)",
+        with_eight.saturating_sub(with_two)
+    );
+}
+
+// REQ-change-136: the cutoff-tree answer equals the history-walk answer it replaces.
+#[test]
+fn cutoff_tree_verdict_equals_the_history_walk_verdict() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    repository_with_legacy_changes(root, 2);
+    let cutoff = read_workflow_v2_baseline(root)
+        .unwrap()
+        .unwrap()
+        .0
+        .cutoff_commit
+        .unwrap();
+    let records = list_all_changes_checked(root).unwrap();
+    let legacy: Vec<&ChangeRecord> = records
+        .values()
+        .filter(|record| record.workflow_version == 1)
+        .collect();
+    assert_eq!(legacy.len(), 2);
+    for record in &legacy {
+        assert!(workflow_v1_record_exists_at_cutoff(root, record, &cutoff).unwrap());
+        assert!(workflow_v1_record_present_in_cutoff_tree(root, record, &cutoff).unwrap());
+    }
+
+    // A workflow-v1 record that first appears after the cutoff.
+    let mut late = (*legacy[0]).clone();
+    late.id = "late-legacy-change".into();
+    let late_dir = root.join(CHANGES_PATH).join(late.id.as_str());
+    fs::create_dir_all(&late_dir).unwrap();
+    write_json(&late_dir.join("state.json"), &late).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "workflow-v1 record after the cutoff"]);
+    let walked = workflow_v1_record_exists_at_cutoff(root, &late, &cutoff).unwrap();
+    assert!(!walked, "a record added after the cutoff is absent at it");
+    assert_eq!(
+        workflow_v1_record_present_in_cutoff_tree(root, &late, &cutoff).unwrap(),
+        walked
+    );
+
+    // A presence is remembered in the persistent read cache under the immutable cutoff; the
+    // absence above is a refusal and is never stored.
+    {
+        let _scope = begin_change_read_scope(root);
+        assert!(workflow_v1_record_present_in_cutoff_tree(root, legacy[0], &cutoff).unwrap());
+        assert!(!workflow_v1_record_present_in_cutoff_tree(root, &late, &cutoff).unwrap());
+    }
+    let cache: serde_json::Value = serde_json::from_slice(
+        &fs::read(persistent_read_cache_path(root).expect("the read cache is enabled")).unwrap(),
+    )
+    .unwrap();
+    let remembered = cache["workflow_v1_at_cutoff"].as_array().unwrap();
+    assert!(remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", legacy[0].id))));
+    assert!(!remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", late.id))));
+}
+
+/// Git processes one archived status read spawns with no persistent read cache.
+fn cold_archived_status_processes(root: &Path, id: &str) -> usize {
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
+    let (result, processes) = git_processes_for_one_scoped_read(root, id);
+    result.unwrap();
+    processes
+}
+
+/// Git processes building the archive-introduction index spawns with no persistent read cache.
+fn cold_archive_introduction_index_processes(root: &Path) -> usize {
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
+    let _scope = begin_change_read_scope(root);
+    reset_test_git_process_count();
+    archive_introduction_index(root).unwrap();
+    test_git_process_count()
+}
+
+// S9 (REQ-change-135): the archive-introduction index is built from one walk, so a cold build
+// must not cost Git processes per archive-introducing commit.
+#[test]
+fn cold_archive_introduction_index_does_not_grow_with_archive_introductions() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    finalized_archived_change(root);
+    finalized_archived_change(root);
+    let with_two = cold_archive_introduction_index_processes(root);
+    for _ in 0..4 {
+        finalized_archived_change(root);
+    }
+    let with_six = cold_archive_introduction_index_processes(root);
+    eprintln!("cold archive-introduction index Git processes: {with_two} with two archives, {with_six} with six");
+    assert!(
+        with_six < with_two + 3,
+        "four more archive-introducing commits added {} Git processes to a cold index build \
+         ({with_two} with two archives, {with_six} with six)",
+        with_six.saturating_sub(with_two)
+    );
+}
+
+/// Git processes four more archives may add to one cold archived status read: each archive's own
+/// workflow-version history is still checked once, by a prefetch worker that starts from the
+/// command's repository facts (REQ-git-utils-011). Measured 135; before workers were seeded, 250.
+const COLD_ARCHIVED_STATUS_GIT_PROCESSES_FOR_FOUR_ARCHIVES: usize = 150;
+
+// S9 (REQ-git-utils-011): prefetch workers start from what the command already knows, so a cold
+// archived status does not re-ask repository facts once per archive.
+#[test]
+fn cold_archived_status_prefetch_workers_reuse_repository_facts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let target = finalized_archived_change(root);
+    finalized_archived_change(root);
+    let with_two = cold_archived_status_processes(root, &target.id);
+    for _ in 0..4 {
+        finalized_archived_change(root);
+    }
+    let with_six = cold_archived_status_processes(root, &target.id);
+    eprintln!("cold archived status Git processes: {with_two} with two archives, {with_six} with six");
+    assert!(
+        with_six <= with_two + COLD_ARCHIVED_STATUS_GIT_PROCESSES_FOR_FOUR_ARCHIVES,
+        "four more archives added {} Git processes to one cold archived status read \
+         ({with_two} with two archives, {with_six} with six)",
+        with_six.saturating_sub(with_two)
+    );
+}
+
+// REQ-change-135: one `diff-tree --stdin` lists exactly what the per-commit reads list,
+// including a merge commit that brings an archive in.
+#[test]
+fn one_walk_archive_introductions_equal_per_commit_introductions() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let first = finalized_archived_change(root);
+    finalized_archived_change(root);
+    // A side branch brings in one more archived package, and a merge commit adds it to main.
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).unwrap();
+    let source = find_change_dir(root, &first.id).unwrap();
+    quiet_git(root, &["switch", "-q", "-c", "side"]);
+    let copy = root
+        .join(&archive_root)
+        .join(format!("2026-01-02-{}", first.id));
+    fs::create_dir_all(&copy).unwrap();
+    for entry in fs::read_dir(&source).unwrap().flatten() {
+        if entry.path().is_file() {
+            fs::copy(entry.path(), copy.join(entry.file_name())).unwrap();
+        }
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "side archive"]);
+    quiet_git(root, &["switch", "-q", "main"]);
+    fs::write(root.join("README.md"), "main moves on\n").unwrap();
+    quiet_git(root, &["commit", "-q", "-am", "main moves on"]);
+    quiet_git(root, &["merge", "-q", "--no-ff", "-m", "merge side archive", "side"]);
+    let pathspec = format!(":(top,literal){archive_root}");
+    let prefix = format!("{archive_root}/");
+    let history = quiet_git(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            "--diff-filter=A",
+            "--no-renames",
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    );
+    let commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    assert!(commits.len() >= 3, "{commits:?}");
+    let listings = archive_introduction_listings(root, &commits, &pathspec)
+        .expect("one walk lists every commit");
+    for commit in &commits {
+        let per_commit =
+            archive_introductions_at_commit_uncached(root, commit, &pathspec, &prefix, None)
+                .unwrap();
+        let listed = listings.get(*commit).map(Vec::as_slice).unwrap_or(&[]);
+        let one_walk =
+            archive_introductions_at_commit_uncached(root, commit, &pathspec, &prefix, Some(listed))
+                .unwrap();
+        assert_eq!(one_walk, per_commit, "{commit}");
+    }
+    // Commit selection is unchanged: `log --diff-filter=A` without `-m` names the side branch's
+    // own commit, not the merge, as the one that introduced the copied package.
+    let side_state = format!("{archive_root}/2026-01-02-{}/state.json", first.id);
+    let side = quiet_git(root, &["rev-parse", "side"]);
+    assert!(
+        listings
+            .get(side.trim())
+            .is_some_and(|paths| paths.contains(&side_state)),
+        "the side commit lists {side_state}"
+    );
+}
+
 #[test]
 fn cached_archived_reads_answer_exactly_like_live_reads() {
     let temp = TempDir::new().unwrap();
@@ -238,9 +506,10 @@ fn path_is_state_candidate_matches_only_one_change_s_state_paths() {
     ));
 }
 
-/// The timed benchmark against a Raven-sized project: 124 archived changes and 120 specs.
-/// Run on demand (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES`,
-/// `SPECSYNC_BENCH_SPECS` and `SPECSYNC_BENCH_ACTIVE` change the fixture size.
+/// The timed benchmark against a Raven-sized project: 124 archived changes, 120 specs and 24
+/// archived workflow-v1 changes from before the project adopted workflow v2. Run on demand
+/// (`fledge run bench-archived-reads`); `SPECSYNC_BENCH_ARCHIVES`, `SPECSYNC_BENCH_SPECS`,
+/// `SPECSYNC_BENCH_LEGACY` and `SPECSYNC_BENCH_ACTIVE` change the fixture size.
 #[test]
 #[ignore = "timed benchmark; run with `fledge run bench-archived-reads`"]
 fn raven_sized_archived_status_benchmark() {
@@ -252,9 +521,14 @@ fn raven_sized_archived_status_benchmark() {
     };
     let archives = size("SPECSYNC_BENCH_ARCHIVES", 124);
     let specs = size("SPECSYNC_BENCH_SPECS", 120);
+    let legacy = size("SPECSYNC_BENCH_LEGACY", 24);
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    fast_read_repository(root);
+    if legacy == 0 {
+        fast_read_repository(root);
+    } else {
+        legacy_repository(root, legacy);
+    }
     for index in 0..specs {
         let module = format!("bench-{index}");
         fs::create_dir_all(root.join("specs").join(&module)).unwrap();
@@ -280,7 +554,7 @@ fn raven_sized_archived_status_benchmark() {
         ids.push(finalized_archived_change(root).id);
     }
     eprintln!(
-        "fixture: {archives} archived changes, {specs} specs, built in {:.1}s",
+        "fixture: {archives} archived changes, {legacy} workflow-v1 archives, {specs} specs, built in {:.1}s",
         built.elapsed().as_secs_f64()
     );
     let target = ids.last().unwrap().clone();
@@ -375,6 +649,7 @@ fn an_unreadable_introduced_archive_blob_is_never_cached_as_absent() {
         &introduction,
         &format!(":(top,literal){archive_root}"),
         &format!("{archive_root}/"),
+        None,
     )
     .unwrap();
     assert!(introduced.is_empty());

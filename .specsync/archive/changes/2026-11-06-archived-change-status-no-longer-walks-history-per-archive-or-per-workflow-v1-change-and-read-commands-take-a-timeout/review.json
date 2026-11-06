@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "47ac3bb0474d66326d6e4294fbdcc81c651b5cac",
+  "contract_digest": "7b1354305fb600823026c0c155169bf5d3e9708a41ff0fc0b304889ca6dda96b",
+  "execution_digest": "051ee257e165cfae2dc3fc7b0479b10725ba69807c428326b339e24cf160b09c",
+  "workspace_digest": "aba0f9e33788c05ac1bcbfd6474a56fb27a58bc427c3beca1997eaf650f16a5e",
+  "timestamp": 1793976453
+}

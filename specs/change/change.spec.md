@@ -208,6 +208,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
+| `open_tasks_block` | `record: &ChangeRecord` | `bool` | Whether an open task blocks the next verb: approved, implementing or verifying, or a workflow-v2 finalization stopped after acceptance (its workspace still active) |
 | `open_tasks_next_step` | `root: &Path, record: &ChangeRecord` | `Option<String>` | The open tasks of the change's selected `tasks.md` by line and text, with how to close them, or `None` when every task is done. The one sentence status, ship-status and every refusal use (REQ-change-132) |
 | `open_tasks_refusal` | `root, record, rerun: &str` | `Option<String>` | The refusal a verb gives while tasks are open: `tasks.md contains incomplete tasks: <open tasks>, then re-run `<rerun>``, or `None` when nothing is open (REQ-change-131) |
 | `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
@@ -435,6 +436,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | Codex review of #903: a workflow-v2 finalization stopped after acceptance, with its workspace still active, is gated too; status, ship-status and ship name its open task (`open_tasks_block`), and a review refusal names `--reviewer=<claim>` (REQ-change-131, REQ-cmd-change-031, #892). |
 | 2026-11-05 | v171: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |
 | 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
 | 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-127, #861). |

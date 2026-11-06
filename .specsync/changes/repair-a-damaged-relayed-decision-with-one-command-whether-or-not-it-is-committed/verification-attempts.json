@@ -63,6 +63,27 @@
         "REQ-cli-args-relay-repair-001",
         "REQ-cmd-change-relay-repair-001"
       ]
+    },
+    {
+      "timestamp": 1794008576,
+      "commit": "7396c4f2ee42cad7ff6f531d89d9b9ebf45d8b71",
+      "contract_digest": "f07fd37c200853e2a5f6a58fecf84cd1e15f63586c4700dd3ad49def9ea39936",
+      "execution_digest": "37c5dafb083755df495128b8daf01a83627a31804552f74539f498777e3d6fb8",
+      "workspace_digest": "d88c224ed4e35540fc7b25215a87fd043cb1579a6d2f9fd78b10311175f9c13f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-relay-repair-001",
+        "REQ-change-relayed-decision-001",
+        "REQ-cli-args-relay-repair-001",
+        "REQ-cmd-change-relay-repair-001"
+      ]
     }
   ]
 }

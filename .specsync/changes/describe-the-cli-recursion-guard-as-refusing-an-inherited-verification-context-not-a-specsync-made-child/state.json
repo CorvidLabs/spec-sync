@@ -8,9 +8,9 @@
   "description": "Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child",
   "kind": "documentation",
   "state": "draft",
-  "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
-  "created_at": 1793951349,
-  "updated_at": 1793951359,
+  "base_commit": "5ff95d10b0fb9d9bbb3d3fbd15f35d1d261f173c",
+  "created_at": 1793951427,
+  "updated_at": 1793951430,
   "affected_specs": [
     "cli"
   ],
@@ -36,7 +36,10 @@
     "context",
     "docs",
     "design",
-    "tasks"
+    "tasks",
+    "testing",
+    "plan",
+    "research"
   ],
   "dependencies": [],
   "answers": {

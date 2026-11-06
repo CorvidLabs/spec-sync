@@ -2,7 +2,7 @@
 id: describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child
 state: draft
 type: documentation
-base_commit: cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b
+base_commit: 5ff95d10b0fb9d9bbb3d3fbd15f35d1d261f173c
 ---
 
 # Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child

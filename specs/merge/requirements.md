@@ -26,14 +26,14 @@ spec: merge.spec.md
 - `all_files: true` scans all `.spec.md` files for every conflict-marker family regardless of git state and retains unreadable candidates as explicit findings
 - `dry_run: true` returns resolution results without writing any changes to disk
 - Unreadable spec files are marked as `Manual` with the read error included in details
-- If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns no files (the run is a safe no-op); explicit `all_files: true` is the way to scan everything
+- If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns `None`, meaning unknown and never an empty set, and `merge_specs` reports one `Unknown` result that names the missing precondition and points at `--all`; nothing is written and `merge` exits non-zero (REQ-cmd-merge-002). Explicit `all_files: true` is the way to scan everything
 - Only exact standard opener/base/separator/closer forms are accepted; orphan, nested, duplicate, incomplete, and lookalike markers require manual resolution
 - Diff3 base sections are excluded from auto-resolution input and preserved verbatim when a hunk remains manual
 - Resolution details name both marker labels and the applied strategy or manual-resolution reason, use `Auto-resolvable` for candidates, and use `Auto-resolved` only after successful persistence
 - A file is written only when every hunk resolves safely and the resulting output contains valid frontmatter
 - Post-resolution YAML errors, duplicate keys, missing required fields, invalid status, or empty files leave the original file unchanged
 - Uniform CRLF/LF style and final-newline presence are preserved
-- Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean`), and `details` for each file
+- Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean` | `Unknown`), and `details` for each file
 - Human-readable output uses colored formatting to distinguish status types
 
 ## Constraints
@@ -72,16 +72,15 @@ Acceptance Criteria
 - `all_files: true` scans all `.spec.md` files for every conflict-marker family regardless of git state and retains unreadable candidates as explicit findings
 - `dry_run: true` returns resolution results without writing any changes to disk
 - Unreadable spec files are marked as `Manual` with the read error included in details
-- If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns no files (the run is a safe no-op); explicit `all_files: true` is the way to scan everything
+- If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns `None`, meaning unknown and never an empty set, and `merge_specs` reports one `Unknown` result that names the missing precondition and points at `--all`; nothing is written and `merge` exits non-zero (REQ-cmd-merge-002). Explicit `all_files: true` is the way to scan everything
 - Only exact standard opener/base/separator/closer forms are accepted; orphan, nested, duplicate, incomplete, and lookalike markers require manual resolution
 - Diff3 base sections are excluded from auto-resolution input and preserved verbatim when a hunk remains manual
 - Resolution details name both marker labels and the applied strategy or manual-resolution reason, use `Auto-resolvable` for candidates, and use `Auto-resolved` only after successful persistence
 - A file is written only when every hunk resolves safely and the resulting output contains valid frontmatter
 - Post-resolution YAML errors, duplicate keys, missing required fields, invalid status, or empty files leave the original file unchanged
 - Uniform CRLF/LF style and final-newline presence are preserved
-- Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean`), and `details` for each file
+- Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean` | `Unknown`), and `details` for each file
 - Human-readable output uses colored formatting to distinguish status types
-
 
 ### REQ-merge-002
 

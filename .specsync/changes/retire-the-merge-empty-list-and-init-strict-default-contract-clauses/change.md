@@ -1,6 +1,6 @@
 ---
 id: retire-the-merge-empty-list-and-init-strict-default-contract-clauses
-state: approved
+state: implementing
 type: documentation
 base_commit: 560af9f10e608ce4c506612b0d1d2ae13378807d
 ---

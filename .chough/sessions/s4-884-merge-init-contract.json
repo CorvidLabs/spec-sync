@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-c43fea15a35000bbf6cb3cd4",
-    "head": "EVT-0a4a960aa376b82f341b9518",
+    "head": "EVT-15fe869c0666680ea6a39f4d",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,7 +12,7 @@
     "cmd_init"
   ],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -31,7 +31,8 @@
     "files": []
   },
   "decisions": [
-    "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" for UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted; decision (e) leave init --help unchanged"
+    "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" for UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted; decision (e) leave init --help unchanged",
+    "Leif (2026-11-05, orc tab, relayed by orc t18): 'Approve' for change B scope; native definition approval recorded as 0xLeif by the orc at 77eec49c"
   ],
   "open_questions": [],
   "completed": [
@@ -40,9 +41,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of retire-the-merge-empty-list-and-init-strict-default-contract-clauses (specsync change approve, recorded by the orc for Leif)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After Leif's approval: apply_b_edits.py, tick tasks, change check --commit, verify lane on pinned 1.89, PR (Fixes #884), ready for review"
+  "next_action": "Apply B edits, change check --commit, verify lane, PR (Fixes #884), ready for review"
 }

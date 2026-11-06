@@ -7,10 +7,11 @@
   "title": "Retire the merge empty-list and init strict-default contract clauses",
   "description": "Retire the merge empty-list and init strict-default contract clauses",
   "kind": "documentation",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "560af9f10e608ce4c506612b0d1d2ae13378807d",
   "created_at": 1793941184,
-  "updated_at": 1793941278,
+  "updated_at": 1793941339,
   "affected_specs": [
     "merge",
     "cmd_init"

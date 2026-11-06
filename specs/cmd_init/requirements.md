@@ -4,7 +4,7 @@ spec: cmd_init.spec.md
 
 ## User Stories
 
-- As a developer adopting spec-sync, I want `specsync init` to create the 5.0 project layout, enable verified SDD, and detect source/test commands so I can start with one guided workflow.
+- As a developer adopting spec-sync, I want `specsync init` to create the 5.0 project layout and detect source directories while leaving the change workflow off, so the first `specsync check` is just drift and `specsync change adopt` stays a separate decision.
 - As a developer, I want init to be safe to re-run so that it never clobbers an existing config.
 - As a developer, I want the local-only hash cache to be gitignored automatically so that I don't accidentally commit `.specsync/hashes.json`.
 
@@ -55,11 +55,12 @@ Acceptance Criteria
 
 ### REQ-cmd-init-004
 
-Initialization SHALL enable Git-dependent SDD coverage only when the project can provide Git comparison evidence.
+Initialization SHALL write the same SDD-off enforcement values in a Git repository as in any other directory, so no changed-path gate applies until the project adopts SDD.
 
 Acceptance Criteria
-- Git repositories receive normal strict SDD defaults.
+- A Git repository receives `enabled: false` and `require_change_for_meaningful_files: false`, the same values a non-Git directory receives; `specsync change adopt` is the on-switch.
 - Non-Git directories initialize successfully without an immediately impossible changed-path gate.
+- The strict `true` values of `SddPolicy::default()` only fill fields missing from an existing `sdd.json`, so an older file never reads as disabled; fresh initialization never writes them.
 
 ### REQ-cmd-init-005
 

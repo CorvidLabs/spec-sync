@@ -1,0 +1,50 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-c493e2409cc910c4ca8ea47c",
+    "head": "EVT-f63348ef2cbf726f19eab9ac",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "#917: approve's refusal hints are draft-only, cover the scope questions and show single-choice placeholders (REQ-change-133), and the landing-page Quick Start commits the files it creates, with its test starting from exactly the documented state",
+  "intent_scope": "DOCS",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick",
+  "references": {
+    "criteria": [
+      "DOCS-1",
+      "DOCS-3",
+      "DOCS-3.a"
+    ],
+    "requirements": [
+      "REQ-change-133"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "decided: #917 needs no new HI criteria because it makes the implementation meet criteria Leif already approved (DOCS-1, DOCS-3, DOCS-3.a; approved 2026-11-05 20:22 MST, relayed by orc t18) and REQ-change-133; scope approval of the #917 change still goes to Leif (queued for his morning)",
+    "Orc t18 (2026-11-06, overnight): hold #912 for Leif's morning (threads unresolved; thread 2 is a small guidance regression for him to weigh); build #917 to its approval gate; keep #912 0 behind main under Leif's standing rule",
+    "decided: leif/917-approve-hints is stacked on #912's archive tip 93750834, because #917 changes #912's code and #912 is held; merge origin/main after #912 lands"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Failing tests at 2b30841d: 4 unit tests (scope hints, draft-only, single choice) and 2 integration tests (no-scope draft probe; landing page from the exact documented state leaves src/auth.ts, .gitignore, .gitattributes uncommitted)"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Scope approval of keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick (Leif; queued for his morning, recorded by orc)"
+  ],
+  "run_consents": [],
+  "next_action": "After approval: implement draft-only and scope hints, single-choice placeholder, landing-page git add -A; specs; verify; check --commit"
+}

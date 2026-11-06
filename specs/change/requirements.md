@@ -1659,6 +1659,16 @@ A bounded Git read SHALL return when the direct child exits and SHALL NOT wait o
 - `bounded_git_read_returns_while_a_descendant_holds_the_output_pipe` returns the child's stdout while the descendant is still alive.
 - `bounded_git_runner_times_out_a_silent_process`, `timed_out_git_runner_reaps_child_and_joins_blocked_writer`, `timed_out_git_runner_reaps_child_before_child_can_make_progress`, and `capped_git_runner_drains_kills_and_reaps_large_output` still pass. No deadline, cap, or join assertion is loosened.
 
+### REQ-change-127
+
+Lifecycle commands SHALL stay within a tested ceiling of git process spawns per command, and the ceiling SHALL NOT grow with unrelated archived changes. The integration test `eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci` SHALL spawn at most 40% of its 15,563-process baseline measured at 67aa7dc2.
+
+#### Acceptance Criteria
+
+- A test counts git spawns for `change new`, `answer`, `approve`, `check`, `status`, `review` and `finalize` and asserts a ceiling for each.
+- The slowest lifecycle integration test spawns at most 6,225 git processes.
+- No assertion of an existing lifecycle test is removed or loosened to meet the ceiling.
+
 ### REQ-change-128
 
 Working-tree evidence capture SHALL read Git's modified-path output relative to the project root, so a project rooted in a subdirectory of its repository can complete `change check --commit`, and SHALL still refuse any path Git reports outside the project or outside the change's candidates.

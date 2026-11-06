@@ -1,0 +1,105 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793928933,
+      "digest": "460c148e51bb635b6d3527e32e20e195017da6dcc5ccd32c1c5b5aebfe1b78ba",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+        "title": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+        "description": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "git_utils",
+          "github"
+        ],
+        "affected_paths": [
+          "src/change_tests/substantive_plan.rs",
+          "src/git_utils.rs",
+          "src/github.rs",
+          "tests/integration/commands/issues.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test harness only: two git_utils unit tests exec a script they just wrote, which Linux can refuse with ETXTBSY while another test thread forks. Running the script through sh changes no public behavior, requirement or spec text.",
+        "acceptance_criteria": [
+          "Both git_utils unit tests that run a script they just wrote run it through sh and keep their assertions unchanged, A Linux stress run of git_utils::tests that failed 9 of 300 rounds with ETXTBSY on main fails 0 of 300 rounds with the change, No gate or timeout or assertion is loosened"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793930349,
+      "digest": "201fbe74baf53cbd46494531e7473e6a20ab6bab22525f233e4710077311ee6a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+        "title": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+        "description": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "git_utils",
+          "github"
+        ],
+        "affected_paths": [
+          "src/change_tests/substantive_plan.rs",
+          "src/git_utils.rs",
+          "src/github.rs",
+          "tests/integration/commands/issues.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test harness only: two git_utils unit tests exec a script they just wrote, which Linux can refuse with ETXTBSY while another test thread forks. Running the script through sh changes no public behavior, requirement or spec text.",
+        "acceptance_criteria": [
+          "Every test that runs a script it just wrote stops holding a write descriptor to that file at exec time: the three that exec their own script run it as `sh <path>`, and the three that put a fake `gh` on `PATH` write it from a child `sh` process. Assertions are unchanged.",
+          "In a `rust:1.89` Linux container, 300 rounds of each affected test group (`git_utils::tests`, the bounded-runner tests in `change_tests`, `github::tests`, and the `issues` integration tests) fail 0 rounds with the change. `git_utils::tests` failed 9 of 300 on main 884a33d3.",
+          "No gate, timeout or assertion is loosened."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793932996,
+      "digest": "6b282c31e369fa09c7575379e2688500a5bcd66607b47754416ea53f8a937c43",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+      "actor": "0xLeif",
+      "reason": "Leif, 2026-11-05 18:57 MST via orc terminal t18 ('Yes, re-approve'): state.json acceptance_criteria still held the pre-widening sentence while the change.md Leif approved at 62947eeb listed the widened criteria; re-answer them to match, no change in substance. Executed by Claude.",
+      "timestamp": 1793930278,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": true
+    }
+  ]
+}

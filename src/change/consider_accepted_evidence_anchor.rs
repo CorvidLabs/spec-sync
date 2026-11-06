@@ -530,8 +530,68 @@ fn run_git_bounded(
     input: Option<Vec<u8>>,
     stdout_cap: usize,
 ) -> Result<BoundedCommandOutput, String> {
+    memoized_configured_git(root, args, input, stdout_cap, |command, input| {
+        run_git_command_bounded(command, args, input, stdout_cap)
+    })
+}
+
+/// Run one configured git query for `root`, answering repository facts from the command's open
+/// fact scope and recording what git answered (REQ-git-utils-009). Queries with stdin input are
+/// never memoized, and a fact whose output hit `stdout_cap` is not reused for a larger cap.
+fn memoized_configured_git(
+    root: &Path,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+    stdout_cap: usize,
+    run: impl FnOnce(&mut Command, Option<Vec<u8>>) -> Result<BoundedCommandOutput, String>,
+) -> Result<BoundedCommandOutput, String> {
+    if input.is_none()
+        && let Some(memoized) =
+            crate::git_utils::memoized_repository_fact(root, "configured", args)
+        && memoized.stdout.len() < stdout_cap
+    {
+        return Ok(BoundedCommandOutput {
+            status: memoized.status,
+            stdout: memoized.stdout,
+            stderr: memoized.stderr,
+        });
+    }
+    if input.is_none()
+        && let Some(batched) = crate::git_utils::batched_git_read(
+            root,
+            "configured",
+            || configured_git_command(root),
+            args,
+            stdout_cap.saturating_sub(1),
+        )
+    {
+        crate::git_utils::note_repository_git(root, "configured", args, &batched);
+        return Ok(BoundedCommandOutput {
+            status: batched.status,
+            stdout: batched.stdout,
+            stderr: batched.stderr,
+        });
+    }
+    let had_input = input.is_some();
     let mut command = configured_git_command(root);
-    run_git_command_bounded(&mut command, args, input, stdout_cap)
+    let output = run(&mut command, input)?;
+    if had_input {
+        if !crate::git_utils::is_read_only_git_invocation(args) {
+            crate::git_utils::invalidate_repository_facts();
+        }
+    } else {
+        crate::git_utils::note_repository_git(
+            root,
+            "configured",
+            args,
+            &crate::git_utils::MemoizedGitOutput {
+                status: output.status,
+                stdout: output.stdout.clone(),
+                stderr: output.stderr.clone(),
+            },
+        );
+    }
+    Ok(output)
 }
 
 fn run_git_command_bounded(
@@ -984,6 +1044,9 @@ fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
 }
 
 fn repository_context_uncached(root: &Path) -> Result<RepositoryContext, String> {
+    // Evidence capture compares this before and after to see another process change the
+    // repository identity, so it is never answered from memoized facts (REQ-git-utils-009).
+    let _live = crate::git_utils::live_repository_reads();
     if !git_repository_present(root)? {
         let canonical = root
             .canonicalize()
@@ -1104,6 +1167,9 @@ struct InspectedGitCandidates {
 }
 
 fn git_index_fingerprint(root: &Path) -> Result<String, String> {
+    // The two path lookups may come from the command's memoized facts: the fingerprint hashes the
+    // index files' bytes from disk, and turning on a split index rewrites the main index file, so a
+    // change made by another process during capture still changes the fingerprint.
     let index = run_git_required(root, &["rev-parse", "--git-path", "index"], None, 16 * 1024)?;
     let index = parse_git_path(root, &index, "effective Git index")?;
     let shared = run_git_required(root, &["rev-parse", "--shared-index-path"], None, 16 * 1024)?;
@@ -1309,6 +1375,9 @@ fn inspect_git_candidates(
     regular_files_only: bool,
     identify_clean_blobs: bool,
 ) -> Result<InspectedGitCandidates, String> {
+    // Evidence capture inspects twice and compares, to see another process change the tree or the
+    // settings that interpret it, so every read here asks git (REQ-git-utils-009).
+    let _live = crate::git_utils::live_repository_reads();
     let mut stage_entries = BTreeMap::new();
     let batches = candidate_argument_batches(candidates);
     let repo_prefix = git_repo_prefix(root)?;

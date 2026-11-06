@@ -13,6 +13,9 @@ use crate::types::OutputFormat;
 const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
+    // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
+    // git write and external process this command runs clears them.
+    let _facts = crate::git_utils::begin_repository_fact_scope(root);
     let result = match action {
         ChangeAction::New {
             description,
@@ -2072,8 +2075,10 @@ fn run_pre_push_gate(root: &Path) -> Result<(), String> {
     let status = std::process::Command::new("fledge")
         .args(["lanes", "run", "pre-push"])
         .current_dir(root)
-        .status()
-        .map_err(|error| {
+        .status();
+    // The gate is an external process; nothing git answered before it is trusted after it.
+    crate::git_utils::invalidate_repository_facts();
+    let status = status.map_err(|error| {
             format!(
                 "pre-push gate could not start (`fledge lanes run pre-push`): {error}. The branch was not pushed."
             )
@@ -2153,9 +2158,10 @@ fn ensure_pull_request(root: &Path, title: &str, body: &str) -> Result<String, S
     if let Some(base) = discovered_pr_base(root) {
         command.args(["--base", &base]);
     }
-    let created = command
-        .output()
-        .map_err(|error| format!("failed to run gh pr create: {error}"))?;
+    let created = command.output();
+    // `gh pr create` may push the branch, which moves remote-tracking refs.
+    crate::git_utils::invalidate_repository_facts();
+    let created = created.map_err(|error| format!("failed to run gh pr create: {error}"))?;
     if !created.status.success() {
         return Err(format!(
             "gh pr create failed: {}",
@@ -4451,8 +4457,12 @@ fn run_git(root: &std::path::Path, args: &[&str]) -> Result<(), String> {
         std::process::Command::new("git")
             .args(args)
             .current_dir(root),
-    )
-    .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    );
+    if !crate::git_utils::is_read_only_git_invocation(args) {
+        crate::git_utils::invalidate_repository_facts();
+    }
+    let output =
+        output.map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
     if !output.status.success() {
         return Err(format!(
             "git {} failed: {}",

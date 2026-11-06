@@ -1045,8 +1045,6 @@ fn issues_rejects_malicious_configured_repo_without_rendering_unsafe_bytes() {
 #[cfg(unix)]
 #[test]
 fn issues_create_runs_normal_drift_creation_for_stable_snapshots() {
-    use std::os::unix::fs::PermissionsExt;
-
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
     let config_path = root.join("specsync.json");
@@ -1066,14 +1064,23 @@ fn issues_create_runs_normal_drift_creation_for_stable_snapshots() {
     let bin_dir = tmp.path().join("bin");
     fs::create_dir_all(&bin_dir).unwrap();
     let fake_gh = bin_dir.join("gh");
-    fs::write(
-        &fake_gh,
-        "#!/bin/sh\nif [ \"$1\" = \"issue\" ]; then\n  echo https://github.com/CorvidLabs/spec-sync/issues/123\nfi\nexit 0\n",
+    // Written from a child `sh`, so this test process never holds a write
+    // descriptor to the file `specsync` later execs. A fork from another test
+    // thread would inherit it and the exec would fail with ETXTBSY (#885).
+    let mut writer = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("cat > \"$1\" && chmod 755 \"$1\"")
+        .arg("sh")
+        .arg(&fake_gh)
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    std::io::Write::write_all(
+        &mut writer.stdin.take().unwrap(),
+        b"#!/bin/sh\nif [ \"$1\" = \"issue\" ]; then\n  echo https://github.com/CorvidLabs/spec-sync/issues/123\nfi\nexit 0\n",
     )
     .unwrap();
-    let mut permissions = fs::metadata(&fake_gh).unwrap().permissions();
-    permissions.set_mode(0o755);
-    fs::set_permissions(&fake_gh, permissions).unwrap();
+    assert!(writer.wait().unwrap().success());
     let mut path_entries = vec![bin_dir];
     path_entries.extend(std::env::split_paths(
         &std::env::var_os("PATH").unwrap_or_default(),

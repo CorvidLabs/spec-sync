@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+  "slug": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+  "title": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+  "description": "Run the git_utils test scripts through sh so a concurrent fork cannot fail their exec with ETXTBSY",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "884a33d3c0cb95680dae786ff25688569ee16c96",
+  "created_at": 1793928410,
+  "updated_at": 1793933007,
+  "affected_specs": [
+    "git_utils",
+    "change",
+    "github"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/github.rs",
+    "tests/integration/commands/issues.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Test harness only: two git_utils unit tests exec a script they just wrote, which Linux can refuse with ETXTBSY while another test thread forks. Running the script through sh changes no public behavior, requirement or spec text.",
+  "acceptance_criteria": [
+    "Every test that runs a script it just wrote stops holding a write descriptor to that file at exec time: the three that exec their own script run it as `sh <path>`, and the three that put a fake `gh` on `PATH` write it from a child `sh` process. Assertions are unchanged.",
+    "In a `rust:1.89` Linux container, 300 rounds of each affected test group (`git_utils::tests`, the bounded-runner tests in `change_tests`, `github::tests`, and the `issues` integration tests) fail 0 rounds with the change. `git_utils::tests` failed 9 of 300 on main 884a33d3.",
+    "No gate, timeout or assertion is loosened."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

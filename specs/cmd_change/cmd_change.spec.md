@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 59
+version: 60
 status: active
 files:
   - src/commands/change.rs
@@ -191,3 +191,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
+| 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |

@@ -17,3 +17,9 @@ Failing first: on the unmodified workflow the new test fails 7 subtests:
 - both triggers carry `paths:` (2);
 - neither change starts CI on either event (4);
 - the test is not wired into fledge or CI (1).
+
+## Requirement evidence
+
+| Requirement | Evidence |
+|---|---|
+| REQ-github-026 | `.github/scripts/test-ci-trigger-paths.py`: `test_ci_has_no_path_filter`, `test_chough_only_and_scripts_only_changes_report_the_required_gate` (the real classifier, then `test-required-ci-gate.py`'s `simulate` on `pull_request` and `push`), `test_this_test_runs_through_fledge_and_ci`; `.github/scripts/test-linux-baseline.py`: `test_ci_runs_on_rc_assets_changes` |

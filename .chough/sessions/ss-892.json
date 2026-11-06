@@ -37,7 +37,9 @@
     "Agent finding, not a human decision: a task reopened after a passing change check is invisible to status, review and finalize (workflow-v2 fixture on main ad50bdef archived an open task); asked orc whether to widen change 1 (proposed CHANGE-14.c) or split",
     "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): \"Widen S6\": change 1 also makes review, finalize and ship refuse open tasks, naming them and 'then re-run the same command', with status/ship-status naming it; CHANGE-14.c approved as drafted",
     "Leif (2026-11-05 20:35 MST, orc tab, relayed by orc t18): \"Approve\" for the #892 definition at a99c7905; native approval recorded by the orc (actor 0xLeif). Then: build, verify, PR (Fixes #892), ready for review; then #878",
-    "Orc coordination (2026-11-05): Chough records go to the per-change session .chough/sessions/ss-892.json; shared .chough/session.json stays main's copy"
+    "Orc coordination (2026-11-05): Chough records go to the per-change session .chough/sessions/ss-892.json; shared .chough/session.json stays main's copy",
+    "Leif standing rule (2026-11-05 22:43 MST, relayed by orc t18): a PR he approved that only gets origin/main merged in (bookkeeping/changelog/version conflicts, reviewed content unchanged, checks re-run green) is merged at the new head without asking again, and the report says so; any change to reviewed content comes back for review",
+    "Merged origin/main cd8cab5e (#889 upstream-archive, #898 docs) before review: the open-task status prefix, ship-status blocker and ship refusal now yield to #889's upstream-archive message"
   ],
   "open_questions": [],
   "completed": [

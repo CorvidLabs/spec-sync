@@ -1278,6 +1278,22 @@ fn project_relative_diff_path(repo_prefix: &str, path: &str) -> Result<String, S
         .ok_or_else(|| format!("Git returned an out-of-scope modified path `{path}`"))
 }
 
+/// The project-relative candidate a `diff-files` path names, or the out-of-scope refusal.
+/// The refusal names the path exactly as Git reported it (REQ-change-128).
+fn admit_diff_path(
+    repo_prefix: &str,
+    candidates: &BTreeSet<String>,
+    reported: &str,
+) -> Result<String, String> {
+    let out_of_scope = || format!("Git returned an out-of-scope modified path `{reported}`");
+    let relative = project_relative_diff_path(repo_prefix, reported)?;
+    let relative = strict_portable_relative_path(&relative)?;
+    if !candidate_scope_admits(candidates, &relative) {
+        return Err(out_of_scope());
+    }
+    Ok(relative)
+}
+
 fn candidate_scope_admits(candidates: &BTreeSet<String>, path: &str) -> bool {
     candidates.contains(path)
         || candidates.iter().any(|candidate| {
@@ -1412,14 +1428,7 @@ fn inspect_git_candidates(
                 std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git diff path".to_string())?;
             // `diff-files` names paths from the repository root even when it runs in a
             // subdirectory project; `ls-files` below names them from the project (#879).
-            let path = project_relative_diff_path(&repo_prefix, path)?;
-            let path = strict_portable_relative_path(&path)?;
-            if !candidate_scope_admits(candidates, &path) {
-                return Err(format!(
-                    "Git returned an out-of-scope modified path `{path}`"
-                ));
-            }
-            modified.insert(path);
+            modified.insert(admit_diff_path(&repo_prefix, candidates, path)?);
         }
     }
 
@@ -4705,5 +4714,22 @@ mod project_relative_diff_path_tests {
         let candidates: BTreeSet<String> = ["specs/auth/auth.spec.md".to_string()].into();
         let relative = project_relative_diff_path("app/", "app/src/unrelated.rs").unwrap();
         assert!(!candidate_scope_admits(&candidates, &relative));
+    }
+
+    // Review (#890): the refusal names the path Git reported, prefix included.
+    #[test]
+    fn the_refusal_names_the_path_git_reported() {
+        let candidates: BTreeSet<String> = ["specs/auth/auth.spec.md".to_string()].into();
+        assert_eq!(
+            admit_diff_path("app/", &candidates, "app/specs/auth/auth.spec.md").unwrap(),
+            "specs/auth/auth.spec.md"
+        );
+        let error = admit_diff_path("app/", &candidates, "app/src/unrelated.rs").unwrap_err();
+        assert_eq!(
+            error,
+            "Git returned an out-of-scope modified path `app/src/unrelated.rs`"
+        );
+        let error = admit_diff_path("", &candidates, "src/unrelated.rs").unwrap_err();
+        assert!(error.ends_with("`src/unrelated.rs`"), "{error}");
     }
 }

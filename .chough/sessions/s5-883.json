@@ -1,0 +1,51 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-43d35e9a1a7c7b264d57be1f",
+    "head": "EVT-b520447107d4059803ebe8c1",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "S5 #883 (D11): the landing page shows the interview and artifact steps between change new and approve; approve's unfinished-definition refusals name the change answer command (DOCS-3, DOCS-3.a); the landing example runs as a CI test",
+  "intent_scope": "DOCS",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve",
+  "references": {
+    "criteria": [
+      "DOCS-3",
+      "DOCS-3.a",
+      "DOCS-1",
+      "DOCS-1.a"
+    ],
+    "requirements": [
+      "REQ-change-133"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Leif (2026-11-05 20:22 MST, orc tab, relayed by orc t18): 'Approve all': DOCS-3 and DOCS-3.a as drafted; DOCS-3.a is a small product change to the two approve refusals (no acceptance criterion; interview incomplete); classify site/src/content/docs/index.md as full-lane; #883 on leif/883-landing-approval",
+    "decided: REQ-change-133 for the new requirement, because the orc's registry assigns 127-132 elsewhere and main and every open PR branch had none at or above 130",
+    "decided: leif/883-landing-approval is stacked on #881's archive tip 603a1356, because the shared harness lives in #881's tests/integration/documented_workflows.rs; merge origin/main once #898 lands"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Failing tests at 9c28b332: landing_page_change_workflow_runs_from_its_quick_start (approve right after change new fails as written), approve_refusals_after_the_landing_page_change_new_name_the_command_that_finishes_them (refusal names no command), test-classify-ci-paths.sh (index.md full=false); README test still passes on the shared harness"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Scope approval of show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve (specsync change approve --actor 0xLeif, recorded by orc)"
+  ],
+  "run_consents": [],
+  "next_action": "After orc confirms approval: implement the two refusal texts, landing page, classifier, spec updates; verify; change check --commit"
+}

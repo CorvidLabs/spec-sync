@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout",
+  "implementation_commit": "47ac3bb0474d66326d6e4294fbdcc81c651b5cac",
+  "implementation_tree": "8127e01e1c228bc8f8b084cc752d376219936c34",
+  "contract_digest": "7b1354305fb600823026c0c155169bf5d3e9708a41ff0fc0b304889ca6dda96b",
+  "workspace_digest": "aba0f9e33788c05ac1bcbfd6474a56fb27a58bc427c3beca1997eaf650f16a5e",
+  "closing_digest": "a5d307e5cd2c97c1061653327e12c7d5e4cd5726ff5a1e18273b7ac49ab7bf86",
+  "review_digest": "98bc5aef6673e489f34746da13563a91840428a5c11c0259194dbc02e0a2c16c",
+  "finalization_digest": "dc3e7768d1c7a7b8b76cb02ba4868a9efe8ffe7d7d9349b8ea04e8f9c6711722",
+  "timestamp": 1793977020
+}

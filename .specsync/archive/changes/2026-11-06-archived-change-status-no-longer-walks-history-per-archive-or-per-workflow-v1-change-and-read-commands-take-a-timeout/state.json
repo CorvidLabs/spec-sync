@@ -7,11 +7,11 @@
   "title": "Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume",
   "description": "Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume",
   "kind": "feature",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "560af9f10e608ce4c506612b0d1d2ae13378807d",
   "created_at": 1793943408,
-  "updated_at": 1793974692,
+  "updated_at": 1793977037,
   "affected_specs": [
     "change",
     "cmd_change",

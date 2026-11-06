@@ -1,34 +1,35 @@
 ---
 module: change
-version: 173
+version: 174
 status: active
 files:
   - src/change.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
   - src/change/historical_definition_digest_matches.rs
-  - src/change/sdd_version.rs
-  - src/change/validate_loaded_change.rs
-  - src/change/verification_ignored_paths.rs
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
+  - src/change/sdd_version.rs
   - src/change/send_back.rs
-  - src/change_tests/recorded_review_recovery.rs
-  - src/change_tests/send_back_for_rescope.rs
-  - src/change_tests/historical_reconciliation.rs
+  - src/change/validate_loaded_change.rs
+  - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
-  - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
-  - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
-  - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
-  - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
-  - src/change_tests/substantive_plan.rs
-  - src/change_tests/verification_ignored_paths.rs
-  - src/change_tests/approved_delta_requirements.rs
-  - src/change_tests/fast_archived_reads.rs
-  - src/change_tests/upstream_archive.rs
-  - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
+  - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
+  - src/change_tests/approved_delta_requirements.rs
+  - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
+  - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
+  - src/change_tests/fast_archived_reads.rs
+  - src/change_tests/fast_finalize.rs
+  - src/change_tests/historical_reconciliation.rs
+  - src/change_tests/open_task_gate.rs
+  - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
+  - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/substantive_plan.rs
+  - src/change_tests/upstream_archive.rs
+  - src/change_tests/verification_ignored_paths.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -94,6 +95,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
 | `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
+| `CheckInvocation` | The `--strict`, `--commit` and `--push` flags of one `change check`, so a refusal names that exact command to re-run |
 | `ApprovalRecord` | Actor, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, and the optional per-module semantic delta body digests a definition gate approved |
 | `ApprovedScopeV1` | Canonical stable intent, acceptance contract, risk declarations, and affected scope bound by one human approval |
 | `NonMaterialScopeChangeCategory` | Closed implementation, test/evidence, canonical-materialization, and lifecycle-metadata classification set |
@@ -183,6 +185,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `begin_change_read_scope` | `root: &Path` | `ChangeReadScope` | Install one invocation-scoped read snapshot for list/show/status and project reports |
 | `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare this change's specs to code |
 | `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with warnings failing as they do under `specsync check --strict` |
+| `check_change_as` | `root, optional id, invocation: CheckInvocation` | `Result<Option<VerificationRecord>, String>` | Run `check_change_with_strict` for one known invocation, so an open-task refusal names that invocation's own command line, flags included, as the command to re-run (REQ-change-131) |
 | `check_project` | `root: &Path` | `SddCheckReport` | Full lifecycle integrity including archive terminal evidence (tests and rare callers; not the default CLI path) |
 | `classify_handoff` | `id, signals` | `HandoffSummary` | Pure classification of handoff readiness from `HandoffSignals`; the only source of the verdict, so text and JSON cannot disagree |
 | `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
@@ -205,6 +208,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
+| `open_tasks_block` | `record: &ChangeRecord` | `bool` | Whether an open task blocks the next verb: approved, implementing or verifying, or a workflow-v2 finalization stopped after acceptance (its workspace still active) |
+| `open_tasks_next_step` | `root: &Path, record: &ChangeRecord` | `Option<String>` | The open tasks of the change's selected `tasks.md` by line and text, with how to close them, or `None` when every task is done. The one sentence status, ship-status and every refusal use (REQ-change-132) |
+| `open_tasks_refusal` | `root, record, rerun: &str` | `Option<String>` | The refusal a verb gives while tasks are open: `tasks.md contains incomplete tasks: <open tasks>, then re-run `<rerun>``, or `None` when nothing is open (REQ-change-131) |
 | `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
@@ -294,6 +300,7 @@ Acceptance Criteria
 
 45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
 46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
+47. Checkbox state is outside the approval and verification digests, so ticking a task needs no reapproval or re-verification. Every verb that verifies a change, records a passing review of it or finalizes it therefore asks the task gate itself, before writing anything. A task reopened after a passing check is refused at review and finalize, and the refusal names each open task and the exact command to re-run (REQ-change-131).
 
 ## Behavioral Examples
 
@@ -430,6 +437,8 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | Codex review of #903: a workflow-v2 finalization stopped after acceptance, with its workspace still active, is gated too; status, ship-status and ship name its open task (`open_tasks_block`), and a review refusal names `--reviewer=<claim>` (REQ-change-131, REQ-cmd-change-031, #892). |
+| 2026-11-05 | v174: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |
 | 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
 | 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-127, #861). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |
@@ -623,6 +632,7 @@ Acceptance Criteria
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |
 | 2026-11-06 | retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands: Retire the contract clauses that promise change check runs configured verification commands |
 | 2026-11-06 | v172 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |
 | 2026-11-06 | show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve: Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11) |

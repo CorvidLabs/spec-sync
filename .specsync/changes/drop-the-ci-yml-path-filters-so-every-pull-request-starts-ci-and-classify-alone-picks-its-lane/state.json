@@ -7,10 +7,10 @@
   "title": "Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane",
   "description": "Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane",
   "kind": "operations",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "7ae7245f97e7cfd66cd80ce39b611becb1095642",
   "created_at": 1793979443,
-  "updated_at": 1793979485,
+  "updated_at": 1793979902,
   "affected_specs": [
     "github"
   ],

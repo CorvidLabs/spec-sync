@@ -547,8 +547,10 @@ fn doctor_fix_applies_only_the_safe_fixes() {
 
     let finished = archived(&root, "add-a-guide").expect("the stopped finalize did not resume");
     assert_eq!(json(&finished.join("state.json"))["state"], "archived");
-    // No decision was made, so the merged blocker is still open.
-    assert!(active(&root, BLOCKER).is_dir());
+    // The blocker's evidence is current again, so archiving the accepted v1 change is a safe
+    // fix; nothing is closed late, because no decision was given.
+    let blocker = archived(&root, BLOCKER).expect("the current v1 change was not archived");
+    assert_eq!(json(&blocker.join("state.json"))["state"], "archived");
     assert!(closed_late_package(&root, BLOCKER).is_none());
     // Stale verification is report-only: its record is untouched and still reported.
     assert_eq!(

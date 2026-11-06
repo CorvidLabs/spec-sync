@@ -442,15 +442,29 @@ impl Project {
     ///
     /// Commands run as written and must succeed. A prose step naming the selected artifacts
     /// completes the definition; one starting "implement" makes a non-API edit and commits it;
-    /// one telling the reader to wait for CI requires the Archive gate to pass. After every
-    /// step while the change is open the gate must refuse, and each distinct command it names
-    /// is proven in a copy of the project.
+    /// one naming the verify lane runs the fixture's lane on the current tip; one telling the
+    /// reader to wait for CI requires the Archive gate to pass. `change review` runs only after
+    /// the verify lane ran on the tip being reviewed (DOCS-2, #906). After every step while the
+    /// change is open the gate must refuse, and each distinct command it names is proven in a
+    /// copy of the project.
     fn follow(&self, source: &str, steps: &[Step], delta: &Delta) -> Followed {
         let mut followed = Followed::default();
         let mut questions: Vec<Value> = Vec::new();
+        let mut verified_tip: Option<String> = None;
         for step in steps {
             let label = match step {
                 Step::Command(command) => {
+                    if command.starts_with("specsync change review ") {
+                        let tip = self.git(&["rev-parse", "HEAD"]);
+                        assert_eq!(
+                            verified_tip.as_deref(),
+                            Some(tip.as_str()),
+                            "{source} reaches `{command}` without telling the reader to run the \
+                             local verify lane on this tip after `change check --commit`; the \
+                             closeout is verify, then the implementation review, then archive"
+                        );
+                        followed.reviews_after_verify += 1;
+                    }
                     let output = self.run_documented(&self.root, command);
                     assert!(
                         output.status.success(),
@@ -482,6 +496,17 @@ impl Project {
                              verify, review and finalize locally, then push and wait for CI.",
                             gate.message
                         );
+                    } else if lower.contains("verify lane") {
+                        // The fixture's lane: its structural check, which must pass on the tip
+                        // the reader is about to have reviewed. The fixture has no product test
+                        // suite, and SpecSync itself never runs or observes a project lane.
+                        let output = self.run_documented(&self.root, "specsync check --strict");
+                        assert!(
+                            output.status.success(),
+                            "the fixture's verify lane failed at `# {prose}`:\n{}",
+                            describe(&output)
+                        );
+                        verified_tip = Some(self.git(&["rev-parse", "HEAD"]));
                     } else if lower.contains("artifact") {
                         let id = followed
                             .change_id
@@ -587,6 +612,7 @@ struct Followed {
     refusals_while_open: usize,
     proven_recoveries: std::collections::BTreeSet<Option<String>>,
     waits_for_ci: usize,
+    reviews_after_verify: usize,
 }
 
 impl Followed {
@@ -605,6 +631,10 @@ impl Followed {
         assert!(
             self.refusals_while_open > 0,
             "the Archive gate never refused the open change"
+        );
+        assert!(
+            self.reviews_after_verify > 0,
+            "the {source} block must run `change review` after the local verify lane"
         );
         assert!(
             self.proven_recoveries

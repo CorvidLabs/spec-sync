@@ -116,3 +116,6 @@ mod subdirectory_check_commit;
 
 #[path = "integration/archived_upstream.rs"]
 mod archived_upstream;
+
+#[path = "integration/doctor.rs"]
+mod doctor;

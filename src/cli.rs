@@ -793,6 +793,87 @@ pub enum AgentsAction {
 mod tests {
     use super::*;
 
+    // REQ-cli-args-025: the doctor grammar.
+    #[test]
+    fn doctor_parses_its_scan_fix_dry_run_and_named_late_closes() {
+        for args in [
+            vec!["specsync", "doctor"],
+            vec!["specsync", "doctor", "--fix"],
+            vec!["specsync", "doctor", "--fix", "--dry-run"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--close-late",
+                "b",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--dry-run",
+                "--close-late",
+                "all",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "--json", "doctor"],
+        ] {
+            assert!(Cli::try_parse_from(&args).is_ok(), "{args:?} must parse");
+        }
+    }
+
+    // REQ-cli-args-025: a late close needs --fix, an actor and a reason; a dry run needs --fix.
+    #[test]
+    fn doctor_refuses_a_late_close_or_dry_run_without_its_required_flags() {
+        for args in [
+            vec![
+                "specsync",
+                "doctor",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--fix", "--close-late", "a"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--dry-run"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&args).is_err(),
+                "{args:?} must be refused"
+            );
+        }
+        assert!(Cli::try_parse_from(["specsync", "doctor"]).is_ok());
+    }
+
     #[test]
     fn no_subcommand_yields_none_and_text_default() {
         let cli = Cli::try_parse_from(["specsync"]).unwrap();

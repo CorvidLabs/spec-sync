@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+  "slug": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+  "title": "Cover the two paths #900 changed outside its declared scope",
+  "description": "Cover the two paths #900 changed outside its declared scope",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "ccc35abd6013041c37d2737e2dcb3290996f9b58",
+  "created_at": 1793978831,
+  "updated_at": 1793978857,
+  "affected_specs": [],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "#900 already changed these two files and Leif reviewed them at 1b21d31f: correction_prefix_digest hashes the correction without embedded relays (the #900 P1 fix), and the exact status key-set test expects recorded_claims. This change only declares them; no spec text and no code changes.",
+  "acceptance_criteria": [
+    "An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.",
+    "The change's status shows it beside the approval or review it belongs to."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

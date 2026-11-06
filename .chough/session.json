@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-3d16c5bac65db6223577f77f",
-    "head": "EVT-6c1d739f2c550f9603ec75ca",
+    "head": "EVT-f68ef5ecc8c6b5ac38a3534b",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,12 +9,12 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "intent",
+    "current": "plan",
     "status": "active",
     "callers": [],
     "iteration": 1
   },
-  "native_change": "cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos",
+  "native_change": "record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication",
   "references": {
     "criteria": [],
     "requirements": [],
@@ -29,7 +29,8 @@
     "Leif (2026-11-05 09:35 MST, orc tab): approved the four-part scope; qualify timeout returns to 45 in a one-line follow-up after the next RC's macOS qualify measures well under 45, not in this change",
     "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted",
     "Leif (relayed by orc t18, 2026-11-05 evening): approved the shared relayed_by shape in ch-d7's proposal section 1: decided_by, words verbatim, where incl. relay chain, recorded_by; all required, non-blank, <=4096 B, unknown keys refused, absent not null; boundary line 'a relayed claim, not authenticated'. Use exactly that shape in SpecSync approval/review records and status, plus the #633 wording narrowing",
-    "decided: SpecSync flags match Chough's (--words, --where, --recorded-by) and decided_by is copied from --actor/--reviewer because one record must not name two deciders"
+    "decided: SpecSync flags match Chough's (--words, --where, --recorded-by) and decided_by is copied from --actor/--reviewer because one record must not name two deciders",
+    "Leif (2026-11-05 20:19 MST, Herdr orc tab, relayed by orc t18): intent \"Approve\" as proposed (retire CHANGE-6.b, add CHANGE-6.d, CHANGE-13 + 13.a-d, SHIP-2.e); review digest \"Keep it out\"; ss-testgaps' CHANGE-13 moves to CHANGE-14"
   ],
   "open_questions": [],
   "completed": [
@@ -42,14 +43,17 @@
     "Spawn ceilings per command pass: new 13, answer 15, approve 29, check 82, status 50, review 128, finalize 239 (baseline 63/71/89/388/66/323/739); slowest test 5,535 spawns vs 15,563 (35.6%) before the batch reader",
     "test-nextest task, release-candidate lane, pinned cargo-nextest 0.9.151 install in release.yml (published sha256 verified)",
     "change check --commit verified (575ddcd9); fledge verify steps pass on pinned 1.89; pre-push green",
-    "Shipped: archived at 2bc2ba92"
+    "Shipped: archived at 2bc2ba92",
+    "HI captured for #633 (b179a4f2): CHANGE-6.b retired, CHANGE-6.d, CHANGE-13..13.d, SHIP-2.e",
+    "Native change record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication drafted: deltas for change (REQ-change-relayed-decision-001, MODIFIED REQ-change-001 and Public API), cmd_change, cli_args; all artifacts complete",
+    "Failing tests first: tests/integration/relayed_decision.rs, 8 discriminators fail on b179a4f2 (unknown --words flag), 2 guards pass"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
-    "Intent + scope approval for #633 (HI draft: retire CHANGE-6.b, add CHANGE-6.d, CHANGE-13.a-d, SHIP-2.e; review digest choice, recommended: relay excluded)"
+    "Native scope approval of record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication (orc relays Leif's decision)"
   ],
   "run_consents": [],
-  "next_action": "Create native change for #633 and bring ready for approval to t18"
+  "next_action": "Send ready for approval to t18; after native approval, implement RelayedDecision, approve/review relay, review digest without relay, status claims"
 }

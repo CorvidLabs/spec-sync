@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `specsync change check --commit` completes in a project rooted in a subdirectory of its Git repository. Working-tree evidence capture now reads `git diff-files` paths relative to the project instead of refusing the change's own spec as out of scope; paths outside the project are still refused (#879).
 - A change whose id the remote default branch already archived, while this branch holds an unarchived copy (for example after a squash before finalize), is named instead of wedged: `change review` and `change finalize` refuse before acceptance with the reference, the archive commit and the next step (merge or rebase onto the remote default), and `change status` / `change ship-status` never report it `safe` or ready to finalize. A squash before finalize with no upstream archive still reviews and finalizes (#694, #690).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
 

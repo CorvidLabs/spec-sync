@@ -1669,6 +1669,15 @@ Lifecycle commands SHALL stay within a tested ceiling of git process spawns per 
 - The slowest lifecycle integration test spawns at most 6,225 git processes.
 - No assertion of an existing lifecycle test is removed or loosened to meet the ceiling.
 
+### REQ-change-128
+
+Working-tree evidence capture SHALL read Git's modified-path output relative to the project root, so a project rooted in a subdirectory of its repository can complete `change check --commit`, and SHALL still refuse any path Git reports outside the project or outside the change's candidates.
+
+Acceptance Criteria
+- In a project at `app/`, `change check <id> --commit` commits the materialized spec and the verification evidence.
+- A reported path without the repository prefix, or a prefixed path that is not a candidate, is refused as out of scope and named.
+- A project at the repository root behaves as before.
+
 ### REQ-change-129
 
 The system SHALL refuse `change review` and `change finalize`, and SHALL NOT report readiness `safe` from `change status` or `change ship-status`, for a change whose record is not archived while the remote default branch holds an archive of the same change id that `HEAD` does not contain. The refusal SHALL name the reference and commit of that archive and the next step: merge or rebase onto that reference. An archive that `HEAD` already contains SHALL NOT be refused: that is the reopen-and-rearchive path.

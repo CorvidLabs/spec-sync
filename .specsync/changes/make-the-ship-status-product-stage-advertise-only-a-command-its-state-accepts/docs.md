@@ -5,4 +5,4 @@ artifact: docs
 
 # Docs
 
-`specs/cmd_change/cmd_change.spec.md` gains REQ-cmd-change-032 through the delta. `CHANGELOG.md` Unreleased / Fixed gets one entry naming #690.
+`specs/cmd_change/cmd_change.spec.md` gains REQ-cmd-change-033 through the delta. `CHANGELOG.md` Unreleased / Fixed gets one entry naming #690.

@@ -1,6 +1,6 @@
 ## ADDED
 
-### REQUIREMENT REQ-cmd-change-032
+### REQUIREMENT REQ-cmd-change-033
 
 The `change ship-status` product-tip stage SHALL advertise only a `specsync change` command whose state guard admits the change's current state: `change approve` for a draft, `change check <id> --commit` for approved, implementing and verifying, and `change reopen <id> --actor <name> --reason <text>` for accepted and archived changes whose verification is no longer current.
 

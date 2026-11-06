@@ -1,6 +1,6 @@
 ---
 id: let-change-check-commit-a-project-rooted-in-a-repository-subdirectory
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 884a33d3c0cb95680dae786ff25688569ee16c96
 ---

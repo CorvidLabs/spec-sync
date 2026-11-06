@@ -107,3 +107,6 @@ fn every_integration_test_file_is_registered() {
         "tests/integration.rs registers file(s) that do not exist: {dangling:?}"
     );
 }
+
+#[path = "integration/subdirectory_check_commit.rs"]
+mod subdirectory_check_commit;

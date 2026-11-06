@@ -1266,6 +1266,18 @@ fn record_git_stage_zero_entry(
 /// fresh fixtures the suite is built on.
 ///
 /// Compares at the path separator so `a/b` cannot be admitted by `a/bc`.
+/// A repository-relative path Git reported, made relative to the project root at `repo_prefix`.
+/// A path outside the project is refused with the same out-of-scope error (REQ-change-128).
+fn project_relative_diff_path(repo_prefix: &str, path: &str) -> Result<String, String> {
+    if repo_prefix.is_empty() {
+        return Ok(path.to_string());
+    }
+    path.strip_prefix(repo_prefix)
+        .filter(|relative| !relative.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| format!("Git returned an out-of-scope modified path `{path}`"))
+}
+
 fn candidate_scope_admits(candidates: &BTreeSet<String>, path: &str) -> bool {
     candidates.contains(path)
         || candidates.iter().any(|candidate| {
@@ -1398,7 +1410,10 @@ fn inspect_git_candidates(
         {
             let path =
                 std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git diff path".to_string())?;
-            let path = strict_portable_relative_path(path)?;
+            // `diff-files` names paths from the repository root even when it runs in a
+            // subdirectory project; `ls-files` below names them from the project (#879).
+            let path = project_relative_diff_path(&repo_prefix, path)?;
+            let path = strict_portable_relative_path(&path)?;
             if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope modified path `{path}`"
@@ -4662,4 +4677,33 @@ fn validate_accepted_inputs_recursive(
     visiting.remove(&record.id);
     memo.validity.insert(record.id.clone(), result.clone());
     result
+}
+
+#[cfg(test)]
+mod project_relative_diff_path_tests {
+    use super::*;
+
+    #[test]
+    fn a_subdirectory_project_reads_diff_paths_relative_to_itself() {
+        assert_eq!(
+            project_relative_diff_path("app/", "app/specs/auth/auth.spec.md").unwrap(),
+            "specs/auth/auth.spec.md"
+        );
+        assert_eq!(
+            project_relative_diff_path("", "specs/auth/auth.spec.md").unwrap(),
+            "specs/auth/auth.spec.md"
+        );
+    }
+
+    #[test]
+    fn a_path_outside_the_project_is_still_out_of_scope() {
+        for outside in ["README.md", "other/specs/auth/auth.spec.md", "app/"] {
+            let error = project_relative_diff_path("app/", outside).unwrap_err();
+            assert!(error.contains("out-of-scope modified path"), "{error}");
+            assert!(error.contains(outside), "{error}");
+        }
+        let candidates: BTreeSet<String> = ["specs/auth/auth.spec.md".to_string()].into();
+        let relative = project_relative_diff_path("app/", "app/src/unrelated.rs").unwrap();
+        assert!(!candidate_scope_admits(&candidates, &relative));
+    }
 }

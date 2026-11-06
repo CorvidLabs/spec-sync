@@ -1,6 +1,6 @@
 ---
 module: change
-version: 167
+version: 168
 status: active
 files:
   - src/change.rs
@@ -612,3 +612,4 @@ Acceptance Criteria
 | 2026-11-05 | restore-archived-history-reads-for-a-project-in-a-repository-subdirectory: Restore archived history reads for a project in a repository subdirectory |
 | 2026-11-05 | v162 / #862: `change audit` refuses a duplicated requirement ID and names it |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |

@@ -1659,3 +1659,12 @@ A bounded Git read SHALL return when the direct child exits and SHALL NOT wait o
 - `bounded_git_read_returns_while_a_descendant_holds_the_output_pipe` returns the child's stdout while the descendant is still alive.
 - `bounded_git_runner_times_out_a_silent_process`, `timed_out_git_runner_reaps_child_and_joins_blocked_writer`, `timed_out_git_runner_reaps_child_before_child_can_make_progress`, and `capped_git_runner_drains_kills_and_reaps_large_output` still pass. No deadline, cap, or join assertion is loosened.
 
+### REQ-change-128
+
+Working-tree evidence capture SHALL read Git's modified-path output relative to the project root, so a project rooted in a subdirectory of its repository can complete `change check --commit`, and SHALL still refuse any path Git reports outside the project or outside the change's candidates.
+
+Acceptance Criteria
+- In a project at `app/`, `change check <id> --commit` commits the materialized spec and the verification evidence.
+- A reported path without the repository prefix, or a prefixed path that is not a candidate, is refused as out of scope and named.
+- A project at the repository root behaves as before.
+

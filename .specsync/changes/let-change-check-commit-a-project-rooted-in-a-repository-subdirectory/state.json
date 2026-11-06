@@ -7,10 +7,11 @@
   "title": "Let change check commit a project rooted in a repository subdirectory",
   "description": "Let change check commit a project rooted in a repository subdirectory",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "884a33d3c0cb95680dae786ff25688569ee16c96",
   "created_at": 1793932044,
-  "updated_at": 1793932071,
+  "updated_at": 1793932554,
   "affected_specs": [
     "change"
   ],

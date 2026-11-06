@@ -7,10 +7,10 @@
   "title": "Let a change reviewed before its send-back be reviewed again after re-approval",
   "description": "Let a change reviewed before its send-back be reviewed again after re-approval",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
   "created_at": 1793947218,
-  "updated_at": 1793947793,
+  "updated_at": 1793970740,
   "affected_specs": [
     "change"
   ],

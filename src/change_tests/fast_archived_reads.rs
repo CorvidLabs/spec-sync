@@ -1487,3 +1487,90 @@ fn a_cached_legacy_introduction_pass_never_hides_a_changed_archive_or_baseline()
     again.unwrap();
     assert_eq!(again_processes, warm_processes);
 }
+
+// REQ-change-140: the index is only reused while history under one `HEAD` cannot change. A
+// replace ref (or a graft, or deepening a shallow clone) changes what Git walks without moving
+// `HEAD`, so a later read scope must answer as a fresh per-change walk does.
+#[test]
+fn lifecycle_index_is_not_reused_once_a_replace_ref_rewrites_history() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    // The first read scope builds the index for this HEAD.
+    assert_eq!(
+        workflow_history_answer(root, &record, true),
+        workflow_history_answer(root, &record, false)
+    );
+    // Replace the archiving commit with one that changes nothing, under the same HEAD.
+    let archived = quiet_git(root, &["rev-parse", "HEAD~1"]);
+    let parent = quiet_git(root, &["rev-parse", "HEAD~2"]);
+    let parent_tree = quiet_git(root, &["rev-parse", "HEAD~2^{tree}"]);
+    let replacement = quiet_git(
+        root,
+        &["commit-tree", parent_tree.trim(), "-p", parent.trim(), "-m", "replacement"],
+    );
+    quiet_git(root, &["replace", archived.trim(), replacement.trim()]);
+    let live = without_lifecycle_state_history(|| {
+        let _scope = begin_change_read_scope(root);
+        (
+            workflow_version_state_paths(root, &record),
+            validate_workflow_version_history_uncached(root, &record),
+        )
+    });
+    let indexed = {
+        let _scope = begin_change_read_scope(root);
+        (
+            workflow_version_state_paths(root, &record),
+            validate_workflow_version_history_uncached(root, &record),
+        )
+    };
+    assert_eq!(indexed, live, "a read scope after the replace ref must answer like a fresh walk");
+    let _scope = begin_change_read_scope(root);
+    assert!(
+        lifecycle_state_history(root).is_none(),
+        "the index is off while replace refs rewrite history"
+    );
+}
+
+// REQ-change-140: candidate discovery must not depend on `log.showRoot`. Here an earlier archive
+// path appears only in the root commit and in a merge that moved it, so a `git log` that hides
+// the root commit's names finds nothing, while the index (which passes `--root`) finds it.
+#[test]
+fn lifecycle_index_and_fallback_agree_when_log_show_root_is_off() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    let earlier = find_change_dir(root, &record.id).unwrap();
+    quiet_git(root, &["checkout", "-q", "--orphan", "flat"]);
+    quiet_git(root, &["commit", "-q", "-m", "everything in one root commit"]);
+    quiet_git(root, &["switch", "-q", "-c", "side"]);
+    fs::write(root.join("side.txt"), "side\n").unwrap();
+    quiet_git(root, &["add", "side.txt"]);
+    quiet_git(root, &["commit", "-q", "-m", "side work"]);
+    quiet_git(root, &["switch", "-q", "flat"]);
+    fs::write(root.join("README.md"), "flat moves on\n").unwrap();
+    quiet_git(root, &["commit", "-q", "-am", "flat moves on"]);
+    // The merge itself moves the package to a later date; no ordinary commit names either path.
+    quiet_git(root, &["merge", "-q", "--no-ff", "--no-commit", "side"]);
+    let later = earlier.with_file_name(format!("2026-01-03-{}", record.id));
+    fs::rename(&earlier, &later).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "merge side and move the archive"]);
+    quiet_git(root, &["config", "log.showRoot", "false"]);
+    assert_eq!(find_change_dir(root, &record.id).unwrap(), later);
+    let live = workflow_history_answer(root, &record, false);
+    let indexed = workflow_history_answer(root, &record, true);
+    assert_eq!(indexed, live);
+    let earlier_path = git_repo_relative_path(
+        root,
+        &portable_project_path(root, &earlier.join("state.json")),
+    )
+    .unwrap();
+    assert!(
+        live.0.as_ref().unwrap().contains(&earlier_path),
+        "the root commit's archive path is a candidate whatever log.showRoot says: {:?}",
+        live.0
+    );
+}

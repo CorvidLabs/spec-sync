@@ -457,3 +457,12 @@ Acceptance Criteria
 - After a passing check and review, reopening one task makes `change ship-status <id>` list an incomplete-tasks blocker with `ready_to_finalize` false. It also makes `change ship <id>` exit 1 without archiving, naming the task and `specsync change ship <id>`.
 - Ticking the box and running the named `change ship` command archives the change.
 
+### REQ-cmd-change-033
+
+The `change ship-status` product-tip stage SHALL advertise only a `specsync change` command whose state guard admits the change's current state: `change approve` for a draft, `change check <id> --commit` for approved, implementing and verifying, and `change reopen <id> --actor <name> --reason <text>` for accepted and archived changes whose verification is no longer current.
+
+Acceptance Criteria
+- An accepted or archived change with stale verification is told to reopen, not to check.
+- A draft is told to approve, not to check.
+- Approved, implementing and verifying changes are still told to check.
+

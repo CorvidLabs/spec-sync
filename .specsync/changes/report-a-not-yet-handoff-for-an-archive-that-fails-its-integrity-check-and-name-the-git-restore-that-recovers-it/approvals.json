@@ -102,6 +102,58 @@
         "change: REQUIREMENT REQ-change-093": "d3400211e47bbafaca730982f57df193273fb7112a59f7a4f9825498b1ec7fa9",
         "cmd_change: REQUIREMENT REQ-cmd-change-014": "11f4ad09e41e0f8dda4e753300d477a9336a450a46308fcd7f8718282baab4bd"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793946409,
+      "digest": "65d3648d16101b76400bfde45a571e0d649f1d9ef8d34fb6c62fb29f42047d42",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+        "title": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "description": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "hi/change.md",
+          "src/change/",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An archive whose terminal evidence authenticates, including `historical-transition-unproven`, keeps handoff `safe`, the text `Next: no further action` and the JSON next action to merge the PR on GitHub if it is still open.",
+          "An archived change whose terminal evidence is `corrupt-history` reports handoff readiness `not-yet`, never `safe`, in `change status --json` (`summary.handoff`) and on the text `Handoff:` line, with a reason naming the failed integrity check.",
+          "Every change ID and path interpolated into a printed command is single-quoted as one shell word, so copying the step from a repository whose change ID or archive directory carries `;`, `$`, quotes or spaces runs exactly the named command (Codex P1 on #901).",
+          "Running the named command verbatim through a shell on a tampered, uncommitted archive, and the archiving-commit restore on committed damage, returns terminal evidence `authenticated-history` and handoff `safe` in JSON and text; `change status` writes nothing to the archive.",
+          "Text `change status`, and the `Handoff:` line `finalize` and `ship` print, judge an archived change with the same terminal-evidence verdict JSON reports. The measured text-status cost on this repository (247 archives) is recorded in testing.md (follow-up #897), and no test, gate, bound or timeout is weakened.",
+          "The integration test fails on main ad50bdef with readiness `safe` and passes with the fix; the quoting and outside-package tests fail on db2e3ab4 and pass with the fix.",
+          "The step before clearing, the JSON `next_action`, the text `Next:` line and `change ship-status`'s next action name the same recovery, ending with `specsync change status <id>`: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`; the same restore from the commit that archived it (`git log -1 --diff-filter=A --format=%H -- <package>/state.json`), then a commit, when the package matches `HEAD` but not that commit; and, when the package still matches the commit that archived it (or no package or repository can answer), `specsync change status <id> --json` to read what `terminal_evidence.reason` names and restore that from trusted Git history. No step contains a digest, and `specsync change check`, which checks nothing for an archived change, is no longer named."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "cmd_change lesson: a text next action and a JSON next action are two projections of one value, so the fix reaches both (and ship-status, which reuses the text one). change lesson: a workflow-v2 defect is reproduced under workflow v2, and a refusal test asserts the refusal's text, not only its readiness. No digest reaches a text sink (CodeQL cleartext-logging): the recovery carries literals, the change ID and the package path only.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "a82978fd60630bfb6439848966a23d68e47a99ccc0d18a722bec5364b2a4a124",
+        "cmd_change": "7d93253f27d0c9ce6152fd8791ac4edc77993fb0c2a8b9b5bc450dea619d243b"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-093": "d3400211e47bbafaca730982f57df193273fb7112a59f7a4f9825498b1ec7fa9",
+        "cmd_change: REQUIREMENT REQ-cmd-change-014": "11f4ad09e41e0f8dda4e753300d477a9336a450a46308fcd7f8718282baab4bd"
+      }
     }
   ],
   "reopenings": [],

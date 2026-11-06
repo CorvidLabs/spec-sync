@@ -950,18 +950,30 @@ fn text_mode_next_action(
             format!("run `specsync change approve {id} --actor <name>`")
         }
         ChangeState::Approved | ChangeState::Implementing => {
-            format!("run `specsync change check {id}`")
+            open_tasks_first(root, record, format!("run `specsync change check {id}`"))
         }
-        ChangeState::Verifying => {
+        ChangeState::Verifying => open_tasks_first(
+            root,
+            record,
             format!(
                 "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — scoped review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving"
-            )
-        }
+            ),
+        ),
         ChangeState::Accepted if record.workflow_version >= 2 => {
             format!("run `specsync change ship {id}` or `specsync change finalize {id}`")
         }
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
+    }
+}
+
+/// `action`, preceded by the change's open tasks when it has any. Checkbox state is outside every
+/// digest, so no currency check above can see them, and every verb `action` names would refuse
+/// (REQ-change-132).
+fn open_tasks_first(root: &Path, record: &ChangeRecord, action: String) -> String {
+    match change::open_tasks_next_step(root, record) {
+        Some(step) => format!("{step}, then {action}"),
+        None => action,
     }
 }
 
@@ -1049,6 +1061,17 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         blockers.push(format!(
             "{refusal}; fix `.specsync/sdd.json` before check, review or finalize"
         ));
+    }
+    // No digest sees checkbox state, so the currency blockers below cannot report an open task;
+    // check, review, finalize and ship would each refuse it (REQ-cmd-change-031).
+    let open_tasks_step = matches!(
+        record.state,
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+    )
+    .then(|| change::open_tasks_next_step(root, record))
+    .flatten();
+    if let Some(step) = &open_tasks_step {
+        blockers.push(format!("tasks.md contains incomplete tasks: {step}"));
     }
     if matches!(
         record.state,
@@ -1189,11 +1212,18 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         // "no verification evidence recorded yet" on a line whose whole job is to name
         // a runnable command. Blockers already render on their own `Blocker:` lines, so
         // repeating one here bought nothing and cost the reader their next step.
-        current_stage
-            .get("action")
-            .and_then(|value| value.as_str())
-            .unwrap_or(lifecycle_next.as_str())
-            .to_string()
+        let stage_action = stages
+            .iter()
+            .find(|stage| stage.get("status").and_then(|value| value.as_str()) == Some("current"))
+            .and_then(|stage| stage.get("action"))
+            .and_then(|value| value.as_str());
+        match (stage_action, &open_tasks_step) {
+            // A stage's action is about evidence; the open tasks come first (REQ-cmd-change-031).
+            (Some(action), Some(step)) => format!("{step}, then {action}"),
+            (Some(action), None) => action.to_string(),
+            // `lifecycle_next` already names any open tasks.
+            (None, _) => lifecycle_next.clone(),
+        }
     };
 
     let trust = build_ship_trust(root, &tip);
@@ -2187,6 +2217,28 @@ fn discovered_pr_base(root: &Path) -> Option<String> {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// `change ship --wait-timeout-secs` when the flag is not given; the clap default in `cli.rs`,
+/// pinned to it by `ship_wait_timeout_default_matches_the_cli`.
+const SHIP_WAIT_TIMEOUT_DEFAULT_SECS: u64 = 900;
+
+/// The `change ship` command line that repeats an invocation with these flags.
+fn ship_command(id: &str, dry_run: bool, push: bool, wait: bool, wait_timeout_secs: u64) -> String {
+    let mut command = format!("specsync change ship {id}");
+    for (given, flag) in [
+        (dry_run, " --dry-run"),
+        (push, " --push"),
+        (wait, " --wait"),
+    ] {
+        if given {
+            command.push_str(flag);
+        }
+    }
+    if wait && wait_timeout_secs != SHIP_WAIT_TIMEOUT_DEFAULT_SECS {
+        command.push_str(&format!(" --wait-timeout-secs {wait_timeout_secs}"));
+    }
+    command
+}
+
 fn run_ship(
     root: &Path,
     id: Option<&str>,
@@ -2329,6 +2381,18 @@ fn run_ship(
     if first_id.as_deref() != Some(record.id.as_str()) && !open.is_empty() {
         // One document. Printing here and returning Err made JSON mode emit two.
         return Err(before);
+    }
+    // Before the generic readiness refusal, so the command to re-run is this one, flags and all
+    // (REQ-cmd-change-031).
+    if matches!(
+        record.state,
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+    ) && let Some(refusal) = change::open_tasks_refusal(
+        root,
+        &record,
+        &ship_command(&record.id, dry_run, push, wait, wait_timeout_secs),
+    ) {
+        return Err(refusal);
     }
     if !ready {
         let action = report["ship_next"]
@@ -4372,13 +4436,15 @@ fn run_checked_commit(
         }
     };
 
+    // A refusal names this invocation, flags and all, as the command to re-run (REQ-change-131).
+    let invocation = change::CheckInvocation {
+        strict,
+        commit: true,
+        push,
+    };
     let verify = |label: &str| -> Result<Option<String>, String> {
         say(label);
-        let record = if strict {
-            change::check_change_with_strict(root, id, true)?
-        } else {
-            change::check_change(root, id)?
-        };
+        let record = change::check_change_as(root, id, invocation)?;
         Ok(record.map(|record| record.commit.unwrap_or_default()))
     };
 
@@ -4876,5 +4942,60 @@ mod ship_next_action_tests {
             archive_sentence_without_command(&sentence),
             "This pull request is not finished. Archive `sooner-accept` first. Still open: `sooner-accept`, `later-verify`."
         );
+    }
+}
+
+#[cfg(test)]
+mod ship_command_tests {
+    use super::*;
+    use crate::cli::{Cli, Command};
+    use clap::Parser;
+
+    /// The command an open-task refusal names leaves the timeout out exactly when it is the
+    /// default, so this constant must be the CLI's default.
+    #[test]
+    fn ship_wait_timeout_default_matches_the_cli() {
+        let parsed =
+            Cli::try_parse_from(["specsync", "change", "ship", "guide", "--wait"]).unwrap();
+        match parsed.command {
+            Some(Command::Change {
+                action:
+                    ChangeAction::Ship {
+                        wait_timeout_secs, ..
+                    },
+            }) => assert_eq!(wait_timeout_secs, SHIP_WAIT_TIMEOUT_DEFAULT_SECS),
+            _ => panic!("`change ship` parses as a ship action"),
+        }
+    }
+
+    /// Verifies REQ-cmd-change-031: the named ship command repeats the flags it was given.
+    #[test]
+    fn ship_command_repeats_its_flags() {
+        assert_eq!(
+            ship_command("guide", false, false, false, 900),
+            "specsync change ship guide"
+        );
+        assert_eq!(
+            ship_command("guide", true, false, false, 900),
+            "specsync change ship guide --dry-run"
+        );
+        assert_eq!(
+            ship_command("guide", false, true, true, 900),
+            "specsync change ship guide --push --wait"
+        );
+        assert_eq!(
+            ship_command("guide", false, true, true, 60),
+            "specsync change ship guide --push --wait --wait-timeout-secs 60"
+        );
+        assert_eq!(
+            ship_command("guide", false, false, false, 60),
+            "specsync change ship guide",
+            "the timeout only matters with --wait"
+        );
+        let words: Vec<String> = ship_command("guide", false, true, true, 60)
+            .split(' ')
+            .map(str::to_string)
+            .collect();
+        Cli::try_parse_from(&words).expect("the named command parses");
     }
 }

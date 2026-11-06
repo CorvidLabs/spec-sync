@@ -2193,6 +2193,16 @@ pub fn record_scoped_review(
     record_scoped_review_with_verdict(root, id, reviewer, ScopedReviewVerdict::Pass)
 }
 
+/// A validated reviewer claim as one shell word. The claim's alphabet allows a space but no
+/// quote, so single quotes are enough.
+fn shell_quoted_reviewer(reviewer: &str) -> String {
+    if reviewer.contains(' ') {
+        format!("'{reviewer}'")
+    } else {
+        reviewer.to_string()
+    }
+}
+
 pub fn record_scoped_review_with_verdict(
     root: &Path,
     id: &str,
@@ -2206,6 +2216,20 @@ pub fn record_scoped_review_with_verdict(
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
     let reviewer = validate_scoped_reviewer_claim(&reviewer)?;
+    // Checkbox state is outside every digest a review binds, so a task reopened after a passing
+    // check is invisible to currency and must be asked here (REQ-change-131). Only a passing
+    // verdict is refused: recording that unfinished work fails review stays possible.
+    if verdict == ScopedReviewVerdict::Pass {
+        ensure_tasks_complete(
+            root,
+            &record,
+            &format!(
+                "specsync change review {} --reviewer {}",
+                record.id,
+                shell_quoted_reviewer(reviewer)
+            ),
+        )?;
+    }
     let current_commit = git_output(root, &["rev-parse", "HEAD"])
         .ok_or_else(|| "scoped review requires a committed implementation".to_string())?;
     validate_verification_for_commit_binding(root, &record, &verification, true).map_err(|error| {
@@ -2524,6 +2548,9 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
                 .into(),
         );
     }
+    // Before acceptance writes anything, and for a resumed finalization too: no digest sees a
+    // task reopened after the passing check (REQ-change-131).
+    ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     if record.state == ChangeState::Verifying {
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
     } else {
@@ -3734,6 +3761,27 @@ fn summarize_change_with_effective(
             }
             ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
         }
+    };
+    // Checkbox state is outside every digest the currency helpers above compare, so an open task
+    // never shows up as staleness. Name it before the step it would refuse (REQ-change-132).
+    let next_action = match (record.state, effective) {
+        (
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying,
+            Some(definition),
+        ) if sequence_freeze.is_none()
+            && !matches!(verification_ignored, Some(Err(_)))
+            && approval_valid
+            && artifacts_complete =>
+        {
+            match open_tasks_selected(root, &record.id, &definition.selected_artifacts) {
+                Ok(open) if !open.is_empty() => format!(
+                    "{}, then {next_action}",
+                    open_tasks_sentence(&record.id, &open)
+                ),
+                _ => next_action,
+            }
+        }
+        _ => next_action,
     };
     let handoff = classify_handoff(
         &record.id,

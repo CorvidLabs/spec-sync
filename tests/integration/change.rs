@@ -4435,10 +4435,10 @@ impl OpenTaskCli {
             .to_string()
     }
 
-    fn assert_next_names_open_task_then(&self, then: &str) {
-        for (surface, next) in [
-            ("text", self.status_text_next()),
-            ("json", self.status_json_next()),
+    fn assert_next_names_open_task_then(&self, text_then: &str, json_then: &str) {
+        for (surface, next, then) in [
+            ("text", self.status_text_next(), text_then),
+            ("json", self.status_json_next(), json_then),
         ] {
             let task = next.find("line 4").unwrap_or_else(|| {
                 panic!("{surface} status must name the open task first: {next}")
@@ -4511,7 +4511,8 @@ fn open_task_gate_refuses_and_names_the_command_that_recovers() {
         !fixture.workspace().join("verification.json").exists(),
         "a refused check records no verification"
     );
-    fixture.assert_next_names_open_task_then(&format!("specsync change check {id}`"));
+    let check_next = format!("then run `specsync change check {id}`");
+    fixture.assert_next_names_open_task_then(&check_next, &check_next);
 
     // Tick the box and run exactly what the refusal named.
     fixture.set_tasks(OPEN_TASKS_DONE);
@@ -4523,7 +4524,10 @@ fn open_task_gate_refuses_and_names_the_command_that_recovers() {
     // 2. A task reopened after the passing check: review refuses.
     fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
     fixture.git(&["commit", "-am", "reopen one task"]);
-    fixture.assert_next_names_open_task_then(&format!("specsync change review {id}"));
+    fixture.assert_next_names_open_task_then(
+        &format!("then run `specsync change check {id} --commit` if needed"),
+        &format!("then run `specsync change review {id}"),
+    );
     let stderr = fixture.refused(&["change", "review", &id, "--reviewer", "Fixture Reviewer"]);
     assert_eq!(
         OpenTaskCli::named_rerun(&stderr),
@@ -4533,11 +4537,33 @@ fn open_task_gate_refuses_and_names_the_command_that_recovers() {
         !fixture.workspace().join("review.json").exists(),
         "a refused review records nothing"
     );
+    // A blocking verdict on unfinished work is still recordable.
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Fixture Reviewer",
+            "--verdict",
+            "block",
+        ])
+        .success();
+    let review: Value =
+        serde_json::from_str(&fs::read_to_string(fixture.workspace().join("review.json")).unwrap())
+            .unwrap();
+    assert_eq!(review["verdict"], "block", "{review}");
     fixture.set_tasks(OPEN_TASKS_DONE);
     fixture
         .run_named(&OpenTaskCli::named_rerun(&stderr))
         .success();
-    assert!(fixture.workspace().join("review.json").exists());
+    let review: Value =
+        serde_json::from_str(&fs::read_to_string(fixture.workspace().join("review.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        review["verdict"], "pass",
+        "the named review command records the pass: {review}"
+    );
 
     // 3. Reopened again after the review: ship-status, finalize and ship refuse.
     fixture.set_tasks(OPEN_TASKS_ONE_OPEN);

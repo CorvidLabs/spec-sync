@@ -330,3 +330,30 @@ pub fn setup_undeclared_import_project(root: &std::path::Path) {
     )
     .unwrap();
 }
+
+/// A tracked file of this repository with whitespace runs collapsed, so a reflowed line cannot
+/// hide a phrase from a contract pin.
+pub fn tracked_text(relative: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+    let text = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The body of `### <id>` in a tracked requirements file, up to the next `##` or `###` heading,
+/// with whitespace runs collapsed; `None` when the requirement is absent.
+pub fn tracked_requirement(relative: &str, id: &str) -> Option<String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+    let text = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+        .replace("\r\n", "\n");
+    let heading = format!("### {id}\n");
+    let start = text.find(&heading)? + heading.len();
+    let body = &text[start..];
+    let end = [body.find("\n## "), body.find("\n### ")]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap_or(body.len());
+    Some(body[..end].split_whitespace().collect::<Vec<_>>().join(" "))
+}

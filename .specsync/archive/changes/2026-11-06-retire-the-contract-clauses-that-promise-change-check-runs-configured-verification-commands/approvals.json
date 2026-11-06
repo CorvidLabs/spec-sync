@@ -1,0 +1,82 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793936432,
+      "digest": "97cbbdd7f0531e9c9548fd752935c67da9d29978c3adf367b3dd958f43b17b02",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands",
+        "title": "Retire the contract clauses that promise change check runs configured verification commands",
+        "description": "Retire the contract clauses that promise change check runs configured verification commands",
+        "kind": "documentation",
+        "affected_specs": [
+          "change",
+          "cmd_comment"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/ship.md",
+          "site/src/content/docs/comparisons/adversarial-proof.md",
+          "site/src/content/docs/why-specsync.md",
+          "specs/change/change.3md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "specs/change/testing.md",
+          "specs/cmd_comment/cmd_comment.3md",
+          "specs/cmd_comment/cmd_comment.spec.md",
+          "specs/cmd_comment/context.md",
+          "specs/cmd_comment/requirements.md",
+          "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+          "tests/integration/change.rs",
+          "tests/integration/comment.rs",
+          "tests/integration/helpers.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Runtime behavior is unchanged: no production source changes (only test files under src/change_tests and tests/integration), and the REQ-change-091 discriminators and neither_comment_nor_change_check_spawns_configured_project_commands still pass unmodified; REQ-change-019 and REQ-change-061 gain characterization tests whose mutation checks fail.",
+          "SHIP-1.c.1: REQ-change-015 is retired, and REQ-change-019, REQ-change-027, REQ-change-030, REQ-change-061 and REQ-change-069 say no configured verification command is executed and cite REQ-change-023; the change spec, testing.md, context.md and change.3md keep no clause that promises execution.",
+          "SHIP-1.c.1: REQ-cmd-comment-001 and REQ-cmd-comment-002 are retired because REQ-cmd-comment-004 reversed them; REQ-cmd-comment-003, the top-level acceptance list and the spec scenario say comment executes no configured SDD verification command; context.md and cmd_comment.3md no longer say change check streams one.",
+          "SHIP-1.c.1: the why-specsync and adversarial-proof comparison pages no longer credit SpecSync with executing configured tests or isolating a verification shell, and say verification runs no configured command.",
+          "SHIP-1.c.2: change_contracts_give_one_answer_on_configured_verification_commands, comment_contracts_say_no_configured_verification_command_runs and comparison_pages_do_not_credit_specsync_with_running_configured_tests fail on main and pass after the change."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md lesson: a successor that contradicts its predecessor does not retire it, someone has to; this change retires the predecessors. No runtime behavior changes (Leif, d and e): the dead runner, Cargo classifier and routing helpers stay and only their contracts are qualified; init --help is left as is. Strictness stays: no gate, bound, timeout or existing assertion is loosened.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "d6eb4b49c395c60852217bf1c1bcb80106956daa78b2ed4a1dc406e83594c405",
+        "cmd_comment": "4334aa679149a7b2f3e2188199e404bf0e06b054081b09f19fddaff11c51c82e"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-015": "21fc009b2cae37d676dfde0eddb8265ba7484f3dd835cfa0978987d860f08241",
+        "change: REQUIREMENT REQ-change-019": "4622bf504f32f65e3aaaa5778587514193ae3f91e466422d522a25d3e9959b8b",
+        "change: REQUIREMENT REQ-change-027": "5c8b65036bc40fccb9112261d08ba76460fe6ce41dd7491e6a46a69b1b4d7da9",
+        "change: REQUIREMENT REQ-change-030": "b75a312dc88ef6458c103ec7702fe27a8ee99cb39da99cf360ebca54f0167924",
+        "change: REQUIREMENT REQ-change-061": "1878ce104f87b294db4a3b96e07d28eb5035a5481b0ef88bb4de3d01093fcd95",
+        "change: REQUIREMENT REQ-change-069": "42f20497c49aa046c65a4545cc95c804cbed0b6ae0b979b87ff2bc5e51bc7e9e",
+        "cmd_comment: REQUIREMENT REQ-cmd-comment-001": "d003baaa3b2640c1c7113cf2261357eeb8918ced6393ff377eb3b9b509d376d9",
+        "cmd_comment: REQUIREMENT REQ-cmd-comment-002": "49cdd93ada41fc72ab90f7aebd39c40c9b975605831e66abe5f8de6c2c9559d8",
+        "cmd_comment: REQUIREMENT REQ-cmd-comment-003": "8fdd51862883a01f90ffd576921e92878ece0bda0469a024a648cd75adfaa85b",
+        "cmd_comment: SPEC SECTION Behavioral Examples": "8f4ec4a0b887bd79e703b79d5da579c7b776556ba685be3d6a195581fd705a82"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793940902,
+      "digest": "012a043a9d684200cc37803d5d623820e5ae335dbed605dcea02364bb39dd402",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

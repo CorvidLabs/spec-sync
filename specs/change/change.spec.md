@@ -1,6 +1,6 @@
 ---
 module: change
-version: 178
+version: 179
 status: active
 files:
   - src/change.rs
@@ -114,7 +114,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `AppliedDeltaItem` | One block a change's delta put into a canonical spec or requirements file: module, target, key and body, listed by a send-back |
-| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, whether canonical text had been applied, and the applied items |
+| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, the number of scoped review attempts before it (absent on a send-back recorded before #960), whether canonical text had been applied, and the applied items |
 | `SendBackResult` | Deterministic change-plus-audit result returned by the send-back transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -303,6 +303,7 @@ Acceptance Criteria
 46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
 47. Checkbox state is outside the approval and verification digests, so ticking a task needs no reapproval or re-verification. Every verb that verifies a change, records a passing review of it or finalizes it therefore asks the task gate itself, before writing anything. A task reopened after a passing check is refused at review and finalize, and the refusal names each open task and the exact command to re-run (REQ-change-131).
 48. A scoped review recorded before a send-back stays valid review history. It validates against the definition approval it bound, including one the send-back cancelled, so it never blocks a fresh `change review` after re-approval, and it is never removed or rewritten. Whether a review counts is a separate question, answered as before: it must match the current contract and evidence and bind a definition approval the latest send-back did not cancel. A review bound only to a cancelled approval is reported stale, never unreadable, and never lets `change ship` or `change finalize` through (#914, REQ-change-123, CHANGE-12.b, CHANGE-12.d).
+50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
 
 ## Behavioral Examples
 
@@ -439,6 +440,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | Codex review of #903: a workflow-v2 finalization stopped after acceptance, with its workspace still active, is gated too; status, ship-status and ship name its open task (`open_tasks_block`), and a review refusal names `--reviewer=<claim>` (REQ-change-131, REQ-cmd-change-031, #892). |
 | 2026-11-05 | v174: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |
 | 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |

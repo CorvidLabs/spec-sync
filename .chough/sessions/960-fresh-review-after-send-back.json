@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-7734650b30395c110a70276e",
-    "head": "EVT-434092322e154952803df7d4",
+    "head": "EVT-859e05057b7aa4af23b876f9",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "intent",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -31,18 +31,18 @@
   "decisions": [
     "Leif via orc t18 (2026-11-06, 'Capture both'): capture CHANGE-12.e verbatim; fix #960 as its own PR, test-first",
     "decided: a send-back records cancelled_review_attempts beside cancelled_approvals, and currency refuses a review recorded before the latest send-back; a send-back without the count uses a strict timestamp rule, which changes none of the 4 archives on main that have send-backs",
-    "rejected: timestamps alone (same-second ambiguity in scripted flows), a per-review approval index (needs a review schema change plus a fallback anyway), dropping earlier attempts (CHANGE-12.c)"
+    "rejected: timestamps alone (same-second ambiguity in scripted flows), a per-review approval index (needs a review schema change plus a fallback anyway), dropping earlier attempts (CHANGE-12.c)",
+    "Leif decided \"Leif via orc t18: approve the scope of require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged\": \"Leif approved #960 (relayed)\" (orc tab, 2026-11-06; relayed by orc t18, who recorded the native approval as 0xLeif at 71e0080d); recorded by ss-960 Claude agent; a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
-    "Red first: a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged fails on main 8a251d7a (status scoped_review_current true, next action finalize)"
+    "Red first: a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged fails on main 8a251d7a (status scoped_review_current true, next action finalize)",
+    "Implemented: SendBackRecord.cancelled_review_attempts written on every new send-back; scoped_review_currency refuses a review recorded before the latest send-back (timestamp fallback for legacy send-backs); #960 integration test and 2 new unit tests green; 17 send-back/scoped-review unit and 5 send-back/review integration tests green"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif via orc t18: approve the scope of require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After approval: unit tests, implement, check --commit, audit --strict, verify, PR (Fixes #960), ready for Leif's GitHub review"
+  "next_action": "check --commit, audit --strict, pre-push, push, PR (Fixes #960), verify, ready for Leif's GitHub review"
 }

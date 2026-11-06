@@ -22,4 +22,6 @@ Failing test first, through the built binary, under workflow v2.
 
 ## Results
 
-Pending.
+- The integration test failed on main 8a251d7a (`scoped_review_current: true`, next action `finalize`) and passes with the fix.
+- The two new unit tests pass, and the 15 existing send-back and scoped-review unit tests are unchanged and green.
+- The send-back and review integration tests (5), #914's included, are green.

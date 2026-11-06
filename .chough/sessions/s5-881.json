@@ -55,7 +55,9 @@
     "change check --commit verified (575ddcd9); fledge verify steps pass on pinned 1.89; pre-push green",
     "Shipped: archived at 2bc2ba92",
     "Captured DOCS-1..DOCS-3.a in hi/docs.md (a first accidental capture of DOCS-1 as '--help' was deleted before commit and recaptured with the approved sentence)",
-    "Failing test readme_change_workflow_archives_before_it_tells_the_reader_to_wait_for_ci at 366c93f6 (fails on README ad50bdef at the wait-for-CI line before review; passes with the planned README fix in a reverted trial)"
+    "Failing test readme_change_workflow_archives_before_it_tells_the_reader_to_wait_for_ci at 366c93f6 (fails on README ad50bdef at the wait-for-CI line before review; passes with the planned README fix in a reverted trial)",
+    "fledge lanes run verify passed at 8df7906c on rust 1.89.0 (rustup, pinned): fmt, clippy -D warnings, check, cargo test 2819 unit passed/2 ignored and 483 integration passed incl. readme_change_workflow_archives_before_it_tells_the_reader_to_wait_for_ci, release build, strict spec check 62/62, RC and ci-gate script tests, 40m31s. A first run under Homebrew rustc 1.99 failed clippy on an untouched line (chunks_exact lint new in 1.99). Not recorded with chough evidence add: it requires a specs/*.spec.md contract and this no-spec change has none",
+    "Mutation check: README with the finalize line removed fails the test at the wait-for-CI line (gate names change ship)"
   ],
   "observations": [],
   "bugs": [],

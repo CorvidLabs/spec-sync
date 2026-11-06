@@ -308,3 +308,88 @@ fn a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finali
         "no archive for {ID}: {packages:?}"
     );
 }
+
+// #946, SHIP-3.c. When the remote default's archived state records cannot be read, the tool
+// cannot tell whether this change is already archived there. Review and finalize stop, say how
+// to find out, and write no second archive.
+#[test]
+fn review_and_finalize_stop_when_the_upstream_archive_cannot_be_read() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let archived = git(&root, &["rev-parse", "HEAD"]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(
+        &root,
+        &[
+            "push",
+            "-q",
+            "origin",
+            &format!("{archived}:refs/heads/main"),
+        ],
+    );
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    let package = git(
+        &root,
+        &[
+            "ls-tree",
+            "--name-only",
+            "origin/main",
+            "--",
+            ".specsync/archive/changes/",
+        ],
+    );
+    let blob = git(
+        &root,
+        &["rev-parse", &format!("origin/main:{package}/state.json")],
+    );
+    squash_onto_base(&root, &base, &verified);
+
+    // This clone lost the archived record's blob, so the batched read of the remote default's
+    // archive fails.
+    fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+    let cannot_tell = |text: &str| text.contains("cannot tell") && text.contains("origin/main");
+
+    let review = run(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    let review_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
+    assert!(!review.status.success(), "review accepted:\n{review_text}");
+    assert!(cannot_tell(&review_text), "review:\n{review_text}");
+    assert_eq!(state(&root), "verifying", "review moved the change");
+
+    let finalize = run(&root, &["change", "finalize", ID]);
+    let finalize_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&finalize.stdout),
+        String::from_utf8_lossy(&finalize.stderr)
+    );
+    assert!(
+        !finalize.status.success(),
+        "finalize archived:\n{finalize_text}"
+    );
+    assert!(cannot_tell(&finalize_text), "finalize:\n{finalize_text}");
+    assert!(
+        !root.join(".specsync/archive").exists(),
+        "finalize wrote a second archive"
+    );
+}

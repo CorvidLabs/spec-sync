@@ -102,3 +102,51 @@ fn upstream_archive_is_found_by_its_state_record_not_its_directory_name() {
         .expect("a renamed upstream package must still be found by its state record");
     assert_eq!(upstream.reference, "origin/main");
 }
+
+// #946, SHIP-3.c. When the remote default's archived state records cannot be read, the lookup
+// cannot tell whether this change was already archived there. That must not read as "no
+// upstream archive": it is reported, and its message says how to find out.
+#[test]
+fn an_unreadable_upstream_archive_listing_is_reported_not_read_as_absent() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("work");
+    fs::create_dir_all(&root).unwrap();
+    quiet_git(&root, &["init", "-b", "main"]);
+    quiet_git(&root, &["config", "user.email", "test@example.com"]);
+    quiet_git(&root, &["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    quiet_git(&root, &["add", "seed.txt"]);
+    quiet_git(&root, &["commit", "-m", "seed"]);
+    let base = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let archived = archived_workflow_record(&root);
+    let state_path = format!("{ARCHIVE_PATH}/2026-07-14-{}/state.json", archived.id);
+
+    let origin = temp.path().join("origin.git");
+    quiet_git(
+        temp.path(),
+        &["init", "--bare", "-b", "main", origin.to_str().unwrap()],
+    );
+    quiet_git(&root, &["remote", "add", "origin", origin.to_str().unwrap()]);
+    quiet_git(&root, &["push", "origin", "HEAD:refs/heads/main"]);
+    quiet_git(&root, &["fetch", "origin"]);
+    quiet_git(&root, &["remote", "set-head", "origin", "main"]);
+    quiet_git(&root, &["checkout", "-q", "-b", "stale", &base]);
+
+    // The batched read of the archived records fails: their blob is gone from this clone.
+    let blob = quiet_git(&root, &["rev-parse", &format!("origin/main:{state_path}")])
+        .trim()
+        .to_string();
+    fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    let found = upstream_archive_of(&root, &unarchived);
+    assert!(
+        found.is_some(),
+        "an unreadable upstream archive listing must not read as no upstream archive"
+    );
+    let message = upstream_archive_message(&unarchived.id, &found.unwrap());
+    assert!(message.contains("cannot tell"), "{message}");
+    assert!(message.contains("origin/main"), "{message}");
+    assert!(message.contains("git fetch"), "{message}");
+}

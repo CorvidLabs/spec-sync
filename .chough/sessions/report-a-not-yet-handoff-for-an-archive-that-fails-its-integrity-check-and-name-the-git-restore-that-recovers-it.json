@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-096f4a0939f690b73c151837",
-    "head": "EVT-9092b52c27e443d9218618f8",
+    "head": "EVT-2559a6b89fee8ab867160e32",
     "legacy": null
   },
   "schema_version": 2,
@@ -39,7 +39,8 @@
     "rejected: variant C (own-package-only text check, ~3.7s) because text could disagree with JSON when the roster check fails, which is the D3 defect class",
     "Leif (2026-11-05 22:07 MST, orc tab, relayed by orc t18): \"Record and merge\" for #901 at db2e3ab4; superseded the same evening when orc t18 directed option 1 under the standing rule: fix the Codex P1 (unquoted shell words) and P2a (no-op package restore) in #901 test-first, file P2b",
     "decided: send-back as 'ss-s3 Claude agent' (orc t18 instruction) because answer is draft-only and the fix adds a third recovery case to the approved criteria and REQ-change-093",
-    "rejected: exporting commands::merge::shell_quote because src/commands/merge.rs belongs to cmd_merge, outside the approved paths; a private one-line copy in the change domain instead"
+    "rejected: exporting commands::merge::shell_quote because src/commands/merge.rs belongs to cmd_merge, outside the approved paths; a private one-line copy in the change domain instead",
+    "Leif (2026-11-05, orc tab, relayed by orc t18): \"Approve\" re-approval of the sent-back scope (shell quoting + third recovery case); native definition approval recorded at 5abcc2c7"
   ],
   "open_questions": [],
   "completed": [
@@ -59,8 +60,8 @@
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
-    "Leif via orc t18: re-approve report-a-not-yet-handoff-... after the send-back (third recovery case + shell quoting), then a fresh scoped review"
+    "Leif via orc t18: fresh scoped review of #901 after check --commit and verify; then ship with no commit between"
   ],
   "run_consents": [],
-  "next_action": "After re-approval: change check --commit, verify lane (pinned 1.89), ready for review"
+  "next_action": "check --commit, verify, push, ready for review with Codex thread IDs"
 }

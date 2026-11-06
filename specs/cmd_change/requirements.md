@@ -457,6 +457,15 @@ Acceptance Criteria
 - A draft is told to approve, not to check.
 - Approved, implementing and verifying changes are still told to check.
 
+### REQ-cmd-change-031
+
+`change ship`, including `--dry-run`, SHALL refuse a change with an open task before finalizing anything. The refusal SHALL name each open task and `specsync change ship <id>` with the flags it was given. `change ship-status` SHALL report the open tasks as a blocker and SHALL NOT report the change ready to finalize. Its `Next:` SHALL name the open tasks before the ship command.
+
+#### Acceptance Criteria
+
+- After a passing check and review, reopening one task makes `change ship-status <id>` list an incomplete-tasks blocker with `ready_to_finalize` false. It also makes `change ship <id>` exit 1 without archiving, naming the task and `specsync change ship <id>`.
+- Ticking the box and running the named `change ship` command archives the change.
+
 ### REQ-cmd-change-relayed-decision-001
 
 `change approve` and `change review` SHALL take an optional relayed decision through `--words`, `--where` and `--recorded-by`, recording `decided_by` from `--actor` or `--reviewer`. `change status <id>` and `change show <id>` SHALL show the effective approval's actor and the latest review's reviewer and verdict, each marked as a recorded claim, not authenticated, and any relayed decision beside the record it belongs to, followed by the shared boundary sentence. JSON output SHALL carry the same data under `recorded_claims`.

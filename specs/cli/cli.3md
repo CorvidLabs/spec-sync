@@ -6,7 +6,7 @@ axis: layers
 @plane z=0 label="Context"
 The spec stays `specs/cli/cli.spec.md`.
 
-The `specsync` command-line entry point parses global options, blocks configured verification children from recursively dispatching `check`, `change`, or `lifecycle` commands, routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
+The `specsync` command-line entry point parses global options, refuses `check`, `change`, or `lifecycle` commands that run under an inherited `SPECSYNC_VERIFICATION_CONTEXT` (SpecSync starts no verification child of its own), routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
 
 This plane is context. Later planes are lessons, in the order they were learned.
 `context.md` stays beside this file.
@@ -55,3 +55,6 @@ Late release findings need real process regressions in text, JSON and batch mode
 
 @plane z=7 label="Lesson (#862)"
 `merge --install` and `merge-file` are dispatched from `main`. `merge-file` is the git driver entry and writes the current side. It does not change check or change dispatch.
+
+@plane z=8 label="The marker is inherited, not made (#911)"
+REQ-cli-003 and the Purpose still described a child that SpecSync's own verification started re-entering the lifecycle, after `change check` stopped spawning configured commands. The guard in `main.rs` is live and right, but the only code that set `SPECSYNC_VERIFICATION_CONTEXT` on a child is the unwired `run_configured_command`, so the marker can only come from a caller outside SpecSync. `cli_contracts_describe_an_inherited_verification_context_not_a_child` fails if the cli contracts or the HLD describe a SpecSync-made child again.

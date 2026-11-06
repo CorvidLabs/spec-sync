@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "f55362448808c96958ac1097aa0b9207bd356fc0",
+  "contract_digest": "6da641395667c24d74849e6f419ec729958d4e70b03c284367b0a85a00688518",
+  "execution_digest": "c0409fefe81f509fa4869a42296c54601df32c0760ff7df9b341ce779edf42cf",
+  "workspace_digest": "b9072b63fc156d06c2ecdac7fc8e63fb0f01dddbfb5d696ea3b89d5a424cc1e4",
+  "timestamp": 1793935400
+}

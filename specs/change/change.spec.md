@@ -1,6 +1,6 @@
 ---
 module: change
-version: 170
+version: 171
 status: active
 files:
   - src/change.rs
@@ -25,6 +25,7 @@ files:
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/fast_archived_reads.rs
+  - src/change_tests/upstream_archive.rs
   - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
   - src/change_tests/stale_modified_delta.rs
@@ -84,6 +85,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
+| `UpstreamArchive` | The remote default reference and the commit on it that archived a change this branch holds unarchived (#694) |
 | `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration, plus the opt-in `verification_ignored_paths` directory prefixes left out of the verification project-input digest (empty by default and omitted when empty) |
 | `SuccessionObligation` | Definition-bound predecessor path, canonical owner module, and full predecessor entry digest |
 | `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
@@ -216,6 +218,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
 | `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |
 | `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
+| `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` for an archive already in `HEAD` (reopen) or when Git cannot answer |
+| `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 
 **Exported Methods**
@@ -617,4 +621,6 @@ Acceptance Criteria
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
 | 2026-11-06 | #861's spawn-ceiling requirement is REQ-change-127. Its archived package names it REQ-change-125 because #862 took 125 first; the archive is left as reviewed |
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
-| 2026-11-06 | v170 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |
+| 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
+| 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | v171 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |

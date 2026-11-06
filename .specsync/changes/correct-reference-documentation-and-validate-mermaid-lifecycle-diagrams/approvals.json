@@ -1,4 +1,90 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793981879,
+      "digest": "c43a23f81c1cad75ad60a0464954a4e6f8b6b0e1221432c3fc770bf0ce35017f",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "correct-reference-documentation-and-validate-mermaid-lifecycle-diagrams",
+        "title": "Correct reference documentation and validate Mermaid lifecycle diagrams",
+        "description": "Correct reference documentation and validate Mermaid lifecycle diagrams",
+        "kind": "documentation",
+        "affected_specs": [
+          "agents",
+          "github"
+        ],
+        "affected_paths": [
+          ".agents/skills/chough-workflow/references/accept.md",
+          ".agents/skills/chough-workflow/references/lifecycle.md",
+          ".chough/",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".codex/skills/spec-sync/SKILL.md",
+          ".cursor/skills/spec-sync/SKILL.md",
+          ".gemini/skills/spec-sync/SKILL.md",
+          ".specsync/agent-artifacts.json",
+          "CONTRIBUTING.md",
+          "INTENT.md",
+          "README.md",
+          "docs/ADOPTING.md",
+          "docs/HLD.md",
+          "docs/RELEASING.md",
+          "docs/ci-confidence.md",
+          "hi/docs.md",
+          "site/README.md",
+          "site/bun.lock",
+          "site/package.json",
+          "site/scripts/documentation-accuracy.test.ts",
+          "site/src/content/docs/architecture.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/companion-files.md",
+          "site/src/content/docs/comparisons/adversarial-proof.md",
+          "site/src/content/docs/comparisons/spec-kit.md",
+          "site/src/content/docs/configuration.md",
+          "site/src/content/docs/cross-project-refs.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "site/src/content/docs/integrations/vscode-extension.md",
+          "site/src/content/docs/quickstart.md",
+          "site/src/content/docs/why-specsync.md",
+          "specs/agents/agents.3md",
+          "specs/agents/agents.spec.md",
+          "specs/agents/requirements.md",
+          "specs/agents/tasks.md",
+          "specs/agents/testing.md",
+          "specs/github/github.3md",
+          "specs/github/github.spec.md",
+          "specs/github/requirements.md",
+          "specs/github/tasks.md",
+          "specs/github/testing.md",
+          "src/agents.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "DOCS-2 and DOCS-2.a: Reference and generated/copied skill closeout guidance agrees on local verify, review, native archive commit, push and CI.",
+          "DOCS-4: Reference and contributor documentation accurately describes current commands, settings, defaults, paths, supported platforms and links.",
+          "DOCS-5.a: CI checks every maintained Mermaid block for parser validity and checks lifecycle states and send-back transitions against source, with failing mutation controls.",
+          "DOCS-5: All maintained diagrams reflect current implementation states, transitions and steps.",
+          "Protected open-PR lines remain unchanged; HLD F22 follows #935 and Chough session records follow #941. One docs-focused PR carries tests, generated prose and contracts without changing executable lifecycle behavior."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Generated skill copies must match the installer and digest manifest; specs/agents/agents.3md plane 6 requires advancing the artifact template version and regenerating through the built binary. Archive-first CI and exact-version wrapper boundaries in specs/github/github.3md constrain closeout and version prose. Existing bounds, gates, timeouts, human authority and protected PR hunks remain unchanged.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "b8ad9e1d182153414ffc00e869fc799ef03a5894d2b9955bbe98e1e3ce3380a7",
+        "github": "e094c66aede74a82bc55600bb4ab390719b86f8a12fe8165985b9f114f492ef7"
+      },
+      "approved_delta_bases": {
+        "agents: REQUIREMENT REQ-agents-009": "efb868cd0a7b209a02d24688201627e06d31dc67e76bdaeacbe874e570b99063"
+      }
+    }
+  ],
   "reopenings": []
 }

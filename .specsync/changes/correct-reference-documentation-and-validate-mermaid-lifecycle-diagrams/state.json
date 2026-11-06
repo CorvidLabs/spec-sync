@@ -7,10 +7,10 @@
   "title": "Correct reference documentation and validate Mermaid lifecycle diagrams",
   "description": "Correct reference documentation and validate Mermaid lifecycle diagrams",
   "kind": "documentation",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "7ae7245f97e7cfd66cd80ce39b611becb1095642",
   "created_at": 1793979334,
-  "updated_at": 1793979664,
+  "updated_at": 1793981879,
   "affected_specs": [
     "agents",
     "github"

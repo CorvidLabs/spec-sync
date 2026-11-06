@@ -1,6 +1,6 @@
 ---
 id: make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 5181fb2f6952ef086eed6cb0dff976b41123cd77
 ---

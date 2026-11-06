@@ -47,6 +47,9 @@ mod watch;
 #[path = "integration/quickstart.rs"]
 mod quickstart;
 
+#[path = "integration/documented_workflows.rs"]
+mod documented_workflows;
+
 #[path = "integration/generated_output_has_no_dashes.rs"]
 mod generated_output_has_no_dashes;
 

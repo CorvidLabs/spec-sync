@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it",
+  "implementation_commit": "f55362448808c96958ac1097aa0b9207bd356fc0",
+  "implementation_tree": "204da046e087e9c76471b00599444d48c58182bc",
+  "contract_digest": "6da641395667c24d74849e6f419ec729958d4e70b03c284367b0a85a00688518",
+  "workspace_digest": "b9072b63fc156d06c2ecdac7fc8e63fb0f01dddbfb5d696ea3b89d5a424cc1e4",
+  "closing_digest": "7910f4c94b6bf1c53e49e6170c3631d4bc213f91bfa88fec3f177d6d711a8a8e",
+  "review_digest": "21e002f78925a6ad8db97a6c599cde2b6fe42233cf1390cbae0ed8383fb41596",
+  "finalization_digest": "c99b0da4719d98ffe06fa5b53e0bacfaa7b38f3e040e64c29d9841cd400d39dc",
+  "timestamp": 1793935478
+}

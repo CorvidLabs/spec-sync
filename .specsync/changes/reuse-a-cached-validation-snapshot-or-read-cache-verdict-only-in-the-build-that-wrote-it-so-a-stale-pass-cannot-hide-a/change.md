@@ -1,6 +1,6 @@
 ---
 id: reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a
-state: draft
+state: approved
 type: bug_fix
 base_commit: cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b
 ---

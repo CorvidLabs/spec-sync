@@ -1013,7 +1013,10 @@ fn text_mode_next_action(
             format!("run `specsync change ship {id}` or `specsync change finalize {id}`"),
         ),
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
-        ChangeState::Archived => "no further action".into(),
+        // An archive that fails its integrity check is not finished: name the same restore the
+        // JSON next action and the handoff carry (#880). Path and literals only, no digest.
+        ChangeState::Archived => change::corrupt_archive_recovery_for_guidance(root, record)
+            .unwrap_or_else(|| "no further action".into()),
     }
 }
 

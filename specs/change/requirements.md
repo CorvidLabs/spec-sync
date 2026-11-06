@@ -1246,8 +1246,10 @@ Acceptance Criteria
 - `classify_handoff` is a pure function of `HandoffSignals`; every branch has a unit test that
   needs no repository.
 - A frozen sequence ledger, a definition changed after its approval, an invalid correction
-  ledger, and stale legacy terminal evidence are `not-yet`, and the step named is the repair the
-  lifecycle already requires (clear the freeze, re-approve, restore the ledger, reopen).
+  ledger, stale legacy terminal evidence, and an archive whose terminal evidence is
+  `corrupt-history` are `not-yet`, and the step named is the repair the lifecycle already requires
+  (clear the freeze, re-approve, restore the ledger, reopen, restore the archive from trusted
+  history).
 - A Draft is never `safe`: open questions, stub artifacts, and a complete-but-unapproved
   definition are each `conditional`, and the steps name answering, finishing the artifacts, or
   approving — approval is the first boundary a fresh session can resume from.
@@ -1259,7 +1261,24 @@ Acceptance Criteria
   `specsync change check <id> --commit`; one whose verification is current is `safe` whether the
   scoped review has been recorded yet or not, and the reason says which step a fresh session
   resumes at.
-- An accepted workflow-v2 change and an archived change are `safe`.
+- An accepted workflow-v2 change and an archived change whose terminal evidence authenticates
+  (including `historical-transition-unproven`) are `safe`.
+- For an archived change whose terminal evidence is `corrupt-history`, the step before clearing
+  and the summary's next action are one string ending with `specsync change status <id>`:
+  `git restore --source=HEAD --staged --worktree -- <package>` when the package's tracked files
+  differ from `HEAD`; the same restore from the commit that archived the package (named by
+  `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
+  package matches `HEAD` but not that commit; and, when the package still matches the commit
+  that archived it or no package or repository can answer, `specsync change status <id> --json`
+  to read what `terminal_evidence.reason` names and restore that from trusted Git history, since
+  a package restore would change nothing. Running the named step through a shell on a tampered
+  archive returns `authenticated-history` and `safe`.
+- Every change ID and path interpolated into a printed command is single-quoted as one shell
+  word, so a change ID or archive directory carrying shell metacharacters cannot turn the
+  copied step into a different command.
+- `handoff_summary` judges an archived record from the same terminal-evidence verdict
+  `ChangeSummary` carries, so the text line cannot call an archive `safe` that JSON reports as
+  `corrupt-history`.
 - `ChangeSummary` carries the decision as `handoff`, so JSON consumers read the same verdict the
   text line prints.
 
@@ -1682,18 +1701,6 @@ Acceptance Criteria
 - Without an upstream archive, a squash before finalize still reviews and finalizes.
 - An unarchived record whose archive `HEAD` already contains is not refused.
 
-### REQ-change-133
-
-When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
-
-Acceptance Criteria
-- With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
-- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
-- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
-- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
-- An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
-- A definition that approval refused before is still refused.
-
 ### REQ-change-131
 
 A lifecycle command that verifies a change, records a passing scoped review of it, or finalizes it SHALL refuse while the change's selected `tasks.md` has an open task, a `[ ]` checkbox outside fenced code. The refusal SHALL come before the command writes any record. This SHALL hold for a task reopened after a passing check, although checkbox state is outside the approval and verification digests. The refusal SHALL name:
@@ -1718,6 +1725,18 @@ A lifecycle command that verifies a change, records a passing scoped review of i
 
 - With one open task on an approved change, text and JSON status name the task file, the task's line and text, and then `specsync change check <id>`.
 - After a passing check with one task reopened, text and JSON status name the open task before the review step.
+
+### REQ-change-133
+
+When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
+
+Acceptance Criteria
+- With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
+- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
+- A definition that approval refused before is still refused.
 
 ### REQ-change-135
 

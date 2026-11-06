@@ -156,10 +156,23 @@ What runs, in order:
 3. `promote`: with `contents: write` on this job only, creates annotated `v6.0.1` at the
    candidate SHA and pushes it with `GITHUB_TOKEN`. No release App, no protected environment,
    no second approver: anyone who can dispatch `release.yml` from `main` can mint the tag.
-4. `build`: five targets, cold build, no cache: `specsync-linux-x86_64`,
-   `specsync-linux-x86_64-musl`, `specsync-linux-aarch64`, `specsync-macos-x86_64`,
-   `specsync-macos-aarch64`, each as `<name>.tar.gz` + `<name>.tar.gz.sha256` (+ a
-   `.provenance.json` kept only as a workflow artifact).
+4. `build`: six targets, cold build, no cache: `specsync-linux-x86_64`,
+   `specsync-linux-x86_64-musl`, `specsync-linux-aarch64`, `specsync-linux-aarch64-musl`,
+   `specsync-macos-x86_64`, `specsync-macos-aarch64`, each as `<name>.tar.gz` +
+   `<name>.tar.gz.sha256` (+ a `.provenance.json` kept only as a workflow artifact).
+   - The Linux glibc builds run natively on `ubuntu-22.04` and `ubuntu-22.04-arm`, so they start
+     on the documented floor: glibc 2.35, Ubuntu 22.04, Debian 12 and newer.
+   - The static musl builds run on `ubuntu-latest` and `ubuntu-24.04-arm`.
+   - Before uploading, every Linux archive must pass `.github/scripts/linux-baseline.py check`:
+     the binary runs offline in digest-pinned `ubuntu:22.04` and `debian:12-slim` containers
+     (musl builds also in `debian:11-slim` and `alpine:3.22`) and checks a small project. An
+     archive that fails is never uploaded, so it is never released (#882).
+   - `rc-assets.yml` applies the same check, and the `linux-baseline` CI job builds and checks the
+     same four archives on every full CI run.
+   - When GitHub retires its Ubuntu 22.04 images, the glibc rows fail at job start. Then move the
+     build into a digest-pinned `ubuntu:22.04` container, or raise the floor deliberately in
+     README.md, the Action docs and `LINUX_ARTIFACTS` together. Never move a glibc row to
+     `ubuntu-latest`.
 5. `release`: revalidates artifact checksums and identity, re-runs the validator in `release`
    mode against the final tag, refuses if a GitHub release for `v6.0.1` already exists, then
    creates the release (`softprops/action-gh-release`, generated notes, `.tar.gz` and `.sha256`
@@ -179,7 +192,7 @@ Idempotent and refusal cases:
 
 ## 5. After the tag
 
-Verify the release and its ten assets, and check one archive against its sidecar:
+Verify the release and its twelve assets, and check one archive against its sidecar:
 
 ```bash
 gh release view v6.0.1 --json isPrerelease,assets --jq '.isPrerelease, (.assets[].name)'
@@ -203,7 +216,7 @@ exists: `version` -> the new version and the four `sha256`
 values (macOS arm/intel, Linux arm/intel), taken from the `.sha256` sidecars of
 `specsync-macos-aarch64`, `specsync-macos-x86_64`, `specsync-linux-aarch64`,
 `specsync-linux-x86_64`. The formula downloads `specsync-<os>-<arch>.tar.gz` from
-`releases/download/v#{version}/`. The musl archive is not used. Open a PR on the tap, then
+`releases/download/v#{version}/`. The musl archives are not used. Open a PR on the tap, then
 `brew update && brew install CorvidLabs/tap/spec-sync && specsync --version`. After a later
 patch ships, bump the formula to that Cargo version, not back to 6.0.0.
 

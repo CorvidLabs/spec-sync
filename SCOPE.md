@@ -59,7 +59,7 @@ This document summarizes the shipped product boundary and what remains explicitl
 - `.specsync/config.toml` (TOML); legacy `specsync.json` / `.specsync.toml` are still read as a fallback
 
 ### Platforms
-- Linux and macOS binaries (x86_64 and aarch64). No Windows binary is built or published as of 6.0
+- Linux and macOS binaries (x86_64 and aarch64). The Linux glibc binaries start on glibc 2.35 or newer (Ubuntu 22.04, Debian 12 and newer); a static musl binary per architecture starts on any Linux below that (#882). No Windows binary is built or published as of 6.0
 
 ## Out of Scope (Deferred / Not Planned)
 

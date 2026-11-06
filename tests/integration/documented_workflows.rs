@@ -550,8 +550,10 @@ impl Project {
     /// DOCS-3.a: approving a definition that `change new` just created must refuse, and each
     /// refusal about the interview must name the `change answer` command that finishes it.
     /// The probe runs the named command (filling its placeholder: a sentence for the outcome,
-    /// the example's `src/auth.ts` and `auth` for the scope, the recommended `no` for a yes-or-no question, `none` for free text) and approves again, until the refusal is
-    /// about the selected artifacts, which a reader writes by hand. Returns the named commands.
+    /// the example's `src/auth.ts` and `auth` for the scope, the recommended `no` for a
+    /// yes-or-no question, the single choice `none` for constraints, and `none` for free text)
+    /// and approves again, until the refusal is about the selected artifacts, which a reader
+    /// writes by hand. Returns the named commands.
     fn approval_refusals_name_answer_commands(&self, root: &Path, approve: &str) -> Vec<String> {
         let mut named = Vec::new();
         loop {
@@ -577,6 +579,7 @@ impl Project {
                 .replace("\"<path>\"", "\"src/auth.ts\"")
                 .replace("\"<module>\"", "\"auth\"")
                 .replace("<yes|no>", "no")
+                .replace("<none>", "none")
                 .replace("\"<answer>\"", "\"none\"");
             assert!(
                 !runnable.contains('<'),

@@ -10,7 +10,7 @@ spec: merge.spec.md
 - **No ambiguous winner**: numeric versions use the maximum value and known frontmatter lists are unioned. Divergent or one-sided non-version scalars, nonnumeric versions, same-key table rows, and table header/separator hunks remain manual; no branch is silently selected.
 - **All-or-nothing persistence**: a file is written only after every hunk resolves and frontmatter validates. Auto-resolvable hunks are reported but not persisted when any hunk remains manual.
 - **Truthful persistence wording**: dry-run candidates remain `Auto-resolvable`; details become `Auto-resolved` only after the complete file is successfully written.
-- **Conservative fallbacks**: when `git diff` fails in git mode, `detect_conflicted_specs` returns an empty list (no specs processed); unreadable files become `Manual`; a still-conflicted result keeps its markers.
+- **Conservative fallbacks**: when `git diff` fails in git mode, `detect_conflicted_specs` returns `None` and `merge_specs` reports one `Unknown` result (#578), so a scan that never ran is not read as clean; unreadable files become `Manual`; a still-conflicted result keeps its markers.
 
 ## Files to Read First
 

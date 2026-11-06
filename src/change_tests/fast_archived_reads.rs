@@ -77,6 +77,74 @@ fn archived_status_git_processes_do_not_grow_with_other_archives() {
     );
 }
 
+/// A repository whose first `legacy` changes were made under workflow v1 and committed as the
+/// trusted pre-v2 cutoff, then adopted workflow v2 and finalized one change. Returns that
+/// archived change. Most real archives look like this: their workflow-v1 changes must each be
+/// shown to have existed at the cutoff.
+fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.version = 1;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    for index in 0..legacy {
+        let record = create_change(
+            root,
+            CreateChangeRequest {
+                description: format!("legacy workflow-v1 change {index}"),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec![format!("ops/legacy-{index}/")],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(record.workflow_version, 1);
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "trusted workflow-v1 cutoff"]);
+    quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    adopt(root, false, None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+    finalized_archived_change(root)
+}
+
+/// Git processes one warm `change status` of an archived change spawns in a repository holding
+/// `legacy` workflow-v1 changes.
+fn warm_archived_status_processes_with_legacy_changes(legacy: usize) -> usize {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let target = repository_with_legacy_changes(root, legacy);
+    git_processes_for_one_scoped_read(root, &target.id).0.unwrap();
+    let (result, processes) = git_processes_for_one_scoped_read(root, &target.id);
+    result.unwrap();
+    processes
+}
+
+// S9 (SPEED-1.a): an archived change's status must not walk history once per workflow-v1 change
+// in the project. On this repository 73 such walks are about 49 s of a warm read.
+#[test]
+fn warm_archived_status_git_processes_do_not_grow_with_legacy_changes() {
+    let with_two = warm_archived_status_processes_with_legacy_changes(2);
+    let with_eight = warm_archived_status_processes_with_legacy_changes(8);
+    eprintln!(
+        "warm archived status Git processes: {with_two} with two workflow-v1 changes, \
+         {with_eight} with eight"
+    );
+    assert!(
+        with_eight < with_two + 3,
+        "six more workflow-v1 changes added {} Git processes to one warm archived status read \
+         ({with_two} with two, {with_eight} with eight)",
+        with_eight.saturating_sub(with_two)
+    );
+}
+
 #[test]
 fn cached_archived_reads_answer_exactly_like_live_reads() {
     let temp = TempDir::new().unwrap();

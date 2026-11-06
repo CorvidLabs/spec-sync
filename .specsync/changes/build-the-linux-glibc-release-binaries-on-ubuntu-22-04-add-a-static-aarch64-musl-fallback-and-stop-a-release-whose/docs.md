@@ -9,6 +9,8 @@ artifact: docs
   `GLIBC_… not found` symptom with its recovery.
 - `site/src/content/docs/integrations/github-action.md`, "Available Binaries": a "Runs on" column,
   the new aarch64 musl row, and the same floor and symptom note.
+- `site/src/content/docs/quickstart.md`, "Install": the floor and the musl fallback, next to the
+  prebuilt-download line. Added to scope by Leif's "Yes, widen" send-back.
 - `docs/RELEASING.md`: the six archives, the Ubuntu 22.04 build runners, the baseline check before
   upload, the runner-retirement recovery, and a note that the Homebrew tap does not use musl.
 - `docs/HLD.md`: the release build diagram goes from 5 to 6 targets.

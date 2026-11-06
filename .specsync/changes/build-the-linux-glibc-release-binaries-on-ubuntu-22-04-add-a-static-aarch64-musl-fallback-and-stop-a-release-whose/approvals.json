@@ -64,5 +64,18 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose",
+      "actor": "claude (ss-linux-arm64)",
+      "reason": "Leif (2026-11-05 21:28 MST, orc tab, relayed by orc t18): \"Yes, widen\" #882 to add .github/scripts/test-required-ci-gate.py (its archive-only, review-only and site-only expected-skipped sets must name the new full-only linux-baseline job) and site/src/content/docs/quickstart.md (its Install section must name the glibc 2.35 floor, INSTALL-1.a). Recorded by the agent; Leif's re-approval is recorded by the orc.",
+      "timestamp": 1793939344,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": false
+    }
+  ]
 }

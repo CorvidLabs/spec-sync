@@ -7,10 +7,10 @@
   "title": "Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline",
   "description": "Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline",
   "kind": "operations",
-  "state": "approved",
+  "state": "draft",
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793937139,
-  "updated_at": 1793937652,
+  "updated_at": 1793939363,
   "affected_specs": [
     "github"
   ],
@@ -32,7 +32,9 @@
     "specs/github/",
     "hi/install.md",
     "INTENT.md",
-    ".chough/"
+    ".chough/",
+    ".github/scripts/test-required-ci-gate.py",
+    "site/src/content/docs/quickstart.md"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

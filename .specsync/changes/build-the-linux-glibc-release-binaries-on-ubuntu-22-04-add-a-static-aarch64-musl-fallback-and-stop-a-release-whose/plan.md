@@ -33,7 +33,10 @@ release workflows, and exercise the same recipe and check in PR CI. Write the fa
    runners, the new aarch64 musl row, the cross linker removed, per-target musl env, the check
    step before upload, and comments.
 3. Add the `ci.yml` `linux-baseline` job with the negative control. Wire it into
-   `implementation-gate` and `corvid-pet`, and add the path filter.
+   `implementation-gate` and `corvid-pet`, and add the path filter. In
+   `test-required-ci-gate.py`, add `linux-baseline` to the expected-skipped sets of the
+   archive-only, review-only and site-only scenarios; no expectation is removed. This file was
+   added to scope by Leif's "Yes, widen" send-back.
 4. Add the aarch64 musl archive to `EXPECTED_ARTIFACT_ARCHIVES` and update its tests.
 5. Add the `linux-baseline-test` fledge task to the `verify`, `ci` and `repo` lanes.
 6. Docs: README, Action docs, RELEASING.md, HLD.md, SCOPE.md, CHANGELOG. `specsync change check` materializes REQ-github-025; then bump the `github` spec version, add its Change Log row and a `github.3md` lesson plane.

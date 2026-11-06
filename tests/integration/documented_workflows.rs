@@ -349,10 +349,11 @@ impl Project {
     /// The landing page's Quick Start prerequisites for its change workflow: `specsync init`
     /// and `specsync add-spec auth` from the same block, run as written in a fresh git
     /// repository, with `src/auth.ts` written first as the block's comment says ("after you
-    /// write a source file"). Nothing is committed here: whatever the page does not commit
-    /// itself stays uncommitted, as it would for a reader. The block's other lines (install,
-    /// coverage, score, hooks, MCP) are a command list, not steps of the change workflow, and
-    /// are not run here.
+    /// write a source file"), and the scaffold filled in where the block's next line tells the
+    /// reader to (#906), so a strict verify lane can pass. Nothing is committed here: whatever
+    /// the page does not commit itself stays uncommitted, as it would for a reader. The block's
+    /// other lines (install, coverage, score, hooks, MCP) are a command list, not steps of the
+    /// change workflow, and are not run here.
     fn landing_page_quick_start(steps: &[Step]) -> Self {
         let project = Self::new();
         let command = |prefix: &str| {
@@ -382,6 +383,25 @@ impl Project {
             "`{add_spec}`: {}",
             describe(&output)
         );
+        let scaffolded = steps
+            .iter()
+            .position(|step| matches!(step, Step::Command(command) if *command == add_spec));
+        let filled_in = steps
+            .iter()
+            .position(|step| {
+                matches!(step, Step::Prose(prose) if prose.starts_with("fill in specs/auth/"))
+            })
+            .expect(
+            "the landing-page Quick Start tells the reader to fill in the `add-spec auth` \
+             scaffold (`# fill in specs/auth/ ...`); a strict verify lane refuses the scaffold",
+        );
+        assert!(
+            scaffolded.is_some_and(|scaffolded| scaffolded < filled_in),
+            "the Quick Start must say to fill in specs/auth/ after `{add_spec}` makes it"
+        );
+        for (path, body) in FILLED_AUTH_SCAFFOLD {
+            project.write(path, body);
+        }
         project
     }
 
@@ -600,6 +620,159 @@ impl Project {
         named
     }
 }
+
+/// What a reader writes when the landing page says to fill in the `add-spec auth` scaffold: the
+/// spec and its companions, with real sections, `status: active`, `login` documented and no
+/// scaffold marker left (#906).
+const FILLED_AUTH_SCAFFOLD: [(&str, &str); 5] = [
+    (
+        "specs/auth/auth.spec.md",
+        r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth.ts
+
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+Sign a user in. The module owns the login decision and nothing about sessions or storage.
+
+## Public API
+
+| Export | Description |
+|--------|-------------|
+| `login` | Signs the user in and reports whether it succeeded. |
+
+## Invariants
+
+1. `login` returns a boolean and never throws.
+
+## Behavioral Examples
+
+### Scenario: Sign in
+
+- **Given** a user of the example app
+- **When** they call `login()`
+- **Then** it returns `true`
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| None yet | The example always signs in |
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+| 2026-11-06 | Ada | First version of the auth spec |
+"#,
+    ),
+    (
+        "specs/auth/requirements.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## User Stories
+
+- As a user of the example app, I want to sign in.
+
+## Acceptance Criteria
+
+- Calling `login()` signs the user in and returns `true`.
+
+## Constraints
+
+- No network access.
+
+## Out of Scope
+
+- Sessions and stored credentials.
+"#,
+    ),
+    (
+        "specs/auth/context.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## Key Decisions
+
+- `login` takes no arguments while the example has a single user.
+
+## Files to Read First
+
+- `src/auth.ts`
+
+## Current Status
+
+- `login` is implemented and always succeeds.
+
+## Notes
+
+- The Quick Start's example module.
+"#,
+    ),
+    (
+        "specs/auth/testing.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## Automated Testing
+
+`specsync check --strict` compares this spec with `src/auth.ts`.
+
+| Test File | Type | What It Covers |
+|-----------|------|----------------|
+| `specs/auth/auth.spec.md` | spec check | `login` is documented and exported |
+
+## Manual Testing
+
+- [x] Call `login()` and see `true`.
+
+## Edge Cases & Boundary Conditions
+
+| Scenario | Expected Behavior |
+|----------|-------------------|
+| Called twice | Returns `true` both times |
+"#,
+    ),
+    (
+        "specs/auth/tasks.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## Tasks
+
+- [x] Write the auth spec for `login`.
+
+## Gaps
+
+None.
+
+## Review Sign-offs
+
+- **Product**: Ada
+- **QA**: Ada
+- **Design**: n/a
+- **Dev**: Ada
+"#,
+    ),
+];
 
 /// The delta a reader writes for the example module's requirement.
 struct Delta {

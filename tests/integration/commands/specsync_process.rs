@@ -4872,3 +4872,206 @@ fn watch_exact_source_edits_survive_atomic_save_and_recreation() {
     assert!(owned.child.try_wait().unwrap().is_none(), "watch must remain active");
     // OwnedWatch Drop kills/waits only this watch child and joins its pipe reader on any result.
 }
+
+/// Every test name a module's `testing.md` cites as evidence resolves to a function in `src/` or
+/// `tests/`, so a renamed test cannot leave its old name standing as evidence. Only evidence fields
+/// count: cells under a `Test Obligation` or `Evidence` table column, and bullets under a
+/// `## Requirement Evidence` heading. Code spans elsewhere (`all_files`, `merge_specs`) are prose,
+/// not citations. A name ending in `_` is a prefix (`init_`), not a test, and is skipped.
+fn assert_cited_test_names_exist(relative: &str) {
+    fn rust_sources(dir: &std::path::Path, found: &mut Vec<String>) {
+        for entry in fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                rust_sources(&path, found);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                found.push(fs::read_to_string(&path).unwrap_or_default());
+            }
+        }
+    }
+    fn cells(row: &str) -> Vec<String> {
+        row.trim()
+            .trim_matches('|')
+            .split('|')
+            .map(|cell| cell.trim().to_string())
+            .collect()
+    }
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let text = fs::read_to_string(repo.join(relative))
+        .unwrap_or_else(|error| panic!("read {relative}: {error}"))
+        .replace("\r\n", "\n");
+    let mut evidence = Vec::new();
+    let mut evidence_columns: Vec<usize> = Vec::new();
+    let mut in_requirement_evidence = false;
+    for line in text.lines() {
+        if line.starts_with("## ") {
+            in_requirement_evidence = line.trim() == "## Requirement Evidence";
+            evidence_columns.clear();
+            continue;
+        }
+        if in_requirement_evidence && line.starts_with("- ") {
+            evidence.push(line.to_string());
+            continue;
+        }
+        if !line.trim_start().starts_with('|') {
+            evidence_columns.clear();
+            continue;
+        }
+        let row = cells(line);
+        if row.iter().all(|cell| cell.chars().all(|c| c == '-' || c == ':')) {
+            continue;
+        }
+        let headers: Vec<usize> = row
+            .iter()
+            .enumerate()
+            .filter(|(_, cell)| *cell == "Test Obligation" || *cell == "Evidence")
+            .map(|(index, _)| index)
+            .collect();
+        if !headers.is_empty() {
+            evidence_columns = headers;
+            continue;
+        }
+        for index in &evidence_columns {
+            if let Some(cell) = row.get(*index) {
+                evidence.push(cell.clone());
+            }
+        }
+    }
+    assert!(
+        !evidence.is_empty(),
+        "{relative} has no evidence fields to check; the parser no longer matches its layout"
+    );
+    let mut sources = Vec::new();
+    rust_sources(&repo.join("src"), &mut sources);
+    rust_sources(&repo.join("tests"), &mut sources);
+    let mut missing = Vec::new();
+    for field in &evidence {
+        for name in field.split('`').skip(1).step_by(2) {
+            let is_name = name.contains('_')
+                && !name.ends_with('_')
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+            if is_name && !sources.iter().any(|source| source.contains(&format!("fn {name}("))) {
+                missing.push(name.to_string());
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "{relative} cites as evidence names no function in src/ or tests/ declares: {missing:?}"
+    );
+}
+
+// Verifies REQ-merge-001 at the contract level (#884, UPKEEP-3.b, UPKEEP-3.b.1).
+//
+// Honest label: CONTRACT PIN. `git_discovery_failure_is_unknown_not_empty` and
+// `default_merge_without_git_reports_the_missing_precondition` pin the behavior; this fails when a
+// current merge contract goes back to calling a failed Git discovery an empty, safe no-op.
+#[test]
+fn merge_contracts_call_a_failed_git_discovery_unknown() {
+    let requirement = tracked_requirement("specs/merge/requirements.md", "REQ-merge-001")
+        .expect("REQ-merge-001");
+    assert!(
+        requirement.contains("`detect_conflicted_specs` returns `None`")
+            && requirement.contains("one `Unknown` result"),
+        "REQ-merge-001 must state the Unknown result for a failed Git discovery: {requirement}"
+    );
+    assert!(
+        requirement.contains("(`Resolved` | `Manual` | `Clean` | `Unknown`)"),
+        "REQ-merge-001 must list every result status: {requirement}"
+    );
+    assert!(
+        requirement.contains(
+            "`Unknown` is a single scan-level result whose `spec_path` is the specs directory"
+        ),
+        "REQ-merge-001 must say Unknown is not a per-file result (#913 review): {requirement}"
+    );
+    let retired = [
+        "returns no files",
+        "safe no-op",
+        "returns an empty list",
+        "(`Resolved` | `Manual` | `Clean`)",
+        "and `details` for each file",
+        "git_discovery_failure_is_a_safe_noop",
+    ];
+    for relative in [
+        "specs/merge/requirements.md",
+        "specs/merge/merge.spec.md",
+        "specs/merge/context.md",
+        "specs/merge/merge.3md",
+        "specs/merge/testing.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still calls a failed Git discovery empty: `{phrase}`"
+            );
+        }
+    }
+    assert_cited_test_names_exist("specs/merge/testing.md");
+}
+
+// Verifies REQ-cmd-init-004 at the contract level (#884, SETUP-1.a.1, SETUP-1.a.2).
+//
+// Honest label: CONTRACT PIN. `fresh_init_leaves_sdd_off_so_the_first_check_is_just_drift` (Git),
+// `init_then_check_is_usable_without_git_and_does_not_nag_about_legacy_layout` (no Git) and
+// `a_policy_written_before_a_field_existed_still_loads_and_fails_closed` (omitted fields) pin the
+// behavior; this fails when a current init contract promises the change workflow on after setup.
+#[test]
+fn init_contracts_leave_sdd_off_for_git_repositories() {
+    let requirement = tracked_requirement("specs/cmd_init/requirements.md", "REQ-cmd-init-004")
+        .expect("REQ-cmd-init-004");
+    assert!(
+        requirement.contains("`enabled: false`")
+            && requirement.contains("`require_change_for_meaningful_files: false`"),
+        "REQ-cmd-init-004 must give Git repositories the SDD-off values: {requirement}"
+    );
+    assert!(
+        requirement.contains("`SddPolicy::default()`"),
+        "REQ-cmd-init-004 must keep omitted-field defaults apart from fresh init: {requirement}"
+    );
+    let retired = [
+        "normal strict SDD defaults",
+        "SHALL enable Git-dependent SDD coverage",
+        "enable verified SDD",
+        "init_enables_sdd_for_new_projects",
+    ];
+    for relative in [
+        "specs/cmd_init/requirements.md",
+        "specs/cmd_init/cmd_init.spec.md",
+        "specs/cmd_init/context.md",
+        "specs/cmd_init/cmd_init.3md",
+        "specs/cmd_init/testing.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still promises the change workflow on after setup: `{phrase}`"
+            );
+        }
+    }
+    assert_cited_test_names_exist("specs/cmd_init/testing.md");
+}
+
+// Verifies REQ-cmd-merge-002 and REQ-merge-001 through the shipped binary (#884).
+//
+// Honest label: CHARACTERIZATION. The reconciled REQ-merge-001 says a failed Git discovery makes
+// `merge` exit non-zero; the unit tests stop at `merge_specs`, so this pins the exit code and the
+// words the operator sees. A binary that reported the unperformed scan as nothing to do would exit
+// zero and print the no-conflicts line, and fail here.
+#[test]
+fn default_merge_outside_git_exits_nonzero_and_names_the_unperformed_scan() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "merge"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("conflict scan not performed"))
+        .stdout(predicate::str::contains("--all"))
+        .stdout(predicate::str::contains("No spec files with merge conflicts found").not());
+}
+

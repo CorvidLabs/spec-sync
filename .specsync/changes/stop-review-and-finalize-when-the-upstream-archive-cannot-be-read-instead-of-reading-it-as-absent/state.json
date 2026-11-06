@@ -7,10 +7,11 @@
   "title": "Stop review and finalize when the upstream archive cannot be read instead of reading it as absent",
   "description": "Stop review and finalize when the upstream archive cannot be read instead of reading it as absent",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "ae3d7bcad107701057bc43667422c5abbed7ce55",
   "created_at": 1793983734,
-  "updated_at": 1793987970,
+  "updated_at": 1793988511,
   "affected_specs": [
     "change"
   ],

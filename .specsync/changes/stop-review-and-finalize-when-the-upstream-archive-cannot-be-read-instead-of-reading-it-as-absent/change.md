@@ -1,6 +1,6 @@
 ---
 id: stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent
-state: approved
+state: implementing
 type: bug_fix
 base_commit: ae3d7bcad107701057bc43667422c5abbed7ce55
 ---

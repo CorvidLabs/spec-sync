@@ -1,6 +1,6 @@
 ---
 module: change
-version: 176
+version: 177
 status: active
 files:
   - src/change.rs
@@ -638,3 +638,4 @@ Acceptance Criteria
 | 2026-11-06 | retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands: Retire the contract clauses that promise change check runs configured verification commands |
 | 2026-11-06 | v172 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |
 | 2026-11-06 | show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve: Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11) |
+| 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |

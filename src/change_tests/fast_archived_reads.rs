@@ -199,6 +199,107 @@ fn cutoff_tree_verdict_equals_the_history_walk_verdict() {
     assert!(!remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", late.id))));
 }
 
+/// Git processes one archived status read spawns with no persistent read cache.
+fn cold_archived_status_processes(root: &Path, id: &str) -> usize {
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
+    let (result, processes) = git_processes_for_one_scoped_read(root, id);
+    result.unwrap();
+    processes
+}
+
+// S9 (REQ-change-135): a cold archived status builds the archive-introduction index from one
+// walk, so it must not cost Git processes per archive-introducing commit.
+#[test]
+fn cold_archived_status_git_processes_do_not_grow_with_archive_introductions() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let target = finalized_archived_change(root);
+    finalized_archived_change(root);
+    let with_two = cold_archived_status_processes(root, &target.id);
+    for _ in 0..4 {
+        finalized_archived_change(root);
+    }
+    let with_six = cold_archived_status_processes(root, &target.id);
+    eprintln!("cold archived status Git processes: {with_two} with two archives, {with_six} with six");
+    assert!(
+        with_six < with_two + 3,
+        "four more archive-introducing commits added {} Git processes to one cold archived status \
+         read ({with_two} with two archives, {with_six} with six)",
+        with_six.saturating_sub(with_two)
+    );
+}
+
+// REQ-change-135: one `diff-tree --stdin` lists exactly what the per-commit reads list,
+// including a merge commit that brings an archive in.
+#[test]
+fn one_walk_archive_introductions_equal_per_commit_introductions() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let first = finalized_archived_change(root);
+    finalized_archived_change(root);
+    // A side branch brings in one more archived package, and a merge commit adds it to main.
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).unwrap();
+    let source = find_change_dir(root, &first.id).unwrap();
+    quiet_git(root, &["switch", "-q", "-c", "side"]);
+    let copy = root
+        .join(&archive_root)
+        .join(format!("2026-01-02-{}", first.id));
+    fs::create_dir_all(&copy).unwrap();
+    for entry in fs::read_dir(&source).unwrap().flatten() {
+        if entry.path().is_file() {
+            fs::copy(entry.path(), copy.join(entry.file_name())).unwrap();
+        }
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "side archive"]);
+    quiet_git(root, &["switch", "-q", "main"]);
+    fs::write(root.join("README.md"), "main moves on\n").unwrap();
+    quiet_git(root, &["commit", "-q", "-am", "main moves on"]);
+    quiet_git(root, &["merge", "-q", "--no-ff", "-m", "merge side archive", "side"]);
+    let pathspec = format!(":(top,literal){archive_root}");
+    let prefix = format!("{archive_root}/");
+    let history = quiet_git(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            "--diff-filter=A",
+            "--no-renames",
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    );
+    let commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    assert!(commits.len() >= 3, "{commits:?}");
+    let listings = archive_introduction_listings(root, &commits, &pathspec)
+        .expect("one walk lists every commit");
+    for commit in &commits {
+        let per_commit =
+            archive_introductions_at_commit_uncached(root, commit, &pathspec, &prefix, None)
+                .unwrap();
+        let listed = listings.get(*commit).map(Vec::as_slice).unwrap_or(&[]);
+        let one_walk =
+            archive_introductions_at_commit_uncached(root, commit, &pathspec, &prefix, Some(listed))
+                .unwrap();
+        assert_eq!(one_walk, per_commit, "{commit}");
+    }
+    // Commit selection is unchanged: `log --diff-filter=A` without `-m` names the side branch's
+    // own commit, not the merge, as the one that introduced the copied package.
+    let side_state = format!("{archive_root}/2026-01-02-{}/state.json", first.id);
+    let side = quiet_git(root, &["rev-parse", "side"]);
+    assert!(
+        listings
+            .get(side.trim())
+            .is_some_and(|paths| paths.contains(&side_state)),
+        "the side commit lists {side_state}"
+    );
+}
+
 #[test]
 fn cached_archived_reads_answer_exactly_like_live_reads() {
     let temp = TempDir::new().unwrap();
@@ -497,6 +598,7 @@ fn an_unreadable_introduced_archive_blob_is_never_cached_as_absent() {
         &introduction,
         &format!(":(top,literal){archive_root}"),
         &format!("{archive_root}/"),
+        None,
     )
     .unwrap();
     assert!(introduced.is_empty());

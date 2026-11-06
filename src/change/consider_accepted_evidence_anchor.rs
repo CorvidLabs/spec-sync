@@ -2533,9 +2533,21 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
         ));
     }
     let mut index: ArchiveIntroductionIndex = BTreeMap::new();
+    // One `diff-tree --stdin` lists what every uncached commit added (REQ-change-135); a commit
+    // it did not answer is read on its own, as before.
+    let listings = archive_introduction_listings(root, &commits, &history_pathspec);
     for commit in commits {
-        let introduced =
-            archive_introductions_at_commit(root, commit, &history_pathspec, &directory_prefix)?;
+        let listed = listings
+            .as_ref()
+            .and_then(|listings| listings.get(commit))
+            .map(Vec::as_slice);
+        let introduced = archive_introductions_at_commit(
+            root,
+            commit,
+            &history_pathspec,
+            &directory_prefix,
+            listed,
+        )?;
         for (id, directory, approvals) in introduced {
             let introductions = index.entry(id).or_default();
             if introductions

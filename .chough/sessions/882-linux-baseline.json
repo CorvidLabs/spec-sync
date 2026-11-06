@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9981e6f60a84ff1828167485",
-    "head": "EVT-1057e65eab7259d41e4b9d24",
+    "head": "EVT-860731752acf8a44ff8d025f",
     "legacy": null
   },
   "schema_version": 2,
@@ -46,7 +46,8 @@
     "rejected: a no-spec change like CHG-0048 because the github spec owns the release distribution contract",
     "decided: renumber the release-baseline requirement from REQ-github-024 to REQ-github-025 because spec-sync#886 (branch fix/886-comment-readonly-token, approved) already holds 024 (orc t18); scope unchanged",
     "Leif (2026-11-05, orc tab, relayed by orc t18): 'Approve' — scope approval of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose at 83458275, recorded natively by the orc as 0xLeif; instruction: build, verify, PR (Fixes #882), 'ready for review'; no tag or publish",
-    "Leif (2026-11-05 21:28 MST, orc tab, relayed by orc t18): \"Yes, widen\" #882 to add .github/scripts/test-required-ci-gate.py and site/src/content/docs/quickstart.md; send-back recorded by the agent as 'claude (ss-linux-arm64)' quoting this decision, never 0xLeif; Leif's re-approval to be recorded by the orc"
+    "Leif (2026-11-05 21:28 MST, orc tab, relayed by orc t18): \"Yes, widen\" #882 to add .github/scripts/test-required-ci-gate.py and site/src/content/docs/quickstart.md; send-back recorded by the agent as 'claude (ss-linux-arm64)' quoting this decision, never 0xLeif; Leif's re-approval to be recorded by the orc",
+    "Leif (2026-11-05, orc tab, relayed by orc t18): re-approval of the widened build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose recorded natively by the orc at 6abc70e9 ('Yes, widen'); instruction: build, verify, PR, 'ready for review'"
   ],
   "open_questions": [],
   "completed": [
@@ -74,9 +75,7 @@
     "BUG-linux-arm64-release-download-does-not-start-on-debian-12-or-ubuntu-22-0-23eb0fe0f3eb7815d6dc3284"
   ],
   "blockers": [],
-  "awaiting_human": [
-    "Re-approval of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose after the widen send-back (via orc t18)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "After the orc records re-approval: edit test-required-ci-gate.py and quickstart.md, merge origin/main, rebuild ARM64 archives with the new recipe, rerun the three cases green, verify lane, change check --commit, PR (Fixes #882), ready for review"
 }

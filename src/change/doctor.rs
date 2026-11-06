@@ -40,7 +40,7 @@ pub struct LateCloseRecord {
 }
 
 /// The closed-late package for `id`, if there is one.
-pub fn closed_late_package(root: &Path, id: &str) -> Option<PathBuf> {
+fn closed_late_package(root: &Path, id: &str) -> Option<PathBuf> {
     fs::read_dir(root.join(CLOSED_LATE_PATH))
         .ok()?
         .flatten()
@@ -214,7 +214,7 @@ fn finding(
 /// Every problem doctor can find in the repository's change records, each with its fix. It writes
 /// nothing. A check that cannot run becomes a finding that names its error, and the scan goes on
 /// (RECOVER-3, RECOVER-3.a, RECOVER-3.d).
-pub fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
+fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
     let mut findings = Vec::new();
     let roster = match list_changes(root) {
         Ok(roster) => roster,

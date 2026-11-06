@@ -1,5 +1,6 @@
 //! `specsync doctor` (REQ-cmd-change-035): print what the scan found, what `--fix` did and what
-//! `--dry-run` would do. The scan and the fixes live in `crate::change`.
+//! `--dry-run` would do. A submodule of the change commands; the scan and the fixes live in
+//! `crate::change`.
 
 use colored::Colorize;
 use std::path::Path;

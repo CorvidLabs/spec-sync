@@ -12,6 +12,11 @@ use crate::types::OutputFormat;
 
 const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 
+// `specsync doctor` renders here, beside the change commands it reports on (REQ-cmd-change-035).
+#[path = "doctor.rs"]
+mod doctor;
+pub use doctor::cmd_doctor;
+
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.

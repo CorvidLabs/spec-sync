@@ -8,7 +8,6 @@ pub mod compact;
 pub mod coverage;
 pub mod deps;
 pub mod diff;
-pub mod doctor;
 pub mod generate;
 pub mod hooks;
 pub mod import;

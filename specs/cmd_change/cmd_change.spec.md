@@ -4,6 +4,7 @@ version: 68
 status: active
 files:
   - src/commands/change.rs
+  - src/commands/doctor.rs
   - docs/ADOPTING.md
 db_tables: []
 tracks: []
@@ -42,6 +43,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
 | `cmd_change` | `root: &Path, action: ChangeAction, format: OutputFormat, strict: bool` | `()` | Dispatch every change lifecycle command, additive strict validators, and equivalent text/JSON output |
+| `cmd_doctor` | `root: &Path, request: DoctorRequest, format: OutputFormat` | `()` | `specsync doctor`: print the findings, the actions `--fix` applied and what `--dry-run` would do, in text or JSON; exit 1 when a late close is refused or a fix failed (REQ-cmd-change-035) |
 
 ## Invariants
 

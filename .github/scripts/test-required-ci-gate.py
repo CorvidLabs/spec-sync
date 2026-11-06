@@ -916,16 +916,19 @@ class RequiredGateSimulationTests(unittest.TestCase):
         expectations = {
             "Archive-only PR (workflow-v2 archive move)": {
                 "test", "fmt", "hi-check", "validate-action", "action-consumer",
+                "closed-late-compat",
                 "linux-baseline", "spec-check", "audit", "coverage", "site",
                 "vscode-extension", "corvid-pet",
             },
             "Review-only PR (review.json + review-attempts.json)": {
                 "test", "fmt", "hi-check", "validate-action", "action-consumer",
+                "closed-late-compat",
                 "linux-baseline", "spec-check", "audit", "coverage", "site",
                 "vscode-extension", "corvid-pet",
             },
             "Site-only PR (site/**)": {
-                "test", "fmt", "hi-check", "action-consumer", "linux-baseline", "audit",
+                "test", "fmt", "hi-check", "action-consumer", "closed-late-compat", "linux-baseline",
+                "audit",
                 "coverage", "vscode-extension", "corvid-pet",
             },
         }

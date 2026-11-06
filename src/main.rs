@@ -276,7 +276,7 @@ fn run() {
             close_late,
             actor,
             reason,
-        } => commands::doctor::cmd_doctor(
+        } => commands::change::cmd_doctor(
             &root,
             change::DoctorRequest {
                 fix,

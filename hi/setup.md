@@ -13,6 +13,8 @@ Adopting this on a real project should be a small, reversible decision, not a mi
 
 - **SETUP-1**  One command sets a project up with defaults that work and nothing I have to answer.
   - **SETUP-1.a**  Setting up does not switch on the change workflow; that stays a separate, deliberate decision.
+    - **SETUP-1.a.1**  Every current contract agrees that setting up a git repository leaves the change workflow off, the same as any other directory.
+    - **SETUP-1.a.2**  If a current contract goes back to promising the change workflow is on after setup, a test tells me.
   - **SETUP-1.b**  A half-finished setup can be repaired without touching the settings I already wrote.
 - **SETUP-2**  Configuration is one readable file.
   - **SETUP-2.a**  Every setting has a default worth keeping, so a project that configures nothing still works.

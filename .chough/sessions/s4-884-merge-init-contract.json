@@ -1,0 +1,48 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-c43fea15a35000bbf6cb3cd4",
+    "head": "EVT-0a4a960aa376b82f341b9518",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Reconcile SpecSync merge-discovery and init-default contracts with runtime behavior (#884, D12)",
+  "intent_scope": "",
+  "modules": [
+    "merge",
+    "cmd_init"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "retire-the-merge-empty-list-and-init-strict-default-contract-clauses",
+  "references": {
+    "criteria": [
+      "UPKEEP-3.b",
+      "UPKEEP-3.b.1",
+      "SETUP-1.a.1",
+      "SETUP-1.a.2"
+    ],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" for UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted; decision (e) leave init --help unchanged"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Captured UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 with hi on leif/884-merge-init-contract"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Scope approval of retire-the-merge-empty-list-and-init-strict-default-contract-clauses (specsync change approve, recorded by the orc for Leif)"
+  ],
+  "run_consents": [],
+  "next_action": "After Leif's approval: apply_b_edits.py, tick tasks, change check --commit, verify lane on pinned 1.89, PR (Fixes #884), ready for review"
+}

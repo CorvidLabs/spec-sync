@@ -7,10 +7,10 @@
   "title": "Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child",
   "description": "Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child",
   "kind": "documentation",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "5ff95d10b0fb9d9bbb3d3fbd15f35d1d261f173c",
   "created_at": 1793951427,
-  "updated_at": 1793951430,
+  "updated_at": 1793970815,
   "affected_specs": [
     "cli"
   ],

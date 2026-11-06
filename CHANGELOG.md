@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The cli contract (REQ-cli-003, the spec Purpose, `cli.3md`) and the HLD describe the recursion guard as refusing a `check`, `change` or `lifecycle` command that inherits `SPECSYNC_VERIFICATION_CONTEXT`, not as blocking a verification child SpecSync makes: SpecSync starts none. A contract pin fails if the old wording returns. No runtime change (#911).
+
 - Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. Race checks still read live. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 110 and `change finalize` from 739 to 287; the slowest lifecycle test went from 15,563 git processes and 343s to 5,996 and 95s on macOS (#861).
 - The release-candidate qualification lane runs the unchanged test set under a checksum-pinned `cargo-nextest` (#861).
 

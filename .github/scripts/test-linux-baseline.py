@@ -235,6 +235,7 @@ FAKE_DOCKER = textwrap.dedent(
     transcripts = json.loads(os.environ["FAKE_TRANSCRIPTS"])
     chosen = transcripts.get(ref.split("@")[0], transcripts["default"])
     sys.stdout.write(chosen)
+    sys.stderr.write(os.environ.get("FAKE_RUN_STDERR", ""))
     sys.exit(int(os.environ.get("FAKE_RUN_EXIT", "0")))
     """
 )
@@ -305,6 +306,7 @@ class FakeDockerCheckTests(unittest.TestCase):
         machine: str = "aarch64",
         pull_exit: int = 0,
         run_exit: int = 0,
+        run_stderr: str = "",
     ) -> subprocess.CompletedProcess[str]:
         environment = dict(os.environ)
         environment.update(
@@ -313,6 +315,7 @@ class FakeDockerCheckTests(unittest.TestCase):
                 "FAKE_TRANSCRIPTS": json.dumps(transcripts or {"default": transcript()}),
                 "FAKE_PULL_EXIT": str(pull_exit),
                 "FAKE_RUN_EXIT": str(run_exit),
+                "FAKE_RUN_STDERR": run_stderr,
             }
         )
         return subprocess.run(
@@ -402,11 +405,27 @@ class FakeDockerCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("must fail and name 'goodbye'", result.stderr)
 
-    def test_truncated_run_fails(self) -> None:
+    def test_truncated_run_fails_with_the_exit_and_the_output(self) -> None:
+        # Codex review on #910: a run killed after its first marker must still report the
+        # container's exit and what it printed, not only which steps never ran.
         truncated = "@@step version 0\n@@out specsync 6.2.0\n"
-        result = self.run_check(self.archive("specsync-linux-aarch64"), {"default": truncated}, run_exit=137)
+        result = self.run_check(
+            self.archive("specsync-linux-aarch64"),
+            {"default": truncated},
+            run_exit=137,
+            run_stderr="container killed: out of memory\n",
+        )
         self.assertEqual(result.returncode, 1)
         self.assertIn("stopped before help, init, check, drift", result.stderr)
+        self.assertIn("the last step to run was version (exit 0): specsync 6.2.0", result.stderr)
+        self.assertIn("the container exited 137: container killed: out of memory", result.stderr)
+
+    def test_nonzero_container_exit_fails_even_when_every_step_passed(self) -> None:
+        result = self.run_check(
+            self.archive("specsync-linux-aarch64"), run_exit=125, run_stderr="docker: error\n"
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("the container exited 125: docker: error", result.stderr)
 
     def test_unpullable_image_fails_after_three_attempts(self) -> None:
         result = self.run_check(self.archive("specsync-linux-aarch64"), pull_exit=1)

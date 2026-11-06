@@ -318,7 +318,12 @@ def judge(artifact: str, image: str, expected_version: str, steps: dict[str, dic
             )
         return [message]
     if missing:
-        return [f"{where}: the smoke run stopped before {', '.join(missing)}"]
+        ran = [step for step in STEPS if step in steps]
+        message = f"{where}: the smoke run stopped before {', '.join(missing)}"
+        if ran:
+            last = steps[ran[-1]]
+            message += f"; the last step to run was {ran[-1]} (exit {last['exit']}): {excerpt(last['output'])}"
+        return [message]
     first_line = steps["version"]["output"].splitlines()[0] if steps["version"]["output"] else ""
     if first_line != f"specsync {expected_version}":
         errors.append(f"{where}: --version printed {first_line!r}, expected 'specsync {expected_version}'")
@@ -446,9 +451,11 @@ def check(archive: Path, expected_version: str, docker: str = "docker", machine:
             entry["container_exit"] = code
             entry["steps"] = {name: step["exit"] for name, step in steps.items()}
             image_errors = judge(artifact, image, expected_version, steps)
-            if code != 0 and not image_errors:
-                image_errors = [f"{artifact} on {ref}: the container exited {code}: {excerpt(stderr)}"]
-            if not steps and stderr.strip():
+            # A container that dies (for example killed after its first step) reports its own
+            # exit and output on top of whatever the transcript shows, so the cause is never lost.
+            if code != 0:
+                image_errors.append(f"{artifact} on {ref}: the container exited {code}: {excerpt(stderr)}")
+            elif not steps and stderr.strip():
                 image_errors.append(f"{artifact} on {ref}: docker reported: {excerpt(stderr)}")
             entry["passed"] = not image_errors
             errors.extend(image_errors)

@@ -68,7 +68,9 @@
     "Failing tests: d90cbc8292c6a5c07e3ca34155628eaeb9a8b2a6",
     "Implemented #882 within the widened approved scope; merged origin/main 560af9f1 (CHANGELOG union)",
     "Green: three cases pass on new-recipe ARM64 archives built from merged tree 4547d9c0; bug verified; verify lane passed (OBS-product-test-199fa922a987064b62f203cb); change check materialized REQ-github-025",
-    "Shipped: change finalized and archived at 815c1f43 (2026-11-06-build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose)"
+    "Shipped: change finalized and archived at 815c1f43 (2026-11-06-build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose)",
+    "CI green on archive tip 558a8144 (27 pass, attestation skipped as designed), including all four linux-baseline jobs and the v6.2.0 negative control on the hosted runners",
+    "Fixed Codex P2 on #910 (truncated smoke run now reports the container exit, the last step and its output) with a failing-first test; cases rerun green"
   ],
   "observations": [
     "OBS-tc-github-linux-baseline-lockstep-8d3fbcb70a07759eebbe4095",
@@ -77,7 +79,10 @@
     "OBS-tc-github-linux-baseline-lockstep-0e1525ce22afcbc2fa4ac991",
     "OBS-tc-github-linux-arm64-glibc-download-starts-on-baseline-b49ab60d64c36c856935f453",
     "OBS-tc-github-linux-arm64-musl-download-starts-anywhere-f8d8bed59851d38bba47323b",
-    "OBS-product-test-199fa922a987064b62f203cb"
+    "OBS-product-test-199fa922a987064b62f203cb",
+    "OBS-tc-github-linux-arm64-glibc-download-starts-on-baseline-e830c9d0f1421775e2356bdb",
+    "OBS-tc-github-linux-arm64-musl-download-starts-anywhere-515683671907229ea5e79126",
+    "OBS-tc-github-linux-baseline-lockstep-a0a16bc0ce1d0ef7aa9439d9"
   ],
   "bugs": [
     "BUG-linux-arm64-release-download-does-not-start-on-debian-12-or-ubuntu-22-0-23eb0fe0f3eb7815d6dc3284"
@@ -85,5 +90,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Push the archive tip, wait for CI (Archive, then the full lane incl. linux-baseline on ubuntu-22.04, ubuntu-latest, ubuntu-22.04-arm, ubuntu-24.04-arm and the v6.2.0 negative control), then merge PR #910 pinned with --match-head-commit (no --admin/--auto)"
+  "next_action": "Push the fix, wait for CI, send the fix for review (changes reviewed content); merge waits for Leif (overnight: orc cannot act in his name)"
 }

@@ -4184,7 +4184,12 @@ fn summarize_change_with_effective(
         }
         _ => next_action,
     };
-    let handoff = if let Some(upstream) = &upstream_archive {
+    // Same priority as `next_action` above: a sequence freeze or a verification_ignored_paths
+    // refusal outranks the upstream archive, and `classify_handoff` reports both (#908).
+    let upstream_handoff = upstream_archive
+        .as_ref()
+        .filter(|_| sequence_freeze.is_none() && !matches!(verification_ignored, Some(Err(_))));
+    let handoff = if let Some(upstream) = upstream_handoff {
         upstream_archive_handoff(&record.id, upstream)
     } else {
         classify_handoff(

@@ -1268,6 +1268,11 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
     }
+    // A project-wide sequence-ledger freeze blocks every verb, so it outranks the upstream
+    // archive, in the same order as JSON status (#908, REQ-cmd-change-034).
+    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
+        return remediation;
+    }
     // After the project-wide refusals above, in the same order as JSON status: an archive of
     // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).
     if let Some(upstream) = change::upstream_archive_of(root, record) {

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "let-change-check-commit-a-project-rooted-in-a-repository-subdirectory",
+  "implementation_commit": "8b0be3cbedc656244e3b9a9917eff8423f4154fc",
+  "implementation_tree": "47874f4b1d921899dbc3073844c4c02ee0229d36",
+  "contract_digest": "218ccd84e610af260db40566dce92a721da7a49b1059dd293ec9a510acb91fbc",
+  "workspace_digest": "0d2776bdc6b1cd21e2195b7cdebe5126c5a506bce4e7a03bb03f4118496f8d38",
+  "closing_digest": "9adad011afaef2f9b4e5c6ad243477806f09bd386e92c941b2e151e612b78641",
+  "review_digest": "151220a6859b8a9ae76b09ad4e6d0a40f9d0bcb06b8acf3567d0de148a4f6aa6",
+  "finalization_digest": "84e4036dd641dcb2bb4e19f1015372e4b3d011d3c812073480a8e2a19861a7b6",
+  "timestamp": 1793934131
+}

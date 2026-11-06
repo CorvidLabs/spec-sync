@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The README's verified change workflow is archive-first: verify, the human implementation review, `change review` and `finalize` happen locally, then you push the archive commit and wait for CI. The hosted `Archive` gate refuses while a change is open, so the old order (push and wait for CI before review) could only wait on a red run. A new integration test runs the README block as written against the built binary and the real Archive gate, so CI fails if the example drifts again (#881).
+- `specsync change check --commit` completes in a project rooted in a subdirectory of its Git repository. Working-tree evidence capture now reads `git diff-files` paths relative to the project instead of refusing the change's own spec as out of scope; paths outside the project are still refused (#879).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
 
 ## [6.2.0] - 2026-11-05

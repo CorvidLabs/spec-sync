@@ -1,0 +1,53 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793934781,
+      "digest": "7a3f64cac7cfd315357c34c3f1c9ee7019bcd4712a3b65068cb6518ca58a21b5",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes",
+        "title": "Reuse one cat-file batch reader per repository root across nested repository-fact scopes",
+        "description": "Reuse one cat-file batch reader per repository root across nested repository-fact scopes",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "git_utils"
+        ],
+        "affected_paths": [
+          "src/git_utils.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A batched read inside a scope nested in an open same-root scope reuses the outer scope's cat-file --batch reader instead of starting a second one (REQ-git-utils-010)",
+          "A failing unit test shows two batch children for one root before the fix and one after",
+          "Invalidation still closes every frame's reader, so a read after a git write sees the new state",
+          "Per-command spawn ceilings in lifecycle_commands_stay_within_git_spawn_ceilings still pass and no count rises"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "SPEED-1.c and REQ-git-utils-010: one cat-file --batch child per root per command, and invalidation must still discard every reader so no stale ref snapshot is reused",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "git_utils": "b0dc4324ff2335539d4d3ff929ca206615e9e8d5d6f953e32bea73f90fd208b2"
+      },
+      "approved_delta_bases": {
+        "git_utils: REQUIREMENT REQ-git-utils-010": "b89da961481aae4a33563d60e9341bcbe58e051745a865559d9639aab0de6ac4"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793935945,
+      "digest": "fcfee694d52b79e875f8ff2781248cdd0baa24dc72e854294fa2f75871517860",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

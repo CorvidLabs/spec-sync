@@ -7,10 +7,10 @@
   "title": "A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader",
   "description": "A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader",
   "kind": "feature",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "0623412fe1e3cd6e1cc636efb097d100d468a631",
   "created_at": 1793971058,
-  "updated_at": 1793971143,
+  "updated_at": 1793971436,
   "affected_specs": [
     "change"
   ],

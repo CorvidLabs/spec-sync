@@ -1,4 +1,55 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793971436,
+      "digest": "7926a3d1ddeb5a668e9e3e9faf254be1cade499764cf0df281bb63bc7d5f1435",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s",
+        "title": "A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader",
+        "description": "A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/speed.md",
+          "specs/change",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A cold change status of an archived change spawns fewer than 3 more Git processes when the project holds 4 more archives (cold_archived_status_git_processes_do_not_grow_with_archives, committed failing first in 0623412f: 99 with 2 archives, 234 with 6)",
+          "Every archive is still fully validated, so authenticated-history keeps its meaning: equivalence tests show the one-walk verdict equals the per-archive verdict, including the same first refusal and message, for merges, a moved or re-archived package, a deleted creation anchor, a changed identity, a non-canonical archive path and the per-archive history bound",
+          "Inside a change read scope, every archived change's workflow-version history is answered from one lifecycle-state history walk per command: candidate state paths, oldest-first state-path history and each commit's parents are derived in memory instead of four Git walks per archive",
+          "No gate, bound, timeout default or approval rule is weakened, and no existing assertion is loosened",
+          "On demand (fledge run bench-archived-reads) a cold archived status is under 5 s on an unloaded Mac and warm stays under 2 s; cold and warm times on this repository are recorded before and after",
+          "The read deadline (REQ-change-137) still stops the validation between archives with phase and progress, and a warm archived status still spawns no more processes than today",
+          "The state.json reads and path-exists checks behind that validation go through the command's one object batch reader on the command's thread; a listed blob that cannot be read still refuses and is never cached as absent",
+          "When the walk cannot answer (over its bound, over the output limit, or a failed Git call) each archive falls back to today's per-archive check, so no new refusal is introduced"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "SPEED-1.a and SPEED-1.a.1 (warm under 2 s; first read after a fresh clone in seconds however many archives), SPEED-1.d (Raven-sized benchmark); change.3md 'Finalize judges only what it archives' (read paths keep the full roster and live-identical refusals, so every archive is still validated), 'History pathspecs from a subdirectory' (#851: history pathspecs carry :(top)), 'Working-tree paths from a subdirectory' (#879: check which root a Git command reports paths from); REQ-change-135/136/137 and REQ-git-utils-010/011 stay (one batch child per root; workers get none); the partial-clone rule that an unreadable listed blob is never treated or cached as absent",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "5d6bf78f1d821fa83c6328c028a4b1a1c8b2212843fc6630fd8e191c27cfa9a1"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

@@ -263,11 +263,15 @@ fn cold_archived_status_prefetch_workers_reuse_repository_facts() {
     fast_read_repository(root);
     let target = finalized_archived_change(root);
     finalized_archived_change(root);
-    let with_two = cold_archived_status_processes(root, &target.id);
+    // Workers run only when the lifecycle-state history index cannot answer (REQ-change-141), so
+    // this guard turns the index off to keep measuring them.
+    let with_two =
+        without_lifecycle_state_history(|| cold_archived_status_processes(root, &target.id));
     for _ in 0..4 {
         finalized_archived_change(root);
     }
-    let with_six = cold_archived_status_processes(root, &target.id);
+    let with_six =
+        without_lifecycle_state_history(|| cold_archived_status_processes(root, &target.id));
     eprintln!("cold archived status Git processes: {with_two} with two archives, {with_six} with six");
     assert!(
         with_six <= with_two + COLD_ARCHIVED_STATUS_GIT_PROCESSES_FOR_FOUR_ARCHIVES,
@@ -277,8 +281,9 @@ fn cold_archived_status_prefetch_workers_reuse_repository_facts() {
     );
 }
 
-// #915 (SPEED-1.a, cold): a cold archived status must not cost Git processes per archive. Today
-// each archive's own workflow-version history check still costs about 34.
+// #915 (SPEED-1.a.1, REQ-change-140 and 141): a cold archived status must not cost Git processes
+// per archive. Before the lifecycle-state history index, each archive's own workflow-version
+// history check cost about 34 (99 with two archives, 234 with six).
 #[test]
 fn cold_archived_status_git_processes_do_not_grow_with_archives() {
     let temp = TempDir::new().unwrap();
@@ -788,7 +793,9 @@ fn git_processes_spawned_by_prefetch_threads_are_counted() {
     fast_read_repository(root);
     let records: Vec<ChangeRecord> = (0..4).map(|_| finalized_archived_change(root)).collect();
     let archives = || fs::read_dir(root.join(ARCHIVE_PATH)).unwrap().collect::<Vec<_>>();
-
+    // Workers run only when the lifecycle-state history index cannot answer (REQ-change-141), so
+    // both halves turn it off to compare the per-archive work with the workers' count of it.
+    without_lifecycle_state_history(|| {
     let serial = {
         let _scope = begin_change_read_scope(root);
         reset_test_git_process_count();
@@ -814,6 +821,7 @@ fn git_processes_spawned_by_prefetch_threads_are_counted() {
         prefetched >= serial,
         "prefetch reported {prefetched} Git processes for work that spawns {serial} serially"
     );
+    });
 }
 
 #[test]
@@ -1025,4 +1033,310 @@ fn follows_an_earlier_archive_path_through_a_hidden_downgrade(root: &Path) {
         error.contains("workflow-version history changed immutable identity"),
         "{error}"
     );
+}
+
+/// Every change record the project holds, active and archived, read from its own `state.json`.
+fn every_change_record(root: &Path) -> Vec<ChangeRecord> {
+    let mut records = Vec::new();
+    for directory in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        let mut entries: Vec<_> = entries.flatten().map(|entry| entry.path()).collect();
+        entries.sort();
+        for entry in entries {
+            if let Ok(bytes) = fs::read(entry.join("state.json"))
+                && let Ok(record) = serde_json::from_slice::<ChangeRecord>(&bytes)
+            {
+                records.push(record);
+            }
+        }
+    }
+    records
+}
+
+/// What the workflow-version history check concludes about `record` inside one read scope:
+/// its state paths, the commits touching them oldest first with their parents, and its verdict.
+type WorkflowHistoryAnswer = (
+    Result<Vec<String>, String>,
+    Option<Vec<(String, Vec<String>)>>,
+    Result<(), String>,
+);
+
+fn workflow_history_answer(root: &Path, record: &ChangeRecord, indexed: bool) -> WorkflowHistoryAnswer {
+    let answer = || {
+        let _scope = begin_change_read_scope(root);
+        assert_eq!(lifecycle_state_history(root).is_some(), indexed);
+        let state_paths = workflow_version_state_paths(root, record);
+        let history = state_paths.as_ref().ok().map(|paths| {
+            let commits: Vec<String> = match lifecycle_state_history(root) {
+                Some(history) => history
+                    .state_path_history(paths, lifecycle_validation_limits().scoped_review_max_descendants)
+                    .unwrap()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+                None => live_workflow_version_history(root, paths)
+                    .unwrap()
+                    .lines()
+                    .filter(|line| !line.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+            };
+            commits
+                .into_iter()
+                .map(|commit| {
+                    let parents = match lifecycle_state_history(root) {
+                        Some(history) => history.parents(&commit).unwrap().to_vec(),
+                        None => quiet_git(root, &["rev-list", "--parents", "-n", "1", &commit])
+                            .split_whitespace()
+                            .skip(1)
+                            .map(str::to_string)
+                            .collect(),
+                    };
+                    (commit, parents)
+                })
+                .collect()
+        });
+        let verdict = validate_workflow_version_history_uncached(root, record);
+        (state_paths, history, verdict)
+    };
+    if indexed {
+        answer()
+    } else {
+        without_lifecycle_state_history(answer)
+    }
+}
+
+/// REQ-change-140: for every change, the one-walk index gives exactly the per-change answers.
+/// Returns how many changes were compared.
+fn assert_lifecycle_index_equals_per_change_walks(root: &Path) -> usize {
+    let records = every_change_record(root);
+    for record in &records {
+        let live = workflow_history_answer(root, record, false);
+        let indexed = workflow_history_answer(root, record, true);
+        assert_eq!(indexed, live, "change {} ({:?})", record.id, record.state);
+    }
+    records.len()
+}
+
+/// Copy every file of `source` into `target`.
+fn copy_package(source: &Path, target: &Path) {
+    fs::create_dir_all(target).unwrap();
+    for entry in fs::read_dir(source).unwrap().flatten() {
+        if entry.path().is_file() {
+            fs::copy(entry.path(), target.join(entry.file_name())).unwrap();
+        }
+    }
+}
+
+// REQ-change-140: merges from either side, a package archived again on a side branch, a hidden
+// downgrade, a non-canonical archive directory and an active change all get the same answers
+// and the same first refusal from the index as from per-change walks.
+#[test]
+fn lifecycle_index_answers_equal_per_change_walks_across_merges_and_refusals() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let first = finalized_archived_change(root);
+    let second = finalized_archived_change(root);
+    let third = finalized_archived_change(root);
+    assert_eq!(assert_lifecycle_index_equals_per_change_walks(root), 3);
+    let archive_root = root.join(ARCHIVE_PATH);
+
+    // A side branch archives `first` again under another date and a merge brings it in.
+    quiet_git(root, &["switch", "-q", "-c", "side"]);
+    copy_package(
+        &find_change_dir(root, &first.id).unwrap(),
+        &archive_root.join(format!("2026-01-02-{}", first.id)),
+    );
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "side archive"]);
+    quiet_git(root, &["switch", "-q", "main"]);
+    fs::write(root.join("README.md"), "main moves on\n").unwrap();
+    quiet_git(root, &["commit", "-q", "-am", "main moves on"]);
+    quiet_git(root, &["merge", "-q", "--no-ff", "-m", "merge side archive", "side"]);
+    let first_answer = workflow_history_answer(root, &first, true);
+    assert!(first_answer.0.is_err() || first_answer.2.is_err(), "{first_answer:?}");
+    assert_lifecycle_index_equals_per_change_walks(root);
+    // The copy stays in history only, so later steps can load the project.
+    fs::remove_dir_all(archive_root.join(format!("2026-01-02-{}", first.id))).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "remove the side copy"]);
+    assert_lifecycle_index_equals_per_change_walks(root);
+
+    // A second-parent-only edit: a hidden downgrade of `second` made on a branch and merged.
+    quiet_git(root, &["switch", "-q", "-c", "downgrade"]);
+    commit_hidden_workflow_downgrade(root, &find_change_dir(root, &second.id).unwrap().join("state.json"));
+    quiet_git(root, &["switch", "-q", "main"]);
+    fs::write(root.join("README.md"), "main moves again\n").unwrap();
+    quiet_git(root, &["commit", "-q", "-am", "main moves again"]);
+    quiet_git(root, &["merge", "-q", "--no-ff", "-m", "merge downgrade", "downgrade"]);
+    let second_answer = workflow_history_answer(root, &second, true);
+    assert!(
+        second_answer.2.as_ref().is_err_and(|error| error.contains("changed immutable identity")),
+        "{:?}",
+        second_answer.2
+    );
+    assert_lifecycle_index_equals_per_change_walks(root);
+
+    // A directory that matches `*-<id>` but is not a dated archive, left only in history.
+    let stray = archive_root.join(format!("not-a-date-{}", third.id));
+    copy_package(&find_change_dir(root, &third.id).unwrap(), &stray);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "non-canonical archive copy"]);
+    fs::remove_dir_all(&stray).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "remove the copy"]);
+    let third_answer = workflow_history_answer(root, &third, true);
+    assert!(
+        third_answer.0.as_ref().is_err_and(|error| error.contains("non-canonical archive path")),
+        "{:?}",
+        third_answer.0
+    );
+    assert_lifecycle_index_equals_per_change_walks(root);
+
+    // An active change alongside the archives.
+    let active = current_workflow_record(root, completed_no_spec_record(root));
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-q", "-m", "active change"]);
+    assert!(every_change_record(root).iter().any(|record| record.id == active.id));
+    assert_lifecycle_index_equals_per_change_walks(root);
+}
+
+// REQ-change-140: a root commit that already holds lifecycle state counts against the empty tree.
+#[test]
+fn lifecycle_index_answers_equal_per_change_walks_from_a_root_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    finalized_archived_change(root);
+    finalized_archived_change(root);
+    quiet_git(root, &["checkout", "-q", "--orphan", "flat"]);
+    quiet_git(root, &["commit", "-q", "-m", "everything in one root commit"]);
+    assert_eq!(assert_lifecycle_index_equals_per_change_walks(root), 2);
+}
+
+// REQ-change-140 and #851: a project in a repository subdirectory whose name holds glob
+// characters, following an earlier archive path through a hidden downgrade.
+#[test]
+fn lifecycle_index_answers_equal_per_change_walks_in_a_glob_named_subdirectory() {
+    let (_temp, root) = subdirectory_project_named("app[1]");
+    let mut record = archived_workflow_record(&root);
+    let first_archive = find_change_dir(&root, &record.id).unwrap();
+    assert_lifecycle_index_equals_per_change_walks(&root);
+    commit_hidden_workflow_downgrade(&root, &first_archive.join("state.json"));
+    fs::rename(&first_archive, change_dir(&root, &record.id)).unwrap();
+    record.state = ChangeState::Verifying;
+    save_change(&root, &record).unwrap();
+    quiet_git(&root, &["add", "--all"]);
+    quiet_git(&root, &["commit", "-m", "reopen archived record"]);
+    let second_archive = root.join(ARCHIVE_PATH).join(format!("2026-07-15-{}", record.id));
+    fs::rename(change_dir(&root, &record.id), &second_archive).unwrap();
+    record.state = ChangeState::Archived;
+    write_json(&second_archive.join("state.json"), &record).unwrap();
+    quiet_git(&root, &["add", "--all"]);
+    quiet_git(&root, &["commit", "-m", "rearchive on second date"]);
+    let answer = workflow_history_answer(&root, &record, true);
+    assert!(
+        answer.2.as_ref().is_err_and(|error| error.contains("changed immutable identity")),
+        "{:?}",
+        answer.2
+    );
+    assert_eq!(assert_lifecycle_index_equals_per_change_walks(&root), 1);
+}
+
+// REQ-change-140: the per-change bounds refuse at exactly the count Git's `--max-count` walks
+// would, for both the archived-path discovery and the state-path history.
+#[test]
+fn lifecycle_index_applies_the_per_change_bounds_like_the_walks() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    let _scope = begin_change_read_scope(root);
+    let history = lifecycle_state_history(root).unwrap();
+    let state_paths = workflow_version_state_paths(root, &record).unwrap();
+    let pathspecs: Vec<String> = state_paths
+        .iter()
+        .map(|path| format!(":(top,literal){path}"))
+        .collect();
+    let touching = |max: usize| {
+        let max_count = format!("--max-count={max}");
+        let mut arguments = vec!["rev-list", "--full-history", max_count.as_str(), "HEAD", "--"];
+        arguments.extend(pathspecs.iter().map(String::as_str));
+        quiet_git(root, &arguments).lines().filter(|line| !line.is_empty()).count()
+    };
+    let total = touching(100_000);
+    assert!(total >= 2, "the fixture needs a history of at least two commits");
+    for bound in [total - 1, total, total + 1] {
+        let walk_refuses = touching(bound + 1) > bound;
+        assert_eq!(history.state_path_history(&state_paths, bound).is_none(), walk_refuses, "bound {bound}");
+    }
+    let archived = history
+        .archived_state_paths(&record.id, 1000)
+        .unwrap();
+    let archive_pathspec = format!(
+        ":(top,glob){}/*-{}/state.json",
+        escape_glob_pathspec(&git_repo_relative_path(root, ARCHIVE_PATH).unwrap()),
+        escape_glob_pathspec(&record.id)
+    );
+    let archived_commits = quiet_git(root, &["rev-list", "--full-history", "HEAD", "--", archive_pathspec.as_str()])
+        .lines()
+        .filter(|line| !line.is_empty())
+        .count();
+    assert!(!archived.is_empty() && archived_commits >= 1);
+    for bound in [archived_commits.saturating_sub(1).max(1), archived_commits, archived_commits + 1] {
+        assert_eq!(
+            history.archived_state_paths(&record.id, bound).is_err(),
+            archived_commits > bound,
+            "bound {bound}"
+        );
+    }
+}
+
+// REQ-change-141: in an offline partial clone, a state blob the history lists but Git cannot
+// read still refuses the archive through the batch reader, exactly as without the index.
+#[test]
+fn an_unreadable_workflow_history_blob_refuses_with_and_without_the_index() {
+    let temp = TempDir::new().unwrap();
+    let origin = temp.path().join("origin");
+    fs::create_dir_all(&origin).unwrap();
+    fast_read_repository(&origin);
+    let record = finalized_archived_change(&origin);
+    quiet_git(&origin, &["config", "uploadpack.allowFilter", "true"]);
+    let url = format!("file://{}", origin.display());
+    quiet_git(temp.path(), &["clone", "-q", "--filter=blob:none", url.as_str(), "clone"]);
+    let clone = temp.path().join("clone");
+    quiet_git(&clone, &["remote", "set-url", "origin", "file:///nonexistent-promisor"]);
+    let record = load_change(&origin, &record.id).unwrap();
+    let indexed = workflow_history_answer(&clone, &record, true).2;
+    let live = workflow_history_answer(&clone, &record, false).2;
+    assert!(
+        indexed.as_ref().is_err_and(|error| error.contains("could not be read")),
+        "{indexed:?}"
+    );
+    assert_eq!(indexed, live);
+}
+
+// REQ-change-140: parsing folds `-m`'s repeated merge blocks, and refuses output that is not in
+// the walk's shape, so the caller falls back to per-change walks instead of judging from it.
+#[test]
+fn lifecycle_history_parse_folds_merge_blocks_and_refuses_other_shapes() {
+    let a = "a".repeat(40);
+    let b = "b".repeat(40);
+    let c = "c".repeat(40);
+    let text = format!(
+        "\x01{a} {b} {c}\0\nx/state.json\0\x01{a} {b} {c}\0\ny/state.json\0x/state.json\0\x01{b}\0\ny/state.json\0"
+    );
+    let commits = parse_lifecycle_state_history(&text).unwrap();
+    assert_eq!(commits.len(), 2);
+    assert_eq!(commits[0].parents, vec![b.clone(), c.clone()]);
+    assert_eq!(commits[0].listed, vec!["x/state.json".to_string(), "y/state.json".to_string()]);
+    assert!(commits[1].parents.is_empty());
+    assert_eq!(parse_lifecycle_state_history("").unwrap(), Vec::new());
+    assert!(parse_lifecycle_state_history("garbage").is_none());
+    assert!(parse_lifecycle_state_history("\x01not-an-id\0").is_none());
+    let split = format!("\x01{a} {b}\0\nx\0\x01{b}\0\x01{a} {b}\0\ny\0");
+    assert!(parse_lifecycle_state_history(&split).is_none(), "a commit listed twice apart");
 }

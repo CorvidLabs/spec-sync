@@ -1,0 +1,48 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-6630fcd14b478cdba3c05262",
+    "head": "EVT-fc24dc09bb43e1074cd7a51a",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "A reviewed change that is sent back can be reviewed again (#914)",
+  "intent_scope": "CHANGE",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval",
+  "references": {
+    "criteria": [
+      "CHANGE-12"
+    ],
+    "requirements": [
+      "REQ-change-123"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "orc t18 (2026-11-05, for Leif overnight): fix #914 in its own worktree ss-914 and PR, test-first; #901 waits untouched at 36ad7d5e until #914 merges",
+    "decided: history binds any recorded definition approval, currency binds only a post-send-back approval, because a pre-send-back review was valid evidence when recorded (CHANGE-12.c) and must never let finalize through (CHANGE-12.b)",
+    "rejected: dropping pre-send-back attempts at send-back, because CHANGE-12.c and the append-only committed history forbid losing evidence"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Red first: a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes fails on main cd8cab5e ('Review: recorded (unreadable)' after the send-back)"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif via orc t18: approve intent CHANGE-12.d and the scope of let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval"
+  ],
+  "run_consents": [],
+  "next_action": "Wait for approval; then implement the split binding"
+}

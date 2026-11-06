@@ -1,4 +1,76 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793936116,
+      "digest": "e60dd55f2a68a6d4046e2fde98a4282b513b6a12d70b1ccdfab81982002e1b02",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication",
+        "title": "Record relayed human decisions on approvals and reviews as claims, not authentication",
+        "description": "Record relayed human decisions on approvals and reviews as claims, not authentication",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "README.md",
+          "hi/change.md",
+          "hi/ship.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change",
+          "specs/cli_args",
+          "specs/cmd_change",
+          "src/change.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/relayed_decision.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/relayed_decision.rs",
+          "src/change_tests/substantive_plan.rs",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/relayed_decision.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A record missing one of those details is refused before anything is written, and the refusal says which detail is missing.",
+          "A review an agent records for a person can carry the same record, shown the same way.",
+          "An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.",
+          "That record is optional, so a person approving at their own terminal is not asked for one.",
+          "The change's status shows it beside the approval or review it belongs to.",
+          "The status says plainly that the record is a claim too, not proof that the person decided.",
+          "When an agent records a decision a person made somewhere else, I can see who decided, their exact words, where they said it, and which agent wrote it down."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md 'Release review: claims and authentication': names and provider declarations are claims, authentication is separately enforced policy; this change states that for approvals too and adds no authentication. sdd_version.rs forward-compat note: ScopedReviewRecord is a digest preimage, so per Leif ('Keep it out', 2026-11-05 20:19 MST via orc t18) relayed_by is left out of the review digest and records without it keep their exact bytes. Shared shape with Chough (ch-d7, chough#123), approved by Leif: relayed_by {decided_by, words, where, recorded_by}, all required, non-blank, <=4096 bytes, unknown keys refused, absent not null. A relay record never satisfies, clears or replaces a gate. Never weaken a gate, bound or test.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "68d3e2aed73b643ede7abb693b89270388d0029c15a37329a4d00d8384c32adb",
+        "cli_args": "bf9bdbf4edc21f2a31619361b6169cc596ad902ea1d5cc2bbf8fbdb09bd81f72",
+        "cmd_change": "6ea301c468dac647827a9b4cbd4df079133221e31e09f983ba15e5bcb2e33a16"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-001": "07d133c33b4a9074b37d916e94fc058fabe418ffe9eb43b453d672fb1e707bf8",
+        "change: SPEC SECTION Public API": "c273889e897e759d7ade38a89651b2ba99b5a750aac22c594401a1cb0404b6cf"
+      }
+    }
+  ],
   "reopenings": []
 }

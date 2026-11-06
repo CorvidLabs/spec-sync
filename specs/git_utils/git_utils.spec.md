@@ -40,7 +40,7 @@ Shared git utility functions for querying repository history. Provides the stale
 | `invalidate_repository_facts` | — | `()` | Forget every memoized fact and close every batch reader on this thread; called after git writes and external processes |
 | `live_repository_reads` | — | `LiveRepositoryReads` | Make every git read on this thread ask git until the guard drops: no memoized fact and no batch reader answers. Race checks hold one, because they read twice to see another process change the repository |
 | `is_read_only_git_invocation` | `args: &[&str]` | `bool` | Whether running `args` cannot change a memoized fact, skipping leading `-c key=value` options |
-| `batched_git_read` | `root: &Path, flavor: &'static str, command: impl Fn() -> Command, args: &[&str], max_bytes: usize` | `Option<MemoizedGitOutput>` | Answer `show <rev>:<path>` of a blob and single-path `ls-tree --full-tree -z --name-only` from one `git cat-file --batch` child per scope and flavor, with the bytes and status the per-file read gives (REQ-git-utils-010); `None` for any other shape, a non-blob, an object over `max_bytes` or no open scope |
+| `batched_git_read` | `root: &Path, flavor: &'static str, command: impl Fn() -> Command, args: &[&str], max_bytes: usize` | `Option<MemoizedGitOutput>` | Answer `show <rev>:<path>` (with or without a trailing `--`) of a blob and single-path `ls-tree --full-tree -z --name-only` from one `git cat-file --batch` child per scope and flavor, with the bytes and status the per-file read gives (REQ-git-utils-010); `None` for any other shape, a non-blob, an object over `max_bytes` or no open scope |
 
 **Exported Types**
 

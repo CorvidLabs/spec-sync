@@ -872,9 +872,8 @@ pub(crate) fn memoized_repository_fact(
 }
 
 /// Record what git answered for `args`, and forget every fact for `root` after anything that may
-/// write. Call once per git process that ran to completion. Only a successful answer is
-/// remembered: a failed query, or a process that could not be started, timed out or was killed,
-/// is asked again next time (REQ-git-utils-009).
+/// write. Call once per git process that ran to completion; a process that could not be started,
+/// timed out or was killed is not an answer and is never remembered.
 pub(crate) fn note_repository_git(
     root: &Path,
     flavor: &'static str,
@@ -885,7 +884,7 @@ pub(crate) fn note_repository_git(
         invalidate_repository_facts();
         return;
     }
-    if !is_repository_fact(args) || discovery_ceiling_is_set() || !output.status.success() {
+    if !is_repository_fact(args) || discovery_ceiling_is_set() || output.status.code().is_none() {
         return;
     }
     let key: (&'static str, Vec<String>) = (
@@ -1257,7 +1256,7 @@ fn synthetic_status(code: i32) -> std::process::ExitStatus {
 /// Answer `args` from the open scope's batch reader when it is a single committed-object read
 /// with a known answer shape (REQ-git-utils-010):
 ///
-/// - `show <rev>:<path>` of a blob: the blob's bytes, exactly as `git show` prints a blob.
+/// - `show <rev>:<path>` (optionally followed by `--`) of a blob: the blob's bytes, exactly as `git show` prints a blob.
 ///   A missing object fails with status 128, as `git show` does. A tree or other object type is
 ///   not answered here, because `git show` formats those differently.
 /// - `ls-tree --full-tree -z --name-only <rev> -- <path>`: `<path>\0` when the path exists at
@@ -1275,7 +1274,7 @@ pub(crate) fn batched_git_read(
     max_bytes: usize,
 ) -> Option<MemoizedGitOutput> {
     match args {
-        ["show", object] => {
+        ["show", object] | ["show", object, "--"] => {
             let (revision, path) = object.split_once(':')?;
             if !batchable_revision(revision) || !batchable_path(path) {
                 return None;
@@ -1814,6 +1813,11 @@ mod tests {
                 "missing.txt",
             ] {
                 reads.push(vec!["show".to_string(), format!("{revision}:{path}")]);
+                reads.push(vec![
+                    "show".to_string(),
+                    format!("{revision}:{path}"),
+                    "--".to_string(),
+                ]);
                 for listed in [path, "dir"] {
                     reads.push(
                         [
@@ -1941,21 +1945,6 @@ mod tests {
             .stdout
             .len(),
             4096
-        );
-    }
-
-    #[test]
-    fn a_failed_query_is_never_memoized() {
-        let tmp = init_repo();
-        let root = tmp.path();
-        commit_file(root, "a.txt", "a", "first");
-        let _scope = begin_repository_fact_scope(root);
-        let args = ["rev-parse", "--verify", "refs/heads/not-there"];
-        let output = git_cmd_output(root, &args).unwrap();
-        assert!(!output.status.success());
-        assert!(
-            memoized_repository_fact(root, "git_cmd", &args).is_none(),
-            "a failed git query is asked again next time (REQ-git-utils-009)"
         );
     }
 

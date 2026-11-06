@@ -1200,14 +1200,25 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     let path = workspace.join(SCOPED_REVIEW_FILE);
     let content = fs::read_to_string(&path)
         .map_err(|_| "independent scoped review evidence is missing".to_string())?;
-    let review: ScopedReviewRecord = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid independent scoped review evidence: {error}"))?;
+    let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            &path,
+            format!("invalid independent scoped review evidence: {error}"),
+        )
+    })?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
     let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
         &fs::read_to_string(&attempts_path)
             .map_err(|_| "append-only scoped review history is missing".to_string())?,
     )
-    .map_err(|error| format!("invalid scoped review attempt history: {error}"))?;
+    .map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            &attempts_path,
+            format!("invalid scoped review attempt history: {error}"),
+        )
+    })?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
 }
@@ -1573,9 +1584,7 @@ fn collapsed_scoped_review_archive_is_terminal(
     let Ok(review) = serde_json::from_slice::<ScopedReviewRecord>(&review_bytes) else {
         return Ok(false);
     };
-    let review_digest = serde_json::to_vec(&review)
-        .map(|bytes| sha256_hex(&bytes))
-        .map_err(|error| format!("failed to hash collapsed scoped review: {error}"))?;
+    let review_digest = scoped_review_digest(&review)?;
     Ok(state.id == record.id
         && state.state == ChangeState::Archived
         && state.workflow_version == 2
@@ -1714,12 +1723,10 @@ fn validate_finalization_evidence_with_review_binding(
             return Err("finalization implementation is outside the scoped-review history".into());
         }
     }
-    let review_bytes = serde_json::to_vec(&review)
-        .map_err(|error| format!("failed to hash scoped review: {error}"))?;
     // The reopen-only mode retains the whole mismatched historical review as
     // untrusted, including its claimed hash. It grants no acceptance authority.
     // Finalization's own digest and every non-review integrity check stay strict.
-    if !recorded_workspace_mismatch && sha256_hex(&review_bytes) != finalization.review_digest {
+    if !recorded_workspace_mismatch && scoped_review_digest(&review)? != finalization.review_digest {
         return Err("finalization scoped-review digest does not match review.json".into());
     }
     if finalization_digest(&finalization) != finalization.finalization_digest {
@@ -2199,6 +2206,25 @@ pub fn record_scoped_review_with_verdict(
     reviewer: String,
     verdict: ScopedReviewVerdict,
 ) -> Result<ScopedReviewRecord, String> {
+    record_scoped_review_with_relay(root, id, reviewer, verdict, None)
+}
+
+/// Record a scoped review carrying an optional relayed decision (#633, SHIP-2.e). The relay must
+/// name the validated reviewer claim as the one who decided.
+pub fn record_scoped_review_with_relay(
+    root: &Path,
+    id: &str,
+    reviewer: String,
+    verdict: ScopedReviewVerdict,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<ScopedReviewRecord, String> {
+    if relayed_by.is_some() {
+        ensure_relay_names_the_decider(
+            relayed_by.as_ref(),
+            validate_scoped_reviewer_claim(&reviewer)?,
+            "--reviewer",
+        )?;
+    }
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
@@ -2257,6 +2283,7 @@ pub fn record_scoped_review_with_verdict(
         execution_digest: Some(execution_digest),
         workspace_digest,
         timestamp: now(),
+        relayed_by,
     };
     attempts.reviews.push(review.clone());
     write_prepared_files(
@@ -2365,6 +2392,7 @@ fn accept_change_with_gate(
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2395,6 +2423,8 @@ fn accept_change_with_gate(
                 approved_delta_bases: effective_definition_approval(root, &record, &ledger)?
                     .approved_delta_bases
                     .clone(),
+                // Recorded by whoever runs this acceptance, not relayed from the original approver.
+                relayed_by: None,
             });
         }
         ledger.approvals.push(ApprovalRecord {
@@ -2408,6 +2438,7 @@ fn accept_change_with_gate(
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2464,9 +2495,7 @@ fn accept_change_with_gate(
             ],
         )
         .ok_or_else(|| "finalization requires a committed implementation tree".to_string())?;
-        let review_bytes = serde_json::to_vec(&review)
-            .map_err(|error| format!("failed to hash scoped review: {error}"))?;
-        let review_digest = sha256_hex(&review_bytes);
+        let review_digest = scoped_review_digest(&review)?;
         let mut finalization = FinalizationRecord {
             schema_version: 2,
             change_id: record.id.clone(),

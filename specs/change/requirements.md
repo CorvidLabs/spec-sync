@@ -6,8 +6,7 @@ spec: change.spec.md
 
 ### REQ-change-001
 
-The system SHALL require exactly one human scope approval for each new meaningful change and SHALL
-record finalization as automated terminal evidence rather than a second approval.
+The system SHALL require exactly one recorded scope approval, naming the person it is claimed for, for each new meaningful change and SHALL record finalization as automated terminal evidence rather than a second approval. The approval binds content by digest; its actor is a recorded claim that SpecSync does not authenticate.
 
 #### Acceptance Criteria
 
@@ -27,6 +26,7 @@ record finalization as automated terminal evidence rather than a second approval
   appending a second approval.
 - Historical closing approvals remain readable and verifiable without being required for new
   workflow-version-2 changes.
+- The approval digest covers the approved content and never the actor, so an approval shows what was approved and not who approved it; an actor label, or a relayed decision, is a claim and not authentication.
 
 ### REQ-change-002
 
@@ -1668,4 +1668,18 @@ Lifecycle commands SHALL stay within a tested ceiling of git process spawns per 
 - A test counts git spawns for `change new`, `answer`, `approve`, `check`, `status`, `review` and `finalize` and asserts a ceiling for each.
 - The slowest lifecycle integration test spawns at most 6,225 git processes.
 - No assertion of an existing lifecycle test is removed or loosened to meet the ceiling.
+
+### REQ-change-relayed-decision-001
+
+A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.
+
+#### Acceptance Criteria
+
+- All four fields are required when the record is present, each non-blank and at most 4096 bytes; `words` is stored exactly as given.
+- `decided_by` is the approval's actor or the review's reviewer; a relay naming anyone else is refused before anything is written.
+- An approval or review written without a relay omits the `relayed_by` key, so its bytes match what a binary that predates the record writes.
+- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field, and names restoring the file from Git with `git checkout <commit> -- <path>`.
+- The finalization review digest is computed over the review with `relayed_by` left out, so a 6.x binary that drops the unknown key computes the same digest; a later edit to a relay record is therefore not detected, exactly like an edit to an approval's actor.
+- A `--portable-5-0-1` approval carries the relay on both records of the pair.
+- `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
 

@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `change approve` and `change review` record an optional relayed decision when an agent records a decision a person made elsewhere: `--words`, `--where` and `--recorded-by` store `relayed_by` (`decided_by`, `words`, `where`, `recorded_by`, the shape Chough uses), with `decided_by` taken from `--actor` or `--reviewer`. `change status` shows each approval and review as a recorded claim, with any relay and the line "a relayed claim, not authenticated". The relay is covered by no digest, and the finalization review digest leaves it out, so older 6.x binaries still read archives that carry one (#633).
+
 ### Changed
+
+- An approval is described as what it is: a record bound by digest to the content it approved, whose actor is an unauthenticated claim. HI CHANGE-6.b ("a coding agent can never grant that approval to itself") is retired for CHANGE-6.d, and REQ-change-001 says the same (#633).
 
 - Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. Race checks still read live. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 110 and `change finalize` from 739 to 287; the slowest lifecycle test went from 15,563 git processes and 343s to 5,996 and 95s on macOS (#861).
 - The release-candidate qualification lane runs the unchanged test set under a checksum-pinned `cargo-nextest` (#861).

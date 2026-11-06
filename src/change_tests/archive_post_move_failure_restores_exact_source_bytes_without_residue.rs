@@ -3109,6 +3109,7 @@ fn unallowlisted_scope_migration_cannot_rewrite_an_approval_projection() {
         }),
         approved_delta_digests: None,
         approved_delta_bases: None,
+        relayed_by: None,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -3216,6 +3217,7 @@ fn scope_adoption_fails_closed_when_anchor_is_unavailable_or_replayed() {
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         }],
         scope_adoptions: vec![ScopeAdoptionV1 {
             schema_version: 1,
@@ -3388,6 +3390,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         },
     );
     assert_invalid(intervening);
@@ -3433,6 +3436,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
         scope_migration: None,
         approved_delta_digests: None,
         approved_delta_bases: None,
+        relayed_by: None,
     });
     assert!(
         resolve_definition_approval_event(
@@ -3461,6 +3465,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
         scope_migration: None,
         approved_delta_digests: None,
         approved_delta_bases: None,
+        relayed_by: None,
     });
     assert!(
         resolve_definition_approval_event(

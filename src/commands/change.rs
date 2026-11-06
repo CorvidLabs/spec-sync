@@ -179,16 +179,31 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             actor,
             note,
             portable_5_0_1,
-        } => {
-            let result = if portable_5_0_1 {
+            words,
+            relay_where,
+            recorded_by,
+        } => change::relayed_decision(
+            &format!("specsync change approve {id} --actor <who decided>"),
+            actor.as_deref(),
+            words,
+            relay_where,
+            recorded_by,
+        )
+        .and_then(|relayed_by| match relayed_by {
+            None if portable_5_0_1 => {
                 change::approve_definition_portable_v501(root, &id, actor, note)
-            } else {
-                change::approve_definition(root, &id, actor, note)
-            };
-            result.map(|record| {
-                print_transition_with_handoff(root, &record, format, "definition approved")
-            })
-        }
+            }
+            None => change::approve_definition(root, &id, actor, note),
+            relayed_by => change::approve_definition_with_relay(
+                root,
+                &id,
+                actor,
+                note,
+                portable_5_0_1,
+                relayed_by,
+            ),
+        })
+        .map(|record| print_transition_with_handoff(root, &record, format, "definition approved")),
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),
         ChangeAction::Verify { id } => {
@@ -211,11 +226,28 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             id,
             reviewer,
             verdict,
-        } => change::ScopedReviewVerdict::parse(&verdict).and_then(|verdict| {
-            let result = if verdict == change::ScopedReviewVerdict::Pass {
-                change::record_scoped_review(root, &id, reviewer)
-            } else {
-                change::record_scoped_review_with_verdict(root, &id, reviewer, verdict)
+            words,
+            relay_where,
+            recorded_by,
+        } => change::relayed_decision(
+            &format!("specsync change review {id} --reviewer <who decided>"),
+            Some(reviewer.trim()),
+            words,
+            relay_where,
+            recorded_by,
+        )
+        .and_then(|relayed_by| {
+            change::ScopedReviewVerdict::parse(&verdict).map(|verdict| (verdict, relayed_by))
+        })
+        .and_then(|(verdict, relayed_by)| {
+            let result = match relayed_by {
+                None if verdict == change::ScopedReviewVerdict::Pass => {
+                    change::record_scoped_review(root, &id, reviewer)
+                }
+                None => change::record_scoped_review_with_verdict(root, &id, reviewer, verdict),
+                relayed_by => {
+                    change::record_scoped_review_with_relay(root, &id, reviewer, verdict, relayed_by)
+                }
             };
             result.map(|review| {
                 match format {
@@ -655,6 +687,9 @@ fn print_record(
     } else {
         Vec::new()
     };
+    // Who each recorded approval and review names, with any relayed decision (#633). Read first,
+    // so a relay record that cannot be read refuses the command and names its recovery.
+    let claims = change::recorded_claims(root, record)?;
     match format {
         OutputFormat::Json => {
             // JSON keeps digests and correction ledgers for machine consumers.
@@ -692,6 +727,9 @@ fn print_record(
                             serde_json::json!(false),
                         );
                     }
+                    if !claims.is_empty() {
+                        object.insert("recorded_claims".into(), serde_json::json!(claims));
+                    }
                     object
                 })
                 .unwrap_or_default(),
@@ -709,6 +747,7 @@ fn print_record(
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
+            print_recorded_claims(&claims);
             print_verification_ignored_lines(root);
             print_change_text_answers(record);
             print_change_text_correction_counts(record);
@@ -724,6 +763,47 @@ fn print_record(
         }
     }
     Ok(())
+}
+
+/// Each recorded approval and review as the claim it is, with any relayed decision on the next
+/// line (CHANGE-6.d, CHANGE-13.b, CHANGE-13.c). `RecordedClaim` holds names and relayed words
+/// only, never a digest.
+fn print_recorded_claims(claims: &[change::RecordedClaim]) {
+    for claim in claims {
+        let name = printable_claim_text(&claim.name);
+        match (claim.gate.as_str(), claim.verdict.as_deref()) {
+            ("review", Some(verdict)) => println!(
+                "  Review: {name} ({}; {})",
+                printable_claim_text(verdict),
+                change::RECORDED_CLAIM_BOUNDARY
+            ),
+            _ => println!("  Approval: {name} ({})", change::RECORDED_CLAIM_BOUNDARY),
+        }
+        if let Some(relay) = &claim.relayed_by {
+            println!(
+                "    Relayed: {} said \"{}\" ({}); recorded by {}; {}",
+                printable_claim_text(&relay.decided_by),
+                printable_claim_text(&relay.words),
+                printable_claim_text(&relay.where_),
+                printable_claim_text(&relay.recorded_by),
+                change::RELAYED_CLAIM_BOUNDARY
+            );
+        }
+    }
+}
+
+/// Recorded words are printed, not obeyed: a control character is shown as its escape, so a
+/// relayed `words` field cannot move the cursor or recolour the terminal.
+fn printable_claim_text(text: &str) -> String {
+    let mut printable = String::with_capacity(text.len());
+    for character in text.chars() {
+        if character.is_control() {
+            printable.extend(character.escape_debug());
+        } else {
+            printable.push(character);
+        }
+    }
+    printable
 }
 
 fn print_mutation_record(

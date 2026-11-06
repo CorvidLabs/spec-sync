@@ -1,0 +1,219 @@
+// Issue #633, audit D7: the relayed-decision record's own rules, below the CLI. The binary-driven
+// tests in `tests/integration/relayed_decision.rs` cover the flags, status and finalize; these
+// cover the shape Leif approved for both SpecSync and Chough, the review digest, and the
+// library guards a JSON or agent caller meets without going through the flags.
+
+const RELAY_DELTA: &str = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuth tracks credentials.\n";
+
+fn relay(decided_by: &str) -> RelayedDecision {
+    RelayedDecision {
+        decided_by: decided_by.into(),
+        words: "Approve it".into(),
+        where_: "orc tab, relayed by t18".into(),
+        recorded_by: "agent".into(),
+    }
+}
+
+fn relay_json() -> serde_json::Value {
+    serde_json::json!({
+        "decided_by": "Ada",
+        "words": "Approve it",
+        "where": "orc tab, relayed by t18",
+        "recorded_by": "agent",
+    })
+}
+
+fn review_record(relayed_by: Option<RelayedDecision>) -> ScopedReviewRecord {
+    ScopedReviewRecord {
+        schema_version: 2,
+        change_id: "add-auth".into(),
+        reviewer: "Ada".into(),
+        provenance: ScopedReviewProvenanceV1 {
+            schema_version: 1,
+            provider: ScopedReviewProvenanceProvider::GithubActionsCheck,
+            required_check: SCOPED_REVIEW_REQUIRED_CHECK.into(),
+        },
+        verdict: ScopedReviewVerdict::Pass,
+        implementation_commit: "a".repeat(40),
+        contract_digest: "b".repeat(64),
+        execution_digest: Some("d".repeat(64)),
+        workspace_digest: "c".repeat(64),
+        timestamp: 1_793_900_000,
+        relayed_by,
+    }
+}
+
+/// DISCRIMINATOR for the shared shape: exactly four keys, `where` spelled as in Chough, and
+/// every way a hand-edited record breaks the shape is refused with a message naming `relayed_by`.
+#[test]
+fn a_relayed_decision_reads_only_the_shared_four_key_shape() {
+    let read: RelayedDecision = serde_json::from_value(relay_json()).unwrap();
+    assert_eq!(read, relay("Ada"));
+    assert_eq!(serde_json::to_value(&read).unwrap(), relay_json());
+
+    let mut cases: Vec<(serde_json::Value, &str)> = vec![
+        (serde_json::Value::Null, "must be an object"),
+        (serde_json::json!("Ada said yes"), "must be an object"),
+    ];
+    let mut unknown = relay_json();
+    unknown["signed"] = serde_json::json!(true);
+    cases.push((unknown, "unknown key `signed`"));
+    for key in ["decided_by", "words", "where", "recorded_by"] {
+        let mut missing = relay_json();
+        missing.as_object_mut().unwrap().remove(key);
+        cases.push((missing, "is missing"));
+        let mut blank = relay_json();
+        blank[key] = serde_json::json!(" \n ");
+        cases.push((blank, "must not be blank"));
+        let mut number = relay_json();
+        number[key] = serde_json::json!(7);
+        cases.push((number, "must be a string"));
+        let mut long = relay_json();
+        long[key] = serde_json::json!("x".repeat(4097));
+        cases.push((long, "is 4097 bytes"));
+        let mut at_bound = relay_json();
+        at_bound[key] = serde_json::json!("x".repeat(4096));
+        assert!(serde_json::from_value::<RelayedDecision>(at_bound).is_ok(), "{key}");
+    }
+    for (value, expected) in cases {
+        let error = serde_json::from_value::<RelayedDecision>(value.clone())
+            .expect_err(&format!("{value} must be refused"))
+            .to_string();
+        assert!(error.contains("relayed_by"), "{error}");
+        assert!(error.contains(expected), "{value}: {error}");
+    }
+}
+
+/// DISCRIMINATOR for "absent, not null": a record without the key reads as no relay, and a
+/// record whose key is `null` is refused rather than read as no relay.
+#[test]
+fn an_approval_record_without_a_relay_omits_the_key_and_refuses_null() {
+    let mut approval = serde_json::json!({
+        "gate": "definition",
+        "actor": "Ada",
+        "timestamp": 1,
+        "digest": "d",
+        "note": null,
+    });
+    let read: ApprovalRecord = serde_json::from_value(approval.clone()).unwrap();
+    assert!(read.relayed_by.is_none());
+    assert!(serde_json::to_value(&read).unwrap().get("relayed_by").is_none());
+
+    approval["relayed_by"] = serde_json::Value::Null;
+    let error = serde_json::from_value::<ApprovalRecord>(approval)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("relayed_by must be an object"), "{error}");
+}
+
+/// DISCRIMINATOR for Leif's "Keep it out": the finalization review digest is the same with and
+/// without a relay, and for a review without one it is exactly the digest of its bytes, so
+/// every review recorded before this change keeps its digest.
+#[test]
+fn the_review_digest_leaves_the_relay_out_and_keeps_existing_digests() {
+    let plain = review_record(None);
+    let relayed = review_record(Some(relay("Ada")));
+    let plain_bytes_digest = sha256_hex(&serde_json::to_vec(&plain).unwrap());
+    assert_eq!(scoped_review_digest(&plain).unwrap(), plain_bytes_digest);
+    assert_eq!(scoped_review_digest(&relayed).unwrap(), plain_bytes_digest);
+    assert_ne!(
+        sha256_hex(&serde_json::to_vec(&relayed).unwrap()),
+        plain_bytes_digest,
+        "the relay is in the record, only the digest leaves it out"
+    );
+}
+
+/// DISCRIMINATOR for one decider per record: a library caller cannot attach a relay naming
+/// someone other than the approval's actor, or a relay with no actor at all, and nothing is
+/// written either way.
+#[test]
+fn a_relayed_approval_must_name_its_own_actor_as_the_decider() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    let approvals = change_dir(root, &record.id).join("approvals.json");
+    let before = fs::read(&approvals).unwrap();
+
+    let other = approve_definition_with_relay(
+        root,
+        &record.id,
+        Some("Ada".into()),
+        None,
+        false,
+        Some(relay("Bob")),
+    )
+    .unwrap_err();
+    assert!(other.contains("says `Bob` decided, but --actor records `Ada`"), "{other}");
+    let missing =
+        approve_definition_with_relay(root, &record.id, None, None, false, Some(relay("Ada")))
+            .unwrap_err();
+    assert!(missing.contains("--actor <who decided>"), "{missing}");
+    assert_eq!(fs::read(&approvals).unwrap(), before);
+    assert_eq!(load_change(root, &record.id).unwrap().state, ChangeState::Draft);
+}
+
+/// DISCRIMINATOR for the portable pair: both records of a `--portable-5-0-1` approval are one
+/// approval, so both carry the relay.
+#[test]
+fn a_portable_approval_pair_carries_the_relay_on_both_records() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = portable_definition_record(root);
+    append_portable_definition_approval_v501_with_relay(
+        root,
+        &record,
+        Some("Ada".into()),
+        None,
+        Some(relay("Ada")),
+    )
+    .unwrap();
+    let ledger = load_approvals(root, &record).unwrap();
+    let pair: Vec<&ApprovalRecord> = ledger
+        .approvals
+        .iter()
+        .filter(|approval| approval.definition_pair.is_some())
+        .collect();
+    assert_eq!(pair.len(), 2);
+    for approval in pair {
+        assert_eq!(approval.relayed_by, Some(relay("Ada")));
+    }
+}
+
+/// DISCRIMINATOR for CHANGE-13.b: status shows the approval that still stands. One a send-back
+/// cancelled is not shown as if it did, and a fresh approval is.
+#[test]
+fn recorded_claims_skip_an_approval_a_send_back_cancelled() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    approve_definition_with_relay(
+        root,
+        &record.id,
+        Some("Ada".into()),
+        None,
+        false,
+        Some(relay("Ada")),
+    )
+    .unwrap();
+    let approved = load_change(root, &record.id).unwrap();
+    assert_eq!(
+        recorded_claims(root, &approved).unwrap(),
+        vec![RecordedClaim {
+            gate: "definition".into(),
+            name: "Ada".into(),
+            verdict: None,
+            relayed_by: Some(relay("Ada")),
+        }]
+    );
+
+    send_back_change(root, &record.id, "Ada".into(), "re-scope".into()).unwrap();
+    let sent_back = load_change(root, &record.id).unwrap();
+    assert_eq!(recorded_claims(root, &sent_back).unwrap(), Vec::new());
+
+    approve_definition(root, &record.id, Some("Bea".into()), None).unwrap();
+    let renewed = load_change(root, &record.id).unwrap();
+    let claims = recorded_claims(root, &renewed).unwrap();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].name, "Bea");
+    assert_eq!(claims[0].relayed_by, None);
+}

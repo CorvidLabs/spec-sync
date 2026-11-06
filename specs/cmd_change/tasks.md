@@ -29,3 +29,4 @@ spec: cmd_change.spec.md
 - [x] Archive-first CI: query HEAD check-runs first in ship-status and rewrite trust guidance and stage copy for verify-locally → review → ship → push the archive tip (REQ-cmd-change-007, REQ-cmd-change-019)
 - [x] Render `approved_deltas` verbatim in single-record change JSON (`status`, `show`, `new`, `answer`, `depend`, `supersede`), from the in-lock mutation snapshot for mutations (REQ-cmd-change-023).
 - [x] Pass `change audit --archives` to `change::audit_project_with_archives`, which also walks every archive's workflow-version history (REQ-cmd-change-027, #856).
+- [x] Take `--words`, `--where` and `--recorded-by` on approve and review, and print recorded claims and relays in status text and JSON (REQ-cmd-change-relayed-decision-001, #633).

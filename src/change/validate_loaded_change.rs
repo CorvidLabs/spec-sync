@@ -611,6 +611,7 @@ fn is_positive_legacy_tombstone(path: &Path) -> bool {
     })
 }
 
+#[cfg(test)]
 fn append_approval(
     root: &Path,
     record: &ChangeRecord,
@@ -618,6 +619,18 @@ fn append_approval(
     actor: Option<String>,
     digest: String,
     note: Option<String>,
+) -> Result<(), String> {
+    append_approval_with_relay(root, record, gate, actor, digest, note, None)
+}
+
+fn append_approval_with_relay(
+    root: &Path,
+    record: &ChangeRecord,
+    gate: &str,
+    actor: Option<String>,
+    digest: String,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
     let mut ledger = load_approvals(root, record)?;
     let approved_scope = (gate == "definition" && record.workflow_version >= 2)
@@ -649,6 +662,7 @@ fn append_approval(
         scope_migration: None,
         approved_delta_digests,
         approved_delta_bases,
+        relayed_by,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -656,11 +670,22 @@ fn append_approval(
     )
 }
 
+#[cfg(test)]
 fn append_portable_definition_approval_v501(
     root: &Path,
     record: &ChangeRecord,
     actor: Option<String>,
     note: Option<String>,
+) -> Result<(), String> {
+    append_portable_definition_approval_v501_with_relay(root, record, actor, note, None)
+}
+
+fn append_portable_definition_approval_v501_with_relay(
+    root: &Path,
+    record: &ChangeRecord,
+    actor: Option<String>,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
     let (current_digest, legacy_digest, correction_prefix_digest) =
         portable_definition_digest_pair_v501(root, record)?;
@@ -729,6 +754,8 @@ fn append_portable_definition_approval_v501(
         scope_migration: None,
         approved_delta_digests: approved_delta_digests.clone(),
         approved_delta_bases: approved_delta_bases.clone(),
+        // Both records of the pair are one approval, so both carry the relay.
+        relayed_by: relayed_by.clone(),
     };
     let legacy = ApprovalRecord {
         gate: "definition".into(),
@@ -741,6 +768,7 @@ fn append_portable_definition_approval_v501(
         scope_migration: None,
         approved_delta_digests,
         approved_delta_bases,
+        relayed_by,
     };
     let approvals = document
         .get_mut("approvals")
@@ -794,7 +822,7 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
         {
             format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
         } else {
-            message
+            with_relayed_read_recovery(root, &path, message)
         }
     })
 }

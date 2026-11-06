@@ -47,3 +47,7 @@ REQ-cmd-change-026: `change send-back` text, `--json` (`change` and `audit`) and
 ## Strict audit evidence
 
 REQ-cmd-change-027: `change audit` passes its `--archives` flag to `change::audit_project_with_archives`. strict_audit_still_refuses_a_hidden_downgrade_in_another_archive (src/change_tests/fast_finalize.rs) proves the report names the archived change whose history hides a downgrade, and that the non-strict report equals `audit_project`'s.
+
+## Recorded claims evidence
+
+REQ-cmd-change-relayed-decision-001: status_shows_the_approval_and_review_claims_with_the_relay_and_its_boundary; a_change_with_no_approval_shows_no_claim; an_incomplete_relay_is_refused_before_anything_is_written_and_the_named_rerun_records_it (it runs the named re-run for approve and review); a_blank_or_oversized_relay_detail_is_refused_and_named; a_relayed_approval_needs_an_explicit_actor; relayed_words_are_escaped_in_text_status (tests/integration/relayed_decision.rs).

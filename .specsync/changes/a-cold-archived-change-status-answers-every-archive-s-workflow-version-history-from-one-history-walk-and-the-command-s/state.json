@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s",
+  "slug": "a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s",
+  "title": "A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader",
+  "description": "A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "0623412fe1e3cd6e1cc636efb097d100d468a631",
+  "created_at": 1793971058,
+  "updated_at": 1793971143,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/validate_loaded_change.rs",
+    "src/change/read_cache.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/fast_archived_reads.rs",
+    "specs/change",
+    "CHANGELOG.md",
+    "hi/speed.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A cold change status of an archived change spawns fewer than 3 more Git processes when the project holds 4 more archives (cold_archived_status_git_processes_do_not_grow_with_archives, committed failing first in 0623412f: 99 with 2 archives, 234 with 6)",
+    "Inside a change read scope, every archived change's workflow-version history is answered from one lifecycle-state history walk per command: candidate state paths, oldest-first state-path history and each commit's parents are derived in memory instead of four Git walks per archive",
+    "The state.json reads and path-exists checks behind that validation go through the command's one object batch reader on the command's thread; a listed blob that cannot be read still refuses and is never cached as absent",
+    "Every archive is still fully validated, so authenticated-history keeps its meaning: equivalence tests show the one-walk verdict equals the per-archive verdict, including the same first refusal and message, for merges, a moved or re-archived package, a deleted creation anchor, a changed identity, a non-canonical archive path and the per-archive history bound",
+    "When the walk cannot answer (over its bound, over the output limit, or a failed Git call) each archive falls back to today's per-archive check, so no new refusal is introduced",
+    "The read deadline (REQ-change-137) still stops the validation between archives with phase and progress, and a warm archived status still spawns no more processes than today",
+    "On demand (fledge run bench-archived-reads) a cold archived status is under 5 s on an unloaded Mac and warm stays under 2 s; cold and warm times on this repository are recorded before and after",
+    "No gate, bound, timeout default or approval rule is weakened, and no existing assertion is loosened"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "SPEED-1.a and SPEED-1.a.1 (warm under 2 s; first read after a fresh clone in seconds however many archives), SPEED-1.d (Raven-sized benchmark); change.3md 'Finalize judges only what it archives' (read paths keep the full roster and live-identical refusals, so every archive is still validated), 'History pathspecs from a subdirectory' (#851: history pathspecs carry :(top)), 'Working-tree paths from a subdirectory' (#879: check which root a Git command reports paths from); REQ-change-135/136/137 and REQ-git-utils-010/011 stay (one batch child per root; workers get none); the partial-clone rule that an unreadable listed blob is never treated or cached as absent",
+    "public_contract": "no"
+  }
+}

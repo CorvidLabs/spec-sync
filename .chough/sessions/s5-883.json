@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-43d35e9a1a7c7b264d57be1f",
-    "head": "EVT-0e5adaf694a3ae71a97d71e0",
+    "head": "EVT-4d5fc96a7ef1d1cb6f34766b",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "build",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -42,12 +42,15 @@
   "completed": [
     "Failing tests at 9c28b332: landing_page_change_workflow_runs_from_its_quick_start (approve right after change new fails as written), approve_refusals_after_the_landing_page_change_new_name_the_command_that_finishes_them (refusal names no command), test-classify-ci-paths.sh (index.md full=false); README test still passes on the shared harness",
     "fledge lanes run verify passed at a09f2da7 on rust 1.89.0: fmt, clippy -D warnings, check, 2823 unit passed/2 ignored and 486 integration passed incl. the three documented_workflows tests, release build, strict specs 62/62, RC (66) and ci-gate (35) script tests, 33m33s; test-classify-ci-paths.sh passed (run by hand; CI runs it in Classify)",
-    "Codex #898 P2 r4489185070 fixed in a09f2da7: CI-wait points require a clean tree and gate a fresh clone of HEAD; it caught the landing page leaving .specsync/adoption-report.json uncommitted, so the page now commits the adoption. P2 r4489185060 filed as #906"
+    "Codex #898 P2 r4489185070 fixed in a09f2da7: CI-wait points require a clean tree and gate a fresh clone of HEAD; it caught the landing page leaving .specsync/adoption-report.json uncommitted, so the page now commits the adoption. P2 r4489185060 filed as #906",
+    "Merged origin/main cd8cab5e (#889, #896, #898) at 0a2bef6c: change.spec.md changelog rows kept (driver bumped to v171), documented_workflows.rs = ours (main's copy identical to #881's), CHANGELOG union; duplicate archived s5-881 session dropped (identical to main's). Post-merge on rust 1.89.0: release build, 3 documented_workflows tests, classifier test, pre-push gate green"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve (Leif; orc records change review as 0xLeif)"
+  ],
   "run_consents": [],
-  "next_action": "Implement refusal texts, landing page, classifier, spec updates; fix Codex #898 P2 (fresh-clone gate); verify"
+  "next_action": "After Leif's review is recorded: change ship show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve, push the archive tip, wait for CI, merge pinned on Leif's decision"
 }

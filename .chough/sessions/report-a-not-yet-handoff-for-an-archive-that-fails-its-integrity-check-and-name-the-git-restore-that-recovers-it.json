@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-096f4a0939f690b73c151837",
-    "head": "EVT-0b4fb645eae24fcb462b3e39",
+    "head": "EVT-7c1c23150bd8aca3e8b79485",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,7 +12,7 @@
     "cmd_change"
   ],
   "stage": {
-    "current": "build",
+    "current": "test",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -54,7 +54,9 @@
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Leif via orc t18: scoped implementation review of report-a-not-yet-handoff-... (PR for #880); then review + ship with no commit between"
+  ],
   "run_consents": [],
-  "next_action": "pre-push gate, push, open PR (Fixes #880), send ready for review to t18"
+  "next_action": "Wait for orc t18 review decision; tree untouched until then"
 }

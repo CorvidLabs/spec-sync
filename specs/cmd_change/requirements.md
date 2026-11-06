@@ -448,15 +448,6 @@ Acceptance Criteria
 - Text output names the reference, the commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy.
 - JSON readiness is not `safe`.
 
-### REQ-cmd-change-032
-
-`change status`, `change show`, `change list` and `change ship-status` SHALL accept `--timeout <secs>`, and SHALL read `SPECSYNC_TIMEOUT` when the flag is absent. With neither, there SHALL be no deadline, as before. When the deadline passes, the command SHALL exit 124. Text output SHALL name the command, the elapsed limit, the phase and progress, that nothing was written, and the exact resume command. `--json` output SHALL be `{"error":"timeout","phase":...,"progress":...,"wrote":false,"resume":...}`.
-
-Acceptance Criteria
-- `change status <id> --timeout 0 --json` on an archived change exits 124 with the JSON shape above and changes no file.
-- Rerunning the printed resume command without a timeout gives the same verdict as a run that never timed out.
-- With no flag and no environment variable, behaviour and output are unchanged.
-
 ### REQ-cmd-change-033
 
 The `change ship-status` product-tip stage SHALL advertise only a `specsync change` command whose state guard admits the change's current state: `change approve` for a draft, `change check <id> --commit` for approved, implementing and verifying, and `change reopen <id> --actor <name> --reason <text>` for accepted and archived changes whose verification is no longer current.
@@ -465,4 +456,22 @@ Acceptance Criteria
 - An accepted or archived change with stale verification is told to reopen, not to check.
 - A draft is told to approve, not to check.
 - Approved, implementing and verifying changes are still told to check.
+
+### REQ-cmd-change-031
+
+`change ship`, including `--dry-run`, SHALL refuse a change with an open task before finalizing anything. The refusal SHALL name each open task and `specsync change ship <id>` with the flags it was given. `change ship-status` SHALL report the open tasks as a blocker and SHALL NOT report the change ready to finalize. Its `Next:` SHALL name the open tasks before the ship command.
+
+#### Acceptance Criteria
+
+- After a passing check and review, reopening one task makes `change ship-status <id>` list an incomplete-tasks blocker with `ready_to_finalize` false. It also makes `change ship <id>` exit 1 without archiving, naming the task and `specsync change ship <id>`.
+- Ticking the box and running the named `change ship` command archives the change.
+
+### REQ-cmd-change-032
+
+`change status`, `change show`, `change list` and `change ship-status` SHALL accept `--timeout <secs>`, and SHALL read `SPECSYNC_TIMEOUT` when the flag is absent. With neither, there SHALL be no deadline, as before. When the deadline passes, the command SHALL exit 124. Text output SHALL name the command, the elapsed limit, the phase and progress, that nothing was written, and the exact resume command. `--json` output SHALL be `{"error":"timeout","phase":...,"progress":...,"wrote":false,"resume":...}`.
+
+Acceptance Criteria
+- `change status <id> --timeout 0 --json` on an archived change exits 124 with the JSON shape above and changes no file.
+- Rerunning the printed resume command without a timeout gives the same verdict as a run that never timed out.
+- With no flag and no environment variable, behaviour and output are unchanged.
 

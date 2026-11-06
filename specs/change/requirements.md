@@ -1601,7 +1601,7 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 
 ### REQ-change-123
 
-`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and while it no longer matches the change `change status` SHALL report it stale rather than unreadable. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
 
 #### Acceptance Criteria
 
@@ -1618,6 +1618,9 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 - A dropped MODIFIED item is refused with advice to restore its pre-change text, quoting it; a dropped REMOVED item is listed and refused until the block is restored.
 - A module dropped from `affected_specs` is refused while its Change Log keeps the change's row.
 - A send-back deleted in a later commit is refused by check and reported by the project audit.
+- A change reviewed before its send-back is re-approved, re-checked and reviewed again, and finalize archives it with both review attempts in its history, the first unchanged (#914).
+- After a send-back that changes the scope, `change status` reports the earlier review stale with the re-review next action, and `change ship` refuses it.
+- A review bound only to an approval a send-back cancelled is never current.
 
 ### REQ-change-124
 
@@ -1681,13 +1684,40 @@ Acceptance Criteria
 
 ### REQ-change-133
 
-When `change approve` refuses a draft because it has no acceptance criterion or its deterministic interview is unfinished, the refusal SHALL name the `specsync change answer` command that supplies the missing answer. The approval guard SHALL refuse exactly the definitions it refused before.
+When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
 
 Acceptance Criteria
-- With no acceptance criterion, the refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
-- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices (such as `<yes|no>`) as the answer placeholder.
+- With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
 - Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
 - A definition that approval refused before is still refused.
+
+### REQ-change-131
+
+A lifecycle command that verifies a change, records a passing scoped review of it, or finalizes it SHALL refuse while the change's selected `tasks.md` has an open task, a `[ ]` checkbox outside fenced code. The refusal SHALL come before the command writes any record. This SHALL hold for a task reopened after a passing check, although checkbox state is outside the approval and verification digests. The refusal SHALL name:
+
+- the task file;
+- each open task by line and text, naming at most five and counting the rest;
+- the exact command to re-run once they are done.
+
+`change check` SHALL name `specsync change check <id>` with the `--strict`, `--commit` and `--push` flags it was given. `change verify` SHALL name `specsync change verify <id>`. `change review` SHALL name `specsync change review <id> --reviewer <reviewer>`. `change finalize` SHALL name `specsync change finalize <id>`. A scoped review recorded with a verdict other than `pass` SHALL NOT be refused.
+
+#### Acceptance Criteria
+
+- Through the binary, `change check <id> --commit` on an approved workflow-v2 change with one open task exits 1 without recording verification. Its stderr names `tasks.md`, the task's line and text, and `specsync change check <id> --commit`. Ticking the box and running that exact command passes.
+- After a passing check, reopening one task makes `change review` and `change finalize` exit 1 without writing a review, acceptance or archive. Each names the open task and its own command. Ticking the box and running the named command succeeds.
+- The gate-level test fails when the incomplete-task guard is bypassed (audit mutation SS-M05).
+
+### REQ-change-132
+
+`change status` SHALL name the open tasks and how to close them before the command that would otherwise be next, instead of naming only that command. This SHALL apply to an approved, implementing or verifying change whose approval is current, whose artifacts are complete and whose `tasks.md` has an open task. It SHALL apply in the text `Next:` line and in JSON `summary.next_action`.
+
+#### Acceptance Criteria
+
+- With one open task on an approved change, text and JSON status name the task file, the task's line and text, and then `specsync change check <id>`.
+- After a passing check with one task reopened, text and JSON status name the open task before the review step.
 
 ### REQ-change-135
 

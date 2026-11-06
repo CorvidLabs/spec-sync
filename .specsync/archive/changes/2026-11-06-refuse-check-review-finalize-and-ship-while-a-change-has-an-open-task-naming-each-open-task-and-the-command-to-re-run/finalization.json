@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run",
+  "implementation_commit": "30025a3cc8ba42830e2119799f5a163d923bf1b0",
+  "implementation_tree": "85fcedd0d2c4d7563dde17bb151cc8dbb5533872",
+  "contract_digest": "8b24ef26d6259d87dcc274a08a0518b85d1a3e56f35bd505f857cf354060b68f",
+  "workspace_digest": "b7a55877c56ba42cfe8b835f3065d72965fef24d5d08f5a5d35e441b5576804f",
+  "closing_digest": "cb987c35e0489c8c7c7dfe985f0cbd7f3f305c1fd8562636bfc6ff8c7979e19d",
+  "review_digest": "11e90c5a9c204af034dcabe081a3f36927a8aec2eec7114fa405265cb2abdccb",
+  "finalization_digest": "830a80c5e70404aeb89da98587cab36f0c999c9570954f658cfbef541094b443",
+  "timestamp": 1793946970
+}

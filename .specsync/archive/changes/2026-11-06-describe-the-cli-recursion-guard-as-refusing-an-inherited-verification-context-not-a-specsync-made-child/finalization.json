@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child",
+  "implementation_commit": "bf59d973be208c2cb54fdefcb1578df86596d88e",
+  "implementation_tree": "f21aba4f246adfa3f4044fcd101393db2363941f",
+  "contract_digest": "b119e55c07bdec60fa7ac0db47c8901589b43c4f9e358d9497cc4b5955574d68",
+  "workspace_digest": "ee559b74e6625ee7dd6f1fc49508439431d92937e5a53ab6262fefbd54f0553b",
+  "closing_digest": "af300f03594831148145be06e5a4736e01d2b018861625dfbe2064ea8cd124a3",
+  "review_digest": "3c8e37068921a6e5bc19dd04731db4befbbfcede87ad838cb707f9ee324e352d",
+  "finalization_digest": "4e1880c40edee82ad01b1a6b2426703f0a918ace3f73bcc35e3e5eec1429c9cd",
+  "timestamp": 1793976395
+}

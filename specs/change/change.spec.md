@@ -1,6 +1,6 @@
 ---
 module: change
-version: 191
+version: 192
 status: active
 files:
   - src/change.rs
@@ -690,3 +690,4 @@ Acceptance Criteria
 | 2026-11-06 | require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged: Require a fresh review after a send-back even when the scope comes back unchanged |
 | 2026-11-06 | a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s: A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader |
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
+| 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |

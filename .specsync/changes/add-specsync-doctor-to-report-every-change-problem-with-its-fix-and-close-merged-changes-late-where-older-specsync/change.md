@@ -1,6 +1,6 @@
 ---
 id: add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync
-state: approved
+state: implementing
 type: feature
 base_commit: 1276e314790521904552e375a659ae3214aa04dc
 ---

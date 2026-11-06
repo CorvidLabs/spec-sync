@@ -1,6 +1,6 @@
 ---
 module: change
-version: 169
+version: 170
 status: active
 files:
   - src/change.rs
@@ -373,7 +373,8 @@ Acceptance Criteria
 
 | Condition | Behavior |
 |-----------|----------|
-| Missing acceptance criteria or affected scope | Definition approval fails |
+| Missing acceptance criteria or affected scope | Definition approval fails; a missing acceptance criterion names `specsync change answer <id> acceptance_criteria "<observable outcome>"` (REQ-change-133) |
+| Interview questions still open at approval | Approval fails, naming every open question and the `specsync change answer <id> <question> <answer>` command for the first, with its choices (such as `<yes|no>`) as the placeholder (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |
@@ -616,3 +617,4 @@ Acceptance Criteria
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
 | 2026-11-06 | #861's spawn-ceiling requirement is REQ-change-127. Its archived package names it REQ-change-125 because #862 took 125 first; the archive is left as reviewed |
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
+| 2026-11-06 | v170 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |

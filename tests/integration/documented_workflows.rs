@@ -235,6 +235,31 @@ impl Project {
         serde_json::from_slice(&output.stdout).unwrap()
     }
 
+    /// The Archive gate on what a push sends: the tree must be clean, and the gate runs on a
+    /// fresh clone of `HEAD`, as CI's checkout does. A finalize that moved the workspace
+    /// without committing the move would pass on the live tree and fail here.
+    fn archive_gate_on_pushed_head(&self, at: &str) -> Gate {
+        let dirty = self.git(&["status", "--porcelain", "--untracked-files=all"]);
+        assert!(
+            dirty.is_empty(),
+            "at `{at}` the reader pushes HEAD, but the tree has uncommitted changes:\n{dirty}"
+        );
+        let clone = TempDir::new().unwrap();
+        let checkout = clone.path().join("pushed");
+        let output = Command::new("git")
+            .args(["clone", "--quiet", "--no-hardlinks"])
+            .arg(&self.root)
+            .arg(&checkout)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git clone failed: {}",
+            describe(&output)
+        );
+        self.archive_gate(&checkout)
+    }
+
     fn archive_gate(&self, root: &Path) -> Gate {
         let output = Command::new("bash")
             .arg(manifest_path(".github/scripts/archive-readiness.sh"))
@@ -448,7 +473,7 @@ impl Project {
                     let lower = prose.to_ascii_lowercase();
                     if tells_reader_to_wait_for_ci(prose) {
                         followed.waits_for_ci += 1;
-                        let gate = self.archive_gate(&self.root);
+                        let gate = self.archive_gate_on_pushed_head(&format!("# {prose}"));
                         assert!(
                             gate.passed,
                             "{source} tells the reader to wait for CI at `# {prose}`, but CI's \
@@ -585,7 +610,12 @@ impl Followed {
              harness must have run it; it ran {:?}",
             self.proven_recoveries
         );
-        assert!(project.archive_gate(&project.root).passed);
+        let pushed = project.archive_gate_on_pushed_head(&format!("the end of the {source} block"));
+        assert!(
+            pushed.passed,
+            "a fresh clone of HEAD still has an open change:\n{}",
+            pushed.message
+        );
         id
     }
 }

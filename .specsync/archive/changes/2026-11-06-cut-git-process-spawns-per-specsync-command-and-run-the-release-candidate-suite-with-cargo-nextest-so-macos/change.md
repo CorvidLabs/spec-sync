@@ -1,6 +1,6 @@
 ---
 id: cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos
-state: implementing
+state: archived
 type: feature
 base_commit: 67aa7dc25ab8f1ddb732b906b933bb778e2c86aa
 ---

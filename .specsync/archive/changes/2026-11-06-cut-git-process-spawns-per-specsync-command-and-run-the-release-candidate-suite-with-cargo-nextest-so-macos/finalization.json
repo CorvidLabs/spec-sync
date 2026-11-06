@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos",
+  "implementation_commit": "113893d85fef9faeabdc91f3ae87c0ca8e374d1a",
+  "implementation_tree": "1d2bd10ca22ed82a6c92a47836f72b9dde11b81c",
+  "contract_digest": "2400e329950f327af3b4bd112223961a48036b487becdf07da184d2d5d2cd7d2",
+  "workspace_digest": "f3f4ec9b66c485c621713f6f04db1f12f52489e8ae2beb3096c90e712266d809",
+  "closing_digest": "818d037d15601cbaa8f30a91654de0b0ab6168b6d9e75c099909c44748d2bab1",
+  "review_digest": "ae4dd59ebef9ba62a0dc4d4271851f41fad5e08271623a1c66f28fd51626855c",
+  "finalization_digest": "f20cab24f44f6e124b50199009ef1d6b151b37c445ff6edbd254a03c1cb3f757",
+  "timestamp": 1793928261
+}

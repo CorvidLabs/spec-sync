@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Failing integration test committed (`3073e8ed`)
-- [ ] Clear the variables at process start and in `rooted_git_command`
-- [ ] CHANGELOG and change-log rows
+- [x] Clear the variables at process start and in `rooted_git_command`
+- [x] CHANGELOG and change-log rows

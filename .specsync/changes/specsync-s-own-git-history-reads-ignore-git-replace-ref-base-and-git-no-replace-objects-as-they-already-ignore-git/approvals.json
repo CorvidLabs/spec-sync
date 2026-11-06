@@ -1,4 +1,51 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794009122,
+      "digest": "2105d9d5eb35d2c67fe64e900e622eac50b962f9bfd0e1c5c7a133c976de9c67",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git",
+        "title": "SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE",
+        "description": "SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/change",
+          "specs/cli",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/main.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "No gate, bound or refusal is weakened",
+          "SpecSync clears the history-rewriting Git environment it already refuses to honour (GIT_GRAFT_FILE, GIT_SHALLOW_FILE) plus GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS once at process start, so every Git process it spawns, configured or direct, walks the same history its read-cache and index guards check",
+          "The read-cache and lifecycle-index guards are unchanged and still disable themselves for shallow clones, grafts and refs/replace/ refs",
+          "a_custom_replace_ref_base_does_not_change_what_status_reads passes: with a replacement under refs/alt/ that swaps HEAD for a copy whose archived record lost its workflow version, change status under GIT_REPLACE_REF_BASE=refs/alt/ gives exactly the plain read, fresh and cached, and so does GIT_NO_REPLACE_OBJECTS=1 (committed failing first in 3073e8ed)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "SPEED-1.a.2 and CI-2 (no reused or cached answer for different history); REQ-change-140/141 and the read-cache guard (history fixed by HEAD: not shallow, no grafts, no replace refs); rooted_git_command already strips GIT_GRAFT_FILE and GIT_SHALLOW_FILE; change.3md 'History pathspecs from a subdirectory' (#851)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "9ce2f3dc5d1ffcb72f4e18de1df30afdc6146b972bf239b48608ba973d2d005e",
+        "cli": "de8f582728d34c8ebbce5ee96fc20e58f9705e25bc3a6736a7cf19764f683b0e"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

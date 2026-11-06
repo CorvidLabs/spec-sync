@@ -220,6 +220,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
 | `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` for an archive already in `HEAD` (reopen) or when Git cannot answer |
 | `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy |
+| `sequence_ledger_freeze_next_action` | `root: &Path` | `Option<String>` | The remediation for a frozen change-sequence ledger, or `None`. Every status surface names it before any other next step, the upstream archive included (#908) |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 
 **Exported Methods**

@@ -20,3 +20,12 @@ CLI tests in `tests/integration/relayed_decision.rs` drive the built binary. Eac
 | REQ-cli-args-relay-repair-001 | grammar test in `src/cli.rs` |
 
 A unit test in `src/change_tests/relayed_decision.rs` covers record matching and that a clean record is never touched. `fledge lanes run verify` runs before review.
+
+## Requirement evidence
+
+| Requirement | Evidence |
+| --- | --- |
+| REQ-change-relay-repair-001 | integration tests a_damaged_review_relay_in_the_review_to_ship_window_is_repaired_by_the_named_command, a_damaged_relay_on_the_last_review_attempt_is_put_back_from_review_json, a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_commit_back, a_damaged_relay_with_no_surviving_copy_is_removed_and_every_attempt_and_verdict_stays, a_damaged_approval_relay_before_its_first_commit_is_removed_and_the_approval_stays, repair_relays_with_nothing_damaged_says_so_and_writes_nothing, repair_relays_on_an_archived_change_names_git_checkout_and_that_command_recovers, repair_relays_on_a_committed_file_that_is_not_json_names_git_checkout_and_it_recovers; unit test a_relay_is_put_back_only_from_a_clean_copy_of_the_same_record |
+| REQ-change-relayed-decision-001 | the read-refusal bullet: a_read_relay_must_name_its_own_record_decider (an active change names repair-relays, not git checkout HEAD) and an_archived_damaged_relay_still_names_git_checkout_and_that_command_recovers; the other bullets keep #900's tests in src/change_tests/relayed_decision.rs and tests/integration/relayed_decision.rs |
+| REQ-cmd-change-relay-repair-001 | the text and --json assertions in the integration tests above; the refusals exit non-zero and the named command recovers |
+| REQ-cli-args-relay-repair-001 | unit test change_repair_relays_takes_only_the_change_id in src/cli.rs |

@@ -1811,8 +1811,23 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 - All four fields are required when the record is present, each non-blank and at most 4096 bytes; `words` is stored exactly as given.
 - `decided_by` is the approval's actor or the review's reviewer; a relay naming anyone else is refused before anything is written.
 - An approval or review written without a relay omits the `relayed_by` key, so its bytes match what a binary that predates the record writes.
-- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field, and names restoring the file from Git with `git checkout <commit> -- <path>`.
+- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field. For an active change the refusal names `specsync change repair-relays <id>` (REQ-change-relay-repair-001); for an archived change it names restoring the file from Git with `git checkout HEAD -- <path>`.
 - The finalization review digest is computed over the review with `relayed_by` left out, so a 6.x binary that drops the unknown key computes the same digest; a later edit to a relay record is therefore not detected, exactly like an edit to an approval's actor.
 - A `--portable-5-0-1` approval carries the relay on both records of the pair.
 - `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
+
+### REQ-change-relay-repair-001
+
+`repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.
+
+#### Acceptance Criteria
+
+- Between `change review` and `change ship`, when neither review file is committed, a damaged relay in `review.json` is put back from the last review attempt, and one in the last attempt is put back from `review.json`, byte for byte; the change then ships with nothing committed in between.
+- A damaged relay in a committed `approvals.json` is put back from `HEAD`, and the file's bytes equal the committed file.
+- A damaged relay with no surviving copy, such as an earlier review attempt or an approval that was never committed, is removed; every approval and attempt stays with its verdict, and the change can ship.
+- A record whose relay reads cleanly is never changed, and with nothing damaged nothing is written.
+- Files are written the way SpecSync writes them, all in one step under the project lock. A file that still does not read after its relays are repaired is refused and nothing is written.
+- Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
+- An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
+- A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 

@@ -7,10 +7,11 @@
   "title": "Repair a damaged relayed decision with one command, whether or not it is committed",
   "description": "Repair a damaged relayed decision with one command, whether or not it is committed",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "bc1859c4cfe1ee13fbfa54ad766a14fa7a2350c4",
   "created_at": 1793971154,
-  "updated_at": 1793971289,
+  "updated_at": 1794008383,
   "affected_specs": [
     "change",
     "cmd_change",

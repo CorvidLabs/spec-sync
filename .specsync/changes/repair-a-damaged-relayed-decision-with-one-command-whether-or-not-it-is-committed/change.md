@@ -1,6 +1,6 @@
 ---
 id: repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed
-state: draft
+state: implementing
 type: bug_fix
 base_commit: bc1859c4cfe1ee13fbfa54ad766a14fa7a2350c4
 ---

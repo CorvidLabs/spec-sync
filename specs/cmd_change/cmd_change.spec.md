@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 69
+version: 70
 status: active
 files:
   - src/commands/change.rs
@@ -200,3 +200,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship: Stop the Archive check and change pr from telling a copy already archived upstream to run ship |
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
+| 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |

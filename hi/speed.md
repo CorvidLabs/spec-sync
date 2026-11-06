@@ -13,10 +13,13 @@ Captured from Leif's follow-up in Grok Bot chat t813u on 2026-11-03: "I also wan
 
 Approved by Leif in the Herdr orc tab on 2026-11-05 09:21 MST (relayed by the orc, choice "Approve intent + approach") for issue #861, after v6.2.0-rc.1's macOS qualification timed out at 45 minutes: "macOS RC qualification finishes well under 45 min so the timeout returns to 45, without dropping or weakening any test". SPEED-2.b.1 and SPEED-2.b.2 are that intent. The approved approach is to cut SpecSync's git process spawns and run the suite with cargo nextest in the qualify lane.
 
+Approved by Leif in the Herdr orc tab on the morning of 2026-11-06 (relayed by orc t18, his words "Ok yes I approve all") for issue #915, after a cold `change status <archived-id>` on a Raven-sized fixture took 34 s and 3,899 Git processes. SPEED-1.a.1 is that intent, worded as proposed and approved. The approved approach is one lifecycle-history walk for all archives, with every archive still fully validated.
+
 ## Criteria
 
 - **SPEED-1**  No command should keep an agent waiting minutes.
   - **SPEED-1.a**  Status of an archived change, `change list` and `change status` return in under 2 seconds on Raven.
+    - **SPEED-1.a.1**  The first status read after a fresh clone also returns in seconds, however many archived changes the project holds.
   - **SPEED-1.b**  `check` stays proportional to the specs touched.
   - **SPEED-1.c**  A cache keyed by content digest has a correct invalidation rule.
   - **SPEED-1.d**  A benchmark against a Raven-sized fixture keeps this from regressing.

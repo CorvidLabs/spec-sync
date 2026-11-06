@@ -1189,3 +1189,68 @@ fn warm_archived_status_git_processes_do_not_grow_with_tracked_files() {
         many.saturating_sub(few)
     );
 }
+
+/// What the full scoped-review currency check answers for `record` today: its recorded review
+/// compared with the current project-input digest.
+fn full_scoped_review_currency(root: &Path, record: &ChangeRecord) -> bool {
+    load_scoped_review(root, record).is_ok_and(|review| scoped_review_is_current(root, record, &review))
+}
+
+fn summary_scoped_review_current(root: &Path, id: &str) -> bool {
+    let record = load_change(root, id).unwrap();
+    summarize_change_with_strict(root, &record, false).scoped_review_current
+}
+
+// REQ-change-147: an archived change's `scoped_review_current` is the value the full check
+// gives, without taking the digest: finalize moves the package, so the recorded review never
+// matches the archived tree again. Pinned right after finalize (uncommitted and committed), after
+// later commits, after an unrelated working-tree edit, and for an archive moved to another name.
+#[test]
+fn an_archived_change_reports_the_scoped_review_currency_the_full_check_gives() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+
+    // Just finalized, archive not yet committed.
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    if quiet_git(root, &["ls-files", WORKFLOW_V2_BASELINE_PATH]).is_empty() {
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+    }
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "implement approved change"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    finalize_change(root, &record.id).unwrap();
+    let mut cases = Vec::new();
+    let archived = load_change(root, &record.id).unwrap();
+    assert_eq!(archived.state, ChangeState::Archived);
+    cases.push(("finalized, uncommitted", full_scoped_review_currency(root, &archived), summary_scoped_review_current(root, &record.id)));
+
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive change"]);
+    cases.push(("archive committed", full_scoped_review_currency(root, &archived), summary_scoped_review_current(root, &record.id)));
+
+    finalized_archived_change(root);
+    cases.push(("after a later change", full_scoped_review_currency(root, &archived), summary_scoped_review_current(root, &record.id)));
+
+    fs::write(root.join("README.md"), "edited in the working tree\n").unwrap();
+    cases.push(("unrelated working-tree edit", full_scoped_review_currency(root, &archived), summary_scoped_review_current(root, &record.id)));
+    quiet_git(root, &["checkout", "--", "README.md"]);
+
+    let dir = find_change_dir(root, &record.id).unwrap();
+    fs::rename(&dir, dir.with_file_name("renamed-archive")).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "rename archive directory"]);
+    let moved = load_change(root, &record.id).unwrap();
+    cases.push(("archive moved", full_scoped_review_currency(root, &moved), summary_scoped_review_current(root, &record.id)));
+
+    for (case, full, summary) in &cases {
+        eprintln!("{case}: full check {full}, summary {summary}");
+    }
+    for (case, full, summary) in &cases {
+        assert_eq!(summary, full, "{case}: the summary must report what the full check gives");
+    }
+}

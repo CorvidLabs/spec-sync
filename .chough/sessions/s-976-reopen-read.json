@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-8d78b395cf43e8a0f43153f3",
-    "head": "EVT-0609bcd698b19aec5aa132f1",
+    "head": "EVT-f08c52468c48d8de7efe4a14",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "intent",
+    "current": "test",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -29,16 +29,17 @@
     "files": []
   },
   "decisions": [
-    "Leif via orc t18 ('Capture all + approve design', 2026-11-06): file a new issue for the reopen overflow (filed as #976) and fix it in its own PR after the close-late PR; no new HI, SHIP-6 covers it. Rejected: raising the cap (the 256 MiB total payload cap trips next, and it only moves the cliff)."
+    "Leif via orc t18 ('Capture all + approve design', 2026-11-06): file a new issue for the reopen overflow (filed as #976) and fix it in its own PR after the close-late PR; no new HI, SHIP-6 covers it. Rejected: raising the cap (the 256 MiB total payload cap trips next, and it only moves the cliff).",
+    "0xLeif decided \"Leif's scope approval of the streamed-hash change, relayed by orc t18; it names the one bound that changes (all-at-once total becomes per-blob)\": \"Approve both (recorded as 0xLeif by orc t18 at cb8e44d8)\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated"
   ],
   "open_questions": [],
-  "completed": [],
+  "completed": [
+    "Failing first at 8cfb53d8; fix at dcbfb522; 704 change:: unit tests pass; site CHG-0026 reopens on a throwaway clone"
+  ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif's scope approval of the streamed-hash change, relayed by orc t18; it names the one bound that changes (all-at-once total becomes per-blob)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Send 'ready for approval' to orc t18; then add the test seam and failing tests and record that they fail on main f7180c34"
+  "next_action": "Final change check --commit, audit --strict, verify lane, pre-push, then PR and 'ready for Leif's GitHub review'"
 }

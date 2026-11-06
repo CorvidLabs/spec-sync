@@ -25,6 +25,7 @@ files:
   - src/change_tests/verification_ignored_paths.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/fast_archived_reads.rs
+  - src/change_tests/upstream_archive.rs
   - src/change_tests/fast_finalize.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
   - src/change_tests/stale_modified_delta.rs

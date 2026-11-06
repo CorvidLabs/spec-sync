@@ -47,5 +47,38 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it",
+      "actor": "claude-agent (Claude Opus 5.5, worker for orc t18)",
+      "reason": "Leif, 2026-11-05 19:53 MST, relayed by orc t18: 'Amend the wording, then review'. The criteria and REQ-change-127 said 'archived in reachable history (HEAD or the remote default)'; the implementation refuses only an archive the remote default has and HEAD does not, because an archive already in HEAD is the reopen-and-rearchive path. Reword to match the code; no behavior change.",
+      "timestamp": 1793933651,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-127",
+          "content": "The system SHALL refuse `change review` and `change finalize`, and SHALL NOT report readiness `safe` from `change status` or `change ship-status`, for a change whose id is already archived in reachable history (HEAD or the remote default) while its own record is not archived. The refusal SHALL name the reference and commit of that archive and the next step: merge or rebase onto that reference.\n\nAcceptance Criteria\n- With the remote default holding an archive of the change, `change review` refuses before recording acceptance and the record stays `verifying`.\n- `change finalize` refuses with the same named cause and writes no archive.\n- Without an upstream archive, a squash before finalize still reviews and finalizes."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-028",
+          "content": "`change status` and `change ship-status` SHALL report a change that is already archived upstream with the reference, the archive commit and the next step, in text and JSON, and SHALL NOT name finalize or ship as its next action.\n\nAcceptance Criteria\n- Text output names the reference, commit and the merge or rebase step.\n- JSON readiness is not `safe`."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
 }

@@ -18,10 +18,11 @@ Case 1 must fail on main 884a33d3 before the fix. Case 2 must pass before and af
 
 - `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance` failed on main 884a33d3 (`change review` recorded a pass with handoff `safe`). With the change it passes: review, status, ship-status and finalize all name `origin/main` and the archive commit, the record stays `verifying`, and no second archive is written.
 - `a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finalizes` passed before and after (#690 guard).
+- `upstream_archive_is_reported_only_when_head_does_not_contain_it` (added with the 19:53 rewording): an archive HEAD contains is not reported, the same archive seen from a branch before it is reported with `origin/main` and its commit.
 
 ## Requirement evidence
 
 | Requirement | Evidence |
 | --- | --- |
-| REQ-change-127 | `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance`, `a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finalizes` |
+| REQ-change-127 | `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance`, `a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finalizes`, `upstream_archive_is_reported_only_when_head_does_not_contain_it` |
 | REQ-cmd-change-028 | `a_change_already_archived_on_the_remote_default_is_named_and_refused_before_acceptance` |

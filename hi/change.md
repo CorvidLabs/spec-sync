@@ -17,6 +17,8 @@ CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
 
 CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
 
+CHANGE-7.a.1 and CHANGE-7.a.2 are captured from Leif's answer in the orc tab on 2026-11-05 at 20:42 MST (issue #880, audit D3): "Approve", for these two sentences as worded. Relayed by orc t18; recorded by the ss-s3 Claude agent.
+
 CHANGE-12.d is captured from Leif's answer in the orc tab on 2026-11-06 at 06:1x MST (issue #914): "Ok yes I approve all", in reply to a brief that proposed this sentence as worded. Relayed by orc t18; recorded by the ss-914 Claude agent.
 
 CHANGE-12.e is captured from Leif's answer in the orc tab on 2026-11-06 (issue #960, from the Codex review of #944): "Capture both", confirming this sentence as worded. Relayed by orc t18; recorded by the ss-960 Claude agent.
@@ -46,6 +48,8 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-6.c**  Changing the agreed intent, contract, criteria or scope costs a fresh approval; getting on with the implementation does not.
 - **CHANGE-7**  At any moment I can ask what state a change is in and be told the single next thing to do.
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
+    - **CHANGE-7.a.1**  A change whose archive fails its integrity check is never called safe to walk away from.
+    - **CHANGE-7.a.2**  I am told the exact command that restores that archive from trusted history, and once it is restored I am told it is safe again.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
 - **CHANGE-10**  When `change approve` refuses an affected path that no module owns, the error says which spec to edit.

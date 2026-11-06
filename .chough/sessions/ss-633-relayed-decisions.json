@@ -34,7 +34,9 @@
     "Leif (2026-11-05 20:35 MST, Herdr orc tab, relayed by orc t18): approved at 6a40e2a2 ('Approve', recorded by orc), then 'Yes, amend and re-approve': send back, amend the recorded_claims Public API row to Result<Vec<RecordedClaim>, String>, re-approve",
     "Leif (2026-11-05, Herdr orc tab, relayed by orc t18): re-approval recorded by orc as 0xLeif at c7c3ee5e per 'Yes, amend and re-approve'",
     "Leif (2026-11-05, Herdr orc tab, relayed by orc t18): 'Yes' to re-approval after #889 moved the Public API delta (CHANGE-11); recorded by orc as 0xLeif at 29a18a80",
-    "Leif standing rule (2026-11-05 22:43 MST, relayed by orc t18): a PR he approved that only gets origin/main merged in (no reviewed-content change, checks green) merges at the new head without asking again; reviewed-content changes come back for review"
+    "Leif standing rule (2026-11-05 22:43 MST, relayed by orc t18): a PR he approved that only gets origin/main merged in (no reviewed-content change, checks green) merges at the new head without asking again; reviewed-content changes come back for review",
+    "Leif (2026-11-06, GitHub review relayed by orc t18; his words to the orc: 'im telling you to approve and continue all of these... approve as me'): #900 review recorded by orc as 0xLeif, pass, at 1b21d31f; acceptance granted",
+    "Leif (2026-11-06, relayed by orc t18): 'Keep done fixes, defer rest': new Codex P2s deferred to #926 and #927, uncommitted-review recovery to #904; all 9 #900 threads replied and resolved"
   ],
   "open_questions": [],
   "completed": [
@@ -55,12 +57,14 @@
     "Moved Chough records to per-change session ss-633-relayed-decisions; shared .chough/session.json restored to main's copy (orc coordination)",
     "Codex review on e5716ab2: fixed P1 verdict re-run, P1 correction digests, P2 decider-on-read in bbc46189 with tests; filed #904 for uncommitted review.json recovery",
     "Merged origin/main twice (af50d85e, efd30230); rebased Public API delta onto #889 rows (29a18a80)",
-    "Second Codex round on 29a18a80: write APIs validate all relay fields; decider check over every review attempt; review-history comparisons ignore relayed_by (tests mutation-checked)"
+    "Second Codex round on 29a18a80: write APIs validate all relay fields; decider check over every review attempt; review-history comparisons ignore relayed_by (tests mutation-checked)",
+    "Merged origin/main 918b6c56 (7df6aef4); check --commit (eeb1a405, 1b21d31f); verify green at 1b21d31f; pushed; CodeQL green, Archive red only for the open change",
+    "Shipped: archived at 1a8d5048 (review pass by 0xLeif via orc, no commit between review and ship); merged origin/main c1987c27+e6b1ce11 into the archive tip (8aeea543, CHANGELOG/INTENT bookkeeping only)"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "check --commit, verify lane, ready for review with thread IDs"
+  "next_action": "pre-push, push the archive+merge tip, CI green, local verify on that tip, then merge #900 with --match-head-commit on Leif's relayed go (given by orc t18)"
 }

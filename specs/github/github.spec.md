@@ -1,6 +1,6 @@
 ---
 module: github
-version: 48
+version: 49
 status: stable
 files:
   - src/github.rs
@@ -253,3 +253,4 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 | 2026-11-01 | advance-the-published-specsync-6-1-2-action-default-and-archive-gate-examples-after-platform-consumer-checks: Advance the published SpecSync 6.1.2 Action default and archive-gate examples after platform consumer checks |
 | 2026-11-05 | advance-the-published-specsync-6-2-0-action-default-and-current-release-guidance-after-platform-consumer-checks: Advance the published SpecSync 6.2.0 Action default and current release guidance after platform consumer checks |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
+| 2026-11-06 | keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token: Keep a passing check green when the Action's PR comment is refused for a read-only token |

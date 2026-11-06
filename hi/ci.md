@@ -9,6 +9,8 @@ families: [CI]
 
 The local check only matters if the same check stands between a drifted contract and the main branch. Dropping it into a pipeline should take one step with nothing to build and a version I can pin. When it finds something, it should say so where the conversation already is — on the pull request — rather than buried in a build log nobody opens.
 
+Approved by Leif in the Herdr orc tab on 2026-11-05 20:30 MST (relayed by orc t18, choice "Approve") for issue #886, after a read-only token made the Action's comment step fail a passing check with HTTP 403. CI-3.b is that intent, worded as proposed and approved.
+
 ## Criteria
 
 - **CI-1**  The same check I run locally runs in my pipeline as a ready-made step, with nothing to build.
@@ -17,6 +19,7 @@ The local check only matters if the same check stands between a drifted contract
 - **CI-2**  The pipeline validates from scratch rather than trusting a cache nobody committed.
 - **CI-3**  Drift shows up as a comment on the pull request, where the discussion already is.
   - **CI-3.a**  Re-running updates that comment instead of adding another one.
+  - **CI-3.b**  A comment that cannot be posted never turns a passing check red; I am told why and can still read the result.
 - **CI-4**  A branch's export drift is reported name by name, limited to the modules whose files it touched.
   - **CI-4.a**  The comparison works out the branch's real base on its own rather than making me name it.
 - **CI-5**  A contract with drift can raise an issue, so the gap does not vanish with the build log.

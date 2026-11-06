@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793936197,
+      "digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token",
+        "title": "Keep a passing check green when the Action's PR comment is refused for a read-only token",
+        "description": "Keep a passing check green when the Action's PR comment is refused for a read-only token",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "action.yml",
+          "hi/ci.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "tests/integration/config.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A behavioural test runs the step script from action.yml against a fake gh for 403 on each call, a 500, and success; it fails before the fix",
+          "Any other gh error in the comment step still fails the step",
+          "The github-action docs comment row and CHANGELOG say a read-only token degrades to a warning plus job summary",
+          "The posting and updating paths with a writable token are unchanged",
+          "With comment: true and a token GitHub refuses (HTTP 403) on the comment lookup, create or update, the Post PR Comment step exits 0, emits a ::warning naming the missing pull-requests: write permission, and writes the comment markdown to GITHUB_STEP_SUMMARY (CI-3.b)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "CI-3.b; REQ-github fork-PR read-only behaviour: fork PRs run without secrets or comment writes; checksum verification and the archive gate are unchanged",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "287a5dd4a9cbf1ef20ce69334ee8a278f3b2721690d8a8b99ef46a11b2fdf5c0"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793940459,
+      "digest": "b808ee3c1b44e417341975d4a56a8557a3ff7f32a84c435d733e0e90493dcbfb",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

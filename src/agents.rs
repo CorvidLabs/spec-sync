@@ -1774,6 +1774,14 @@ mod tests {
             );
             if relative.ends_with("SKILL.md") {
                 assert!(
+                    !flat.contains("then commit and push"),
+                    "{relative} must not require a manual commit after native ship"
+                );
+                assert!(
+                    flat.contains("creates the archive commit"),
+                    "{relative} must explain that native ship creates the archive commit"
+                );
+                assert!(
                     flat.contains("archive-first"),
                     "{relative} must say CI is archive-first"
                 );

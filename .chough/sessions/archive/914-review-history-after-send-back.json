@@ -1,7 +1,7 @@
 {
   "history_cursor": {
-    "cycle": "CYC-6630fcd14b478cdba3c05262",
-    "head": "EVT-11cbd3644ff918cfee1680fb",
+    "cycle": "CYC-983e03dbdaff9356a0978002",
+    "head": "EVT-da04da271b1f58e7301f10cc",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "build",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -51,5 +51,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "change check --commit, verify on pinned 1.89 with Homebrew python first on PATH, pre-push, push, open PR (Fixes #914), ready for Leif's GitHub review"
+  "next_action": "New cycle from test after reset: Chough stopped at build but native SpecSync shows let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval archived, merged in #944 (d0a98a0b). advance refuses build->next on an archived change, so reset to accept and let the native:archived gate close the cycle. No human decision recorded.. Create or record the native change (specsync change new, then chough checkpoint --native-change <id>) and set the next action."
 }

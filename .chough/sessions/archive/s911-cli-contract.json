@@ -1,7 +1,7 @@
 {
   "history_cursor": {
-    "cycle": "CYC-5ec57dd0b73e95fb89aa0c29",
-    "head": "EVT-73ea024a6f9f7131a2e54176",
+    "cycle": "CYC-73304b69b9c2cd0985c148e2",
+    "head": "EVT-de93b41a9a17982b002a78bb",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "cli"
   ],
   "stage": {
-    "current": "test",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -44,5 +44,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Push archive tip, wait for full CI green (and corvid-agent), merge PR #935 squash pinned to the archive-tip head"
+  "next_action": "New cycle from accept after reset: Chough stopped at test but native SpecSync shows describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child archived, merged in #935 (745dc9cf). advance refuses test->next on an archived change, so reset to accept and let the native:archived gate close the cycle. No human decision recorded.. Create or record the native change (specsync change new, then chough checkpoint --native-change <id>) and set the next action."
 }

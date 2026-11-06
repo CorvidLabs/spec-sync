@@ -1864,6 +1864,23 @@ fn scoped_review_currency(
     if review.verdict != ScopedReviewVerdict::Pass {
         return ScopedReviewCurrency::Stale("the recorded review verdict is not a pass".into());
     }
+    // A definition approval a send-back cancelled binds no current review (CHANGE-12.b). Review
+    // history may still bind it, which is what keeps that history readable (#914).
+    match load_approvals(root, record) {
+        Ok(approvals) => {
+            if definition_approver_for_review_contract(&approvals, review).is_err() {
+                return ScopedReviewCurrency::Stale(
+                    "the review binds only a definition approval a later send-back cancelled"
+                        .into(),
+                );
+            }
+        }
+        Err(error) => {
+            return ScopedReviewCurrency::Unavailable(format!(
+                "the approval ledger could not be read ({error})"
+            ));
+        }
+    }
     match definition_digest_matches(root, record, &review.contract_digest) {
         Ok(true) => {}
         Ok(false) => {

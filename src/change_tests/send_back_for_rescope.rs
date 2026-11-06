@@ -605,9 +605,9 @@ fn a_review_recorded_before_a_send_back_is_history_and_a_fresh_one_counts() {
     assert!(
         matches!(
             scoped_review_currency(root, &verifying, &kept),
-            ScopedReviewCurrency::Stale(_)
+            ScopedReviewCurrency::Stale(reason) if reason.contains("send-back cancelled")
         ),
-        "a review of the old scope never counts"
+        "a review bound only to the cancelled approval never counts"
     );
 
     record_scoped_review(root, &record.id, "Independent reviewer".into())

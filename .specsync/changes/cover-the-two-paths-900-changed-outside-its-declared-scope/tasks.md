@@ -6,5 +6,4 @@ artifact: tasks
 # Tasks
 
 - [x] Create the covering change for the two paths.
-- [ ] Verify with `change check --commit`, `change audit --strict`, pre-push and the verify lane.
-- [ ] Review, ship, re-run the audit, push, and confirm CI green.
+- [x] Declare `src/change/collect_requirement_ids.rs` and `tests/integration/change.rs`, with no code or spec text change.

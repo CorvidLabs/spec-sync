@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-7a5b909958d41c84b73d8e4e",
-    "head": "EVT-d67209d84fe9285de4c05918",
+    "head": "EVT-2ca6f268bda2a05b3161b98b",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "build",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -57,12 +57,15 @@
     "Captured DOCS-1..DOCS-3.a in hi/docs.md (a first accidental capture of DOCS-1 as '--help' was deleted before commit and recaptured with the approved sentence)",
     "Failing test readme_change_workflow_archives_before_it_tells_the_reader_to_wait_for_ci at 366c93f6 (fails on README ad50bdef at the wait-for-CI line before review; passes with the planned README fix in a reverted trial)",
     "fledge lanes run verify passed at 8df7906c on rust 1.89.0 (rustup, pinned): fmt, clippy -D warnings, check, cargo test 2819 unit passed/2 ignored and 483 integration passed incl. readme_change_workflow_archives_before_it_tells_the_reader_to_wait_for_ci, release build, strict spec check 62/62, RC and ci-gate script tests, 40m31s. A first run under Homebrew rustc 1.99 failed clippy on an untouched line (chunks_exact lint new in 1.99). Not recorded with chough evidence add: it requires a specs/*.spec.md contract and this no-spec change has none",
-    "Mutation check: README with the finalize line removed fails the test at the wait-for-CI line (gate names change ship)"
+    "Mutation check: README with the finalize line removed fails the test at the wait-for-CI line (gate names change ship)",
+    "Post-merge at 9b28cb04 (origin/main 560af9f1 merged): release build, readme_change_workflow test and pre-push gate green on rust 1.89.0"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5 (Leif; orc records change review as 0xLeif)"
+  ],
   "run_consents": [],
-  "next_action": "Fix README closeout, CHANGELOG, run the test and verify lane, change check --commit"
+  "next_action": "After Leif's review is recorded: change ship teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5, push the archive tip, wait for CI, then merge on Leif's decision"
 }

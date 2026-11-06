@@ -173,15 +173,6 @@ Acceptance Criteria
 - A legacy archive baseline authority that covers the baseline ledger signs that exact ledger path
   in its acceptance manifest even though other dated archive paths remain volatile.
 
-### REQ-change-015
-
-Unified lifecycle checking SHALL support a protocol-clean reporting mode without weakening verification.
-
-Acceptance Criteria
-- Reporting mode still executes every configured verification command and records failures.
-- Reporting mode suppresses child command stdout and stderr so the caller can emit one machine-consumable document.
-- Normal check and explicit change verification retain their diagnostic output.
-
 ### REQ-change-016
 
 The lifecycle SHALL preserve accepted closing evidence across repository-integrated commits without
@@ -239,7 +230,7 @@ Acceptance Criteria
 
 - A section-only modified delta can pass with an empty requirement-ID list.
 - Requirement evidence mapping remains mandatory for every collected requirement ID.
-- A failed configured command, missing semantic acceptance evidence, and missing requirement evidence produce distinct diagnostics.
+- Missing semantic acceptance evidence and missing requirement evidence produce distinct diagnostics, and neither is reported as a configured-command failure, because verification executes no configured command (REQ-change-023).
 
 ### REQ-change-020
 
@@ -353,13 +344,13 @@ Acceptance Criteria
 
 ### REQ-change-027
 
-Configured verification SHALL reject direct and indirect entry into every SpecSync lifecycle command surface.
+A SpecSync lifecycle command SHALL refuse to run under an inherited verification context, at every lifecycle command surface.
 
 Acceptance Criteria
 
-- Nested `check`, `change`, and `lifecycle` commands fail before performing validation or mutation.
-- Native verification commands remain unaffected and execute once.
-- The diagnostic names the configured parent command.
+- `check`, `change`, and `lifecycle` commands that inherit `SPECSYNC_VERIFICATION_CONTEXT` fail once, before performing validation or mutation.
+- The diagnostic names the parent command recorded in `SPECSYNC_VERIFICATION_CONTEXT`.
+- SpecSync sets that marker on no child of its own: verification executes no configured command (REQ-change-023), so the refusal applies only to a context a caller outside SpecSync supplies.
 
 ### REQ-change-028
 
@@ -387,7 +378,7 @@ Acceptance Criteria
 
 ### REQ-change-030
 
-Lifecycle enforcement SHALL preserve explicit user scope, precise canonical companion coverage, registry authority, policy opt-out boundaries, and native verification commands while retaining fail-closed SpecSync recursion protection across Cargo manifest selection.
+Lifecycle enforcement SHALL preserve explicit user scope, precise canonical companion coverage, registry authority, and policy opt-out boundaries while retaining fail-closed SpecSync recursion protection.
 
 Acceptance Criteria
 
@@ -395,11 +386,10 @@ Acceptance Criteria
 - Registry-resolved modules cover only their exact canonical spec and the standard `requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` companions; unrelated siblings and the containing directory are not implicitly covered.
 - Both registry files remain protected lifecycle inputs because they control canonical writes.
 - An explicitly disabled SDD policy returns without sequence-ledger validation.
-- Native `cargo run -- check` commands remain classified as non-SpecSync unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
-- Both `--manifest-path <path>` and `--manifest-path=<path>` participate in Cargo identity detection, and unsafe explicit manifest paths fail closed.
-- `change check` does not execute configured commands, so a policy listing `cargo run --bin specsync -- check` cannot recurse through verification.
+- `change check` does not execute configured commands (REQ-change-023), so a policy listing `cargo run --bin specsync -- check` cannot recurse through verification.
 - Direct SpecSync lifecycle commands remain rejected when invoked under `SPECSYNC_VERIFICATION_CONTEXT`.
-- Cargo argument parsing still tokenizes ordinary whitespace, quoted values, and trailing comments without shell execution.
+- The retained Cargo identity classifier is consulted by no lifecycle command, because no configured command is executed. As a helper it still classifies `cargo run -- check` as non-SpecSync unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
+- In that classifier, both `--manifest-path <path>` and `--manifest-path=<path>` participate in Cargo identity detection, unsafe explicit manifest paths fail closed, and argument parsing tokenizes ordinary whitespace, quoted values, and trailing comments without shell execution.
 
 ### REQ-change-031
 
@@ -901,8 +891,8 @@ file's bytes.
 Acceptance Criteria
 
 - Every field that determines whether the coverage gate applies is covered by the digest.
-- Verification commands are excluded, so populating them as initialization instructs does not revoke
-  the bootstrap.
+- Verification commands are excluded, so editing the list does not revoke the bootstrap. Nothing
+  executes the list (REQ-change-023), and fresh initialization writes it empty.
 - A policy file that cannot be parsed falls back to a digest of its bytes.
 
 ### REQ-change-062
@@ -980,14 +970,15 @@ Acceptance Criteria
 
 ### REQ-change-069
 
-Declaring an additional affected module SHALL never remove a verification command from what a change receives.
+Declaring an additional affected module SHALL never remove a verification command from the set the retained routing helper selects for a change. Routing selects commands and executes none of them (REQ-change-023).
 
 Acceptance Criteria
-- The command set selected for a scope is a superset of the set selected for any subset of that scope, so widening declared scope can only add verification.
+- The command set selected for a scope is a superset of the set selected for any subset of that scope, so widening declared scope can only add commands.
 - A declared module with no component routing entry contributes the project-wide verification commands, because a module nobody routed is not a module that needs no verification.
-- A change scoped entirely to routed modules still receives only its component commands, so targeted verification remains available.
-- A change declaring no affected module still receives the project-wide verification commands.
+- A change scoped entirely to routed modules is still routed only its component commands, so targeted routing remains available.
+- A change declaring no affected module is still routed the project-wide verification commands.
 - Strict escalation continues to append its own commands without removing any already selected.
+- No lifecycle command executes a routed command; `change check` records only its in-process spec↔code evidence.
 
 ### REQ-change-070
 
@@ -1610,7 +1601,7 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 
 ### REQ-change-123
 
-`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and while it no longer matches the change `change status` SHALL report it stale rather than unreadable. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
 
 #### Acceptance Criteria
 
@@ -1627,6 +1618,9 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 - A dropped MODIFIED item is refused with advice to restore its pre-change text, quoting it; a dropped REMOVED item is listed and refused until the block is restored.
 - A module dropped from `affected_specs` is refused while its Change Log keeps the change's row.
 - A send-back deleted in a later commit is refused by check and reported by the project audit.
+- A change reviewed before its send-back is re-approved, re-checked and reviewed again, and finalize archives it with both review attempts in its history, the first unchanged (#914).
+- After a send-back that changes the scope, `change status` reports the earlier review stale with the re-review next action, and `change ship` refuses it.
+- A review bound only to an approval a send-back cancelled is never current.
 
 ### REQ-change-124
 
@@ -1687,3 +1681,39 @@ Acceptance Criteria
 - `change finalize` refuses with the same named cause and writes no archive.
 - Without an upstream archive, a squash before finalize still reviews and finalizes.
 - An unarchived record whose archive `HEAD` already contains is not refused.
+
+### REQ-change-133
+
+When `change approve` refuses a draft because it has no acceptance criterion or its deterministic interview is unfinished, the refusal SHALL name the `specsync change answer` command that supplies the missing answer. The approval guard SHALL refuse exactly the definitions it refused before.
+
+Acceptance Criteria
+- With no acceptance criterion, the refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices (such as `<yes|no>`) as the answer placeholder.
+- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- A definition that approval refused before is still refused.
+
+### REQ-change-131
+
+A lifecycle command that verifies a change, records a passing scoped review of it, or finalizes it SHALL refuse while the change's selected `tasks.md` has an open task, a `[ ]` checkbox outside fenced code. The refusal SHALL come before the command writes any record. This SHALL hold for a task reopened after a passing check, although checkbox state is outside the approval and verification digests. The refusal SHALL name:
+
+- the task file;
+- each open task by line and text, naming at most five and counting the rest;
+- the exact command to re-run once they are done.
+
+`change check` SHALL name `specsync change check <id>` with the `--strict`, `--commit` and `--push` flags it was given. `change verify` SHALL name `specsync change verify <id>`. `change review` SHALL name `specsync change review <id> --reviewer <reviewer>`. `change finalize` SHALL name `specsync change finalize <id>`. A scoped review recorded with a verdict other than `pass` SHALL NOT be refused.
+
+#### Acceptance Criteria
+
+- Through the binary, `change check <id> --commit` on an approved workflow-v2 change with one open task exits 1 without recording verification. Its stderr names `tasks.md`, the task's line and text, and `specsync change check <id> --commit`. Ticking the box and running that exact command passes.
+- After a passing check, reopening one task makes `change review` and `change finalize` exit 1 without writing a review, acceptance or archive. Each names the open task and its own command. Ticking the box and running the named command succeeds.
+- The gate-level test fails when the incomplete-task guard is bypassed (audit mutation SS-M05).
+
+### REQ-change-132
+
+`change status` SHALL name the open tasks and how to close them before the command that would otherwise be next, instead of naming only that command. This SHALL apply to an approved, implementing or verifying change whose approval is current, whose artifacts are complete and whose `tasks.md` has an open task. It SHALL apply in the text `Next:` line and in JSON `summary.next_action`.
+
+#### Acceptance Criteria
+
+- With one open task on an approved change, text and JSON status name the task file, the task's line and text, and then `specsync change check <id>`.
+- After a passing check with one task reopened, text and JSON status name the open task before the review step.
+

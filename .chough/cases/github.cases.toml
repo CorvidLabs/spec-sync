@@ -1,0 +1,110 @@
+# .chough/cases/github.cases.toml: test-case definitions only.
+# Observations live in .chough/evidence/. Unknown fields are rejected.
+profile = "chough-testing/1"
+module = "github"
+
+[[case]]
+id = "TC-github-linux-baseline-lockstep"
+title = "Release workflows, CI, validator and install docs match the Linux baseline table"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["INSTALL-1", "INSTALL-1.a", "INSTALL-1.b", "INSTALL-1.c"]
+requirements = ["REQ-github-025"]
+paths = [
+  ".github/workflows/release.yml",
+  ".github/workflows/rc-assets.yml",
+  ".github/workflows/ci.yml",
+  ".github/scripts/linux-baseline.py",
+  ".github/scripts/test-linux-baseline.py",
+  ".github/scripts/validate-release-candidate.py",
+  "README.md",
+  "site/src/content/docs/integrations/github-action.md",
+]
+environments = ["local-macos-arm64"]
+artifacts = ["test-log"]
+setup = ["Ruby with the standard Psych library on PATH"]
+steps = ["python3 .github/scripts/test-linux-baseline.py"]
+expected = [
+  "Every structural lockstep test and every fake-docker unit test of linux-baseline.py passes",
+]
+
+[case.bind]
+adapter = "command"
+argv = ["python3", ".github/scripts/test-linux-baseline.py"]
+expect_output = ["OK"]
+timeout_seconds = 300
+
+[[case]]
+id = "TC-github-linux-arm64-glibc-download-starts-on-baseline"
+title = "The ARM64 glibc release archive under test starts and checks a project on Ubuntu 22.04 and Debian 12"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["INSTALL-1", "INSTALL-1.c"]
+requirements = ["REQ-github-025"]
+paths = [".github/workflows/release.yml", ".github/workflows/rc-assets.yml", ".github/scripts/linux-baseline.py"]
+environments = ["local-macos-arm64-docker"]
+artifacts = ["test-log"]
+setup = [
+  "Docker on an arm64 host",
+  "target/linux-baseline/specsync-linux-aarch64.tar.gz and its .sha256 are the archive produced by the release recipe under test (before the fix: the published v6.2.0 archive; after it: an archive built natively on Ubuntu 22.04 with cargo build --release)",
+]
+steps = [
+  "python3 -I .github/scripts/linux-baseline.py check --archive target/linux-baseline/specsync-linux-aarch64.tar.gz --expect-version 6.2.0",
+]
+expected = [
+  "The check exits 0: on ubuntu:22.04 and debian:12-slim the binary prints specsync 6.2.0, --help and init succeed, the strict check passes and the drift check fails",
+]
+
+[case.bind]
+adapter = "command"
+argv = [
+  "python3",
+  "-I",
+  ".github/scripts/linux-baseline.py",
+  "check",
+  "--archive",
+  "target/linux-baseline/specsync-linux-aarch64.tar.gz",
+  "--expect-version",
+  "6.2.0",
+]
+expect_output = ["specsync-linux-aarch64 started and checked a project on ubuntu:22.04, debian:12-slim."]
+timeout_seconds = 900
+
+[[case]]
+id = "TC-github-linux-arm64-musl-download-starts-anywhere"
+title = "The ARM64 musl release archive under test starts and checks a project on Ubuntu 22.04, Debian 12, Debian 11 and Alpine"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["INSTALL-1.b", "INSTALL-1.c"]
+requirements = ["REQ-github-025"]
+paths = [".github/workflows/release.yml", ".github/workflows/rc-assets.yml", ".github/scripts/linux-baseline.py"]
+environments = ["local-macos-arm64-docker"]
+artifacts = ["test-log"]
+setup = [
+  "Docker on an arm64 host",
+  "target/linux-baseline/specsync-linux-aarch64-musl.tar.gz and its .sha256 are the archive produced by the release recipe under test (before the fix none exists; after it: an archive built natively on Ubuntu 24.04 with musl-tools)",
+]
+steps = [
+  "python3 -I .github/scripts/linux-baseline.py check --archive target/linux-baseline/specsync-linux-aarch64-musl.tar.gz --expect-version 6.2.0",
+]
+expected = [
+  "The check exits 0 on ubuntu:22.04, debian:12-slim, debian:11-slim and alpine:3.22",
+]
+
+[case.bind]
+adapter = "command"
+argv = [
+  "python3",
+  "-I",
+  ".github/scripts/linux-baseline.py",
+  "check",
+  "--archive",
+  "target/linux-baseline/specsync-linux-aarch64-musl.tar.gz",
+  "--expect-version",
+  "6.2.0",
+]
+expect_output = ["specsync-linux-aarch64-musl started and checked a project on ubuntu:22.04, debian:12-slim, debian:11-slim, alpine:3.22."]
+timeout_seconds = 900

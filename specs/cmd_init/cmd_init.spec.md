@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 18
+version: 19
 status: stable
 files:
   - src/commands/init.rs
@@ -96,3 +96,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-10-10 | keep-3md-files-from-being-classified-as-roff: Keep 3md files from being classified as Roff |
 | 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
+| 2026-11-06 | retire-the-merge-empty-list-and-init-strict-default-contract-clauses: Retire the merge empty-list and init strict-default contract clauses |

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 61
+version: 63
 status: active
 files:
   - src/commands/change.rs
@@ -123,6 +123,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-11-05 | v62: `change ship` refuses an open task and names `specsync change ship <id>` with its flags; `change ship-status` reports it as a blocker and names it before the next step; `change check --commit` refusals name `--commit` (REQ-cmd-change-031, #892). |
 | 2026-11-05 | v57: `specsync change` handlers read repository facts and committed objects through the per-command memo and batch reader, and clear them after their own git writes (REQ-cmd-change-028, #861). |
 | 2026-10-10 | Add `cmd_change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v44: a change directory that holds a file but no `state.json` is still open; an empty husk is not. |
@@ -192,3 +193,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |
+| 2026-11-06 | make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts: Make the ship-status product stage advertise only a command its state accepts |

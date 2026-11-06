@@ -1661,6 +1661,16 @@ A bounded Git read SHALL return when the direct child exits and SHALL NOT wait o
 
 ### REQ-change-127
 
+Lifecycle commands SHALL stay within a tested ceiling of git process spawns per command, and the ceiling SHALL NOT grow with unrelated archived changes. The integration test `eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci` SHALL spawn at most 40% of its 15,563-process baseline measured at 67aa7dc2.
+
+#### Acceptance Criteria
+
+- A test counts git spawns for `change new`, `answer`, `approve`, `check`, `status`, `review` and `finalize` and asserts a ceiling for each.
+- The slowest lifecycle integration test spawns at most 6,225 git processes.
+- No assertion of an existing lifecycle test is removed or loosened to meet the ceiling.
+
+### REQ-change-129
+
 The system SHALL refuse `change review` and `change finalize`, and SHALL NOT report readiness `safe` from `change status` or `change ship-status`, for a change whose record is not archived while the remote default branch holds an archive of the same change id that `HEAD` does not contain. The refusal SHALL name the reference and commit of that archive and the next step: merge or rebase onto that reference. An archive that `HEAD` already contains SHALL NOT be refused: that is the reopen-and-rearchive path.
 
 Acceptance Criteria

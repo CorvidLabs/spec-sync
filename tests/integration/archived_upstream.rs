@@ -4,8 +4,8 @@
 //!
 //! * When the remote default already holds an archive of that change, review,
 //!   status, ship-status and finalize must say so, name the reference and the
-//!   archive commit, and refuse before acceptance (REQ-change-127,
-//!   REQ-cmd-change-028).
+//!   archive commit, and refuse before acceptance (REQ-change-129,
+//!   REQ-cmd-change-029).
 //! * Without an upstream archive the same squash still reviews and finalizes
 //!   (#690 guard).
 

@@ -1349,6 +1349,31 @@ pub fn create_drift_issue(
 mod tests {
     use super::*;
 
+    /// Writes an executable from a child `sh`, so this process never holds a
+    /// write descriptor to a file that is exec'd later. A fork from another
+    /// test thread would inherit that descriptor, and the exec would fail with
+    /// ETXTBSY (#885).
+    #[cfg(not(windows))]
+    fn write_fake_executable(path: &std::path::Path, body: &str) {
+        use std::io::Write;
+
+        let mut child = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("cat > \"$1\" && chmod 755 \"$1\"")
+            .arg("sh")
+            .arg(path)
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(body.as_bytes())
+            .unwrap();
+        assert!(child.wait().unwrap().success());
+    }
+
     #[derive(Default)]
     struct FakeBatchBackend {
         prepare_calls: usize,
@@ -2335,12 +2360,10 @@ mod tests {
             return;
         }
 
-        use std::os::unix::fs::PermissionsExt;
-
         let temp = tempfile::TempDir::new().unwrap();
         let fake_gh = temp.path().join("gh");
         let capture = temp.path().join("arguments");
-        std::fs::write(
+        write_fake_executable(
             &fake_gh,
             concat!(
                 "#!/bin/sh\n",
@@ -2351,11 +2374,7 @@ mod tests {
                 "done\n",
                 "printf '%s\\n' 'https://github.com/owner/repo/issues/42'\n",
             ),
-        )
-        .unwrap();
-        let mut permissions = std::fs::metadata(&fake_gh).unwrap().permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(&fake_gh, permissions).unwrap();
+        );
 
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
@@ -2467,18 +2486,10 @@ mod tests {
         #[cfg(not(windows))]
         let fake_gh = temp.path().join("gh");
         #[cfg(not(windows))]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            std::fs::write(
-                &fake_gh,
-                "#!/bin/sh\n: > \"$SPECSYNC_GH_SENTINEL\"\nexit 97\n",
-            )
-            .unwrap();
-            let mut permissions = std::fs::metadata(&fake_gh).unwrap().permissions();
-            permissions.set_mode(0o755);
-            std::fs::set_permissions(&fake_gh, permissions).unwrap();
-        }
+        write_fake_executable(
+            &fake_gh,
+            "#!/bin/sh\n: > \"$SPECSYNC_GH_SENTINEL\"\nexit 97\n",
+        );
 
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args([

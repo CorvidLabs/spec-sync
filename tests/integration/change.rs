@@ -4010,3 +4010,203 @@ fn status_and_show_json_report_approved_delta_requirements() {
     assert_eq!(created_keys, previous);
     assert_eq!(summary_keys(&created), previous_summary, "{created}");
 }
+
+// REQ-change-127: one change driven through the lifecycle stays within a git process ceiling per
+// command. Counted through a `git` wrapper on PATH, so every spawn the binary makes is seen,
+// whichever module makes it, and the bound is hardware independent.
+#[cfg(unix)]
+#[test]
+fn lifecycle_commands_stay_within_git_spawn_ceilings() {
+    use std::os::unix::fs::PermissionsExt;
+
+    /// Git processes each lifecycle command may spawn on this small fixture.
+    ///
+    /// At 67aa7dc2 they spawned: new 63, answer 71, approve 89, check 388, status 66, review 323,
+    /// finalize 739. With repository facts asked once per command and committed objects read
+    /// through one `cat-file --batch` (REQ-git-utils-009, REQ-git-utils-010) they spawn: new 29,
+    /// answer 15, approve 32, check 110, status 53, review 176, finalize 287. Each ceiling is that
+    /// count plus about 10%. Evidence capture keeps its working-tree reads and repository-identity
+    /// reads live on purpose: it reads before and after each capture to catch a concurrent edit,
+    /// and that race check is never answered from memory.
+    const CEILINGS: &[(&str, usize)] = &[
+        ("new", 32),
+        ("answer", 17),
+        ("approve", 35),
+        ("check", 121),
+        ("status", 58),
+        ("review", 194),
+        ("finalize", 316),
+    ];
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("repo");
+    fs::create_dir_all(&root).unwrap();
+    let shim_dir = temp.path().join("shim");
+    fs::create_dir_all(&shim_dir).unwrap();
+    let count_file = temp.path().join("git-spawns");
+    let real_git = String::from_utf8(
+        Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_string();
+    let shim = shim_dir.join("git");
+    fs::write(
+        &shim,
+        format!(
+            "#!/bin/sh\necho x >> '{}'\nexec '{}' \"$@\"\n",
+            count_file.display(),
+            real_git
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&shim, fs::Permissions::from_mode(0o755)).unwrap();
+    let shim_path = format!(
+        "{}:{}",
+        shim_dir.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+
+    let git = |args: &[&str]| {
+        let output = Command::new(&real_git)
+            .args(args)
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    let spawns = || {
+        fs::read_to_string(&count_file)
+            .map(|text| text.lines().count())
+            .unwrap_or(0)
+    };
+    let mut counts: Vec<(&str, usize)> = Vec::new();
+    let mut run = |label: &'static str, args: &[&str]| -> Vec<u8> {
+        let before = spawns();
+        let output = specsync()
+            .env("PATH", &shim_path)
+            .arg("--root")
+            .arg(&root)
+            .args(args)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let spawned = spawns() - before;
+        match counts.iter_mut().find(|(name, _)| *name == label) {
+            Some((_, most)) => *most = (*most).max(spawned),
+            None => counts.push((label, spawned)),
+        }
+        output
+    };
+
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    git(&["switch", "-c", "spawn-ceiling"]);
+
+    let created = run(
+        "new",
+        &[
+            "--json",
+            "change",
+            "new",
+            "Bound git spawns per lifecycle command",
+            "--kind",
+            "documentation",
+            "--path",
+            "docs/spawn-ceiling.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only behavior does not alter a technical contract",
+        ],
+    );
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The ceiling holds for every command"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run("answer", &["change", "answer", &id, question, answer]);
+    }
+    let active_dir = root.join(".specsync/changes").join(&id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap()).unwrap();
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let artifact = artifact.as_str().unwrap();
+        let content = if artifact == "tasks" {
+            "# Tasks\n\n- [x] Bound the spawns.\n".to_string()
+        } else {
+            format!("# {}\n\nComplete.\n", artifact.replace('-', " "))
+        };
+        fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+    }
+    run(
+        "approve",
+        &["change", "approve", &id, "--actor", "Scope owner"],
+    );
+    fs::write(root.join("docs/spawn-ceiling.md"), "# Spawn ceiling\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement"]);
+    run("check", &["change", "check", &id]);
+    run("status", &["--json", "change", "status", &id]);
+    run(
+        "review",
+        &[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ],
+    );
+    run("finalize", &["--json", "change", "finalize", &id]);
+
+    eprintln!("git spawns per lifecycle command: {counts:?}");
+    for (label, ceiling) in CEILINGS {
+        let spawned = counts
+            .iter()
+            .find(|(name, _)| name == label)
+            .map(|(_, spawned)| *spawned)
+            .unwrap_or_else(|| panic!("`change {label}` did not run"));
+        assert!(
+            spawned <= *ceiling,
+            "`change {label}` spawned {spawned} git processes; its ceiling is {ceiling} \
+             (all commands: {counts:?})"
+        );
+    }
+}

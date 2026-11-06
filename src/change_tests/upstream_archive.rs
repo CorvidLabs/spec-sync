@@ -1,4 +1,4 @@
-// REQ-change-127 (#694). `upstream_archive_of` names an archive the remote default holds and
+// REQ-change-129 (#694). `upstream_archive_of` names an archive the remote default holds and
 // HEAD does not, and stays silent for an archive HEAD already contains: that is the
 // reopen-and-rearchive path, which must keep working.
 #[test]

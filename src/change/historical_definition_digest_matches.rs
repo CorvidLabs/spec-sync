@@ -1916,14 +1916,15 @@ fn review_commit_is_current(
 
 fn run_scoped_review_git(root: &Path, args: &[&str]) -> Result<BoundedCommandOutput, String> {
     let limits = lifecycle_validation_limits();
-    let mut command = configured_git_command(root);
-    run_git_command_bounded_with_deadline(
-        &mut command,
-        args,
-        None,
-        limits.git_max_output_bytes,
-        Duration::from_secs(limits.git_timeout_seconds),
-    )
+    memoized_configured_git(root, args, None, limits.git_max_output_bytes, |command, input| {
+        run_git_command_bounded_with_deadline(
+            command,
+            args,
+            input,
+            limits.git_max_output_bytes,
+            Duration::from_secs(limits.git_timeout_seconds),
+        )
+    })
 }
 
 fn scoped_review_file_at_commit(
@@ -2201,7 +2202,7 @@ pub fn record_scoped_review_with_verdict(
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
-    // Refused before anything is written, so the change stays `verifying` (REQ-change-127).
+    // Refused before anything is written, so the change stays `verifying` (REQ-change-129).
     if let Some(upstream) = upstream_archive_of(root, &record) {
         return Err(upstream_archive_message(&record.id, &upstream));
     }
@@ -3296,7 +3297,7 @@ pub fn summarize_change_with_strict(
 /// and an archived record's terminal-evidence walk over the whole archive would turn that line
 /// into a minutes-long wait for a verdict that is `safe` regardless.
 /// Never `Safe`: review and finalize refuse a change the remote default already archived, so a
-/// fresh session must merge or rebase first (REQ-change-127).
+/// fresh session must merge or rebase first (REQ-change-129).
 fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
     HandoffSummary {
         readiness: HandoffReadiness::NotYet,

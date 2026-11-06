@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy",
+  "implementation_commit": "55267abe5b94bfa5397ab9d044069b758997716b",
+  "implementation_tree": "bf4144a7003728b866a788f0b8d637e520b9e253",
+  "contract_digest": "201fbe74baf53cbd46494531e7473e6a20ab6bab22525f233e4710077311ee6a",
+  "workspace_digest": "37c759024a0eeb354d2acc1338808e74bb27b51a63641c5180f8d9d67ff3c196",
+  "closing_digest": "6b282c31e369fa09c7575379e2688500a5bcd66607b47754416ea53f8a937c43",
+  "review_digest": "ffa95d1de24f64c3f4284a9e11ba8c20110eb3a3fdb96adfb9a25d5f4ff97ce6",
+  "finalization_digest": "73677dd52b35ced709ee71393cc0647add63beae055b7a75463807bb80146651",
+  "timestamp": 1793932997
+}

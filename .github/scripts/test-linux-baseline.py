@@ -450,6 +450,11 @@ class FakeDockerCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("missing", result.stderr)
 
+    def test_missing_archive_is_refused(self) -> None:
+        result = self.run_check(self.root / "dist" / "specsync-linux-aarch64.tar.gz")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("does not exist", result.stderr)
+
     def test_archive_with_extra_or_wrong_members_is_refused(self) -> None:
         cases = {
             "extra": [("specsync-linux-aarch64", b"x"), ("README", b"y")],

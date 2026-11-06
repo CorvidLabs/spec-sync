@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A static `specsync-linux-aarch64-musl` download. It starts on any ARM64 Linux, including Alpine and systems below the glibc floor, as `specsync-linux-x86_64-musl` already does for x86_64 (#882).
+
 ### Changed
 
 - Lifecycle commands start far fewer git processes. Each command asks git a repository fact (HEAD, the work-tree prefix, origin's default branch, core settings and other ref-, object- and config-only reads) once, forgetting them after any git write or external process it runs, and reads committed files through one `git cat-file --batch`. Race checks still read live. On a one-change fixture `change answer` went from 71 git processes to 15, `change check` from 388 to 110 and `change finalize` from 739 to 287; the slowest lifecycle test went from 15,563 git processes and 343s to 5,996 and 95s on macOS (#861).
@@ -16,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Linux glibc downloads, `specsync-linux-x86_64` and `specsync-linux-aarch64`, start on glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer, which includes GitHub's `ubuntu-22.04` and `ubuntu-22.04-arm` runners. Through 6.2.0 they were linked on `ubuntu-latest`, and the weak Rust std symbols `pidfd_spawnp` and `pidfd_getpid` then demanded `GLIBC_2.39`, so they stopped before `--version` on Debian 12 and Ubuntu 22.04. Both release workflows now build them natively on Ubuntu 22.04. Before upload, every packaged Linux archive must start offline in pinned `ubuntu:22.04` and `debian:12-slim` containers (the musl ones also in Debian 11 and Alpine) and check a small project, so a download that would not start is never released. The `linux-baseline` CI job builds and checks the same archives, and it requires the check to reject the published v6.2.0 ARM64 archive (#882).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
 
 ## [6.2.0] - 2026-11-05

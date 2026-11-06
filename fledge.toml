@@ -29,6 +29,11 @@ cmd = "python3 .github/scripts/test-validate-release-candidate.py"
 [tasks.ci-gate-test]
 cmd = "python3 .github/scripts/test-required-ci-gate.py"
 
+# The Linux release baseline: release/CI/docs lockstep with the check's table, and the check's own
+# logic against a fake docker (#882). The real containers run in CI and in the release workflows.
+[tasks.linux-baseline-test]
+cmd = "python3 .github/scripts/test-linux-baseline.py"
+
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
 
@@ -73,6 +78,7 @@ steps = [
   "spec-check",
   "release-candidate-test",
   "ci-gate-test",
+  "linux-baseline-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
 
@@ -96,6 +102,7 @@ steps = [
   "spec-check",
   "release-candidate-test",
   "ci-gate-test",
+  "linux-baseline-test",
 ]
 
 # Used by .trust.toml [lifecycle] for the GitHub Trust action only.
@@ -122,5 +129,6 @@ steps = [
   "spec-check",
   "release-candidate-test",
   "ci-gate-test",
+  "linux-baseline-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

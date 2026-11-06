@@ -213,6 +213,8 @@ def require_host_arch(artifact: str, machine: str) -> None:
 
 def verify_checksum(archive: Path) -> str:
     """Verify `<archive>.sha256` exactly as the release writes it; return the digest."""
+    if not archive.is_file():
+        raise BaselineError(f"{archive} does not exist; build and package the archive first")
     sidecar = archive.with_name(archive.name + ".sha256")
     if not sidecar.is_file():
         raise BaselineError(f"{sidecar.name} is missing; package the archive with its checksum first")

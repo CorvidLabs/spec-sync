@@ -1,6 +1,6 @@
 ---
 module: github
-version: 50
+version: 51
 status: stable
 files:
   - src/github.rs
@@ -255,3 +255,4 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-06 | build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose: Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline |
 | 2026-11-06 | keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token: Keep a passing check green when the Action's PR comment is refused for a read-only token |
+| 2026-11-06 | drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane: Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane |

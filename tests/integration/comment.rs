@@ -154,6 +154,55 @@ fn neither_comment_nor_change_check_spawns_configured_project_commands() {
         .stdout(predicate::str::contains("binary: rustc").not());
 }
 
+// Verifies REQ-cmd-comment-003 and REQ-cmd-comment-004 at the contract level (#848,
+// SHIP-1.c.1, SHIP-1.c.2).
+//
+// Honest label: CONTRACT PIN. The test above pins the behavior; this one fails when a current
+// cmd_comment contract goes back to saying that `comment` executes a configured verification
+// command, folds lifecycle failures into its verdict, or that `change check` streams one.
+#[test]
+fn comment_contracts_say_no_configured_verification_command_runs() {
+    let requirements = "specs/cmd_comment/requirements.md";
+    let protocol =
+        tracked_requirement(requirements, "REQ-cmd-comment-003").expect("REQ-cmd-comment-003");
+    assert!(
+        protocol.contains("executes no configured SDD verification command"),
+        "REQ-cmd-comment-003 must say why nothing reaches stdout but the report: {protocol}"
+    );
+    assert!(
+        tracked_requirement(requirements, "REQ-cmd-comment-004").is_some(),
+        "REQ-cmd-comment-004 is the rule that replaced lifecycle folding"
+    );
+    for id in ["REQ-cmd-comment-001", "REQ-cmd-comment-002"] {
+        assert!(
+            tracked_requirement(requirements, id).is_none(),
+            "{id} folds SDD lifecycle failures into the comment, which REQ-cmd-comment-004 \
+             reversed, so it stays retired"
+        );
+    }
+    let retired = [
+        "still execute and fail closed in comment mode",
+        "verification command output is captured away from stdout",
+        "the command still executes and affects lifecycle status",
+        "while `change check` streams it",
+    ];
+    for relative in [
+        "specs/cmd_comment/requirements.md",
+        "specs/cmd_comment/cmd_comment.spec.md",
+        "specs/cmd_comment/context.md",
+        "specs/cmd_comment/cmd_comment.3md",
+        "specs/cmd_comment/testing.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still says a configured command runs: `{phrase}`"
+            );
+        }
+    }
+}
+
 #[test]
 fn ci_captures_comment_with_quiet_cargo_and_a_defensive_byte_cap() {
     let workflow =

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "39ec1ee36bf79eacb0ec0f27d904acb7b7d69574",
+  "contract_digest": "f2c19ddc7ee4d4f9df0eb492dbff0403d6d1b77ffc8a79cf8fd7c3a36ec5d7ea",
+  "execution_digest": "d5d20a6dc700f98ffdcad0800ca2232a8d2b3f5e70dc5b784440c5a07f705613",
+  "workspace_digest": "98ecbf6fbdd71d9c021b45bfb99bf701edcd70d81a4ede021aa47fe2898fecb1",
+  "timestamp": 1793946745
+}

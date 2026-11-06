@@ -700,7 +700,7 @@ flowchart LR
     qualify --> record[record check run<br/>SpecSync release candidate]
     record --> dispatch{{workflow_dispatch<br/>from main with rc_tag}}
     dispatch --> promote[promote<br/>create annotated vX.Y.Z]
-    promote --> build[build 5 targets<br/>linux x86_64, x86_64-musl,<br/>aarch64, macOS x86_64, aarch64]
+    promote --> build[build 6 targets<br/>linux x86_64, x86_64-musl,<br/>aarch64, aarch64-musl,<br/>macOS x86_64, aarch64]
     build --> release[GitHub Release<br/>tar.gz + .sha256]
     release -.->|manual| crates[crates.io]
     release -.->|manual| brew[Homebrew tap]
@@ -788,7 +788,7 @@ does and does not enforce is written down in [`docs/ci-confidence.md`](ci-confid
 | Code exports a symbol the spec omits | Warning; fails with `--strict` | `validate_spec` |
 | Config file present but unloadable | Command stops, no silent defaults | `refuse_unloadable_config` in `commands/mod.rs` |
 | Process dies mid-write during a lifecycle mutation | The next lifecycle command takes `change.lock`, finds `change-transaction.json`, verifies its integrity envelope and restores the original bytes | `recover_pending_transaction` |
-| Two lifecycle commands at once | The second blocks on the exclusive lock. Recursive calls (a verification child calling `check` or `change`) are refused by `SPECSYNC_VERIFICATION_CONTEXT` | `acquire_project_lock`, `main.rs` |
+| Two lifecycle commands at once | The second blocks on the exclusive lock. A `check` or `change` that inherits `SPECSYNC_VERIFICATION_CONTEXT` from a caller is refused; SpecSync itself starts no verification child (REQ-change-023) | `acquire_project_lock`, `main.rs` |
 | Delta body edited after approval | Materialization and acceptance refuse and name the modules | invariant 38 |
 | Code or tests change after verification | Verification is stale; `change check` again | `recorded_verification_is_current` |
 | Implementation commit after review | Review is stale; review again. Only lifecycle JSON under the change directory may change between review and finalize | invariant 22 |

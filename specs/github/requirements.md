@@ -343,3 +343,36 @@ Acceptance Criteria
 - A non-403 `gh` error, such as HTTP 500, still fails the step.
 - With a writable token the step posts a new comment or updates the existing one, as before.
 
+### REQ-github-025
+
+The prebuilt Linux release downloads SHALL start on their documented baseline.
+
+- The glibc downloads, `specsync-linux-x86_64` and `specsync-linux-aarch64`, SHALL be linked against glibc 2.35 by building them natively on GitHub's Ubuntu 22.04 runners. They then start on glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer.
+- The static musl downloads, `specsync-linux-x86_64-musl` and `specsync-linux-aarch64-musl`, SHALL start on any Linux of their architecture. They are the documented fallback below that floor.
+- `release.yml` and `rc-assets.yml` SHALL run `.github/scripts/linux-baseline.py check` on every packaged Linux archive before upload, and SHALL NOT upload an archive that fails it.
+- Pull-request CI SHALL build the same archives with the same runner, target and build command, and SHALL run the same check.
+
+#### Acceptance Criteria
+
+- The check verifies the archive against its `.sha256` sidecar. It runs the extracted binary with no network, as user 65534, on a read-only root filesystem, in digest-pinned containers: glibc downloads on `ubuntu:22.04` and `debian:12-slim`; musl downloads on those two plus `debian:11-slim` and `alpine:3.22`.
+- An image passes only when `--version` prints the package version, `--help` and `init` succeed, `check --strict --require-coverage 100` passes on a one-module project, and the same check fails once an undocumented export is added.
+- A failure names the artifact, the image, the step, the exit code and the output. A loader `GLIBC_… not found` failure also names the rebuild on the floor runner.
+- The check rejects the published v6.2.0 `specsync-linux-aarch64.tar.gz`, which needs `GLIBC_2.39`.
+- The Linux runner and target pairs in `ci.yml`, `release.yml` and `rc-assets.yml` equal the check script's table, and a test fails when they drift.
+- README and the GitHub Action docs name the floor, the musl fallback for each architecture, and the `GLIBC_… not found` start-up error.
+- The release artifact validator expects six archives, including `specsync-linux-aarch64-musl`.
+
+### REQ-github-026
+
+Every pull request to main SHALL start CI, and the path classifier alone SHALL pick its lane.
+
+- `.github/workflows/ci.yml` SHALL NOT filter its `pull_request` or `push` trigger by path (`paths:` or `paths-ignore:`). Both triggers keep `branches: [main]`.
+- `.github/scripts/classify-ci-paths.sh` SHALL decide which jobs a started run selects. A path it does not name goes to the full lane, as before.
+- So a pull request that changes only paths outside the old filter, such as `.chough/` records or `scripts/`, SHALL still get the required `Required CI gate` check (CI-6).
+
+#### Acceptance Criteria
+
+- A test fails when either trigger in `ci.yml` has a `paths:` or `paths-ignore:` filter, and its message names the recovery.
+- The real classifier puts a change that touches only Chough records into a lane, and so does a change that touches only `scripts/`. Simulating that lane with the required-gate model of `test-required-ci-gate.py` reports `Required CI gate` green on both `pull_request` and `push` when every selected job passes.
+- The fledge `verify` and `ci` lanes and `ci.yml` run that test, and the test fails when they stop.
+

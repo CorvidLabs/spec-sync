@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c60b4f47666db37759b99a2f27c786e54352dbbc",
+      "contract_digest": "482c4a659ca8e7faf2cbfeaf481c0c163c7c924abe28eeb0c95e21ca5911ae87",
+      "execution_digest": "f66081c0acd83a571ab35e1620d4eca3b2b7d0b089563692b9d740ae44623ebc",
+      "workspace_digest": "d40c96e423b6092a8dd6152981700e8b6076b14e7f61423d11822fdaaaf3c9bd",
+      "timestamp": 1793976690
+    }
+  ]
+}

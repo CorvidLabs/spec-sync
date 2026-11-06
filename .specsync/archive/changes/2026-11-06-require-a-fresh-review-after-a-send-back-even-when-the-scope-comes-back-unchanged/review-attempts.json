@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "e271444fda7bb443129857ddc1fd64279a000ae3",
+      "contract_digest": "a9cbdb4f86b7eff7fda1c6c66c058383ea19bfa252584d6bf19f7d7c50371f55",
+      "execution_digest": "6d0b6fee8c878fe7ccf6f36c99bc445162cda20feb430b4d899465145e253a19",
+      "workspace_digest": "c3e61a2bf797d62137515a763a2bd9d9d1af306f523f0eebd21b864a52cf4b72",
+      "timestamp": 1793991260
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged",
+  "implementation_commit": "e271444fda7bb443129857ddc1fd64279a000ae3",
+  "implementation_tree": "74496267651089e07d79213b8524b0c033bc8ee4",
+  "contract_digest": "a9cbdb4f86b7eff7fda1c6c66c058383ea19bfa252584d6bf19f7d7c50371f55",
+  "workspace_digest": "c3e61a2bf797d62137515a763a2bd9d9d1af306f523f0eebd21b864a52cf4b72",
+  "closing_digest": "abc7ab159d586a898ba3dd5067aae5f9f79665fb292016154788be209b73a54a",
+  "review_digest": "b135b0bb2d3147806f94947a213ed47207f50a10d5f1153414bc2a78af2f0f62",
+  "finalization_digest": "e3700f234fed28661def6eedc37292683f2652548003cd0531d159145dd5fd6a",
+  "timestamp": 1793991305
+}

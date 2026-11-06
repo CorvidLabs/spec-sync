@@ -1620,7 +1620,7 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 
 ### REQ-change-123
 
-`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and while it no longer matches the change `change status` SHALL report it stale rather than unreadable. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and `change status` SHALL report it stale rather than unreadable. A send-back SHALL record how many review attempts preceded it, and a scoped review recorded before the latest send-back SHALL NOT be current, even when the re-approved definition has the same digest; for a send-back recorded without that count, a review SHALL count only when its timestamp is later than the send-back's. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
 
 #### Acceptance Criteria
 
@@ -1640,6 +1640,8 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 - A change reviewed before its send-back is re-approved, re-checked and reviewed again, and finalize archives it with both review attempts in its history, the first unchanged (#914).
 - After a send-back that changes the scope, `change status` reports the earlier review stale with the re-review next action, and `change ship` refuses it.
 - A review bound only to an approval a send-back cancelled is never current.
+- After a send-back with an unchanged scope and a `change check` without `--commit`, `change status` names `change review`, `change ship-status` reports the earlier review stale, and `change ship` refuses until a fresh review is recorded (#960).
+- A send-back records the number of review attempts before it; a review recorded before the latest send-back is never current, and a send-back without that count compares timestamps.
 
 ### REQ-change-124
 
@@ -1765,6 +1767,15 @@ Acceptance Criteria
 - A read stopped by its deadline leaves every change file byte-identical.
 - Verdicts completed before the deadline are in the read cache afterwards, so the next run does not redo them.
 - The report names the phase and progress, for example `archive-introduction index` and `140/214`.
+
+### REQ-change-134
+
+The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
+
+#### Acceptance Criteria
+
+- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
+- Removing the fingerprint from the read-cache identity fails that test.
 
 ### REQ-change-144
 

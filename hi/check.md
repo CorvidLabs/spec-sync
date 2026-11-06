@@ -9,12 +9,15 @@ families: [CHECK]
 
 The point of the whole product: a document that says what a module does should not be able to quietly stop being true. One command compares every contract to the code it claims to describe, in both directions, and says plainly which side is wrong. It should be fast enough to run without thinking about it, honest about the difference between a lie and an omission, and useful from the first run without any configuration, network or account.
 
+CHECK-1.d was drafted by the agent from issue #878 (a validation snapshot cached by an earlier build of the same version replayed a pass over a duplicate-ID refusal the current build makes). Leif approved it as written in the Herdr orc tab on 2026-11-05 at 20:20 MST ("Approve"), relayed by the orc (t18), and chose approach B, a build fingerprint; at 22:10 MST he chose "Both in one", so the persistent read cache is bound to the same fingerprint. Recorded by the ss-testgaps agent.
+
 ## Criteria
 
 - **CHECK-1**  One command tells me whether every module's written contract still matches the code it claims to describe.
   - **CHECK-1.a**  The check reads only what is on disk, so it never needs a network call, an account or a model.
   - **CHECK-1.b**  Re-running it on a tree I have not touched is fast enough to keep in my inner loop.
   - **CHECK-1.c**  I can point the check at a single module while I am working inside it.
+  - **CHECK-1.d**  A result remembered from an earlier build never hides a failure the build I am running would report.
 - **CHECK-2**  A contract that names something the code no longer has is an error, because the document is lying.
 - **CHECK-3**  Code that exports something the contract never mentions is a warning, because the document is merely incomplete.
   - **CHECK-3.a**  I can promote every warning to a failure when nothing undocumented should slip through.

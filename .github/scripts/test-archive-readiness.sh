@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The Archive check's three answers: one open change, several, and none.
+# The Archive check's three answers: one open change, several, and none,
+# and never `ship` for a copy the remote default already archived (#902).
 set -euo pipefail
 
 script="$(cd "$(dirname "$0")" && pwd)/archive-readiness.sh"
@@ -100,5 +101,40 @@ assert_pass
 
 rm -rf "$tmp/.specsync"
 assert_pass
+
+# A copy the remote default already archived must not be told to ship, even with a
+# passing review at HEAD and a verification record (#902). The upstream archive is
+# added by a commit HEAD does not contain, the test `upstream_archive_of` makes.
+seed="$head"
+upstream="$(mktemp -d)"
+trap 'rm -rf "$tmp" "$upstream"' EXIT
+git init -q --bare -b main "$upstream/origin.git"
+git -C "$tmp" checkout -q -b publish
+mkdir -p "$tmp/.specsync/archive/changes/2026-11-06-stale-copy"
+printf '{"id":"stale-copy","state":"archived","workflow_version":2}\n' \
+    >"$tmp/.specsync/archive/changes/2026-11-06-stale-copy/state.json"
+git -C "$tmp" add .specsync/archive
+git -C "$tmp" commit -q -m "archive stale-copy upstream"
+archived="$(git -C "$tmp" rev-parse HEAD)"
+git -C "$tmp" remote add origin "$upstream/origin.git"
+git -C "$tmp" push -q origin "$archived:refs/heads/main"
+git -C "$tmp" fetch -q origin
+git -C "$tmp" remote set-head origin main >/dev/null
+git -C "$tmp" checkout -q main
+write_change stale-copy verifying yes
+assert_fail "This pull request is not finished. \`stale-copy\` is still open. Run \`specsync change status stale-copy\`."
+
+# An archive HEAD already contains is the reopen path: still told to ship.
+git -C "$tmp" merge -q --ff-only "$archived"
+head="$(git -C "$tmp" rev-parse HEAD)"
+printf '{"verdict":"pass","implementation_commit":"%s"}\n' "$head" >"$tmp/.specsync/changes/stale-copy/review.json"
+assert_fail "This pull request is not finished. \`stale-copy\` is still open. Run \`specsync change ship stale-copy\`."
+
+# With no remote default ref the script cannot tell, and keeps its classification.
+git -C "$tmp" checkout -q -B main "$seed"
+git -C "$tmp" remote remove origin
+head="$seed"
+printf '{"verdict":"pass","implementation_commit":"%s"}\n' "$head" >"$tmp/.specsync/changes/stale-copy/review.json"
+assert_fail "This pull request is not finished. \`stale-copy\` is still open. Run \`specsync change ship stale-copy\`."
 
 echo "archive readiness ok"

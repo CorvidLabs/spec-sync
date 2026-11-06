@@ -3593,6 +3593,198 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
     assert_authenticated_and_safe("after the archiving-commit restore is committed");
 }
 
+// Verifies CHANGE-12.e and REQ-change-123 through the built binary (#960, from the Codex review of
+// #944). A reviewed change is sent back and re-approved with its scope unchanged, so the new
+// definition approval has the same digest as the one the review followed, and `change check`
+// runs without `--commit`, so HEAD, the execution digest and the project inputs do not move
+// either. The earlier review must still not count: ship-status calls it stale, status names
+// `change review`, and `change ship` refuses until a fresh review is recorded.
+#[test]
+fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    // Workflow-v2 baseline is byte-compared; keep committed LF JSON as LF on Windows.
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let invoke = |args: &[&str]| {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        specsync().args(&full).output().unwrap()
+    };
+    let run = |args: &[&str]| -> String {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Archive a greeting",
+        "--kind",
+        "documentation",
+        "--path",
+        "docs/greeting.md",
+        "--no-spec-change",
+        "--rationale",
+        "Documentation-only behavior does not alter a technical contract",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The greeting is archived"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let active_dir = root.join(".specsync/changes").join(&id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap()).unwrap();
+    assert_eq!(state["workflow_version"], 2, "reproduced under workflow v2");
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let artifact = artifact.as_str().unwrap();
+        let content = if artifact == "tasks" {
+            "# Tasks\n\n- [x] Archive the greeting.\n".to_string()
+        } else {
+            format!("# {artifact}\n\nComplete evidence for the greeting.\n")
+        };
+        fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+    }
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    fs::write(root.join("docs/greeting.md"), "# Greeting\n\nHello.\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement greeting"]);
+    run(&["change", "check", &id, "--commit"]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let first_attempts: Value =
+        serde_json::from_str(&fs::read_to_string(active_dir.join("review-attempts.json")).unwrap())
+            .unwrap();
+    assert_eq!(first_attempts["reviews"].as_array().unwrap().len(), 1);
+
+    // Send it back, then re-approve the same scope and re-check without committing.
+    run(&[
+        "change",
+        "send-back",
+        &id,
+        "--actor",
+        "Scope owner",
+        "--reason",
+        "the scope needs another look",
+    ]);
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    run(&["change", "check", &id]);
+
+    let status: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
+    assert_eq!(status["summary"]["approval_valid"], true, "{status}");
+    assert!(
+        status["summary"]["next_action"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("specsync change review {id}")),
+        "after a send-back the next action is a fresh review:\n{status}"
+    );
+    let ship_status = run(&["change", "ship-status", &id]);
+    let review_line = ship_status
+        .lines()
+        .find(|line| line.trim_start().starts_with("Review:"))
+        .unwrap_or_else(|| panic!("no Review: line in\n{ship_status}"));
+    assert!(
+        review_line.contains("stale"),
+        "a review recorded before the send-back is stale even when the scope came back unchanged:\n{ship_status}"
+    );
+    assert!(
+        !invoke(&["change", "ship", &id]).status.success(),
+        "a review recorded before the send-back must not ship the change"
+    );
+    assert!(
+        active_dir.join("state.json").exists(),
+        "the refused ship leaves the change active"
+    );
+
+    // A fresh review records, and finalize archives the change with both attempts kept.
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let finalized: Value =
+        serde_json::from_str(&run(&["--json", "change", "finalize", &id])).unwrap();
+    let archive_dir = root.join(".specsync/archive/changes").join(
+        PathBuf::from(finalized["archived"].as_str().unwrap())
+            .file_name()
+            .unwrap(),
+    );
+    let archived_attempts: Value = serde_json::from_str(
+        &fs::read_to_string(archive_dir.join("review-attempts.json")).unwrap(),
+    )
+    .unwrap();
+    let reviews = archived_attempts["reviews"].as_array().unwrap();
+    assert_eq!(reviews.len(), 2, "{archived_attempts}");
+    assert_eq!(
+        reviews[0], first_attempts["reviews"][0],
+        "the pre-send-back review is kept unchanged"
+    );
+}
+
 // Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic
 // delta edited after approval reads as an invalid approval in JSON and text status, and
 // `change check` and `change audit` both refuse it. Restoring the approved bytes clears all three.

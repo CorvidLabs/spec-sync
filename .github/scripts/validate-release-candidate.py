@@ -41,6 +41,7 @@ EXPECTED_ARTIFACT_ARCHIVES = {
     "specsync-linux-x86_64": "specsync-linux-x86_64.tar.gz",
     "specsync-linux-x86_64-musl": "specsync-linux-x86_64-musl.tar.gz",
     "specsync-linux-aarch64": "specsync-linux-aarch64.tar.gz",
+    "specsync-linux-aarch64-musl": "specsync-linux-aarch64-musl.tar.gz",
     "specsync-macos-x86_64": "specsync-macos-x86_64.tar.gz",
     "specsync-macos-aarch64": "specsync-macos-aarch64.tar.gz",
 }

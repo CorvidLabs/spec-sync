@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "7ae7245f97e7cfd66cd80ce39b611becb1095642",
   "created_at": 1793979334,
-  "updated_at": 1793984863,
+  "updated_at": 1793984872,
   "affected_specs": [
     "agents",
     "github"

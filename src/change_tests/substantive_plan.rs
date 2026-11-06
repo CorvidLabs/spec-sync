@@ -3468,7 +3468,6 @@ fn batched_git_blob_reads_preserve_binary_payloads_and_order() {
 #[test]
 fn bounded_git_read_returns_while_a_descendant_holds_the_output_pipe() {
     use std::os::unix::ffi::OsStrExt;
-    use std::os::unix::fs::PermissionsExt;
 
     let temp = TempDir::new().unwrap();
     let fifo = temp.path().join("hold");
@@ -3488,14 +3487,12 @@ fn bounded_git_read_returns_while_a_descendant_holds_the_output_pipe() {
         ),
     )
     .unwrap();
-    let mut permissions = std::fs::metadata(&script).unwrap().permissions();
-    permissions.set_mode(0o755);
-    std::fs::set_permissions(&script, permissions).unwrap();
-
     let (tx, rx) = std::sync::mpsc::channel();
     let script_for_child = script.clone();
     std::thread::spawn(move || {
-        let mut command = Command::new(script_for_child);
+        // Through `sh`, not exec of the fresh file: see #885 (ETXTBSY).
+        let mut command = Command::new("sh");
+        command.arg(script_for_child);
         let result = run_git_command_bounded(&mut command, &[], None, 1024);
         let _ = tx.send(result);
     });

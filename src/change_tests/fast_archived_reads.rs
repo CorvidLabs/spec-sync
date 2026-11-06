@@ -205,6 +205,45 @@ fn cutoff_tree_verdict_equals_the_history_walk_verdict() {
     assert!(!remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", late.id))));
 }
 
+// #939 (SPEED-1.a.3, REQ-change-145): when the cutoff's archive tree cannot be read, as in an
+// offline `--filter=tree:0` clone that never fetched it, the cutoff-tree check must say it could
+// not read it rather than answer that the workflow-v1 change was not there.
+#[test]
+fn an_unreadable_cutoff_archive_tree_is_an_error_not_an_absent_change() {
+    let temp = TempDir::new().unwrap();
+    let origin = temp.path().join("origin");
+    fs::create_dir_all(&origin).unwrap();
+    // A workflow-v2 change archived after adoption changes the archive tree, so the tree at the
+    // cutoff is an older object that a `tree:0` clone does not hold.
+    repository_with_legacy_changes(&origin, 1);
+    let cutoff = read_workflow_v2_baseline(&origin)
+        .unwrap()
+        .unwrap()
+        .0
+        .cutoff_commit
+        .unwrap();
+    let legacy: ChangeRecord = list_all_changes_checked(&origin)
+        .unwrap()
+        .into_values()
+        .find(|record| record.workflow_version == 1)
+        .unwrap();
+    assert!(workflow_v1_record_present_in_cutoff_tree(&origin, &legacy, &cutoff).unwrap());
+
+    quiet_git(&origin, &["config", "uploadpack.allowFilter", "true"]);
+    let url = format!("file://{}", origin.display());
+    quiet_git(temp.path(), &["clone", "-q", "--filter=tree:0", url.as_str(), "clone"]);
+    let clone = temp.path().join("clone");
+    quiet_git(&clone, &["remote", "set-url", "origin", "file:///nonexistent-promisor"]);
+
+    let answer = workflow_v1_record_present_in_cutoff_tree(&clone, &legacy, &cutoff);
+    assert!(
+        answer
+            .as_ref()
+            .is_err_and(|error| error.contains("could not be read")),
+        "an unreadable cutoff archive tree answered {answer:?}"
+    );
+}
+
 /// Git processes one archived status read spawns with no persistent read cache.
 fn cold_archived_status_processes(root: &Path, id: &str) -> usize {
     if let Some(path) = persistent_read_cache_path(root) {

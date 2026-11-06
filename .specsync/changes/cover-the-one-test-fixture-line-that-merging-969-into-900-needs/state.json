@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "cover-the-one-test-fixture-line-that-merging-969-into-900-needs",
+  "slug": "cover-the-one-test-fixture-line-that-merging-969-into-900-needs",
+  "title": "Cover the one test fixture line that merging #969 into #900 needs",
+  "description": "Cover the one test fixture line that merging #969 into #900 needs",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "a20353b988db27df02d3cd535e48150939fba183",
+  "created_at": 1794001687,
+  "updated_at": 1794001732,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change_tests/send_back_for_rescope.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Merging main through #969 into #900 needs one line in #969's new test a_send_back_answers_review_order_by_attempt_count_and_falls_back_to_time: its ScopedReviewRecord literal gets relayed_by: None, the field #900 adds, as #900's own fixtures already do. Without it the merged tree does not compile. This change only declares that file; no spec text and no other code changes.",
+  "acceptance_criteria": [
+    "A review an agent records for a person can carry the same record, shown the same way.",
+    "The change's status shows it beside the approval or review it belongs to."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md 'Approvals are claims; relayed decisions (#633)': a record written without a relay omits relayed_by, so a fixture built as a struct literal says relayed_by: None, as #900's own fixtures do. change.3md 'Cancel by position, not by digest' (#960): the line leaves #969's send-back ordering test unchanged in what it checks. This change only declares one test file the merge of main changed; no spec text and no other code change. Leif chose the second covering change, criteria SHIP-2.e and CHANGE-13.b verbatim (2026-11-06, relayed by orc t18). Never weaken a gate, bound or test.",
+    "public_contract": "no"
+  }
+}

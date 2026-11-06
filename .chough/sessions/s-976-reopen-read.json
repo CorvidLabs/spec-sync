@@ -1,0 +1,44 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-8d78b395cf43e8a0f43153f3",
+    "head": "EVT-0609bcd698b19aec5aa132f1",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Reopen does not overflow a single Git read when a change's clean affected files are large: hash clean blobs one at a time (#976, SHIP-6)",
+  "intent_scope": "SHIP",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected",
+  "references": {
+    "criteria": [
+      "SHIP-6"
+    ],
+    "requirements": [
+      "REQ-change-144"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Leif via orc t18 ('Capture all + approve design', 2026-11-06): file a new issue for the reopen overflow (filed as #976) and fix it in its own PR after the close-late PR; no new HI, SHIP-6 covers it. Rejected: raising the cap (the 256 MiB total payload cap trips next, and it only moves the cliff)."
+  ],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif's scope approval of the streamed-hash change, relayed by orc t18; it names the one bound that changes (all-at-once total becomes per-blob)"
+  ],
+  "run_consents": [],
+  "next_action": "Send 'ready for approval' to orc t18; then add the test seam and failing tests and record that they fail on main f7180c34"
+}

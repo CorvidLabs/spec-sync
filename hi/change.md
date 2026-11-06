@@ -19,6 +19,8 @@ CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
 
 The retirement of CHANGE-6.b, CHANGE-6.d, and CHANGE-13 through CHANGE-13.d were drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. On whether the relay record belongs in the review digest he said "Keep it out". Recorded by claude (ss-d7).
 
+CHANGE-13.e, CHANGE-13.f and CHANGE-13.g were drafted by an agent for issue #904 (a Codex thread on #900) and approved by Leif in the Herdr orc tab on 2026-11-06 between 06:10 and 06:19 MST, relayed by orc t18: "Ok yes I approve all", in reply to the morning brief. That approved the wording as drafted and the `specsync change repair-relays` command, and, when no copy of the original survives, removing only the damaged record instead of refusing. Recorded by claude (ss-d7).
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -59,6 +61,9 @@ The retirement of CHANGE-6.b, CHANGE-6.d, and CHANGE-13 through CHANGE-13.d were
   - **CHANGE-13.b**  The change's status shows it beside the approval or review it belongs to.
   - **CHANGE-13.c**  The status says plainly that the record is a claim too, not proof that the person decided.
   - **CHANGE-13.d**  A record missing one of those details is refused before anything is written, and the refusal says which detail is missing.
+  - **CHANGE-13.e**  When one of those records is damaged, I am told one command that repairs it, whether or not it has been committed yet.
+  - **CHANGE-13.f**  That repair puts the original back when a copy of it still exists, and otherwise removes only the damaged record, never the approval or review it belongs to.
+  - **CHANGE-13.g**  The repair tells me what it put back and what it removed.
 
 ## Retired
 

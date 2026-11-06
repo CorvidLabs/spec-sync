@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout",
+  "slug": "archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout",
+  "title": "Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume",
+  "description": "Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "560af9f10e608ce4c506612b0d1d2ae13378807d",
+  "created_at": 1793943408,
+  "updated_at": 1793943481,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/read_cache.rs",
+    "src/change/read_deadline.rs",
+    "src/change_tests/fast_archived_reads.rs",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    "site/src/content/docs/cli.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A warm change status of an archived change spawns fewer than 3 more git processes when the project holds 6 more workflow-v1 changes (warm_archived_status_git_processes_do_not_grow_with_legacy_changes, failing first)",
+    "A cold change status of an archived change builds the archive-introduction index from one git log walk, so its git processes do not grow with the number of archive-introducing commits",
+    "Whether a workflow-v1 change existed at the trusted pre-v2 cutoff is decided from the cutoff commit tree and kept in the persistent read cache keyed by that commit; every existing refusal (hidden downgrade, absent at cutoff, tamper, race) is unchanged and new equivalence tests pin it",
+    "change status, show, list and ship-status take --timeout <secs> (or SPECSYNC_TIMEOUT); on expiry they exit 124, write nothing, flush completed verdicts to the read cache, and print the phase, progress and the exact resume command, in text and JSON",
+    "On demand (fledge run bench-archived-reads, with workflow-v1 changes in the fixture) an archived status takes under 2 s warm and under 5 s cold on an unloaded Mac; on this repository the before and after times are recorded",
+    "No gate, bound, timeout default or approval rule is weakened, and no existing assertion is loosened"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "SPEED-1.a (under 2 s), SPEED-1.c (a cache keyed by content digest needs a correct invalidation rule: the cutoff commit is immutable, so its verdict never invalidates), SPEED-1.d (Raven-sized benchmark); REQ-change-119/121/124 cache and finalize guards stay",
+    "public_contract": "yes"
+  }
+}

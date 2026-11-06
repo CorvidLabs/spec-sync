@@ -16,4 +16,6 @@ Documents that live for years accumulate: change logs grow, finished tasks pile 
 - **UPKEEP-2**  Finished tasks move out of the way into an archive section, so what is left on the page is what is still live.
 - **UPKEEP-3**  When two branches edit the same contract, the merge conflict can be resolved with an understanding of the file's structure.
   - **UPKEEP-3.a**  A conflict left behind in a contract is found even when git no longer reports it.
+  - **UPKEEP-3.b**  When git cannot tell which contracts are conflicted, every current contract says the merge reports that as unknown and fails, not as nothing to do.
+    - **UPKEEP-3.b.1**  If a current contract goes back to calling that nothing to do, a test tells me.
 - **UPKEEP-4**  After pulling or switching branches, I can make the next check look at everything again.

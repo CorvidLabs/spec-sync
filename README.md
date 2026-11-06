@@ -71,6 +71,21 @@ Minimal immutable configuration:
 
 Download Linux or macOS binaries from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases).
 
+| Linux download | Starts on |
+|---|---|
+| `specsync-linux-x86_64`, `specsync-linux-aarch64` | glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer |
+| `specsync-linux-x86_64-musl`, `specsync-linux-aarch64-musl` | Any Linux of that architecture, including Alpine (static). Use these below the glibc floor |
+
+On a system older than the floor, a glibc download stops before it prints anything, with
+`version 'GLIBC_2.xx' not found`. Take the musl download for your architecture instead. Every
+release runs each Linux download on Ubuntu 22.04 and Debian 12, and the musl ones also on
+Debian 11 and Alpine, before publishing it.
+
+Releases up to and including 6.2.0 predate this floor
+([#882](https://github.com/CorvidLabs/spec-sync/issues/882)): their glibc downloads need glibc
+2.39, and they have no ARM64 musl download. On those versions use `specsync-linux-x86_64-musl`,
+or build from source with `cargo install specsync --locked`.
+
 Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
 under WSL, or build it from source with `cargo install specsync`.
 

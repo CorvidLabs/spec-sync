@@ -50,6 +50,13 @@
         "hash_cache": "f6b8fa78239e4e3d9acc5c5ac4288116948d1dca6657a5397152ca2f98e6c3a3"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793982686,
+      "digest": "b1725ce356fa68e7858f01e376003feea34485f19c846351dcf5038064460561",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

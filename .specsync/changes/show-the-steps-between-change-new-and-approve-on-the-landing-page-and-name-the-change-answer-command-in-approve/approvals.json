@@ -1,4 +1,54 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793942161,
+      "digest": "f2c19ddc7ee4d4f9df0eb492dbff0403d6d1b77ffc8a79cf8fd7c3a36ec5d7ea",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve",
+        "title": "Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11)",
+        "description": "Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11)",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".chough/",
+          ".github/scripts/classify-ci-paths.sh",
+          ".github/scripts/test-classify-ci-paths.sh",
+          "CHANGELOG.md",
+          "site/src/content/docs/index.md",
+          "specs/change/",
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Approving right after change new refuses. The missing-acceptance-criterion refusal names `specsync change answer <id> acceptance_criteria \"<observable outcome>\"`; the unfinished-interview refusal names every remaining question and the `specsync change answer <id> <question> <yes|no>` command for the first. Running each named command moves approval on until only the selected artifacts remain (DOCS-3.a, REQ-change-133).",
+          "Both landing-page tests fail at the #881 archive tip 603a1356, because the page goes straight from change new to approve and the refusals name no command, and pass after the change; the README test keeps passing on the shared harness.",
+          "The approval guard is unchanged: every definition approve refused before is still refused; only the refusal text gains the command.",
+          "The landing page Quick Start change workflow, run as written from its own init and add-spec auth lines with the by-hand steps it names, approves the definition it documents (the approved scope carries the documented acceptance criterion, spec auth and path src/auth.ts) and ends archived; the Archive gate refuses until finalize and passes wherever the page says to wait for CI (DOCS-3, DOCS-1).",
+          "site/src/content/docs/index.md classifies as a full-lane path and still a site path, so editing the landing page runs these tests in CI; other site pages keep site-only routing (DOCS-1.a)."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "specs/change/change.3md: operator-facing refusal reasons name the concrete remediation while the predicates stay unchanged (the stale accepted-change reasons precedent), so only the two refusal texts change and every definition approve refused before is still refused; read-only text views keep mapping an invalid effective definition to their one generic diagnostic, which this change does not touch. No principles file is configured.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "5d7892bd3ab9de42a9d01b91f0a6a4dbebd3c25039a4e54558dcdf7a05d77997"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

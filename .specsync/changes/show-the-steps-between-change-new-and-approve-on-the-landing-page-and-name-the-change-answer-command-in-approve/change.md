@@ -1,6 +1,6 @@
 ---
 id: show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve
-state: draft
+state: approved
 type: bug_fix
 base_commit: 603a1356ae88763f5560c943361316456033ff49
 ---

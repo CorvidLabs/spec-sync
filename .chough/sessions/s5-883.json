@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-43d35e9a1a7c7b264d57be1f",
-    "head": "EVT-b520447107d4059803ebe8c1",
+    "head": "EVT-0e5adaf694a3ae71a97d71e0",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -34,7 +34,8 @@
   "decisions": [
     "Leif (2026-11-05 20:22 MST, orc tab, relayed by orc t18): 'Approve all': DOCS-3 and DOCS-3.a as drafted; DOCS-3.a is a small product change to the two approve refusals (no acceptance criterion; interview incomplete); classify site/src/content/docs/index.md as full-lane; #883 on leif/883-landing-approval",
     "decided: REQ-change-133 for the new requirement, because the orc's registry assigns 127-132 elsewhere and main and every open PR branch had none at or above 130",
-    "decided: leif/883-landing-approval is stacked on #881's archive tip 603a1356, because the shared harness lives in #881's tests/integration/documented_workflows.rs; merge origin/main once #898 lands"
+    "decided: leif/883-landing-approval is stacked on #881's archive tip 603a1356, because the shared harness lives in #881's tests/integration/documented_workflows.rs; merge origin/main once #898 lands",
+    "Leif (2026-11-05, orc tab, relayed by orc t18): 'Approve' for show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve; approval recorded as 0xLeif at ef8f7aa7 by the orc; build, verify, PR (Fixes #883), ready for review"
   ],
   "open_questions": [],
   "completed": [
@@ -43,9 +44,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve (specsync change approve --actor 0xLeif, recorded by orc)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After orc confirms approval: implement the two refusal texts, landing page, classifier, spec updates; verify; change check --commit"
+  "next_action": "Implement refusal texts, landing page, classifier, spec updates; fix Codex #898 P2 (fresh-clone gate); verify"
 }

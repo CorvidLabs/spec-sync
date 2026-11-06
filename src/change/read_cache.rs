@@ -27,6 +27,11 @@ struct PersistentReadCache {
     /// and its parents are immutable, so this needs no invalidation beyond the build identity.
     #[serde(default)]
     archive_introductions: BTreeMap<String, Vec<CachedArchiveIntroduction>>,
+    /// Keys of legacy-baseline introduction proofs that passed (see
+    /// `legacy_introductions_cache_key`). A key digests every input of the proof that is not an
+    /// immutable commit, so it never names a different verdict. Only passes are stored.
+    #[serde(default)]
+    legacy_introductions: BTreeSet<String>,
     /// `<cutoff commit>\n<change id>` for each workflow-v1 change shown to have had a workflow-v1
     /// record at that trusted pre-v2 cutoff (REQ-change-136). The cutoff is an immutable commit, so
     /// an entry needs no invalidation beyond the build identity; a refusal is never stored.
@@ -95,13 +100,15 @@ fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
     index
 }
 
-/// The package version plus the bundled validation limits, so a build that judges history
-/// differently never reuses another build's verdicts.
+/// The package version plus the build fingerprint, so a build that judges history differently
+/// never reuses another build's verdicts (REQ-change-134). The version alone named no code: every
+/// build of one version shared it, sibling worktrees included, since the cache lives in the Git
+/// common directory (#878). The fingerprint covers the bundled validation limits too.
 fn read_cache_build_identity() -> String {
     format!(
         "{}+{}",
         env!("CARGO_PKG_VERSION"),
-        sha256_hex(include_str!("../lifecycle-validation-limits.json").as_bytes())
+        crate::hash_cache::BUILD_FINGERPRINT
     )
 }
 
@@ -461,6 +468,7 @@ fn with_persistent_read_cache<Value>(
             repo_prefix: prefix.clone(),
             workflow_history: BTreeMap::new(),
             archive_introductions: BTreeMap::new(),
+            legacy_introductions: BTreeSet::new(),
             workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
@@ -636,6 +644,63 @@ fn remember_workflow_history_pass(root: &Path, record: &ChangeRecord) {
                 cache.workflow_history.insert(record.id.clone(), entry);
                 frame.dirty = true;
             }
+        }
+    });
+}
+
+const LEGACY_INTRODUCTIONS_CACHE_DOMAIN: &[u8] = b"specsync.read-cache.legacy-introductions.v1";
+
+/// The read-cache key for one proof of a legacy baseline's introductions (#901).
+///
+/// `validate_legacy_archive_introductions` reads the baseline (bound by its ledger digest), the
+/// cutoff commit, the commits reachable from it, the introduction commits and their trees, the
+/// repository prefix, and every enumerated archive's current subtree. Commits named by full id
+/// and everything reachable from them are immutable while the persistent cache is enabled (it is
+/// off for shallow, grafted, replaced and partial clones), the prefix and the build are part of
+/// the cache file's identity, and the rest is digested here. `None`, so the proof runs live,
+/// when the cutoff is not a full commit id or an archive has no capturable subtree.
+fn legacy_introductions_cache_key(
+    baseline_digest: &str,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Option<String> {
+    if !is_full_object_id(&baseline.cutoff_commit) {
+        return None;
+    }
+    let mut digest = FramedDigest::new(LEGACY_INTRODUCTIONS_CACHE_DOMAIN);
+    digest.frame(b"baseline", baseline_digest.as_bytes());
+    digest.frame(b"cutoff", baseline.cutoff_commit.as_bytes());
+    for entry in &baseline.entries {
+        let subtree = legacy_archive_subtree_digest(snapshots.get(&entry.id)?).ok()?;
+        digest.frame(b"id", entry.id.as_bytes());
+        digest.frame(b"subtree", subtree.as_bytes());
+    }
+    Some(digest.finish())
+}
+
+/// Whether the persistent read cache holds a passing proof under `key`.
+fn legacy_introductions_proven(root: &Path, key: &str) -> bool {
+    with_persistent_read_cache(root, |_, frame| {
+        frame.path.is_some()
+            && frame
+                .loaded
+                .as_ref()
+                .is_some_and(|cache| cache.legacy_introductions.contains(key))
+    })
+    .unwrap_or(false)
+}
+
+/// Records a passing proof under `key`. Called only after the live proof passed.
+fn remember_legacy_introductions_proven(root: &Path, key: String) {
+    with_persistent_read_cache(root, |_, frame| {
+        if frame.path.is_none() {
+            return;
+        }
+        if let Some(cache) = frame.loaded.as_mut()
+            && cache.legacy_introductions.len() < MAX_CHANGE_READ_CACHE_ENTRIES
+            && cache.legacy_introductions.insert(key)
+        {
+            frame.dirty = true;
         }
     });
 }
@@ -903,6 +968,13 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
         pending.push((key, record));
     }
     if pending.len() < 2 {
+        return;
+    }
+    // With the command's lifecycle-state history index, each archive's check needs no history
+    // walk of its own, and its state-file reads go through this thread's one batch reader. The
+    // archive walk then validates them here, in order, with a deadline check between archives
+    // (REQ-change-141). Workers have no batch reader, so they would only add processes.
+    if lifecycle_state_history(root).is_some() {
         return;
     }
     let workers = std::thread::available_parallelism()

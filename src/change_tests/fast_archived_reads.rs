@@ -79,8 +79,8 @@ fn archived_status_git_processes_do_not_grow_with_other_archives() {
 
 /// A repository whose first `legacy` changes were made under workflow v1 and committed as the
 /// trusted pre-v2 cutoff, then adopted workflow v2 and finalized one change. Returns that
-/// archived change. Most real archives look like this: their workflow-v1 changes must each be
-/// shown to have existed at the cutoff.
+/// archived change. Most real archives look like this: their archived workflow-v1 changes must
+/// each be shown to have existed at the cutoff.
 fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
@@ -90,24 +90,24 @@ fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
-    for index in 0..legacy {
-        let record = create_change(
-            root,
-            CreateChangeRequest {
-                description: format!("legacy workflow-v1 change {index}"),
-                kind: ChangeKind::Operations,
-                affected_specs: Vec::new(),
-                affected_paths: vec![format!("ops/legacy-{index}/")],
-                requested_artifacts: Vec::new(),
-                no_spec_change: true,
-                rationale: Some("Upgrade compatibility fixture".into()),
-            },
-        )
-        .unwrap();
+    for _ in 0..legacy {
+        let record = completed_no_spec_record(root);
         assert_eq!(record.workflow_version, 1);
+        // Carried through the workflow-v1 lifecycle to its archive, as most real legacy
+        // changes were before their project adopted workflow v2.
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        accept_change(root, &record.id, Some("Acceptor".into()), None).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "accept legacy change"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        archive_change(root, &record.id).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "archive legacy change"]);
     }
     quiet_git(root, &["add", "--all"]);
-    quiet_git(root, &["commit", "-m", "trusted workflow-v1 cutoff"]);
+    quiet_git(root, &["commit", "--allow-empty", "-m", "trusted workflow-v1 cutoff"]);
     quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
     adopt(root, false, None).unwrap();
     quiet_git(root, &["add", "--all"]);

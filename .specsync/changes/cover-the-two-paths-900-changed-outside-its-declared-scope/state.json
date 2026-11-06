@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "ccc35abd6013041c37d2737e2dcb3290996f9b58",
   "created_at": 1793978831,
-  "updated_at": 1793979497,
+  "updated_at": 1793979503,
   "affected_specs": [],
   "affected_paths": [
     "src/change/collect_requirement_ids.rs",

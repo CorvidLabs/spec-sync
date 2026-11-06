@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged",
+  "slug": "require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged",
+  "title": "Require a fresh review after a send-back even when the scope comes back unchanged",
+  "description": "Require a fresh review after a send-back even when the scope comes back unchanged",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "8a251d7a553f5c98dc1f2f505262f4b0d055e3f7",
+  "created_at": 1793989653,
+  "updated_at": 1793989720,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "CHANGELOG.md",
+    "hi/change.md",
+    "src/change/",
+    "src/change_tests/",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A change reviewed, sent back and re-approved with its scope unchanged, then checked without --commit, is not ready to ship: change status names change review, change ship-status reports the review stale, and change ship and change finalize refuse until a fresh review is recorded; the fresh review then finalizes the change with both review attempts in its history, the first unchanged.\nThe integration test built from the #960 scenario (the Codex P1 on #944) fails on main 8a251d7a and passes with the fix.\nA send-back records how many review attempts preceded it, beside cancelled_approvals, and a review counts only when it was recorded after the latest send-back; a send-back recorded before that field existed falls back to a strict timestamp comparison, so no existing archive changes its verdict.\nReview history validity (#914), the CHANGE-12.b currency rule and every other review currency check are unchanged; no gate, bound or timeout is relaxed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change lesson z=18 (#914, History is not currency): review history validity binds any recorded approval and is untouched; only currency changes. CHANGE-12.b/REQ-change-123: a send-back cancels the approval and, per CHANGE-12.e, the review too. send_backs and review-attempts.json are append-only and committed send-backs cannot be edited, so the new count is written only on new send-backs and old ones keep a fallback that leaves existing archives' verdicts unchanged. Change lesson (#901/#880): the repro is the failing-first integration test through the binary under workflow v2.",
+    "public_contract": "yes"
+  }
+}

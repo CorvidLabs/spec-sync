@@ -69,6 +69,13 @@
         "cmd_comment: REQUIREMENT REQ-cmd-comment-003": "8fdd51862883a01f90ffd576921e92878ece0bda0469a024a648cd75adfaa85b",
         "cmd_comment: SPEC SECTION Behavioral Examples": "8f4ec4a0b887bd79e703b79d5da579c7b776556ba685be3d6a195581fd705a82"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793940902,
+      "digest": "012a043a9d684200cc37803d5d623820e5ae335dbed605dcea02364bb39dd402",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 170
+version: 171
 status: active
 files:
   - src/change.rs
@@ -294,6 +294,7 @@ Acceptance Criteria
 
 45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
 46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
+47. A scoped review recorded before a send-back stays valid review history. It validates against the definition approval it bound, including one the send-back cancelled, so it never blocks a fresh `change review` after re-approval, and it is never removed or rewritten. Whether a review counts is a separate question, answered as before: it must match the current contract and evidence and bind a definition approval the latest send-back did not cancel. A review bound only to a cancelled approval is reported stale, never unreadable, and never lets `change ship` or `change finalize` through (#914, REQ-change-123, CHANGE-12.b, CHANGE-12.d).
 
 ## Behavioral Examples
 

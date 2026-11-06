@@ -17,6 +17,8 @@ CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
 
 CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
 
+CHANGE-12.d is captured from Leif's answer in the orc tab on 2026-11-06 at 06:1x MST (issue #914): "Ok yes I approve all", in reply to a brief that proposed this sentence as worded. Relayed by orc t18; recorded by the ss-914 Claude agent.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -52,3 +54,4 @@ CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
   - **CHANGE-12.a**  Sending it back needs a named person and a reason, and both stay in the change's history.
   - **CHANGE-12.b**  Sending it back cancels its approval, so the new scope needs a fresh one.
   - **CHANGE-12.c**  Nothing already recorded about the change is lost.
+  - **CHANGE-12.d**  A change I send back after it was reviewed can be reviewed again once it is approved again, and the earlier review stays in its history.

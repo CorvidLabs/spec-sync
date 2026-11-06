@@ -5015,11 +5015,38 @@ fn archived_state_paths_for(
         let size: usize = header.rsplit(' ').next()?.parse().ok()?;
         let body = rest.get(header_end + 1..header_end + 1 + size)?;
         rest = rest.get(header_end + 1 + size + 1..).unwrap_or_default();
-        if serde_json::from_slice::<ChangeRecord>(body).is_ok_and(|record| record.id == id) {
+        if archived_record_id(body)? == id {
             matches.push(path.clone());
         }
     }
     Some(matches)
+}
+
+/// The `id` an archived `state.json` carries: from the change record, or, for a record this
+/// build does not decode, from its top-level `id` string. `None` when neither reads, because that
+/// record could be this change's archive (Codex review of #967).
+fn archived_record_id(body: &[u8]) -> Option<String> {
+    if let Ok(record) = serde_json::from_slice::<ChangeRecord>(body) {
+        return Some(record.id);
+    }
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()?
+        .get("id")?
+        .as_str()
+        .map(str::to_string)
+}
+
+/// `text` with every POSIX extended-regex metacharacter escaped, so `git grep -E` matches it
+/// literally.
+fn extended_regex_literal(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        if "\\.^$*+?()[]{}|".contains(character) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 /// The one sentence review, finalize, status and ship-status print for an upstream archive.
@@ -5028,9 +5055,19 @@ pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> 
         UpstreamArchive::Archived { reference, commit } => format!(
             "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; rebase this branch onto `{reference}`, whose archive is authoritative, dropping the commit that added `{CHANGES_PATH}/{id}/` (or reset to `{reference}` when the branch has nothing else), instead of closing it a second time. Merging, or deleting the copy in a new commit, leaves history that fails integrity"
         ),
-        UpstreamArchive::CannotTell { reference } => format!(
-            "cannot tell whether `{id}` is already archived on `{reference}`: its archived state records could not be read here, so review and finalize refuse rather than archive it a second time. Run `git fetch origin`, then `git grep -l -F '{id}' {reference} -- {ARCHIVE_PATH}` to list its archived packages for this id: if one is listed, rebase this branch onto `{reference}` instead of closing it again"
-        ),
+        UpstreamArchive::CannotTell { reference } => {
+            // Each argument is one shell word, so a refname with shell metacharacters stays data,
+            // and the pattern matches the `id` field exactly, not any text that contains it.
+            let pattern = shell_quote(&format!(
+                r#""id"[[:space:]]*:[[:space:]]*"{}""#,
+                extended_regex_literal(id)
+            ));
+            let quoted_reference = shell_quote(reference);
+            let state_records = shell_quote(&format!("{ARCHIVE_PATH}/*/state.json"));
+            format!(
+                "cannot tell whether `{id}` is already archived on `{reference}`: its archived state records could not be read here, so review and finalize refuse rather than archive it a second time. Run `git fetch --refetch origin` to repair this clone's objects, then `git grep -l -E {pattern} {quoted_reference} -- {state_records}` to list its archived packages for this id: if one is listed, rebase this branch onto `{reference}` instead of closing it again"
+            )
+        }
     }
 }
 

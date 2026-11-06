@@ -724,15 +724,37 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          # The Linux rows are held to LINUX_ARTIFACTS in .github/scripts/linux-baseline.py
+          # by .github/scripts/test-linux-baseline.py, together with rc-assets.yml and the
+          # ci.yml linux-baseline job. Change them together (#882, REQ-github-025).
+          #
+          # The glibc downloads are linked natively on Ubuntu 22.04 (glibc 2.35), one runner
+          # per architecture, so they start on the documented floor: glibc 2.35, Ubuntu
+          # 22.04, Debian 12 and newer. `ubuntu-latest` must never build them. Linked against
+          # a newer glibc, Rust std's weak `pidfd_spawnp` and `pidfd_getpid` references take
+          # that glibc's symbol version (GLIBC_2.39 on Ubuntu 24.04), and the loader then
+          # refuses the binary on every older system. 6.1.2 and 6.2.0 shipped exactly that.
+          #
+          # When GitHub retires its Ubuntu 22.04 images these rows fail at job start, so the
+          # floor never rises silently. Then either build inside a digest-pinned
+          # `ubuntu:22.04` container, or raise the floor deliberately in README.md, the
+          # Action docs and LINUX_ARTIFACTS together.
+          #
+          # The musl downloads are static, start on any Linux of their architecture, and are
+          # the documented fallback below the floor. musl-gcc targets the host, so the ARM64
+          # musl row runs on an ARM64 runner.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: specsync-linux-x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             artifact: specsync-linux-x86_64-musl
-          - os: ubuntu-latest
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             artifact: specsync-linux-aarch64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            artifact: specsync-linux-aarch64-musl
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact: specsync-macos-x86_64
@@ -748,20 +770,30 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools (Linux aarch64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
-
       - name: Install musl toolchain (Linux musl)
         if: contains(matrix.target, 'musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y musl-tools
-          echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
-          echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+          # musl-gcc compiles the tree-sitter grammars' C code for the host architecture.
+          case "$TARGET" in
+            x86_64-unknown-linux-musl)
+              echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+            aarch64-unknown-linux-musl)
+              echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_aarch64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::No musl toolchain mapping for ${TARGET}"
+              exit 1
+              ;;
+          esac
 
       # NO CACHE HERE, deliberately, and this job must never gain one.
       #
@@ -851,6 +883,23 @@ jobs:
               json.dumps(provenance, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
+
+      - name: Start the packaged Linux archive on its documented baseline
+        # A Linux download that does not start on its documented baseline is never uploaded,
+        # so it can never be released (#882, REQ-github-025). The check verifies the archive
+        # against its sidecar, then runs the binary offline, unprivileged and read-only in
+        # digest-pinned containers: version, help, init, and a strict check on a one-module
+        # project that must pass and then fail on an undocumented export. The glibc builds run
+        # on ubuntu:22.04 and debian:12-slim; the musl builds also run on debian:11-slim and
+        # alpine:3.22.
+        if: runner.os == 'Linux'
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+          PACKAGE_VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/linux-baseline.py check \
+            --archive "${ARTIFACT}.tar.gz" \
+            --expect-version "$PACKAGE_VERSION"
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

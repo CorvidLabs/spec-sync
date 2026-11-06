@@ -2922,6 +2922,313 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
     );
 }
 
+// Verifies REQ-change-093 and REQ-cmd-change-014 through the built binary (#880, audit D3). A
+// committed workflow-v2 archive whose verification evidence is tampered reports terminal
+// evidence `corrupt-history`; the handoff must then be `not-yet` in JSON and text, and every
+// next action must name the restore that recovers it. The test runs the named command verbatim,
+// then repeats the tamper as a commit and restores from the archiving commit.
+#[test]
+fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    // Workflow-v2 baseline is byte-compared; keep committed LF JSON as LF on Windows.
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let run = |args: &[&str]| -> String {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        let output = specsync()
+            .args(&full)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        String::from_utf8(output).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Archive a greeting",
+        "--kind",
+        "documentation",
+        "--path",
+        "docs/greeting.md",
+        "--no-spec-change",
+        "--rationale",
+        "Documentation-only behavior does not alter a technical contract",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The greeting is archived"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let active_dir = root.join(".specsync/changes").join(&id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap()).unwrap();
+    assert_eq!(
+        state["workflow_version"], 2,
+        "the defect is reproduced under workflow v2"
+    );
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let artifact = artifact.as_str().unwrap();
+        let content = if artifact == "tasks" {
+            "# Tasks\n\n- [x] Archive the greeting.\n".to_string()
+        } else {
+            format!("# {artifact}\n\nComplete evidence for the greeting.\n")
+        };
+        fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+    }
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    fs::write(root.join("docs/greeting.md"), "# Greeting\n\nHello.\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement greeting"]);
+    run(&["change", "check", &id]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let finalized: Value =
+        serde_json::from_str(&run(&["--json", "change", "finalize", &id])).unwrap();
+    // Rebuilt from the directory name: the reported path may resolve a symlinked temp root.
+    let package = format!(
+        ".specsync/archive/changes/{}",
+        PathBuf::from(finalized["archived"].as_str().unwrap())
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+    );
+    let archive_dir = root.join(&package);
+    assert!(archive_dir.join("state.json").is_file(), "{package}");
+    // Finalize commits the archive move itself, so HEAD is the archiving commit.
+    assert_eq!(
+        git(&["status", "--porcelain"]),
+        "",
+        "finalize leaves a clean tree"
+    );
+
+    let status_json =
+        || -> Value { serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap() };
+    let status_text = || run(&["change", "status", &id]);
+    let line = |text: &str, prefix: &str| -> String {
+        text.lines()
+            .map(str::trim_start)
+            .find(|line| line.starts_with(prefix))
+            .unwrap_or_else(|| panic!("no `{prefix}` line in:\n{text}"))
+            .to_string()
+    };
+    let no_digest = |text: &str| {
+        assert!(
+            !text
+                .split(|character: char| !character.is_ascii_hexdigit())
+                .any(|word| word.len() >= 40),
+            "guidance must never carry a digest: {text}"
+        );
+    };
+    let assert_authenticated_and_safe = |when: &str| {
+        let json = status_json();
+        assert_eq!(
+            json["summary"]["terminal_evidence"]["validity"], "authenticated-history",
+            "{when}: {json}"
+        );
+        assert_eq!(
+            json["summary"]["handoff"]["readiness"], "safe",
+            "{when}: {json}"
+        );
+        assert_eq!(
+            json["summary"]["next_action"], "merge the PR on GitHub if it is still open",
+            "{when}"
+        );
+        let text = status_text();
+        assert_eq!(
+            line(&text, "Next:"),
+            "Next: no further action",
+            "{when}:\n{text}"
+        );
+        assert!(
+            line(&text, "Handoff:").starts_with("Handoff: safe —"),
+            "{when}:\n{text}"
+        );
+    };
+    assert_authenticated_and_safe("freshly archived and committed");
+
+    // The auditor's tamper: the archived verification's workspace digest replaced with zeros.
+    let verification = archive_dir.join("verification.json");
+    let original = fs::read(&verification).unwrap();
+    let tamper = || {
+        let mut evidence: Value = serde_json::from_slice(&original).unwrap();
+        evidence["workspace_digest"] = Value::String("0".repeat(64));
+        fs::write(
+            &verification,
+            serde_json::to_string_pretty(&evidence).unwrap() + "\n",
+        )
+        .unwrap();
+        fs::read(&verification).unwrap()
+    };
+    let tampered = tamper();
+
+    // Uncommitted damage: HEAD still holds the committed archive.
+    let json = status_json();
+    assert_eq!(
+        json["summary"]["terminal_evidence"]["validity"], "corrupt-history",
+        "{json}"
+    );
+    let handoff = &json["summary"]["handoff"];
+    assert_eq!(
+        handoff["readiness"], "not-yet",
+        "a corrupt archive is never safe: {json}"
+    );
+    assert!(
+        handoff["reason"]
+            .as_str()
+            .unwrap()
+            .contains("fails its integrity check"),
+        "{json}"
+    );
+    let step = handoff["before_clearing"][0].as_str().unwrap().to_string();
+    let restore_from_head = format!("git restore --source=HEAD --staged --worktree -- {package}");
+    assert_eq!(
+        step,
+        format!(
+            "run `{restore_from_head}` to put back the committed archive, then `specsync change status {id}`"
+        )
+    );
+    assert_eq!(
+        json["summary"]["next_action"], step,
+        "JSON next action and handoff agree"
+    );
+    assert!(!step.contains("specsync change check"));
+    no_digest(&step);
+    let text = status_text();
+    assert_eq!(line(&text, "Next:"), format!("Next: {step}"), "{text}");
+    let handoff_line = line(&text, "Handoff:");
+    assert!(handoff_line.starts_with("Handoff: not yet —"), "{text}");
+    assert!(
+        handoff_line.ends_with(&format!("Before clearing: {step}")),
+        "{text}"
+    );
+    no_digest(&handoff_line);
+    let ship_status = run(&["change", "ship-status", &id]);
+    assert!(
+        ship_status.contains(&step),
+        "ship-status names the restore:\n{ship_status}"
+    );
+    // Reading status changes nothing: the tampered bytes are still there to restore.
+    assert_eq!(fs::read(&verification).unwrap(), tampered);
+
+    // Run the named command verbatim.
+    let named = step
+        .split('`')
+        .nth(1)
+        .expect("the step names its command in backticks");
+    assert_eq!(named, restore_from_head);
+    let words: Vec<&str> = named.split_whitespace().collect();
+    assert_eq!(words[0], "git");
+    git(&words[1..]);
+    assert_eq!(fs::read(&verification).unwrap(), original);
+    assert_eq!(
+        git(&["status", "--porcelain"]),
+        "",
+        "the restore leaves a clean tree"
+    );
+    assert_authenticated_and_safe("after the named HEAD restore");
+
+    // Committed damage: HEAD now holds the corrupt bytes, so the commit that archived the
+    // package is where the trusted bytes are.
+    tamper();
+    git(&["commit", "-am", "tamper with the archive"]);
+    let json = status_json();
+    assert_eq!(json["summary"]["handoff"]["readiness"], "not-yet", "{json}");
+    let step = json["summary"]["handoff"]["before_clearing"][0]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let find_archiving_commit =
+        format!("git log -1 --diff-filter=A --format=%H -- {package}/state.json");
+    let restore_from_commit =
+        format!("git restore --source=<commit> --staged --worktree -- {package}");
+    assert_eq!(
+        step,
+        format!(
+            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status {id}`"
+        )
+    );
+    assert_eq!(json["summary"]["next_action"], step);
+    no_digest(&step);
+    let text = status_text();
+    assert_eq!(line(&text, "Next:"), format!("Next: {step}"), "{text}");
+    assert!(
+        line(&text, "Handoff:").starts_with("Handoff: not yet —"),
+        "{text}"
+    );
+
+    let find_words: Vec<&str> = find_archiving_commit.split_whitespace().collect();
+    let archiving_commit = git(&find_words[1..]);
+    assert_eq!(archiving_commit, git(&["rev-parse", "HEAD~1"]));
+    let restore = restore_from_commit.replace("<commit>", &archiving_commit);
+    let restore_words: Vec<&str> = restore.split_whitespace().collect();
+    git(&restore_words[1..]);
+    git(&[
+        "commit",
+        "-m",
+        "restore the archive from the commit that archived it",
+    ]);
+    assert_eq!(fs::read(&verification).unwrap(), original);
+    assert_authenticated_and_safe("after the archiving-commit restore is committed");
+}
+
 // Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic
 // delta edited after approval reads as an invalid approval in JSON and text status, and
 // `change check` and `change audit` both refuse it. Restoring the approved bytes clears all three.

@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-096f4a0939f690b73c151837",
-    "head": "EVT-d267897f18e668a28d8b98a5",
+    "head": "EVT-0b4fb645eae24fcb462b3e39",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,7 +12,7 @@
     "cmd_change"
   ],
   "stage": {
-    "current": "intent",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -20,7 +20,9 @@
   "native_change": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
   "references": {
     "criteria": [
-      "CHANGE-7.a"
+      "CHANGE-7.a",
+      "CHANGE-7.a.1",
+      "CHANGE-7.a.2"
     ],
     "requirements": [
       "REQ-change-093",
@@ -32,19 +34,25 @@
   },
   "decisions": [
     "Agent finding, not a human decision: text status on an authenticated archive here costs 0.55s today, ~10.7s with the JSON-equal check (variant A), ~3.7s with an own-package-only check (variant C); the extra ~7s is the project roster walk (73 rev-list + 73 log over legacy CHG archives) the persistent read cache does not absorb",
-    "Agent: per-change Chough session per orc t18 coordination; shared session.json adopted byte-for-byte under the #861 change key"
+    "Agent: per-change Chough session per orc t18 coordination; shared session.json adopted byte-for-byte under the #861 change key",
+    "Leif (2026-11-05 20:42 MST, orc tab, relayed by orc t18): intent \"Approve\" for CHANGE-7.a.1 and CHANGE-7.a.2 as worded; scope \"A + perf follow-up\"; native definition approval recorded as 0xLeif at 7e6192a9",
+    "rejected: variant C (own-package-only text check, ~3.7s) because text could disagree with JSON when the roster check fails, which is the D3 defect class"
   ],
   "open_questions": [],
   "completed": [
     "Reproduced on main ad50bdef with the audit fixture: JSON handoff safe beside corrupt-history; text Next 'no further action' and Handoff safe; the named tail 'specsync change check' prints 'Nothing to check'",
-    "Prototype (reverted, patches in scratchpad): git restore named command recovers tampered archive; committed damage recovers from the archiving commit and stays authenticated after commit"
+    "Prototype (reverted, patches in scratchpad): git restore named command recovers tampered archive; committed damage recovers from the archiving commit and stays authenticated after commit",
+    "Implemented (variant A): CorruptArchive signal, not-yet handoff, one restore step for handoff/JSON next/text Next/ship-status; red then green; auditor fixture recovers; perf follow-up #897 filed"
   ],
-  "observations": [],
+  "observations": [
+    "OBS-product-test-03accb387b007d6f0caf0ac6",
+    "OBS-product-test-167c1dc7ef56460da9f79442",
+    "OBS-product-test-779bc49d16e9a58a6685d19a",
+    "OBS-product-test-428ee81e19dd07f4e73779c9"
+  ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif via orc t18: confirm intent CHANGE-7.a.1/7.a.2 wording and approve scope of report-a-not-yet-handoff-... (variant A: text uses the JSON verdict, ~10.7s text status on archived here; or C: own-package only, ~3.7s)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Wait for orc t18 decision; do not touch the tree"
+  "next_action": "change check --commit, fledge lanes run verify, merge origin/main, pre-push, push, PR (Fixes #880), ready for review"
 }

@@ -20,4 +20,8 @@ Failing test first, through the built binary, under workflow v2.
 
 ## Results
 
-Pending.
+- Red first: `a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it` with the source at main ad50bdef failed exactly on the defect: JSON `handoff.readiness` `safe` beside `terminal_evidence` `corrupt-history` (the authenticated checks before the tamper passed).
+- Green: with the fix it passes, covering the uncommitted HEAD restore run verbatim, the committed tamper restored from the archiving commit, text `Next:`/`Handoff:`, and `ship-status`.
+- Unit: `handoff_corrupt_archive_is_not_yet_and_names_the_restore` (HEAD, archiving-commit and unlocated forms; freeze still first), `corrupt_archive_signal_is_only_for_an_archived_corrupt_history_record`, and every existing `handoff_*` test pass. `strict_check_reports_standalone_unprovable_archived_history` now pins the new exact next action and asserts the handoff agrees. Its first run caught a real bug: outside a work tree `git diff` runs as `--no-index` and exits 1, so the probe now confirms the repository first.
+- Auditor fixture (`fixtures/rust-main-v1`) with the release binary: clean → safe; uncommitted tamper → not-yet with the HEAD restore; the named command → authenticated-history and safe; committed tamper → archiving-commit form; restore from `f49d652` committed → authenticated-history and safe; clean tree.
+- Cost (release, macOS, this repository, 247 archives, authenticated #861 archive): text `change status` 0.55 s → ~10.7 s on a quiet machine; interleaved under load average ~70, main 1.17/1.30/1.82 s against 18.2/19.8/21.7 s. JSON unchanged (38.5/41.0/55.1 s against 38.7/40.7/67.4 s). Git processes for text status 24 → 207. The time is the project roster walk over the 73 legacy `CHG-*` archives that the persistent cache does not reuse; follow-up #897 (plan row S9). No test, gate, bound or timeout was changed.

@@ -2808,6 +2808,7 @@ fn handoff_signals(state: ChangeState) -> HandoffSignals {
         verification_current: true,
         scoped_review_current: true,
         terminal_evidence_stale: false,
+        corrupt_archive: None,
     }
 }
 
@@ -3023,6 +3024,100 @@ fn handoff_archived_is_safe_with_nothing_to_do() {
     let summary = classify_handoff("add-passkeys", &handoff_signals(ChangeState::Archived));
     assert_eq!(summary.readiness, HandoffReadiness::Safe);
     assert!(summary.before_clearing.is_empty());
+}
+
+// Verifies REQ-change-093 (#880): an archive that fails its integrity check is never safe to
+// leave, and the one step names the restore for each place the trusted bytes can be.
+#[test]
+fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
+    let package = ".specsync/archive/changes/2026-11-06-add-passkeys";
+    let mut signals = handoff_signals(ChangeState::Archived);
+
+    signals.corrupt_archive = Some(CorruptArchive {
+        package: Some(package.into()),
+        differs_from_head: true,
+    });
+    let uncommitted = classify_handoff("add-passkeys", &signals);
+    assert_eq!(uncommitted.readiness, HandoffReadiness::NotYet);
+    assert!(uncommitted.reason.contains("fails its integrity check"));
+    assert_eq!(
+        uncommitted.before_clearing,
+        vec![format!(
+            "run `git restore --source=HEAD --staged --worktree -- {package}` to put back the committed archive, then `specsync change status add-passkeys`"
+        )]
+    );
+    assert_handoff_has_no_digest(&uncommitted);
+
+    signals.corrupt_archive = Some(CorruptArchive {
+        package: Some(package.into()),
+        differs_from_head: false,
+    });
+    let committed = classify_handoff("add-passkeys", &signals);
+    assert_eq!(committed.readiness, HandoffReadiness::NotYet);
+    assert_eq!(
+        committed.before_clearing,
+        vec![format!(
+            "run `git restore --source=<commit> --staged --worktree -- {package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {package}/state.json`), commit the restore, then run `specsync change status add-passkeys`"
+        )]
+    );
+    assert_handoff_has_no_digest(&committed);
+
+    signals.corrupt_archive = Some(CorruptArchive {
+        package: None,
+        differs_from_head: false,
+    });
+    let unlocated = classify_handoff("add-passkeys", &signals);
+    assert_eq!(unlocated.readiness, HandoffReadiness::NotYet);
+    assert_eq!(
+        unlocated.before_clearing,
+        vec![
+            "restore the archive for add-passkeys under `.specsync/archive/changes/` from trusted Git history, then run `specsync change status add-passkeys`"
+                .to_string()
+        ]
+    );
+    assert_handoff_has_no_digest(&unlocated);
+
+    // A project-wide freeze still comes first: it blocks the status read the step ends with.
+    signals.sequence_frozen = true;
+    let frozen = classify_handoff("add-passkeys", &signals);
+    assert!(frozen.reason.contains("change-sequence ledger is frozen"), "{frozen:?}");
+}
+
+// Verifies REQ-change-093 (#880): only an archived record whose terminal evidence is
+// `corrupt-history` carries the signal, and a package is named only when it is an archive.
+#[test]
+fn corrupt_archive_signal_is_only_for_an_archived_corrupt_history_record() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_no_spec_record(root);
+    let evidence = |validity| TerminalEvidenceSummary {
+        validity,
+        reason: None,
+    };
+    let corrupt = evidence(TerminalEvidenceValidity::CorruptHistory);
+    assert_eq!(corrupt_archive_signal(root, &record, Some(&corrupt)), None);
+
+    record.state = ChangeState::Archived;
+    assert_eq!(corrupt_archive_signal(root, &record, None), None);
+    for validity in [
+        TerminalEvidenceValidity::AuthenticatedHistory,
+        TerminalEvidenceValidity::HistoricalTransitionUnproven,
+    ] {
+        assert_eq!(
+            corrupt_archive_signal(root, &record, Some(&evidence(validity))),
+            None,
+            "{validity:?} authenticates, so the archive stays safe"
+        );
+    }
+    // The record still resolves to its active directory, which is not an archive package, so
+    // no restore path is named for it and nothing asks Git about it.
+    assert_eq!(
+        corrupt_archive_signal(root, &record, Some(&corrupt)),
+        Some(CorruptArchive {
+            package: None,
+            differs_from_head: false,
+        })
+    );
 }
 
 // Verifies REQ-change-093.

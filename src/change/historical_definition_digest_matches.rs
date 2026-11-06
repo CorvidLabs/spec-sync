@@ -3285,9 +3285,11 @@ pub fn summarize_change_with_strict(
 }
 
 /// The handoff verdict for one change, from the same signals `summarize_change` reads — but
-/// gathered only as far as the state needs. Text-mode `status` prints this on every change,
-/// and an archived record's terminal-evidence walk over the whole archive would turn that line
-/// into a minutes-long wait for a verdict that is `safe` regardless.
+/// gathered only as far as the state needs. An archived record reads the same terminal-evidence
+/// verdict `ChangeSummary` carries: an archive that fails its integrity check is not safe to
+/// leave, and assuming it was let the text line call `safe` what JSON reported as
+/// `corrupt-history` (#880). Inside a read scope that verdict is memoized, so the `Next:` and
+/// `Handoff:` lines of one text result share one walk.
 pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     let sequence_frozen = sequence_ledger_freeze_next_action(root).is_some();
     let mut signals = HandoffSignals {
@@ -3302,12 +3304,16 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         verification_current: true,
         scoped_review_current: true,
         terminal_evidence_stale: false,
+        corrupt_archive: None,
     };
     if sequence_frozen {
         return classify_handoff(&record.id, &signals);
     }
     match record.state {
-        ChangeState::Archived => {}
+        ChangeState::Archived => {
+            signals.corrupt_archive =
+                corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)));
+        }
         ChangeState::Draft => {
             signals.open_questions = !next_questions_for(root, record).is_empty();
             signals.artifacts_complete =
@@ -3367,11 +3373,18 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
         )
     } else {
         match signals.state {
-            ChangeState::Archived => (
-                HandoffReadiness::Safe,
-                "the change is archived; nothing this session knows is still needed",
-                Vec::new(),
-            ),
+            ChangeState::Archived => match &signals.corrupt_archive {
+                Some(corrupt) => (
+                    HandoffReadiness::NotYet,
+                    "the archive fails its integrity check, so a fresh session cannot trust it, and only this session may know what changed it",
+                    vec![corrupt_archive_recovery(id, corrupt)],
+                ),
+                None => (
+                    HandoffReadiness::Safe,
+                    "the change is archived; nothing this session knows is still needed",
+                    Vec::new(),
+                ),
+            },
             ChangeState::Draft if signals.open_questions => (
                 HandoffReadiness::Conditional,
                 "the interview is unfinished, so what this session has decided is not recorded yet",
@@ -3482,6 +3495,78 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
         resume,
         before_clearing,
     }
+}
+
+/// The step that restores an archive failing its integrity check, ending with the status read
+/// that confirms it. When the package differs from `HEAD` the committed bytes are one command
+/// away; when the damage is committed, the commit that archived the package holds them. Built
+/// from literals, the change ID and the package path only — never a digest.
+fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
+    match (&corrupt.package, corrupt.differs_from_head) {
+        (Some(package), true) => format!(
+            "run `git restore --source=HEAD --staged --worktree -- {package}` to put back the committed archive, then `specsync change status {id}`"
+        ),
+        (Some(package), false) => format!(
+            "run `git restore --source=<commit> --staged --worktree -- {package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {package}/state.json`), commit the restore, then run `specsync change status {id}`"
+        ),
+        (None, _) => format!(
+            "restore the archive for {id} under `{ARCHIVE_PATH}/` from trusted Git history, then run `specsync change status {id}`"
+        ),
+    }
+}
+
+/// The restore step for an archived record whose terminal evidence is `corrupt-history`, for the
+/// text adapters' `Next:` line; `None` for any other state or an archive that authenticates.
+/// The same string `ChangeSummary.next_action` and the handoff's first step carry.
+pub fn corrupt_archive_recovery_for_guidance(root: &Path, record: &ChangeRecord) -> Option<String> {
+    if record.state != ChangeState::Archived {
+        return None;
+    }
+    corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)))
+        .map(|corrupt| corrupt_archive_recovery(&record.id, &corrupt))
+}
+
+/// The corrupt-archive signal for one record: `Some` only for an archived record whose terminal
+/// evidence is `corrupt-history`. Locating the package and asking Git whether it differs from
+/// `HEAD` happens on that path alone, so an archive that authenticates costs nothing extra.
+fn corrupt_archive_signal(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: Option<&TerminalEvidenceSummary>,
+) -> Option<CorruptArchive> {
+    if record.state != ChangeState::Archived
+        || evidence?.validity != TerminalEvidenceValidity::CorruptHistory
+    {
+        return None;
+    }
+    let archive_root = root.join(ARCHIVE_PATH);
+    let package = find_change_dir(root, &record.id)
+        .ok()
+        .filter(|directory| directory.starts_with(&archive_root))
+        .and_then(|directory| {
+            directory
+                .strip_prefix(root)
+                .ok()
+                .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        });
+    // Inside a work tree, `git diff --quiet HEAD` exits 1 exactly when tracked content differs
+    // from `HEAD`, staged or not. Outside one, `git diff` silently becomes `--no-index`, compares
+    // a path named `HEAD`, and also exits 1, so the repository is confirmed first. Any other
+    // outcome — no repository, no `HEAD` — leaves the flag false, and the recovery then names
+    // the archiving commit rather than a `HEAD` that may not hold the archive.
+    let differs_from_head = package.as_deref().is_some_and(|package| {
+        git_repository_present(root).unwrap_or(false)
+            && crate::git_utils::status_without_inherited_output(
+                Command::new("git")
+                    .args(["diff", "--quiet", "HEAD", "--", package])
+                    .current_dir(root),
+            )
+            .is_ok_and(|status| status.code() == Some(1))
+    });
+    Some(CorruptArchive {
+        package,
+        differs_from_head,
+    })
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,
@@ -3605,6 +3690,9 @@ fn summarize_change_with_effective(
     )];
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
+    // One signal feeds both the archived next action and the handoff, so the JSON cannot name a
+    // restore while calling the same archive safe to leave (#880).
+    let corrupt_archive = corrupt_archive_signal(root, record, terminal_evidence.as_ref());
     // Sequence-ledger freezes must outrank state-local next actions (including reopen /
     // finalize). Premature multi-id acknowledgements block change new/adopt project-wide.
     let sequence_freeze = sequence_ledger_freeze_next_action(root);
@@ -3722,17 +3810,10 @@ fn summarize_change_with_effective(
             ChangeState::Accepted => {
                 format!("run `specsync change archive {}`", record.id)
             }
-            ChangeState::Archived
-                if terminal_evidence.as_ref().is_some_and(|evidence| {
-                    evidence.validity == TerminalEvidenceValidity::CorruptHistory
-                }) =>
-            {
-                format!(
-                    "restore the archive for {} from trusted Git history, then run `specsync change check`",
-                    record.id
-                )
-            }
-            ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
+            ChangeState::Archived => match &corrupt_archive {
+                Some(corrupt) => corrupt_archive_recovery(&record.id, corrupt),
+                None => "merge the PR on GitHub if it is still open".into(),
+            },
         }
     };
     let handoff = classify_handoff(
@@ -3759,6 +3840,7 @@ fn summarize_change_with_effective(
                 || (record.state == ChangeState::Accepted
                     && record.workflow_version < 2
                     && ensure_closing_approval_valid(root, record).is_err()),
+            corrupt_archive,
         },
     );
     ChangeSummary {

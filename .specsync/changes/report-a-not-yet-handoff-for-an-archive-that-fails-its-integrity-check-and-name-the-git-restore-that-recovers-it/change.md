@@ -1,6 +1,6 @@
 ---
 id: report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it
-state: draft
+state: approved
 type: bug_fix
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

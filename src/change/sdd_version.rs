@@ -1738,6 +1738,20 @@ pub struct HandoffSignals {
     /// Legacy accepted evidence that no longer matches the tree, or a closing approval that
     /// no longer validates; either needs a `reopen` with a reason only this session knows.
     pub terminal_evidence_stale: bool,
+    /// An archived record whose terminal evidence is `corrupt-history`, and where its bytes can
+    /// be restored from. `None` for every other state, and for an archive that authenticates.
+    pub corrupt_archive: Option<CorruptArchive>,
+}
+
+/// Where an archive that fails its integrity check can be restored from. Holds a path and a
+/// flag, never a digest, so the recovery built from it can reach a text line verbatim.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorruptArchive {
+    /// The archive package relative to the project root, or `None` when the change does not
+    /// resolve to exactly one archive directory.
+    pub package: Option<String>,
+    /// The package's tracked files differ from `HEAD`, so `HEAD` still holds committed bytes.
+    pub differs_from_head: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

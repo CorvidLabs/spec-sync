@@ -651,3 +651,6 @@ Issue #851. Git resolves a pathspec from the working directory unless it carries
 
 @plane z=13 label="Lesson (#862)"
 A merge can leave one requirement ID twice in `requirements.md`. `change audit` names that ID and fails, including when SDD policy is off. The archive-history walk stays opt-in behind `--archives`. Fenced examples are not IDs.
+
+@plane z=14 label="A verdict must read the evidence it summarizes"
+Issue #880 (audit D3). `classify_handoff` called every archived change `safe`, and `handoff_summary` skipped archive integrity for archived records to keep text fast, on the grounds that the answer was `safe` regardless. Once terminal evidence could be `corrupt-history`, that shortcut was a second verdict: JSON said `safe` beside `corrupt-history`, and text said `no further action`. A readiness verdict reads the same terminal-evidence value the summary carries, and pays for that check instead of assuming its answer; the cost is a performance problem to fix in the cache, not a reason to guess. A named recovery is only right once a test runs it: the old next action ended with `specsync change check`, which checks nothing for an archived change. And `git diff` outside a work tree silently runs as `--no-index` and exits 1, so a "differs from `HEAD`" probe confirms the repository first.

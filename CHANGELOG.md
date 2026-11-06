@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An archived change whose archive fails its integrity check (terminal evidence `corrupt-history`) is no longer reported safe to leave. `change status` JSON and text report handoff `not yet`, and the handoff step, the JSON next action, the text `Next:` line and `change ship-status` name one restore: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`, otherwise the same restore from the commit that archived it, then `specsync change status <id>`. The dead `specsync change check` tail is gone. Text paths now read the same terminal-evidence verdict as JSON, which makes text `change status` on an archived change slower in repositories with many legacy archives (cache follow-up: #897) (#880).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
 
 ## [6.2.0] - 2026-11-05

@@ -429,6 +429,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
 | 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
 | 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-127, #861). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |

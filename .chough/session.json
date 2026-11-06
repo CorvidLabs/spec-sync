@@ -1,20 +1,20 @@
 {
   "history_cursor": {
-    "cycle": "CYC-ed1ef6eebac35cc0453d19d4",
-    "head": "EVT-e932be0e579aa15d17b7b45a",
+    "cycle": "CYC-f3c49d109b87a4e0eb408c9b",
+    "head": "EVT-b7c7f96c42c357b4d13c02c4",
     "legacy": null
   },
   "schema_version": 2,
-  "objective": "Make SpecSync faster (#861 macOS qualify lane)",
+  "objective": "Make SpecSync faster: reuse one cat-file batch per root across nested scopes (#891 item 1)",
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "build",
+    "current": "plan",
     "status": "active",
     "callers": [],
     "iteration": 1
   },
-  "native_change": "cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos",
+  "native_change": "reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes",
   "references": {
     "criteria": [],
     "requirements": [],
@@ -27,7 +27,8 @@
     "Leif (2026-11-05 09:21 MST, Herdr orc tab, relayed by orc t18): approved intent SPEED-2.b.1 and SPEED-2.b.2 and the approach: cut SpecSync git process spawns plus cargo nextest in the qualify lane",
     "Rejected: optimized test profile as the main lever (opt-level 2 measured 386s vs 343s on the slowest test); larger runner (not needed if spawns drop)",
     "Leif (2026-11-05 09:35 MST, orc tab): approved the four-part scope; qualify timeout returns to 45 in a one-line follow-up after the next RC's macOS qualify measures well under 45, not in this change",
-    "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted"
+    "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted",
+    "Leif (2026-11-05 ~19:58 MST, orc tab, relayed by orc t18): \"Resolve and merge\" #869, then fix #891 item (1) as its own small change"
   ],
   "open_questions": [],
   "completed": [
@@ -45,7 +46,9 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Scope approval for reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes"
+  ],
   "run_consents": [],
-  "next_action": "Push archive tip, merge PR #869 on green pinned to head"
+  "next_action": "Scope approval by Leif, then failing nested-scope test"
 }

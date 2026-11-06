@@ -40,12 +40,15 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `RECORDED_CLAIM_BOUNDARY` | The words `change status` prints beside an approval's actor and a review's reviewer: a recorded claim, not authenticated |
 | `RELAYED_CLAIM_BOUNDARY` | The boundary sentence printed with every relayed decision, shared word for word with Chough |
 | `LESSON_BUNDLE_FILE` | Filename of the lesson bundle written into an archive, shared with the command layer so the two cannot name different files |
+| `READ_TIMEOUT_EXIT_CODE` | Exit status (124) of a read-only lifecycle command stopped by its `--timeout` deadline (REQ-change-137) |
 | `SDD_VERSION` | Current SDD project-layout version written by initialization |
 
 **Exported Types**
 
 | Type | Description |
 |------|-------------|
+| `ReadDeadline` | When a read must stop and the limit it was given; copied to worker threads |
+| `ReadDeadlineGuard` | Clears this thread's read deadline when dropped (REQ-change-137) |
 | `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
@@ -58,6 +61,7 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
 | `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
+| `CheckInvocation` | The `--strict`, `--commit` and `--push` flags of one `change check`, so a refusal names that exact command to re-run |
 | `ApprovalRecord` | Actor claim, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, the optional per-module semantic delta body digests a definition gate approved, and the optional `relayed_by` decision an agent relayed; the digest binds content, never the actor |
 | `RelayedDecision` | Shared relayed-decision claim: `decided_by`, verbatim `words`, `where` (including any relay chain) and `recorded_by`; all four required, non-blank and at most 4096 bytes, with `null` and unknown keys refused on read; covered by no digest |
 | `RecordedClaim` | Status projection of the effective definition approval or the latest scoped review: gate, named actor or reviewer, review verdict, optional relayed decision; carries no digest |
@@ -79,7 +83,7 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `AppliedDeltaItem` | One block a change's delta put into a canonical spec or requirements file: module, target, key and body, listed by a send-back |
-| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, whether canonical text had been applied, and the applied items |
+| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, the number of scoped review attempts before it (absent on a send-back recorded before #960), whether canonical text had been applied, and the applied items |
 | `SendBackResult` | Deterministic change-plus-audit result returned by the send-back transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -112,7 +116,8 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
 | `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
-| `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
+| `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, stale legacy terminal evidence, and a corrupt archive (`corrupt_archive`) |
+| `CorruptArchive` | Where an archived record whose terminal evidence is `corrupt-history` can be restored from: `DiffersFromHead` (the package differs from `HEAD`), `DamageCommitted` (it matches `HEAD` but not the commit that archived it), or `OutsidePackage` (it still matches that commit, or no package or repository can answer, so the failing evidence lies elsewhere); holds a project-relative path at most, never a digest (#880) |
 | `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, the validated `verification_ignored_paths` list (omitted when empty or invalid), exactly one next action, a handoff verdict, and optional terminal evidence |
 | `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
 | `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
@@ -125,6 +130,12 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
+| `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
+| `check_read_deadline` | `phase, done, total` | `Result<(), String>` | Call between items of a long read phase; past the deadline the command's thread flushes its read caches, reports and exits 124, and a worker gets `Err` |
+| `current_read_deadline` | — | `Option<ReadDeadline>` | This thread's deadline, to hand to a worker |
+| `read_deadline_passed` | — | `bool` | Whether this thread's deadline has passed |
+| `read_timeout_secs` | `flag: Option<u64>` | `Option<u64>` | `--timeout` when given, else `SPECSYNC_TIMEOUT` when it is a whole number of seconds, else none (REQ-cmd-change-032) |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `acceptance_entries` | `root: &Path, record: &ChangeRecord` | `Vec<AcceptanceInputEntryV1>` | Accepted acceptance-input entries, so `change show --json` can surface the `specsync.acceptance-entry.v1` digests `change supersede --digest` requires; empty when evidence is absent |
 | `accumulated_lessons` | `root, modules` | `Vec<(String, usize)>` | Substantive-prose line count for each module context that holds any, so a new change can be pointed at what its modules already learned |
@@ -152,7 +163,9 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `begin_change_read_scope` | `root: &Path` | `ChangeReadScope` | Install one invocation-scoped read snapshot for list/show/status and project reports |
 | `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare this change's specs to code |
 | `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with warnings failing as they do under `specsync check --strict` |
+| `check_change_as` | `root, optional id, invocation: CheckInvocation` | `Result<Option<VerificationRecord>, String>` | Run `check_change_with_strict` for one known invocation, so an open-task refusal names that invocation's own command line, flags included, as the command to re-run (REQ-change-131) |
 | `check_project` | `root: &Path` | `SddCheckReport` | Full lifecycle integrity including archive terminal evidence (tests and rare callers; not the default CLI path) |
+| `corrupt_archive_recovery_for_guidance` | `root, record` | `Option<String>` | For an archived record whose terminal evidence is `corrupt-history`, the restore step `ChangeSummary.next_action` and the handoff carry, for the text `Next:` line: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`, the same restore from the commit that archived it when the damage is committed, otherwise `specsync change status <id> --json` to find the failing evidence; each ends with `specsync change status <id>`, and every interpolated ID and path is shell-quoted. `None` otherwise. No digest (#880) |
 | `classify_handoff` | `id, signals` | `HandoffSummary` | Pure classification of handoff readiness from `HandoffSignals`; the only source of the verdict, so text and JSON cannot disagree |
 | `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
 | `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
@@ -162,7 +175,7 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `finalize_change` | `root, id` | `Result<PathBuf, String>` | Validate current verification/review evidence and transactionally produce the dated same-PR archive |
 | `find_change_dir` | Resolves a change's workspace wherever it lives, active or archived — the single answer to where a change's artifacts are |
 | `floor_sequence_ledger_to_committed` | `root: &Path` | `Result<Option<(u64, u64)>, String>` | Raise a working-tree sequence ledger to the committed high-water mark before staging, returning the previous and adopted values so the caller can disclose the raise, or `None` when the ledger is already at or above it |
-| `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs — never the archive-history walk for an Archived record — and classify them; the same verdict `ChangeSummary.handoff` carries |
+| `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs and classify them; an Archived record reads the same terminal-evidence verdict `ChangeSummary` carries, so text cannot call `safe` an archive JSON reports as `corrupt-history` (#880); the same verdict `ChangeSummary.handoff` carries |
 | `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
 | `lifecycle_commit_scope` | `root, id` | `Result<LifecycleCommitScope, String>` | The one answer to which untracked paths a lifecycle commit for this change may stage: its workspace, its archive package, each affected spec's canonical file and companions, and the lifecycle ledgers — never its `affected_paths` prefixes; `Err` when the change cannot be loaded |
 | `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read, including a directory that holds a regular file but no `state.json`; a husk with no regular file is not a change; `Err` only when the changes directory itself is unreadable |
@@ -174,6 +187,9 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
+| `open_tasks_block` | `record: &ChangeRecord` | `bool` | Whether an open task blocks the next verb: approved, implementing or verifying, or a workflow-v2 finalization stopped after acceptance (its workspace still active) |
+| `open_tasks_next_step` | `root: &Path, record: &ChangeRecord` | `Option<String>` | The open tasks of the change's selected `tasks.md` by line and text, with how to close them, or `None` when every task is done. The one sentence status, ship-status and every refusal use (REQ-change-132) |
+| `open_tasks_refusal` | `root, record, rerun: &str` | `Option<String>` | The refusal a verb gives while tasks are open: `tasks.md contains incomplete tasks: <open tasks>, then re-run `<rerun>``, or `None` when nothing is open (REQ-change-131) |
 | `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |

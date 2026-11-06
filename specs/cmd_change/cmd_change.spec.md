@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 63
+version: 64
 status: active
 files:
   - src/commands/change.rs
@@ -195,3 +195,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
 | 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |
 | 2026-11-06 | make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts: Make the ship-status product stage advertise only a command its state accepts |
+| 2026-11-06 | stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship: Stop the Archive check and change pr from telling a copy already archived upstream to run ship |

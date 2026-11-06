@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Failing test committed (`14903d0b`)
-- [ ] Add the record's resolved package path to the cutoff-tree candidates
-- [ ] Existing cutoff and archived-read tests unchanged; CHANGELOG
+- [x] Add the record's resolved package path to the cutoff-tree candidates
+- [x] Existing cutoff and archived-read tests unchanged; CHANGELOG

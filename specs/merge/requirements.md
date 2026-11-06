@@ -33,7 +33,7 @@ spec: merge.spec.md
 - A file is written only when every hunk resolves safely and the resulting output contains valid frontmatter
 - Post-resolution YAML errors, duplicate keys, missing required fields, invalid status, or empty files leave the original file unchanged
 - Uniform CRLF/LF style and final-newline presence are preserved
-- Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean` | `Unknown`), and `details` for each file
+- Each result includes `spec_path` (JSON `path`), `status` (`Resolved` | `Manual` | `Clean` | `Unknown`), and `details`. `Resolved`, `Manual` and `Clean` each describe one examined spec file; `Unknown` is a single scan-level result whose `spec_path` is the specs directory, returned when the git-mode scan could not run
 - Human-readable output uses colored formatting to distinguish status types
 
 ## Constraints
@@ -79,7 +79,7 @@ Acceptance Criteria
 - A file is written only when every hunk resolves safely and the resulting output contains valid frontmatter
 - Post-resolution YAML errors, duplicate keys, missing required fields, invalid status, or empty files leave the original file unchanged
 - Uniform CRLF/LF style and final-newline presence are preserved
-- Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean` | `Unknown`), and `details` for each file
+- Each result includes `spec_path` (JSON `path`), `status` (`Resolved` | `Manual` | `Clean` | `Unknown`), and `details`. `Resolved`, `Manual` and `Clean` each describe one examined spec file; `Unknown` is a single scan-level result whose `spec_path` is the specs directory, returned when the git-mode scan could not run
 - Human-readable output uses colored formatting to distinguish status types
 
 ### REQ-merge-002

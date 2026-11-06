@@ -4873,9 +4873,11 @@ fn watch_exact_source_edits_survive_atomic_save_and_recreation() {
     // OwnedWatch Drop kills/waits only this watch child and joins its pipe reader on any result.
 }
 
-/// Every backticked snake_case name a module's `testing.md` cites resolves to a function in
-/// `src/` or `tests/`, so a renamed test cannot leave its old name standing as evidence. A name
-/// ending in `_` is a prefix (`init_`), not a test, and is skipped.
+/// Every test name a module's `testing.md` cites as evidence resolves to a function in `src/` or
+/// `tests/`, so a renamed test cannot leave its old name standing as evidence. Only evidence fields
+/// count: cells under a `Test Obligation` or `Evidence` table column, and bullets under a
+/// `## Requirement Evidence` heading. Code spans elsewhere (`all_files`, `merge_specs`) are prose,
+/// not citations. A name ending in `_` is a prefix (`init_`), not a test, and is skipped.
 fn assert_cited_test_names_exist(relative: &str) {
     fn rust_sources(dir: &std::path::Path, found: &mut Vec<String>) {
         for entry in fs::read_dir(dir).unwrap().flatten() {
@@ -4887,29 +4889,77 @@ fn assert_cited_test_names_exist(relative: &str) {
             }
         }
     }
+    fn cells(row: &str) -> Vec<String> {
+        row.trim()
+            .trim_matches('|')
+            .split('|')
+            .map(|cell| cell.trim().to_string())
+            .collect()
+    }
     let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let text = fs::read_to_string(repo.join(relative))
+        .unwrap_or_else(|error| panic!("read {relative}: {error}"))
+        .replace("\r\n", "\n");
+    let mut evidence = Vec::new();
+    let mut evidence_columns: Vec<usize> = Vec::new();
+    let mut in_requirement_evidence = false;
+    for line in text.lines() {
+        if line.starts_with("## ") {
+            in_requirement_evidence = line.trim() == "## Requirement Evidence";
+            evidence_columns.clear();
+            continue;
+        }
+        if in_requirement_evidence && line.starts_with("- ") {
+            evidence.push(line.to_string());
+            continue;
+        }
+        if !line.trim_start().starts_with('|') {
+            evidence_columns.clear();
+            continue;
+        }
+        let row = cells(line);
+        if row.iter().all(|cell| cell.chars().all(|c| c == '-' || c == ':')) {
+            continue;
+        }
+        let headers: Vec<usize> = row
+            .iter()
+            .enumerate()
+            .filter(|(_, cell)| *cell == "Test Obligation" || *cell == "Evidence")
+            .map(|(index, _)| index)
+            .collect();
+        if !headers.is_empty() {
+            evidence_columns = headers;
+            continue;
+        }
+        for index in &evidence_columns {
+            if let Some(cell) = row.get(*index) {
+                evidence.push(cell.clone());
+            }
+        }
+    }
+    assert!(
+        !evidence.is_empty(),
+        "{relative} has no evidence fields to check; the parser no longer matches its layout"
+    );
     let mut sources = Vec::new();
     rust_sources(&repo.join("src"), &mut sources);
     rust_sources(&repo.join("tests"), &mut sources);
-    let cited = tracked_text(relative);
     let mut missing = Vec::new();
-    for name in cited.split('`').skip(1).step_by(2) {
-        let is_name = name.contains('_')
-            && !name.ends_with('_')
-            && name
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-        if !is_name {
-            continue;
-        }
-        let declared = format!("fn {name}(");
-        if !sources.iter().any(|source| source.contains(&declared)) {
-            missing.push(name.to_string());
+    for field in &evidence {
+        for name in field.split('`').skip(1).step_by(2) {
+            let is_name = name.contains('_')
+                && !name.ends_with('_')
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+            if is_name && !sources.iter().any(|source| source.contains(&format!("fn {name}("))) {
+                missing.push(name.to_string());
+            }
         }
     }
     assert!(
         missing.is_empty(),
-        "{relative} cites names no function in src/ or tests/ declares: {missing:?}"
+        "{relative} cites as evidence names no function in src/ or tests/ declares: {missing:?}"
     );
 }
 
@@ -4931,11 +4981,18 @@ fn merge_contracts_call_a_failed_git_discovery_unknown() {
         requirement.contains("(`Resolved` | `Manual` | `Clean` | `Unknown`)"),
         "REQ-merge-001 must list every result status: {requirement}"
     );
+    assert!(
+        requirement.contains(
+            "`Unknown` is a single scan-level result whose `spec_path` is the specs directory"
+        ),
+        "REQ-merge-001 must say Unknown is not a per-file result (#913 review): {requirement}"
+    );
     let retired = [
         "returns no files",
         "safe no-op",
         "returns an empty list",
         "(`Resolved` | `Manual` | `Clean`)",
+        "and `details` for each file",
         "git_discovery_failure_is_a_safe_noop",
     ];
     for relative in [

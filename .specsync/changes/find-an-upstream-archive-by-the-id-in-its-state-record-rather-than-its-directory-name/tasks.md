@@ -6,6 +6,6 @@ artifact: tasks
 # Tasks
 
 - [x] Unit test: renamed upstream package is found. Fails on main.
-- [ ] Read every `*/state.json` under the remote default's archive directory with one `ls-tree -r` and one `cat-file --batch`; match on `id`.
-- [ ] Keep the #861 spawn-ceiling test green.
-- [ ] Delta, Public API row, CHANGELOG entry, requirement evidence.
+- [x] Read every `*/state.json` under the remote default's archive directory with one `ls-tree -r` and one `cat-file --batch`; match on `id`.
+- [x] Keep the #861 spawn-ceiling test green.
+- [x] Delta, CHANGELOG entry, requirement evidence (the new helper is private, so no Public API row).

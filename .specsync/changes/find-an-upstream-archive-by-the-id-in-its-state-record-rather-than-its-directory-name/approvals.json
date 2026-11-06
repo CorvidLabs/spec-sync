@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793970821,
+      "digest": "a9a90b03ca4c836c5fcdf6a0e4b06bc97a64c698473d20552cbc6ae96b9a54f1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "find-an-upstream-archive-by-the-id-in-its-state-record-rather-than-its-directory-name",
+        "title": "Find an upstream archive by the id in its state record rather than its directory name",
+        "description": "Find an upstream archive by the id in its state record rather than its directory name",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "src/change/",
+          "src/change_tests/upstream_archive.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A unit test with a renamed upstream package fails on main first and passes after. The existing upstream-archive tests stay green.",
+          "Every other behavior of the upstream-archive refusal is unchanged.",
+          "The lookup stays bounded: one `git ls-tree -r` of the remote default's archive directory and one `git cat-file --batch` read of the `state.json` blobs, then the adding commit and one ancestry check only for a matching package. It never rebuilds the full archive index, and the #861 lifecycle spawn-ceiling test still passes.",
+          "`upstream_archive_of` finds the remote default's archive of a change by the `id` in each package's `state.json`, as `find_change_dir` does, so a renamed or undated package is found like a `YYYY-MM-DD-<id>` one."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "0b52de87343a7eecd1f12f2da242c7f5d0cd857404b4201757db4890bfefc3f2"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

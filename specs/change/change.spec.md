@@ -1,6 +1,6 @@
 ---
 module: change
-version: 170
+version: 171
 status: active
 files:
   - src/change.rs
@@ -622,3 +622,4 @@ Acceptance Criteria
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | find-an-upstream-archive-by-the-id-in-its-state-record-rather-than-its-directory-name: Find an upstream archive by the id in its state record rather than its directory name |

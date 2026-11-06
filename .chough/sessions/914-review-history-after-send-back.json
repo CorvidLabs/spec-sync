@@ -31,11 +31,13 @@
   "decisions": [
     "orc t18 (2026-11-05, for Leif overnight): fix #914 in its own worktree ss-914 and PR, test-first; #901 waits untouched at 36ad7d5e until #914 merges",
     "decided: history binds any recorded definition approval, currency binds only a post-send-back approval, because a pre-send-back review was valid evidence when recorded (CHANGE-12.c) and must never let finalize through (CHANGE-12.b)",
-    "rejected: dropping pre-send-back attempts at send-back, because CHANGE-12.c and the append-only committed history forbid losing evidence"
+    "rejected: dropping pre-send-back attempts at send-back, because CHANGE-12.c and the append-only committed history forbid losing evidence",
+    "failed: an explicit send-back check in review currency, because it is unreachable (a byte-identical re-approval records a live approval with the same digest; any other re-scope already fails the contract check); removed, and the definition no longer claims a pre-send-back review never counts after an identical re-approval"
   ],
   "open_questions": [],
   "completed": [
-    "Red first: a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes fails on main cd8cab5e ('Review: recorded (unreadable)' after the send-back)"
+    "Red first: a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes fails on main cd8cab5e ('Review: recorded (unreadable)' after the send-back)",
+    "Implemented and tested in a throwaway clone (patch kept): history binds any recorded approval; 15 focused unit + 4 integration tests green; the new unit test fails on main code at 'the review history stays readable after a send-back'"
   ],
   "observations": [],
   "bugs": [],
@@ -44,5 +46,5 @@
     "Leif via orc t18: approve intent CHANGE-12.d and the scope of let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval"
   ],
   "run_consents": [],
-  "next_action": "Wait for approval; then implement the split binding"
+  "next_action": "Morning: Leif approves CHANGE-12.d + scope; apply fix-914.patch, check --commit, verify, PR, ready for review"
 }

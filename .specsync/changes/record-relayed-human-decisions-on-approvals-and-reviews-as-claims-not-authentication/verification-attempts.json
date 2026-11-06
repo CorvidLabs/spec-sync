@@ -252,6 +252,27 @@
         "REQ-cli-args-relayed-decision-001",
         "REQ-cmd-change-relayed-decision-001"
       ]
+    },
+    {
+      "timestamp": 1793946636,
+      "commit": "6740c208dc848c4c4f7884fe30720220652b5f27",
+      "contract_digest": "e60dd55f2a68a6d4046e2fde98a4282b513b6a12d70b1ccdfab81982002e1b02",
+      "execution_digest": "40559ab92995b0141fd65892c666edd9a009f9a3a6bbe35fe9566f5f662ab59e",
+      "workspace_digest": "9806561dc5a87d9cb4401628ad86d36c59001062d154a8767a6592f7040dfd47",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-001",
+        "REQ-change-relayed-decision-001",
+        "REQ-cli-args-relayed-decision-001",
+        "REQ-cmd-change-relayed-decision-001"
+      ]
     }
   ]
 }

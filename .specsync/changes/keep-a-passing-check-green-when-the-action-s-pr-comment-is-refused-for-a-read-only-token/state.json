@@ -7,10 +7,10 @@
   "title": "Keep a passing check green when the Action's PR comment is refused for a read-only token",
   "description": "Keep a passing check green when the Action's PR comment is refused for a read-only token",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793936061,
-  "updated_at": 1793936097,
+  "updated_at": 1793936197,
   "affected_specs": [
     "github"
   ],

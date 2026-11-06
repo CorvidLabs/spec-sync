@@ -663,7 +663,7 @@ case "$FAKE_GH_MODE:$kind" in
     echo "gh: Resource not accessible by integration (HTTP 403)" >&2; exit 1 ;;
   server-error:create)
     echo "gh: Internal Server Error (HTTP 500)" >&2; exit 1 ;;
-  forbid-update:lookup) echo 123 ;;
+  forbid-update:lookup|existing:lookup) echo 123 ;;
 esac
 exit 0
 "#;
@@ -716,6 +716,11 @@ fn a_comment_the_token_may_not_post_leaves_the_check_result_unchanged() {
     let (output, _) = run_comment_step("ok");
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).contains("Posted SpecSync PR comment"));
+    let (output, _) = run_comment_step("existing");
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("Updated existing SpecSync PR comment")
+    );
 }
 
 // ─── Hands-on findings: v4 init-registry, draft visibility, fix routing ────

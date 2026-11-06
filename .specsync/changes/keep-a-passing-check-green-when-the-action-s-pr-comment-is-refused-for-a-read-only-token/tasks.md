@@ -5,7 +5,7 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Behavioural test `a_comment_the_token_may_not_post_leaves_the_check_result_unchanged` fails first
-- [ ] `action.yml` Post PR Comment: 403 on lookup, create or update becomes a warning, a job-summary copy and exit 0
-- [ ] Docs row and section, and the CHANGELOG entry
-- [ ] Existing action hardening tests still pass
+- [x] Behavioural test `a_comment_the_token_may_not_post_leaves_the_check_result_unchanged` fails first
+- [x] `action.yml` Post PR Comment: 403 on lookup, create or update becomes a warning, a job-summary copy and exit 0
+- [x] Docs row and section, and the CHANGELOG entry
+- [x] Existing action hardening tests still pass

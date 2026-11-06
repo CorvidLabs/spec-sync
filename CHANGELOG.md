@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Action's `comment: true` no longer turns a passing check red when the token cannot post the PR comment. A token GitHub refuses (HTTP 403), such as the read-only token fork pull requests get, now gives a warning naming the missing `pull-requests: write` permission, and the result goes to the job summary. Any other comment error still fails the step (#886, REQ-github-024).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
 
 ## [6.2.0] - 2026-11-05

@@ -36,7 +36,7 @@ explicitly select it because that tag's embedded default remains `6.1.2`.
 | `lifecycle-enforce` | `false` | Run lifecycle enforcement after the strict spec check |
 | `require-archived` | `false` | Run the archive gate first. Fails before downloading or running anything when an SDD change under `.specsync/changes/` is still open. Repositories without `.specsync/changes/` pass. Needs `python3` on the runner |
 | `archive-gate-only` | `false` | Run only the archive gate (implies `require-archived`) and skip the download, spec check and comment. Use it in a first job that every other job `needs:` |
-| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and write permissions |
+| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and `pull-requests: write`. Without it, as on fork pull requests, the step warns and writes the result to the job summary; the check result is unchanged |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments. Override if using a PAT for cross-repo access |
 
 ---
@@ -185,6 +185,7 @@ jobs:
 - If `comment: 'true'`, also runs `specsync comment`
 - Posts the markdown output as a PR comment (or updates an existing SpecSync comment)
 - Requires `pull-requests: write` permission and the `pull_request` event trigger
+- If GitHub refuses the token (HTTP 403), as it does for the read-only token fork pull requests get, the step emits a warning naming the missing permission and writes the result to the job summary instead. The check's result is unchanged. Any other comment error still fails the step
 
 **Custom token (e.g., for private registries or cross-repo refs):**
 

@@ -252,16 +252,47 @@ runs:
 
         COMMENT_BODY="$(printf '%s\n\n---\n<sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>' "$SPECSYNC_MARKDOWN")"
 
+        # Run one gh api call. A token GitHub refuses (HTTP 403), as on fork pull requests, cannot
+        # change the check's verdict: warn, keep the result in the job summary, and stop here.
+        # Any other failure still fails the step. fd 3 is the step's own stdout, so the warning
+        # reaches the runner even when a call's output is redirected.
+        exec 3>&1
+        comment_api() {
+          local stderr_file status
+          stderr_file="$(mktemp)"
+          if gh api "$@" 2> "$stderr_file"; then
+            rm -f "$stderr_file"
+            return 0
+          else
+            status=$?
+          fi
+          if grep -q '(HTTP 403)' "$stderr_file"; then
+            rm -f "$stderr_file"
+            echo "::warning title=SpecSync comment::Cannot post the PR comment: the token lacks pull-requests: write (fork pull requests get a read-only token). The check result is unchanged." >&3
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              printf '%s\n' "$SPECSYNC_MARKDOWN" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+          cat "$stderr_file" >&2
+          rm -f "$stderr_file"
+          return "$status"
+        }
+
         # Check for existing SpecSync comment and update it, or create new
-        EXISTING_COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-          --jq '.[] | select(.body | contains("Posted by [SpecSync]")) | .id' | head -1)
+        # Not in a command substitution, so a refusal's `exit 0` ends the step, not a subshell.
+        EXISTING_IDS_FILE="$(mktemp)"
+        comment_api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+          --jq '.[] | select(.body | contains("Posted by [SpecSync]")) | .id' > "$EXISTING_IDS_FILE"
+        EXISTING_COMMENT_ID="$(head -1 "$EXISTING_IDS_FILE")"
+        rm -f "$EXISTING_IDS_FILE"
 
         if [ -n "$EXISTING_COMMENT_ID" ]; then
-          gh api "repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
+          comment_api "repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
             -X PATCH -f body="$COMMENT_BODY" > /dev/null
           echo "::notice::Updated existing SpecSync PR comment"
         else
-          gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+          comment_api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
             -f body="$COMMENT_BODY" > /dev/null
           echo "::notice::Posted SpecSync PR comment"
         fi

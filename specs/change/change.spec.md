@@ -378,8 +378,8 @@ Acceptance Criteria
 
 | Condition | Behavior |
 |-----------|----------|
-| Missing acceptance criteria or affected scope | Definition approval fails; a missing acceptance criterion names `specsync change answer <id> acceptance_criteria "<observable outcome>"` (REQ-change-133) |
-| Interview questions still open at approval | Approval fails, naming every open question and the `specsync change answer <id> <question> <answer>` command for the first, with its choices (such as `<yes|no>`) as the placeholder (REQ-change-133) |
+| Missing acceptance criteria or affected scope | Definition approval fails. A draft is told which answer finishes it: `specsync change answer <id> acceptance_criteria "<observable outcome>"`, `affected_paths "<path>"` or `affected_specs "<module>"`. A record past draft keeps the bare condition, because `change answer` refuses outside draft (REQ-change-133) |
+| Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first, with the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none; a record past draft keeps the bare condition (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |

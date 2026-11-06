@@ -97,3 +97,4 @@ spec: change.spec.md
 - [x] Anchor archived workflow-version history pathspecs and the read-cache invalidation walk at the repository root with `:(top)`, so a project in a repository subdirectory still sees that history (REQ-change-043, REQ-change-119, #851).
 - [x] Read `git diff-files` paths relative to the project in working-tree evidence capture, so `change check --commit` works in a subdirectory project, and keep Git's path in the out-of-scope refusal (#879, REQ-change-128).
 - [ ] Decide whether to batch the cold archive-introduction reads (three Git processes per introducing commit) behind the closing check without loosening the partial-clone conclusiveness rules.
+- [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).

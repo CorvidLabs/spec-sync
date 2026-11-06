@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-63f012bed1de50d9896143fe",
-    "head": "EVT-23c10fa5800ee501c617191f",
+    "head": "EVT-7f571f1e1f32a944d64621f9",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "build",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -38,12 +38,15 @@
   ],
   "open_questions": [],
   "completed": [
-    "Failing test at 3758d970: landing_page_change_workflow_runs_from_its_quick_start fails at change review (no verify step); README passes, and fails at review with its verify line removed (mutation run locally, then restored)"
+    "Failing test at 3758d970: landing_page_change_workflow_runs_from_its_quick_start fails at change review (no verify step); README passes, and fails at review with its verify line removed (mutation run locally, then restored)",
+    "Built #906 option A at 1583d6c6 on top of #917's archive tip (merged a991b943): landing page verify-lane line (a6a028ee) and fill-in line, harness fills the add-spec scaffold, lane stays strict. Mutations at 1583d6c6: dropping the fill-in line fails at 'tells the reader to fill in'; dropping the verify-lane line fails at the review. fledge lanes run verify green at 1583d6c6 on rust 1.89.0 (7 steps, 26m44s; 2830 unit passed/2 ignored, 497 integration passed). No chough evidence record: this no-spec change has no contract for chough evidence add"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif, on GitHub; the orc records change review as 0xLeif only after that)"
+  ],
   "run_consents": [],
-  "next_action": "After approval: landing-page verify line, CHANGELOG, verify lane, check --commit"
+  "next_action": "After Leif's review is recorded: change ship make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906, push the archive tip, CI; merge in the queue on the orc's word, pinned"
 }

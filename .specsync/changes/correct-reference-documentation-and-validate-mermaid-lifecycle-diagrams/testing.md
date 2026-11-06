@@ -48,3 +48,15 @@ Review and ship are sequential with no intervening commit. Wait for hosted CI on
 ## Existing audit limits
 
 Original pinned build and selected lifecycle fixtures passed. All 11 diagrams were manually reviewed; offline Mermaid CLI was unavailable. Four external URLs returned 404. The release-candidate validator suite hit the audit runner's fixed 45-second limit and was not retried or declared passed. Those historical results do not stand in for checks on this future implementation.
+
+## Full local lane result
+
+`PATH=/Users/leif/.cargo/bin:<pinned-Bun-directory>:$PATH fledge lanes run verify` passed
+all seven configured steps in 18m53s. Rust/Clippy were 1.89.0, as pinned in
+`rust-toolchain.toml`: 2838 unit tests passed, 2 ignored; all 499 integration tests passed;
+release build, strict spec check, release-candidate, CI-gate and Linux-baseline guard tests
+passed. Full output is retained in `.chough/artifacts/docs-accuracy-verify.log.gz`.
+The run started at 3bfa1bdd; the only commit during it was 21c732a4 (contributor prose and
+diagnostic receipts, no Rust/test/configuration changes). Chough case capture remains blocked
+by #941, which owns sibling checkpoint recovery. No human implementation acceptance, archived
+PR CI, merge or release is inferred from this local result.

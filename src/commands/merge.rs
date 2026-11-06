@@ -80,18 +80,80 @@ struct MergeDriverInstall {
     attributes: Vec<String>,
 }
 
+/// Installs the attributes and the local driver config, or changes nothing.
+///
+/// Everything that can fail before a write (the driver path, the repository,
+/// reading `.gitattributes`) is checked first. If `git config` then fails, the
+/// previous `.gitattributes` bytes and config values are put back.
 fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
     let specs_dir = load_config(root).specs_dir;
     let attributes = attribute_lines(&specs_dir);
-    write_attribute_lines(root, &attributes)?;
     let driver = merge_driver_command()?;
-    git_config(
-        root,
-        "merge.specsync.name",
-        "SpecSync module contract merge",
-    )?;
-    git_config(root, "merge.specsync.driver", &driver)?;
+    let inside = git_cmd(root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|error| format!("git failed to start: {error}"))?;
+    if !inside.status.success() || String::from_utf8_lossy(&inside.stdout).trim() != "true" {
+        return Err(format!(
+            "{} is not inside a Git work tree; the merge driver was not installed",
+            root.display()
+        ));
+    }
+    let attributes_path = root.join(".gitattributes");
+    let previous_attributes = match fs::read(&attributes_path) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
+    };
+    let keys = ["merge.specsync.name", "merge.specsync.driver"];
+    let previous_config: Vec<Option<String>> =
+        keys.iter().map(|key| git_config_get(root, key)).collect();
+
+    write_attribute_lines(root, &attributes)?;
+    let configured = git_config(root, keys[0], "SpecSync module contract merge")
+        .and_then(|()| git_config(root, keys[1], &driver));
+    if let Err(error) = configured {
+        let restored = match &previous_attributes {
+            Some(bytes) => fs::write(&attributes_path, bytes),
+            None => fs::remove_file(&attributes_path),
+        };
+        for (key, value) in keys.iter().zip(&previous_config) {
+            let _ = match value {
+                Some(value) => git_config(root, key, value),
+                None => git_config_unset(root, key),
+            };
+        }
+        return Err(match restored {
+            Ok(()) => error,
+            Err(restore) => format!("{error}; restoring .gitattributes also failed: {restore}"),
+        });
+    }
     Ok(MergeDriverInstall { driver, attributes })
+}
+
+fn git_config_get(root: &Path, key: &str) -> Option<String> {
+    let output = git_cmd(root)
+        .args(["config", "--local", "--get", key])
+        .output()
+        .ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .trim_end_matches('\n')
+            .to_string()
+    })
+}
+
+fn git_config_unset(root: &Path, key: &str) -> Result<(), String> {
+    let output = git_cmd(root)
+        .args(["config", "--local", "--unset", key])
+        .output()
+        .map_err(|error| format!("git config --unset {key} failed to start: {error}"))?;
+    // Exit 5 means the key was already absent.
+    if output.status.success() || output.status.code() == Some(5) {
+        Ok(())
+    } else {
+        Err(format!("git config --unset {key} failed"))
+    }
 }
 
 fn attribute_lines(specs_dir: &str) -> Vec<String> {
@@ -321,5 +383,62 @@ mod install_tests {
         .unwrap();
         let output = run(&["check-attr", "merge", "--", "specs/x/x.spec.md"]);
         assert!(String::from_utf8_lossy(&output.stdout).ends_with("merge: specsync\n"));
+    }
+
+    #[test]
+    fn failed_install_leaves_gitattributes_unchanged() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("specs")).unwrap();
+        assert!(
+            install_merge_driver(root).is_err(),
+            "install outside a Git repository succeeded"
+        );
+        assert!(
+            !root.join(".gitattributes").exists(),
+            ".gitattributes was written"
+        );
+
+        fs::write(root.join(".gitattributes"), "*.txt text\n").unwrap();
+        assert!(install_merge_driver(root).is_err());
+        assert_eq!(
+            fs::read_to_string(root.join(".gitattributes")).unwrap(),
+            "*.txt text\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_failure_restores_gitattributes() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        assert!(
+            Command::new("git")
+                .args(["init", "-q"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::create_dir_all(root.join("specs")).unwrap();
+        fs::write(root.join(".gitattributes"), "*.txt text\n").unwrap();
+        let git_dir = root.join(".git");
+        let original = fs::metadata(&git_dir).unwrap().permissions();
+        fs::set_permissions(&git_dir, fs::Permissions::from_mode(0o555)).unwrap();
+        if fs::write(git_dir.join("probe"), "").is_ok() {
+            // Running as a user that ignores directory permissions (root): this
+            // setup cannot make `git config` fail, so there is nothing to observe.
+            let _ = fs::remove_file(git_dir.join("probe"));
+            fs::set_permissions(&git_dir, original).unwrap();
+            return;
+        }
+        let result = install_merge_driver(root);
+        fs::set_permissions(&git_dir, original).unwrap();
+        assert!(result.is_err(), "install succeeded with an unwritable .git");
+        assert_eq!(
+            fs::read_to_string(root.join(".gitattributes")).unwrap(),
+            "*.txt text\n"
+        );
     }
 }

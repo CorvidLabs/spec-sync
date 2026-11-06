@@ -542,6 +542,14 @@ fn union_changelog_tables(
                 assigned = Some(next);
             }
             rows = numbered;
+        } else if [ours, theirs].iter().all(|side| {
+            side.rows
+                .iter()
+                .any(|row| !base_rows.contains(row.as_str()))
+        }) {
+            // No ancestor version to count from, and both sides added rows: their
+            // version cells cannot be renumbered, so the table stays a conflict.
+            return changelog_conflict(ours, theirs);
         }
     }
 
@@ -763,14 +771,14 @@ fn merge_one_field(
         (Some(base), None, Some(theirs)) if theirs.lines == base.lines => {
             FieldMerge::Keep(String::new())
         }
-        (Some(base), Some(ours), None) => FieldMerge::Conflict(conflict_block(
-            &ours.lines.join("\n"),
-            &base.lines.join("\n"),
-        )),
-        (Some(base), None, Some(theirs)) => FieldMerge::Conflict(conflict_block(
-            &base.lines.join("\n"),
-            &theirs.lines.join("\n"),
-        )),
+        // One side deleted the field and the other edited it. The deleting side
+        // is shown empty, so choosing it does not restore the old value.
+        (Some(_), Some(ours), None) => {
+            FieldMerge::Conflict(conflict_block(&ours.lines.join("\n"), ""))
+        }
+        (Some(_), None, Some(theirs)) => {
+            FieldMerge::Conflict(conflict_block("", &theirs.lines.join("\n")))
+        }
         (base, Some(ours), Some(theirs)) => merge_present_field(base, ours, theirs, version_floor),
     }
 }
@@ -1783,5 +1791,63 @@ mod tests {
             Some("REQ-cli-002")
         );
         assert_eq!(requirement_heading_id("    ### REQ-cli-002"), None);
+    }
+
+    // Review (d2973cf1): a deleted-versus-edited frontmatter field shows the deletion.
+    #[test]
+    fn deleted_versus_edited_frontmatter_field_shows_the_deletion() {
+        let base = spec("5", &["src/cli.rs"], &[])
+            .replace("status: stable\n", "status: stable\nowner: alice\n");
+        let ours = base.replace("owner: alice\n", "");
+        let theirs = base.replace("owner: alice\n", "owner: bob\n");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(!merged.clean, "{}", merged.content);
+        assert!(
+            merged
+                .content
+                .contains("<<<<<<< ours\n\n=======\nowner: bob"),
+            "{}",
+            merged.content
+        );
+        assert!(
+            !merged.content.contains("owner: alice"),
+            "{}",
+            merged.content
+        );
+        let merged = merge_contract(&base, &theirs, &ours, "specs/cli/cli.spec.md");
+        assert!(
+            merged
+                .content
+                .contains("owner: bob\n=======\n\n>>>>>>> theirs"),
+            "{}",
+            merged.content
+        );
+        assert!(
+            !merged.content.contains("owner: alice"),
+            "{}",
+            merged.content
+        );
+    }
+
+    // Review (d2973cf1): two first rows on an empty Version table do not merge clean
+    // with the same version.
+    #[test]
+    fn first_version_rows_on_an_empty_table_are_not_left_equal() {
+        let table = |rows: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 1\nstatus: stable\nfiles:\n  - src/cli.rs\ndb_tables: []\ndepends_on: []\n---\n\n# CLI\n\n## Change Log\n\n| Version | Date | Change |\n|---------|------|--------|\n{rows}"
+            )
+        };
+        let base = table("");
+        let ours = table("| 1 | 2026-11-05 | change-a |\n");
+        let theirs = table("| 1 | 2026-11-05 | change-b |\n");
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(
+            !merged.clean
+                || !(merged.content.contains("| 1 | 2026-11-05 | change-a |")
+                    && merged.content.contains("| 1 | 2026-11-05 | change-b |")),
+            "{}",
+            merged.content
+        );
     }
 }

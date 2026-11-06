@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ebbbfb25e4e59943a8718f63b3dadc36bec2bc79",
+  "contract_digest": "0d3321027e042097eaaa586b5f2bb81191dec71b5341219923d88a4a45178b6d",
+  "execution_digest": "0e975ad5a93e044d8f2002b4a5ccbb2ceeb0e78a5cab4b06494f05323d2a5ec7",
+  "workspace_digest": "edb5147ac4851dd3b5a2353c39c7582ddea486045a511ac7f5e1c8781c30b14b",
+  "timestamp": 1793946680
+}

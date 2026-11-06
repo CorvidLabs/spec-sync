@@ -263,7 +263,7 @@ fn correction_digests_leave_embedded_relays_out() {
 
 /// DISCRIMINATOR for the #900 review (P2): one record names one decider on read as on write. A
 /// hand-edited relay naming someone other than the approval's actor is refused, naming the
-/// `git checkout` recovery.
+/// active change's recovery, `repair-relays` (#904), which `repair_relayed_decisions` then runs.
 #[test]
 fn a_read_relay_must_name_its_own_record_decider() {
     let temp = TempDir::new().unwrap();
@@ -288,8 +288,67 @@ fn a_read_relay_must_name_its_own_record_decider() {
     let record = load_change(root, &record.id).unwrap();
     let error = load_approvals(root, &record).unwrap_err();
     assert!(error.contains("says `Mallory` decided"), "{error}");
-    assert!(error.contains("git checkout HEAD -- "), "{error}");
+    assert!(
+        error.contains(&format!("specsync change repair-relays {}", record.id)),
+        "{error}"
+    );
+    assert!(!error.contains("git checkout HEAD"), "{error}");
     assert!(recorded_claims(root, &record).is_err());
+
+    let report = repair_relayed_decisions(root, &record.id).unwrap();
+    assert_eq!(report.repairs.len(), 1, "{report:?}");
+    assert_eq!(report.repairs[0].action, "removed", "{report:?}");
+    assert_eq!(
+        report.repairs[0].removed.as_ref().unwrap()["decided_by"],
+        "Mallory"
+    );
+    let ledger = load_approvals(root, &record).unwrap();
+    assert!(ledger.approvals.iter().all(|approval| approval.relayed_by.is_none()));
+    assert_eq!(ledger.approvals.last().unwrap().actor, "Ada");
+}
+
+/// DISCRIMINATOR for #904 matching: a copy restores a damaged relay only when it is the same
+/// record in every other field and its own relay reads cleanly, and a clean record is never
+/// treated as damaged, so a repair can never swap one record's relay onto another.
+#[test]
+fn a_relay_is_put_back_only_from_a_clean_copy_of_the_same_record() {
+    let clean = serde_json::to_value(review_record(Some(relay("Ada")))).unwrap();
+    assert!(!relay_is_damaged(&clean, "reviewer"));
+    assert!(!relay_is_damaged(
+        &serde_json::to_value(review_record(None)).unwrap(),
+        "reviewer"
+    ));
+
+    let mut wrong_decider = clean.clone();
+    wrong_decider["relayed_by"]["decided_by"] = serde_json::json!("Mallory");
+    assert!(relay_is_damaged(&wrong_decider, "reviewer"));
+    let mut null_relay = clean.clone();
+    null_relay["relayed_by"] = serde_json::Value::Null;
+    assert!(relay_is_damaged(&null_relay, "reviewer"));
+
+    assert_eq!(
+        original_relay_in(&wrong_decider, Some(&clean), "reviewer"),
+        Some(Some(relay_json()))
+    );
+    let plain = serde_json::to_value(review_record(None)).unwrap();
+    assert_eq!(
+        original_relay_in(&null_relay, Some(&plain), "reviewer"),
+        Some(None),
+        "an original without a relay puts back no relay"
+    );
+    let mut other_verdict = clean.clone();
+    other_verdict["verdict"] = serde_json::json!("block");
+    assert_eq!(
+        original_relay_in(&wrong_decider, Some(&other_verdict), "reviewer"),
+        None,
+        "a different record is no copy, even with a clean relay"
+    );
+    assert_eq!(
+        original_relay_in(&wrong_decider, Some(&null_relay), "reviewer"),
+        None,
+        "a copy whose own relay is damaged is no copy"
+    );
+    assert_eq!(original_relay_in(&wrong_decider, None, "reviewer"), None);
 }
 
 /// DISCRIMINATOR for the #900 review: a library caller that builds `RelayedDecision` directly

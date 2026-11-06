@@ -1206,6 +1206,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
         with_relayed_read_recovery(
             root,
+            record,
             &path,
             format!("invalid independent scoped review evidence: {error}"),
         )
@@ -1218,6 +1219,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     .map_err(|error| {
         with_relayed_read_recovery(
             root,
+            record,
             &attempts_path,
             format!("invalid scoped review attempt history: {error}"),
         )
@@ -1226,7 +1228,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
         [(review.reviewer.as_str(), review.relayed_by.as_ref())],
         "the review's reviewer",
     )
-    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    .map_err(|message| with_relayed_read_recovery(root, record, &path, message))?;
     // Every attempt, not only the latest projection: earlier attempts stay uncommitted until ship
     // too, so no Git prefix check would notice an edited one (#900 review).
     ensure_read_relays_name_their_deciders(
@@ -1236,7 +1238,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
             .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
         "the review's reviewer",
     )
-    .map_err(|message| with_relayed_read_recovery(root, &attempts_path, message))?;
+    .map_err(|message| with_relayed_read_recovery(root, record, &attempts_path, message))?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
 }

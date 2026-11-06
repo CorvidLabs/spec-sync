@@ -10,4 +10,4 @@ artifact: tasks
 - [x] Text next action and ship-status (blocker and next step): freeze before the upstream archive.
 - [x] Deltas, CHANGELOG entry, requirement evidence.
 - [x] Carry a `verification_ignored_paths` refusal into `HandoffSignals`, so the handoff names it instead of a lifecycle verdict (#937 part 2, Leif: fix in #934).
-- [x] Module lessons (change.3md z=17, cmd_change.3md z=7) and module tasks.
+- [x] Module lessons (change.3md z=18, cmd_change.3md z=7) and module tasks.

@@ -224,6 +224,17 @@ impl Drop for ChangeReadScope {
     }
 }
 
+/// Write the persistent read cache of every open change read scope on this thread.
+fn flush_change_read_scope_caches() {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        if let Ok(scopes) = scopes.try_borrow() {
+            for scope in scopes.iter() {
+                flush_persistent_read_cache(&scope.persistent_cache);
+            }
+        }
+    });
+}
+
 pub(crate) fn begin_change_read_scope(root: &Path) -> ChangeReadScope {
     CHANGE_READ_SCOPES.with(|scopes| {
         scopes.borrow_mut().push(ChangeReadSnapshot::new(root));
@@ -1754,6 +1765,25 @@ pub struct HandoffSignals {
     /// Legacy accepted evidence that no longer matches the tree, or a closing approval that
     /// no longer validates; either needs a `reopen` with a reason only this session knows.
     pub terminal_evidence_stale: bool,
+    /// An archived record whose terminal evidence is `corrupt-history`, and where its bytes can
+    /// be restored from. `None` for every other state, and for an archive that authenticates.
+    pub corrupt_archive: Option<CorruptArchive>,
+}
+
+/// Where an archive that fails its integrity check can be restored from. Holds a path at most,
+/// never a digest, so the recovery built from it can reach a text line verbatim.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CorruptArchive {
+    /// The package's tracked files differ from `HEAD`, so `HEAD` still holds committed bytes.
+    /// `package` is relative to the project root.
+    DiffersFromHead { package: String },
+    /// The package matches `HEAD` but not the commit that archived it: the damage is committed,
+    /// and that commit holds the trusted bytes.
+    DamageCommitted { package: String },
+    /// No package restore would help: the package does not resolve to one archive directory,
+    /// Git cannot answer, or the package still matches the commit that archived it, so the
+    /// evidence that failed lies outside it (the shared legacy baseline, another record).
+    OutsidePackage,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -620,3 +620,119 @@ fn a_review_recorded_before_a_send_back_is_history_and_a_fresh_one_counts() {
         "the fresh review binds the approval recorded after the send-back"
     );
 }
+
+/// #960 (CHANGE-12.e): a send-back cancels the review recorded before it even when the scope comes
+/// back unchanged. The re-approval then has the same digest the earlier review followed, and a
+/// `change check` without `--commit` leaves HEAD and every digest the review binds where they were,
+/// so only the send-back's record of how many attempts preceded it tells the two apart.
+#[test]
+fn a_review_recorded_before_a_send_back_never_counts_after_an_identical_reapproval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    if quiet_git(root, &["ls-files", WORKFLOW_V2_BASELINE_PATH]).is_empty() {
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+    }
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "implement approved change"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    let reviewed = load_change(root, &record.id).unwrap();
+    let earlier = load_scoped_review(root, &reviewed).unwrap();
+    assert!(scoped_review_is_current(root, &reviewed, &earlier));
+
+    let sent = send_back_change(
+        root,
+        &record.id,
+        "Scope owner".into(),
+        "the scope needs another look".into(),
+    )
+    .unwrap();
+    assert_eq!(
+        sent.audit.cancelled_review_attempts,
+        Some(1),
+        "the send-back records the review attempt it cancels"
+    );
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    let reapproved = load_change(root, &record.id).unwrap();
+    assert_eq!(
+        definition_digest(root, &reapproved).unwrap(),
+        earlier.contract_digest,
+        "the scope came back unchanged"
+    );
+
+    let kept = load_scoped_review(root, &reapproved).expect("the review history stays readable");
+    assert_eq!(kept, earlier);
+    assert!(
+        matches!(
+            scoped_review_currency(root, &reapproved, &kept),
+            ScopedReviewCurrency::Stale(reason) if reason.contains("before the change was last sent back")
+        ),
+        "a review recorded before the send-back never counts, even after an identical re-approval"
+    );
+
+    record_scoped_review(root, &record.id, "Independent reviewer".into())
+        .expect("a fresh review records after the re-approval");
+    let fresh = load_scoped_review(root, &reapproved).unwrap();
+    assert_ne!(fresh, earlier);
+    assert!(scoped_review_is_current(root, &reapproved, &fresh));
+}
+
+/// The rule itself: a send-back that recorded its attempt count answers by position; one recorded
+/// before that count existed answers by time, strictly, so the archives such send-backs already
+/// carry, whose reviews all came later, keep their verdict.
+#[test]
+fn a_send_back_answers_review_order_by_attempt_count_and_falls_back_to_time() {
+    let review = |timestamp: u64| ScopedReviewRecord {
+        schema_version: 2,
+        change_id: "add-passkeys".into(),
+        reviewer: "Independent reviewer".into(),
+        provenance: ScopedReviewProvenanceV1 {
+            schema_version: 1,
+            provider: ScopedReviewProvenanceProvider::GithubActionsCheck,
+            required_check: "SpecSync scoped review".into(),
+        },
+        verdict: ScopedReviewVerdict::Pass,
+        implementation_commit: "a".repeat(40),
+        contract_digest: "b".repeat(64),
+        execution_digest: None,
+        workspace_digest: "c".repeat(64),
+        timestamp,
+        relayed_by: None,
+    };
+    let send_back = |cancelled_review_attempts: Option<usize>| SendBackRecord {
+        schema_version: 1,
+        change_id: "add-passkeys".into(),
+        actor: "Scope owner".into(),
+        reason: SEND_BACK_REASON.into(),
+        timestamp: 100,
+        from_state: ChangeState::Verifying,
+        to_state: ChangeState::Draft,
+        cancelled_approvals: 1,
+        cancelled_review_attempts,
+        canonical_applied: false,
+        applied_items: Vec::new(),
+        applied_modules: Vec::new(),
+    };
+
+    let counted = send_back(Some(1));
+    assert!(!review_recorded_after_send_back(&counted, Some(0), &review(500)));
+    assert!(review_recorded_after_send_back(&counted, Some(1), &review(100)));
+    assert!(!review_recorded_after_send_back(&counted, None, &review(500)));
+
+    let legacy = send_back(None);
+    assert!(!review_recorded_after_send_back(&legacy, Some(0), &review(99)));
+    assert!(!review_recorded_after_send_back(&legacy, Some(0), &review(100)));
+    assert!(review_recorded_after_send_back(&legacy, Some(0), &review(101)));
+
+    // The count is written only when present, so a send-back recorded before it keeps its bytes.
+    let bytes = serde_json::to_string(&legacy).unwrap();
+    assert!(!bytes.contains("cancelled_review_attempts"), "{bytes}");
+    let parsed: SendBackRecord = serde_json::from_str(&bytes).unwrap();
+    assert_eq!(parsed, legacy);
+}

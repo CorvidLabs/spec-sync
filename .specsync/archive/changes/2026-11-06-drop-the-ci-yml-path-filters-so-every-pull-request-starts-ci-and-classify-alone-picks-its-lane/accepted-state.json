@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane",
+  "slug": "drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane",
+  "title": "Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane",
+  "description": "Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7ae7245f97e7cfd66cd80ce39b611becb1095642",
+  "created_at": 1793979443,
+  "updated_at": 1793981870,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/scripts/test-ci-trigger-paths.py",
+    "fledge.toml",
+    "specs/github/",
+    "hi/ci.md",
+    "INTENT.md",
+    ".github/scripts/test-linux-baseline.py"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The `github` spec gains REQ-github-026: the CI workflow starts on every pull request to main and every push to main with no path filter, and `classify-ci-paths.sh` alone picks the lane, so a pull request that changes only paths it routes, `.chough/` records and `scripts/` included, still gets the required `Required CI gate` (CI-6); the spec version, the testing table row that relied on the path filters, and the Change Log follow.",
+    "`.github/workflows/ci.yml` has no `paths:` or `paths-ignore:` filter on its `pull_request` or `push` trigger; both keep `branches: [main]`, and `workflow_dispatch` stays.",
+    "`.github/scripts/test-ci-trigger-paths.py` fails when either trigger has a path filter, naming the recovery, and proves with the real classifier and the required-gate model from `test-required-ci-gate.py` that a change touching only Chough records, or only `scripts/`, is classified into a lane whose simulated run reports `Required CI gate` green on both events; it also fails when the fledge `verify` and `ci` lanes or `ci.yml` stop running it.",
+    "`hi/ci.md` gains CI-6 in Leif's words, \"A pull request that only changes Chough records still gets the checks the branch requires.\", with its source in the Intent section, and the `INTENT.md` index is regenerated with `hi index`.",
+    "Failing test first: on the unmodified workflow the new test fails (both triggers carry `paths:`, so neither change starts CI, and the test is not wired into fledge or CI); after the fix it passes, and `test-required-ci-gate.py` and `test-classify-ci-paths.sh` still pass. No tag or release is created or published."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Required CI gate is the only required check on main, and test-required-ci-gate.py holds its contract over every classify lane (#796), so the new test reuses that model instead of copying it; CI is archive-first, so a tip with an open change fails Archive before any lane runs; workflow tests read YAML through Ruby's standard Psych, as the other workflow validators do; the classifier, not the trigger, decides the lane.",
+    "public_contract": "no"
+  }
+}

@@ -4819,22 +4819,72 @@ pub(crate) struct UpstreamArchive {
 /// must say so first instead of reporting it ready (REQ-change-129). An archive that `HEAD`
 /// already contains is not reported: that is the reopen-and-rearchive path, which keeps working.
 /// When Git cannot answer, this returns `None` and every other gate still applies.
+///
+/// The lookup is targeted so it can run for every unarchived state: one tree listing of the
+/// remote default's archive directory, and only on a match the package's `state.json`, the commit
+/// that added it and one ancestry check. It never builds the full archive index.
 pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<UpstreamArchive> {
-    // Only the states review and finalize act on. Earlier states never reach the refusal, and
-    // building the archive index for every draft would grow status with unrelated archives.
-    if !matches!(record.state, ChangeState::Verifying | ChangeState::Accepted) {
+    if record.state == ChangeState::Archived {
         return None;
     }
     let reference = remote_default_ref(root)?;
-    let index = archive_introduction_index(root).ok()?;
-    index.get(&record.id)?.iter().find_map(|introduction| {
-        let on_reference = commit_is_ancestor(root, &introduction.commit, &reference)?;
-        let in_head = commit_is_ancestor(root, &introduction.commit, "HEAD")?;
-        (on_reference && !in_head).then(|| UpstreamArchive {
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
+    let listing = git_output(
+        root,
+        &[
+            "ls-tree",
+            "--full-tree",
+            "--name-only",
+            &reference,
+            "--",
+            &format!("{archive_root}/"),
+        ],
+    )?;
+    listing.lines().find_map(|entry| {
+        let package = entry.rsplit('/').next()?;
+        if !is_dated_package_for(package, &record.id) {
+            return None;
+        }
+        let state_path = format!("{entry}/state.json");
+        let state = git_output(root, &["show", &format!("{reference}:{state_path}"), "--"])?;
+        let archived: ChangeRecord = serde_json::from_str(&state).ok()?;
+        if archived.id != record.id {
+            return None;
+        }
+        let commit = git_output(
+            root,
+            &[
+                "log",
+                "-1",
+                "--format=%H",
+                "--diff-filter=A",
+                &reference,
+                "--",
+                &format!(":(top,literal){state_path}"),
+            ],
+        )?;
+        let commit = commit.trim().to_string();
+        if commit.is_empty() || commit_is_ancestor(root, &commit, "HEAD")? {
+            return None;
+        }
+        Some(UpstreamArchive {
             reference: reference.clone(),
-            commit: introduction.commit.clone(),
+            commit,
         })
     })
+}
+
+/// Whether an archive directory name is exactly `YYYY-MM-DD-<id>`.
+fn is_dated_package_for(package: &str, id: &str) -> bool {
+    let Some(date) = package.strip_suffix(id).and_then(|rest| rest.strip_suffix('-')) else {
+        return false;
+    };
+    let bytes = date.as_bytes();
+    bytes.len() == 10
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| if matches!(index, 4 | 7) { *byte == b'-' } else { byte.is_ascii_digit() })
 }
 
 /// The one sentence review, finalize, status and ship-status print for an upstream archive.

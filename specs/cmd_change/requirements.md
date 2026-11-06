@@ -445,6 +445,6 @@ The change CLI SHALL expose historical reconciliation as an opt-in scope request
 `change status` and `change ship-status` SHALL report a change that is already archived upstream with the reference, the archive commit and the next step, in text and JSON, and SHALL NOT name finalize or ship as its next action.
 
 Acceptance Criteria
-- Text output names the reference, commit and the merge or rebase step.
+- Text output names the reference, the commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy.
 - JSON readiness is not `safe`.
 

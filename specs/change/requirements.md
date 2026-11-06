@@ -1680,7 +1680,7 @@ Acceptance Criteria
 
 ### REQ-change-129
 
-The system SHALL refuse `change review` and `change finalize`, and SHALL NOT report readiness `safe` from `change status` or `change ship-status`, for a change whose record is not archived while the remote default branch holds an archive of the same change id that `HEAD` does not contain. The refusal SHALL name the reference and commit of that archive and the next step: merge or rebase onto that reference. An archive that `HEAD` already contains SHALL NOT be refused: that is the reopen-and-rearchive path.
+The system SHALL refuse `change review` and `change finalize`, and SHALL NOT report readiness `safe` from `change status` or `change ship-status`, for a change whose record is not archived while the remote default branch holds an archive of the same change id that `HEAD` does not contain. The refusal SHALL name the reference and commit of that archive, the unarchived copy, and the recovery: rebase onto that reference dropping the commit that added the copy (or reset to it when the branch has nothing else). Merging, or deleting the copy in a new commit, is not a recovery: the resulting history fails integrity. An archive that `HEAD` already contains SHALL NOT be refused: that is the reopen-and-rearchive path.
 
 Acceptance Criteria
 - With the remote default holding an archive of the change, `change review` refuses before recording acceptance and the record stays `verifying`.

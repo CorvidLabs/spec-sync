@@ -3298,7 +3298,7 @@ pub fn summarize_change_with_strict(
 /// and an archived record's terminal-evidence walk over the whole archive would turn that line
 /// into a minutes-long wait for a verdict that is `safe` regardless.
 /// Never `Safe`: review and finalize refuse a change the remote default already archived, so a
-/// fresh session must merge or rebase first (REQ-change-129).
+/// fresh session must first rebase off the stale copy (REQ-change-129).
 fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
     HandoffSummary {
         readiness: HandoffReadiness::NotYet,

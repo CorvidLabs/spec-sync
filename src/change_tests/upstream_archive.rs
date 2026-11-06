@@ -49,13 +49,20 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
         "{message}"
     );
 
-    // Only the states review and finalize act on are checked, so status for an earlier state
-    // never builds the archive index (review thread on #889).
+    // Every unarchived state is checked (review thread on #889): a stale copy is named while it
+    // is still a draft, before `check --commit` adds another lifecycle commit.
     for state in [ChangeState::Draft, ChangeState::Approved, ChangeState::Implementing] {
         let mut early = unarchived.clone();
         early.state = state;
-        assert_eq!(upstream_archive_of(&root, &early), None, "{state:?}");
+        assert_eq!(
+            upstream_archive_of(&root, &early).map(|found| found.commit),
+            Some(archive_commit.clone()),
+            "{state:?}"
+        );
     }
+    assert!(is_dated_package_for(&format!("2026-07-14-{}", unarchived.id), &unarchived.id));
+    assert!(!is_dated_package_for(&format!("2026-07-14-x-{}", unarchived.id), &unarchived.id));
+    assert!(!is_dated_package_for(&format!("x-{}", unarchived.id), &unarchived.id));
     let mut accepted = unarchived.clone();
     accepted.state = ChangeState::Accepted;
     assert!(upstream_archive_of(&root, &accepted).is_some());

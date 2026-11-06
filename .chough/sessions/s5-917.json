@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-c493e2409cc910c4ca8ea47c",
-    "head": "EVT-f63348ef2cbf726f19eab9ac",
+    "head": "EVT-a57d4162f1bc534a1c69632a",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -33,7 +33,8 @@
   "decisions": [
     "decided: #917 needs no new HI criteria because it makes the implementation meet criteria Leif already approved (DOCS-1, DOCS-3, DOCS-3.a; approved 2026-11-05 20:22 MST, relayed by orc t18) and REQ-change-133; scope approval of the #917 change still goes to Leif (queued for his morning)",
     "Orc t18 (2026-11-06, overnight): hold #912 for Leif's morning (threads unresolved; thread 2 is a small guidance regression for him to weigh); build #917 to its approval gate; keep #912 0 behind main under Leif's standing rule",
-    "decided: leif/917-approve-hints is stacked on #912's archive tip 93750834, because #917 changes #912's code and #912 is held; merge origin/main after #912 lands"
+    "decided: leif/917-approve-hints is stacked on #912's archive tip 93750834, because #917 changes #912's code and #912 is held; merge origin/main after #912 lands",
+    "Leif decided \"Scope approval of keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick (Leif; queued for his morning, recorded by orc)\": \"Ok yes I approve all\" (orc tab, 06:1x MST 2026-11-06, relayed by orc t18; native approval recorded as 0xLeif by the orc at 0b209a5c); recorded by claude (ss-docs); a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
@@ -42,9 +43,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick (Leif; queued for his morning, recorded by orc)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "After approval: implement draft-only and scope hints, single-choice placeholder, landing-page git add -A; specs; verify; check --commit"
 }

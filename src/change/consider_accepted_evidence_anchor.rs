@@ -2024,6 +2024,24 @@ fn is_git_lfs_pointer(bytes: &[u8]) -> bool {
     saw_oid && saw_size
 }
 
+/// The output bound of one whole-scope `git cat-file --batch` evidence read.
+fn git_evidence_batch_cap() -> usize {
+    #[cfg(test)]
+    if let Some(cap) = TEST_GIT_EVIDENCE_CAPS.with(|caps| caps.get().0) {
+        return cap;
+    }
+    MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES
+}
+
+/// The bound on one evidence blob read on its own.
+fn git_evidence_object_cap() -> usize {
+    #[cfg(test)]
+    if let Some(cap) = TEST_GIT_EVIDENCE_CAPS.with(|caps| caps.get().1) {
+        return cap;
+    }
+    MAX_GIT_EVIDENCE_PAYLOAD_BYTES
+}
+
 fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
     if let Some(bytes) = GIT_BLOB_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))
@@ -2038,7 +2056,7 @@ fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
         root,
         &["cat-file", "blob", object],
         None,
-        MAX_GIT_EVIDENCE_PAYLOAD_BYTES,
+        git_evidence_object_cap(),
     )?;
     if stdout.len() <= MAX_CHANGE_ARTIFACT_BYTES as usize {
         let mut cache = GIT_BLOB_CACHE
@@ -4593,7 +4611,7 @@ fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, S
         root,
         &["cat-file", "--batch"],
         Some(input),
-        MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES,
+        git_evidence_batch_cap(),
     )?;
     let mut cursor = 0;
     let mut blobs = Vec::with_capacity(objects.len());

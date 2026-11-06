@@ -377,6 +377,25 @@ fn review_and_finalize_stop_when_the_upstream_archive_cannot_be_read() {
     assert!(cannot_tell(&review_text), "review:\n{review_text}");
     assert_eq!(state(&root), "verifying", "review moved the change");
 
+    // Status and ship-status report the same refusal, never `safe` or ready to finalize.
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    assert_ne!(
+        status["summary"]["handoff"]["readiness"], "safe",
+        "{status}"
+    );
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(cannot_tell(next), "status next action: {next}");
+    assert!(
+        !next.contains("change finalize") && !next.contains("change ship"),
+        "{next}"
+    );
+    let ship = run(&root, &["change", "ship-status", ID]);
+    let ship_text = String::from_utf8_lossy(&ship.stdout).into_owned();
+    assert!(cannot_tell(&ship_text), "ship-status:\n{ship_text}");
+
     let finalize = run(&root, &["change", "finalize", ID]);
     let finalize_text = format!(
         "{}{}",

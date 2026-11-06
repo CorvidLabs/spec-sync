@@ -3334,7 +3334,15 @@ pub fn summarize_change_with_strict(
 fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
     HandoffSummary {
         readiness: HandoffReadiness::NotYet,
-        reason: "this change is already archived on the remote default, so review and finalize refuse it here".into(),
+        reason: match upstream {
+            UpstreamArchive::Archived { .. } => {
+                "this change is already archived on the remote default, so review and finalize refuse it here"
+            }
+            UpstreamArchive::CannotTell { .. } => {
+                "the remote default's archive cannot be read, so review and finalize cannot tell whether this change is already archived there and refuse it here"
+            }
+        }
+        .into(),
         resume: format!("specsync change status {id}"),
         before_clearing: vec![upstream_archive_message(id, upstream)],
     }

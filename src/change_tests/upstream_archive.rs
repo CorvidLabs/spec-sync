@@ -38,8 +38,13 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
     quiet_git(&root, &["checkout", "-q", "-b", "stale", &base]);
     let upstream = upstream_archive_of(&root, &unarchived)
         .expect("an archive only the remote default holds must be reported");
-    assert_eq!(upstream.reference, "origin/main");
-    assert_eq!(upstream.commit, archive_commit);
+    assert_eq!(
+        upstream,
+        UpstreamArchive::Archived {
+            reference: "origin/main".into(),
+            commit: archive_commit.clone(),
+        }
+    );
     let message = upstream_archive_message(&unarchived.id, &upstream);
     assert!(message.contains("already archived on `origin/main`"), "{message}");
     assert!(message.contains(&archive_commit), "{message}");
@@ -55,8 +60,11 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
         let mut early = unarchived.clone();
         early.state = state;
         assert_eq!(
-            upstream_archive_of(&root, &early).map(|found| found.commit),
-            Some(archive_commit.clone()),
+            upstream_archive_of(&root, &early),
+            Some(UpstreamArchive::Archived {
+                reference: "origin/main".into(),
+                commit: archive_commit.clone(),
+            }),
             "{state:?}"
         );
     }
@@ -100,7 +108,10 @@ fn upstream_archive_is_found_by_its_state_record_not_its_directory_name() {
     unarchived.state = ChangeState::Verifying;
     let upstream = upstream_archive_of(&root, &unarchived)
         .expect("a renamed upstream package must still be found by its state record");
-    assert_eq!(upstream.reference, "origin/main");
+    assert!(
+        matches!(&upstream, UpstreamArchive::Archived { reference, .. } if reference == "origin/main"),
+        "{upstream:?}"
+    );
 }
 
 // #946, SHIP-3.c. When the remote default's archived state records cannot be read, the lookup
@@ -140,12 +151,15 @@ fn an_unreadable_upstream_archive_listing_is_reported_not_read_as_absent() {
 
     let mut unarchived = archived.clone();
     unarchived.state = ChangeState::Verifying;
-    let found = upstream_archive_of(&root, &unarchived);
-    assert!(
-        found.is_some(),
-        "an unreadable upstream archive listing must not read as no upstream archive"
+    let found = upstream_archive_of(&root, &unarchived)
+        .expect("an unreadable upstream archive listing must not read as no upstream archive");
+    assert_eq!(
+        found,
+        UpstreamArchive::CannotTell {
+            reference: "origin/main".into(),
+        }
     );
-    let message = upstream_archive_message(&unarchived.id, &found.unwrap());
+    let message = upstream_archive_message(&unarchived.id, &found);
     assert!(message.contains("cannot tell"), "{message}");
     assert!(message.contains("origin/main"), "{message}");
     assert!(message.contains("git fetch"), "{message}");
@@ -189,6 +203,11 @@ fn upstream_archive_is_found_in_a_project_directory_named_like_pathspec_magic() 
     unarchived.state = ChangeState::Verifying;
     let upstream = upstream_archive_of(&root, &unarchived)
         .expect("an archive under a pathspec-magic directory name must still be found");
-    assert_eq!(upstream.reference, "origin/main");
-    assert_eq!(upstream.commit, archive_commit);
+    assert_eq!(
+        upstream,
+        UpstreamArchive::Archived {
+            reference: "origin/main".into(),
+            commit: archive_commit,
+        }
+    );
 }

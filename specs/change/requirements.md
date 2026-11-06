@@ -1678,6 +1678,17 @@ Acceptance Criteria
 - `change finalize` refuses with the same named cause and writes no archive.
 - Without an upstream archive, a squash before finalize still reviews and finalizes.
 - An unarchived record whose archive `HEAD` already contains is not refused.
+
+### REQ-change-133
+
+When `change approve` refuses a draft because it has no acceptance criterion or its deterministic interview is unfinished, the refusal SHALL name the `specsync change answer` command that supplies the missing answer. The approval guard SHALL refuse exactly the definitions it refused before.
+
+Acceptance Criteria
+- With no acceptance criterion, the refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices (such as `<yes|no>`) as the answer placeholder.
+- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- A definition that approval refused before is still refused.
+
 ### REQ-change-relayed-decision-001
 
 A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.

@@ -236,6 +236,16 @@ site_change="$(classify M site/src/pages/index.astro)"
 expect_value "$site_change" full false
 expect_value "$site_change" site true
 
+# The landing page's change workflow is executed by a product test
+# (tests/integration/documented_workflows.rs), so editing it runs the full lane.
+landing_page_change="$(classify M site/src/content/docs/index.md)"
+expect_value "$landing_page_change" full true
+expect_value "$landing_page_change" site true
+
+other_docs_page_change="$(classify M site/src/content/docs/quickstart.md)"
+expect_value "$other_docs_page_change" full false
+expect_value "$other_docs_page_change" site true
+
 vscode_change="$(classify M vscode-extension/src/extension.ts)"
 expect_value "$vscode_change" full false
 expect_value "$vscode_change" vscode true

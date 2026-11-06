@@ -179,7 +179,11 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         return Err("description is empty".into());
     }
     if record.acceptance_criteria.is_empty() {
-        return Err("at least one acceptance criterion is required".into());
+        return Err(format!(
+            "at least one acceptance criterion is required; run `specsync change answer {} \
+             acceptance_criteria \"<observable outcome>\"`",
+            record.id
+        ));
     }
     if record.affected_paths.is_empty() {
         return Err("at least one affected path is required".into());
@@ -215,8 +219,9 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
                 .into(),
         );
     }
-    if !next_questions_for(root, record).is_empty() {
-        return Err("the deterministic interview is incomplete".into());
+    let remaining = next_questions_for(root, record);
+    if !remaining.is_empty() {
+        return Err(interview_incomplete_refusal(&record.id, &remaining));
     }
     if let Some(policy) = load_policy_checked(root)?
         && let Some(principles) = policy.principles_file
@@ -232,6 +237,30 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         }
     }
     validate_artifacts(root, record)
+}
+
+/// The refusal for an unfinished interview: every question still open, and the
+/// `change answer` command for the first one (REQ-change-133). A question with two or more
+/// choices shows them as the placeholder (`<yes|no>`); any other takes free text.
+fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
+    let open = remaining
+        .iter()
+        .map(|question| format!("`{}`", question.id))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let Some(first) = remaining.first() else {
+        return "the deterministic interview is incomplete".into();
+    };
+    let placeholder = if first.choices.len() >= 2 {
+        format!("<{}>", first.choices.join("|"))
+    } else {
+        "\"<answer>\"".to_string()
+    };
+    format!(
+        "the deterministic interview is incomplete (still to answer: {open}); run \
+         `specsync change answer {id} {} {placeholder}`",
+        first.id
+    )
 }
 
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {

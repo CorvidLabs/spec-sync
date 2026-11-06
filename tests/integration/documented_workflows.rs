@@ -347,10 +347,12 @@ impl Project {
     }
 
     /// The landing page's Quick Start prerequisites for its change workflow: `specsync init`
-    /// and `specsync add-spec auth` from the same block, run as written, with `src/auth.ts`
-    /// written first as the block's comment says ("after you write a source file"). The block's
-    /// other lines (install, coverage, score, hooks, MCP) are a command list, not steps of the
-    /// change workflow, and are not run here.
+    /// and `specsync add-spec auth` from the same block, run as written in a fresh git
+    /// repository, with `src/auth.ts` written first as the block's comment says ("after you
+    /// write a source file"). Nothing is committed here: whatever the page does not commit
+    /// itself stays uncommitted, as it would for a reader. The block's other lines (install,
+    /// coverage, score, hooks, MCP) are a command list, not steps of the change workflow, and
+    /// are not run here.
     fn landing_page_quick_start(steps: &[Step]) -> Self {
         let project = Self::new();
         let command = |prefix: &str| {
@@ -380,7 +382,6 @@ impl Project {
             "`{add_spec}`: {}",
             describe(&output)
         );
-        project.commit_all("Existing project with the auth module and its scaffolded spec");
         project
     }
 
@@ -524,8 +525,10 @@ impl Project {
     /// DOCS-3.a: approving a definition that `change new` just created must refuse, and each
     /// refusal about the interview must name the `change answer` command that finishes it.
     /// The probe runs the named command (filling its placeholder: a sentence for the outcome,
-    /// the recommended `no` for a yes-or-no question, `none` for free text) and approves again, until the refusal is
-    /// about the selected artifacts, which a reader writes by hand. Returns the named commands.
+    /// the example's `src/auth.ts` and `auth` for the scope, the recommended `no` for a
+    /// yes-or-no question, the single choice `none` for constraints, and `none` for free text)
+    /// and approves again, until the refusal is about the selected artifacts, which a reader
+    /// writes by hand. Returns the named commands.
     fn approval_refusals_name_answer_commands(&self, root: &Path, approve: &str) -> Vec<String> {
         let mut named = Vec::new();
         loop {
@@ -548,7 +551,10 @@ impl Project {
             let command = format!("specsync change answer {arguments}");
             let runnable = command
                 .replace("\"<observable outcome>\"", "\"login returns true\"")
+                .replace("\"<path>\"", "\"src/auth.ts\"")
+                .replace("\"<module>\"", "\"auth\"")
                 .replace("<yes|no>", "no")
+                .replace("<none>", "none")
                 .replace("\"<answer>\"", "\"none\"");
             assert!(
                 !runnable.contains('<'),
@@ -709,15 +715,7 @@ fn approve_refusals_after_the_landing_page_change_new_name_the_command_that_fini
             })
             .unwrap_or_else(|| panic!("the landing-page workflow has no `{prefix}` line"))
     };
-    for prefix in ["specsync change adopt", "specsync change new "] {
-        let command = documented(prefix);
-        let output = project.run_documented(&project.root, &command);
-        assert!(
-            output.status.success(),
-            "`{command}`: {}",
-            describe(&output)
-        );
-    }
+    run_documented_commands_through_change_new(&project, &workflow, None);
     let approve = documented("specsync change approve ");
     let named = project.approval_refusals_name_answer_commands(&project.root, &approve);
     assert!(
@@ -730,4 +728,58 @@ fn approve_refusals_after_the_landing_page_change_new_name_the_command_that_fini
         named.len() >= 2,
         "the unfinished interview must name its own answer command too; named {named:?}"
     );
+}
+
+/// Run the landing-page workflow's commands in order, as written, up to and including its
+/// `change new` line (replaced by `new_command` when given).
+fn run_documented_commands_through_change_new(
+    project: &Project,
+    workflow: &[Step],
+    new_command: Option<&str>,
+) {
+    for step in workflow {
+        let Step::Command(command) = step else {
+            continue;
+        };
+        let is_new = command.starts_with("specsync change new ");
+        let command = match (is_new, new_command) {
+            (true, Some(replacement)) => replacement.to_string(),
+            _ => command.clone(),
+        };
+        let output = project.run_documented(&project.root, &command);
+        assert!(
+            output.status.success(),
+            "`{command}`: {}",
+            describe(&output)
+        );
+        if is_new {
+            return;
+        }
+    }
+    panic!("the landing-page workflow has no `specsync change new` line");
+}
+
+/// REQ-change-133 (#917): a draft created without `--path` or `--spec` is refused for its
+/// scope too, and each of those refusals names the `change answer` command that supplies it.
+#[test]
+fn approve_refusals_for_a_draft_created_without_scope_name_the_scope_answers() {
+    let (quick_start, workflow) = landing_page_steps();
+    let project = Project::landing_page_quick_start(&quick_start);
+    run_documented_commands_through_change_new(
+        &project,
+        &workflow,
+        Some("specsync change new \"Add auth\" --json"),
+    );
+    let named = project.approval_refusals_name_answer_commands(
+        &project.root,
+        "specsync change approve add-auth --actor \"Ada\"",
+    );
+    for question in ["acceptance_criteria", "affected_paths", "affected_specs"] {
+        assert!(
+            named
+                .iter()
+                .any(|command| command.contains(&format!(" {question} "))),
+            "a draft without scope must be told to answer `{question}`; named {named:?}"
+        );
+    }
 }

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 176
+version: 178
 status: active
 files:
   - src/change.rs
@@ -15,6 +15,7 @@ files:
   - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
+  - src/change_tests/approve_refusal_hints.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
@@ -385,8 +386,8 @@ Acceptance Criteria
 
 | Condition | Behavior |
 |-----------|----------|
-| Missing acceptance criteria or affected scope | Definition approval fails; a missing acceptance criterion names `specsync change answer <id> acceptance_criteria "<observable outcome>"` (REQ-change-133) |
-| Interview questions still open at approval | Approval fails, naming every open question and the `specsync change answer <id> <question> <answer>` command for the first, with its choices (such as `<yes|no>`) as the placeholder (REQ-change-133) |
+| Missing acceptance criteria or affected scope | Definition approval fails. A draft is told which answer finishes it: `specsync change answer <id> acceptance_criteria "<observable outcome>"`, `affected_paths "<path>"` or `affected_specs "<module>"`. A record past draft keeps the bare condition, because `change answer` refuses outside draft (REQ-change-133) |
+| Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first, with the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none; a record past draft keeps the bare condition (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |
@@ -638,3 +639,5 @@ Acceptance Criteria
 | 2026-11-06 | v172 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |
 | 2026-11-06 | show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve: Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11) |
 | 2026-11-06 | let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval: Let a change reviewed before its send-back be reviewed again after re-approval |
+| 2026-11-06 | v177 / #917: approve's refusal hints are draft-only (a record past draft keeps the bare condition, since `change answer` refuses outside draft); the affected-path and affected-spec refusals name their `change answer` commands; a question with any choices shows them as the placeholder (REQ-change-133) |
+| 2026-11-06 | keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick: Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917) |

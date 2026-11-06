@@ -27,6 +27,16 @@ struct PersistentReadCache {
     /// and its parents are immutable, so this needs no invalidation beyond the build identity.
     #[serde(default)]
     archive_introductions: BTreeMap<String, Vec<CachedArchiveIntroduction>>,
+    /// Keys of legacy-baseline introduction proofs that passed (see
+    /// `legacy_introductions_cache_key`). A key digests every input of the proof that is not an
+    /// immutable commit, so it never names a different verdict. Only passes are stored.
+    #[serde(default)]
+    legacy_introductions: BTreeSet<String>,
+    /// `<cutoff commit>\n<change id>` for each workflow-v1 change shown to have had a workflow-v1
+    /// record at that trusted pre-v2 cutoff (REQ-change-136). The cutoff is an immutable commit, so
+    /// an entry needs no invalidation beyond the build identity; a refusal is never stored.
+    #[serde(default)]
+    workflow_v1_at_cutoff: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -90,13 +100,15 @@ fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
     index
 }
 
-/// The package version plus the bundled validation limits, so a build that judges history
-/// differently never reuses another build's verdicts.
+/// The package version plus the build fingerprint, so a build that judges history differently
+/// never reuses another build's verdicts (REQ-change-134). The version alone named no code: every
+/// build of one version shared it, sibling worktrees included, since the cache lives in the Git
+/// common directory (#878). The fingerprint covers the bundled validation limits too.
 fn read_cache_build_identity() -> String {
     format!(
         "{}+{}",
         env!("CARGO_PKG_VERSION"),
-        sha256_hex(include_str!("../lifecycle-validation-limits.json").as_bytes())
+        crate::hash_cache::BUILD_FINGERPRINT
     )
 }
 
@@ -456,6 +468,8 @@ fn with_persistent_read_cache<Value>(
             repo_prefix: prefix.clone(),
             workflow_history: BTreeMap::new(),
             archive_introductions: BTreeMap::new(),
+            legacy_introductions: BTreeSet::new(),
+            workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
             .path
@@ -634,6 +648,63 @@ fn remember_workflow_history_pass(root: &Path, record: &ChangeRecord) {
     });
 }
 
+const LEGACY_INTRODUCTIONS_CACHE_DOMAIN: &[u8] = b"specsync.read-cache.legacy-introductions.v1";
+
+/// The read-cache key for one proof of a legacy baseline's introductions (#901).
+///
+/// `validate_legacy_archive_introductions` reads the baseline (bound by its ledger digest), the
+/// cutoff commit, the commits reachable from it, the introduction commits and their trees, the
+/// repository prefix, and every enumerated archive's current subtree. Commits named by full id
+/// and everything reachable from them are immutable while the persistent cache is enabled (it is
+/// off for shallow, grafted, replaced and partial clones), the prefix and the build are part of
+/// the cache file's identity, and the rest is digested here. `None`, so the proof runs live,
+/// when the cutoff is not a full commit id or an archive has no capturable subtree.
+fn legacy_introductions_cache_key(
+    baseline_digest: &str,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Option<String> {
+    if !is_full_object_id(&baseline.cutoff_commit) {
+        return None;
+    }
+    let mut digest = FramedDigest::new(LEGACY_INTRODUCTIONS_CACHE_DOMAIN);
+    digest.frame(b"baseline", baseline_digest.as_bytes());
+    digest.frame(b"cutoff", baseline.cutoff_commit.as_bytes());
+    for entry in &baseline.entries {
+        let subtree = legacy_archive_subtree_digest(snapshots.get(&entry.id)?).ok()?;
+        digest.frame(b"id", entry.id.as_bytes());
+        digest.frame(b"subtree", subtree.as_bytes());
+    }
+    Some(digest.finish())
+}
+
+/// Whether the persistent read cache holds a passing proof under `key`.
+fn legacy_introductions_proven(root: &Path, key: &str) -> bool {
+    with_persistent_read_cache(root, |_, frame| {
+        frame.path.is_some()
+            && frame
+                .loaded
+                .as_ref()
+                .is_some_and(|cache| cache.legacy_introductions.contains(key))
+    })
+    .unwrap_or(false)
+}
+
+/// Records a passing proof under `key`. Called only after the live proof passed.
+fn remember_legacy_introductions_proven(root: &Path, key: String) {
+    with_persistent_read_cache(root, |_, frame| {
+        if frame.path.is_none() {
+            return;
+        }
+        if let Some(cache) = frame.loaded.as_mut()
+            && cache.legacy_introductions.len() < MAX_CHANGE_READ_CACHE_ENTRIES
+            && cache.legacy_introductions.insert(key)
+        {
+            frame.dirty = true;
+        }
+    });
+}
+
 /// Writes the persistent cache when the scope learned something new. Failures are ignored: the
 /// cache is an accelerator, and a read-only checkout must still answer.
 fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
@@ -692,6 +763,7 @@ fn archive_introductions_at_commit(
     commit: &str,
     history_pathspec: &str,
     directory_prefix: &str,
+    listed: Option<&[String]>,
 ) -> Result<Vec<ArchivePackageIntroduction>, String> {
     let key = format!("{commit}\n{history_pathspec}");
     if let Some(Some(cached)) = with_persistent_read_cache(root, |_, frame| {
@@ -711,8 +783,13 @@ fn archive_introductions_at_commit(
             })
             .collect());
     }
-    let (introduced, conclusive) =
-        archive_introductions_at_commit_uncached(root, commit, history_pathspec, directory_prefix)?;
+    let (introduced, conclusive) = archive_introductions_at_commit_uncached(
+        root,
+        commit,
+        history_pathspec,
+        directory_prefix,
+        listed,
+    )?;
     if conclusive {
         let cached: Option<Vec<CachedArchiveIntroduction>> = introduced
             .iter()
@@ -749,7 +826,11 @@ fn archive_introductions_at_commit_uncached(
     commit: &str,
     history_pathspec: &str,
     directory_prefix: &str,
+    listed: Option<&[String]>,
 ) -> Result<ArchiveIntroductionsAtCommit, String> {
+    if let Some(listed) = listed {
+        return archive_introductions_from_listing(root, commit, directory_prefix, listed);
+    }
     let output = run_git_bounded(
         root,
         &[
@@ -777,10 +858,26 @@ fn archive_introductions_at_commit_uncached(
             "failed to inspect archived acceptance introduction `{commit}`"
         ));
     }
+    let names = String::from_utf8_lossy(&output.stdout);
+    let listed: Vec<String> = names
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect();
+    archive_introductions_from_listing(root, commit, directory_prefix, &listed)
+}
+
+/// The archived packages among `listed`, the paths `commit` added under the archive root, with
+/// their committed `state.json` and `approvals.json` bytes.
+fn archive_introductions_from_listing(
+    root: &Path,
+    commit: &str,
+    directory_prefix: &str,
+    listed: &[String],
+) -> Result<ArchiveIntroductionsAtCommit, String> {
     let mut conclusive = true;
     let mut introduced = Vec::new();
-    let names = String::from_utf8_lossy(&output.stdout);
-    for path in names.split('\0').filter(|path| !path.is_empty()) {
+    for path in listed.iter().map(String::as_str) {
         let Some(directory) = path.strip_suffix("/state.json") else {
             continue;
         };
@@ -873,6 +970,13 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     if pending.len() < 2 {
         return;
     }
+    // With the command's lifecycle-state history index, each archive's check needs no history
+    // walk of its own, and its state-file reads go through this thread's one batch reader. The
+    // archive walk then validates them here, in order, with a deadline check between archives
+    // (REQ-change-141). Workers have no batch reader, so they would only add processes.
+    if lifecycle_state_history(root).is_some() {
+        return;
+    }
     let workers = std::thread::available_parallelism()
         .map(std::num::NonZeroUsize::get)
         .unwrap_or(1)
@@ -880,17 +984,28 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
         .min(pending.len());
     let next = AtomicU64::new(0);
     let results: Mutex<Vec<(usize, Result<(), String>)>> = Mutex::new(Vec::new());
+    // Workers only read, so each starts from what this command already knows about the
+    // repository and memoizes its own reads (REQ-git-utils-011).
+    let seed = crate::git_utils::repository_fact_seed(root);
+    let deadline = current_read_deadline();
+    let (next_ref, pending_ref, results_ref) = (&next, &pending, &results);
     std::thread::scope(|threads| {
         let workers: Vec<_> = (0..workers)
             .map(|_| {
-                threads.spawn(|| {
+                let seed = seed.clone();
+                threads.spawn(move || {
+                    let _facts = seed.map(crate::git_utils::begin_seeded_repository_fact_scope);
+                    let _deadline = begin_worker_read_deadline(deadline);
                     loop {
-                    let index = next.fetch_add(1, Ordering::Relaxed) as usize;
-                    let Some((_, record)) = pending.get(index) else {
+                    if check_read_deadline("archived workflow history", 0, 0).is_err() {
+                        break;
+                    }
+                    let index = next_ref.fetch_add(1, Ordering::Relaxed) as usize;
+                    let Some((_, record)) = pending_ref.get(index) else {
                         break;
                     };
                     let result = validate_workflow_version_history_uncached(root, record);
-                    if let Ok(mut results) = results.lock() {
+                    if let Ok(mut results) = results_ref.lock() {
                         results.push((index, result));
                     }
                     }
@@ -909,6 +1024,7 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     let Ok(results) = results.into_inner() else {
         return;
     };
+    let completed = results.len();
     for (index, result) in results {
         let (key, record) = &pending[index];
         if result.is_ok() {
@@ -918,4 +1034,122 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
             scope.workflow_version_history.insert(key.clone(), result);
         });
     }
+    // Workers stop at the deadline; what they finished is recorded above, so the report can keep it.
+    let _ = check_read_deadline("archived workflow history", completed, pending.len());
+}
+
+/// Write every open persistent read cache on this thread, so a read stopped by its deadline keeps
+/// the verdicts it completed (REQ-change-137).
+fn flush_open_read_caches() {
+    HISTORY_CACHE_SCOPES.with(|scopes| {
+        if let Ok(scopes) = scopes.try_borrow() {
+            for (_, frame) in scopes.iter() {
+                flush_persistent_read_cache(frame);
+            }
+        }
+    });
+    flush_change_read_scope_caches();
+}
+
+/// Whether the persistent read cache already knows that workflow-v1 change `id` had a workflow-v1
+/// record at `cutoff` (REQ-change-136).
+fn cached_workflow_v1_at_cutoff(root: &Path, cutoff: &str, id: &str) -> bool {
+    let key = format!("{cutoff}\n{id}");
+    with_persistent_read_cache(root, |_, frame| {
+        frame
+            .loaded
+            .as_ref()
+            .is_some_and(|cache| cache.workflow_v1_at_cutoff.contains(&key))
+    })
+    .unwrap_or(false)
+}
+
+/// Remember that workflow-v1 change `id` had a workflow-v1 record at `cutoff`. Only a
+/// conclusive presence is stored; an absence stays live so a transient read failure never
+/// becomes a lasting refusal.
+fn remember_workflow_v1_at_cutoff(root: &Path, cutoff: &str, id: &str) {
+    let key = format!("{cutoff}\n{id}");
+    with_persistent_read_cache(root, |_, frame| {
+        if frame.path.is_some()
+            && let Some(cache) = frame.loaded.as_mut()
+            && cache.workflow_v1_at_cutoff.insert(key)
+        {
+            frame.dirty = true;
+        }
+    });
+}
+
+/// The paths each of `commits` added under `history_pathspec`, from one `git diff-tree --stdin`
+/// with exactly the flags the per-commit read uses (REQ-change-135). Commits the persistent read
+/// cache already answers are skipped. `None` when the walk could not be read; callers then fall
+/// back to one read per commit.
+fn archive_introduction_listings(
+    root: &Path,
+    commits: &[&str],
+    history_pathspec: &str,
+) -> Option<BTreeMap<String, Vec<String>>> {
+    let uncached: Vec<&str> = with_persistent_read_cache(root, |_, frame| {
+        commits
+            .iter()
+            .copied()
+            .filter(|commit| {
+                let key = format!("{commit}\n{history_pathspec}");
+                !frame
+                    .loaded
+                    .as_ref()
+                    .is_some_and(|cache| cache.archive_introductions.contains_key(&key))
+            })
+            .collect()
+    })
+    .unwrap_or_else(|| commits.to_vec());
+    if uncached.len() < 2 {
+        return Some(BTreeMap::new());
+    }
+    let mut input = uncached.join("\n").into_bytes();
+    input.push(b'\n');
+    let output = run_git_bounded(
+        root,
+        &[
+            "diff-tree",
+            "--stdin",
+            "--root",
+            "-m",
+            "--name-only",
+            "-r",
+            "-z",
+            "--no-renames",
+            "--diff-filter=A",
+            "--",
+            history_pathspec,
+        ],
+        Some(input),
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let wanted: BTreeSet<&str> = uncached.iter().copied().collect();
+    let mut listings: BTreeMap<String, Vec<String>> = uncached
+        .iter()
+        .map(|commit| ((*commit).to_string(), Vec::new()))
+        .collect();
+    let mut current: Option<String> = None;
+    for entry in String::from_utf8_lossy(&output.stdout).split('\0') {
+        let entry = entry.trim_matches('\n');
+        if entry.is_empty() {
+            continue;
+        }
+        // A header is the commit id; every listed path is under the archive root and has a `/`.
+        let token = entry.split_whitespace().next().unwrap_or(entry);
+        if !entry.contains('/') && wanted.contains(token) {
+            current = Some(token.to_string());
+            continue;
+        }
+        let listing = listings.get_mut(current.as_ref()?)?;
+        if !listing.iter().any(|path| path == entry) {
+            listing.push(entry.to_string());
+        }
+    }
+    Some(listings)
 }

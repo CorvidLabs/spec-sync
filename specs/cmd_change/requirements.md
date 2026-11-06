@@ -277,7 +277,7 @@ Acceptance Criteria
 `change ship-status` SHALL name a next action the same binary will accept, and SHALL resolve a change's verification and review evidence from wherever that change currently lives.
 
 Acceptance Criteria
-- Outside the shipping window — draft, accepted, and archived — the printed next action equals the lifecycle next action, so a draft is told to answer its interview rather than to commit verification, and an archived change is told there is no further action.
+- Outside the shipping window — draft, accepted, and archived — the printed next action equals the lifecycle next action, so a draft is told to answer its interview rather than to commit verification, an archived change whose terminal evidence authenticates is told there is no further action, and an archived change whose terminal evidence is `corrupt-history` is told the restore that recovers it, the same step `change status` names.
 - The next action is always a runnable command and never a restatement of a blocker; blockers continue to render on their own lines.
 - An archived change reports the verification commit and the scoped review recorded in its archive package, rather than reporting none and missing because the artifacts were sought at the active workspace path it has left.
 - Evidence resolution reuses the single active-or-archive workspace resolver rather than introducing a third path-construction idiom.
@@ -442,11 +442,22 @@ The change CLI SHALL expose historical reconciliation as an opt-in scope request
 
 ### REQ-cmd-change-029
 
-`change status` and `change ship-status` SHALL report a change that is already archived upstream with the reference, the archive commit and the next step, in text and JSON, and SHALL NOT name finalize or ship as its next action.
+`change status` and `change ship-status` SHALL report a change that is already archived upstream with the reference, the archive commit and the next step, in text and JSON, and SHALL NOT name finalize or ship as its next action. The pull-request sentence that `change status` and `change pr` print, and `.github/scripts/archive-readiness.sh` that the Archive check runs, SHALL NOT name `change ship` for such a change either, and SHALL name `change status` instead.
 
 Acceptance Criteria
 - Text output names the reference, the commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy.
 - JSON readiness is not `safe`.
+- With the remote default holding an archive of the change, the pull-request sentence names `specsync change status <id>` even when the stale copy carries a passing review at `HEAD` and a verification record (#902).
+- `archive-readiness.sh` prints the same sentence when a remote default ref is present, using the same upstream-archive test; with no such ref, or an archive `HEAD` already contains, it keeps its classification.
+
+### REQ-cmd-change-031
+
+`change ship`, including `--dry-run`, SHALL refuse a change with an open task before finalizing anything. The refusal SHALL name each open task and `specsync change ship <id>` with the flags it was given. `change ship-status` SHALL report the open tasks as a blocker and SHALL NOT report the change ready to finalize. Its `Next:` SHALL name the open tasks before the ship command.
+
+#### Acceptance Criteria
+
+- After a passing check and review, reopening one task makes `change ship-status <id>` list an incomplete-tasks blocker with `ready_to_finalize` false. It also makes `change ship <id>` exit 1 without archiving, naming the task and `specsync change ship <id>`.
+- Ticking the box and running the named `change ship` command archives the change.
 
 ### REQ-cmd-change-033
 
@@ -457,14 +468,14 @@ Acceptance Criteria
 - A draft is told to approve, not to check.
 - Approved, implementing and verifying changes are still told to check.
 
-### REQ-cmd-change-031
+### REQ-cmd-change-032
 
-`change ship`, including `--dry-run`, SHALL refuse a change with an open task before finalizing anything. The refusal SHALL name each open task and `specsync change ship <id>` with the flags it was given. `change ship-status` SHALL report the open tasks as a blocker and SHALL NOT report the change ready to finalize. Its `Next:` SHALL name the open tasks before the ship command.
+`change status`, `change show`, `change list` and `change ship-status` SHALL accept `--timeout <secs>`, and SHALL read `SPECSYNC_TIMEOUT` when the flag is absent. With neither, there SHALL be no deadline, as before. When the deadline passes, the command SHALL exit 124. Text output SHALL name the command, the elapsed limit, the phase and progress, that nothing was written, and the exact resume command. `--json` output SHALL be `{"error":"timeout","phase":...,"progress":...,"wrote":false,"resume":...}`.
 
-#### Acceptance Criteria
-
-- After a passing check and review, reopening one task makes `change ship-status <id>` list an incomplete-tasks blocker with `ready_to_finalize` false. It also makes `change ship <id>` exit 1 without archiving, naming the task and `specsync change ship <id>`.
-- Ticking the box and running the named `change ship` command archives the change.
+Acceptance Criteria
+- `change status <id> --timeout 0 --json` on an archived change exits 124 with the JSON shape above and changes no file.
+- Rerunning the printed resume command without a timeout gives the same verdict as a run that never timed out.
+- With no flag and no environment variable, behaviour and output are unchanged.
 
 ### REQ-cmd-change-034
 

@@ -10,7 +10,7 @@ homepage = "https://github.com/CorvidLabs/spec-sync"
 repository = "https://github.com/CorvidLabs/spec-sync"
 keywords = ["spec", "documentation", "validation", "coverage", "code-quality"]
 categories = ["development-tools", "command-line-utilities"]
-include = ["/src/**", "/Cargo.toml", "/Cargo.lock", "/README.md", "/CHANGELOG.md", "/LICENSE"]
+include = ["/src/**", "/build.rs", "/Cargo.toml", "/Cargo.lock", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [[bin]]
 name = "specsync"
@@ -51,6 +51,10 @@ threemd = "=2.2.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# build.rs fingerprints the sources this binary is compiled from, so caches never cross builds (#878).
+[build-dependencies]
+sha2 = "0.10"
 
 [dev-dependencies]
 assert_cmd = "2"

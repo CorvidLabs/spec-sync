@@ -11,6 +11,8 @@ The local check only matters if the same check stands between a drifted contract
 
 Approved by Leif in the Herdr orc tab on 2026-11-05 20:30 MST (relayed by orc t18, choice "Approve") for issue #886, after a read-only token made the Action's comment step fail a passing check with HTTP 403. CI-3.b is that intent, worded as proposed and approved.
 
+CI-6 is Leif's own sentence, captured as he gave it ("Capture it, fix CI") in the Herdr orc tab on 2026-11-06 (relayed by orc t18). He wrote it after PR #941, which changed only `.chough/` records, never started CI and so could not get the required check.
+
 ## Criteria
 
 - **CI-1**  The same check I run locally runs in my pipeline as a ready-made step, with nothing to build.
@@ -24,3 +26,4 @@ Approved by Leif in the Herdr orc tab on 2026-11-05 20:30 MST (relayed by orc t1
   - **CI-4.a**  The comparison works out the branch's real base on its own rather than making me name it.
 - **CI-5**  A contract with drift can raise an issue, so the gap does not vanish with the build log.
   - **CI-5.a**  An issue reference already written into a contract can be checked as real.
+- **CI-6**  A pull request that only changes Chough records still gets the checks the branch requires.

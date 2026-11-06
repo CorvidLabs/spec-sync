@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 63
+version: 69
 status: active
 files:
   - src/commands/change.rs
@@ -196,3 +196,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze: Keep the upstream-archive status guidance behind a sequence-ledger freeze |
 | 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |
 | 2026-11-06 | make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts: Make the ship-status product stage advertise only a command its state accepts |
+| 2026-11-06 | report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it: Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it |
+| 2026-11-06 | `change status`, `show`, `list` and `ship-status` take `--timeout <secs>` or `SPECSYNC_TIMEOUT`; a timed-out read exits 124 with the phase, progress and resume command (REQ-cmd-change-032, S9) |
+| 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
+| 2026-11-06 | stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship: Stop the Archive check and change pr from telling a copy already archived upstream to run ship |

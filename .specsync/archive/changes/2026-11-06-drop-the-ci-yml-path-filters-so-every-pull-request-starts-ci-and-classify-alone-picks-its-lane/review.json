@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d1b07f53f1f55f53737d8e33369c45548da6c219",
+  "contract_digest": "67921287626d03f2b85c394c02c7494effa5aab6743182534ee9e4f02c3c0460",
+  "execution_digest": "cccbda83575828d63bfc50c9a97e64c8ca835f54ca62226557135ee1d55d7b1f",
+  "workspace_digest": "c22c9d88f37418f4d29019330745b7201d3aac275d721b17188ebb57a2644fcf",
+  "timestamp": 1793981772
+}

@@ -19,6 +19,25 @@
         "REQ-change-148",
         "REQ-cli-013"
       ]
+    },
+    {
+      "timestamp": 1794009410,
+      "commit": "21cab7fabc9d3b654e8998858df736bbd6d80a74",
+      "contract_digest": "2105d9d5eb35d2c67fe64e900e622eac50b962f9bfd0e1c5c7a133c976de9c67",
+      "execution_digest": "1a679d21380e40ca849d38cbb8a59ca56f81e5904c11e0125970fae5e65ecd7a",
+      "workspace_digest": "a80b44df2a6429cb201a3d283606b8ca73b47e7efb16eda0ec4c6417754d6869",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-148",
+        "REQ-cli-013"
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 ## ADDED
 
-### REQUIREMENT REQ-github-026
+### REQUIREMENT REQ-github-027
 
 Continuous integration SHALL validate the syntax of every maintained Mermaid diagram and reject lifecycle diagrams whose states or send-back transitions disagree with the implementation (DOCS-5, DOCS-5.a).
 

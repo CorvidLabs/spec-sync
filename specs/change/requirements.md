@@ -1816,6 +1816,16 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 - A `--portable-5-0-1` approval carries the relay on both records of the pair.
 - `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
 
+### REQ-change-144
+
+Building a change's acceptance manifest or acceptance input digest SHALL read the clean tracked files in its delivery scope one blob at a time, each under the existing per-object bound, so that `change reopen`, and every other read that builds that evidence, does not fail because the total size of those files exceeds a single in-memory Git read.
+
+Acceptance Criteria
+- Reopen of a stale accepted change whose clean affected files exceed one `git cat-file --batch` read, with or without an acceptance manifest, no longer fails with "`git cat-file --batch` output exceeds deterministic bounds".
+- The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
+- Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
+- The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
+
 ### REQ-change-relay-repair-001
 
 `repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.

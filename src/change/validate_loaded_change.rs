@@ -4420,10 +4420,40 @@ fn is_zero_u64(value: &u64) -> bool {
 }
 
 fn now() -> u64 {
+    #[cfg(test)]
+    if let Some(pinned) = TEST_PINNED_NOW.with(std::cell::Cell::get) {
+        return pinned;
+    }
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A second `now()` returns on this thread while a `PinnedTestClock` lives, so a test can put
+    /// two records in the same second on purpose instead of by luck (CI-7, #977).
+    static TEST_PINNED_NOW: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Pins `now()` on this thread to one second until dropped. Test builds only.
+#[cfg(test)]
+struct PinnedTestClock;
+
+#[cfg(test)]
+impl PinnedTestClock {
+    fn at(seconds: u64) -> Self {
+        TEST_PINNED_NOW.with(|pinned| pinned.set(Some(seconds)));
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for PinnedTestClock {
+    fn drop(&mut self) {
+        TEST_PINNED_NOW.with(|pinned| pinned.set(None));
+    }
 }
 
 fn today() -> String {

@@ -4802,3 +4802,110 @@ mod project_relative_diff_path_tests {
         assert!(error.ends_with("`src/unrelated.rs`"), "{error}");
     }
 }
+
+/// An archive of a change that the remote default branch holds and `HEAD` does not (#694).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UpstreamArchive {
+    /// The remote default reference, such as `origin/main`.
+    pub(crate) reference: String,
+    /// The commit on that reference that added the archived package.
+    pub(crate) commit: String,
+}
+
+/// The remote default's archive of `record`, when this branch does not contain it.
+///
+/// An unarchived record whose id the remote default already archived is a stale copy: closing it
+/// again would write a second archive, so finalize refuses it, and review, status and ship-status
+/// must say so first instead of reporting it ready (REQ-change-129). An archive that `HEAD`
+/// already contains is not reported: that is the reopen-and-rearchive path, which keeps working.
+/// When Git cannot answer, this returns `None` and every other gate still applies.
+///
+/// The lookup is targeted so it can run for every unarchived state: one tree listing of the
+/// remote default's archive directory, and only on a match the package's `state.json`, the commit
+/// that added it and one ancestry check. It never builds the full archive index.
+pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<UpstreamArchive> {
+    if record.state == ChangeState::Archived {
+        return None;
+    }
+    let reference = remote_default_ref(root)?;
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
+    let listing = git_output(
+        root,
+        &[
+            "ls-tree",
+            "--full-tree",
+            "--name-only",
+            &reference,
+            "--",
+            &format!("{archive_root}/"),
+        ],
+    )?;
+    listing.lines().find_map(|entry| {
+        let package = entry.rsplit('/').next()?;
+        if !is_dated_package_for(package, &record.id) {
+            return None;
+        }
+        let state_path = format!("{entry}/state.json");
+        let state = git_output(root, &["show", &format!("{reference}:{state_path}"), "--"])?;
+        let archived: ChangeRecord = serde_json::from_str(&state).ok()?;
+        if archived.id != record.id {
+            return None;
+        }
+        let commit = git_output(
+            root,
+            &[
+                "log",
+                "-1",
+                "--format=%H",
+                "--diff-filter=A",
+                &reference,
+                "--",
+                &format!(":(top,literal){state_path}"),
+            ],
+        )?;
+        let commit = commit.trim().to_string();
+        if commit.is_empty() || commit_is_ancestor(root, &commit, "HEAD")? {
+            return None;
+        }
+        Some(UpstreamArchive {
+            reference: reference.clone(),
+            commit,
+        })
+    })
+}
+
+/// Whether an archive directory name is exactly `YYYY-MM-DD-<id>`.
+fn is_dated_package_for(package: &str, id: &str) -> bool {
+    let Some(date) = package.strip_suffix(id).and_then(|rest| rest.strip_suffix('-')) else {
+        return false;
+    };
+    let bytes = date.as_bytes();
+    bytes.len() == 10
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| if matches!(index, 4 | 7) { *byte == b'-' } else { byte.is_ascii_digit() })
+}
+
+/// The one sentence review, finalize, status and ship-status print for an upstream archive.
+pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> String {
+    format!(
+        "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; rebase this branch onto `{reference}`, whose archive is authoritative, dropping the commit that added `{CHANGES_PATH}/{id}/` (or reset to `{reference}` when the branch has nothing else), instead of closing it a second time. Merging, or deleting the copy in a new commit, leaves history that fails integrity",
+        reference = upstream.reference,
+        commit = upstream.commit,
+    )
+}
+
+/// `Some(true)` when `ancestor` is an ancestor of `descendant`, `Some(false)` when it is not,
+/// `None` when Git could not say.
+fn commit_is_ancestor(root: &Path, ancestor: &str, descendant: &str) -> Option<bool> {
+    let status = crate::git_utils::status_without_inherited_output(
+        crate::git_utils::git_cmd(root).args(["merge-base", "--is-ancestor", ancestor, descendant]),
+    )
+    .ok()?;
+    match status.code() {
+        Some(0) => Some(true),
+        Some(1) => Some(false),
+        _ => None,
+    }
+}

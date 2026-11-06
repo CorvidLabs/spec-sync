@@ -440,6 +440,14 @@ The change CLI SHALL expose historical reconciliation as an opt-in scope request
 - `change check --commit`, `change finalize` and `change ship` read fresh repository facts after their own commit.
 - Lifecycle command output and exit codes are byte-identical to the unmemoized behavior in the existing command tests.
 
+### REQ-cmd-change-029
+
+`change status` and `change ship-status` SHALL report a change that is already archived upstream with the reference, the archive commit and the next step, in text and JSON, and SHALL NOT name finalize or ship as its next action.
+
+Acceptance Criteria
+- Text output names the reference, the commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy.
+- JSON readiness is not `safe`.
+
 ### REQ-cmd-change-relayed-decision-001
 
 `change approve` and `change review` SHALL take an optional relayed decision through `--words`, `--where` and `--recorded-by`, recording `decided_by` from `--actor` or `--reviewer`. `change status <id>` and `change show <id>` SHALL show the effective approval's actor and the latest review's reviewer and verdict, each marked as a recorded claim, not authenticated, and any relayed decision beside the record it belongs to, followed by the shared boundary sentence. JSON output SHALL carry the same data under `recorded_claims`.

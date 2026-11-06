@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "564adc3168af7a8676513ccf51443f425bcbc4da",
+  "contract_digest": "29350c60f24b8c9cdbdd8bf1e6918b2b32716e6ea8c31d5ec18e08e39ae437ff",
+  "execution_digest": "a6c041166af72166cf73384132656319365f521a0dc8fb396db4db2f93385b8f",
+  "workspace_digest": "d94ddb48160547d826d3dc993fc13e88307a0b21a7358f564eb5e01367e2b128",
+  "timestamp": 1793939996
+}

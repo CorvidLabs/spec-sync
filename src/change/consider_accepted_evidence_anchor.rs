@@ -4800,6 +4800,8 @@ mod project_relative_diff_path_tests {
         );
         let error = admit_diff_path("", &candidates, "src/unrelated.rs").unwrap_err();
         assert!(error.ends_with("`src/unrelated.rs`"), "{error}");
+    }
+}
 
 /// An archive of a change that the remote default branch holds and `HEAD` does not (#694).
 #[derive(Debug, Clone, PartialEq, Eq)]

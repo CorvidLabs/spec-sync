@@ -7,11 +7,11 @@
   "title": "Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11)",
   "description": "Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11)",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "603a1356ae88763f5560c943361316456033ff49",
   "created_at": 1793940990,
-  "updated_at": 1793945198,
+  "updated_at": 1793946961,
   "affected_specs": [
     "change"
   ],

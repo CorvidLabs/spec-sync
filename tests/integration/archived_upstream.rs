@@ -446,7 +446,7 @@ fn a_verification_ignored_paths_refusal_reaches_the_handoff_of_an_upstream_archi
         "next_action: {next}"
     );
     let handoff = &status["summary"]["handoff"];
-    assert_eq!(handoff["readiness"], "not_yet", "{handoff}");
+    assert_eq!(handoff["readiness"], "not-yet", "{handoff}");
     let first = handoff["before_clearing"][0].as_str().unwrap_or_default();
     assert!(
         first.contains("verification_ignored_paths"),

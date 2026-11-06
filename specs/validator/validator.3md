@@ -133,3 +133,6 @@ names is not evidence that every selected source file was measured.
 A previously inferred list needs the same protection if Cargo disappears before
 coverage's later observation; the explicit-source flag is not proof that an
 existing selected file may be omitted.
+
+@plane z=10 label="Lesson (#862)"
+A merge of two branches can leave the same `### REQ-...` heading twice in one `requirements.md`. `check` reads the sibling requirements file and fails, and the error names the ID. A fenced copy of the heading is an example, not a second requirement. This did not loosen coverage, conflict, or export checks.

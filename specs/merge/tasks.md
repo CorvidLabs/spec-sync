@@ -10,6 +10,8 @@ spec: merge.spec.md
 
 ## Done
 
+- [x] Git merge driver for parallel module contracts (#862, MERGE-1): `merge_contract` counts both version bumps and unions change-log rows, `files:`, and requirement blocks. Marker resolution is unchanged.
+
 - [x] `merge_specs` driver: git-conflicted vs all-files scan, dry-run, write-back
 - [x] `has_conflict_markers` detection of `<<<<<<< ` markers
 - [x] `detect_conflicted_specs` via `git diff --name-only --diff-filter=U`

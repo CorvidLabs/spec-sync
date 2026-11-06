@@ -648,3 +648,6 @@ The bounded Git runner read stdout until end-of-file. A grandchild that inherite
 @plane z=12 label="History pathspecs from a subdirectory"
 
 Issue #851. Git resolves a pathspec from the working directory unless it carries `:(top)`. History queries already build repository-relative paths with `git_repo_prefix`, then run Git with the project root as cwd. When that prefix is non-empty the prefix is applied twice and the query matches nothing. Live and cached reads then agree on an empty archived history, so a workflow-version downgrade that a later commit restored is never seen. The discovery glob is `:(top,glob)`, and both the walk of the discovered state paths and `lifecycle_paths_touched_since` are `:(top,literal)`, the same anchor `archive_introduction_index` already uses. `git show <commit>:<path>` is already root-relative and did not need it. A fixture whose project is `app/` inside the repository is what makes the double prefix visible; the same tests at the repository root stay green either way.
+
+@plane z=13 label="Lesson (#862)"
+A merge can leave one requirement ID twice in `requirements.md`. `change audit` names that ID and fails, including when SDD policy is off. The archive-history walk stays opt-in behind `--archives`. Fenced examples are not IDs.

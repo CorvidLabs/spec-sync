@@ -2194,6 +2194,21 @@ fn validate_spec_content_internal(
 
     if validate_companions {
         validate_companion_scaffold_markers(spec_path, root, &mut result);
+        let requirements_path = spec_path
+            .parent()
+            .map(|parent| parent.join("requirements.md"));
+        if let Some(requirements_path) = requirements_path
+            && let Ok(text) = fs::read_to_string(&requirements_path)
+        {
+            let relative = requirements_path
+                .strip_prefix(root)
+                .unwrap_or(&requirements_path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            result
+                .errors
+                .extend(duplicate_requirement_errors_in(&text, &relative));
+        }
     }
 
     let config_hint = config

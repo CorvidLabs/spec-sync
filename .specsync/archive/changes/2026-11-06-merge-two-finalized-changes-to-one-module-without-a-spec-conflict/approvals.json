@@ -1,0 +1,91 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793899205,
+      "digest": "0d6a36b8aad76e77d263bb1b5fb0eb3e442125ef875465562caf5c821b16f08a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "merge-two-finalized-changes-to-one-module-without-a-spec-conflict",
+        "title": "Merge two finalized changes to one module without a spec conflict",
+        "description": "Merge two finalized changes to one module without a spec conflict",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_merge",
+          "merge",
+          "validator"
+        ],
+        "affected_paths": [
+          ".gitattributes",
+          "hi/merge.md",
+          "specs/change/change.3md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "specs/cli/cli.3md",
+          "specs/cli/cli.spec.md",
+          "specs/cli/requirements.md",
+          "specs/cli_args/cli_args.3md",
+          "specs/cli_args/cli_args.spec.md",
+          "specs/cli_args/requirements.md",
+          "specs/cmd_merge/cmd_merge.3md",
+          "specs/cmd_merge/cmd_merge.spec.md",
+          "specs/cmd_merge/requirements.md",
+          "specs/merge/merge.3md",
+          "specs/merge/merge.spec.md",
+          "specs/merge/requirements.md",
+          "specs/merge/tasks.md",
+          "specs/validator/requirements.md",
+          "specs/validator/validator.3md",
+          "specs/validator/validator.spec.md",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/cli.rs",
+          "src/commands/merge.rs",
+          "src/main.rs",
+          "src/merge_driver.rs",
+          "src/validator.rs",
+          "src/validator/consumed_by_re.rs",
+          "src/validator/requirement_ids.rs",
+          "tests/integration.rs",
+          "tests/integration/parallel_module_merge.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "MERGE-1: Two independent changes to the same module, each finalized on its own branch, merge cleanly in either order with no conflict on that module's .spec.md (version:, change-log row, files:) or on requirements.md.",
+          "MERGE-2: A fixture with two such branches proves it with git merge-tree (failing first, then green).",
+          "MERGE-3: After a merge that leaves the same requirement ID twice, both check and change audit refuse and name the duplicate ID.",
+          "MERGE-4: Existing strictness stays: no looser gates, timeouts, or weakened assertions."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "The marker resolver still takes max(version) and still refuses prose. MERGE-4: existing strictness stays.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "95fb4a3b14d73fdc6a3cd1f9fdb62d69239ce92d5b8865aca3d42b807829f0e5",
+        "cli": "29ca1e86258e6cd838207459913d07ce0d663440b6874fb9ee0929dbf0afa2d4",
+        "cli_args": "84d5490fd24fbb42ee76bf5e75f1375bd5797f840c7939a0f00f03f8d206435c",
+        "cmd_merge": "e0f4e696d95b721fc01526b0ea8bbf6abaa31da2b4dadc87c4a1ef115e44220d",
+        "merge": "53f9fa9a3e9023346147d3fd86f3eaace4afb6f54cd3f2ea9190366c14bcc2e2",
+        "validator": "46d1cf04b23ae5b0ddeafb3b24f6fe4345bf92b07c320ae25dfc692dbcb57e5e"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793927068,
+      "digest": "c03ad01fcf7f7c23c69262bcd1b3bc23fea0ef16b6864e2a6154ae9a81086595",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

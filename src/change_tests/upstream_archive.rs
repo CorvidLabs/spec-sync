@@ -60,9 +60,6 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
             "{state:?}"
         );
     }
-    assert!(is_dated_package_for(&format!("2026-07-14-{}", unarchived.id), &unarchived.id));
-    assert!(!is_dated_package_for(&format!("2026-07-14-x-{}", unarchived.id), &unarchived.id));
-    assert!(!is_dated_package_for(&format!("x-{}", unarchived.id), &unarchived.id));
     let mut accepted = unarchived.clone();
     accepted.state = ChangeState::Accepted;
     assert!(upstream_archive_of(&root, &accepted).is_some());

@@ -1,6 +1,6 @@
 ---
 id: run-the-git-utils-test-scripts-through-sh-so-a-concurrent-fork-cannot-fail-their-exec-with-etxtbsy
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 884a33d3c0cb95680dae786ff25688569ee16c96
 ---

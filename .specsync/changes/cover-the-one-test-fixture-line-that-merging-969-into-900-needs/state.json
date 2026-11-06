@@ -7,10 +7,11 @@
   "title": "Cover the one test fixture line that merging #969 into #900 needs",
   "description": "Cover the one test fixture line that merging #969 into #900 needs",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "a20353b988db27df02d3cd535e48150939fba183",
   "created_at": 1794001687,
-  "updated_at": 1794001732,
+  "updated_at": 1794001838,
   "affected_specs": [
     "change"
   ],

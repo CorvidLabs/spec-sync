@@ -1,6 +1,6 @@
 ---
 id: cover-the-one-test-fixture-line-that-merging-969-into-900-needs
-state: draft
+state: implementing
 type: bug_fix
 base_commit: a20353b988db27df02d3cd535e48150939fba183
 ---

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 174
+version: 175
 status: active
 files:
   - src/change.rs
@@ -628,3 +628,4 @@ Acceptance Criteria
 | 2026-11-06 | v172 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |
 | 2026-11-06 | show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve: Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11) |
 | 2026-11-06 | v174 / #917: approve's refusal hints are draft-only (a record past draft keeps the bare condition, since `change answer` refuses outside draft); the affected-path and affected-spec refusals name their `change answer` commands; a question with any choices shows them as the placeholder (REQ-change-133) |
+| 2026-11-06 | keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick: Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917) |

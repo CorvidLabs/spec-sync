@@ -1,6 +1,6 @@
 ---
 id: keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 937508347cf321d2d45fd33fb3ca6916d08d87c7
 ---

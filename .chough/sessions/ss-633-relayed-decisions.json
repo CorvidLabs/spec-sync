@@ -32,7 +32,9 @@
     "decided: SpecSync flags match Chough's (--words, --where, --recorded-by) and decided_by is copied from --actor/--reviewer because one record must not name two deciders",
     "Leif (2026-11-05 20:19 MST, Herdr orc tab, relayed by orc t18): intent \"Approve\" as proposed (retire CHANGE-6.b, add CHANGE-6.d, CHANGE-13 + 13.a-d, SHIP-2.e); review digest \"Keep it out\"; ss-testgaps' CHANGE-13 moves to CHANGE-14",
     "Leif (2026-11-05 20:35 MST, Herdr orc tab, relayed by orc t18): approved at 6a40e2a2 ('Approve', recorded by orc), then 'Yes, amend and re-approve': send back, amend the recorded_claims Public API row to Result<Vec<RecordedClaim>, String>, re-approve",
-    "Leif (2026-11-05, Herdr orc tab, relayed by orc t18): re-approval recorded by orc as 0xLeif at c7c3ee5e per 'Yes, amend and re-approve'"
+    "Leif (2026-11-05, Herdr orc tab, relayed by orc t18): re-approval recorded by orc as 0xLeif at c7c3ee5e per 'Yes, amend and re-approve'",
+    "Leif (2026-11-05, Herdr orc tab, relayed by orc t18): 'Yes' to re-approval after #889 moved the Public API delta (CHANGE-11); recorded by orc as 0xLeif at 29a18a80",
+    "Leif standing rule (2026-11-05 22:43 MST, relayed by orc t18): a PR he approved that only gets origin/main merged in (no reviewed-content change, checks green) merges at the new head without asking again; reviewed-content changes come back for review"
   ],
   "open_questions": [],
   "completed": [
@@ -50,12 +52,14 @@
     "Native change record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication drafted: deltas for change (REQ-change-relayed-decision-001, MODIFIED REQ-change-001 and Public API), cmd_change, cli_args; all artifacts complete",
     "Failing tests first: tests/integration/relayed_decision.rs, 8 discriminators fail on b179a4f2 (unknown --words flag), 2 guards pass",
     "Sent back to draft as claude (ss-d7) quoting that decision; amended only the recorded_claims row",
-    "Moved Chough records to per-change session ss-633-relayed-decisions; shared .chough/session.json restored to main's copy (orc coordination)"
+    "Moved Chough records to per-change session ss-633-relayed-decisions; shared .chough/session.json restored to main's copy (orc coordination)",
+    "Codex review on e5716ab2: fixed P1 verdict re-run, P1 correction digests, P2 decider-on-read in bbc46189 with tests; filed #904 for uncommitted review.json recovery",
+    "Merged origin/main twice (af50d85e, efd30230); rebased Public API delta onto #889 rows (29a18a80)"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Send ready for approval at the amended commit; after re-approval implement"
+  "next_action": "check --commit, verify lane, then ready for review to t18 with thread replies"
 }

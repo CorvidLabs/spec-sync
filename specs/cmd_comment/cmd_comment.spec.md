@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 10
+version: 11
 status: stable
 files:
   - src/commands/comment.rs
@@ -57,11 +57,11 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 - **When** `specsync comment` is invoked without `--pr`
 - **Then** the stdout output is identical to what the CI workflow captures via `cargo run -- comment`
 
-### Scenario: Configured verification command emits output
+### Scenario: Configured verification command is not executed
 
-- **Given** CI configures an SDD verification command that writes to stdout or stderr
+- **Given** `.specsync/sdd.json` lists an SDD verification command that would write to stdout or stderr
 - **When** `specsync comment` runs
-- **Then** the command still executes and affects lifecycle status, but its child output is absent from the rendered markdown stream
+- **Then** the command is not executed, the verdict is the spec-check verdict alone, and nothing from the command appears in the rendered markdown stream
 
 ## Error Cases
 
@@ -107,3 +107,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-08-12 | CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i: Sever specsync check and comment from the trust layer: lifecycle state becomes informational and never affects exit status |
 | 2026-08-14 | CHG-0120-specsync-comment-must-exit-with-the-verdict-it-prints-so-a-failing-comment-fail: Specsync comment must exit with the verdict it prints, so a failing comment fails the CI step that posted it |
+| 2026-11-06 | retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands: Retire the contract clauses that promise change check runs configured verification commands |

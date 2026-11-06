@@ -21,7 +21,7 @@ spec: cmd_comment.spec.md
 
 ## Current Status
 
-Implemented and stable. Renderer unit tests cover body size and Unicode boundaries. `tests/integration/comment.rs` pins the CI byte cap and asserts that `comment` prints no configured-command output while `change check` streams it. There are no longer any SDD-only-failure tests for `comment`, and the suppression assertion now holds because `comment` runs no verification at all rather than because it silences one — read it as a characterization of the severance, not as evidence of a quiet execution path.
+Implemented and stable. Renderer unit tests cover body size and Unicode boundaries. `tests/integration/comment.rs` pins the CI byte cap and asserts that neither `comment` nor `change check` spawns a configured command (`neither_comment_nor_change_check_spawns_configured_project_commands`). There are no longer any SDD-only-failure tests for `comment`, and the suppression assertion now holds because `comment` runs no verification at all rather than because it silences one — read it as a characterization of the severance, not as evidence of a quiet execution path.
 
 ## Notes
 

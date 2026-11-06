@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands",
+  "implementation_commit": "fb984546df498a137e870976b226c059a3914bb5",
+  "implementation_tree": "0059a4fbb67e9c7eda481488518298e6e33ff76a",
+  "contract_digest": "97cbbdd7f0531e9c9548fd752935c67da9d29978c3adf367b3dd958f43b17b02",
+  "workspace_digest": "92a01a0fecc2feb40e52a7e5844ed7042ac414fbd64f47711440d0689e2953e7",
+  "closing_digest": "012a043a9d684200cc37803d5d623820e5ae335dbed605dcea02364bb39dd402",
+  "review_digest": "9b0cecac7fd6fb4c02244e96047771d053e4e625b583d74f8a35e4023df4aa19",
+  "finalization_digest": "d205f6c980eed86b374b5498c4c61b1ecc3ad50d509af53c9bc9b72f6802f483",
+  "timestamp": 1793940902
+}

@@ -27,8 +27,11 @@ This plane is context. Later planes are lessons, in the order they were learned.
 - `src/github.rs` — `detect_repo`, `resolve_repo`
 
 @plane z=3 label="Current Status"
-Implemented and stable. Renderer unit tests cover body size and Unicode boundaries. `tests/integration/comment.rs` pins the CI byte cap and asserts that `comment` prints no configured-command output while `change check` streams it. There are no longer any SDD-only-failure tests for `comment`, and the suppression assertion now holds because `comment` runs no verification at all rather than because it silences one — read it as a characterization of the severance, not as evidence of a quiet execution path.
+Implemented and stable. Renderer unit tests cover body size and Unicode boundaries. `tests/integration/comment.rs` pins the CI byte cap and asserts that neither `comment` nor `change check` spawns a configured command (`neither_comment_nor_change_check_spawns_configured_project_commands`). There are no longer any SDD-only-failure tests for `comment`, and the suppression assertion now holds because `comment` runs no verification at all rather than because it silences one — read it as a characterization of the severance, not as evidence of a quiet execution path.
 
 @plane z=4 label="Notes"
 - The `_base` parameter is currently unused (prefixed with `_`); it is reserved for diff-base wiring.
 - `gh pr comment` failures and missing `gh` are handled explicitly with distinct error messages and `process::exit(1)`.
+
+@plane z=5 label="Retired lifecycle folding (#848)"
+REQ-cmd-comment-001 and 002 still required comments to fold SDD lifecycle failures after REQ-cmd-comment-004 and #543 severed `comment` from the lifecycle, and three clauses still said the configured verification commands ran in comment mode. They are retired or reworded: `comment` reports spec-check results only and executes no configured command. `comment_contracts_say_no_configured_verification_command_runs` fails if either promise returns.

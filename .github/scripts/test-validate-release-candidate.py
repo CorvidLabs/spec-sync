@@ -1016,6 +1016,17 @@ class ArtifactValidationTests(unittest.TestCase):
             len(VALIDATOR_MODULE.EXPECTED_ARTIFACT_ARCHIVES),
         )
 
+    def test_artifacts_cli_requires_the_static_aarch64_musl_fallback(self) -> None:
+        """The ARM64 musl download is the documented fallback below the glibc floor (#882)."""
+        self.assertEqual(
+            VALIDATOR_MODULE.EXPECTED_ARTIFACT_ARCHIVES["specsync-linux-aarch64-musl"],
+            "specsync-linux-aarch64-musl.tar.gz",
+        )
+        shutil.rmtree(self.artifact_root / "specsync-linux-aarch64-musl")
+        result = self.run_artifacts()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing specsync-linux-aarch64-musl", result.stderr)
+
     def test_artifacts_cli_rejects_tampered_archive_and_mixed_candidate(self) -> None:
         archive, _, _ = self.paths("specsync-linux-x86_64")
         archive.write_bytes(archive.read_bytes() + b"tampered")

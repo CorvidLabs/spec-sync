@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose",
+  "slug": "build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose",
+  "title": "Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline",
+  "description": "Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
+  "created_at": 1793937139,
+  "updated_at": 1793946981,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    ".github/workflows/rc-assets.yml",
+    ".github/workflows/ci.yml",
+    ".github/scripts/linux-baseline.py",
+    ".github/scripts/test-linux-baseline.py",
+    ".github/scripts/validate-release-candidate.py",
+    ".github/scripts/test-validate-release-candidate.py",
+    "README.md",
+    "site/src/content/docs/integrations/github-action.md",
+    "docs/RELEASING.md",
+    "docs/HLD.md",
+    "SCOPE.md",
+    "CHANGELOG.md",
+    "fledge.toml",
+    "specs/github/",
+    "hi/install.md",
+    "INTENT.md",
+    ".chough/",
+    ".github/scripts/test-required-ci-gate.py",
+    "site/src/content/docs/quickstart.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The `github` spec gains REQ-github-025: the prebuilt Linux release downloads start on the documented glibc 2.35 baseline (Ubuntu 22.04, Debian 12 and newer), a static musl download per architecture starts below it, and both release workflows refuse to upload a Linux archive that does not start on its baseline; the spec version, Public API notes and Change Log follow.",
+    "`release.yml` and `rc-assets.yml` build `specsync-linux-x86_64` and `specsync-linux-aarch64` natively on GitHub's Ubuntu 22.04 runners (`ubuntu-22.04` and `ubuntu-22.04-arm`) instead of `ubuntu-latest`, so no Linux glibc download needs a glibc newer than 2.35 (INSTALL-1).",
+    "Both release workflows build a new static `specsync-linux-aarch64-musl` download natively on `ubuntu-24.04-arm` with `musl-tools`, and the release artifact validator expects it alongside the existing five archives (INSTALL-1.b).",
+    "`.github/scripts/linux-baseline.py check` verifies a packaged Linux archive against its `.sha256` sidecar, extracts the single binary and runs it with no network, as user 65534 on a read-only root filesystem, in digest-pinned containers: glibc downloads on `ubuntu:22.04` (the floor) and `debian:12-slim` (the system reported in #882), musl downloads on those two plus `debian:11-slim` and `alpine:3.22`.",
+    "That check passes only when `--version` prints the package version, `--help` and `init` succeed, and `check --strict --require-coverage 100` passes on a one-module project and then fails once an undocumented export is added; any other result fails the check with a message naming the image, the step, the output and the rebuild recovery (INSTALL-1).",
+    "`release.yml` and `rc-assets.yml` run that check on every packaged Linux archive after its checksum is written and before the upload step, so a Linux download that does not start on its baseline is never uploaded or released (INSTALL-1.c).",
+    "A new `ci.yml` job, `linux-baseline`, builds the four Linux archives with the same runner, target and build command as `release.yml` and runs the same check on every full CI run; it is wired into `implementation-gate` and the scoped-review summary.",
+    "On its ARM64 glibc entry that job also requires the check to reject the published, checksum-pinned v6.2.0 `specsync-linux-aarch64.tar.gz` with `GLIBC_2.39` in the output (the #882 regression).",
+    "`.github/scripts/test-linux-baseline.py` fails when the Linux runner and target pairs differ between the check script, `ci.yml`, `release.yml` and `rc-assets.yml`, when either release workflow lacks the check before its upload step, when a baseline image is not pinned by digest, when the release artifact validator misses a Linux download, or when README or the GitHub Action docs stop naming the floor and every Linux download; it also unit-tests the check's checksum, archive and transcript handling against a fake `docker`, and CI and the `verify` lane run it.",
+    "README and the GitHub Action docs name the floor (glibc 2.35: Ubuntu 22.04, Debian 12 and newer) (INSTALL-1.a), the static musl download for each architecture as the fallback below it (INSTALL-1.b), and the `version 'GLIBC_...' not found` start-up error as the sign that a system is below the floor.",
+    "Failing test first: before the fix the check fails locally on the published v6.2.0 ARM64 archive and the structural test fails on the current workflows; after the fix the check passes locally on ARM64 archives built with the new recipe (glibc in an Ubuntu 22.04 container, musl in an Ubuntu 24.04 container) and the structural test passes; both observations are recorded as Chough evidence, and no tag or release is created or published."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "requirements",
+    "docs",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "specs/github/github.3md: Key Decisions 'Hermetic release guards' (release validators need no Python site packages and parse YAML with Ruby's standard Psych), plane 'Archive-first CI' (CI runs the full lane once on the archived tip), and plane 'Downloadable defaults and immutable release order' (offline tests do not prove asset publication or platform qualification)",
+    "public_contract": "yes"
+  }
+}

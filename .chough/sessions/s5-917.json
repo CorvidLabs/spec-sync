@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-c493e2409cc910c4ca8ea47c",
-    "head": "EVT-a57d4162f1bc534a1c69632a",
+    "head": "EVT-a91a8b4506331caf472053e1",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "build",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -38,12 +38,15 @@
   ],
   "open_questions": [],
   "completed": [
-    "Failing tests at 2b30841d: 4 unit tests (scope hints, draft-only, single choice) and 2 integration tests (no-scope draft probe; landing page from the exact documented state leaves src/auth.ts, .gitignore, .gitattributes uncommitted)"
+    "Failing tests at 2b30841d: 4 unit tests (scope hints, draft-only, single choice) and 2 integration tests (no-scope draft probe; landing page from the exact documented state leaves src/auth.ts, .gitignore, .gitattributes uncommitted)",
+    "Built #917 at 556895a8 (draft-only hints, scope answers, choice placeholders, landing page git add -A) and 3be2341e (spec v174, change.3md z=17); merged #912's main merge (82a4909a) at bed0cc57, clean. fledge lanes run verify green at 3be2341e on rust 1.89.0 (OBS-product-test-28d66fcedd1d3852cdbef1f0)"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick (Leif, on GitHub; the orc records change review as 0xLeif only after that)"
+  ],
   "run_consents": [],
-  "next_action": "After approval: implement draft-only and scope hints, single-choice placeholder, landing-page git add -A; specs; verify; check --commit"
+  "next_action": "After Leif's review is recorded: change ship keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick, push the archive tip, wait for CI; merge only on Leif's relayed decision, pinned"
 }

@@ -212,6 +212,13 @@
         "change: REQUIREMENT REQ-change-001": "f842a584d8a2db037b75101688deb9379487ebfa048d04112675b16faa2c0cab",
         "change: SPEC SECTION Public API": "744a033dce620c3c237c62ec95f1c5a61244a0a01048d8e2c33ded840816d2e8"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793976208,
+      "digest": "acae757efcb13854731f9ba76594a0f9ee63df58d98cf0df57eab15b69fb9bac",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

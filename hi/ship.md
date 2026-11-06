@@ -26,6 +26,7 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
 - **SHIP-3**  Finalizing moves the whole package into a dated archive on the same pull request, so the trail travels with the merge.
   - **SHIP-3.a**  Finalizing needs verification and review that are both still current.
   - **SHIP-3.b**  I am warned plainly that merging before finalizing strands the evidence.
+  - **SHIP-3.c**  When the tool cannot tell whether my change was already archived on the main branch, review and finalize stop and tell me how to find out, instead of archiving it a second time.
 - **SHIP-4**  I can ask whether a change is ready to ship.
   - **SHIP-4.a**  The answer names the stage I am on and the one thing holding it.
   - **SHIP-4.b**  Readiness reflects what my pipeline actually reports rather than a guess.

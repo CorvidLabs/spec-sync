@@ -629,6 +629,9 @@ fn a_review_recorded_before_a_send_back_is_history_and_a_fresh_one_counts() {
 fn a_review_recorded_before_a_send_back_never_counts_after_an_identical_reapproval() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
+    // Every record this test writes lands in the same second, as it can on a fast machine, so the
+    // assertions cannot depend on two records' timestamps differing (CI-7, #977).
+    let _clock = PinnedTestClock::at(1_800_000_000);
     fast_read_repository(root);
     let record = current_workflow_record(root, completed_no_spec_record(root));
     if quiet_git(root, &["ls-files", WORKFLOW_V2_BASELINE_PATH]).is_empty() {

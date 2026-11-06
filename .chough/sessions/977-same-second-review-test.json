@@ -1,0 +1,45 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-9d5442ee04349106a50e3133",
+    "head": "EVT-7d5360bd746f166cfe1fcc12",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "A failing test always means something is actually wrong, never that it ran at an unlucky moment: make the #969 same-second review flake deterministic, then fix the assertion (#977)",
+  "intent_scope": "CI",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality",
+  "references": {
+    "criteria": [
+      "CI-7"
+    ],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Leif via orc t18 (2026-11-06, 'Broad'): capture CI-7 'A failing test always means something is actually wrong, never that it ran at an unlucky moment.'; #977 as its own test-only change up to ready for approval",
+    "decided: a cfg(test) thread-local clock pin (PinnedTestClock) so the same second is a fixture; fix by asserting the attempt ledger grew by one and its last entry is current; branch stacks on #969's archive tip 5181fb2f until #969 merges"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Red first: with PinnedTestClock the #969 unit test fails 3/3 runs at assert_ne!(fresh, earlier); every earlier assertion passes in the same second"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif via orc t18: approve the scope of make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality"
+  ],
+  "run_consents": [],
+  "next_action": "After approval: fix the assertion, repeated pinned runs, check --commit, audit, verify, push (after #969 merges: merge main), PR (Fixes #977), ready for Leif's GitHub review"
+}

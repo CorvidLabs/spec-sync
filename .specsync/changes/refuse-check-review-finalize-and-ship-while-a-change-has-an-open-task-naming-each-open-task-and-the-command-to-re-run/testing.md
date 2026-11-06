@@ -14,9 +14,27 @@ artifact: testing
   4. Reopen the box after the passing check. Status names the task before review. `change review` exits 1, writes no `review.json`, and names `specsync change review <id> --reviewer <reviewer>`. Tick the box and run that command: it records the pass.
   5. Reopen the box again. `change ship-status` lists the blocker and is not ready. `change finalize` exits 1 with nothing archived and names `specsync change finalize <id>`. `change ship` exits 1 with nothing archived and names `specsync change ship <id>`.
   6. Tick the box and run the named ship command: it archives the change.
-- Unit tests in `src/change_tests/open_task_gate.rs`: line numbers; fenced tasks ignored; the five-name bound and the remaining count; control-character and backtick sanitizing; a `fail` review verdict is still recorded with an open task.
+- Unit tests in `src/change_tests/open_task_gate.rs`: line numbers; fenced tasks ignored; the five-name bound and the remaining count; control-character and backtick sanitizing; check-command flags; reviewer quoting. The `block` review verdict exemption runs end to end in the integration test.
 - Mutation SS-M05 (the guard reports no open task): the integration test fails. The mutant receipt is recorded as Chough evidence; the source is restored and the test passes again.
 - `fledge lanes run verify` passes. The existing task tests keep their assertions.
+
+## Results (local macOS, debug build, rustc 1.99.0)
+
+- Red first, on unmodified code plus the new test: the test failed at the first refusal. The whole stderr was `error: tasks.md contains incomplete tasks`.
+- Green at 20cad7f5: the gate-level test passes in 160s. The six unit tests and the two `ship_command_tests` pass.
+- The block-verdict exemption is covered end to end. A pass review is refused with the task open; `--verdict block` is recorded; ticking the box and running the named pass command records `pass`.
+- Mutations at 20cad7f5: one at a time, each source restored byte for byte. Every mutant fails the gate-level test:
+
+| Mutant | Change | Where the test fails |
+| --- | --- | --- |
+| SS-M05 (audit equivalent) | parser reports no open task | first `change check --commit`: unexpected success |
+| M892-guard | `ensure_tasks_complete` always passes | first `change check --commit`: unexpected success |
+| M892-review | a pass review is not gated | `change review`: unexpected success |
+| M892-finalize | finalize is not gated | `change finalize`: unexpected success |
+| M892-ship | ship has no refusal of its own | ship refusal names no command to re-run |
+| M892-status-json | library `next_action` has no prefix | JSON status must name the open task first |
+| M892-status-text | text `Next:` has no prefix | text status must name the open task first |
+| M892-ship-status | no ship-status blocker | `ready_to_finalize` / blocker assertion |
 
 ## Requirement evidence
 

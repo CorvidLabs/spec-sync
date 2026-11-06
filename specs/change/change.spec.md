@@ -92,6 +92,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
 | `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
+| `CheckInvocation` | The `--strict`, `--commit` and `--push` flags of one `change check`, so a refusal names that exact command to re-run |
 | `ApprovalRecord` | Actor, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, and the optional per-module semantic delta body digests a definition gate approved |
 | `ApprovedScopeV1` | Canonical stable intent, acceptance contract, risk declarations, and affected scope bound by one human approval |
 | `NonMaterialScopeChangeCategory` | Closed implementation, test/evidence, canonical-materialization, and lifecycle-metadata classification set |
@@ -181,6 +182,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `begin_change_read_scope` | `root: &Path` | `ChangeReadScope` | Install one invocation-scoped read snapshot for list/show/status and project reports |
 | `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare this change's specs to code |
 | `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with warnings failing as they do under `specsync check --strict` |
+| `check_change_as` | `root, optional id, invocation: CheckInvocation` | `Result<Option<VerificationRecord>, String>` | Run `check_change_with_strict` for one known invocation, so an open-task refusal names that invocation's own command line, flags included, as the command to re-run (REQ-change-131) |
 | `check_project` | `root: &Path` | `SddCheckReport` | Full lifecycle integrity including archive terminal evidence (tests and rare callers; not the default CLI path) |
 | `classify_handoff` | `id, signals` | `HandoffSummary` | Pure classification of handoff readiness from `HandoffSignals`; the only source of the verdict, so text and JSON cannot disagree |
 | `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
@@ -203,6 +205,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
+| `open_tasks_next_step` | `root: &Path, record: &ChangeRecord` | `Option<String>` | The open tasks of the change's selected `tasks.md` by line and text, with how to close them, or `None` when every task is done. The one sentence status, ship-status and every refusal use (REQ-change-132) |
+| `open_tasks_refusal` | `root, record, rerun: &str` | `Option<String>` | The refusal a verb gives while tasks are open: `tasks.md contains incomplete tasks: <open tasks>, then re-run `<rerun>``, or `None` when nothing is open (REQ-change-131) |
 | `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
@@ -290,6 +294,7 @@ Acceptance Criteria
 
 45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
 46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
+47. Checkbox state is outside the approval and verification digests, so ticking a task needs no reapproval or re-verification. Every verb that verifies a change, records a passing review of it or finalizes it therefore asks the task gate itself, before writing anything. A task reopened after a passing check is refused at review and finalize, and the refusal names each open task and the exact command to re-run (REQ-change-131).
 
 ## Behavioral Examples
 
@@ -425,6 +430,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-05 | v169: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |
 | 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
 | 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-127, #861). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |

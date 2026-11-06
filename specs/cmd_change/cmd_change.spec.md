@@ -123,6 +123,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-11-05 | v60: `change ship` refuses an open task and names `specsync change ship <id>` with its flags; `change ship-status` reports it as a blocker and names it before the next step; `change check --commit` refusals name `--commit` (REQ-cmd-change-031, #892). |
 | 2026-11-05 | v57: `specsync change` handlers read repository facts and committed objects through the per-command memo and batch reader, and clear them after their own git writes (REQ-cmd-change-028, #861). |
 | 2026-10-10 | Add `cmd_change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v44: a change directory that holds a file but no `state.json` is still open; an empty husk is not. |

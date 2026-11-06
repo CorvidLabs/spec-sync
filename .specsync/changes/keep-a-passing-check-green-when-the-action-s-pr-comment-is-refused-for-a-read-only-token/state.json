@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token",
+  "slug": "keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token",
+  "title": "Keep a passing check green when the Action's PR comment is refused for a read-only token",
+  "description": "Keep a passing check green when the Action's PR comment is refused for a read-only token",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
+  "created_at": 1793936061,
+  "updated_at": 1793936097,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "action.yml",
+    "tests/integration/config.rs",
+    "site/src/content/docs/integrations/github-action.md",
+    "CHANGELOG.md",
+    "hi/ci.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "With comment: true and a token GitHub refuses (HTTP 403) on the comment lookup, create or update, the Post PR Comment step exits 0, emits a ::warning naming the missing pull-requests: write permission, and writes the comment markdown to GITHUB_STEP_SUMMARY (CI-3.b)",
+    "Any other gh error in the comment step still fails the step",
+    "The posting and updating paths with a writable token are unchanged",
+    "A behavioural test runs the step script from action.yml against a fake gh for 403 on each call, a 500, and success; it fails before the fix",
+    "The github-action docs comment row and CHANGELOG say a read-only token degrades to a warning plus job summary"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "CI-3.b; REQ-github fork-PR read-only behaviour: fork PRs run without secrets or comment writes; checksum verification and the archive gate are unchanged",
+    "public_contract": "yes"
+  }
+}

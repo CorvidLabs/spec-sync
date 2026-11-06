@@ -1,6 +1,6 @@
 ---
 id: a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency
-state: draft
+state: approved
 type: feature
 base_commit: 86857c8f63acc93b480ac441e32183b8b1ed3a29
 ---

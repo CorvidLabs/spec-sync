@@ -7,10 +7,10 @@
   "title": "A warm status of an archived change does not digest the whole working tree to report its review currency",
   "description": "A warm status of an archived change does not digest the whole working tree to report its review currency",
   "kind": "feature",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "86857c8f63acc93b480ac441e32183b8b1ed3a29",
   "created_at": 1794000199,
-  "updated_at": 1794000217,
+  "updated_at": 1794001607,
   "affected_specs": [
     "change"
   ],

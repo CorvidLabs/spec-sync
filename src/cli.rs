@@ -221,6 +221,25 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
+    /// Report every problem in the change records with its fix; `--fix` applies the safe ones
+    Doctor {
+        /// Apply the safe fixes, and every late close named with --close-late
+        #[arg(long)]
+        fix: bool,
+        /// With --fix, report what would be done and write nothing
+        #[arg(long, requires = "fix")]
+        dry_run: bool,
+        /// Close this merged but never archived change late (repeatable), or `all` for every
+        /// eligible one; needs --fix, --actor and --reason
+        #[arg(long = "close-late", value_name = "ID|all", requires_all = ["fix", "actor", "reason"])]
+        close_late: Vec<String>,
+        /// The person deciding the late close; recorded as a claim, not proof
+        #[arg(long)]
+        actor: Option<String>,
+        /// Why the change is closed late; kept in its late-close record
+        #[arg(long)]
+        reason: Option<String>,
+    },
     /// Three-way merge one contract. Git's merge driver calls this as
     /// `specsync merge-file %O %A %B %P` and reads the exit status.
     MergeFile {

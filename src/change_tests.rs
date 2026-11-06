@@ -37,3 +37,4 @@ include!("change_tests/stale_modified_delta.rs");
 include!("change_tests/send_back_for_rescope.rs");
 include!("change_tests/open_task_gate.rs");
 include!("change_tests/approve_refusal_hints.rs");
+include!("change_tests/doctor_collision.rs");

@@ -759,8 +759,10 @@ fn closing_the_blocker_late_lets_a_later_archive_pass() {
     let output = close_late(&root, &[BLOCKER]);
     assert!(output.status.success(), "{}", text(&output));
 
-    run_ok(&root, &["change", "archive", "add-notes"]);
-    assert!(archived(&root, "add-notes").is_some());
+    // With the blocker closed late, the archive it refused goes through: `--fix` archives the
+    // current v1 change as a safe fix in the same call.
+    let notes = archived(&root, "add-notes").expect("the archive the blocker refused did not pass");
+    assert_eq!(json(&notes.join("state.json"))["state"], "archived");
 }
 
 // SHIP-12.e and site #616: an unmerged stopped finalize is refused and left as it was; once its
@@ -855,10 +857,13 @@ fn late_close_refusals_write_nothing() {
     publish(&root);
     refuse(&as_refs(&late(BLOCKER, ACTOR, REASON)), "closed late");
 
-    // Archived through the normal path, which the late close above unblocked.
-    run_ok(&root, &["change", "archive", "add-notes"]);
-    commit_all(&root, "Archive notes");
-    publish(&root);
+    // Archived through the normal path: the late close above unblocked it, and `--fix` archived
+    // the current v1 change as a safe fix in the same call.
+    assert!(
+        archived(&root, "add-notes").is_some(),
+        "add-notes was not archived"
+    );
+    // That archive is already in the late-close commit above, so it has merged.
     refuse(&as_refs(&late("add-notes", ACTOR, REASON)), "archived");
 
     // No remote default to prove the merge.
@@ -967,8 +972,8 @@ fn late_close_takes_several_changes_all_or_nothing() {
     let status = text(&run(&root, &["change", "status", never_approved]));
     assert!(status.contains("never approved"), "status:\n{status}");
     assert!(
-        active(&root, unmerged).is_dir(),
-        "the unmerged change was touched"
+        closed_late_package(&root, unmerged).is_none(),
+        "the unmerged change was closed late"
     );
 }
 

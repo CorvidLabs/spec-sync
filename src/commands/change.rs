@@ -103,8 +103,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     }
                 }
                 if let Some(id) = id {
-                    change::load_change(root, &id)
-                        .and_then(|record| print_record(root, &record, format, false, strict))
+                    print_closed_late(root, &id, format).unwrap_or_else(|| {
+                        change::load_change(root, &id)
+                            .and_then(|record| print_record(root, &record, format, false, strict))
+                    })
                 } else {
                     change::list_changes(root)
                         .and_then(|roster| print_roster(root, &roster, format, strict))
@@ -115,8 +117,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
-                change::load_change(root, &id)
-                    .and_then(|record| print_ship_status(root, &record, format))
+                print_closed_late(root, &id, format).unwrap_or_else(|| {
+                    change::load_change(root, &id)
+                        .and_then(|record| print_ship_status(root, &record, format))
+                })
             } else {
                 change::list_changes(root).and_then(|roster| {
                 let records = &roster.records;
@@ -2964,6 +2968,44 @@ fn print_handoff_line_for(root: &Path, id: &str) {
     if let Ok(record) = change::load_change(root, id) {
         print_handoff_line(&change::handoff_summary(root, &record));
     }
+}
+
+/// The report `change status` and `change ship-status` give for a closed-late change: who closed
+/// it, when and why, the commit that merged it, and that it was never re-checked and is not
+/// verified (REQ-change-143). `None` when `id` was not closed late.
+fn print_closed_late(root: &Path, id: &str, format: OutputFormat) -> Option<Result<(), String>> {
+    let (package, record) = change::closed_late_record(root, id)?;
+    let sentence = change::closed_late_sentence(root, id)?;
+    let package = package
+        .strip_prefix(root)
+        .unwrap_or(&package)
+        .to_string_lossy()
+        .replace('\\', "/");
+    match format {
+        OutputFormat::Json => {
+            let closed_late = match &record {
+                Ok(record) => serde_json::to_value(record).unwrap_or(serde_json::Value::Null),
+                Err(error) => serde_json::json!({ "error": error, "verified": false }),
+            };
+            print_json(&serde_json::json!({
+                "id": id,
+                "closed_late": closed_late,
+                "package": package,
+                "verified": false,
+                "summary": {
+                    "id": id,
+                    "state": "closed-late",
+                    "next_action": "none: a closed-late change is never re-checked or finalized",
+                },
+            }));
+        }
+        _ => {
+            println!("{id}");
+            println!("  State: closed late; never re-checked, not verified");
+            println!("  {sentence}");
+        }
+    }
+    Some(Ok(()))
 }
 
 fn print_json<Value: serde::Serialize>(value: &Value) {

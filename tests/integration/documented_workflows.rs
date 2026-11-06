@@ -499,7 +499,7 @@ impl Project {
     /// DOCS-3.a: approving a definition that `change new` just created must refuse, and each
     /// refusal about the interview must name the `change answer` command that finishes it.
     /// The probe runs the named command (filling its placeholder: a sentence for the outcome,
-    /// the recommended `no` for a yes-or-no question) and approves again, until the refusal is
+    /// the recommended `no` for a yes-or-no question, `none` for free text) and approves again, until the refusal is
     /// about the selected artifacts, which a reader writes by hand. Returns the named commands.
     fn approval_refusals_name_answer_commands(&self, root: &Path, approve: &str) -> Vec<String> {
         let mut named = Vec::new();
@@ -523,7 +523,8 @@ impl Project {
             let command = format!("specsync change answer {arguments}");
             let runnable = command
                 .replace("\"<observable outcome>\"", "\"login returns true\"")
-                .replace("<yes|no>", "no");
+                .replace("<yes|no>", "no")
+                .replace("\"<answer>\"", "\"none\"");
             assert!(
                 !runnable.contains('<'),
                 "the refusal names `{command}`, whose placeholder the harness cannot fill"

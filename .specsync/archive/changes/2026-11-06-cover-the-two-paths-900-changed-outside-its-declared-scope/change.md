@@ -1,6 +1,6 @@
 ---
 id: cover-the-two-paths-900-changed-outside-its-declared-scope
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ccc35abd6013041c37d2737e2dcb3290996f9b58
 ---

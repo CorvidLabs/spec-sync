@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+  "implementation_commit": "172defb21906b81486b4202e467280d204923a79",
+  "implementation_tree": "c8dbcb0eced9332e69e86e14dd6ae1068891e348",
+  "contract_digest": "fade7ccee7dc015cd9375d0e484a1254f1bf393d57e8778426b4479cc9d67c98",
+  "workspace_digest": "36af8efeece7b1d9cdab9481dff7f681745eff48e95848cec947d9fae9d06d43",
+  "closing_digest": "2b817741fbe8f81aec678f543e07821f05e1c5b31e06b679159281223e245434",
+  "review_digest": "6d7124bdb3278c377cde731cb4f069e6d195f52ec456562f232e8c845c7daa13",
+  "finalization_digest": "7d5f84dc589fc133353ef618e323eb64b316c8059677dbfaadb30a6ab7dba7a9",
+  "timestamp": 1793988035
+}

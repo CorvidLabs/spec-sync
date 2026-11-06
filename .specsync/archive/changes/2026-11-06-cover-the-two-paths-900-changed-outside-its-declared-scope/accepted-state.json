@@ -7,11 +7,11 @@
   "title": "Cover the two paths #900 changed outside its declared scope",
   "description": "Cover the two paths #900 changed outside its declared scope",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ccc35abd6013041c37d2737e2dcb3290996f9b58",
   "created_at": 1793978831,
-  "updated_at": 1793983608,
+  "updated_at": 1793988035,
   "affected_specs": [
     "change"
   ],

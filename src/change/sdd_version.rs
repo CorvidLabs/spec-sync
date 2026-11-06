@@ -1726,9 +1726,6 @@ pub struct HandoffSignals {
     pub workflow_version: u32,
     /// A project-wide sequence-ledger freeze outranks every state-local verdict.
     pub sequence_frozen: bool,
-    /// An invalid or overlapping `verification_ignored_paths` entry refuses this change's check,
-    /// review and finalize; it ranks after the freeze and before every state-local verdict.
-    pub verification_ignored_refused: bool,
     pub open_questions: bool,
     pub artifacts_complete: bool,
     pub approval_valid: bool,

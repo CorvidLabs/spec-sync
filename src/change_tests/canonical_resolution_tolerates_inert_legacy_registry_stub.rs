@@ -2858,7 +2858,6 @@ fn handoff_signals(state: ChangeState) -> HandoffSignals {
         state,
         workflow_version: 2,
         sequence_frozen: false,
-        verification_ignored_refused: false,
         open_questions: false,
         artifacts_complete: true,
         approval_valid: true,

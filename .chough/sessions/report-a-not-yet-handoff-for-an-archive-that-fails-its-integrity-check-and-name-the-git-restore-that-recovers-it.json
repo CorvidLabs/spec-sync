@@ -1,0 +1,50 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-096f4a0939f690b73c151837",
+    "head": "EVT-d267897f18e668a28d8b98a5",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Corrupt archive must not report a safe handoff (#880, audit D3)",
+  "intent_scope": "CHANGE",
+  "modules": [
+    "change",
+    "cmd_change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+  "references": {
+    "criteria": [
+      "CHANGE-7.a"
+    ],
+    "requirements": [
+      "REQ-change-093",
+      "REQ-cmd-change-014"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Agent finding, not a human decision: text status on an authenticated archive here costs 0.55s today, ~10.7s with the JSON-equal check (variant A), ~3.7s with an own-package-only check (variant C); the extra ~7s is the project roster walk (73 rev-list + 73 log over legacy CHG archives) the persistent read cache does not absorb",
+    "Agent: per-change Chough session per orc t18 coordination; shared session.json adopted byte-for-byte under the #861 change key"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Reproduced on main ad50bdef with the audit fixture: JSON handoff safe beside corrupt-history; text Next 'no further action' and Handoff safe; the named tail 'specsync change check' prints 'Nothing to check'",
+    "Prototype (reverted, patches in scratchpad): git restore named command recovers tampered archive; committed damage recovers from the archiving commit and stays authenticated after commit"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif via orc t18: confirm intent CHANGE-7.a.1/7.a.2 wording and approve scope of report-a-not-yet-handoff-... (variant A: text uses the JSON verdict, ~10.7s text status on archived here; or C: own-package only, ~3.7s)"
+  ],
+  "run_consents": [],
+  "next_action": "Wait for orc t18 decision; do not touch the tree"
+}

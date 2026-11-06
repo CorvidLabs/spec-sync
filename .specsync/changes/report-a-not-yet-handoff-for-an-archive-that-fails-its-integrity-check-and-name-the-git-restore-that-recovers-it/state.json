@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+  "slug": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+  "title": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+  "description": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
+  "created_at": 1793935528,
+  "updated_at": 1793936382,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "src/change_tests/",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    "CHANGELOG.md",
+    "hi/change.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An archived change whose terminal evidence is `corrupt-history` reports handoff readiness `not-yet`, never `safe`, in `change status --json` (`summary.handoff`) and on the text `Handoff:` line, with a reason naming the failed integrity check.",
+    "The step before clearing, the JSON `next_action`, the text `Next:` line and `change ship-status`'s next action name the same recovery, ending with `specsync change status <id>`: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`; otherwise the same restore from the commit that archived it (`git log -1 --diff-filter=A --format=%H -- <package>/state.json`), then a commit. No step contains a digest, and `specsync change check`, which checks nothing for an archived change, is no longer named.",
+    "Running the named command verbatim on a tampered, uncommitted archive, and the archiving-commit restore on committed damage, returns terminal evidence `authenticated-history` and handoff `safe` in JSON and text; `change status` writes nothing to the archive.",
+    "An archive whose terminal evidence authenticates, including `historical-transition-unproven`, keeps handoff `safe`, the text `Next: no further action` and the JSON next action to merge the PR on GitHub if it is still open.",
+    "Text `change status`, and the `Handoff:` line `finalize` and `ship` print, judge an archived change with the same terminal-evidence verdict JSON reports. The measured text-status cost on this repository (247 archives) is recorded in testing.md, and no test, gate, bound or timeout is weakened.",
+    "The integration test fails on main ad50bdef with readiness `safe` and passes with the fix."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "cmd_change lesson: a text next action and a JSON next action are two projections of one value, so the fix reaches both (and ship-status, which reuses the text one). change lesson: a workflow-v2 defect is reproduced under workflow v2, and a refusal test asserts the refusal's text, not only its readiness. No digest reaches a text sink (CodeQL cleartext-logging): the recovery carries literals, the change ID and the package path only.",
+    "public_contract": "yes"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-83ddb8eb50f02bba39384260",
-    "head": "EVT-f2c9cdce360b0495f386c4e0",
+    "head": "EVT-13065d5970889b05551ae27d",
     "legacy": null
   },
   "schema_version": 2,
@@ -55,7 +55,9 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Scope approval of retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands (specsync change approve, recorded by the orc for Leif)"
+  ],
   "run_consents": [],
-  "next_action": "Finish testing.md artifact, change status ready-for-approval, commit, send 'ready for approval' to t18"
+  "next_action": "After Leif's approval: run scratchpad apply_a_edits.py, tick tasks, change check --commit, verify lane, open PR, ready for review"
 }

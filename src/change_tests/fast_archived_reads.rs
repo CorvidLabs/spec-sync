@@ -89,6 +89,12 @@ fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
 /// A repository with `legacy` archived workflow-v1 changes committed as the trusted pre-v2
 /// cutoff, then adopted to workflow v2.
 fn legacy_repository(root: &Path, legacy: usize) {
+    legacy_repository_with(root, legacy, |_| {});
+}
+
+/// `legacy_repository`, running `before_cutoff` after the legacy archives and before the trusted
+/// cutoff commit.
+fn legacy_repository_with(root: &Path, legacy: usize, before_cutoff: impl FnOnce(&Path)) {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -113,6 +119,7 @@ fn legacy_repository(root: &Path, legacy: usize) {
         quiet_git(root, &["add", "--all"]);
         quiet_git(root, &["commit", "-m", "archive legacy change"]);
     }
+    before_cutoff(root);
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "--allow-empty", "-m", "trusted workflow-v1 cutoff"]);
     quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -203,6 +210,47 @@ fn cutoff_tree_verdict_equals_the_history_walk_verdict() {
     let remembered = cache["workflow_v1_at_cutoff"].as_array().unwrap();
     assert!(remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", legacy[0].id))));
     assert!(!remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", late.id))));
+}
+
+// #940 (SPEED-1.a.2, REQ-change-146): `find_change_dir` identifies an archive by the id its
+// state declares, not by its directory name. A workflow-v1 archive moved before the cutoff to a
+// directory that does not end in `-<id>` was accepted by the history walk, so the cutoff-tree
+// check must accept it too.
+#[test]
+fn cutoff_tree_finds_a_workflow_v1_archive_renamed_before_the_cutoff() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    legacy_repository_with(root, 1, |root| {
+        let archive = fs::read_dir(root.join(ARCHIVE_PATH))
+            .unwrap()
+            .flatten()
+            .next()
+            .unwrap()
+            .path();
+        fs::rename(&archive, archive.with_file_name("renamed-archive")).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "move the legacy archive"]);
+    });
+    let cutoff = read_workflow_v2_baseline(root)
+        .unwrap()
+        .unwrap()
+        .0
+        .cutoff_commit
+        .unwrap();
+    let renamed = root.join(ARCHIVE_PATH).join("renamed-archive");
+    let record: ChangeRecord =
+        serde_json::from_slice(&fs::read(renamed.join("state.json")).unwrap()).unwrap();
+    assert_eq!(record.workflow_version, 1);
+    assert_eq!(find_change_dir(root, &record.id).unwrap(), renamed);
+    assert!(
+        workflow_v1_record_exists_at_cutoff(root, &record, &cutoff).unwrap(),
+        "the history walk accepts the moved archive"
+    );
+    assert!(
+        workflow_v1_record_present_in_cutoff_tree(root, &record, &cutoff).unwrap(),
+        "the cutoff-tree check must accept what the history walk accepts"
+    );
+    load_change(root, &record.id).expect("the moved workflow-v1 archive loads");
 }
 
 /// Git processes one archived status read spawns with no persistent read cache.

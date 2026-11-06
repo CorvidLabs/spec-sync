@@ -1,4 +1,50 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793970812,
+      "digest": "780d81f87efe901319df11a136c6b36dc7e450a802631dccd20ca73175954ebe",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship",
+        "title": "Stop the Archive check and change pr from telling a copy already archived upstream to run ship",
+        "description": "Stop the Archive check and change pr from telling a copy already archived upstream to run ship",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/scripts/archive-readiness.sh",
+          ".github/scripts/test-archive-readiness.sh",
+          "CHANGELOG.md",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A Rust test (`an_upstream_archived_copy_is_not_told_to_ship` in `commands::change`) and a `test-archive-readiness.sh` case each fail on main cd8cab5e and pass with the fix.",
+          "A copy with no upstream archive and a passing review at `HEAD` is still told `specsync change ship <id>` by both.",
+          "An archive `HEAD` already contains (the reopen-and-rearchive path) and a repository with no remote default ref keep today's classification; the script never fetches, so the Archive job's single-commit checkout cannot see upstream archives, and that job still fails on any open change.",
+          "With the remote default holding an archive of a change that this branch still holds unarchived, the pull-request sentence printed by `change status` and `change pr` names `specsync change status <id>`, never `specsync change ship <id>`, even when the stale copy carries a passing review whose `implementation_commit` equals `HEAD` and a verification record.",
+          "`.github/scripts/archive-readiness.sh` reaches the same verdict and prints the same sentence when the remote default ref is present (`origin/HEAD`, else `origin/main`, else `origin/master`), using the same test as `upstream_archive_of`: a dated package of this change id on that ref whose `state.json` carries the id, added by a commit `HEAD` does not contain."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "cmd_change lessons: a text next action and a JSON next action are two projections of one value; the Archive script's sentences are kept in step with pull_request_archive_sentence; REQ-change-129/REQ-cmd-change-029 (#889): an archive HEAD already contains is the reopen path and is not refused; when Git cannot answer, upstream_archive_of returns None and every other gate applies.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "44efaed5a15ec9d1815dd75a06e97735a1bae936f613080f6c9eae456248f8a9"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-029": "ce74e122ea58fa9c8480c3de43f331a4859ff0f89dc0b120f738968b4a5826ec"
+      }
+    }
+  ],
   "reopenings": []
 }

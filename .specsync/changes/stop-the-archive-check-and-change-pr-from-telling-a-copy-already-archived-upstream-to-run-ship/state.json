@@ -7,10 +7,10 @@
   "title": "Stop the Archive check and change pr from telling a copy already archived upstream to run ship",
   "description": "Stop the Archive check and change pr from telling a copy already archived upstream to run ship",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
   "created_at": 1793948302,
-  "updated_at": 1793948627,
+  "updated_at": 1793970812,
   "affected_specs": [
     "cmd_change"
   ],

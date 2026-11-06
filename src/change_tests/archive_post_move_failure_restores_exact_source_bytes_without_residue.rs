@@ -726,13 +726,16 @@ fn strict_check_reports_standalone_unprovable_archived_history() {
         report.terminal_evidence[0].evidence.validity,
         TerminalEvidenceValidity::CorruptHistory
     );
-    assert_eq!(
-        summarize_change(root, &record).next_action,
-        format!(
-            "restore the archive for {} from trusted Git history, then run `specsync change check`",
-            record.id
-        )
+    // No repository here, so no package restore can be named: the step points at the evidence
+    // the status JSON reports, and the dead `specsync change check` tail is gone (#880).
+    let summary = summarize_change(root, &record);
+    let step = format!(
+        "run `specsync change status '{0}' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status '{0}'`",
+        record.id
     );
+    assert_eq!(summary.next_action, step);
+    assert_eq!(summary.handoff.readiness, HandoffReadiness::NotYet);
+    assert_eq!(summary.handoff.before_clearing, vec![step]);
 }
 
 #[test]

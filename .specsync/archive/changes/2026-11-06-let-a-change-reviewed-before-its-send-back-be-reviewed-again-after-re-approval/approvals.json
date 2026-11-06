@@ -1,0 +1,58 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793970740,
+      "digest": "ddcb788a7e6dda1490b8a798fbc1ba1d6ecbe03eca2510e8244a44ee0bcd3652",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval",
+        "title": "Let a change reviewed before its send-back be reviewed again after re-approval",
+        "description": "Let a change reviewed before its send-back be reviewed again after re-approval",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "hi/change.md",
+          "src/change/",
+          "src/change_tests/",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A change that was reviewed, sent back, re-answered, re-approved and re-checked can be reviewed again: `change review` records the new review instead of refusing with `scoped review does not bind a recorded definition approval`, and `change finalize` archives it.",
+          "The integration test built from the #914 repro fails on main cd8cab5e and passes with the fix.",
+          "The review recorded before the send-back stays in the append-only review history and in committed history, and still validates against the approval it bound, including an approval the send-back cancelled; it is never removed or rewritten.",
+          "Until the fresh review, `change status` and `ship-status` report the earlier review stale (not unreadable) and name `change review`, and `change ship` refuses.",
+          "Whether a review counts is decided as before: it must match the current contract and evidence, and a review bound only to an approval a send-back cancelled is never current (CHANGE-12.b, REQ-change-123); no gate, bound or timeout is relaxed."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change lesson (#901/#880): a named recovery is only right once a test runs it, so the repro becomes the failing-first integration test through the binary under workflow v2; CHANGE-12.b/REQ-change-123: a definition approval recorded before the latest send-back never binds a current review; committed review history is append-only and is never removed or rewritten.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "e43c46ed101a75b21e91b1c601bcf8b24f954cba6cbe42146287d71a4dc4e09d"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-123": "4a3c559f832a66b7539df3fb24983c72b14d3706031147bea7beaea1bf23b6a2"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793981178,
+      "digest": "8d9ac5da5b4d670d274f6c822d5c34034b56e8ca0b9c4df8374c7805dd373100",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

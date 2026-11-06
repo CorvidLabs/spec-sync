@@ -347,8 +347,11 @@ impl Project {
     }
 
     /// The landing page's Quick Start prerequisites for its change workflow: `specsync init`
-    /// and `specsync add-spec auth` from the same block, run as written, with `src/auth.ts`
-    /// written first as the block's comment says ("after you write a source file"). The block's
+    /// and `specsync add-spec auth` from the same block, run as written in a fresh git
+    /// repository, with `src/auth.ts` written first as the block's comment says ("after you
+    /// write a source file"), and the scaffold filled in where the block's next line tells the
+    /// reader to (#906), so a strict verify lane can pass. Nothing is committed here: whatever
+    /// the page does not commit itself stays uncommitted, as it would for a reader. The block's
     /// other lines (install, coverage, score, hooks, MCP) are a command list, not steps of the
     /// change workflow, and are not run here.
     fn landing_page_quick_start(steps: &[Step]) -> Self {
@@ -380,7 +383,25 @@ impl Project {
             "`{add_spec}`: {}",
             describe(&output)
         );
-        project.commit_all("Existing project with the auth module and its scaffolded spec");
+        let scaffolded = steps
+            .iter()
+            .position(|step| matches!(step, Step::Command(command) if *command == add_spec));
+        let filled_in = steps
+            .iter()
+            .position(|step| {
+                matches!(step, Step::Prose(prose) if prose.starts_with("fill in specs/auth/"))
+            })
+            .expect(
+            "the landing-page Quick Start tells the reader to fill in the `add-spec auth` \
+             scaffold (`# fill in specs/auth/ ...`); a strict verify lane refuses the scaffold",
+        );
+        assert!(
+            scaffolded.is_some_and(|scaffolded| scaffolded < filled_in),
+            "the Quick Start must say to fill in specs/auth/ after `{add_spec}` makes it"
+        );
+        for (path, body) in FILLED_AUTH_SCAFFOLD {
+            project.write(path, body);
+        }
         project
     }
 
@@ -441,15 +462,29 @@ impl Project {
     ///
     /// Commands run as written and must succeed. A prose step naming the selected artifacts
     /// completes the definition; one starting "implement" makes a non-API edit and commits it;
-    /// one telling the reader to wait for CI requires the Archive gate to pass. After every
-    /// step while the change is open the gate must refuse, and each distinct command it names
-    /// is proven in a copy of the project.
+    /// one naming the verify lane runs the fixture's lane on the current tip; one telling the
+    /// reader to wait for CI requires the Archive gate to pass. `change review` runs only after
+    /// the verify lane ran on the tip being reviewed (DOCS-2, #906). After every step while the
+    /// change is open the gate must refuse, and each distinct command it names is proven in a
+    /// copy of the project.
     fn follow(&self, source: &str, steps: &[Step], delta: &Delta) -> Followed {
         let mut followed = Followed::default();
         let mut questions: Vec<Value> = Vec::new();
+        let mut verified_tip: Option<String> = None;
         for step in steps {
             let label = match step {
                 Step::Command(command) => {
+                    if command.starts_with("specsync change review ") {
+                        let tip = self.git(&["rev-parse", "HEAD"]);
+                        assert_eq!(
+                            verified_tip.as_deref(),
+                            Some(tip.as_str()),
+                            "{source} reaches `{command}` without telling the reader to run the \
+                             local verify lane on this tip after `change check --commit`; the \
+                             closeout is verify, then the implementation review, then archive"
+                        );
+                        followed.reviews_after_verify += 1;
+                    }
                     let output = self.run_documented(&self.root, command);
                     assert!(
                         output.status.success(),
@@ -481,6 +516,17 @@ impl Project {
                              verify, review and finalize locally, then push and wait for CI.",
                             gate.message
                         );
+                    } else if lower.contains("verify lane") {
+                        // The fixture's lane: its structural check, which must pass on the tip
+                        // the reader is about to have reviewed. The fixture has no product test
+                        // suite, and SpecSync itself never runs or observes a project lane.
+                        let output = self.run_documented(&self.root, "specsync check --strict");
+                        assert!(
+                            output.status.success(),
+                            "the fixture's verify lane failed at `# {prose}`:\n{}",
+                            describe(&output)
+                        );
+                        verified_tip = Some(self.git(&["rev-parse", "HEAD"]));
                     } else if lower.contains("artifact") {
                         let id = followed
                             .change_id
@@ -524,8 +570,10 @@ impl Project {
     /// DOCS-3.a: approving a definition that `change new` just created must refuse, and each
     /// refusal about the interview must name the `change answer` command that finishes it.
     /// The probe runs the named command (filling its placeholder: a sentence for the outcome,
-    /// the recommended `no` for a yes-or-no question, `none` for free text) and approves again, until the refusal is
-    /// about the selected artifacts, which a reader writes by hand. Returns the named commands.
+    /// the example's `src/auth.ts` and `auth` for the scope, the recommended `no` for a
+    /// yes-or-no question, the single choice `none` for constraints, and `none` for free text)
+    /// and approves again, until the refusal is about the selected artifacts, which a reader
+    /// writes by hand. Returns the named commands.
     fn approval_refusals_name_answer_commands(&self, root: &Path, approve: &str) -> Vec<String> {
         let mut named = Vec::new();
         loop {
@@ -548,7 +596,10 @@ impl Project {
             let command = format!("specsync change answer {arguments}");
             let runnable = command
                 .replace("\"<observable outcome>\"", "\"login returns true\"")
+                .replace("\"<path>\"", "\"src/auth.ts\"")
+                .replace("\"<module>\"", "\"auth\"")
                 .replace("<yes|no>", "no")
+                .replace("<none>", "none")
                 .replace("\"<answer>\"", "\"none\"");
             assert!(
                 !runnable.contains('<'),
@@ -570,6 +621,159 @@ impl Project {
     }
 }
 
+/// What a reader writes when the landing page says to fill in the `add-spec auth` scaffold: the
+/// spec and its companions, with real sections, `status: active`, `login` documented and no
+/// scaffold marker left (#906).
+const FILLED_AUTH_SCAFFOLD: [(&str, &str); 5] = [
+    (
+        "specs/auth/auth.spec.md",
+        r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth.ts
+
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+Sign a user in. The module owns the login decision and nothing about sessions or storage.
+
+## Public API
+
+| Export | Description |
+|--------|-------------|
+| `login` | Signs the user in and reports whether it succeeded. |
+
+## Invariants
+
+1. `login` returns a boolean and never throws.
+
+## Behavioral Examples
+
+### Scenario: Sign in
+
+- **Given** a user of the example app
+- **When** they call `login()`
+- **Then** it returns `true`
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| None yet | The example always signs in |
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+| 2026-11-06 | Ada | First version of the auth spec |
+"#,
+    ),
+    (
+        "specs/auth/requirements.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## User Stories
+
+- As a user of the example app, I want to sign in.
+
+## Acceptance Criteria
+
+- Calling `login()` signs the user in and returns `true`.
+
+## Constraints
+
+- No network access.
+
+## Out of Scope
+
+- Sessions and stored credentials.
+"#,
+    ),
+    (
+        "specs/auth/context.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## Key Decisions
+
+- `login` takes no arguments while the example has a single user.
+
+## Files to Read First
+
+- `src/auth.ts`
+
+## Current Status
+
+- `login` is implemented and always succeeds.
+
+## Notes
+
+- The Quick Start's example module.
+"#,
+    ),
+    (
+        "specs/auth/testing.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## Automated Testing
+
+`specsync check --strict` compares this spec with `src/auth.ts`.
+
+| Test File | Type | What It Covers |
+|-----------|------|----------------|
+| `specs/auth/auth.spec.md` | spec check | `login` is documented and exported |
+
+## Manual Testing
+
+- [x] Call `login()` and see `true`.
+
+## Edge Cases & Boundary Conditions
+
+| Scenario | Expected Behavior |
+|----------|-------------------|
+| Called twice | Returns `true` both times |
+"#,
+    ),
+    (
+        "specs/auth/tasks.md",
+        r#"---
+spec: auth.spec.md
+---
+
+## Tasks
+
+- [x] Write the auth spec for `login`.
+
+## Gaps
+
+None.
+
+## Review Sign-offs
+
+- **Product**: Ada
+- **QA**: Ada
+- **Design**: n/a
+- **Dev**: Ada
+"#,
+    ),
+];
+
 /// The delta a reader writes for the example module's requirement.
 struct Delta {
     operation: &'static str,
@@ -584,6 +788,7 @@ struct Followed {
     refusals_while_open: usize,
     proven_recoveries: std::collections::BTreeSet<Option<String>>,
     waits_for_ci: usize,
+    reviews_after_verify: usize,
 }
 
 impl Followed {
@@ -602,6 +807,10 @@ impl Followed {
         assert!(
             self.refusals_while_open > 0,
             "the Archive gate never refused the open change"
+        );
+        assert!(
+            self.reviews_after_verify > 0,
+            "the {source} block must run `change review` after the local verify lane"
         );
         assert!(
             self.proven_recoveries
@@ -709,15 +918,7 @@ fn approve_refusals_after_the_landing_page_change_new_name_the_command_that_fini
             })
             .unwrap_or_else(|| panic!("the landing-page workflow has no `{prefix}` line"))
     };
-    for prefix in ["specsync change adopt", "specsync change new "] {
-        let command = documented(prefix);
-        let output = project.run_documented(&project.root, &command);
-        assert!(
-            output.status.success(),
-            "`{command}`: {}",
-            describe(&output)
-        );
-    }
+    run_documented_commands_through_change_new(&project, &workflow, None);
     let approve = documented("specsync change approve ");
     let named = project.approval_refusals_name_answer_commands(&project.root, &approve);
     assert!(
@@ -730,4 +931,58 @@ fn approve_refusals_after_the_landing_page_change_new_name_the_command_that_fini
         named.len() >= 2,
         "the unfinished interview must name its own answer command too; named {named:?}"
     );
+}
+
+/// Run the landing-page workflow's commands in order, as written, up to and including its
+/// `change new` line (replaced by `new_command` when given).
+fn run_documented_commands_through_change_new(
+    project: &Project,
+    workflow: &[Step],
+    new_command: Option<&str>,
+) {
+    for step in workflow {
+        let Step::Command(command) = step else {
+            continue;
+        };
+        let is_new = command.starts_with("specsync change new ");
+        let command = match (is_new, new_command) {
+            (true, Some(replacement)) => replacement.to_string(),
+            _ => command.clone(),
+        };
+        let output = project.run_documented(&project.root, &command);
+        assert!(
+            output.status.success(),
+            "`{command}`: {}",
+            describe(&output)
+        );
+        if is_new {
+            return;
+        }
+    }
+    panic!("the landing-page workflow has no `specsync change new` line");
+}
+
+/// REQ-change-133 (#917): a draft created without `--path` or `--spec` is refused for its
+/// scope too, and each of those refusals names the `change answer` command that supplies it.
+#[test]
+fn approve_refusals_for_a_draft_created_without_scope_name_the_scope_answers() {
+    let (quick_start, workflow) = landing_page_steps();
+    let project = Project::landing_page_quick_start(&quick_start);
+    run_documented_commands_through_change_new(
+        &project,
+        &workflow,
+        Some("specsync change new \"Add auth\" --json"),
+    );
+    let named = project.approval_refusals_name_answer_commands(
+        &project.root,
+        "specsync change approve add-auth --actor \"Ada\"",
+    );
+    for question in ["acceptance_criteria", "affected_paths", "affected_specs"] {
+        assert!(
+            named
+                .iter()
+                .any(|command| command.contains(&format!(" {question} "))),
+            "a draft without scope must be told to answer `{question}`; named {named:?}"
+        );
+    }
 }

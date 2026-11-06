@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "declare-the-three-paths-the-archived-status-latency-change-edited-but-did-not-list",
+  "implementation_commit": "54aebec06b241a11afd55bc2e093fcd27d4e14b1",
+  "implementation_tree": "d147ffa301aac5b3c2d46a821c6f713a3ae8bf64",
+  "contract_digest": "8428a8d78e2bb3b3b1a998906aa794177a841dfd96b05f787078d066682508d7",
+  "workspace_digest": "e692d11c821c71bda15f17476f759d6b99963d93f2ade14adcf2102a6c046864",
+  "closing_digest": "a262c83202bb50c15c1a237e34f03a3edc5aa623b9fa5fa8a24f8e429e01286a",
+  "review_digest": "fbc24835abc0f11d6c50ab867ee71bcc4fc28af445a01431658f179f6f69907e",
+  "finalization_digest": "7c6ecd3100d9715a02fc045026a2cbe2c46beb78f88812adfa8358a8ea66ce9e",
+  "timestamp": 1793979916
+}

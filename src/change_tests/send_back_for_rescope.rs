@@ -546,3 +546,77 @@ fn a_sent_back_removed_only_change_materializes_again() {
     assert_eq!(spec.matches("add-passkeys:").count(), 1, "{spec}");
     assert_eq!(version(root), first_version, "the version is bumped once: {spec}");
 }
+
+/// #914: a review recorded before a send-back stays readable history, bound to the approval the
+/// send-back cancelled, and does not stop the fresh review recorded after re-approval. The stale
+/// review is committed with the re-approval, as `change check --commit` would, so the
+/// committed-history walk sees it too. The criteria change, so the earlier review cannot count.
+#[test]
+fn a_review_recorded_before_a_send_back_is_history_and_a_fresh_one_counts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    if quiet_git(root, &["ls-files", WORKFLOW_V2_BASELINE_PATH]).is_empty() {
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+    }
+    let check_and_commit = |message: &str| {
+        assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", message]);
+        assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    };
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_and_commit("implement approved change");
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    let reviewed = load_change(root, &record.id).unwrap();
+    let earlier = load_scoped_review(root, &reviewed).unwrap();
+    assert!(scoped_review_is_current(root, &reviewed, &earlier));
+
+    send_back_change(
+        root,
+        &record.id,
+        "Scope owner".into(),
+        "the review found a scope gap".into(),
+    )
+    .unwrap();
+    answer_question(
+        root,
+        &record.id,
+        "acceptance_criteria",
+        "The verification records the reviewed scope",
+    )
+    .unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_and_commit("re-scope and re-approve after the send-back");
+    let verifying = load_change(root, &record.id).unwrap();
+    assert_eq!(verifying.state, ChangeState::Verifying);
+
+    // The split itself, on the real ledger: the earlier review binds the approval the send-back
+    // cancelled, which is valid history and binds no current review.
+    let approvals = load_approvals(root, &verifying).unwrap();
+    assert!(historical_definition_approver_for_review(&approvals, &earlier).is_ok());
+    assert!(definition_approver_for_review_contract(&approvals, &earlier).is_err());
+
+    let kept = load_scoped_review(root, &verifying)
+        .expect("the review history stays readable after a send-back");
+    assert_eq!(kept, earlier, "the earlier review is kept unchanged");
+    assert!(
+        matches!(
+            scoped_review_currency(root, &verifying, &kept),
+            ScopedReviewCurrency::Stale(reason) if reason.contains("send-back cancelled")
+        ),
+        "a review bound only to the cancelled approval never counts"
+    );
+
+    record_scoped_review(root, &record.id, "Independent reviewer".into())
+        .expect("a fresh review records after re-approval");
+    let fresh = load_scoped_review(root, &verifying).unwrap();
+    assert_ne!(fresh, earlier);
+    assert!(scoped_review_is_current(root, &verifying, &fresh));
+    assert!(
+        definition_approver_for_review_contract(&approvals, &fresh).is_ok(),
+        "the fresh review binds the approval recorded after the send-back"
+    );
+}

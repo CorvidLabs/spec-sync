@@ -912,17 +912,23 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
         .min(pending.len());
     let next = AtomicU64::new(0);
     let results: Mutex<Vec<(usize, Result<(), String>)>> = Mutex::new(Vec::new());
+    // Workers only read, so each starts from what this command already knows about the
+    // repository and memoizes its own reads (REQ-git-utils-011).
+    let seed = crate::git_utils::repository_fact_seed(root);
+    let (next_ref, pending_ref, results_ref) = (&next, &pending, &results);
     std::thread::scope(|threads| {
         let workers: Vec<_> = (0..workers)
             .map(|_| {
-                threads.spawn(|| {
+                let seed = seed.clone();
+                threads.spawn(move || {
+                    let _facts = seed.map(crate::git_utils::begin_seeded_repository_fact_scope);
                     loop {
-                    let index = next.fetch_add(1, Ordering::Relaxed) as usize;
-                    let Some((_, record)) = pending.get(index) else {
+                    let index = next_ref.fetch_add(1, Ordering::Relaxed) as usize;
+                    let Some((_, record)) = pending_ref.get(index) else {
                         break;
                     };
                     let result = validate_workflow_version_history_uncached(root, record);
-                    if let Ok(mut results) = results.lock() {
+                    if let Ok(mut results) = results_ref.lock() {
                         results.push((index, result));
                     }
                     }

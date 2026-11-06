@@ -1,4 +1,45 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793936169,
+      "digest": "8de0c03a490d1b6bfee822144def686c10bf9f3e469151e1876a9f128a0d24f9",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5",
+        "title": "Teach archive-first closeout in the README and run its workflow example as a test (#881, D5)",
+        "description": "Teach archive-first closeout in the README and run its workflow example as a test (#881, D5)",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "INTENT.md",
+          "README.md",
+          "hi/docs.md",
+          "tests/integration.rs",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "README guidance and an integration test that executes it; no module contract, export or requirement changes",
+        "acceptance_criteria": [
+          "Running the README Verified change workflow block as written, with the by-hand steps it names supplied, ends with the change archived, and every line in it that tells the reader to wait for CI comes at a point where the CI Archive gate passes (DOCS-1, DOCS-2).",
+          "The README closeout says what Chough teaches (chough ec830cfb): the hosted Archive gate refuses while a change is open, so finish locally before waiting on CI, and a push before the review only shows the work early. The no-commit-between-review-and-finalize rule and the human implementation review stay (DOCS-2.a).",
+          "The new test fails on the README at ad50bdef, whose wait-for-CI line comes before the scoped review, and passes on the corrected README. It runs under cargo test, and README.md is a full-lane CI path, so CI fails when the example drifts (DOCS-1.a).",
+          "Until finalize the Archive gate refuses the open change; each distinct command its refusal names runs successfully in a copy of the project, and the named `change ship` then satisfies the gate."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

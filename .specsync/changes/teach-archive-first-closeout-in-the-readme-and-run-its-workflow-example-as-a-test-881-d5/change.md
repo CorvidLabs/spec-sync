@@ -1,6 +1,6 @@
 ---
 id: teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5
-state: draft
+state: approved
 type: documentation
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

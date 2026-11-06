@@ -1,32 +1,23 @@
 {
   "history_cursor": {
-    "cycle": "CYC-7a5b909958d41c84b73d8e4e",
-    "head": "EVT-2b40993f1809348b8742a8ea",
+    "cycle": "CYC-ed1ef6eebac35cc0453d19d4",
+    "head": "EVT-e932be0e579aa15d17b7b45a",
     "legacy": null
   },
   "schema_version": 2,
-  "objective": "S5: SpecSync docs teach archive-first closeout (#881) and the landing page's new-to-approve steps (#883), with the corrected examples run as CI tests",
+  "objective": "Make SpecSync faster (#861 macOS qualify lane)",
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
   },
-  "native_change": "teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5",
+  "native_change": "cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos",
   "references": {
-    "criteria": [
-      "DOCS-1",
-      "DOCS-1.a",
-      "DOCS-2",
-      "DOCS-2.a",
-      "DOCS-3",
-      "DOCS-3.a"
-    ],
-    "requirements": [
-      "DOCS-1"
-    ],
+    "criteria": [],
+    "requirements": [],
     "cases": [],
     "design": [],
     "files": []
@@ -36,9 +27,7 @@
     "Leif (2026-11-05 09:21 MST, Herdr orc tab, relayed by orc t18): approved intent SPEED-2.b.1 and SPEED-2.b.2 and the approach: cut SpecSync git process spawns plus cargo nextest in the qualify lane",
     "Rejected: optimized test profile as the main lever (opt-level 2 measured 386s vs 343s on the slowest test); larger runner (not needed if spawns drop)",
     "Leif (2026-11-05 09:35 MST, orc tab): approved the four-part scope; qualify timeout returns to 45 in a one-line follow-up after the next RC's macOS qualify measures well under 45, not in this change",
-    "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted",
-    "Leif (2026-11-05 20:22 MST, orc tab, relayed by orc t18): \"Approve all\": DOCS-1/1.a, DOCS-2/2.a, DOCS-3/3.a as drafted; DOCS-3.a is a small product change to the two approve refusals; classify site/src/content/docs/index.md as full-lane; #881 on leif/881-883-docs and #883 on leif/883-landing-approval; build failing tests first and send ready for approval per change",
-    "decided: #881 and #883 are separate changes and PRs, #883 started after #881 is pushed, because Leif's rule is one issue = one change = one PR in this worktree"
+    "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted"
   ],
   "open_questions": [],
   "completed": [
@@ -51,16 +40,12 @@
     "Spawn ceilings per command pass: new 13, answer 15, approve 29, check 82, status 50, review 128, finalize 239 (baseline 63/71/89/388/66/323/739); slowest test 5,535 spawns vs 15,563 (35.6%) before the batch reader",
     "test-nextest task, release-candidate lane, pinned cargo-nextest 0.9.151 install in release.yml (published sha256 verified)",
     "change check --commit verified (575ddcd9); fledge verify steps pass on pinned 1.89; pre-push green",
-    "Shipped: archived at 2bc2ba92",
-    "Captured DOCS-1..DOCS-3.a in hi/docs.md (a first accidental capture of DOCS-1 as '--help' was deleted before commit and recaptured with the approved sentence)",
-    "Failing test readme_change_workflow_archives_before_it_tells_the_reader_to_wait_for_ci at 366c93f6 (fails on README ad50bdef at the wait-for-CI line before review; passes with the planned README fix in a reverted trial)"
+    "Shipped: archived at 2bc2ba92"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5 (specsync change approve --actor 0xLeif, recorded by orc)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After orc confirms approval: fix README closeout, CHANGELOG, verify lane, change check --commit, ready for review"
+  "next_action": "Push archive tip, merge PR #869 on green pinned to head"
 }

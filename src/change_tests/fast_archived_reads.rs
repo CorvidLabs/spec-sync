@@ -277,6 +277,29 @@ fn cold_archived_status_prefetch_workers_reuse_repository_facts() {
     );
 }
 
+// #915 (SPEED-1.a, cold): a cold archived status must not cost Git processes per archive. Today
+// each archive's own workflow-version history check still costs about 34.
+#[test]
+fn cold_archived_status_git_processes_do_not_grow_with_archives() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let target = finalized_archived_change(root);
+    finalized_archived_change(root);
+    let with_two = cold_archived_status_processes(root, &target.id);
+    for _ in 0..4 {
+        finalized_archived_change(root);
+    }
+    let with_six = cold_archived_status_processes(root, &target.id);
+    eprintln!("cold archived status Git processes: {with_two} with two archives, {with_six} with six");
+    assert!(
+        with_six < with_two + 3,
+        "four more archives added {} Git processes to one cold archived status read \
+         ({with_two} with two archives, {with_six} with six)",
+        with_six.saturating_sub(with_two)
+    );
+}
+
 // REQ-change-135: one `diff-tree --stdin` lists exactly what the per-commit reads list,
 // including a merge commit that brings an archive in.
 #[test]

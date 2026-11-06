@@ -1,6 +1,6 @@
 ---
 id: the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 45ef2006865ab6154d74c12ea50bea004cd46842
 ---

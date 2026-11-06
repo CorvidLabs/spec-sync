@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change",
+  "implementation_commit": "f0e3fb5505e8a4ec1d257294ae7c548b0c6d090d",
+  "implementation_tree": "a836259b2d264b12de0be9542df3b0dd1a21f092",
+  "contract_digest": "fa96d65660c8ed9df75d1f5ca27e0d6318245d7e0d252fe9103fa48da3af5ac6",
+  "workspace_digest": "357f7c8bb476a22f438be091d6f6985bec439812ce5d3e7460c54902c86a3120",
+  "closing_digest": "c4bddaaf2e94b835fc984c2a49afe8a0fc576348c89b840521dd146637881d8b",
+  "review_digest": "b63bb4cd814c2861b154154e76f86882644179871a1ebc4e30ae99bbff075742",
+  "finalization_digest": "ce5221fff4dcf8d1c4d9c8ea5e61250f63b3fbab7b4cbd565ce0b9f7846a9e43",
+  "timestamp": 1794005057
+}

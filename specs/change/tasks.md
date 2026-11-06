@@ -112,3 +112,5 @@ spec: change.spec.md
 - [x] Repair the independently found numeric-field collapse in that new projection: committed actual helper/key and reachable-anchor RED, unchanged numeric assertions GREEN, wire/scalar/tamper controls, and all prior relay tests; preserve the original archive and review candidate separately.
 
 - [x] Preserve exact unknown JSON values in approval/reopening succession prefixes and the first newly superseded approval: three committed intended REDs pass unchanged after the private-helper repair, with the five prior numeric and 22 related relay controls, formatting and production Clippy passing; keep initial fixture failures and prior archives separate.
+
+- [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).

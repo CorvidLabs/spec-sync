@@ -1035,6 +1035,152 @@ fn follows_an_earlier_archive_path_through_a_hidden_downgrade(root: &Path) {
     );
 }
 
+/// A repository whose `count` legacy archives were each introduced by their own commit before
+/// the cutoff, with the baseline that enumerates them, its ledger digest, and their current
+/// subtrees captured the way `load_legacy_archive_baseline_context` captures them.
+fn legacy_archives_introduced_before_cutoff(
+    root: &Path,
+    count: usize,
+) -> (
+    LegacyArchiveBaselineV1,
+    String,
+    BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) {
+    fast_read_repository(root);
+    let mut entries = Vec::new();
+    for index in 0..count {
+        let id = format!("CHG-{index:04}-legacy-archive");
+        let archive_path = format!("{ARCHIVE_PATH}/2026-07-11-{id}");
+        fs::create_dir_all(root.join(&archive_path)).unwrap();
+        fs::write(
+            root.join(&archive_path).join("state.json"),
+            format!("{{\"id\":\"{id}\"}}\n"),
+        )
+        .unwrap();
+        fs::write(root.join(&archive_path).join("change.md"), format!("# {id}\n")).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", &format!("archive {id}")]);
+        let introduction_commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        entries.push((id, archive_path, introduction_commit));
+    }
+    let cutoff_commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+    let scopes = entries.iter().map(|(_, path, _)| path.clone()).collect();
+    let (project_paths, evidence) =
+        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false, false).unwrap();
+    let mut snapshots = BTreeMap::new();
+    let mut baseline_entries = Vec::new();
+    for (id, archive_path, introduction_commit) in entries {
+        let snapshot =
+            archive_snapshot_from_evidence(&project_paths, &evidence, &archive_path).unwrap();
+        baseline_entries.push(LegacyArchiveBaselineEntryV1 {
+            id: id.clone(),
+            archive_path,
+            introduction_commit,
+            subtree_digest: legacy_archive_subtree_digest(&snapshot).unwrap(),
+        });
+        snapshots.insert(id, snapshot);
+    }
+    let baseline = LegacyArchiveBaselineV1 {
+        schema_version: 1,
+        domain: "specsync.legacy-archive-baseline.v1".into(),
+        authority_change_id: "CHG-9999-legacy-archive-baseline".into(),
+        cutoff_commit,
+        entries: baseline_entries,
+    };
+    let (baseline, digest) =
+        validate_legacy_archive_baseline_bytes(json_content(&baseline).unwrap().as_bytes())
+            .unwrap();
+    (baseline, digest, snapshots)
+}
+
+/// The Git processes one read scope spends proving the legacy baseline's introductions.
+fn legacy_introduction_processes(
+    root: &Path,
+    baseline: &LegacyArchiveBaselineV1,
+    digest: &str,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> (Result<(), String>, usize) {
+    let _scope = begin_change_read_scope(root);
+    reset_test_git_process_count();
+    let result = validate_legacy_archive_introductions_cached(root, digest, baseline, snapshots);
+    (result, test_git_process_count())
+}
+
+/// #901 (Codex P1): an archived read of a legacy archive proves the shared baseline's
+/// introductions, which walks every introduction commit and two trees per archive. That proof is
+/// a pure function of the baseline bytes, the immutable cutoff and introduction commits, and the
+/// archives' current subtrees, so once it has passed for exactly those inputs a later read does
+/// not walk it again, and its Git processes stay flat as legacy archives are added.
+#[test]
+fn warm_legacy_baseline_introductions_do_not_grow_with_legacy_archives() {
+    let warm = |count: usize| {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let (baseline, digest, snapshots) = legacy_archives_introduced_before_cutoff(root, count);
+        let (cold, cold_processes) =
+            legacy_introduction_processes(root, &baseline, &digest, &snapshots);
+        cold.unwrap();
+        let (warm, warm_processes) =
+            legacy_introduction_processes(root, &baseline, &digest, &snapshots);
+        warm.unwrap();
+        (cold_processes, warm_processes)
+    };
+    let (two_cold, two_warm) = warm(2);
+    let (eight_cold, eight_warm) = warm(8);
+    assert!(
+        eight_cold > two_cold,
+        "the cold proof walks every introduction: {two_cold} vs {eight_cold}"
+    );
+    assert_eq!(
+        two_warm, eight_warm,
+        "a warm read re-walked the legacy introductions: {two_warm} Git processes with 2 legacy archives, {eight_warm} with 8"
+    );
+}
+
+/// The cached pass is keyed by everything the proof reads, and a refusal is never cached: a
+/// changed archive subtree or a changed baseline is refused exactly as the live proof refuses it,
+/// on every read.
+#[test]
+fn a_cached_legacy_introduction_pass_never_hides_a_changed_archive_or_baseline() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (baseline, digest, snapshots) = legacy_archives_introduced_before_cutoff(root, 3);
+    legacy_introduction_processes(root, &baseline, &digest, &snapshots).0.unwrap();
+    let (warm, warm_processes) = legacy_introduction_processes(root, &baseline, &digest, &snapshots);
+    warm.unwrap();
+
+    // A tampered archive in the working tree.
+    let mut tampered = snapshots.clone();
+    let first = baseline.entries[0].id.clone();
+    tampered
+        .get_mut(&first)
+        .unwrap()
+        .insert("change.md".into(), (0o100644, b"# tampered\n".to_vec()));
+    let live = validate_legacy_archive_introductions(root, &baseline, &tampered).unwrap_err();
+    for _ in 0..2 {
+        let (refused, processes) =
+            legacy_introduction_processes(root, &baseline, &digest, &tampered);
+        assert_eq!(refused.unwrap_err(), live);
+        assert!(processes > warm_processes, "a refusal is re-derived live every time");
+    }
+
+    // A baseline that binds a different introduction commit.
+    let mut rebound = baseline.clone();
+    rebound.entries[0].introduction_commit = baseline.entries[1].introduction_commit.clone();
+    let (rebound, rebound_digest) =
+        validate_legacy_archive_baseline_bytes(json_content(&rebound).unwrap().as_bytes())
+            .unwrap();
+    assert_ne!(rebound_digest, digest);
+    let live = validate_legacy_archive_introductions(root, &rebound, &snapshots).unwrap_err();
+    let (refused, _) = legacy_introduction_processes(root, &rebound, &rebound_digest, &snapshots);
+    assert_eq!(refused.unwrap_err(), live);
+
+    // The untouched inputs still pass from the cache.
+    let (again, again_processes) =
+        legacy_introduction_processes(root, &baseline, &digest, &snapshots);
+    again.unwrap();
+    assert_eq!(again_processes, warm_processes);
+
 /// Every change record the project holds, active and archived, read from its own `state.json`.
 fn every_change_record(root: &Path) -> Vec<ChangeRecord> {
     let mut records = Vec::new();

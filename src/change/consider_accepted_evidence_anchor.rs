@@ -4157,12 +4157,37 @@ fn load_legacy_archive_baseline_context(
                 .map(|snapshot| (entry.id.clone(), snapshot))
         })
         .collect::<Result<_, _>>()?;
-    validate_legacy_archive_introductions(root, &baseline, &snapshots)?;
+    validate_legacy_archive_introductions_cached(root, &baseline_digest, &baseline, &snapshots)?;
 
     Ok(LegacyArchiveBaselineContext {
         baseline,
         snapshots,
     })
+}
+
+/// `validate_legacy_archive_introductions` for `load_legacy_archive_baseline_context`, answered
+/// from the persistent read cache when this exact baseline, cutoff and set of current archive
+/// subtrees already passed (#901). The proof walks every introduction commit and two trees per
+/// legacy archive, so without this every archived read of a legacy archive grew with all of
+/// them. A refusal is never cached, so it is re-derived live on every read.
+fn validate_legacy_archive_introductions_cached(
+    root: &Path,
+    baseline_digest: &str,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Result<(), String> {
+    let key = legacy_introductions_cache_key(baseline_digest, baseline, snapshots);
+    if key
+        .as_deref()
+        .is_some_and(|key| legacy_introductions_proven(root, key))
+    {
+        return Ok(());
+    }
+    validate_legacy_archive_introductions(root, baseline, snapshots)?;
+    if let Some(key) = key {
+        remember_legacy_introductions_proven(root, key);
+    }
+    Ok(())
 }
 
 fn validate_legacy_archive_introductions(

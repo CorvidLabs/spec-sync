@@ -55,8 +55,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Digest-bound human approvals | **One scope approval** plus scoped human PR review | Workflow gates | Confirmation at archive |
 | Active code checked against future contract | **Deterministic blocking gate** | Agent/workflow analysis | Agentic `/opsx:verify`; non-blocking by default |
 | Concurrent semantic conflict detection | **Deterministic pre-check / finalize gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
-| Configured tests executed by CI gate | **Yes** | Configurable workflow shell steps | Agentic verification |
-| Verification command shell isolation | **No shell** | Workflow shell supported | Agent/tool dependent |
+| Who runs the project's tests | **Your CI**; verification runs no configured command | Configurable workflow shell steps | Agentic verification |
 | Import existing Spec Kit/OpenSpec work | **Yes** | N/A | N/A |
 
 Sources: [Spec Kit workflows](https://github.github.com/spec-kit/reference/workflows.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md).

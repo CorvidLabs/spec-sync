@@ -30,17 +30,19 @@
   },
   "decisions": [
     "Leif via orc t18 ('Capture all + approve design', 2026-11-06): file a new issue for the reopen overflow (filed as #976) and fix it in its own PR after the close-late PR; no new HI, SHIP-6 covers it. Rejected: raising the cap (the 256 MiB total payload cap trips next, and it only moves the cliff).",
-    "0xLeif decided \"Leif's scope approval of the streamed-hash change, relayed by orc t18; it names the one bound that changes (all-at-once total becomes per-blob)\": \"Approve both (recorded as 0xLeif by orc t18 at cb8e44d8)\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated"
+    "0xLeif decided \"Leif's scope approval of the streamed-hash change, relayed by orc t18; it names the one bound that changes (all-at-once total becomes per-blob)\": \"Approve both (recorded as 0xLeif by orc t18 at cb8e44d8)\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated",
+    "Leif's scoped review of #984: pass, recorded as 0xLeif by orc t18 at 481f588d ('#984 review recorded as 0xLeif, pass at 481f588d. Ship, push the archive tip, CI, then queue')"
   ],
   "open_questions": [],
   "completed": [
     "Failing first at 8cfb53d8; fix at dcbfb522; 704 change:: unit tests pass; site CHG-0026 reopens on a throwaway clone",
-    "Verify lane green at 93e3ab49; main 339bee65 merged at a72bba95, conflicts were CHANGELOG, change.3md and change spec rows only (main's first, mine after; my lesson plane is z=22, spec v190)"
+    "Verify lane green at 93e3ab49; main 339bee65 merged at a72bba95, conflicts were CHANGELOG, change.3md and change spec rows only (main's first, mine after; my lesson plane is z=22, spec v190)",
+    "Shipped: archived at 2520c3c9 with no commit between review and ship"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Final change check --commit, audit --strict, pre-push, push, open the PR (Fixes #976), send 'ready for Leif's GitHub review'"
+  "next_action": "Push the archive tip, full CI green, then merge pinned when the orc says it is this PR's turn in the queue"
 }

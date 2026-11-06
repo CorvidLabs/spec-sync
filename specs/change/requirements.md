@@ -1678,6 +1678,7 @@ Acceptance Criteria
 - `change finalize` refuses with the same named cause and writes no archive.
 - Without an upstream archive, a squash before finalize still reviews and finalizes.
 - An unarchived record whose archive `HEAD` already contains is not refused.
+
 ### REQ-change-131
 
 A lifecycle command that verifies a change, records a passing scoped review of it, or finalizes it SHALL refuse while the change's selected `tasks.md` has an open task, a `[ ]` checkbox outside fenced code. The refusal SHALL come before the command writes any record. This SHALL hold for a task reopened after a passing check, although checkbox state is outside the approval and verification digests. The refusal SHALL name:
@@ -1702,4 +1703,14 @@ A lifecycle command that verifies a change, records a passing scoped review of i
 
 - With one open task on an approved change, text and JSON status name the task file, the task's line and text, and then `specsync change check <id>`.
 - After a passing check with one task reopened, text and JSON status name the open task before the review step.
+
+### REQ-change-133
+
+When `change approve` refuses a draft because it has no acceptance criterion or its deterministic interview is unfinished, the refusal SHALL name the `specsync change answer` command that supplies the missing answer. The approval guard SHALL refuse exactly the definitions it refused before.
+
+Acceptance Criteria
+- With no acceptance criterion, the refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices (such as `<yes|no>`) as the answer placeholder.
+- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- A definition that approval refused before is still refused.
 

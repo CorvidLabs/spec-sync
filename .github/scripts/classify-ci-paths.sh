@@ -188,6 +188,12 @@ classify_path() {
         src/*|tests/*|Cargo.toml|Cargo.lock|rust-toolchain.toml|action.yml|examples/*|fledge.toml|.github/workflows/*|.github/scripts/*)
             full=true
             ;;
+        site/src/content/docs/index.md)
+            # The landing page's change workflow is executed by a product test
+            # (tests/integration/documented_workflows.rs), so it runs the full lane too.
+            full=true
+            site=true
+            ;;
         site/*)
             site=true
             ;;

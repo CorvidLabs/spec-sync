@@ -277,7 +277,7 @@ Acceptance Criteria
 `change ship-status` SHALL name a next action the same binary will accept, and SHALL resolve a change's verification and review evidence from wherever that change currently lives.
 
 Acceptance Criteria
-- Outside the shipping window — draft, accepted, and archived — the printed next action equals the lifecycle next action, so a draft is told to answer its interview rather than to commit verification, and an archived change is told there is no further action.
+- Outside the shipping window — draft, accepted, and archived — the printed next action equals the lifecycle next action, so a draft is told to answer its interview rather than to commit verification, an archived change whose terminal evidence authenticates is told there is no further action, and an archived change whose terminal evidence is `corrupt-history` is told the restore that recovers it, the same step `change status` names.
 - The next action is always a runnable command and never a restatement of a blocker; blockers continue to render on their own lines.
 - An archived change reports the verification commit and the scoped review recorded in its archive package, rather than reporting none and missing because the artifacts were sought at the active workspace path it has left.
 - Evidence resolution reuses the single active-or-archive workspace resolver rather than introducing a third path-construction idiom.
@@ -465,4 +465,13 @@ Acceptance Criteria
 - An accepted or archived change with stale verification is told to reopen, not to check.
 - A draft is told to approve, not to check.
 - Approved, implementing and verifying changes are still told to check.
+
+### REQ-cmd-change-032
+
+`change status`, `change show`, `change list` and `change ship-status` SHALL accept `--timeout <secs>`, and SHALL read `SPECSYNC_TIMEOUT` when the flag is absent. With neither, there SHALL be no deadline, as before. When the deadline passes, the command SHALL exit 124. Text output SHALL name the command, the elapsed limit, the phase and progress, that nothing was written, and the exact resume command. `--json` output SHALL be `{"error":"timeout","phase":...,"progress":...,"wrote":false,"resume":...}`.
+
+Acceptance Criteria
+- `change status <id> --timeout 0 --json` on an archived change exits 124 with the JSON shape above and changes no file.
+- Rerunning the printed resume command without a timeout gives the same verdict as a run that never timed out.
+- With no flag and no environment variable, behaviour and output are unchanged.
 

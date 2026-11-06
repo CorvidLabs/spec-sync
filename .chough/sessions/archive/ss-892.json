@@ -1,7 +1,7 @@
 {
   "history_cursor": {
-    "cycle": "CYC-369a08c5a8254031a28c2723",
-    "head": "EVT-df8051cfaa30135df8962bf9",
+    "cycle": "CYC-e0931bcf4e472d73422c79dd",
+    "head": "EVT-e75f990321db174f8d6ea3ef",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "build",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -67,5 +67,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Push the archive tip, wait for CI, merge PR #903 pinned with --match-head-commit if green and threads do not block; then start #878 on a new branch"
+  "next_action": "New cycle from test after reset: Chough stopped at build but native SpecSync shows refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run archived, merged in #903 (035c7c73). advance refuses build->next on an archived change, so reset to accept and let the native:archived gate close the cycle. No human decision recorded.. Create or record the native change (specsync change new, then chough checkpoint --native-change <id>) and set the next action."
 }

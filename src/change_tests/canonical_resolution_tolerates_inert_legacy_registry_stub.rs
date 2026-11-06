@@ -2866,6 +2866,7 @@ fn handoff_signals(state: ChangeState) -> HandoffSignals {
         verification_current: true,
         scoped_review_current: true,
         terminal_evidence_stale: false,
+        corrupt_archive: None,
     }
 }
 
@@ -3081,6 +3082,243 @@ fn handoff_archived_is_safe_with_nothing_to_do() {
     let summary = classify_handoff("add-passkeys", &handoff_signals(ChangeState::Archived));
     assert_eq!(summary.readiness, HandoffReadiness::Safe);
     assert!(summary.before_clearing.is_empty());
+}
+
+// Verifies REQ-change-093 (#880): an archive that fails its integrity check is never safe to
+// leave, and the one step names the restore for each place the trusted bytes can be.
+#[test]
+fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
+    let package = ".specsync/archive/changes/2026-11-06-add-passkeys";
+    let mut signals = handoff_signals(ChangeState::Archived);
+
+    signals.corrupt_archive = Some(CorruptArchive::DiffersFromHead {
+        package: package.into(),
+    });
+    let uncommitted = classify_handoff("add-passkeys", &signals);
+    assert_eq!(uncommitted.readiness, HandoffReadiness::NotYet);
+    assert!(uncommitted.reason.contains("fails its integrity check"));
+    assert_eq!(
+        uncommitted.before_clearing,
+        vec![format!(
+            "run `git restore --source=HEAD --staged --worktree -- '{package}'` to put back the committed archive, then `specsync change status 'add-passkeys'`"
+        )]
+    );
+    assert_handoff_has_no_digest(&uncommitted);
+
+    signals.corrupt_archive = Some(CorruptArchive::DamageCommitted {
+        package: package.into(),
+    });
+    let committed = classify_handoff("add-passkeys", &signals);
+    assert_eq!(committed.readiness, HandoffReadiness::NotYet);
+    assert_eq!(
+        committed.before_clearing,
+        vec![format!(
+            "run `git restore --source=<commit> --staged --worktree -- '{package}'` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- '{package}/state.json'`), commit the restore, then run `specsync change status 'add-passkeys'`"
+        )]
+    );
+    assert_handoff_has_no_digest(&committed);
+
+    signals.corrupt_archive = Some(CorruptArchive::OutsidePackage);
+    let elsewhere = classify_handoff("add-passkeys", &signals);
+    assert_eq!(elsewhere.readiness, HandoffReadiness::NotYet);
+    assert_eq!(
+        elsewhere.before_clearing,
+        vec![
+            "run `specsync change status 'add-passkeys' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status 'add-passkeys'`"
+                .to_string()
+        ]
+    );
+    assert_handoff_has_no_digest(&elsewhere);
+
+    // A project-wide freeze still comes first: it blocks the status read the step ends with.
+    signals.sequence_frozen = true;
+    let frozen = classify_handoff("add-passkeys", &signals);
+    assert!(frozen.reason.contains("change-sequence ledger is frozen"), "{frozen:?}");
+}
+
+// Verifies REQ-change-093 (#880): only an archived record whose terminal evidence is
+// `corrupt-history` carries the signal, and a package is named only when it is an archive.
+#[test]
+fn corrupt_archive_signal_is_only_for_an_archived_corrupt_history_record() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_no_spec_record(root);
+    let evidence = |validity| TerminalEvidenceSummary {
+        validity,
+        reason: None,
+    };
+    let corrupt = evidence(TerminalEvidenceValidity::CorruptHistory);
+    assert_eq!(corrupt_archive_signal(root, &record, Some(&corrupt)), None);
+
+    record.state = ChangeState::Archived;
+    assert_eq!(corrupt_archive_signal(root, &record, None), None);
+    for validity in [
+        TerminalEvidenceValidity::AuthenticatedHistory,
+        TerminalEvidenceValidity::HistoricalTransitionUnproven,
+    ] {
+        assert_eq!(
+            corrupt_archive_signal(root, &record, Some(&evidence(validity))),
+            None,
+            "{validity:?} authenticates, so the archive stays safe"
+        );
+    }
+    // The record still resolves to its active directory, which is not an archive package, so
+    // no package restore is named for it and nothing asks Git about it.
+    assert_eq!(
+        corrupt_archive_signal(root, &record, Some(&corrupt)),
+        Some(CorruptArchive::OutsidePackage)
+    );
+}
+
+/// The single-quoted shell word a test expects the restore step to carry for `text`.
+fn expected_shell_word(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+/// Every runnable command in a handoff step, as the argv a POSIX shell would hand its program:
+/// each backticked span is run through `sh` with its program swapped for `printf '%s\n'`, in an
+/// empty directory, so an injected command would leave a file behind.
+fn shell_argv_of_step(step: &str) -> Vec<Vec<String>> {
+    let sandbox = TempDir::new().unwrap();
+    let argv = step
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .filter(|command| !command.contains("<commit>"))
+        .map(|command| {
+            let (_, arguments) = command.split_once(' ').unwrap();
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(format!("printf '%s\\n' {arguments}"))
+                .current_dir(sandbox.path())
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "sh rejected `{command}`");
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .lines()
+                .map(str::to_string)
+                .collect()
+        })
+        .collect();
+    assert_eq!(
+        fs::read_dir(sandbox.path()).unwrap().count(),
+        0,
+        "copying the step ran an injected command: {step}"
+    );
+    argv
+}
+
+// Verifies REQ-change-093 (#901 review, P1): a change ID or archive directory carrying shell
+// metacharacters reaches the shell as one literal word, so copying the step runs exactly the
+// named command.
+#[test]
+fn corrupt_archive_restore_quotes_every_interpolated_word() {
+    let id = "safe;touch PWNED $(touch PWNED2) it's";
+    let package = format!(".specsync/archive/changes/2026-11-06-{id}");
+    let mut signals = handoff_signals(ChangeState::Archived);
+    signals.corrupt_archive = Some(CorruptArchive::DiffersFromHead {
+        package: package.clone(),
+    });
+    let step = classify_handoff(id, &signals).before_clearing[0].clone();
+    assert_eq!(
+        shell_argv_of_step(&step),
+        vec![
+            vec![
+                "restore".to_string(),
+                "--source=HEAD".into(),
+                "--staged".into(),
+                "--worktree".into(),
+                "--".into(),
+                package.clone(),
+            ],
+            vec!["change".to_string(), "status".into(), id.into()],
+        ],
+        "{step}"
+    );
+
+    signals.corrupt_archive = Some(CorruptArchive::DamageCommitted {
+        package: package.clone(),
+    });
+    let step = classify_handoff(id, &signals).before_clearing[0].clone();
+    assert!(
+        step.contains(&format!("-- {}`", expected_shell_word(&package))),
+        "{step}"
+    );
+    assert_eq!(
+        shell_argv_of_step(&step),
+        vec![
+            vec![
+                "log".to_string(),
+                "-1".into(),
+                "--diff-filter=A".into(),
+                "--format=%H".into(),
+                "--".into(),
+                format!("{package}/state.json"),
+            ],
+            vec!["change".to_string(), "status".into(), id.into()],
+        ],
+        "{step}"
+    );
+}
+
+// Verifies REQ-change-093 (#901 review, P2): a package restore is named only when the package
+// itself changed. An archive whose package still matches the commit that archived it failed on
+// evidence outside it, such as the shared legacy baseline, and restoring the package would be a
+// no-op that leaves the next session blocked; that case points at the failing evidence instead.
+#[test]
+fn corrupt_archive_restore_names_the_package_only_when_the_package_changed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    let package = find_change_dir(root, &record.id)
+        .unwrap()
+        .strip_prefix(root)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    // Forced, so the test drives the restore choice alone; the integration test proves the real
+    // verdicts reach it.
+    let corrupt = TerminalEvidenceSummary {
+        validity: TerminalEvidenceValidity::CorruptHistory,
+        reason: None,
+    };
+    let step = || {
+        corrupt_archive_recovery(
+            &record.id,
+            &corrupt_archive_signal(root, &record, Some(&corrupt)).unwrap(),
+        )
+    };
+    let id = expected_shell_word(&record.id);
+    let quoted_package = expected_shell_word(&package);
+
+    assert_eq!(
+        step(),
+        format!(
+            "run `specsync change status {id} --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status {id}`"
+        ),
+        "an intact package is not what failed"
+    );
+
+    let verification = root.join(&package).join("verification.json");
+    let original = fs::read(&verification).unwrap();
+    fs::write(&verification, [original.as_slice(), b" "].concat()).unwrap();
+    assert_eq!(
+        step(),
+        format!(
+            "run `git restore --source=HEAD --staged --worktree -- {quoted_package}` to put back the committed archive, then `specsync change status {id}`"
+        )
+    );
+
+    quiet_git(root, &["commit", "-am", "commit the damage"]);
+    let state = expected_shell_word(&format!("{package}/state.json"));
+    assert_eq!(
+        step(),
+        format!(
+            "run `git restore --source=<commit> --staged --worktree -- {quoted_package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {state}`), commit the restore, then run `specsync change status {id}`"
+        )
+    );
 }
 
 // Verifies REQ-change-093.

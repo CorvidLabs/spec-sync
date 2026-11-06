@@ -408,21 +408,38 @@ pub enum ChangeAction {
         reason: String,
     },
     /// List active changes
-    List,
+    List {
+        /// Stop after this many seconds, report the phase and how to resume, and exit 124
+        /// (default: `SPECSYNC_TIMEOUT`, else no limit)
+        #[arg(long, value_name = "SECS")]
+        timeout: Option<u64>,
+    },
     /// Show one change, its gate health, and next questions
     Show {
         /// Change ID
         id: String,
+        /// Stop after this many seconds, report the phase and how to resume, and exit 124
+        /// (default: `SPECSYNC_TIMEOUT`, else no limit)
+        #[arg(long, value_name = "SECS")]
+        timeout: Option<u64>,
     },
     /// Show lifecycle status for one change or all active changes
     Status {
         /// Optional change ID
         id: Option<String>,
+        /// Stop after this many seconds, report the phase and how to resume, and exit 124
+        /// (default: `SPECSYNC_TIMEOUT`, else no limit)
+        #[arg(long, value_name = "SECS")]
+        timeout: Option<u64>,
     },
     /// Report ship readiness: tip class, trust guidance, stages, and merge risk
     ShipStatus {
         /// Optional change ID; when omitted, report every active change
         id: Option<String>,
+        /// Stop after this many seconds, report the phase and how to resume, and exit 124
+        /// (default: `SPECSYNC_TIMEOUT`, else no limit)
+        #[arg(long, value_name = "SECS")]
+        timeout: Option<u64>,
     },
     /// Archive the change if needed, push the branch, and open or reuse the pull request
     Pr {
@@ -1010,7 +1027,7 @@ mod tests {
         assert!(matches!(
             ship_status.command,
             Some(Command::Change {
-                action: ChangeAction::ShipStatus { id: Some(id) }
+                action: ChangeAction::ShipStatus { id: Some(id), .. }
             }) if id == "CHG-0001-passkeys"
         ));
 

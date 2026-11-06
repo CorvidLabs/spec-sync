@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 32
+version: 34
 status: stable
 files:
   - src/cli.rs
@@ -162,3 +162,5 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
 | 2026-11-05 | v32 / #862: `merge --install` and `merge-file %O %A %B %P` are part of the command grammar |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-06 | `--timeout <secs>` on `change status`, `show`, `list` and `ship-status` (REQ-cli-args-024, S9) |
+| 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |

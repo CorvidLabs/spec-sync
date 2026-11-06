@@ -1,6 +1,6 @@
 ---
 id: require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged
-state: draft
+state: approved
 type: bug_fix
 base_commit: 8a251d7a553f5c98dc1f2f505262f4b0d055e3f7
 ---

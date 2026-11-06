@@ -13,3 +13,4 @@ artifact: testing
 | Requirement | Evidence |
 | --- | --- |
 | REQ-change-148 | integration test `a_custom_replace_ref_base_does_not_change_what_status_reads` (failing first, `3073e8ed`) |
+| REQ-cli-013 | the same integration test, which runs the `specsync` binary with the variables set |

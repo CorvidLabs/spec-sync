@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793943283,
+      "commit": "4547d9c0118b6a463a2344aa08ed0c17f580fb32",
+      "contract_digest": "0d3321027e042097eaaa586b5f2bb81191dec71b5341219923d88a4a45178b6d",
+      "execution_digest": "0e975ad5a93e044d8f2002b4a5ccbb2ceeb0e78a5cab4b06494f05323d2a5ec7",
+      "workspace_digest": "694b9de1d9150411a709a0ad4d01c054737012dea09426ab4970074aad8b302a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-025"
+      ]
+    }
+  ]
+}

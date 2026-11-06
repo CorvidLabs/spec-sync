@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9981e6f60a84ff1828167485",
-    "head": "EVT-860731752acf8a44ff8d025f",
+    "head": "EVT-ecb18933a04c60dd3a6f0300",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "build",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -64,18 +64,26 @@
     "Captured approved INSTALL-1, 1.a, 1.b, 1.c in hi/install.md (Leif's approval relayed by orc t18, 20:35 MST)",
     "Failing test first: .github/scripts/linux-baseline.py + test-linux-baseline.py written; red recorded in the change testing.md (v6.2.0 ARM64 rejected with GLIBC_2.39 on ubuntu:22.04 and debian:12; 15 structural failures on the unmodified tree); positive control passes on new-recipe ARM64 archives",
     "Defined native change build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (operations, spec github, REQ-github-025 delta, 11 acceptance criteria, all artifacts complete)",
-    "Failing tests: d90cbc8292c6a5c07e3ca34155628eaeb9a8b2a6"
+    "Failing tests: d90cbc8292c6a5c07e3ca34155628eaeb9a8b2a6",
+    "Implemented #882 within the widened approved scope; merged origin/main 560af9f1 (CHANGELOG union)",
+    "Green: three cases pass on new-recipe ARM64 archives built from merged tree 4547d9c0; bug verified; verify lane passed (OBS-product-test-199fa922a987064b62f203cb); change check materialized REQ-github-025"
   ],
   "observations": [
     "OBS-tc-github-linux-baseline-lockstep-8d3fbcb70a07759eebbe4095",
     "OBS-tc-github-linux-arm64-glibc-download-starts-on-baseline-c9cfc037fd1400b5587015c3",
-    "OBS-tc-github-linux-arm64-musl-download-starts-anywhere-4accc748063adeedf526da3e"
+    "OBS-tc-github-linux-arm64-musl-download-starts-anywhere-4accc748063adeedf526da3e",
+    "OBS-tc-github-linux-baseline-lockstep-0e1525ce22afcbc2fa4ac991",
+    "OBS-tc-github-linux-arm64-glibc-download-starts-on-baseline-b49ab60d64c36c856935f453",
+    "OBS-tc-github-linux-arm64-musl-download-starts-anywhere-f8d8bed59851d38bba47323b",
+    "OBS-product-test-199fa922a987064b62f203cb"
   ],
   "bugs": [
     "BUG-linux-arm64-release-download-does-not-start-on-debian-12-or-ubuntu-22-0-23eb0fe0f3eb7815d6dc3284"
   ],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (via orc t18, recorded natively by the orc)"
+  ],
   "run_consents": [],
-  "next_action": "After the orc records re-approval: edit test-required-ci-gate.py and quickstart.md, merge origin/main, rebuild ARM64 archives with the new recipe, rerun the three cases green, verify lane, change check --commit, PR (Fixes #882), ready for review"
+  "next_action": "After the orc records the review: specsync change ship build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose with the tree still dirty, commit the archive tip, merge origin/main if moved, push, wait for CI (Archive then full lane incl. linux-baseline), then report; merge only on Leif's decision with --match-head-commit"
 }

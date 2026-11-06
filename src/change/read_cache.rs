@@ -970,6 +970,13 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     if pending.len() < 2 {
         return;
     }
+    // With the command's lifecycle-state history index, each archive's check needs no history
+    // walk of its own, and its state-file reads go through this thread's one batch reader. The
+    // archive walk then validates them here, in order, with a deadline check between archives
+    // (REQ-change-141). Workers have no batch reader, so they would only add processes.
+    if lifecycle_state_history(root).is_some() {
+        return;
+    }
     let workers = std::thread::available_parallelism()
         .map(std::num::NonZeroUsize::get)
         .unwrap_or(1)

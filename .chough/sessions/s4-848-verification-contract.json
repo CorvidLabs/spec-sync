@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-83ddb8eb50f02bba39384260",
-    "head": "EVT-d44eed92e18fcfdbec150ba2",
+    "head": "EVT-e65b0838e83675283e9cb8f7",
     "legacy": null
   },
   "schema_version": 2,
@@ -9,7 +9,7 @@
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "build",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -34,7 +34,8 @@
     "Agent finding, not a human decision: change check runs no configured verification command (evaluate_spec_code_sync in-process; runner/classifier/routing helpers are dead code); contracts must be reconciled to that, runtime unchanged",
     "Agent plan, pending Leif: two changes, two PRs, sequential in this worktree (#848 first, #884 from origin/main afterwards)",
     "Leif (2026-11-05 20:24 MST, orc tab, relayed by orc t18): intent \"Approve\" (SHIP-1.c.1, SHIP-1.c.2, UPKEEP-3.b, UPKEEP-3.b.1, SETUP-1.a.1, SETUP-1.a.2 as drafted) and a-e \"Accept all\": (a) retire REQ-cmd-comment-001/002 in change A; (b) reword the site rows in change A; (c) file a follow-up issue for the configured-commands warning; (d) keep the dead helpers, qualify their contracts; (e) leave init --help unchanged",
-    "Leif (2026-11-05 20:40 MST, orc tab, relayed by orc t18): 'Approve' for change A scope; native definition approval recorded as 0xLeif by the orc at 0d75daf0"
+    "Leif (2026-11-05 20:40 MST, orc tab, relayed by orc t18): 'Approve' for change A scope; native definition approval recorded as 0xLeif by the orc at 0d75daf0",
+    "Leif (2026-11-05 21:54 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #899; review recorded as 0xLeif (pass) at fb984546"
   ],
   "open_questions": [],
   "completed": [
@@ -54,14 +55,13 @@
     "Characterization: REQ-change-019 and REQ-change-061 tests pass on main; both fail under a mutation of the guarded code (projection clear / evidence_gap_detail branch), source restored",
     "change check --commit verified on merged tree (ec68878f); verify lane, site tests/lint/build and pre-push green on pinned 1.89",
     "Filed #895 (merge driver conflicts when Change Log opens with a stray row), at Leif's request",
-    "Merged origin/main 560af9f1 (#894), clean; release binary rebuilt on pinned 1.89"
+    "Merged origin/main 560af9f1 (#894), clean; release binary rebuilt on pinned 1.89",
+    "Shipped: archived at 8ccdffa6"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Implementation review of retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands (specsync change review, recorded by the orc for Leif), then ship"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After Leif's review: change ship retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands, commit archive tip, push, wait for CI, merge pinned to head on Leif's word"
+  "next_action": "Push archive tip, merge PR #899 on green pinned to head; then change B (#884) on its own branch from origin/main"
 }

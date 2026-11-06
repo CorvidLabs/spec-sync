@@ -1,6 +1,6 @@
 ---
 module: change
-version: 179
+version: 180
 status: active
 files:
   - src/change.rs
@@ -643,3 +643,4 @@ Acceptance Criteria
 | 2026-11-06 | let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval: Let a change reviewed before its send-back be reviewed again after re-approval |
 | 2026-11-06 | v177 / #917: approve's refusal hints are draft-only (a record past draft keeps the bare condition, since `change answer` refuses outside draft); the affected-path and affected-spec refusals name their `change answer` commands; a question with any choices shows them as the placeholder (REQ-change-133) |
 | 2026-11-06 | keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick: Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917) |
+| 2026-11-06 | require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged: Require a fresh review after a send-back even when the scope comes back unchanged |

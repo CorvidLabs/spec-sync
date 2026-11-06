@@ -7,10 +7,11 @@
   "title": "Require a fresh review after a send-back even when the scope comes back unchanged",
   "description": "Require a fresh review after a send-back even when the scope comes back unchanged",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "8a251d7a553f5c98dc1f2f505262f4b0d055e3f7",
   "created_at": 1793989653,
-  "updated_at": 1793989898,
+  "updated_at": 1793990350,
   "affected_specs": [
     "change"
   ],

@@ -51,12 +51,14 @@
     "Captured SHIP-1.c.1 and SHIP-1.c.2 with hi on leif/848-verification-contract (B's four criteria are captured on B's branch)",
     "Filed follow-up #893 (configured-commands warning, decision c)",
     "Failing first: 3 contract-pin tests fail on main ad50bdef (OBS-product-test-7d30046026e1f771b8545980)",
-    "Characterization: REQ-change-019 and REQ-change-061 tests pass on main; both fail under a mutation of the guarded code (projection clear / evidence_gap_detail branch), source restored"
+    "Characterization: REQ-change-019 and REQ-change-061 tests pass on main; both fail under a mutation of the guarded code (projection clear / evidence_gap_detail branch), source restored",
+    "change check --commit verified on merged tree (ec68878f); verify lane, site tests/lint/build and pre-push green on pinned 1.89",
+    "Filed #895 (merge driver conflicts when Change Log opens with a stray row), at Leif's request"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Apply companion/site/lesson/CHANGELOG edits, change check, run pins and verify lane, PR (Fixes #848), ready for review"
+  "next_action": "Push, open PR (Fixes #848), send 'ready for review' to t18; then change B (#884)"
 }

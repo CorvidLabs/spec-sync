@@ -1,6 +1,6 @@
 ---
 module: change
-version: 173
+version: 174
 status: active
 files:
   - src/change.rs
@@ -625,3 +625,4 @@ Acceptance Criteria
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
 | 2026-11-06 | report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it: Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it |
+| 2026-11-06 | retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands: Retire the contract clauses that promise change check runs configured verification commands |

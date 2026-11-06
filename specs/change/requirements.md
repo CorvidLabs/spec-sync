@@ -173,15 +173,6 @@ Acceptance Criteria
 - A legacy archive baseline authority that covers the baseline ledger signs that exact ledger path
   in its acceptance manifest even though other dated archive paths remain volatile.
 
-### REQ-change-015
-
-Unified lifecycle checking SHALL support a protocol-clean reporting mode without weakening verification.
-
-Acceptance Criteria
-- Reporting mode still executes every configured verification command and records failures.
-- Reporting mode suppresses child command stdout and stderr so the caller can emit one machine-consumable document.
-- Normal check and explicit change verification retain their diagnostic output.
-
 ### REQ-change-016
 
 The lifecycle SHALL preserve accepted closing evidence across repository-integrated commits without
@@ -239,7 +230,7 @@ Acceptance Criteria
 
 - A section-only modified delta can pass with an empty requirement-ID list.
 - Requirement evidence mapping remains mandatory for every collected requirement ID.
-- A failed configured command, missing semantic acceptance evidence, and missing requirement evidence produce distinct diagnostics.
+- Missing semantic acceptance evidence and missing requirement evidence produce distinct diagnostics, and neither is reported as a configured-command failure, because verification executes no configured command (REQ-change-023).
 
 ### REQ-change-020
 
@@ -353,13 +344,13 @@ Acceptance Criteria
 
 ### REQ-change-027
 
-Configured verification SHALL reject direct and indirect entry into every SpecSync lifecycle command surface.
+A SpecSync lifecycle command SHALL refuse to run under an inherited verification context, at every lifecycle command surface.
 
 Acceptance Criteria
 
-- Nested `check`, `change`, and `lifecycle` commands fail before performing validation or mutation.
-- Native verification commands remain unaffected and execute once.
-- The diagnostic names the configured parent command.
+- `check`, `change`, and `lifecycle` commands that inherit `SPECSYNC_VERIFICATION_CONTEXT` fail once, before performing validation or mutation.
+- The diagnostic names the parent command recorded in `SPECSYNC_VERIFICATION_CONTEXT`.
+- SpecSync sets that marker on no child of its own: verification executes no configured command (REQ-change-023), so the refusal applies only to a context a caller outside SpecSync supplies.
 
 ### REQ-change-028
 
@@ -387,7 +378,7 @@ Acceptance Criteria
 
 ### REQ-change-030
 
-Lifecycle enforcement SHALL preserve explicit user scope, precise canonical companion coverage, registry authority, policy opt-out boundaries, and native verification commands while retaining fail-closed SpecSync recursion protection across Cargo manifest selection.
+Lifecycle enforcement SHALL preserve explicit user scope, precise canonical companion coverage, registry authority, and policy opt-out boundaries while retaining fail-closed SpecSync recursion protection.
 
 Acceptance Criteria
 
@@ -395,11 +386,10 @@ Acceptance Criteria
 - Registry-resolved modules cover only their exact canonical spec and the standard `requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` companions; unrelated siblings and the containing directory are not implicitly covered.
 - Both registry files remain protected lifecycle inputs because they control canonical writes.
 - An explicitly disabled SDD policy returns without sequence-ledger validation.
-- Native `cargo run -- check` commands remain classified as non-SpecSync unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
-- Both `--manifest-path <path>` and `--manifest-path=<path>` participate in Cargo identity detection, and unsafe explicit manifest paths fail closed.
-- `change check` does not execute configured commands, so a policy listing `cargo run --bin specsync -- check` cannot recurse through verification.
+- `change check` does not execute configured commands (REQ-change-023), so a policy listing `cargo run --bin specsync -- check` cannot recurse through verification.
 - Direct SpecSync lifecycle commands remain rejected when invoked under `SPECSYNC_VERIFICATION_CONTEXT`.
-- Cargo argument parsing still tokenizes ordinary whitespace, quoted values, and trailing comments without shell execution.
+- The retained Cargo identity classifier is consulted by no lifecycle command, because no configured command is executed. As a helper it still classifies `cargo run -- check` as non-SpecSync unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
+- In that classifier, both `--manifest-path <path>` and `--manifest-path=<path>` participate in Cargo identity detection, unsafe explicit manifest paths fail closed, and argument parsing tokenizes ordinary whitespace, quoted values, and trailing comments without shell execution.
 
 ### REQ-change-031
 
@@ -901,8 +891,8 @@ file's bytes.
 Acceptance Criteria
 
 - Every field that determines whether the coverage gate applies is covered by the digest.
-- Verification commands are excluded, so populating them as initialization instructs does not revoke
-  the bootstrap.
+- Verification commands are excluded, so editing the list does not revoke the bootstrap. Nothing
+  executes the list (REQ-change-023), and fresh initialization writes it empty.
 - A policy file that cannot be parsed falls back to a digest of its bytes.
 
 ### REQ-change-062
@@ -980,14 +970,15 @@ Acceptance Criteria
 
 ### REQ-change-069
 
-Declaring an additional affected module SHALL never remove a verification command from what a change receives.
+Declaring an additional affected module SHALL never remove a verification command from the set the retained routing helper selects for a change. Routing selects commands and executes none of them (REQ-change-023).
 
 Acceptance Criteria
-- The command set selected for a scope is a superset of the set selected for any subset of that scope, so widening declared scope can only add verification.
+- The command set selected for a scope is a superset of the set selected for any subset of that scope, so widening declared scope can only add commands.
 - A declared module with no component routing entry contributes the project-wide verification commands, because a module nobody routed is not a module that needs no verification.
-- A change scoped entirely to routed modules still receives only its component commands, so targeted verification remains available.
-- A change declaring no affected module still receives the project-wide verification commands.
+- A change scoped entirely to routed modules is still routed only its component commands, so targeted routing remains available.
+- A change declaring no affected module is still routed the project-wide verification commands.
 - Strict escalation continues to append its own commands without removing any already selected.
+- No lifecycle command executes a routed command; `change check` records only its in-process spec↔code evidence.
 
 ### REQ-change-070
 

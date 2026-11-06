@@ -690,6 +690,64 @@ fn adopt_re_pins_the_bootstrap_record_it_invalidates() {
     );
 }
 
+// Verifies REQ-change-061 criterion 2 (#848).
+//
+// Honest label: CHARACTERIZATION with a control. The bootstrap digest leaves the verification
+// command list out, so filling it in keeps the exemption `init` recorded; nothing executes the
+// list (REQ-change-023). The control edits an enforcement field and must revoke the exemption,
+// or the first assertion would pass for a digest that pins nothing.
+#[test]
+fn editing_only_the_verification_command_list_keeps_the_bootstrap_exemption() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    // What `specsync init` does: an empty list, then pin the policy.
+    write_default_policy(root, Vec::new()).unwrap();
+    record_bootstrap_paths(root).unwrap();
+    let exempt = |policy: &SddPolicy| {
+        let gated = SddPolicy {
+            require_change_for_meaningful_files: true,
+            ..policy.clone()
+        };
+        !uncovered_meaningful_paths(root, &gated, &[])
+            .unwrap()
+            .contains(&POLICY_PATH.to_string())
+    };
+
+    let mut policy = load_policy(root).unwrap();
+    assert!(policy.verification_commands.is_empty());
+    policy.verification_commands = vec!["cargo test".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    assert!(
+        exempt(&policy),
+        "filling in verification_commands must not revoke the bootstrap exemption"
+    );
+
+    policy.meaningful_paths.push("docs/".into());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    assert!(
+        !exempt(&policy),
+        "control: an enforcement-surface edit must revoke the bootstrap exemption"
+    );
+}
+
 #[test]
 fn adoption_bootstrap_covers_only_the_original_policy() {
     let temp = TempDir::new().unwrap();

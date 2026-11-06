@@ -651,3 +651,6 @@ Issue #851. Git resolves a pathspec from the working directory unless it carries
 
 @plane z=13 label="Lesson (#862)"
 A merge can leave one requirement ID twice in `requirements.md`. `change audit` names that ID and fails, including when SDD policy is off. The archive-history walk stays opt-in behind `--archives`. Fenced examples are not IDs.
+
+@plane z=14 label="Working-tree paths from a subdirectory"
+Issue #879. Git commands do not agree on where a path starts. `git diff-files --name-only` names paths from the repository root even when it runs in a subdirectory project, while `ls-files` names them from the working directory. Working-tree evidence capture compared `diff-files` output with project-relative candidates, so a project in `app/` refused its own materialized spec as out of scope. The fix removes the repository prefix before the scope check and keeps Git's own spelling in the refusal. When a new Git call reads paths back, check which root that command reports from; do not assume it matches the pathspec you passed.

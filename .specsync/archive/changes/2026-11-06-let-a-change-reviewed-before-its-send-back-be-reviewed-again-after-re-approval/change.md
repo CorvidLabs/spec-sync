@@ -1,6 +1,6 @@
 ---
 id: let-a-change-reviewed-before-its-send-back-be-reviewed-again-after-re-approval
-state: implementing
+state: archived
 type: bug_fix
 base_commit: cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b
 ---

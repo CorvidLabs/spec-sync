@@ -2028,6 +2028,24 @@ fn is_git_lfs_pointer(bytes: &[u8]) -> bool {
     saw_oid && saw_size
 }
 
+/// The output bound of one whole-scope `git cat-file --batch` evidence read.
+fn git_evidence_batch_cap() -> usize {
+    #[cfg(test)]
+    if let Some(cap) = TEST_GIT_EVIDENCE_CAPS.with(|caps| caps.get().0) {
+        return cap;
+    }
+    MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES
+}
+
+/// The bound on one evidence blob read on its own.
+fn git_evidence_object_cap() -> usize {
+    #[cfg(test)]
+    if let Some(cap) = TEST_GIT_EVIDENCE_CAPS.with(|caps| caps.get().1) {
+        return cap;
+    }
+    MAX_GIT_EVIDENCE_PAYLOAD_BYTES
+}
+
 fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
     if let Some(bytes) = GIT_BLOB_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))
@@ -2042,7 +2060,7 @@ fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
         root,
         &["cat-file", "blob", object],
         None,
-        MAX_GIT_EVIDENCE_PAYLOAD_BYTES,
+        git_evidence_object_cap(),
     )?;
     if stdout.len() <= MAX_CHANGE_ARTIFACT_BYTES as usize {
         let mut cache = GIT_BLOB_CACHE
@@ -3045,12 +3063,14 @@ fn acceptance_input_digest(
         })
         .collect::<Result<_, String>>()?;
     let extra_candidates = override_content.keys().cloned().collect();
+    // Clean files are named by object id and streamed one blob at a time below, so the scope's
+    // clean bytes are never read in one batch (REQ-change-144).
     let (mut paths, evidence) = stable_discovered_evidence(
         root,
         Some(&discovery_scopes),
         &extra_candidates,
         false,
-        false,
+        true,
     )?;
     paths.retain(|path| {
         !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
@@ -3060,6 +3080,7 @@ fn acceptance_input_digest(
     } else {
         None
     };
+    let mut payloads = DeliveryPayloads::new(root);
     let mut digest = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
     for relative in paths {
         if let Some(content) = override_content.get(&relative) {
@@ -3077,11 +3098,12 @@ fn acceptance_input_digest(
             digest.entry(&relative, b"file", mode, content);
         } else {
             let entry = evidence.entry(&relative)?;
+            let payload = payloads.of(&relative, entry)?;
             digest.entry(
                 &relative,
                 acceptance_kind_bytes(&entry.kind),
                 entry.mode,
-                &entry.payload,
+                &payload,
             );
         }
     }
@@ -4581,6 +4603,223 @@ fn git_tree_snapshot(
     Ok(snapshot)
 }
 
+/// The longest `git cat-file --batch` header a delivery blob can have: object id, type and size.
+const MAX_DELIVERY_BLOB_HEADER_BYTES: u64 = 256;
+
+/// One `git cat-file --batch` child that returns one clean delivery blob per request, so the
+/// acceptance evidence holds at most one blob at a time however large its scope is
+/// (REQ-change-144). Each blob is bounded by `git_evidence_object_cap()`, checked from its header
+/// before any payload is read. The whole stream is bounded by the Git command deadline.
+struct DeliveryBlobStream {
+    child: Arc<Mutex<std::process::Child>>,
+    stdin: Option<std::process::ChildStdin>,
+    stdout: std::io::BufReader<std::process::ChildStdout>,
+    finished: Option<std::sync::mpsc::Sender<()>>,
+    watchdog: Option<std::thread::JoinHandle<()>>,
+    timed_out: Arc<AtomicBool>,
+}
+
+impl DeliveryBlobStream {
+    fn open(root: &Path) -> Result<Self, String> {
+        let mut command = configured_git_command(root);
+        command
+            .args(["cat-file", "--batch"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        record_test_git_process();
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("failed to run `git cat-file --batch`: {error}"))?;
+        let stdin = child.stdin.take();
+        let Some(stdout) = child.stdout.take() else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("failed to capture Git stdout".into());
+        };
+        let child = Arc::new(Mutex::new(child));
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let (finished, until_finished) = std::sync::mpsc::channel::<()>();
+        let watched = Arc::clone(&child);
+        let expired = Arc::clone(&timed_out);
+        let watchdog = std::thread::spawn(move || {
+            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                until_finished.recv_timeout(GIT_COMMAND_DEADLINE)
+            {
+                expired.store(true, Ordering::Release);
+                if let Ok(mut child) = watched.lock() {
+                    let _ = child.kill();
+                }
+            }
+        });
+        Ok(Self {
+            child,
+            stdin,
+            stdout: std::io::BufReader::new(stdout),
+            finished: Some(finished),
+            watchdog: Some(watchdog),
+            timed_out,
+        })
+    }
+
+    /// The bytes of the clean delivery input `relative`, whose index names Git object `object`.
+    fn read(&mut self, relative: &str, object: &str) -> Result<Vec<u8>, String> {
+        use std::io::BufRead;
+        if object.is_empty() || object.bytes().any(|byte| byte.is_ascii_whitespace()) {
+            return Err(format!(
+                "delivery input `{relative}` names an invalid Git object `{object}`"
+            ));
+        }
+        let failed = |stream: &Self, error: std::io::Error| {
+            if stream.timed_out.load(Ordering::Acquire) {
+                format!(
+                    "`git cat-file --batch` exceeded its {GIT_COMMAND_DEADLINE:?} wall-clock deadline while reading delivery input `{relative}`"
+                )
+            } else {
+                format!("failed to read delivery input `{relative}` from Git: {error}")
+            }
+        };
+        let Some(stdin) = self.stdin.as_mut() else {
+            return Err(format!(
+                "failed to read delivery input `{relative}` from Git: the batch reader is closed"
+            ));
+        };
+        if let Err(error) = stdin
+            .write_all(object.as_bytes())
+            .and_then(|()| stdin.write_all(b"\n"))
+            .and_then(|()| stdin.flush())
+        {
+            return Err(failed(self, error));
+        }
+        let mut header = Vec::new();
+        if let Err(error) = (&mut self.stdout)
+            .take(MAX_DELIVERY_BLOB_HEADER_BYTES)
+            .read_until(b'\n', &mut header)
+        {
+            return Err(failed(self, error));
+        }
+        if header.pop() != Some(b'\n') {
+            return Err(failed(
+                self,
+                std::io::Error::other("the batch header is truncated"),
+            ));
+        }
+        let header = String::from_utf8(header)
+            .map_err(|_| format!("Git batch header for delivery input `{relative}` is not UTF-8"))?;
+        let mut fields = header.split(' ');
+        let (Some(oid), Some(kind), Some(size), None) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            return Err(format!(
+                "unexpected Git batch header `{header}` for delivery input `{relative}`"
+            ));
+        };
+        if oid != object || kind != "blob" {
+            return Err(format!(
+                "unexpected Git batch header `{header}` for delivery input `{relative}`"
+            ));
+        }
+        let size: usize = size
+            .parse()
+            .map_err(|_| format!("Git batch header for delivery input `{relative}` has an invalid size"))?;
+        let cap = git_evidence_object_cap();
+        if size > cap {
+            return Err(format!(
+                "delivery input `{relative}` is {size} bytes, over the {cap}-byte bound on one evidence blob"
+            ));
+        }
+        let mut payload = vec![0; size];
+        if let Err(error) = self.stdout.read_exact(&mut payload) {
+            return Err(failed(self, error));
+        }
+        let mut terminator = [0_u8; 1];
+        if let Err(error) = self.stdout.read_exact(&mut terminator) {
+            return Err(failed(self, error));
+        }
+        if terminator != [b'\n'] {
+            return Err(format!(
+                "Git batch output for delivery input `{relative}` has no terminator"
+            ));
+        }
+        Ok(payload)
+    }
+}
+
+impl Drop for DeliveryBlobStream {
+    fn drop(&mut self) {
+        drop(self.stdin.take());
+        if let Some(finished) = self.finished.take() {
+            let _ = finished.send(());
+        }
+        if let Some(watchdog) = self.watchdog.take() {
+            let _ = watchdog.join();
+        }
+        if let Ok(mut child) = self.child.lock() {
+            if !matches!(child.try_wait(), Ok(Some(_))) {
+                let _ = child.kill();
+            }
+            let _ = child.wait();
+        }
+    }
+}
+
+/// The payload of each delivery entry, in the order the evidence builders ask for them. An entry
+/// that names a clean blob by object id is read through one `DeliveryBlobStream`, opened on the
+/// first such entry; every other entry already carries its bytes (REQ-change-144).
+struct DeliveryPayloads<'root> {
+    root: &'root Path,
+    stream: Option<DeliveryBlobStream>,
+}
+
+impl<'root> DeliveryPayloads<'root> {
+    fn new(root: &'root Path) -> Self {
+        Self { root, stream: None }
+    }
+
+    fn of<'entry>(
+        &mut self,
+        relative: &str,
+        captured: &'entry GitCapturedEntry,
+    ) -> Result<Cow<'entry, [u8]>, String> {
+        if !captured.object_identity {
+            return Ok(Cow::Borrowed(&captured.payload));
+        }
+        let object = captured
+            .object
+            .as_deref()
+            .ok_or_else(|| format!("clean delivery input `{relative}` has no Git object id"))?;
+        let stream = match &mut self.stream {
+            Some(stream) => stream,
+            None => self.stream.insert(DeliveryBlobStream::open(self.root)?),
+        };
+        stream.read(relative, object).map(Cow::Owned)
+    }
+
+    /// Give each affected spec's evidence entry its bytes. Owner lookup parses a spec's `files:`
+    /// list from them (`acceptance_input_owners`); every other clean file stays named by object id.
+    fn materialize_affected_specs(
+        &mut self,
+        record: &ChangeRecord,
+        evidence: &mut GitEvidence,
+    ) -> Result<(), String> {
+        let config = crate::config::load_config(self.root);
+        for module in &record.affected_specs {
+            let (spec_path, _) = canonical_module_paths(self.root, &config.specs_dir, module)?;
+            let spec_relative = strict_portable_project_path(self.root, &spec_path)?;
+            let Some(entry) = evidence.entries.get_mut(&spec_relative) else {
+                continue;
+            };
+            if !entry.object_identity {
+                continue;
+            }
+            let bytes = self.of(&spec_relative, entry)?.into_owned();
+            entry.payload = bytes;
+            entry.object_identity = false;
+        }
+        Ok(())
+    }
+}
+
 fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, String> {
     if objects.is_empty() {
         return Ok(Vec::new());
@@ -4597,7 +4836,7 @@ fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, S
         root,
         &["cat-file", "--batch"],
         Some(input),
-        MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES,
+        git_evidence_batch_cap(),
     )?;
     let mut cursor = 0;
     let mut blobs = Vec::with_capacity(objects.len());

@@ -1,0 +1,95 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793997242,
+      "digest": "706e8de2ccfedd9128eac15a36de4ffe729ff412c1ef09bdbc4318c61a8dad08",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality",
+        "title": "Make a same-second review test deterministic and assert on the review ledger instead of record inequality",
+        "description": "Make a same-second review test deterministic and assert on the review ledger instead of record inequality",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "hi/ci.md",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/send_back_for_rescope.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test-only: a clock pin compiled only into test builds and one unit-test assertion; no contract, public behaviour or release build changes",
+        "acceptance_criteria": [
+          "With now() pinned to one second through a test-only clock (compiled only into test builds, so release builds behave exactly as before), a_review_recorded_before_a_send_back_never_counts_after_an_identical_reapproval fails on every run at assert_ne!(fresh, earlier) before the fix.\nAfter the fix the test asserts that review-attempts.json grew by exactly one attempt and that its last entry is the fresh review and is current, and it passes on every run, pinned or not.\nEvery other assertion in the test is unchanged and still passes in the same second: the send-back records one cancelled review attempt, the earlier review is stale for the send-back reason, and the fresh review is current.\nNo product code path changes; no test is dropped or weakened (SPEED-2.b.2)."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794004127,
+      "digest": "f1b1488501810ca7f5e48fb7e50bfe600f21b72f72bdc39ec24e36279207b266",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality",
+        "title": "Make a same-second review test deterministic and assert on the review ledger instead of record inequality",
+        "description": "Make a same-second review test deterministic and assert on the review ledger instead of record inequality",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "hi/ci.md",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/send_back_for_rescope.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test-only: a clock pin compiled only into test builds and one unit-test assertion; no contract, public behaviour or release build changes",
+        "acceptance_criteria": [
+          "With now() pinned to one second through a test-only clock (compiled only into test builds, so release builds behave exactly as before), a_review_recorded_before_a_send_back_never_counts_after_an_identical_reapproval fails on every run at assert_ne!(fresh, earlier) before the fix.\nAfter the fix the test asserts that review-attempts.json grew by exactly one attempt and that its last entry is the fresh review and is current, and it passes on every run, pinned or not.\nEvery other assertion in the test is unchanged and still passes in the same second: the send-back records one cancelled review attempt, the earlier review is stale for the send-back reason, and the fresh review is current.\nNo product code path changes; no test is dropped or weakened (SPEED-2.b.2)."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change lesson z=21 (#960, Cancel by position, not by digest): the product finds a review by its position in the attempt ledger, so the test asserts on the ledger, not on record inequality. CI-7 and SPEED-2.b.2: no test is dropped or weakened, and the clock pin exists only in test builds. affected_specs [change] is declared only so acceptance can bind the change module's ownership of src/change/validate_loaded_change.rs (#986); no spec text changes.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794006076,
+      "digest": "ad0a7bfecaadaf78ad6dffddd89182db767bddd2cb75ec05c8acc0fc7128a1d7",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality",
+      "actor": "0xLeif",
+      "reason": "Re-scope affected_specs to [change]: the test-only clock hook lives in src/change/validate_loaded_change.rs, which specs/change owns, so acceptance needs that module in scope (#986). Content unchanged.",
+      "timestamp": 1794001786,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 1,
+      "canonical_applied": true
+    }
+  ]
+}

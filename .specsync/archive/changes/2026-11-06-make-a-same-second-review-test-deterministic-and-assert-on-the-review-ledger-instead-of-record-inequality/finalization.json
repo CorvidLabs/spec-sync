@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality",
+  "implementation_commit": "a7bc2cb68abafba7ce90bad517ad04cc1aa39e1a",
+  "implementation_tree": "44232666dc4c2744b97d883286d724f181282ff5",
+  "contract_digest": "f1b1488501810ca7f5e48fb7e50bfe600f21b72f72bdc39ec24e36279207b266",
+  "workspace_digest": "84b43eeca249d29dc916ecf25aa23162ce637aae024991c8813cccb01ed5f746",
+  "closing_digest": "ad0a7bfecaadaf78ad6dffddd89182db767bddd2cb75ec05c8acc0fc7128a1d7",
+  "review_digest": "dc053fdb81e89f62c487f5049403aa3f760e09b38c5813e24d646b9d0ebcb052",
+  "finalization_digest": "e82e87945ce879515b7e3c39ee3b3a213c255c64b18be60ee8fb21892f1b6e91",
+  "timestamp": 1794006077
+}

@@ -13,7 +13,7 @@ Captured from Leif's follow-up in Grok Bot chat t813u on 2026-11-03: "I also wan
 
 Approved by Leif in the Herdr orc tab on 2026-11-05 09:21 MST (relayed by the orc, choice "Approve intent + approach") for issue #861, after v6.2.0-rc.1's macOS qualification timed out at 45 minutes: "macOS RC qualification finishes well under 45 min so the timeout returns to 45, without dropping or weakening any test". SPEED-2.b.1 and SPEED-2.b.2 are that intent. The approved approach is to cut SpecSync's git process spawns and run the suite with cargo nextest in the qualify lane.
 
-Approved by Leif in the Herdr orc tab on 2026-11-06 (relayed by orc t18, his words "Capture both") for issues #939 and #940, two refusals #918's faster cutoff-tree check made that the history walk did not. SPEED-1.a.2 and SPEED-1.a.3 are that intent, worded as drafted.
+Approved by Leif in the Herdr orc tab on 2026-11-06 (relayed by orc t18, his words "Capture both") for issue #940, a refusal #918's faster cutoff-tree check made for a workflow-v1 archive the history walk accepted. SPEED-1.a.2 is that intent, worded as drafted.
 
 ## Criteria
 

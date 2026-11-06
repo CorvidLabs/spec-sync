@@ -7,10 +7,10 @@
   "title": "Make a same-second review test deterministic and assert on the review ledger instead of record inequality",
   "description": "Make a same-second review test deterministic and assert on the review ledger instead of record inequality",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "5181fb2f6952ef086eed6cb0dff976b41123cd77",
   "created_at": 1793992575,
-  "updated_at": 1794001888,
+  "updated_at": 1794004127,
   "affected_specs": [
     "change"
   ],

@@ -31,7 +31,7 @@ An SDD tool can preserve excellent knowledge without deterministically proving t
 | Change a database column type without updating the spec | **Block** in strict mode | **Agent** / extension | **Agent** |
 | Break a declared cross-module spec dependency | **Block** | **Agent** / extension | **Agent** |
 | Leave a requirement without required test/API evidence | **Block** at check / finalize | Analyze/checklist/workflow dependent | Validate/verify workflow dependent |
-| Make tests fail | **Your CI** blocks; verification runs no configured command | Configurable workflow command | Agent/tool execution |
+| Make tests fail | **Your CI**, when it runs the tests and fails on them; verification runs no configured command | Configurable workflow command | Agent/tool execution |
 | Corrupt or stale approval/verification evidence | **Block** | Workflow implementation dependent | Workflow implementation dependent |
 
 ## Reproduce the SpecSync side

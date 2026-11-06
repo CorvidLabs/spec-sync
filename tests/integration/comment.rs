@@ -185,6 +185,8 @@ fn comment_contracts_say_no_configured_verification_command_runs() {
         "verification command output is captured away from stdout",
         "the command still executes and affects lifecycle status",
         "while `change check` streams it",
+        "while preserving execution and failure reporting",
+        "lifecycle checking still streams configured command output",
     ];
     for relative in [
         "specs/cmd_comment/requirements.md",
@@ -192,6 +194,7 @@ fn comment_contracts_say_no_configured_verification_command_runs() {
         "specs/cmd_comment/context.md",
         "specs/cmd_comment/cmd_comment.3md",
         "specs/cmd_comment/testing.md",
+        "specs/cmd_comment/tasks.md",
     ] {
         let text = tracked_text(relative);
         for phrase in retired {

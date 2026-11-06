@@ -2743,6 +2743,7 @@ fn change_contracts_give_one_answer_on_configured_verification_commands() {
         "specs/change/testing.md",
         "specs/change/context.md",
         "specs/change/change.3md",
+        "specs/change/tasks.md",
     ] {
         let text = tracked_text(relative);
         for phrase in retired {
@@ -2779,10 +2780,13 @@ fn comparison_pages_do_not_credit_specsync_with_running_configured_tests() {
             &proof,
             "**Block** when configured for verification/CI",
         ),
+        // The project's CI blocks only when it runs the tests and fails on them; SpecSync
+        // cannot promise that for every project (Codex review on #899).
+        ("adversarial-proof.md", &proof, "**Your CI** blocks;"),
     ] {
         assert!(
             !text.contains(phrase),
-            "{relative} still credits SpecSync with running configured tests: `{phrase}`"
+            "{relative} overstates who runs the tests or what blocks them: `{phrase}`"
         );
     }
     for (relative, text) in [("why-specsync.md", &why), ("adversarial-proof.md", &proof)] {

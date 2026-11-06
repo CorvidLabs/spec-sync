@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 19
+version: 20
 status: stable
 files:
   - src/git_utils.rs
@@ -167,3 +167,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-11-06 | Nested same-root scopes share one `cat-file --batch` reader instead of starting one each (REQ-git-utils-010, #891) |
 | 2026-11-06 | reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes: Reuse one cat-file batch reader per repository root across nested repository-fact scopes |
 | 2026-11-06 | Prefetch workers start from the command's repository facts in a read-only seeded scope (REQ-git-utils-011, S9) |
+| 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |

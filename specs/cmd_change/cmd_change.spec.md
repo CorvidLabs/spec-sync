@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 61
+version: 62
 status: active
 files:
   - src/commands/change.rs
@@ -193,3 +193,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
 | 2026-11-06 | `change status`, `show`, `list` and `ship-status` take `--timeout <secs>` or `SPECSYNC_TIMEOUT`; a timed-out read exits 124 with the phase, progress and resume command (REQ-cmd-change-032, S9) |
+| 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |

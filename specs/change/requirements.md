@@ -1669,6 +1669,15 @@ Lifecycle commands SHALL stay within a tested ceiling of git process spawns per 
 - The slowest lifecycle integration test spawns at most 6,225 git processes.
 - No assertion of an existing lifecycle test is removed or loosened to meet the ceiling.
 
+### REQ-change-128
+
+Working-tree evidence capture SHALL read Git's modified-path output relative to the project root, so a project rooted in a subdirectory of its repository can complete `change check --commit`, and SHALL still refuse any path Git reports outside the project or outside the change's candidates.
+
+Acceptance Criteria
+- In a project at `app/`, `change check <id> --commit` commits the materialized spec and the verification evidence.
+- A reported path without the repository prefix, or a prefixed path that is not a candidate, is refused as out of scope and named.
+- A project at the repository root behaves as before.
+
 ### REQ-change-relayed-decision-001
 
 A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.

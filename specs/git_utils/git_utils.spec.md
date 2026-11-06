@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 16
+version: 18
 status: stable
 files:
   - src/git_utils.rs
@@ -76,7 +76,7 @@ Shared git utility functions for querying repository history. Provides the stale
 7. `git_cmd` is crate-visible so other modules (`merge::unmerged_paths`) spawn git through the same cleared-environment allowlist
 8. `output_after_child_exits` returns when the direct child exits. Stdin is the null device. Stdout and stderr are pipes this process owns, not the caller's. When the child-exit signal is observed, the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped (SPEED-1, SPEED-1.e). `status_without_inherited_output` runs the child with both streams on the null device, so a descendant cannot keep the caller's stdout or stderr open after the caller exits
 9. A repository fact (a `rev-parse`, `symbolic-ref` or `config` read, or a `rev-list`, `log`, `show`, `ls-tree`, `merge-base`, `cat-file`, `diff-tree`, `for-each-ref` or `show-ref` read without stdin) is asked of git at most once per open scope and root. Working-tree and index reads (`ls-files`, `diff`, `diff-files`, `diff-index`, `status`, `check-attr`) are never memoized. Any other git command, and any external process the command runs, forgets every fact and closes every batch reader on the thread. While a `live_repository_reads` guard is held, nothing is answered from memory, so race checks that read before and after still see another process's change
-10. A batched read answers only `HEAD` or a full object id with one literal path, gives the bytes and exit status of the per-file read, and leaves trees shown by `git show` and anything over its bound to the per-file read A batched `ls-tree` listing walks the parent trees for the entry and never loads the object it names, so a gitlink or a partial-clone blob is listed as `ls-tree` lists it; a tree this clone does not hold falls back to `ls-tree`. `git config` lookups with scope or format options (`--local`, `-z` and the like) before `--get`, `--get-all` or `--get-regexp` are read-only facts
+10. A batched read answers only `HEAD` or a full object id with one literal path, gives the bytes and exit status of the per-file read, and leaves trees shown by `git show` and anything over its bound to the per-file read A batched `ls-tree` listing walks the parent trees for the entry and never loads the object it names, so a gitlink or a partial-clone blob is listed as `ls-tree` lists it; a tree this clone does not hold falls back to `ls-tree`. `git config` lookups with scope or format options (`--local`, `-z` and the like) before `--get`, `--get-all` or `--get-regexp` are read-only facts Scopes nested for the same root share one reader per flavor: a nested scope uses the reader an enclosing scope started, and a reader first needed in a nested scope belongs to the outermost scope for that root
 
 ## Behavioral Examples
 
@@ -160,3 +160,5 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
 | 2026-11-06 | #861's repository-fact and batch-read requirements are REQ-git-utils-009 and REQ-git-utils-010. Its archived package names them REQ-git-utils-008 and 009 because #864 took 008 first; the archive is left as reviewed |
+| 2026-11-06 | Nested same-root scopes share one `cat-file --batch` reader instead of starting one each (REQ-git-utils-010, #891) |
+| 2026-11-06 | reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes: Reuse one cat-file batch reader per repository root across nested repository-fact scopes |

@@ -1189,13 +1189,24 @@ fn with_batch<Answer>(
     }
     REPOSITORY_FACT_SCOPES.with(|scopes| {
         let mut scopes = scopes.borrow_mut();
-        let frame = scopes.iter_mut().rev().find(|frame| frame.root == root)?;
-        if !frame.batches.contains_key(flavor) {
-            let batch = ObjectBatch::start(command()).ok()?;
-            #[cfg(test)]
-            record_test_batch_start();
-            frame.batches.insert(flavor, batch);
-        }
+        // One reader per root: a nested scope for the same root uses the reader an enclosing
+        // scope already started, and a new reader belongs to the outermost scope for the root,
+        // so it outlives the nested scope that first needed it (REQ-git-utils-010).
+        let index = match scopes
+            .iter()
+            .position(|frame| frame.root == root && frame.batches.contains_key(flavor))
+        {
+            Some(index) => index,
+            None => {
+                let index = scopes.iter().position(|frame| frame.root == root)?;
+                let batch = ObjectBatch::start(command()).ok()?;
+                #[cfg(test)]
+                record_test_batch_start();
+                scopes[index].batches.insert(flavor, batch);
+                index
+            }
+        };
+        let frame = &mut scopes[index];
         let batch = frame.batches.get_mut(flavor)?;
         match use_batch(batch) {
             Ok(answer) => Some(answer),
@@ -2144,6 +2155,48 @@ mod tests {
         ] {
             assert!(!is_read_only_git(args), "{args:?} may write");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_nested_scope_reuses_the_outer_batch_reader() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "one", "first");
+        let read = |root: &Path| {
+            batched_git_read(
+                root,
+                "git_cmd",
+                || git_cmd(root),
+                &["show", "HEAD:a.txt"],
+                usize::MAX,
+            )
+            .unwrap()
+            .stdout
+        };
+        TEST_BATCH_STARTS.with(|count| count.set(0));
+        {
+            // Outer read, nested read, outer read again: one reader.
+            let _outer = begin_repository_fact_scope(root);
+            assert_eq!(read(root), b"one");
+            {
+                let _nested = begin_repository_fact_scope(root);
+                assert_eq!(read(root), b"one");
+            }
+            assert_eq!(read(root), b"one");
+        }
+        assert_eq!(TEST_BATCH_STARTS.with(std::cell::Cell::get), 1);
+        TEST_BATCH_STARTS.with(|count| count.set(0));
+        {
+            // First read inside a nested scope: the outer scope keeps that reader.
+            let _outer = begin_repository_fact_scope(root);
+            {
+                let _nested = begin_repository_fact_scope(root);
+                assert_eq!(read(root), b"one");
+            }
+            assert_eq!(read(root), b"one");
+        }
+        assert_eq!(TEST_BATCH_STARTS.with(std::cell::Cell::get), 1);
     }
 
     #[test]

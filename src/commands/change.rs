@@ -1716,6 +1716,24 @@ impl ShipReviewStatus {
     }
 }
 
+/// The product-tip action, named only as a command whose state guard admits the change's state
+/// (#690, REQ-cmd-change-033). `check` refuses a draft and an accepted or archived change, so
+/// those get the step their own state machine takes: approve, or reopen the stale evidence.
+fn product_stage_action(record: &ChangeRecord) -> String {
+    let id = record.id.as_str();
+    match record.state {
+        ChangeState::Draft => format!(
+            "run `specsync change approve {id} --actor <name>` once the definition is complete; `change check` refuses a draft"
+        ),
+        ChangeState::Accepted | ChangeState::Archived => format!(
+            "run `specsync change reopen {id} --actor <name> --reason <text>`; the verification is no longer current for this content and `change check` refuses an accepted or archived change"
+        ),
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => format!(
+            "run `specsync change check {id} --commit` and the local verify lane; archive-first CI does not test a tip with an open change, so do not wait on remote CI here"
+        ),
+    }
+}
+
 fn ship_stages(
     record: &ChangeRecord,
     tip: &HeadTip,
@@ -1742,7 +1760,7 @@ fn ship_stages(
         "action": if product_done {
             "product verification evidence is current for this content".to_string()
         } else {
-            format!("run `specsync change check {id} --commit` and the local verify lane; archive-first CI does not test a tip with an open change, so do not wait on remote CI here")
+            product_stage_action(record)
         },
     }));
 

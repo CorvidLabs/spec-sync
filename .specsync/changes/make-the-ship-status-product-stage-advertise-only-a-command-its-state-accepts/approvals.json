@@ -1,4 +1,45 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793946903,
+      "digest": "41823fa74c40422460047eee4ff56b7b64f7be3a0f017bbdee26e2d6b0e249ba",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts",
+        "title": "Make the ship-status product stage advertise only a command its state accepts",
+        "description": "Make the ship-status product stage advertise only a command its state accepts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A unit test drives every state through the product stage with stale verification and asserts the advertised `specsync change` verb is one whose state guard admits that state. It fails on main first (draft and accepted advertise `check`).",
+          "For a `draft` change the stage action names `specsync change approve <id> --actor <name>` instead of `change check --commit`; approved, implementing and verifying changes keep `change check <id> --commit`.",
+          "For an `accepted` or `archived` change whose verification is no longer current for this content, the `ship-status` product-tip stage action names `specsync change reopen <id> --actor <name> --reason <text>` instead of `change check --commit`, which refuses those states.",
+          "The top-level `ship_next`, readiness, stage ids and every gate are unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "dcc56d5277a04d42e8405cb20c7e08219b10af4dc1b40cb19b0a2f6f4c01196c"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

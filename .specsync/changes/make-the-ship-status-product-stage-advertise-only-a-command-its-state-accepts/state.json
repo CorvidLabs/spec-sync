@@ -7,10 +7,11 @@
   "title": "Make the ship-status product stage advertise only a command its state accepts",
   "description": "Make the ship-status product stage advertise only a command its state accepts",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
   "created_at": 1793943656,
-  "updated_at": 1793943717,
+  "updated_at": 1793946944,
   "affected_specs": [
     "cmd_change"
   ],

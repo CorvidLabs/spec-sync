@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Unit test over every state: the product stage's advertised verb is admitted by that state. Fails on main (draft advertises `check`).
-- [ ] Product stage action: draft -> `approve`, accepted/archived -> `reopen`, others unchanged.
-- [ ] Delta, CHANGELOG entry, requirement evidence.
+- [x] Product stage action: draft -> `approve`, accepted/archived -> `reopen`, others unchanged.
+- [x] Delta, CHANGELOG entry, requirement evidence.

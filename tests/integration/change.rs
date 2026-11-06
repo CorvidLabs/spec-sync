@@ -4011,7 +4011,7 @@ fn status_and_show_json_report_approved_delta_requirements() {
     assert_eq!(summary_keys(&created), previous_summary, "{created}");
 }
 
-// REQ-change-125: one change driven through the lifecycle stays within a git process ceiling per
+// REQ-change-127: one change driven through the lifecycle stays within a git process ceiling per
 // command. Counted through a `git` wrapper on PATH, so every spawn the binary makes is seen,
 // whichever module makes it, and the bound is hardware independent.
 #[cfg(unix)]
@@ -4023,7 +4023,7 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     ///
     /// At 67aa7dc2 they spawned: new 63, answer 71, approve 89, check 388, status 66, review 323,
     /// finalize 739. With repository facts asked once per command and committed objects read
-    /// through one `cat-file --batch` (REQ-git-utils-008, REQ-git-utils-009) they spawn: new 29,
+    /// through one `cat-file --batch` (REQ-git-utils-009, REQ-git-utils-010) they spawn: new 29,
     /// answer 15, approve 32, check 110, status 53, review 176, finalize 287. Each ceiling is that
     /// count plus about 10%. Evidence capture keeps its working-tree reads and repository-identity
     /// reads live on purpose: it reads before and after each capture to catch a concurrent edit,

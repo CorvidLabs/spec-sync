@@ -97,6 +97,17 @@ Acceptance Criteria
 
 ### REQ-git-utils-008
 
+`output_after_child_exits` SHALL return when the direct child exits and SHALL NOT wait on a descendant's open pipe after that child exits. `status_without_inherited_output` SHALL NOT give the child the caller's stdout or stderr.
+
+Acceptance Criteria
+- `output_returns_while_a_descendant_holds_the_pipe` returns the child's bytes while the descendant is still alive.
+- `status_does_not_hand_the_caller_stdout_to_the_child` records the null device as the child's stdout.
+- `output_after_child_exits_nulls_stdin` records the null device even when the command's stdin was a pipe.
+- `stop_keeps_queued_bytes_and_does_not_follow_a_descendant_flood` returns the payload that was at the head of a full pipe while a descendant is blocked in `write`, and the returned length does not exceed the pipe capacity.
+- SPEED-1 and SPEED-1.e. The deadline and output-cap behavior of the bounded Git runner is unchanged.
+
+### REQ-git-utils-009
+
 Within one SpecSync process, repository facts that the process does not itself change SHALL be asked of git at most once per canonical repository root: the HEAD commit, the working-directory prefix, whether the root is inside a work tree, whether the repository is shallow, the origin default branch and its commit, the index path, the shared index path, `core.fsmonitor`, and the core line-ending, symlink and file-mode settings. A failed git query SHALL NOT be memoized. After the process itself commits, writes the index, moves a ref or switches branches in that repository, the memoized facts for that root SHALL be discarded so the next read asks git again.
 
 #### Acceptance Criteria
@@ -106,7 +117,7 @@ Within one SpecSync process, repository facts that the process does not itself c
 - A git failure is retried on the next read and still returns the existing safe default.
 - Command output is byte-identical to the unmemoized behavior.
 
-### REQ-git-utils-009
+### REQ-git-utils-010
 
 Within one SpecSync process, committed blob contents and tree listings read at a fixed commit SHALL be served by at most one `git cat-file --batch` child per canonical repository root, started on first use and closed when the process ends. Reads named through `HEAD` SHALL resolve HEAD through the repository-fact memo first. A missing object or path SHALL produce the same absent result as a per-file `git show` or `git ls-tree` read.
 

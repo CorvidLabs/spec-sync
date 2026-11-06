@@ -245,3 +245,12 @@ The CLI SHALL parse `change audit --archives` as an opt-in request to also re-va
 - Help lists `--archives` under `change audit`.
 - `change audit` without `--archives` parses exactly as before, with or without `--strict`.
 
+### REQ-cli-args-023
+
+The CLI SHALL parse `merge --install` and `merge-file` with the ancestor, current, and other paths.
+
+Acceptance Criteria
+- `merge --install` is a flag on the `merge` command.
+- `merge-file` takes the ancestor path, the current path, the other path, and an optional pathname.
+- Existing global flags still parse around both commands.
+

@@ -41,3 +41,6 @@ pass/block remains in append-only history.
 
 @plane z=4 label="Historical receipt reconciliation"
 A valid stored receipt does not prove that its old file bytes existed at a later definition base. Preserve ordinary before/after succession. An explicit historical scope must authenticate the complete anchored receipt, bind its frozen manifest and exact current input tuples, retain an unproven-transition classification in evidence and audit output, and require fresh scope approval, verification and review. Native archival preserves the original accepted-state bytes.
+
+@plane z=5 label="Lesson (#862)"
+`Merge` gained `--install`. `MergeFile` is the driver grammar: ancestor, current, other, optional pathname. Global flags still wrap both. No existing flag was relaxed.

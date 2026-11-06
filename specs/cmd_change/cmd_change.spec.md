@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 58
+version: 59
 status: active
 files:
   - src/commands/change.rs
@@ -53,6 +53,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. Product-stage completion uses the same verification currency predicate, and its action text describes content currency rather than asserting ancestry. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass.
 7. Opening, showing, and status render one briefing of the substantive lessons for the change's modules and of the configured principles file, in text and in JSON. A scaffold-only context is omitted. The excerpt is bounded and names the file for the rest. An unreadable principles file does not fail the command. A `.specsync/sdd.json` that cannot be parsed fails `change status` with the policy error, and status does not print a briefing as if no principles were configured. `change finalize` and `change ship` name the lesson-bundle path in text and in JSON. Their next action stays the merge instruction and does not require copying lessons into the spec. A passing `change check` says nothing about lessons.
 8. `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end their text result with exactly one `Handoff:` line — after `Next:` where one is printed — reading `safe`, `conditional`, or `not yet`, an em-dash, the domain's reason, and, when readiness is not safe, `Before clearing:` followed by the domain's steps. The line renders the domain's `HandoffSummary` verbatim: the adapter never decides readiness itself and never prints a digest on it. JSON carries the same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on the approve transition.
+9. Git reads in this module run through `git_utils::output_after_child_exits`, and exit-code checks run through `git_utils::status_without_inherited_output`, so a read returns when the Git child exits even while a descendant still holds its output pipe, and a status child never receives the caller's stdout or stderr (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -187,4 +188,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |

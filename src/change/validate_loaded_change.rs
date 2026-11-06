@@ -1082,11 +1082,12 @@ fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) ->
 }
 
 fn git_worktree_is_clean(root: &Path) -> Option<bool> {
-    let output = Command::new("git")
-        .args(["status", "--porcelain"])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(root),
+    )
+    .ok()?;
     output.status.success().then_some(output.stdout.is_empty())
 }
 
@@ -1836,7 +1837,7 @@ fn run_verification_child(command: &mut Command) -> std::io::Result<std::process
     // the PID, which cannot be known any earlier.
     install_verification_reaper();
     // A configured command may write to the repository, so nothing git answered before it is
-    // trusted after it (REQ-git-utils-008).
+    // trusted after it (REQ-git-utils-009).
     crate::git_utils::invalidate_repository_facts();
     let mut child = command.spawn()?;
     let mut group = VerificationChildGroup::arm(child.id() as i32);
@@ -3291,6 +3292,12 @@ fn validate_workflow_version_history_uncached(
         return Ok(());
     }
     let state_paths = workflow_version_state_paths(root, record)?;
+    // These paths are already repository-relative. `:(top)` keeps Git from resolving them
+    // against the project directory, which would apply `git_repo_prefix` a second time (#851).
+    let state_pathspecs: Vec<String> = state_paths
+        .iter()
+        .map(|path| format!(":(top,literal){path}"))
+        .collect();
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let mut arguments = vec![
@@ -3301,7 +3308,7 @@ fn validate_workflow_version_history_uncached(
         "HEAD",
         "--",
     ];
-    arguments.extend(state_paths.iter().map(String::as_str));
+    arguments.extend(state_pathspecs.iter().map(String::as_str));
     let commits = scoped_review_git_text(root, &arguments)
         .map_err(|_| "failed to enumerate workflow-version history".to_string())?;
     let commits: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
@@ -3382,7 +3389,16 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
     }
 
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
-    let pathspec = format!(":(glob){archive_root}/*-{}/state.json", record.id.as_str());
+    // `:(top,glob)` matches `archive_introduction_index`: the path is repository-relative, and
+    // the command runs in the project directory. Without `top`, a non-empty `git_repo_prefix`
+    // is applied twice and the archived history is empty (#851). Only the dated directory is a
+    // pattern; the archive root is escaped so a project directory such as `app[1]` matches
+    // itself rather than a character class.
+    let pathspec = format!(
+        ":(top,glob){}/*-{}/state.json",
+        escape_glob_pathspec(&archive_root),
+        escape_glob_pathspec(record.id.as_str())
+    );
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let commits = scoped_review_git_text(
@@ -3574,29 +3590,28 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
     let Some(commit) = evidence.commit.as_deref() else {
         return git_output(root, &["rev-parse", "HEAD"]).is_none();
     };
-    Command::new("git")
-        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.success())
 }
 
 fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool {
     let Some(remote_default) = remote_default_ref(root) else {
         return false;
     };
-    let head_is_integrated = Command::new("git")
-        .args([
+    let head_is_integrated = crate::git_utils::status_without_inherited_output(
+        Command::new("git").args([
             "merge-base",
             "--is-ancestor",
             "HEAD",
             remote_default.as_str(),
         ])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success());
+        .current_dir(root),
+    )
+    .is_ok_and(|status| status.success());
     if !head_is_integrated {
         return false;
     }
@@ -3610,25 +3625,25 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
     };
     let remote_state = format!("{remote_default}:{repo_state}");
     let repo_workspace_pathspec = format!(":(top,literal){repo_workspace}");
-    let state_exists = Command::new("git")
-        .args(["cat-file", "-e", remote_state.as_str()])
-        .current_dir(root)
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success());
+    let state_exists = crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["cat-file", "-e", remote_state.as_str()])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.success());
     state_exists
-        && Command::new("git")
-            .args([
-                "diff",
-                "--quiet",
-                remote_default.as_str(),
-                "--",
-                repo_workspace_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
+        && crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args([
+                    "diff",
+                    "--quiet",
+                    remote_default.as_str(),
+                    "--",
+                    repo_workspace_pathspec.as_str(),
+                ])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| status.success())
 }
 
 #[cfg(test)]
@@ -4273,3 +4288,15 @@ fn today() -> String {
 #[cfg(test)]
 #[path = "../change_tests.rs"]
 mod tests;
+
+/// Escapes the characters a Git `glob` pathspec treats as wildcards, so `text` matches only itself.
+fn escape_glob_pathspec(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        if matches!(character, '*' | '?' | '[' | ']' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}

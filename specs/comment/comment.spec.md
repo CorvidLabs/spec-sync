@@ -1,6 +1,6 @@
 ---
 module: comment
-version: 12
+version: 13
 status: stable
 files:
   - src/comment.rs
@@ -36,6 +36,7 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 5. `detect_branch` returns `None` if not in a git repository or git command fails
 6. The marketplace GitHub Action (`action.yml`) and project CI workflow (`.github/workflows/ci.yml`) both invoke `specsync comment` to produce identical PR comment output
 7. Rendered bodies are at most 49,152 bytes, are always valid UTF-8, and include local reproduction guidance when truncated
+8. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 
 ## Behavioral Examples
 
@@ -102,3 +103,4 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |

@@ -622,6 +622,10 @@ Acceptance Criteria
   workflow v1.
 - Workflow-origin history boundedly follows every reachable canonical dated archive state path for
   the exact change ID, so archive→reopen→rearchive moves preserve the immutable creation anchor.
+- That history is read with repository-root pathspecs (`:(top,glob)` to discover dated archive
+  paths, `:(top,literal)` to walk them). A project rooted in a subdirectory of its Git repository
+  still sees every dated path and still refuses a workflow-version downgrade that a later commit
+  restored.
 - The one CHG-0068 adoption fails closed and requests full trusted history when its immutable
   allowlisted commit/blob anchor is unavailable.
 
@@ -1564,6 +1568,7 @@ The system SHALL answer read-only lifecycle reads (`change status`, `change show
 
 - Output of every read is identical to a live read: same JSON, same refusals, same first error.
 - A cached workflow-version history verdict is reused only when the SHA-256 of the archived `state.json` bytes, its archive path, the build identity and the repository prefix all match, the commit it was computed at is an ancestor of `HEAD`, and no commit in between touched that change's active or archived state paths. Anything else recomputes it live, and only passing verdicts are stored.
+- That invalidation walk uses `:(top,literal)` pathspecs. A project rooted in a subdirectory of its Git repository does not reuse a cached pass across a commit that touched the change's state, including a workflow-version downgrade that a later commit restored.
 - Archive introductions are cached per commit, which Git makes immutable, and only when every Git read behind them answered.
 - The cache lives under the Git directory, is never a project input, is disabled in a shallow repository, and a failure to read or write it falls back to live reads. Mutating commands keep reading live.
 - The Git processes one archived status read spawns do not grow with the number of other archived changes once the cache is warm, and a benchmark against a Raven-sized fixture (124 archived changes, 120 specs) times the read against the 2 second budget.
@@ -1632,9 +1637,29 @@ The system SHALL let `change finalize` and `change archive` validate in full onl
 - The Git processes one finalize spawns do not grow with the number of other archived changes once the persistent read cache is warm. With a cold cache, each other archive adds at most the three reads of the immutable commit that introduced it, and no workflow-version history walk.
 - Every refusal finalize and archive issue for the change being archived is unchanged: its own workflow-version history, evidence, review, deltas, ownership, closing approval and archive integrity are still validated in full.
 - An archived change that finalize or archive relies on, as a dependency, a semantic successor or a sequence owner, still has its own workflow-version history validated before it is relied on.
-- `change audit --archives` refuses a workflow-version downgrade committed into another archive's history and hidden again by a later commit, naming that change, with or without a warm read cache. `change audit` without `--strict` is unchanged.
+- `change audit --archives` refuses a workflow-version downgrade committed into another archive's history and hidden again by a later commit, naming that change, with or without a warm read cache. `change audit` without `--strict` does not take on that archive-history walk.
 
 ### REQ-change-125
+
+`change audit` SHALL refuse a living requirements file that contains the same requirement ID more than once, and the error SHALL name that ID.
+
+Acceptance Criteria
+- Two `### REQ-<module>-<number>` headings with the same ID in one `requirements.md` fail `specsync change audit`.
+- The error text contains that ID.
+- The refusal is reported even when SDD policy is disabled.
+- A fenced copy of the heading is not a second requirement.
+- No other audit refusal is weakened.
+
+### REQ-change-126
+
+A bounded Git read SHALL return when the direct child exits and SHALL NOT wait on a descendant's open pipe after that child exits. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join SHALL stay as they are.
+
+#### Acceptance Criteria
+
+- `bounded_git_read_returns_while_a_descendant_holds_the_output_pipe` returns the child's stdout while the descendant is still alive.
+- `bounded_git_runner_times_out_a_silent_process`, `timed_out_git_runner_reaps_child_and_joins_blocked_writer`, `timed_out_git_runner_reaps_child_before_child_can_make_progress`, and `capped_git_runner_drains_kills_and_reaps_large_output` still pass. No deadline, cap, or join assertion is loosened.
+
+### REQ-change-127
 
 Lifecycle commands SHALL stay within a tested ceiling of git process spawns per command, and the ceiling SHALL NOT grow with unrelated archived changes. The integration test `eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci` SHALL spawn at most 40% of its 15,563-process baseline measured at 67aa7dc2.
 

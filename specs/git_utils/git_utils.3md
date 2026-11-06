@@ -38,3 +38,6 @@ Stable. Used by staleness detection, reports, check, and scoring freshness. Cove
 
 @plane z=5 label="Notes"
 - Do not make these helpers panic on git errors; graceful degradation is part of the public behavior.
+
+@plane z=6 label="Do not wait on a descendant pipe"
+A Git child can exit while a grandchild still holds its stdout. Waiting for end-of-file waits on that grandchild. `output_after_child_exits` stops when the child is reaped and keeps the bytes already written. `status_without_inherited_output` points both streams at the null device, so a grandchild cannot keep the caller's own stdout or stderr open. The bounded Git runner in `change` uses the same wake. SPEED-1 and SPEED-1.e. Issues #854 and #855.

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "merge-two-finalized-changes-to-one-module-without-a-spec-conflict",
+  "implementation_commit": "c36e0d7a2638cb7ef8648e0f18b1b43db7e0fcec",
+  "implementation_tree": "3501845589eb8cf56b2eec575a77b6fe7f7df800",
+  "contract_digest": "0d6a36b8aad76e77d263bb1b5fb0eb3e442125ef875465562caf5c821b16f08a",
+  "workspace_digest": "60f0d0fe66580cde16001474f5783c8c33f79198e26783fda6657e9b542cbe83",
+  "closing_digest": "c03ad01fcf7f7c23c69262bcd1b3bc23fea0ef16b6864e2a6154ae9a81086595",
+  "review_digest": "aa042944fef12ebe6e556ac4632a17e51973e6b595399f3f5a023db77d2f0d7e",
+  "finalization_digest": "810aa5e01501991b6a3730e7ff40301f1e6ea9c99eeae01ac9add5ef76b3c8e8",
+  "timestamp": 1793927069
+}

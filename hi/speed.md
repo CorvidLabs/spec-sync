@@ -20,6 +20,7 @@ Approved by Leif in the Herdr orc tab on 2026-11-05 09:21 MST (relayed by the or
   - **SPEED-1.b**  `check` stays proportional to the specs touched.
   - **SPEED-1.c**  A cache keyed by content digest has a correct invalidation rule.
   - **SPEED-1.d**  A benchmark against a Raven-sized fixture keeps this from regressing.
+  - **SPEED-1.e**  SpecSync must never wait on a descendant's open pipe after its child exits.
 - **SPEED-2**  SpecSync changes and archive and everything are working fast.
   - **SPEED-2.a**  SpecSync archive does not take like three minutes to run.
   - **SPEED-2.b**  The whole suite runs fast.

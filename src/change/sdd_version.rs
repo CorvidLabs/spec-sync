@@ -204,7 +204,7 @@ pub(crate) struct ChangeReadScope {
     /// Every read scope memoizes the delta binding, so one invocation reads each delta once and
     /// `summary` and `approved_deltas` are projections of the same bytes (REQ-change-113).
     _delta_bindings: DeltaBindingMemo,
-    /// Repository facts git answered during this read (REQ-git-utils-008).
+    /// Repository facts git answered during this read (REQ-git-utils-009).
     _facts: crate::git_utils::RepositoryFactScope,
 }
 
@@ -603,7 +603,7 @@ impl FramedDigest {
 
 struct ProjectLock {
     file: fs::File,
-    /// Repository facts git answered while this command holds the lock (REQ-git-utils-008).
+    /// Repository facts git answered while this command holds the lock (REQ-git-utils-009).
     _facts: crate::git_utils::RepositoryFactScope,
 }
 

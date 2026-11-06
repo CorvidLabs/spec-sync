@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 29
+version: 30
 status: stable
 files:
   - src/main.rs
@@ -389,3 +389,5 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |
 | 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
+| 2026-11-05 | v30 / #862: dispatch `merge --install` and `merge-file` for the module-contract merge driver |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

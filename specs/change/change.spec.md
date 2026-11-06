@@ -1,6 +1,6 @@
 ---
 module: change
-version: 163
+version: 168
 status: active
 files:
   - src/change.rs
@@ -175,8 +175,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
 | `artifacts_complete_for_guidance` | `root, record` | `bool` | Lightweight selected-artifact completeness for human next-action guidance without digest loaders |
-| `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence |
-| `audit_project_with_archives` | `root: &Path, archives: bool` | `SddCheckReport` | `audit_project`, and with `archives` also every archived change's own workflow-version history, each failure named by change ID; the walk finalize no longer repeats (REQ-change-124) |
+| `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence. A duplicated requirement ID in a living `requirements.md` is an error and is named |
+| `audit_project_with_archives` | `root: &Path, archives: bool` | `SddCheckReport` | `audit_project`, and with `archives` also every archived change's own workflow-version history, each failure named by change ID; the walk finalize no longer repeats (REQ-change-124). Duplicate requirement IDs are reported whether or not `--archives` is set |
 | `backfill_reopen_digests` | `root: &Path, dry_run: bool` | `Result<ReopenBackfillReport, String>` | Backfill 5.1 reopening digest fields on 5.0.1-era ledgers with verified, idempotent, dry-run-aware writes |
 | `begin_change_read_scope` | `root: &Path` | `ChangeReadScope` | Install one invocation-scoped read snapshot for list/show/status and project reports |
 | `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare this change's specs to code |
@@ -271,7 +271,7 @@ Acceptance Criteria
 28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
 29. The 5.0 ledger migration backfills reopening digest fields idempotently from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
 30. Canonical module path resolution treats missing and inert local registries as absent fallbacks while non-inert unparsable registries still fail closed with the established parse diagnostic.
-31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves.
+31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves, including when the project root is a subdirectory of the Git repository. The discovery glob, the history walk of those paths, and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root with `:(top)`, so a non-empty repository prefix is not applied twice.
 32. The workflow-v2 baseline retains its exact introduction bytes at every bounded touching commit and readable parent, rejecting rewrite-then-restore history.
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
 34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons. Folding them into `context.md` is a convention, not a `next_action` gate. Finalize and ship name the bundle path in text and JSON without making that fold the next action.
@@ -287,6 +287,9 @@ Acceptance Criteria
 43. A draft whose affected modules have substantive lessons, or whose project names a principles file, is asked which of those constrain it once the rest of the interview is answered, and "none" is a complete answer stored in the stable scope. A draft with neither is not asked. A change that has left draft without that answer is not sent back to the interview. Re-answering affected specs clears the answer. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each contain substantive text. A change that did not select a plan does not gain one. Opening, showing, or asking status computes a briefing of those lessons and of that principles file. The excerpt is bounded, a scaffold-only context is omitted, and an unreadable file does not fail the command.
 
 44. Opening a change fails when `.specsync/sdd.json` exists and cannot be parsed, including when a workflow-v2 baseline is already present. The error says the SDD policy is invalid. A missing policy file still opens a workflow-v2 change. A parsed policy is not treated as absent.
+
+45. A bounded Git read returns when the direct Git child exits. On Unix and on Windows, once that exit is observed the reader drains one finite snapshot of the bytes already queued and stops, so a descendant that keeps writing cannot hold the join and the child's last queued bytes are not dropped. `change status` is one such read (SPEED-1, SPEED-1.a, SPEED-1.e). The wall-clock deadline, the output cap, and the stdin-writer join are unchanged.
+46. `change audit` refuses a living `requirements.md` that contains the same `### REQ-<module>-<number>` heading more than once, and the error names that ID. The scan runs even when SDD policy is disabled. A fenced copy of the heading is not a second requirement. This does not weaken any other audit refusal.
 
 ## Behavioral Examples
 
@@ -397,6 +400,7 @@ Acceptance Criteria
 | An active v2 finalization has a mismatched historical review workspace but its entire raw package matches the current remote-default tree | Reopen may record that exact Git anchor and downgrade to verifying after all other authentication checks; ordinary acceptance/archive remain strict and fresh verification plus scoped review are required |
 | The mismatched package is modified, unanchored, not active v2, or has any other invalid finalization digest | Recovery refuses without changing lifecycle or evidence bytes |
 | The exactly recorded mismatched old review also has an inconsistent review hash | Reopen-only recovery preserves both as untrusted at the same anchor; finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch remains refused |
+| A workflow-version downgrade is committed and then restored, including when the project root is a subdirectory of the Git repository | Load, status, and a warm read cache refuse with `workflow-version history changed immutable identity`, and a downgrade that exists only on an earlier dated archive path is still seen after reopen and rearchive |
 
 ## Dependencies
 
@@ -421,7 +425,8 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
-| 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-125, #861). |
+| 2026-11-05 | v162: archived workflow-version history and the read-cache invalidation walk use `:(top)` pathspecs, so a project in a repository subdirectory still sees that history and still refuses a hidden workflow-version downgrade (#851). |
+| 2026-11-05 | v162: lifecycle commands stay within a tested git spawn ceiling per command (REQ-change-127, #861). |
 | 2026-11-01 | v150: the lesson bundle heading is `# Lesson bundle: <id>` and the bundle's fixed text adds no en or em dash; user record text is copied unchanged (REQ-change-116, #827). |
 | 2026-10-10 | Add `change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |
@@ -602,4 +607,11 @@ Acceptance Criteria
 | 2026-11-04 | refuse-a-stale-modified-delta-instead-of-overwriting-newer-canonical-text: Refuse a stale modified delta instead of overwriting newer canonical text |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
+| 2026-11-05 | Never wait on a descendant's open pipe after a Git child exits, so `change status` cannot be stalled by that pipe (#854, #855, SPEED-1, SPEED-1.a) |
+| 2026-11-05 | After the child-exit signal, drain one finite snapshot of queued Git bytes, including on the non-Unix bounded reader |
+| 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
+| 2026-11-05 | restore-archived-history-reads-for-a-project-in-a-repository-subdirectory: Restore archived history reads for a project in a repository subdirectory |
+| 2026-11-05 | v162 / #862: `change audit` refuses a duplicated requirement ID and names it |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
+| 2026-11-06 | #861's spawn-ceiling requirement is REQ-change-127. Its archived package names it REQ-change-125 because #862 took 125 first; the archive is left as reviewed |

@@ -1,10 +1,11 @@
 ---
 module: validator
-version: 46
+version: 47
 status: stable
 files:
   - src/validator.rs
   - src/validator/consumed_by_re.rs
+  - src/validator/requirement_ids.rs
   - src/validator/tests.rs
 db_tables: []
 tracks: [119]
@@ -32,7 +33,10 @@ instead of a false success.
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, and dependencies |
+| `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, and dependencies. A sibling `requirements.md` that repeats a requirement ID is an error |
+| `duplicate_requirement_id_errors` | `root: &Path` | `Vec<String>` | Crate-private scan of every `requirements.md` under the specs directory; each error names the duplicated requirement ID and the file |
+| `duplicate_requirement_errors_in` | `text: &str, relative_path: &str` | `Vec<String>` | Crate-private duplicate-ID errors for one requirements body. Fenced examples are not IDs |
+| `duplicate_requirement_ids` | `text: &str` | `Vec<(String, usize)>` | Crate-private `(id, count)` pairs for `### REQ-...` headings that occur more than once |
 | `validate_spec_content` | `spec_path: &Path, content: &str, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate already-read spec bytes without reopening the spec or adjacent companions; mapped sources retain normal path-based behavior |
 | `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find sorted `*.spec.md` files |
 | `load_config_and_discover_retained` | `root: &Path` | `Result<(SpecSyncConfig, Vec<PathBuf>), String>` | Crate-private bounded retained-root configuration and spec inventory used by CLI commands |
@@ -318,3 +322,5 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |
 | 2026-10-14 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
 | 2026-10-15 | refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1: Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1 |
+| 2026-11-05 | v47 / #862: `check` refuses a requirements file that contains the same requirement ID twice and names that ID |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |

@@ -12,4 +12,6 @@ artifact: testing
 
 ## Results
 
-Pending.
+- Red: pinned, the test failed every run at `assert_ne!(fresh, earlier)`: 3 of 3 on 5181fb2f, and again after merging main through #969.
+- Fixed: it asserts that the ledger grew by one and its last entry is the fresh, current review. It passes 3 of 3 pinned and once unpinned.
+- The 17 send-back and scoped-review unit tests are green.

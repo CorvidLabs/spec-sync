@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9d5442ee04349106a50e3133",
-    "head": "EVT-7d5360bd746f166cfe1fcc12",
+    "head": "EVT-ba6fc44d57522b8d45ebbe81",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "intent",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -28,18 +28,18 @@
   },
   "decisions": [
     "Leif via orc t18 (2026-11-06, 'Broad'): capture CI-7 'A failing test always means something is actually wrong, never that it ran at an unlucky moment.'; #977 as its own test-only change up to ready for approval",
-    "decided: a cfg(test) thread-local clock pin (PinnedTestClock) so the same second is a fixture; fix by asserting the attempt ledger grew by one and its last entry is current; branch stacks on #969's archive tip 5181fb2f until #969 merges"
+    "decided: a cfg(test) thread-local clock pin (PinnedTestClock) so the same second is a fixture; fix by asserting the attempt ledger grew by one and its last entry is current; branch stacks on #969's archive tip 5181fb2f until #969 merges",
+    "Leif decided \"Leif via orc t18: approve the scope of make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality\": \"Leif approved #977 (relayed)\" (orc tab, 2026-11-06; relayed by orc t18, who recorded the native approval as 0xLeif at 8590976e); recorded by ss-977 Claude agent; a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
-    "Red first: with PinnedTestClock the #969 unit test fails 3/3 runs at assert_ne!(fresh, earlier); every earlier assertion passes in the same second"
+    "Red first: with PinnedTestClock the #969 unit test fails 3/3 runs at assert_ne!(fresh, earlier); every earlier assertion passes in the same second",
+    "Fixed: the assertion checks the attempt ledger grew by one and its last entry is the fresh current review; 3/3 pinned and 1 unpinned run green; 17 send-back/scoped-review unit tests green; merged main through #969 (squash) at 2a647ae6, keeping only #977's own changes"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif via orc t18: approve the scope of make-a-same-second-review-test-deterministic-and-assert-on-the-review-ledger-instead-of-record-inequality"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After approval: fix the assertion, repeated pinned runs, check --commit, audit, verify, push (after #969 merges: merge main), PR (Fixes #977), ready for Leif's GitHub review"
+  "next_action": "check --commit, audit --strict, pre-push, push, PR (Fixes #977), verify, ready for Leif's GitHub review"
 }

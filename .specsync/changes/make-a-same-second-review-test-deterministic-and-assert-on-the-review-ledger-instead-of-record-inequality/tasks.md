@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Test-only clock pin (`PinnedTestClock`, `#[cfg(test)]`), and the #969 unit test pinned to one second; fails every run.
-- [ ] Assert on the attempt ledger instead of record inequality.
-- [ ] Repeated pinned runs green; neighbouring tests green; verify.
+- [x] Assert on the attempt ledger instead of record inequality.
+- [x] Repeated pinned runs green; neighbouring tests green; verify.

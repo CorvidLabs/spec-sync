@@ -1212,6 +1212,41 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     Ok(review)
 }
 
+/// How many scoped review attempts the change's `review-attempts.json` holds; `0` when it has none.
+fn recorded_scoped_review_attempts(root: &Path, record: &ChangeRecord) -> Result<usize, String> {
+    Ok(load_scoped_review_attempt_ledger(root, record)?.map_or(0, |ledger| ledger.reviews.len()))
+}
+
+fn load_scoped_review_attempt_ledger(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<ScopedReviewAttemptLedger>, String> {
+    let path = find_change_dir(root, &record.id)?.join(SCOPED_REVIEW_ATTEMPTS_FILE);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read scoped review history: {error}"))?;
+    serde_json::from_str(&content)
+        .map(Some)
+        .map_err(|error| format!("invalid scoped review attempt history: {error}"))
+}
+
+/// Whether `review`, at `review_index` in the attempt history, was recorded after `send_back`
+/// (CHANGE-12.e). A send-back that recorded how many attempts preceded it answers by position.
+/// One recorded before that count existed answers by time, strictly, so a review in the same
+/// second as the send-back does not count and needs one fresh review.
+fn review_recorded_after_send_back(
+    send_back: &SendBackRecord,
+    review_index: Option<usize>,
+    review: &ScopedReviewRecord,
+) -> bool {
+    match send_back.cancelled_review_attempts {
+        Some(before) => review_index.is_some_and(|index| index >= before),
+        None => review.timestamp > send_back.timestamp,
+    }
+}
+
 fn validate_scoped_review_attempts(
     root: &Path,
     record: &ChangeRecord,
@@ -1873,6 +1908,25 @@ fn scoped_review_currency(
                     "the review binds only a definition approval a later send-back cancelled"
                         .into(),
                 );
+            }
+            // A send-back also cancels every review recorded before it, even when the scope comes
+            // back unchanged and the re-approval has the same digest (CHANGE-12.e, #960).
+            if let Some(send_back) = approvals.send_backs.last() {
+                let review_index = match load_scoped_review_attempt_ledger(root, record) {
+                    Ok(ledger) => ledger.and_then(|ledger| {
+                        ledger.reviews.iter().rposition(|attempt| attempt == review)
+                    }),
+                    Err(error) => {
+                        return ScopedReviewCurrency::Unavailable(format!(
+                            "the scoped review history could not be read ({error})"
+                        ));
+                    }
+                };
+                if !review_recorded_after_send_back(send_back, review_index, review) {
+                    return ScopedReviewCurrency::Stale(
+                        "the review was recorded before the change was last sent back".into(),
+                    );
+                }
             }
         }
         Err(error) => {

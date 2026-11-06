@@ -30,6 +30,11 @@ pub struct SendBackRecord {
     /// How many approvals the ledger held when the change was sent back. Every definition
     /// approval among them is cancelled; none is removed.
     pub cancelled_approvals: usize,
+    /// How many scoped review attempts `review-attempts.json` held when the change was sent back.
+    /// None of them counts as a current review any more (CHANGE-12.e); none is removed. `None` on a
+    /// send-back recorded before this field existed, which falls back to comparing timestamps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cancelled_review_attempts: Option<usize>,
     /// Whether the change had already applied its deltas to the canonical specs.
     pub canonical_applied: bool,
     /// The spec text the change had already applied when it was sent back.
@@ -289,6 +294,7 @@ pub fn send_back_change(
         from_state: record.state,
         to_state: ChangeState::Draft,
         cancelled_approvals: ledger.approvals.len(),
+        cancelled_review_attempts: Some(recorded_scoped_review_attempts(root, &record)?),
         canonical_applied: record.canonical_applied,
         applied_items,
         applied_modules,

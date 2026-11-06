@@ -1,6 +1,6 @@
 ---
 module: change
-version: 171
+version: 173
 status: active
 files:
   - src/change.rs
@@ -377,7 +377,8 @@ Acceptance Criteria
 
 | Condition | Behavior |
 |-----------|----------|
-| Missing acceptance criteria or affected scope | Definition approval fails |
+| Missing acceptance criteria or affected scope | Definition approval fails; a missing acceptance criterion names `specsync change answer <id> acceptance_criteria "<observable outcome>"` (REQ-change-133) |
+| Interview questions still open at approval | Approval fails, naming every open question and the `specsync change answer <id> <question> <answer>` command for the first, with its choices (such as `<yes|no>`) as the placeholder (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |
@@ -623,3 +624,5 @@ Acceptance Criteria
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
 | 2026-11-06 | retire-the-contract-clauses-that-promise-change-check-runs-configured-verification-commands: Retire the contract clauses that promise change check runs configured verification commands |
+| 2026-11-06 | v172 / #883: approve's missing-acceptance-criterion and unfinished-interview refusals name the `specsync change answer` command that finishes the definition; the guard refuses exactly what it refused before (REQ-change-133) |
+| 2026-11-06 | show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve: Show the steps between change new and approve on the landing page and name the change answer command in approve refusals (#883, D11) |

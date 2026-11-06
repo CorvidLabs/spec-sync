@@ -1,0 +1,71 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793941278,
+      "digest": "8bafced7731d0f92f0dd9c31db3e8f8d3df86dd85f08b428883ed441326530ab",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retire-the-merge-empty-list-and-init-strict-default-contract-clauses",
+        "title": "Retire the merge empty-list and init strict-default contract clauses",
+        "description": "Retire the merge empty-list and init strict-default contract clauses",
+        "kind": "documentation",
+        "affected_specs": [
+          "cmd_init",
+          "merge"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/setup.md",
+          "hi/upkeep.md",
+          "specs/cmd_init/cmd_init.3md",
+          "specs/cmd_init/cmd_init.spec.md",
+          "specs/cmd_init/requirements.md",
+          "specs/cmd_init/testing.md",
+          "specs/merge/context.md",
+          "specs/merge/merge.3md",
+          "specs/merge/merge.spec.md",
+          "specs/merge/requirements.md",
+          "specs/merge/testing.md",
+          "tests/integration/commands/specsync_process.rs",
+          "tests/integration/helpers.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Runtime behavior is unchanged: no file under src/ changes, and the existing merge and init tests pass unmodified.",
+          "SETUP-1.a.1: REQ-cmd-init-004 says a Git repository receives enabled false and require_change_for_meaningful_files false like any other directory and keeps SddPolicy::default() for omitted fields apart from fresh init; the user story and testing.md no longer promise the change workflow on after setup.",
+          "UPKEEP-3.b.1 and SETUP-1.a.2: merge_contracts_call_a_failed_git_discovery_unknown and init_contracts_leave_sdd_off_for_git_repositories fail on main and pass after the change, and each also fails when its module testing.md cites a test name that no function declares.",
+          "UPKEEP-3.b: REQ-merge-001 and the top-level acceptance list say a failed Git discovery returns None and yields one Unknown result that names the missing precondition and --all, writes nothing and exits non-zero, and list Unknown among the result statuses; context.md, merge.3md and testing.md no longer call it an empty list or a safe no-op.",
+          "default_merge_outside_git_exits_nonzero_and_names_the_unperformed_scan pins the exit code the reworded REQ-merge-001 states, and fails when the Unknown arm of cmd_merge stops exiting 1."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md lesson: a successor that contradicts its predecessor does not retire it, someone has to; this change retires the predecessors. No runtime behavior changes (Leif, decision e: init --help stays). Strictness stays: no gate, bound, timeout or existing assertion is loosened.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_init": "be1a236bb1d498e6d443afc0e632294d11a227d9c0deee1b81d8624c01877fd1",
+        "merge": "042779caf12ff673e373e5f8ec7cff5d79080286c66f7f96fbfacb0ef8294f33"
+      },
+      "approved_delta_bases": {
+        "cmd_init: REQUIREMENT REQ-cmd-init-004": "c2f9b462502814db8443275fa4df84de699740df181585cc0e316d1c2bd340f2",
+        "merge: REQUIREMENT REQ-merge-001": "bba1b9afea81aecb9d2ca2e26f2c7d942d5d1bed8b99dc0bd927d0636f9112c8"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793946541,
+      "digest": "0a3c21f16ad5271727e1557cd33ad4de218d6e37a93ce3adff572b3ab93916ff",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

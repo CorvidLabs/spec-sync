@@ -13,6 +13,7 @@ Two history walks that run once per archive or per workflow-v1 change become one
 
 - #831's dedicated `change verify-archive` command, and a signed finalize record. These are a later change built on this one.
 - `change list` latency (12 s here), which is profiled next.
+- A cold read that is independent of the archive count. That needs a batch reader shared across workers, or validating only the target archive's history. It is measured and reported here as a follow-up.
 - Any change to lifecycle writes, gates, bounds or default timeouts.
 
 ## Steps
@@ -20,7 +21,8 @@ Two history walks that run once per archive or per workflow-v1 change become one
 1. Commit the failing guard `warm_archived_status_git_processes_do_not_grow_with_legacy_changes`, with its fixture trimmed to run quickly.
 2. Add a failing cold guard: archived status Git processes must not grow with the number of archive-introducing commits.
 3. B: the cutoff-tree verdict and its persistent cache entry, plus equivalence tests. The warm guard turns green.
-4. A: the one-walk introduction index, plus an equivalence test against the per-commit index. The cold guard turns green.
+4. A: the one-walk introduction index, plus an equivalence test against the per-commit index. The cold index guard turns green.
+4a. C: seeded read-only scopes for prefetch workers, plus a cold archived-status guard (at most 150 Git processes for four more archives, was 250).
 5. Deadline: the `read_deadline` module, phase checks, flushing the cache on timeout, `--timeout` and `SPECSYNC_TIMEOUT`, exit 124, text and JSON. Tests come first.
 6. Extend `raven_sized_archived_status_benchmark` with workflow-v1 changes, and record before and after times on an unloaded Mac and on this repository.
 7. `cli.md`, CHANGELOG, spec Public API rows; then `change check --commit` and the verify lane.

@@ -17,3 +17,14 @@ Profiles were taken with macOS `sample` on an unstripped release build. Most sam
 - **Cold.** 85% of samples are in `load_scoped_review -> archive_introduction_index -> archive_introductions_at_commit`. That is one `git log`, then one `diff-tree` for each of the 214 commits that added archive files, then reads of each package's `state.json` and `approvals.json`. One `git log --diff-filter=A --name-only -z` over the archive root returns the same added paths in 0.20 s.
 - **Warm.** 89% of samples are in `terminal_evidence_summary -> list_all_changes_loaded -> validate_workflow_version_history -> validate_workflow_v2_baseline -> workflow_v1_record_exists_at_cutoff -> workflow_version_state_paths`. For each of the 73 workflow-v1 changes this runs `rev-list --full-history HEAD -- :(top,glob)<archive>/*-<id>/state.json`, at 0.23-0.56 s each, plus `show` reads at the cutoff. The verdict is only kept per read scope, so every command redoes it.
 - **Test gap.** `archived_status_git_processes_do_not_grow_with_other_archives` and `raven_sized_archived_status_benchmark` build only workflow-v2 changes, so they pass. A fixture with workflow-v1 changes made before adoption fails: 97 Git processes with 2 such changes and 115 with 8, about +3 per change.
+
+## After A, B and C (debug build, load average 15-37)
+
+| Read of this repository | Before | After |
+|---|---|---|
+| Cold `change status <archived-id>`, Git processes | 14,482 | 5,580 |
+| Cold, wall | 111 s | 30 s |
+| Warm, Git processes | 262 | 111 |
+| Warm, wall | 49-53 s | 5.9 s |
+
+The cold processes that remain belong to each archive's own workflow-version history check, done once per archive by a prefetch worker: `ls-tree` of single paths (1,614), `rev-list --parents` (489), `rev-list --reverse --full-history` (330), and one `rev-list` plus one `log` per archive (320 each). Workers have no batch reader (REQ-git-utils-010). Making a cold read independent of the archive count needs either a batch reader shared across workers or validating only the target archive's history. Neither is in this change.

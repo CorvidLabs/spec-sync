@@ -10,5 +10,6 @@ artifact: requirements
 - REQ-change-137: deadline semantics for lifecycle reads.
 - REQ-cmd-change-032: `--timeout` / `SPECSYNC_TIMEOUT` on status, show, list and ship-status; exit 124; text and JSON report.
 - REQ-cli-args-024: `--timeout <secs>` parsing.
+- REQ-git-utils-011: seeded read-only scopes for worker threads (C).
 
 Traces SPEED-1.a, SPEED-1.c and SPEED-1.d.

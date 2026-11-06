@@ -5,7 +5,7 @@
 The archive-introduction index SHALL be built from one `git log` walk of the archive root that names the paths each commit added, and SHALL read package bytes through the per-command object batch reader, so the Git processes a cold archived `change status` spawns SHALL NOT grow with the number of commits that introduced archives. The index SHALL hold the same introductions, and every refusal it backs SHALL be unchanged (SPEED-1.a).
 
 Acceptance Criteria
-- A cold archived status spawns fewer than 3 more Git processes after 4 more archive-introducing commits.
+- `cold_archive_introduction_index_does_not_grow_with_archive_introductions`: a cold index build spawns fewer than 3 more Git processes after 4 more archive-introducing commits.
 - The index built from one walk equals the per-commit index on the same history, including merge commits and packages added in more than one commit.
 - The deterministic history bound still refuses a history over it.
 

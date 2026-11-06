@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Failing test committed (`45ef2006`)
-- [ ] Tell a missing archive root apart from an unreadable archive tree at the cutoff
-- [ ] Existing cutoff and archived-read tests unchanged; CHANGELOG
+- [x] Tell a missing archive root apart from an unreadable archive tree at the cutoff
+- [x] Existing cutoff and archived-read tests unchanged; CHANGELOG

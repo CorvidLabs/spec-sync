@@ -7,10 +7,10 @@
   "title": "The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change",
   "description": "The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "45ef2006865ab6154d74c12ea50bea004cd46842",
   "created_at": 1793994623,
-  "updated_at": 1793994641,
+  "updated_at": 1793995104,
   "affected_specs": [
     "change"
   ],

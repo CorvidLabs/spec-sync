@@ -1274,18 +1274,40 @@ fn validate_scoped_review_ledger_contents(
         {
             return Err("scoped review attempt history contains invalid evidence".into());
         }
-        definition_approver_for_review_contract(&approvals, attempt)?;
+        // History, not currency: an attempt recorded before a send-back bound the approval that
+        // send-back cancelled, and it stays valid evidence of that review (CHANGE-12.c). Whether
+        // a review still counts is `scoped_review_currency`'s question (#914).
+        historical_definition_approver_for_review(&approvals, attempt)?;
     }
     Ok(())
 }
 
+/// The approver of the live definition approval `review` binds. A definition approval a
+/// send-back cancelled binds no current review (CHANGE-12.b).
 fn definition_approver_for_review_contract<'a>(
     approvals: &'a ApprovalLedger,
     review: &ScopedReviewRecord,
 ) -> Result<&'a str, String> {
-    // A definition approval a send-back cancelled binds no review (CHANGE-12.b).
-    let cancelled = send_back_cancelled_prefix(approvals);
-    if let Some(approval) = approvals.approvals.iter().skip(cancelled).rev().find(|approval| {
+    definition_approver_bound_from(approvals, review, send_back_cancelled_prefix(approvals))
+}
+
+/// The approver of the definition approval `review` bound when it was recorded, counting one a
+/// later send-back cancelled. For validating review history only; never for currency (#914).
+fn historical_definition_approver_for_review<'a>(
+    approvals: &'a ApprovalLedger,
+    review: &ScopedReviewRecord,
+) -> Result<&'a str, String> {
+    definition_approver_bound_from(approvals, review, 0)
+}
+
+/// Binds `review` to a definition approval at ledger index `first` or later, directly or through
+/// a scope adoption whose source approval is at `first` or later.
+fn definition_approver_bound_from<'a>(
+    approvals: &'a ApprovalLedger,
+    review: &ScopedReviewRecord,
+    first: usize,
+) -> Result<&'a str, String> {
+    if let Some(approval) = approvals.approvals.iter().skip(first).rev().find(|approval| {
         approval.gate == "definition"
             && (approval.digest == review.contract_digest
                 || approval.definition_pair.as_ref().is_some_and(|pair| {
@@ -1302,7 +1324,7 @@ fn definition_approver_for_review_contract<'a>(
         let approval = approvals
             .approvals
             .get(adoption.source_approval_index as usize)
-            .filter(|_| adoption.source_approval_index as usize >= cancelled)
+            .filter(|_| adoption.source_approval_index as usize >= first)
             .filter(|approval| approval.gate == "definition")
             .ok_or_else(|| {
                 "scoped review scope-adoption approval identity is missing".to_string()
@@ -1841,6 +1863,23 @@ fn scoped_review_currency(
     }
     if review.verdict != ScopedReviewVerdict::Pass {
         return ScopedReviewCurrency::Stale("the recorded review verdict is not a pass".into());
+    }
+    // A definition approval a send-back cancelled binds no current review (CHANGE-12.b). Review
+    // history may still bind it, which is what keeps that history readable (#914).
+    match load_approvals(root, record) {
+        Ok(approvals) => {
+            if definition_approver_for_review_contract(&approvals, review).is_err() {
+                return ScopedReviewCurrency::Stale(
+                    "the review binds only a definition approval a later send-back cancelled"
+                        .into(),
+                );
+            }
+        }
+        Err(error) => {
+            return ScopedReviewCurrency::Unavailable(format!(
+                "the approval ledger could not be read ({error})"
+            ));
+        }
     }
     match definition_digest_matches(root, record, &review.contract_digest) {
         Ok(true) => {}

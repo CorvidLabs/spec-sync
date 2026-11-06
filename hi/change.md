@@ -17,6 +17,8 @@ CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
 
 CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
 
+CHANGE-12.d is captured from Leif's answer in the orc tab on 2026-11-06 at 06:1x MST (issue #914): "Ok yes I approve all", in reply to a brief that proposed this sentence as worded. Relayed by orc t18; recorded by the ss-914 Claude agent.
+
 CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05 audit findings (a bypassed incomplete-task guard left every selected test passing, and the refusal named no recovery while status repeated the check command). Leif approved them in the Herdr orc tab on 2026-11-05 at 20:20 MST ("Approve", the agent's wording, renumbered from the proposed CHANGE-13), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
 CHANGE-14.c was drafted by the agent after a fixture showed a task reopened after a passing check being reviewed and finalized (#892). Leif approved it in the Herdr orc tab on 2026-11-05 at 20:24 MST ("Widen S6"), relayed by the orc (t18). Recorded by the ss-testgaps agent.
@@ -56,6 +58,7 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-12.a**  Sending it back needs a named person and a reason, and both stay in the change's history.
   - **CHANGE-12.b**  Sending it back cancels its approval, so the new scope needs a fresh one.
   - **CHANGE-12.c**  Nothing already recorded about the change is lost.
+  - **CHANGE-12.d**  A change I send back after it was reviewed can be reviewed again once it is approved again, and the earlier review stays in its history.
 - **CHANGE-14**  A change cannot pass its check while any of its tasks is still open.
   - **CHANGE-14.a**  The refusal names each open task and the command to run once it is done.
   - **CHANGE-14.b**  The change's status names that same way forward instead of telling me to run the check again.

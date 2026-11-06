@@ -1576,6 +1576,7 @@ fn review_ledger_fixture(reviewer: &str) -> ScopedReviewAttemptLedger {
             execution_digest: None,
             workspace_digest: "c".repeat(64),
             timestamp: 1_787_000_000,
+            relayed_by: None,
         }],
     }
 }

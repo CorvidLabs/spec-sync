@@ -1,6 +1,6 @@
 ---
 module: change
-version: 191
+version: 193
 status: active
 files:
   - src/change.rs
@@ -10,6 +10,7 @@ files:
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
   - src/change/read_deadline.rs
+  - src/change/relayed_decision.rs
   - src/change/sdd_version.rs
   - src/change/send_back.rs
   - src/change/validate_loaded_change.rs
@@ -26,6 +27,7 @@ files:
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests/open_task_gate.rs
   - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/relayed_decision.rs
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/stale_modified_delta.rs
@@ -78,6 +80,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | Name | Description |
 |------|-------------|
+| `RECORDED_CLAIM_BOUNDARY` | The words `change status` prints beside an approval's actor and a review's reviewer: a recorded claim, not authenticated |
+| `RELAYED_CLAIM_BOUNDARY` | The boundary sentence printed with every relayed decision, shared word for word with Chough |
 | `LESSON_BUNDLE_FILE` | Filename of the lesson bundle written into an archive, shared with the command layer so the two cannot name different files |
 | `READ_TIMEOUT_EXIT_CODE` | Exit status (124) of a read-only lifecycle command stopped by its `--timeout` deadline (REQ-change-137) |
 | `SDD_VERSION` | Current SDD project-layout version written by initialization |
@@ -101,7 +105,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
 | `CheckInvocation` | The `--strict`, `--commit` and `--push` flags of one `change check`, so a refusal names that exact command to re-run |
-| `ApprovalRecord` | Actor, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, and the optional per-module semantic delta body digests a definition gate approved |
+| `ApprovalRecord` | Actor claim, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, the optional per-module semantic delta body digests a definition gate approved, and the optional `relayed_by` decision an agent relayed; the digest binds content, never the actor |
+| `RelayedDecision` | Shared relayed-decision claim: `decided_by`, verbatim `words`, `where` (including any relay chain) and `recorded_by`; all four required, non-blank and at most 4096 bytes, with `null` and unknown keys refused on read; covered by no digest |
+| `RecordedClaim` | Status projection of the effective definition approval or the latest scoped review: gate, named actor or reviewer, review verdict, optional relayed decision; carries no digest |
 | `ApprovedScopeV1` | Canonical stable intent, acceptance contract, risk declarations, and affected scope bound by one human approval |
 | `NonMaterialScopeChangeCategory` | Closed implementation, test/evidence, canonical-materialization, and lifecycle-metadata classification set |
 | `NonMaterialScopeChangeV1` | Path and concise evidence-backed classification for one approval-preserving migration change |
@@ -137,7 +143,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ScopedReviewVerdict` | Explicit passing or blocking conclusion for one scoped human review |
 | `ScopedReviewProvenanceProvider` | Stored provenance-provider declaration; identity authentication requires separately enforced external policy |
 | `ScopedReviewProvenanceV1` | Versioned required GitHub Actions check binding carried by review evidence |
-| `ScopedReviewRecord` | Stable reviewer claim, required-check provenance, explicit verdict, implementation commit, scope/execution/workspace digests, and review timestamp bound before finalization |
+| `ScopedReviewRecord` | Stable reviewer claim, required-check provenance, explicit verdict, implementation commit, scope/execution/workspace digests, review timestamp bound before finalization, and the optional `relayed_by` decision, which the finalization review digest leaves out |
 | `ScopedReviewCurrency` | Three-valued answer to whether a recorded scoped review still holds: current, stale carrying what moved, or unavailable when the guarantee could not be evaluated at all |
 | `reason` | Why a scoped review is not current, for the callers that render a blocker or a warning |
 | `FinalizationRecord` | Automated non-approval evidence binding implementation commit/tree, contract/workspace/closing/review digests, archive identity, and a domain-separated finalization digest |
@@ -189,6 +195,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
+| `approve_definition_with_relay` | `root, id, actor, note, portable_v501, relayed_by` | `Result<ChangeRecord, String>` | Record a definition approval (or the portable pair) carrying an optional relayed decision; a relay whose `decided_by` is not the explicit `--actor` is refused before anything is written |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
 | `artifacts_complete_for_guidance` | `root, record` | `bool` | Lightweight selected-artifact completeness for human next-action guidance without digest loaders |
 | `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence. A duplicated requirement ID in a living `requirements.md` is an error and is named |
@@ -227,6 +234,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
+| `record_scoped_review_with_relay` | `root, id, reviewer, verdict, relayed_by` | `Result<ScopedReviewRecord, String>` | Record a scoped review carrying an optional relayed decision whose `decided_by` must be the validated reviewer claim |
+| `recorded_claims` | `root, record` | `Result<Vec<RecordedClaim>, String>` | Read-only projection of the effective definition approval (never one a send-back cancelled) and the latest scoped review, with any relayed decision; empty when neither exists, and an error naming the `git checkout` recovery when a relay record cannot be read |
+| `relayed_decision` | `rerun, decided_by, words, where_, recorded_by` | `Result<Option<RelayedDecision>, String>` | Build the optional record from command flags: none given is `None`; some given is refused naming every missing flag and the full `rerun` command; a blank or over-4096-byte field is refused naming its flag |
 | `recorded_scoped_review_currency` | `root, record` | `Option<ScopedReviewCurrency>` | Classify a change's recorded scoped review against the tree on disk; `None` means no usable review record exists, which is a different question from currency |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
 | `send_back_change` | `root, id, actor, reason` | `Result<SendBackResult, String>` | Move an approved, implementing or verifying change back to draft for re-scoping, append an audited send-back, and cancel the earlier definition approval without removing it |
@@ -652,6 +662,7 @@ Acceptance Criteria
 | 2026-11-06 | let-change-check-commit-a-project-rooted-in-a-repository-subdirectory: Let change check commit a project rooted in a repository subdirectory |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | find-an-upstream-archive-by-the-id-in-its-state-record-rather-than-its-directory-name: Find an upstream archive by the id in its state record rather than its directory name |
 | 2026-11-06 | reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a: Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878) |
 | 2026-11-06 | refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run: Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892) |
 | 2026-11-06 | report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it: Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it |
@@ -665,4 +676,5 @@ Acceptance Criteria
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged: Require a fresh review after a send-back even when the scope comes back unchanged |
 | 2026-11-06 | a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s: A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader |
+| 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
 | 2026-11-06 | hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected: Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths |

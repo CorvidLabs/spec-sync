@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "c3d15857c0a21811f69314f866d6c3f47013b49e",
+  "contract_digest": "a8f11bd74c811566b41fa464891d4845094a06db441ab37e2c1ac31a8552bde2",
+  "execution_digest": "093de0d9c7bee62c94260c423b2be1b1eb6b06be183ae8838465800d0290f461",
+  "workspace_digest": "37e0b37408fc713afd9eaa97980ed8752f7b05e47d77041550e4f4d61f4e66ee",
+  "timestamp": 1793982616
+}

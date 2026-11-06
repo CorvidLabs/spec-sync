@@ -15,7 +15,7 @@ Approved by Leif in the Herdr orc tab on 2026-11-05 09:21 MST (relayed by the or
 
 Approved by Leif in the Herdr orc tab on the morning of 2026-11-06 (relayed by orc t18, his words "Ok yes I approve all") for issue #915, after a cold `change status <archived-id>` on a Raven-sized fixture took 34 s and 3,899 Git processes. SPEED-1.a.1 is that intent, worded as proposed and approved. The approved approach is one lifecycle-history walk for all archives, with every archive still fully validated.
 Approved by Leif in the Herdr orc tab on 2026-11-06 (relayed by orc t18, his words "Capture both") for issue #939, a refusal #918's faster cutoff-tree check made when it could not read the cutoff's archive tree. SPEED-1.a.3 is that intent, worded as drafted.
-Approved by Leif in the Herdr orc tab on 2026-11-06 (relayed by orc t18, his words "Capture both") for issue #940, a refusal #918's faster cutoff-tree check made on a workflow-v1 archive whose directory name did not end in its id. SPEED-1.a.2 is that intent, worded as drafted.
+Approved by Leif in the Herdr orc tab on 2026-11-06 (relayed by orc t18, his words "Capture both") for issue #940, a refusal #918's faster cutoff-tree check made for a workflow-v1 archive the history walk accepted. SPEED-1.a.2 is that intent, worded as drafted.
 
 ## Criteria
 

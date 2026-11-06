@@ -192,9 +192,12 @@ The hosted Archive gate refuses while any change is open, so the closeout is arc
 finish it locally before you wait on CI. A push before the review only shows the work early:
 expect the Archive gate red and do not wait on it.
 
-The scope approval binds human-approved content. The reviewer may be that same person.
-Actor/reviewer labels and stored provider declarations are claims, not authenticated identity;
-configure hosted checks and signed provenance policy separately when authentication is required.
+The scope approval binds the content it approved, not the identity of whoever approved it. The
+reviewer may be that same person. Actor/reviewer labels, relayed decisions and stored provider
+declarations are claims, not authenticated identity; configure hosted checks and signed provenance
+policy separately when authentication is required. An agent that records a decision a person made
+elsewhere adds `--words "<their exact words>" --where "<where and when>" --recorded-by "<agent>"`
+to `change approve` or `change review`, and `change status` shows it as a relayed claim.
 `change check` materializes approved deltas and records scoped structural verification; it does
 not execute project tests. `finalize` archives the package on the same PR. Merge only after
 all active changes on the PR are archived. Use `change status` for eligible recovery, including

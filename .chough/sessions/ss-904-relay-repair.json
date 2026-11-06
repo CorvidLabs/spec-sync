@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9a543b07ff4ef64901555579",
-    "head": "EVT-27a80a513d46659d30b5c4c4",
+    "head": "EVT-68e6a6f76ed6d41710a12079",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,11 +12,11 @@
   ],
   "stage": {
     "current": "plan",
-    "status": "active",
+    "status": "paused",
     "callers": [],
     "iteration": 1
   },
-  "native_change": null,
+  "native_change": "repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed",
   "references": {
     "criteria": [
       "CHANGE-13.e",
@@ -42,12 +42,13 @@
     "Stacked worktree ss-904 on #900 head 83db636b; proposal sent to orc t18; named IDs REQ-change-/REQ-cmd-change-/REQ-cli-args-relay-repair-001 registered by orc",
     "Failing first: 6 #904 discriminators in tests/integration/relayed_decision.rs fail on 83db636b (5 because the refusal names git checkout HEAD, not repair-relays; 1 because the repair-relays subcommand does not exist); the archived-package guard and the 10 #900 tests pass",
     "Failing first extended: 8 #904 discriminators fail on 83db636b (5 name git checkout HEAD instead of repair-relays; 3 hit the missing repair-relays subcommand: nothing damaged, archived refusal, not-JSON refusal); the archived guard and the 10 #900 tests pass. Implementation drafted outside the tree (scratchpad draft-904/relay_repair.rs)",
-    "HI captured: CHANGE-13.e, 13.f, 13.g in hi/change.md with attribution"
+    "HI captured: CHANGE-13.e, 13.f, 13.g in hi/change.md with attribution",
+    "Native change repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed drafted: ADDED REQ-change-/REQ-cmd-change-/REQ-cli-args-relay-repair-001; MODIFIED REQ-change-relayed-decision-001 (read-refusal bullet only) and change Public API (RelayRepair, RelayRepairReport, repair_relayed_decisions rows; recorded_claims recovery wording); all artifacts complete; merged #900 head 1b21d31f (incl. main 918b6c56)"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Create the SpecSync change (named REQ-*-relay-repair-001 IDs, MODIFIED change Public API), pre-push, then send 'ready for approval' to orc t18"
+  "next_action": "PARKED by orc t18 until #900 is done. On resume: merge #900/main, fledge lanes run pre-push, then send 'ready for approval repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed at <commit>' to orc t18; no PR until #900 lands"
 }

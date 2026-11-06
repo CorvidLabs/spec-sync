@@ -47,12 +47,22 @@ specsync mcp                    # MCP server for AI agents
 
 # Optional: verified change workflow (SDD). Off until:
 specsync change adopt
+git add .specsync && git commit -m "Adopt the SpecSync change workflow"
 specsync change new "Add auth" --spec auth --path src/auth.ts --json
+# answer each question it returns, for example:
+specsync change answer add-auth acceptance_criteria "login() returns true" --json
+# then complete the selected artifacts and the auth delta (Workflow Guide)
 specsync change approve add-auth --actor "Ada"
 specsync change check add-auth --commit
+# after the human implementation review:
 specsync change review add-auth --reviewer "Ada"
 specsync change finalize add-auth
+# then push the archive commit, wait for CI, and merge
 ```
+
+Approval refuses a definition that is still missing an answer or an artifact, and names the next
+`specsync change answer` command or the unfinished file. The [Workflow Guide](workflow.md) walks
+through each step.
 
 ---
 

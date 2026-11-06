@@ -27,6 +27,11 @@ struct PersistentReadCache {
     /// and its parents are immutable, so this needs no invalidation beyond the build identity.
     #[serde(default)]
     archive_introductions: BTreeMap<String, Vec<CachedArchiveIntroduction>>,
+    /// `<cutoff commit>\n<change id>` for each workflow-v1 change shown to have had a workflow-v1
+    /// record at that trusted pre-v2 cutoff (REQ-change-136). The cutoff is an immutable commit, so
+    /// an entry needs no invalidation beyond the build identity; a refusal is never stored.
+    #[serde(default)]
+    workflow_v1_at_cutoff: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -456,6 +461,7 @@ fn with_persistent_read_cache<Value>(
             repo_prefix: prefix.clone(),
             workflow_history: BTreeMap::new(),
             archive_introductions: BTreeMap::new(),
+            workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
             .path
@@ -918,4 +924,32 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
             scope.workflow_version_history.insert(key.clone(), result);
         });
     }
+}
+
+/// Whether the persistent read cache already knows that workflow-v1 change `id` had a workflow-v1
+/// record at `cutoff` (REQ-change-136).
+fn cached_workflow_v1_at_cutoff(root: &Path, cutoff: &str, id: &str) -> bool {
+    let key = format!("{cutoff}\n{id}");
+    with_persistent_read_cache(root, |_, frame| {
+        frame
+            .loaded
+            .as_ref()
+            .is_some_and(|cache| cache.workflow_v1_at_cutoff.contains(&key))
+    })
+    .unwrap_or(false)
+}
+
+/// Remember that workflow-v1 change `id` had a workflow-v1 record at `cutoff`. Only a
+/// conclusive presence is stored; an absence stays live so a transient read failure never
+/// becomes a lasting refusal.
+fn remember_workflow_v1_at_cutoff(root: &Path, cutoff: &str, id: &str) {
+    let key = format!("{cutoff}\n{id}");
+    with_persistent_read_cache(root, |_, frame| {
+        if frame.path.is_some()
+            && let Some(cache) = frame.loaded.as_mut()
+            && cache.workflow_v1_at_cutoff.insert(key)
+        {
+            frame.dirty = true;
+        }
+    });
 }

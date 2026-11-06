@@ -3068,13 +3068,73 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
     let cutoff = baseline.cutoff_commit.as_deref().ok_or_else(|| {
         "workflow-v1 state is not eligible after root workflow-v2 adoption".to_string()
     })?;
-    if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
+    // `validate_workflow_v2_baseline_history` above has proven `cutoff` an ancestor of HEAD, so
+    // the cutoff's own tree answers this without walking HEAD's history (REQ-change-136).
+    if !workflow_v1_record_present_in_cutoff_tree(root, record, cutoff)? {
         return Err(format!(
             "workflow-v1 change {} was not present at the trusted pre-v2 cutoff {}",
             record.id, cutoff
         ));
     }
     Ok(())
+}
+
+/// Whether workflow-v1 change `record` had a workflow-v1 record at `cutoff`, decided from the
+/// cutoff commit's own tree (REQ-change-136).
+///
+/// Only call this for a cutoff already proven to be an ancestor of HEAD. Then every state path
+/// `workflow_version_state_paths` could find in HEAD's history that also exists at the cutoff is
+/// in the cutoff's tree, so listing the archive root at the cutoff (memoized per command) gives
+/// the same candidates without a history walk per change. A presence is kept in the persistent
+/// read cache under the immutable cutoff; an absence is a refusal and is never cached.
+fn workflow_v1_record_present_in_cutoff_tree(
+    root: &Path,
+    record: &ChangeRecord,
+    cutoff: &str,
+) -> Result<bool, String> {
+    if cached_workflow_v1_at_cutoff(root, cutoff, &record.id) {
+        return Ok(true);
+    }
+    let mut candidates = vec![git_repo_relative_path(
+        root,
+        &format!("{CHANGES_PATH}/{}/state.json", record.id),
+    )?];
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let listing = run_git_bounded(
+        root,
+        &["ls-tree", "-z", "--name-only", &format!("{cutoff}:{archive_root}")],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )?;
+    // A cutoff without an archive root has no archived candidates; any other failure leaves only
+    // the active path, which can only make the answer "absent", a refusal.
+    if listing.status.success() {
+        let suffix = format!("-{}", record.id);
+        for entry in String::from_utf8_lossy(&listing.stdout).split('\0') {
+            if entry.is_empty() || !entry.ends_with(&suffix) {
+                continue;
+            }
+            let path = format!("{archive_root}/{entry}/state.json");
+            if !is_canonical_archive_state_path(&path, &archive_root, &record.id) {
+                return Err(format!(
+                    "workflow-version history contains a non-canonical archive path `{}`",
+                    path.escape_default()
+                ));
+            }
+            candidates.push(path);
+        }
+    }
+    let present = candidates.iter().any(|path| {
+        git_change_record_at(root, cutoff, path).is_some_and(|historical| {
+            historical.id == record.id
+                && historical.workflow_version == 1
+                && matches!(historical.workflow_origin_version, None | Some(1))
+        })
+    });
+    if present {
+        remember_workflow_v1_at_cutoff(root, cutoff, &record.id);
+    }
+    Ok(present)
 }
 
 /// The record-independent half of `validate_workflow_v2_baseline`: the baseline's reachable

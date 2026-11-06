@@ -145,6 +145,60 @@ fn warm_archived_status_git_processes_do_not_grow_with_legacy_changes() {
     );
 }
 
+// REQ-change-136: the cutoff-tree answer equals the history-walk answer it replaces.
+#[test]
+fn cutoff_tree_verdict_equals_the_history_walk_verdict() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    repository_with_legacy_changes(root, 2);
+    let cutoff = read_workflow_v2_baseline(root)
+        .unwrap()
+        .unwrap()
+        .0
+        .cutoff_commit
+        .unwrap();
+    let records = list_all_changes_checked(root).unwrap();
+    let legacy: Vec<&ChangeRecord> = records
+        .values()
+        .filter(|record| record.workflow_version == 1)
+        .collect();
+    assert_eq!(legacy.len(), 2);
+    for record in &legacy {
+        assert!(workflow_v1_record_exists_at_cutoff(root, record, &cutoff).unwrap());
+        assert!(workflow_v1_record_present_in_cutoff_tree(root, record, &cutoff).unwrap());
+    }
+
+    // A workflow-v1 record that first appears after the cutoff.
+    let mut late = (*legacy[0]).clone();
+    late.id = "late-legacy-change".into();
+    let late_dir = root.join(CHANGES_PATH).join(late.id.as_str());
+    fs::create_dir_all(&late_dir).unwrap();
+    write_json(&late_dir.join("state.json"), &late).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "workflow-v1 record after the cutoff"]);
+    let walked = workflow_v1_record_exists_at_cutoff(root, &late, &cutoff).unwrap();
+    assert!(!walked, "a record added after the cutoff is absent at it");
+    assert_eq!(
+        workflow_v1_record_present_in_cutoff_tree(root, &late, &cutoff).unwrap(),
+        walked
+    );
+
+    // A presence is remembered in the persistent read cache under the immutable cutoff; the
+    // absence above is a refusal and is never stored.
+    {
+        let _scope = begin_change_read_scope(root);
+        assert!(workflow_v1_record_present_in_cutoff_tree(root, legacy[0], &cutoff).unwrap());
+        assert!(!workflow_v1_record_present_in_cutoff_tree(root, &late, &cutoff).unwrap());
+    }
+    let cache: serde_json::Value = serde_json::from_slice(
+        &fs::read(persistent_read_cache_path(root).expect("the read cache is enabled")).unwrap(),
+    )
+    .unwrap();
+    let remembered = cache["workflow_v1_at_cutoff"].as_array().unwrap();
+    assert!(remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", legacy[0].id))));
+    assert!(!remembered.contains(&serde_json::json!(format!("{cutoff}\n{}", late.id))));
+}
+
 #[test]
 fn cached_archived_reads_answer_exactly_like_live_reads() {
     let temp = TempDir::new().unwrap();

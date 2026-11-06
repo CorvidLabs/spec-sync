@@ -1,6 +1,6 @@
 ---
 id: merge-two-finalized-changes-to-one-module-without-a-spec-conflict
-state: implementing
+state: archived
 type: feature
 base_commit: 40dcf33a6b0f0b55dcb7f17e8e98be9d55fa2c56
 ---

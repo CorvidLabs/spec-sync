@@ -32,6 +32,22 @@
       "execution_digest": "30bdc0a06adbbf9323ac3364b115a7e15051e2d5f3f7491ee11f62e40f1d1367",
       "workspace_digest": "07b1ac6e3450a4c2c1a9141455cec45e44f9d072bd8431e25cfc35011289a5ee",
       "timestamp": 1793923493
+    },
+    {
+      "schema_version": 2,
+      "change_id": "merge-two-finalized-changes-to-one-module-without-a-spec-conflict",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c36e0d7a2638cb7ef8648e0f18b1b43db7e0fcec",
+      "contract_digest": "0d6a36b8aad76e77d263bb1b5fb0eb3e442125ef875465562caf5c821b16f08a",
+      "execution_digest": "34f0aa6e9da2ee98e8e0f6041c9d16f7d5a938baf5891d8d90106e8ea2cfb66b",
+      "workspace_digest": "60f0d0fe66580cde16001474f5783c8c33f79198e26783fda6657e9b542cbe83",
+      "timestamp": 1793926963
     }
   ]
 }

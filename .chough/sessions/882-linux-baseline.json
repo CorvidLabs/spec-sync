@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9981e6f60a84ff1828167485",
-    "head": "EVT-ecb18933a04c60dd3a6f0300",
+    "head": "EVT-4919eaff0f156d02e1aaf1ae",
     "legacy": null
   },
   "schema_version": 2,
@@ -47,7 +47,8 @@
     "decided: renumber the release-baseline requirement from REQ-github-024 to REQ-github-025 because spec-sync#886 (branch fix/886-comment-readonly-token, approved) already holds 024 (orc t18); scope unchanged",
     "Leif (2026-11-05, orc tab, relayed by orc t18): 'Approve' — scope approval of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose at 83458275, recorded natively by the orc as 0xLeif; instruction: build, verify, PR (Fixes #882), 'ready for review'; no tag or publish",
     "Leif (2026-11-05 21:28 MST, orc tab, relayed by orc t18): \"Yes, widen\" #882 to add .github/scripts/test-required-ci-gate.py and site/src/content/docs/quickstart.md; send-back recorded by the agent as 'claude (ss-linux-arm64)' quoting this decision, never 0xLeif; Leif's re-approval to be recorded by the orc",
-    "Leif (2026-11-05, orc tab, relayed by orc t18): re-approval of the widened build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose recorded natively by the orc at 6abc70e9 ('Yes, widen'); instruction: build, verify, PR, 'ready for review'"
+    "Leif (2026-11-05, orc tab, relayed by orc t18): re-approval of the widened build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose recorded natively by the orc at 6abc70e9 ('Yes, widen'); instruction: build, verify, PR, 'ready for review'",
+    "orc t18 (2026-11-05 23:3x MST), deciding as Leif under his overnight authorization ('decide as him where 95% confident'): review recorded natively as 0xLeif (pass) at ebbbfb25; instruction: ship, push the archive tip, merge pinned on green including the new linux-baseline job; no tag or publish"
   ],
   "open_questions": [],
   "completed": [
@@ -66,7 +67,8 @@
     "Defined native change build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (operations, spec github, REQ-github-025 delta, 11 acceptance criteria, all artifacts complete)",
     "Failing tests: d90cbc8292c6a5c07e3ca34155628eaeb9a8b2a6",
     "Implemented #882 within the widened approved scope; merged origin/main 560af9f1 (CHANGELOG union)",
-    "Green: three cases pass on new-recipe ARM64 archives built from merged tree 4547d9c0; bug verified; verify lane passed (OBS-product-test-199fa922a987064b62f203cb); change check materialized REQ-github-025"
+    "Green: three cases pass on new-recipe ARM64 archives built from merged tree 4547d9c0; bug verified; verify lane passed (OBS-product-test-199fa922a987064b62f203cb); change check materialized REQ-github-025",
+    "Shipped: change finalized and archived at 815c1f43 (2026-11-06-build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose)"
   ],
   "observations": [
     "OBS-tc-github-linux-baseline-lockstep-8d3fbcb70a07759eebbe4095",
@@ -81,9 +83,7 @@
     "BUG-linux-arm64-release-download-does-not-start-on-debian-12-or-ubuntu-22-0-23eb0fe0f3eb7815d6dc3284"
   ],
   "blockers": [],
-  "awaiting_human": [
-    "Implementation review of build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (via orc t18, recorded natively by the orc)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After the orc records the review: specsync change ship build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose with the tree still dirty, commit the archive tip, merge origin/main if moved, push, wait for CI (Archive then full lane incl. linux-baseline), then report; merge only on Leif's decision with --match-head-commit"
+  "next_action": "Push the archive tip, wait for CI (Archive, then the full lane incl. linux-baseline on ubuntu-22.04, ubuntu-latest, ubuntu-22.04-arm, ubuntu-24.04-arm and the v6.2.0 negative control), then merge PR #910 pinned with --match-head-commit (no --admin/--auto)"
 }

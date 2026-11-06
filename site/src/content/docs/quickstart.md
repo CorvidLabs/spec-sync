@@ -28,6 +28,14 @@ brew install CorvidLabs/tap/spec-sync
 # See integrations/github-action
 ```
 
+The Linux downloads `specsync-linux-x86_64` and `specsync-linux-aarch64` start on glibc 2.35 or
+newer: Ubuntu 22.04, Debian 12 and newer. On an older Linux, or one without glibc such as Alpine,
+take `specsync-linux-x86_64-musl` or `specsync-linux-aarch64-musl` instead. These static builds
+start on any Linux of their architecture. A glibc download that is too new for the system stops
+before it prints anything, with `version 'GLIBC_2.xx' not found`. Releases up to and including
+6.2.0 predate this floor and need glibc 2.39 (#882). See
+[Available Binaries](integrations/github-action.md#available-binaries).
+
 Verify the installation:
 
 ```bash

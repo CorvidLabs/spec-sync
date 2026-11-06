@@ -13,7 +13,7 @@ name: RC assets
 # cannot be installed at all: `v6.0.0-rc.1` shipped with zero assets because the lane
 # refused before reaching `build`, and every consumer of the packaged action 404s.
 #
-# So this workflow does exactly one thing — build the same five targets `release.yml`
+# So this workflow does exactly one thing — build the same six targets `release.yml`
 # builds, with the same names `action.yml` downloads, and attach them to a release that
 # already exists and is already marked pre-release. It creates no tag, promotes nothing,
 # and refuses to touch anything that is not a pre-release.
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Fail closed before spending five build jobs, and before any chance of attaching
+      # Fail closed before spending six build jobs, and before any chance of attaching
       # an unverified binary to something consumers treat as final.
       - name: Verify the target is an existing pre-release
         env:
@@ -67,15 +67,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Same rows as the release.yml build job, held to LINUX_ARTIFACTS in
+          # .github/scripts/linux-baseline.py by test-linux-baseline.py (#882): the glibc
+          # downloads are linked natively on Ubuntu 22.04 so they start on the documented
+          # floor (glibc 2.35: Ubuntu 22.04, Debian 12 and newer), and the static musl
+          # downloads are the fallback below it. See release.yml for why `ubuntu-latest`
+          # must never build a glibc row.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: specsync-linux-x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             artifact: specsync-linux-x86_64-musl
-          - os: ubuntu-latest
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             artifact: specsync-linux-aarch64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            artifact: specsync-linux-aarch64-musl
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact: specsync-macos-x86_64
@@ -91,20 +100,30 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install aarch64 cross linker (Linux)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
-
       - name: Install musl toolchain (Linux musl)
         if: contains(matrix.target, 'musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y musl-tools
-          echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
-          echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+          # musl-gcc compiles the tree-sitter grammars' C code for the host architecture.
+          case "$TARGET" in
+            x86_64-unknown-linux-musl)
+              echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+            aarch64-unknown-linux-musl)
+              echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_aarch64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::No musl toolchain mapping for ${TARGET}"
+              exit 1
+              ;;
+          esac
 
       # Restore, never save: this tree is checked out at a candidate tag.
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
@@ -125,6 +144,21 @@ jobs:
           chmod +x "$ARTIFACT"
           tar czf "${ARTIFACT}.tar.gz" "$ARTIFACT"
           shasum -a 256 "${ARTIFACT}.tar.gz" > "${ARTIFACT}.tar.gz.sha256"
+
+      - name: Start the packaged Linux archive on its documented baseline
+        # Testers install these, so the same gate as release.yml applies: a Linux download
+        # that does not start on its documented baseline is never attached (#882).
+        if: runner.os == 'Linux'
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(cargo metadata --no-deps --format-version 1 | python3 -I -c \
+            'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "specsync"))')"
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/linux-baseline.py check \
+            --archive "${ARTIFACT}.tar.gz" \
+            --expect-version "$version"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

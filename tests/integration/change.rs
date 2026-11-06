@@ -5592,3 +5592,139 @@ fn open_task_gate_refuses_and_names_the_command_that_recovers() {
         "the named ship command archives the change"
     );
 }
+
+// REQ-change-148: SpecSync ignores environment that rewrites the history Git walks, as it already
+// does for `GIT_GRAFT_FILE` and `GIT_SHALLOW_FILE`. `GIT_REPLACE_REF_BASE` points Git at
+// replacement refs outside `refs/replace/`, the only namespace the read-cache and index guards
+// check. A replacement there that swaps `HEAD` for a copy with a downgraded archived record
+// must not change what `change status` says, cached or fresh.
+#[test]
+fn a_custom_replace_ref_base_does_not_change_what_status_reads() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    fixture.run(&["change", "check", &id, "--commit"]).success();
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Independent reviewer",
+        ])
+        .success();
+    fixture.run(&["change", "finalize", &id]).success();
+    fixture.git(&["add", "--all"]);
+    fixture.git(&["commit", "--allow-empty", "-m", "archive the change"]);
+    let git = |args: &[&str], envs: &[(&str, &str)]| {
+        let mut command = Command::new("git");
+        command.args(args).current_dir(&fixture.root);
+        for (key, value) in envs {
+            command.env(key, value);
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    let read = |envs: &[(&str, &str)], fresh: bool| {
+        if fresh {
+            let _ = fs::remove_file(fixture.root.join(".git/specsync/read-cache-v1.json"));
+        }
+        let mut command = specsync();
+        command.args([
+            "--root",
+            fixture.root_arg(),
+            "change",
+            "status",
+            &id,
+            "--json",
+        ]);
+        for (key, value) in envs {
+            command.env(key, value);
+        }
+        let output = command.output().unwrap();
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).to_string(),
+        )
+    };
+    let plain = read(&[], true);
+
+    // A copy of HEAD whose archived state.json has lost its workflow version.
+    let archive = fs::read_dir(fixture.root.join(".specsync/archive/changes"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| path.join("state.json").exists())
+        .unwrap();
+    let state_path = archive
+        .join("state.json")
+        .strip_prefix(&fixture.root)
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+    let mut state: Value =
+        serde_json::from_slice(&fs::read(archive.join("state.json")).unwrap()).unwrap();
+    let object = state.as_object_mut().unwrap();
+    object.remove("workflow_version");
+    object.remove("workflow_origin_version");
+    let downgraded = fixture.root.join("downgraded-state.json");
+    fs::write(
+        &downgraded,
+        format!("{}\n", serde_json::to_string_pretty(&state).unwrap()),
+    )
+    .unwrap();
+    let blob = git(&["hash-object", "-w", downgraded.to_str().unwrap()], &[]);
+    fs::remove_file(&downgraded).unwrap();
+    let index = fixture.root.join(".git/replacement-index");
+    let index = index.to_str().unwrap();
+    git(&["read-tree", "HEAD"], &[("GIT_INDEX_FILE", index)]);
+    git(
+        &[
+            "update-index",
+            "--cacheinfo",
+            &format!("100644,{blob},{state_path}"),
+        ],
+        &[("GIT_INDEX_FILE", index)],
+    );
+    let tree = git(&["write-tree"], &[("GIT_INDEX_FILE", index)]);
+    let head = git(&["rev-parse", "HEAD"], &[]);
+    let parent = git(&["rev-parse", "HEAD~1"], &[]);
+    let replacement = git(
+        &["commit-tree", &tree, "-p", &parent, "-m", "downgraded copy"],
+        &[],
+    );
+    git(
+        &["replace", &head, &replacement],
+        &[("GIT_REPLACE_REF_BASE", "refs/alt/")],
+    );
+    // Git itself now sees the downgraded copy under that namespace.
+    assert_eq!(
+        git(
+            &["rev-parse", "HEAD^{tree}"],
+            &[("GIT_REPLACE_REF_BASE", "refs/alt/")]
+        ),
+        tree
+    );
+
+    let env = [("GIT_REPLACE_REF_BASE", "refs/alt/")];
+    assert_eq!(
+        read(&env, true),
+        plain,
+        "a fresh read under GIT_REPLACE_REF_BASE"
+    );
+    assert_eq!(
+        read(&env, false),
+        plain,
+        "a cached read under GIT_REPLACE_REF_BASE"
+    );
+    let no_replace = [("GIT_NO_REPLACE_OBJECTS", "1")];
+    assert_eq!(
+        read(&no_replace, true),
+        plain,
+        "a fresh read under GIT_NO_REPLACE_OBJECTS"
+    );
+}

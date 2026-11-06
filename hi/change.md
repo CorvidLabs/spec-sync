@@ -17,6 +17,8 @@ CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
 
 CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
 
+The retirement of CHANGE-6.b, CHANGE-6.d, and CHANGE-13 through CHANGE-13.d were drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. On whether the relay record belongs in the review digest he said "Keep it out". Recorded by claude (ss-d7).
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -34,8 +36,8 @@ CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
   - **CHANGE-5.b**  Two live changes editing the same part of the same contract is a conflict I hear about early, not at merge.
 - **CHANGE-6**  Exactly one human approval stands between an agreed change and the work starting.
   - **CHANGE-6.a**  That approval is bound to the content it approved, so later edits cannot ride on it.
-  - **CHANGE-6.b**  A coding agent can never grant that approval to itself.
   - **CHANGE-6.c**  Changing the agreed intent, contract, criteria or scope costs a fresh approval; getting on with the implementation does not.
+  - **CHANGE-6.d**  An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.
 - **CHANGE-7**  At any moment I can ask what state a change is in and be told the single next thing to do.
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
@@ -52,3 +54,13 @@ CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
   - **CHANGE-12.a**  Sending it back needs a named person and a reason, and both stay in the change's history.
   - **CHANGE-12.b**  Sending it back cancels its approval, so the new scope needs a fresh one.
   - **CHANGE-12.c**  Nothing already recorded about the change is lost.
+- **CHANGE-13**  When an agent records a decision a person made somewhere else, I can see who decided, their exact words, where they said it, and which agent wrote it down.
+  - **CHANGE-13.a**  That record is optional, so a person approving at their own terminal is not asked for one.
+  - **CHANGE-13.b**  The change's status shows it beside the approval or review it belongs to.
+  - **CHANGE-13.c**  The status says plainly that the record is a claim too, not proof that the person decided.
+  - **CHANGE-13.d**  A record missing one of those details is refused before anything is written, and the refusal says which detail is missing.
+
+## Retired
+
+  - **CHANGE-6.b**  A coding agent can never grant that approval to itself.
+    retired: An approval records the name it is given; nothing local can tell a person from an agent typing that name (audit D7, #633). Replaced by CHANGE-6.d.

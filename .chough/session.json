@@ -1,15 +1,15 @@
 {
   "history_cursor": {
-    "cycle": "CYC-ed1ef6eebac35cc0453d19d4",
-    "head": "EVT-e932be0e579aa15d17b7b45a",
+    "cycle": "CYC-3d16c5bac65db6223577f77f",
+    "head": "EVT-6c1d739f2c550f9603ec75ca",
     "legacy": null
   },
   "schema_version": 2,
-  "objective": "Make SpecSync faster (#861 macOS qualify lane)",
+  "objective": "Narrow the approval/review promise to recorded, digest-protected claims and record relayed human decisions (#633, audit D7)",
   "intent_scope": "",
   "modules": [],
   "stage": {
-    "current": "build",
+    "current": "intent",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -27,7 +27,9 @@
     "Leif (2026-11-05 09:21 MST, Herdr orc tab, relayed by orc t18): approved intent SPEED-2.b.1 and SPEED-2.b.2 and the approach: cut SpecSync git process spawns plus cargo nextest in the qualify lane",
     "Rejected: optimized test profile as the main lever (opt-level 2 measured 386s vs 343s on the slowest test); larger runner (not needed if spawns drop)",
     "Leif (2026-11-05 09:35 MST, orc tab): approved the four-part scope; qualify timeout returns to 45 in a one-line follow-up after the next RC's macOS qualify measures well under 45, not in this change",
-    "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted"
+    "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted",
+    "Leif (relayed by orc t18, 2026-11-05 evening): approved the shared relayed_by shape in ch-d7's proposal section 1: decided_by, words verbatim, where incl. relay chain, recorded_by; all required, non-blank, <=4096 B, unknown keys refused, absent not null; boundary line 'a relayed claim, not authenticated'. Use exactly that shape in SpecSync approval/review records and status, plus the #633 wording narrowing",
+    "decided: SpecSync flags match Chough's (--words, --where, --recorded-by) and decided_by is copied from --actor/--reviewer because one record must not name two deciders"
   ],
   "open_questions": [],
   "completed": [
@@ -45,7 +47,9 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Intent + scope approval for #633 (HI draft: retire CHANGE-6.b, add CHANGE-6.d, CHANGE-13.a-d, SHIP-2.e; review digest choice, recommended: relay excluded)"
+  ],
   "run_consents": [],
-  "next_action": "Push archive tip, merge PR #869 on green pinned to head"
+  "next_action": "Create native change for #633 and bring ready for approval to t18"
 }

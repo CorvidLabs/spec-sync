@@ -9,6 +9,8 @@ families: [SHIP]
 
 Once the scope is agreed, getting it delivered should be a short, ordered path with no ambiguity about what comes next. The contract edit is applied and checked against the real code, a person reviews the implementation against what was approved, and the whole package lands in a dated archive on the same pull request the code did. Nothing about that trail should ever need editing by hand — when evidence goes stale there is an audited way back, and the tool is honest that a recorded name is a claim, not proof of who did it.
 
+SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. Recorded by claude (ss-d7).
+
 ## Criteria
 
 - **SHIP-1**  Once the scope is approved, the agreed contract edit is applied for me rather than retyped by hand.
@@ -21,6 +23,7 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
   - **SHIP-2.b**  Editing the code after a review makes that review stale instead of letting it stand.
   - **SHIP-2.c**  A recorded name reads as a claim rather than proof of who did the work.
   - **SHIP-2.d**  A reviewer can block as plainly as they can pass.
+  - **SHIP-2.e**  A review an agent records for a person can carry the same record, shown the same way.
 - **SHIP-3**  Finalizing moves the whole package into a dated archive on the same pull request, so the trail travels with the merge.
   - **SHIP-3.a**  Finalizing needs verification and review that are both still current.
   - **SHIP-3.b**  I am warned plainly that merging before finalizing strands the evidence.

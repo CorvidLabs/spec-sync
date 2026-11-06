@@ -319,3 +319,42 @@ fn approve_ownership_refusal_explains_a_declared_module_listing_outside_its_cano
     );
     assert!(!error.contains("check that this change declares"), "{error}");
 }
+
+/// #986/#956: a no-spec-change draft that touches production source a module owns used to pass
+/// approve, check and review, and was refused only by finalize, after a human had approved and
+/// reviewed it. Approve now refuses it, naming the owning module and the `change answer` command
+/// that fixes this draft, and that command clears the refusal (SHIP-4.a, CHANGE-10).
+#[test]
+fn approve_refuses_a_no_spec_change_draft_over_owned_production_source_and_names_the_answer() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "export const value = 1;\n").unwrap();
+    // The #986 shape: no spec change, so no declared module at all.
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    assert!(record.no_spec_change);
+    record.affected_paths = vec!["src/billing/charge.ts".into()];
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("approve must refuse production source no declared module owns");
+    assert!(
+        error.contains("src/billing/charge.ts")
+            && error.contains("`specs/billing/billing.spec.md` lists it for module `billing`"),
+        "the refusal names the path and the module that owns it: {error}"
+    );
+    let answer = format!("specsync change answer {} affected_specs billing", record.id);
+    assert!(
+        error.contains(&answer),
+        "the refusal names the command that fixes this draft: {error}"
+    );
+
+    // Running the named command clears the refusal.
+    answer_question(root, &record.id, "affected_specs", "billing").unwrap();
+    approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect("after the named answer the change approves");
+}

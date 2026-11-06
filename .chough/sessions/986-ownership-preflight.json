@@ -1,0 +1,51 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-d8116a5e855af41b02a68250",
+    "head": "EVT-1d2b9eafd7e2eadbe60f5ab0",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Report an affected production-source path no declared module owns before a human approves or reviews, and never call a change ready to finalize that finalize refuses on ownership (#986, #956)",
+  "intent_scope": "SHIP",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to",
+  "references": {
+    "criteria": [
+      "SHIP-4.a",
+      "CHANGE-10"
+    ],
+    "requirements": [
+      "REQ-change-053",
+      "REQ-change-120",
+      "REQ-cmd-change-008"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "orc t18 (2026-11-06): fix #986 and #956 in one PR, HI first, failing test first",
+    "decided: approve stops skipping no-spec-change drafts (REQ-change-053 modified) and names the change answer command; ship preflight, --dry-run and ship-status run finalize's acceptance_input_owners over delivery inputs as a blocker with the recovery",
+    "rejected: expanding directory scopes at approve, because a directory covers files the change may never deliver"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Red first on main 9dd2affd: the approve unit test (approve succeeds) and the directory-scope integration test (ship-status says ready to finalize; the real ship refuses with the #956 error, reproduced)"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif via orc t18: approve the scope of report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to"
+  ],
+  "run_consents": [],
+  "next_action": "After approval: implement, check --commit, audit, verify, push, PR (Fixes #986, #956), ready for Leif's GitHub review"
+}

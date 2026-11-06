@@ -30,7 +30,7 @@ spec: merge.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | Spec file unreadable | Marked as `Manual` with read error in details | `all_files_reports_unreadable_specs_as_manual` |
-| `git diff` command fails (`all_files: false`) | `detect_conflicted_specs` returns an empty list — no specs are processed (no auto-fallback to scanning all files) | `git_discovery_failure_is_a_safe_noop` |
+| `git diff` command fails (`all_files: false`) | `detect_conflicted_specs` returns `None`; `merge_specs` reports one `Unknown` result naming the missing precondition and `--all`, writes nothing, does not fall back to scanning all files, and `merge` exits non-zero | `git_discovery_failure_is_unknown_not_empty`, `default_merge_without_git_reports_the_missing_precondition`, `default_merge_outside_git_exits_nonzero_and_names_the_unperformed_scan` |
 | Post-resolution frontmatter invalid | Marked `Manual`; original file remains unchanged | `duplicate_or_invalid_frontmatter_suppresses_otherwise_resolvable_writes` |
 | Post-resolution frontmatter missing | Marked `Manual`; original file remains unchanged | `missing_frontmatter_prevents_resolvable_body_write` |
 | Partially resolvable file | Report auto-resolvable and manual hunk counts; preserve the original file byte-for-byte | `partial_resolution_preview_keeps_all_or_nothing_write_boundary`, `merge_specs_leaves_partially_resolvable_file_untouched` |

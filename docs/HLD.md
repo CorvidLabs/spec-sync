@@ -700,7 +700,7 @@ flowchart LR
     qualify --> record[record check run<br/>SpecSync release candidate]
     record --> dispatch{{workflow_dispatch<br/>from main with rc_tag}}
     dispatch --> promote[promote<br/>create annotated vX.Y.Z]
-    promote --> build[build 5 targets<br/>linux x86_64, x86_64-musl,<br/>aarch64, macOS x86_64, aarch64]
+    promote --> build[build 6 targets<br/>linux x86_64, x86_64-musl,<br/>aarch64, aarch64-musl,<br/>macOS x86_64, aarch64]
     build --> release[GitHub Release<br/>tar.gz + .sha256]
     release -.->|manual| crates[crates.io]
     release -.->|manual| brew[Homebrew tap]

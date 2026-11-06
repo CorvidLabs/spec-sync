@@ -248,13 +248,29 @@ jobs:
 
 ## Available Binaries
 
-| Platform | Binary |
-|:---------|:-------|
-| Linux x86_64 | `specsync-linux-x86_64` |
-| Linux x86_64 (static musl, any distro) | `specsync-linux-x86_64-musl` |
-| Linux aarch64 | `specsync-linux-aarch64` |
-| macOS x86_64 | `specsync-macos-x86_64` |
-| macOS aarch64 (Apple Silicon) | `specsync-macos-aarch64` |
+| Platform | Binary | Starts on |
+|:---------|:-------|:----------|
+| Linux x86_64 | `specsync-linux-x86_64` | glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer |
+| Linux x86_64 (static musl) | `specsync-linux-x86_64-musl` | Any x86_64 Linux, including Alpine |
+| Linux aarch64 | `specsync-linux-aarch64` | glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer |
+| Linux aarch64 (static musl) | `specsync-linux-aarch64-musl` | Any aarch64 Linux, including Alpine |
+| macOS x86_64 | `specsync-macos-x86_64` | |
+| macOS aarch64 (Apple Silicon) | `specsync-macos-aarch64` | |
+
+The Action downloads the glibc build for the runner's architecture. Every GitHub-hosted Ubuntu
+image, 22.04 or newer on x86_64 and arm64, is at or above the floor.
+
+Below the floor, a glibc download stops before it prints anything, with
+`version 'GLIBC_2.xx' not found`. This can happen on a self-hosted runner, an older container or
+a workstation; use the musl download for your architecture there. Every release runs each Linux
+download on Ubuntu 22.04 and Debian 12, and the musl ones also on Debian 11 and Alpine, before
+publishing it.
+
+Releases up to and including 6.2.0 predate this floor
+([#882](https://github.com/CorvidLabs/spec-sync/issues/882)). Their glibc downloads need glibc
+2.39, so they do not start on `ubuntu-22.04` or `ubuntu-22.04-arm` runners or on Debian 12, and
+they have no aarch64 musl download. On those versions use `specsync-linux-x86_64-musl`, a newer
+runner image, or `cargo install specsync --locked`.
 
 Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
 under WSL, or build it from source with `cargo install specsync`.

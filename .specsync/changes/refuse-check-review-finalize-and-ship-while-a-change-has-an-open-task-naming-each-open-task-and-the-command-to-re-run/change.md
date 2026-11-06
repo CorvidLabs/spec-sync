@@ -1,6 +1,6 @@
 ---
 id: refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run
-state: draft
+state: approved
 type: bug_fix
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

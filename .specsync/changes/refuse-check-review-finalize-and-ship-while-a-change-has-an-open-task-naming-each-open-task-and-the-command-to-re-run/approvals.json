@@ -1,4 +1,58 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793936165,
+      "digest": "8b24ef26d6259d87dcc274a08a0518b85d1a3e56f35bd505f857cf354060b68f",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refuse-check-review-finalize-and-ship-while-a-change-has-an-open-task-naming-each-open-task-and-the-command-to-re-run",
+        "title": "Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892)",
+        "description": "Refuse check, review, finalize and ship while a change has an open task, naming each open task and the command to re-run (#892)",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/change.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests.rs",
+          "src/change_tests/open_task_gate.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A gate-level test drives each refusal through the binary, ticks the box and runs the exact command the refusal named, which succeeds; with the incomplete-task guard bypassed (audit mutation SS-M05) that test fails.",
+          "change check, change review (pass verdict), change finalize and change ship each refuse a change with an open task in its tasks.md before writing any record, including a task reopened after a passing check, and each refusal names the task file, every open task by line and text, and the exact command to re-run.",
+          "change status (text Next: and JSON summary.next_action) and change ship-status name the open tasks before the command that would otherwise be next, and ship-status reports them as a blocker."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "specs/change/change.3md: a workflow-v2 defect must be reproduced under workflow v2 and a refusal test asserts the refusal text, not only the exit status; status and ship-status must ask the gate directly rather than read a refusal as stale (the verification_ignored_paths lesson); a refusal must name a command that actually recovers and a test must run it (95% plan rule); no test, gate, bound or timeout is weakened",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "992b448747d812a2982577a185d915a058e3fba35a70acb55aecc304309494bb",
+        "cmd_change": "4d036ed210b39781007a0af89383c8f93019d33a08425c8c9c688cef6fccb2d5"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

@@ -4531,7 +4531,7 @@ fn open_task_gate_refuses_and_names_the_command_that_recovers() {
     let stderr = fixture.refused(&["change", "review", &id, "--reviewer", "Fixture Reviewer"]);
     assert_eq!(
         OpenTaskCli::named_rerun(&stderr),
-        format!("specsync change review {id} --reviewer 'Fixture Reviewer'")
+        format!("specsync change review {id} --reviewer='Fixture Reviewer'")
     );
     assert!(
         !fixture.workspace().join("review.json").exists(),

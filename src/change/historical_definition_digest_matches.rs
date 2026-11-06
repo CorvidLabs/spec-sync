@@ -2193,13 +2193,14 @@ pub fn record_scoped_review(
     record_scoped_review_with_verdict(root, id, reviewer, ScopedReviewVerdict::Pass)
 }
 
-/// A validated reviewer claim as one shell word. The claim's alphabet allows a space but no
-/// quote, so single quotes are enough.
-fn shell_quoted_reviewer(reviewer: &str) -> String {
+/// `--reviewer=<claim>` as one shell word. Attached with `=` so a claim that starts with `-`
+/// still parses as the value; the claim's alphabet allows a space but no quote, so single quotes
+/// are enough.
+fn reviewer_argument(reviewer: &str) -> String {
     if reviewer.contains(' ') {
-        format!("'{reviewer}'")
+        format!("--reviewer='{reviewer}'")
     } else {
-        reviewer.to_string()
+        format!("--reviewer={reviewer}")
     }
 }
 
@@ -2224,9 +2225,9 @@ pub fn record_scoped_review_with_verdict(
             root,
             &record,
             &format!(
-                "specsync change review {} --reviewer {}",
+                "specsync change review {} {}",
                 record.id,
-                shell_quoted_reviewer(reviewer)
+                reviewer_argument(reviewer)
             ),
         )?;
     }
@@ -2548,11 +2549,14 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
                 .into(),
         );
     }
-    if record.state == ChangeState::Verifying {
-        // Before acceptance writes anything: no digest sees a task reopened after the passing
-        // check (REQ-change-131). A resumed finalization (`Accepted`) already passed this gate
-        // when it was accepted, and its workspace may already sit in the archive.
+    // No digest sees a task reopened after the passing check (REQ-change-131). Ask before
+    // acceptance writes anything, and again when a finalization that stopped after acceptance is
+    // retried while its workspace is still active: a task can be reopened in between. A
+    // workspace already moved into the archive resumes; it passed this gate when it was accepted.
+    if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
         ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
+    }
+    if record.state == ChangeState::Verifying {
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
     } else {
         let verification = load_verification(root, &record)?;

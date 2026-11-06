@@ -1,6 +1,6 @@
 ---
 id: stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship
-state: implementing
+state: archived
 type: bug_fix
 base_commit: cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b
 ---

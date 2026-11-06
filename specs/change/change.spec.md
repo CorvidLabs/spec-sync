@@ -1,6 +1,6 @@
 ---
 module: change
-version: 194
+version: 195
 status: active
 files:
   - src/change.rs
@@ -679,3 +679,4 @@ Acceptance Criteria
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
 | 2026-11-06 | hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected: Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths |
 | 2026-11-06 | the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change: The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change |
+| 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |

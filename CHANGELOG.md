@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A static `specsync-linux-aarch64-musl` download. It starts on any ARM64 Linux, including Alpine and systems below the glibc floor, as `specsync-linux-x86_64-musl` already does for x86_64 (#882).
+
 ### Changed
 
 - The contracts now give one answer about configured verification commands: `change check` does not run `.specsync/sdd.json` `verification_commands`. REQ-change-015 (a reporting mode that ran them) and REQ-cmd-comment-001/002 (comments folding lifecycle failures) are retired, REQ-change-019, 027, 030, 061 and 069 and REQ-cmd-comment-003 cite the rule, and the comparison pages say your CI runs the project's tests. Contract-pin tests fail if a current contract promises execution again. No runtime change (#848).
@@ -24,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Action's `comment: true` no longer turns a passing check red when the token cannot post the PR comment. A token GitHub refuses (HTTP 403), such as the read-only token fork pull requests get, now gives a warning naming the missing `pull-requests: write` permission, and the result goes to the job summary. Any other comment error still fails the step (#886, REQ-github-024).
 - `specsync change check --commit` completes in a project rooted in a subdirectory of its Git repository. Working-tree evidence capture now reads `git diff-files` paths relative to the project instead of refusing the change's own spec as out of scope; paths outside the project are still refused (#879).
 - A change whose id the remote default branch already archived, while this branch holds an unarchived copy (for example after a squash before finalize), is named instead of wedged: `change review` and `change finalize` refuse before acceptance with the reference, the archive commit and the recovery (rebase onto the remote default dropping the commit that added the unarchived copy; merging or deleting the copy in a new commit leaves history that fails integrity), and `change status` / `change ship-status` never report it `safe` or ready to finalize. A squash before finalize with no upstream archive still reviews and finalizes (#694, #690).
+- The Linux glibc downloads, `specsync-linux-x86_64` and `specsync-linux-aarch64`, start on glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer, which includes GitHub's `ubuntu-22.04` and `ubuntu-22.04-arm` runners. Through 6.2.0 they were linked on `ubuntu-latest`, and the weak Rust std symbols `pidfd_spawnp` and `pidfd_getpid` then demanded `GLIBC_2.39`, so they stopped before `--version` on Debian 12 and Ubuntu 22.04. Both release workflows now build them natively on Ubuntu 22.04. Before upload, every packaged Linux archive must start offline in pinned `ubuntu:22.04` and `debian:12-slim` containers (the musl ones also in Debian 11 and Alpine) and check a small project, so a download that would not start is never released. The `linux-baseline` CI job builds and checks the same archives, and it requires the check to reject the published v6.2.0 ARM64 archive (#882).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
 
 ## [6.2.0] - 2026-11-05

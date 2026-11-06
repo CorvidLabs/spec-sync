@@ -1,6 +1,6 @@
 ---
 module: change
-version: 185
+version: 187
 status: active
 files:
   - src/change.rs
@@ -118,7 +118,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `AppliedDeltaItem` | One block a change's delta put into a canonical spec or requirements file: module, target, key and body, listed by a send-back |
-| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, whether canonical text had been applied, and the applied items |
+| `SendBackRecord` | Immutable audit event for one send-back to draft: actor, reason, timestamp, prior and new state, the number of approvals before it, the number of scoped review attempts before it (absent on a send-back recorded before #960), whether canonical text had been applied, and the applied items |
 | `SendBackResult` | Deterministic change-plus-audit result returned by the send-back transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -316,6 +316,7 @@ Acceptance Criteria
 47. Checkbox state is outside the approval and verification digests, so ticking a task needs no reapproval or re-verification. Every verb that verifies a change, records a passing review of it or finalizes it therefore asks the task gate itself, before writing anything. A task reopened after a passing check is refused at review and finalize, and the refusal names each open task and the exact command to re-run (REQ-change-131).
 48. A scoped review recorded before a send-back stays valid review history. It validates against the definition approval it bound, including one the send-back cancelled, so it never blocks a fresh `change review` after re-approval, and it is never removed or rewritten. Whether a review counts is a separate question, answered as before: it must match the current contract and evidence and bind a definition approval the latest send-back did not cancel. A review bound only to a cancelled approval is reported stale, never unreadable, and never lets `change ship` or `change finalize` through (#914, REQ-change-123, CHANGE-12.b, CHANGE-12.d).
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
+50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
 
 ## Behavioral Examples
 
@@ -452,6 +453,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | Codex review of #903: a workflow-v2 finalization stopped after acceptance, with its workspace still active, is gated too; status, ship-status and ship name its open task (`open_tasks_block`), and a review refusal names `--reviewer=<claim>` (REQ-change-131, REQ-cmd-change-031, #892). |
 | 2026-11-05 | v174: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |
 | 2026-11-06 | v175: a passing legacy-baseline introduction proof is kept in the persistent read cache, so an archived read of one legacy archive no longer re-walks every introduction commit and legacy archive tree; a refusal is always re-derived (#901). |
@@ -658,4 +660,5 @@ Acceptance Criteria
 | 2026-11-06 | keep-approve-refusal-hints-to-drafts-cover-the-scope-questions-show-single-choice-placeholders-and-commit-the-quick: Keep approve refusal hints to drafts, cover the scope questions, show single-choice placeholders, and commit the Quick Start source (#917) |
 | 2026-11-06 | S9: one `diff-tree --stdin` for the archive-introduction index (REQ-change-135); the workflow-v1 cutoff check comes from the cutoff tree and is cached by the cutoff commit (REQ-change-136); read-only commands take a deadline that reports the phase and resume command (REQ-change-137) |
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
+| 2026-11-06 | require-a-fresh-review-after-a-send-back-even-when-the-scope-comes-back-unchanged: Require a fresh review after a send-back even when the scope comes back unchanged |
 | 2026-11-06 | a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s: A cold archived change status answers every archive's workflow-version history from one history walk and the command's batch reader |

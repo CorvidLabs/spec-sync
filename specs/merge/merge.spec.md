@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 10
+version: 11
 status: stable
 files:
   - src/merge.rs
@@ -181,3 +181,4 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | v9 / #862: git merge driver counts both version bumps and unions change-log rows, `files:`, and requirement blocks without loosening the marker resolver |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-06 | retire-the-merge-empty-list-and-init-strict-default-contract-clauses: Retire the merge empty-list and init strict-default contract clauses |

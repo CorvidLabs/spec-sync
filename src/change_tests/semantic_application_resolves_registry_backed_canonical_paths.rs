@@ -679,6 +679,36 @@ fn missing_semantic_acceptance_evidence_is_not_reported_as_command_failure() {
     );
 }
 
+// Verifies REQ-change-019 criterion 3 on its requirement-evidence branch (#848).
+//
+// Honest label: CHARACTERIZATION. The test above covers the semantic-evidence branch; this one
+// keeps the requirement-evidence diagnostic distinct from it, and neither names a configured
+// command, because verification executes none (REQ-change-023).
+#[test]
+fn missing_requirement_evidence_is_distinct_from_missing_semantic_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_section_only_record(
+        root,
+        "## ADDED\n### REQUIREMENT REQ-auth-009\n\nSessions SHALL expire after their bound.\n\n\
+         Acceptance Criteria\n- A session older than its bound is refused.\n",
+    );
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("no requirement evidence for REQ-auth-009"),
+        "{error}"
+    );
+    assert!(
+        !error.contains("semantic acceptance evidence is missing"),
+        "{error}"
+    );
+    assert!(!error.contains("verification command"), "{error}");
+}
+
 const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
 
 #[test]

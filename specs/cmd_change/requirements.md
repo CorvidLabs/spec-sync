@@ -448,3 +448,10 @@ Acceptance Criteria
 - Text output names the reference, the commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy.
 - JSON readiness is not `safe`.
 
+### REQ-cmd-change-034
+
+Text `change status` and the `change ship-status` lifecycle next action SHALL name a sequence-ledger freeze before the upstream-archive step, matching JSON status.
+
+Acceptance Criteria
+- With an upstream archive and a frozen ledger, the text `Next:` line names the freeze.
+

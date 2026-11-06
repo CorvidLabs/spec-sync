@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 60
+version: 61
 status: active
 files:
   - src/commands/change.rs
@@ -192,3 +192,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-05 | cut-git-process-spawns-per-specsync-command-and-run-the-release-candidate-suite-with-cargo-nextest-so-macos: Cut git process spawns per SpecSync command and run the release-candidate suite with cargo nextest so macOS qualification fits 45 minutes |
 | 2026-11-06 | refuse-review-status-and-finalize-of-a-change-already-archived-on-the-remote-default-and-name-it: Refuse review status and finalize of a change already archived on the remote default and name it |
 | 2026-11-06 | #694's upstream-archive requirements are REQ-change-129 and REQ-cmd-change-029. Its archived package names them REQ-change-127 and REQ-cmd-change-028 because #861 took those first; the archive is left as reviewed |
+| 2026-11-06 | keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze: Keep the upstream-archive status guidance behind a sequence-ledger freeze |

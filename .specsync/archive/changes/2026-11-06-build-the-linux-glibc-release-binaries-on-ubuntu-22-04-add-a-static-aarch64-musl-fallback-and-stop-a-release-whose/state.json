@@ -7,11 +7,11 @@
   "title": "Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline",
   "description": "Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 musl fallback, and stop a release whose Linux download would not start on the documented glibc 2.35 baseline",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
   "created_at": 1793937139,
-  "updated_at": 1793944086,
+  "updated_at": 1793946981,
   "affected_specs": [
     "github"
   ],

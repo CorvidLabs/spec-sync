@@ -127,6 +127,13 @@
         "github": "9d87eba3e0f53a08ca30b5b41a1a49079e1bd64d479bd540d8b068498fb62fb1"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793946977,
+      "digest": "d0dc8ccc6709a84f89fae116134ec10831d97f6f485755187c77a4412027c652",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

@@ -1,6 +1,6 @@
 ---
 id: find-an-upstream-archive-by-the-id-in-its-state-record-rather-than-its-directory-name
-state: implementing
+state: archived
 type: bug_fix
 base_commit: cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b
 ---

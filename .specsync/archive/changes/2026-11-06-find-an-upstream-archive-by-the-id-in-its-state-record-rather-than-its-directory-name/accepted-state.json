@@ -7,11 +7,11 @@
   "title": "Find an upstream archive by the id in its state record rather than its directory name",
   "description": "Find an upstream archive by the id in its state record rather than its directory name",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
   "created_at": 1793948722,
-  "updated_at": 1793981767,
+  "updated_at": 1793983103,
   "affected_specs": [
     "change"
   ],

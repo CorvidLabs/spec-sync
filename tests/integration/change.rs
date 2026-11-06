@@ -1,4 +1,4 @@
-use super::helpers::specsync;
+use super::helpers::{specsync, tracked_requirement, tracked_text};
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
@@ -2691,6 +2691,126 @@ fn change_check_does_not_spawn_a_configured_verification_child() {
         !record.exists(),
         "configured verification_commands must not be spawned"
     );
+}
+
+// Verifies REQ-change-023 at the contract level (#848, SHIP-1.c.1, SHIP-1.c.2).
+//
+// Honest label: CONTRACT PIN. It reads the tracked contracts, not the binary; the behavior is
+// pinned by the REQ-change-091 discriminators above. It fails when a current change contract goes
+// back to promising that verification executes the configured commands, which is how
+// REQ-change-015 stood beside REQ-change-023 until #848.
+#[test]
+fn change_contracts_give_one_answer_on_configured_verification_commands() {
+    let requirements = "specs/change/requirements.md";
+    assert!(
+        tracked_requirement(requirements, "REQ-change-015").is_none(),
+        "REQ-change-015 required a reporting mode that executes every configured verification \
+         command; REQ-change-058 says that mode SHALL NOT exist, so it stays retired"
+    );
+    let rule = tracked_requirement(requirements, "REQ-change-023").expect("REQ-change-023");
+    assert!(
+        rule.contains(
+            "`change check` does not execute `.specsync/sdd.json` `verification_commands`."
+        ),
+        "REQ-change-023 is the rule the other clauses defer to: {rule}"
+    );
+    // A requirement that speaks about configured verification commands without being the rule
+    // defers to it by ID, so a reader meets the answer where the question is asked.
+    for id in [
+        "REQ-change-019",
+        "REQ-change-027",
+        "REQ-change-030",
+        "REQ-change-061",
+        "REQ-change-069",
+    ] {
+        let block = tracked_requirement(requirements, id).unwrap_or_else(|| panic!("{id}"));
+        assert!(
+            block.contains("REQ-change-023"),
+            "{id} mentions configured verification commands and must cite REQ-change-023: {block}"
+        );
+    }
+    let lessons = tracked_text("specs/change/change.3md");
+    assert!(
+        lessons.contains(
+            "The rest of this section records how those unwired helpers were designed while \
+             `change check` still spawned the commands; none of it runs on a lifecycle path today \
+             (REQ-change-023, REQ-change-091)."
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .as_str()
+        ),
+        "change.3md must mark its wait-notice and own-group child design notes as historical"
+    );
+    let retired = [
+        "still executes every configured verification command",
+        "remain unaffected and execute once",
+        "A failed configured command",
+        "as initialization instructs",
+        "and native verification commands while",
+        "rejection before lifecycle state or attempt history mutates",
+        // change.3md lesson text that described the unwired helpers as running (#899 review).
+        "printed before the child starts rather than after it has blocked",
+        "Ctrl-C still reaches the child",
+    ];
+    for relative in [
+        "specs/change/requirements.md",
+        "specs/change/change.spec.md",
+        "specs/change/testing.md",
+        "specs/change/context.md",
+        "specs/change/change.3md",
+        "specs/change/tasks.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still promises execution of configured commands: `{phrase}`"
+            );
+        }
+    }
+}
+
+// Verifies REQ-change-023 in the public comparison pages (#848, SHIP-1.c.1, SHIP-1.c.2).
+//
+// Honest label: CONTRACT PIN over published guidance. The comparison tables credited SpecSync with
+// executing configured tests and isolating its verification shell, but `change check` spawns no
+// configured command. The pages must say the project's CI runs the tests.
+#[test]
+fn comparison_pages_do_not_credit_specsync_with_running_configured_tests() {
+    let why = tracked_text("site/src/content/docs/why-specsync.md");
+    let proof = tracked_text("site/src/content/docs/comparisons/adversarial-proof.md");
+    for (relative, text, phrase) in [
+        (
+            "why-specsync.md",
+            &why,
+            "Configured tests executed by CI gate",
+        ),
+        (
+            "why-specsync.md",
+            &why,
+            "Verification command shell isolation",
+        ),
+        (
+            "adversarial-proof.md",
+            &proof,
+            "**Block** when configured for verification/CI",
+        ),
+        // The project's CI blocks only when it runs the tests and fails on them; SpecSync
+        // cannot promise that for every project (Codex review on #899).
+        ("adversarial-proof.md", &proof, "**Your CI** blocks;"),
+    ] {
+        assert!(
+            !text.contains(phrase),
+            "{relative} overstates who runs the tests or what blocks them: `{phrase}`"
+        );
+    }
+    for (relative, text) in [("why-specsync.md", &why), ("adversarial-proof.md", &proof)] {
+        assert!(
+            text.contains("runs no configured command"),
+            "{relative} must say that verification runs no configured command"
+        );
+    }
 }
 
 // Verifies REQ-cmd-change-005 and REQ-change-093: every text result ends with exactly one

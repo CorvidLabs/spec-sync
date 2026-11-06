@@ -17,6 +17,8 @@ SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif 
   - **SHIP-1.a**  The code is checked against the contract as it now stands, in the same step.
   - **SHIP-1.b**  That check covers the contracts this change could break, not every contract in the project.
   - **SHIP-1.c**  It compares contract to code; running the project's tests stays the pipeline's job.
+    - **SHIP-1.c.1**  Every current contract gives the same answer about the verification commands I configure: the change check does not run them.
+    - **SHIP-1.c.2**  If a current contract starts promising to run them again, a test tells me.
   - **SHIP-1.d**  I can commit the verified result in the same step, so the evidence matches the tree it describes.
 - **SHIP-2**  A person reviews the implementation against what was approved before it can ship.
   - **SHIP-2.a**  That review is recorded with the change rather than left in a chat thread.

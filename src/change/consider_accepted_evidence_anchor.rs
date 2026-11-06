@@ -2533,9 +2533,23 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
         ));
     }
     let mut index: ArchiveIntroductionIndex = BTreeMap::new();
-    for commit in commits {
-        let introduced =
-            archive_introductions_at_commit(root, commit, &history_pathspec, &directory_prefix)?;
+    // One `diff-tree --stdin` lists what every uncached commit added (REQ-change-135); a commit
+    // it did not answer is read on its own, as before.
+    let listings = archive_introduction_listings(root, &commits, &history_pathspec);
+    let total = commits.len();
+    for (done, commit) in commits.into_iter().enumerate() {
+        check_read_deadline("archive-introduction index", done, total)?;
+        let listed = listings
+            .as_ref()
+            .and_then(|listings| listings.get(commit))
+            .map(Vec::as_slice);
+        let introduced = archive_introductions_at_commit(
+            root,
+            commit,
+            &history_pathspec,
+            &directory_prefix,
+            listed,
+        )?;
         for (id, directory, approvals) in introduced {
             let introductions = index.entry(id).or_default();
             if introductions
@@ -4143,12 +4157,37 @@ fn load_legacy_archive_baseline_context(
                 .map(|snapshot| (entry.id.clone(), snapshot))
         })
         .collect::<Result<_, _>>()?;
-    validate_legacy_archive_introductions(root, &baseline, &snapshots)?;
+    validate_legacy_archive_introductions_cached(root, &baseline_digest, &baseline, &snapshots)?;
 
     Ok(LegacyArchiveBaselineContext {
         baseline,
         snapshots,
     })
+}
+
+/// `validate_legacy_archive_introductions` for `load_legacy_archive_baseline_context`, answered
+/// from the persistent read cache when this exact baseline, cutoff and set of current archive
+/// subtrees already passed (#901). The proof walks every introduction commit and two trees per
+/// legacy archive, so without this every archived read of a legacy archive grew with all of
+/// them. A refusal is never cached, so it is re-derived live on every read.
+fn validate_legacy_archive_introductions_cached(
+    root: &Path,
+    baseline_digest: &str,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Result<(), String> {
+    let key = legacy_introductions_cache_key(baseline_digest, baseline, snapshots);
+    if key
+        .as_deref()
+        .is_some_and(|key| legacy_introductions_proven(root, key))
+    {
+        return Ok(());
+    }
+    validate_legacy_archive_introductions(root, baseline, snapshots)?;
+    if let Some(key) = key {
+        remember_legacy_introductions_proven(root, key);
+    }
+    Ok(())
 }
 
 fn validate_legacy_archive_introductions(

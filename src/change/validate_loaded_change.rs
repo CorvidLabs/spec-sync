@@ -448,7 +448,9 @@ fn list_all_changes_loaded(
     if walk_archived_history {
         prefetch_archived_workflow_histories(root, &entries);
     }
-    for entry in entries {
+    let total = entries.len();
+    for (index, entry) in entries.into_iter().enumerate() {
+        check_read_deadline("archived change validation", index, total)?;
         let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
         if !entry
             .file_type()
@@ -3068,13 +3070,73 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
     let cutoff = baseline.cutoff_commit.as_deref().ok_or_else(|| {
         "workflow-v1 state is not eligible after root workflow-v2 adoption".to_string()
     })?;
-    if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
+    // `validate_workflow_v2_baseline_history` above has proven `cutoff` an ancestor of HEAD, so
+    // the cutoff's own tree answers this without walking HEAD's history (REQ-change-136).
+    if !workflow_v1_record_present_in_cutoff_tree(root, record, cutoff)? {
         return Err(format!(
             "workflow-v1 change {} was not present at the trusted pre-v2 cutoff {}",
             record.id, cutoff
         ));
     }
     Ok(())
+}
+
+/// Whether workflow-v1 change `record` had a workflow-v1 record at `cutoff`, decided from the
+/// cutoff commit's own tree (REQ-change-136).
+///
+/// Only call this for a cutoff already proven to be an ancestor of HEAD. Then every state path
+/// `workflow_version_state_paths` could find in HEAD's history that also exists at the cutoff is
+/// in the cutoff's tree, so listing the archive root at the cutoff (memoized per command) gives
+/// the same candidates without a history walk per change. A presence is kept in the persistent
+/// read cache under the immutable cutoff; an absence is a refusal and is never cached.
+fn workflow_v1_record_present_in_cutoff_tree(
+    root: &Path,
+    record: &ChangeRecord,
+    cutoff: &str,
+) -> Result<bool, String> {
+    if cached_workflow_v1_at_cutoff(root, cutoff, &record.id) {
+        return Ok(true);
+    }
+    let mut candidates = vec![git_repo_relative_path(
+        root,
+        &format!("{CHANGES_PATH}/{}/state.json", record.id),
+    )?];
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let listing = run_git_bounded(
+        root,
+        &["ls-tree", "-z", "--name-only", &format!("{cutoff}:{archive_root}")],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )?;
+    // A cutoff without an archive root has no archived candidates; any other failure leaves only
+    // the active path, which can only make the answer "absent", a refusal.
+    if listing.status.success() {
+        let suffix = format!("-{}", record.id);
+        for entry in String::from_utf8_lossy(&listing.stdout).split('\0') {
+            if entry.is_empty() || !entry.ends_with(&suffix) {
+                continue;
+            }
+            let path = format!("{archive_root}/{entry}/state.json");
+            if !is_canonical_archive_state_path(&path, &archive_root, &record.id) {
+                return Err(format!(
+                    "workflow-version history contains a non-canonical archive path `{}`",
+                    path.escape_default()
+                ));
+            }
+            candidates.push(path);
+        }
+    }
+    let present = candidates.iter().any(|path| {
+        git_change_record_at(root, cutoff, path).is_some_and(|historical| {
+            historical.id == record.id
+                && historical.workflow_version == 1
+                && matches!(historical.workflow_origin_version, None | Some(1))
+        })
+    });
+    if present {
+        remember_workflow_v1_at_cutoff(root, cutoff, &record.id);
+    }
+    Ok(present)
 }
 
 /// The record-independent half of `validate_workflow_v2_baseline`: the baseline's reachable
@@ -3292,26 +3354,33 @@ fn validate_workflow_version_history_uncached(
         return Ok(());
     }
     let state_paths = workflow_version_state_paths(root, record)?;
-    // These paths are already repository-relative. `:(top)` keeps Git from resolving them
-    // against the project directory, which would apply `git_repo_prefix` a second time (#851).
-    let state_pathspecs: Vec<String> = state_paths
-        .iter()
-        .map(|path| format!(":(top,literal){path}"))
-        .collect();
     let limits = lifecycle_validation_limits();
-    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
-    let mut arguments = vec![
-        "rev-list",
-        "--reverse",
-        "--full-history",
-        max_count.as_str(),
-        "HEAD",
-        "--",
-    ];
-    arguments.extend(state_pathspecs.iter().map(String::as_str));
-    let commits = scoped_review_git_text(root, &arguments)
-        .map_err(|_| "failed to enumerate workflow-version history".to_string())?;
-    let commits: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
+    // One walk for every change answers the history and the parents (REQ-change-140); without
+    // it, Git is asked per change, as before.
+    let history = lifecycle_state_history(root);
+    let indexed: Option<Vec<String>> = match &history {
+        Some(history) => Some(
+            history
+                .state_path_history(&state_paths, limits.scoped_review_max_descendants)
+                .ok_or_else(|| {
+                    format!(
+                        "workflow-version history exceeds the deterministic {}-commit bound",
+                        limits.scoped_review_max_descendants
+                    )
+                })?
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+        ),
+        None => None,
+    };
+    let live_commits;
+    let commits: Vec<&str> = if let Some(indexed) = &indexed {
+        indexed.iter().map(String::as_str).collect()
+    } else {
+        live_commits = live_workflow_version_history(root, &state_paths)?;
+        live_commits.lines().filter(|line| !line.is_empty()).collect()
+    };
     if commits.len() > limits.scoped_review_max_descendants {
         return Err(format!(
             "workflow-version history exceeds the deterministic {}-commit bound",
@@ -3320,9 +3389,17 @@ fn validate_workflow_version_history_uncached(
     }
     for commit in commits {
         let current = workflow_version_at_commit(root, commit, &state_paths)?;
-        let parents = scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", commit])
-            .map_err(|_| format!("failed to inspect workflow-version commit {commit}"))?;
-        let fields: Vec<&str> = parents.split_whitespace().collect();
+        let fields: Vec<String> = match history.as_ref().and_then(|history| history.parents(commit)) {
+            Some(parents) => std::iter::once(commit.to_string())
+                .chain(parents.iter().cloned())
+                .collect(),
+            None => scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", commit])
+                .map_err(|_| format!("failed to inspect workflow-version commit {commit}"))?
+                .split_whitespace()
+                .map(str::to_string)
+                .collect(),
+        };
+        let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
         if fields.first().copied() != Some(commit)
             || fields.len().saturating_sub(1) > limits.scoped_review_max_parents
         {
@@ -3368,6 +3445,30 @@ fn validate_workflow_version_history_uncached(
     Ok(())
 }
 
+/// The oldest-first commits that touched `state_paths`, from Git, when the lifecycle-state
+/// history index cannot answer.
+fn live_workflow_version_history(root: &Path, state_paths: &[String]) -> Result<String, String> {
+    // These paths are already repository-relative. `:(top)` keeps Git from resolving them
+    // against the project directory, which would apply `git_repo_prefix` a second time (#851).
+    let state_pathspecs: Vec<String> = state_paths
+        .iter()
+        .map(|path| format!(":(top,literal){path}"))
+        .collect();
+    let limits = lifecycle_validation_limits();
+    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+    let mut arguments = vec![
+        "rev-list",
+        "--reverse",
+        "--full-history",
+        max_count.as_str(),
+        "HEAD",
+        "--",
+    ];
+    arguments.extend(state_pathspecs.iter().map(String::as_str));
+    scoped_review_git_text(root, &arguments)
+        .map_err(|_| "failed to enumerate workflow-version history".to_string())
+}
+
 fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
     let active_state =
         git_repo_relative_path(root, &format!("{CHANGES_PATH}/{}/state.json", record.id))?;
@@ -3389,6 +3490,36 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
     }
 
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let limits = lifecycle_validation_limits();
+    let discovered = match lifecycle_state_history(root) {
+        // One walk for every change answers this from memory (REQ-change-140).
+        Some(history) => {
+            history.archived_state_paths(record.id.as_str(), limits.scoped_review_max_descendants)?
+        }
+        None => live_archived_state_paths(root, record, &archive_root)?,
+    };
+    for path in &discovered {
+        let path = path.as_str();
+        if !is_canonical_archive_state_path(path, &archive_root, &record.id) {
+            return Err(format!(
+                "workflow-version history contains a non-canonical archive path `{}`",
+                path.escape_default()
+            ));
+        }
+        if !state_paths.iter().any(|candidate| candidate == path) {
+            state_paths.push(path.to_string());
+        }
+    }
+    Ok(state_paths)
+}
+
+/// The archive state paths Git's own walks discover for `record`, when the lifecycle-state
+/// history index cannot answer.
+fn live_archived_state_paths(
+    root: &Path,
+    record: &ChangeRecord,
+    archive_root: &str,
+) -> Result<Vec<String>, String> {
     // `:(top,glob)` matches `archive_introduction_index`: the path is repository-relative, and
     // the command runs in the project directory. Without `top`, a non-empty `git_repo_prefix`
     // is applied twice and the archived history is empty (#851). Only the dated directory is a
@@ -3396,7 +3527,7 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
     // itself rather than a character class.
     let pathspec = format!(
         ":(top,glob){}/*-{}/state.json",
-        escape_glob_pathspec(&archive_root),
+        escape_glob_pathspec(archive_root),
         escape_glob_pathspec(record.id.as_str())
     );
     let limits = lifecycle_validation_limits();
@@ -3425,6 +3556,8 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
         &[
             "log",
             "--full-history",
+            // A root commit's paths are candidates whatever `log.showRoot` says.
+            "--root",
             "--format=",
             "--name-only",
             "-z",
@@ -3435,22 +3568,12 @@ fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Ve
         ],
     )
     .map_err(|_| "failed to enumerate archived workflow-version paths".to_string())?;
-    for raw_path in archived_paths.split('\0') {
-        let path = raw_path.trim_matches('\n');
-        if path.is_empty() {
-            continue;
-        }
-        if !is_canonical_archive_state_path(path, &archive_root, &record.id) {
-            return Err(format!(
-                "workflow-version history contains a non-canonical archive path `{}`",
-                path.escape_default()
-            ));
-        }
-        if !state_paths.iter().any(|candidate| candidate == path) {
-            state_paths.push(path.to_string());
-        }
-    }
-    Ok(state_paths)
+    Ok(archived_paths
+        .split('\0')
+        .map(|path| path.trim_matches('\n'))
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect())
 }
 
 fn is_canonical_archive_state_path(path: &str, archive_root: &str, id: &str) -> bool {
@@ -4299,4 +4422,338 @@ fn escape_glob_pathspec(text: &str) -> String {
         escaped.push(character);
     }
     escaped
+}
+
+// One lifecycle-state history walk per command (REQ-change-140).
+//
+// Every archived change's workflow-version history check asks Git the same kinds of question:
+// which archive state paths ever held this change, which commits touched those paths (oldest
+// first, under `--full-history`), and what each such commit's parents are. Asked per change, that
+// is four walks and one process per commit for every archive, so a cold read grows with the
+// archive count. This index asks once per command, inside a change read scope:
+//
+//     git log --full-history -m --root --no-renames --name-only -z --format=%x01%H %P
+//         --max-count=<bound + 1> HEAD -- :(top,glob)<changes root>/*/state.json
+//                                         :(top,glob)<archive root>/*/state.json
+//
+// Every per-change question is then answered in memory, by the same rule Git applies to a walk
+// limited to that change's paths:
+//
+// - a commit belongs to a path-limited `--full-history` walk when its diff against at least one
+//   parent (a root commit against the empty tree) touches one of those paths; `-m` lists each
+//   parent's diff, so the union of a commit's listed names is exactly "touched against some
+//   parent";
+// - the full-history walk visits every commit reachable from `HEAD` whatever the pathspec, so the
+//   commits a narrower walk lists come out in the same relative order;
+// - `log --name-only` without `-m` names no paths for a merge, so candidate-path discovery takes
+//   names from commits with at most one parent only, as the per-change `log` does;
+// - `%P` without `--parents` prints a commit's real parents, never rewritten ones.
+//
+// The index never judges. When it cannot be built (no read scope, more commits than the bound,
+// output over the limit, a failed or unparseable walk), every change runs its own per-change
+// walks exactly as before, so the index can make a check cheaper but never make it refuse
+// differently. Equivalence tests pin the derived answers against the per-change walks.
+
+/// One commit of the lifecycle-state history walk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LifecycleHistoryCommit {
+    id: String,
+    parents: Vec<String>,
+    /// Every lifecycle state path the commit's diff against any parent touched.
+    touched: BTreeSet<String>,
+    /// The names in the order Git listed them, for candidate-path discovery.
+    listed: Vec<String>,
+}
+
+/// The lifecycle-state history of `HEAD`, newest first, as one walk listed it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LifecycleStateHistory {
+    head: String,
+    archive_root: String,
+    commits: Vec<LifecycleHistoryCommit>,
+    by_id: BTreeMap<String, usize>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static LIFECYCLE_STATE_HISTORY_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Run `body` with the lifecycle-state history index turned off on this thread, so it takes the
+/// per-change walks. Tests use it to compare the two answers.
+#[cfg(test)]
+fn without_lifecycle_state_history<Answer>(body: impl FnOnce() -> Answer) -> Answer {
+    let previous = LIFECYCLE_STATE_HISTORY_DISABLED.with(|flag| flag.replace(true));
+    let answer = body();
+    LIFECYCLE_STATE_HISTORY_DISABLED.with(|flag| flag.set(previous));
+    answer
+}
+
+fn lifecycle_state_history_disabled() -> bool {
+    #[cfg(test)]
+    {
+        LIFECYCLE_STATE_HISTORY_DISABLED.with(std::cell::Cell::get)
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
+}
+
+/// A lifecycle-state history built on this thread: its root, the `HEAD` commit it was walked
+/// from, and the answer (`None` when the walk could not answer).
+type LifecycleStateHistorySlot = (PathBuf, String, Option<std::rc::Rc<LifecycleStateHistory>>);
+
+thread_local! {
+    /// The last lifecycle-state history built on this thread. History reachable from one commit
+    /// never changes, so the answer stays true for that root and commit; it is only consulted
+    /// inside a read scope.
+    static LIFECYCLE_STATE_HISTORY: RefCell<Option<LifecycleStateHistorySlot>> =
+        const { RefCell::new(None) };
+}
+
+/// The command's lifecycle-state history index for `root`, building it on first use. `None`
+/// outside a change read scope, or when the walk cannot answer; callers then ask Git per change.
+fn lifecycle_state_history(root: &Path) -> Option<std::rc::Rc<LifecycleStateHistory>> {
+    if lifecycle_state_history_disabled()
+        || read_scope_value(root, |_| Some(())).is_none()
+        || !history_is_fixed_by_head(root)
+    {
+        return None;
+    }
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
+    let head = head.trim().to_string();
+    let known = LIFECYCLE_STATE_HISTORY.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .filter(|(known_root, known_head, _)| known_root == root && *known_head == head)
+            .map(|(_, _, history)| history.clone())
+    });
+    if let Some(known) = known {
+        return known;
+    }
+    let built = build_lifecycle_state_history(root, &head).map(std::rc::Rc::new);
+    LIFECYCLE_STATE_HISTORY.with(|slot| {
+        *slot.borrow_mut() = Some((root.to_path_buf(), head, built.clone()));
+    });
+    built
+}
+
+/// Whether the history Git walks from `HEAD` is fixed by that commit alone: not a shallow
+/// clone (deepening it reveals commits), no grafts and no replace refs (both rewrite parents and
+/// trees without moving `HEAD`). Only then may an index built for one `HEAD` be reused. These are
+/// the read cache's conditions; a partial clone is fine here, since a missing object makes the
+/// read fail rather than change what the walk lists.
+fn history_is_fixed_by_head(root: &Path) -> bool {
+    let Some(probe) = git_output(
+        root,
+        &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
+    ) else {
+        return false;
+    };
+    let mut probe = probe.lines();
+    if probe.next() != Some("false") {
+        return false;
+    }
+    let Some(common_dir) = probe.next().map(PathBuf::from) else {
+        return false;
+    };
+    let common_dir = if common_dir.is_absolute() {
+        common_dir
+    } else {
+        root.join(common_dir)
+    };
+    if common_dir.join("info").join("grafts").exists() {
+        return false;
+    }
+    run_git_bounded(
+        root,
+        &["for-each-ref", "--count=1", "--format=%(refname)", "refs/replace/"],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .is_ok_and(|refs| refs.status.success() && refs.stdout.trim_ascii().is_empty())
+}
+
+fn build_lifecycle_state_history(root: &Path, head: &str) -> Option<LifecycleStateHistory> {
+    if !git_repository_present(root).ok()? {
+        return None;
+    }
+    let changes_root = git_repo_relative_path(root, CHANGES_PATH).ok()?;
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
+    let changes_pathspec = format!(
+        ":(top,glob){}/*/state.json",
+        escape_glob_pathspec(&changes_root)
+    );
+    let archive_pathspec = format!(
+        ":(top,glob){}/*/state.json",
+        escape_glob_pathspec(&archive_root)
+    );
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let output = run_scoped_review_git(
+        root,
+        &[
+            "log",
+            "--full-history",
+            "-m",
+            "--root",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            "--format=%x01%H %P",
+            max_count.as_str(),
+            head,
+            "--",
+            changes_pathspec.as_str(),
+            archive_pathspec.as_str(),
+        ],
+    )
+    .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8(output.stdout).ok()?;
+    let commits = parse_lifecycle_state_history(&text)?;
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return None;
+    }
+    let by_id = commits
+        .iter()
+        .enumerate()
+        .map(|(index, commit)| (commit.id.clone(), index))
+        .collect();
+    Some(LifecycleStateHistory {
+        head: head.to_string(),
+        archive_root,
+        commits,
+        by_id,
+    })
+}
+
+/// Parse `\x01<commit> <parents...>\0\n<name>\0<name>\0...` blocks. `-m` repeats a merge once
+/// per parent diff; consecutive blocks for one commit are folded together. `None` when the output
+/// is not in that shape.
+fn parse_lifecycle_state_history(text: &str) -> Option<Vec<LifecycleHistoryCommit>> {
+    let mut commits: Vec<LifecycleHistoryCommit> = Vec::new();
+    if text.trim().is_empty() {
+        return Some(commits);
+    }
+    let mut blocks = text.split('\x01');
+    if !blocks.next()?.trim().is_empty() {
+        return None;
+    }
+    for block in blocks {
+        let (header, names) = block.split_once('\0').unwrap_or((block, ""));
+        let mut fields = header.split(' ').filter(|field| !field.is_empty());
+        let id = fields.next()?.to_string();
+        let parents: Vec<String> = fields.map(str::to_string).collect();
+        if !is_full_object_id(&id) || !parents.iter().all(|parent| is_full_object_id(parent)) {
+            return None;
+        }
+        let names = names
+            .split('\0')
+            .map(|name| name.trim_matches('\n'))
+            .filter(|name| !name.is_empty());
+        let commit = match commits.last_mut() {
+            Some(last) if last.id == id => {
+                if last.parents != parents {
+                    return None;
+                }
+                last
+            }
+            _ => {
+                if commits.iter().any(|commit| commit.id == id) {
+                    return None;
+                }
+                commits.push(LifecycleHistoryCommit {
+                    id,
+                    parents,
+                    touched: BTreeSet::new(),
+                    listed: Vec::new(),
+                });
+                commits.last_mut()?
+            }
+        };
+        for name in names {
+            if commit.touched.insert(name.to_string()) {
+                commit.listed.push(name.to_string());
+            }
+        }
+    }
+    Some(commits)
+}
+
+impl LifecycleStateHistory {
+    /// Whether `path` is one `<archive root>/*-<id>/state.json` matches, with `*` not crossing `/`
+    /// as in a `:(glob)` pathspec.
+    fn matches_archive_glob(&self, path: &str, id: &str) -> bool {
+        let Some(relative) = path
+            .strip_prefix(self.archive_root.as_str())
+            .and_then(|rest| rest.strip_prefix('/'))
+        else {
+            return false;
+        };
+        let suffix = format!("-{id}/state.json");
+        relative
+            .strip_suffix(suffix.as_str())
+            .is_some_and(|star| !star.contains('/'))
+    }
+
+    /// The archive state paths `workflow_version_state_paths` discovers for `id`, in the order its
+    /// `log --name-only` lists them, after the same bound check its `rev-list` makes.
+    fn archived_state_paths(&self, id: &str, bound: usize) -> Result<Vec<String>, String> {
+        let matching: Vec<&LifecycleHistoryCommit> = self
+            .commits
+            .iter()
+            .filter(|commit| {
+                commit
+                    .touched
+                    .iter()
+                    .any(|path| self.matches_archive_glob(path, id))
+            })
+            .collect();
+        if matching.len() > bound {
+            return Err(format!(
+                "archived workflow-version history exceeds the deterministic {bound}-commit bound"
+            ));
+        }
+        let mut paths = Vec::new();
+        for commit in matching {
+            if commit.parents.len() > 1 {
+                continue;
+            }
+            for path in &commit.listed {
+                if self.matches_archive_glob(path, id) {
+                    paths.push(path.clone());
+                }
+            }
+        }
+        Ok(paths)
+    }
+
+    /// The commits a `rev-list --reverse --full-history --max-count=<bound + 1> HEAD -- <paths>`
+    /// lists: every commit touching one of `state_paths`, oldest first. `None` when that walk
+    /// would list more than `bound` commits, which the caller refuses exactly as it does today.
+    fn state_path_history(&self, state_paths: &[String], bound: usize) -> Option<Vec<&str>> {
+        let mut commits: Vec<&str> = self
+            .commits
+            .iter()
+            .filter(|commit| state_paths.iter().any(|path| commit.touched.contains(path)))
+            .take(bound + 1)
+            .map(|commit| commit.id.as_str())
+            .collect();
+        if commits.len() > bound {
+            return None;
+        }
+        commits.reverse();
+        Some(commits)
+    }
+
+    /// A listed commit's real parents.
+    fn parents(&self, commit: &str) -> Option<&[String]> {
+        self.by_id
+            .get(commit)
+            .and_then(|index| self.commits.get(*index))
+            .map(|commit| commit.parents.as_slice())
+    }
 }

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship",
+  "implementation_commit": "c21f5356a918c41212d2bce99f31d71a6dbd56f2",
+  "implementation_tree": "38a1a331d8d1c6a5b555ceb04e1150728c81094d",
+  "contract_digest": "780d81f87efe901319df11a136c6b36dc7e450a802631dccd20ca73175954ebe",
+  "workspace_digest": "02f2f30c71db98ebe3f09e40986b5d0c8b7c1fefa9ce67c8f4c4173bb8eb4026",
+  "closing_digest": "d6044383d829c6dc1ebae51bfde7292dc106716e70084c1c5c6d4dfa6c4953b9",
+  "review_digest": "e8a353242d38274ce27e338dbff1c39d37191706b842653fe3695fd9167feedb",
+  "finalization_digest": "cf8e186a884a25f17649da919760f4dd5cc74aa653199cee48a38deb81fce05b",
+  "timestamp": 1793988330
+}

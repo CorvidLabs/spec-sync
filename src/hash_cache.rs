@@ -14,6 +14,10 @@ const CACHE_FILE: &str = "hashes.json";
 const CACHE_FORMAT_VERSION: u32 = 1;
 /// Per-spec validation snapshot schema.
 const SNAPSHOT_VERSION: u32 = 1;
+/// SHA-256 of every source and manifest this binary was compiled from (`build.rs`, #878). Two
+/// builds that report the same package version can still judge the same bytes differently, so a
+/// cached result is replayed only by the build whose fingerprint it carries (REQ-hash-cache-005).
+pub(crate) const BUILD_FINGERPRINT: &str = env!("SPECSYNC_BUILD_FINGERPRINT");
 
 /// Normalize a relative path to use forward slashes on all platforms.
 /// This ensures cache keys are consistent across Windows and Unix.
@@ -281,6 +285,23 @@ fn validation_input_digest(
     global_inputs: &[String],
     spec_inventory: &[String],
 ) -> String {
+    validation_input_digest_for_build(
+        BUILD_FINGERPRINT,
+        root,
+        spec_path,
+        global_inputs,
+        spec_inventory,
+    )
+}
+
+/// [`validation_input_digest`] as the build with `build_fingerprint` computes it.
+fn validation_input_digest_for_build(
+    build_fingerprint: &str,
+    root: &Path,
+    spec_path: &Path,
+    global_inputs: &[String],
+    spec_inventory: &[String],
+) -> String {
     let mut hasher = Sha256::new();
     update_digest(
         &mut hasher,
@@ -288,6 +309,7 @@ fn validation_input_digest(
         &CACHE_FORMAT_VERSION.to_string(),
     );
     update_digest(&mut hasher, "specsync_version", env!("CARGO_PKG_VERSION"));
+    update_digest(&mut hasher, "build_fingerprint", build_fingerprint);
 
     let mut inventory = spec_inventory.to_vec();
     inventory.sort();
@@ -948,5 +970,168 @@ mod tests {
             "---\nmodule: auth\nfiles:\n  - \"src/auth.ts\"\n  - 'src/b.ts'\n  - src/c.ts\n---\n",
         );
         assert_eq!(files, vec!["src/auth.ts", "src/b.ts", "src/c.ts"]);
+    }
+
+    /// The validation input digest every build wrote before #878: cache format and package
+    /// version, then the inputs, and nothing that names the code that judged them. Frozen on
+    /// purpose, because it stands for caches already on disk; do not update it with the live one.
+    fn validation_input_digest_before_878(
+        root: &Path,
+        spec_path: &Path,
+        global_inputs: &[String],
+        spec_inventory: &[String],
+    ) -> String {
+        let mut hasher = Sha256::new();
+        update_digest(&mut hasher, "cache_format_version", "1");
+        update_digest(&mut hasher, "specsync_version", env!("CARGO_PKG_VERSION"));
+        let mut inventory = spec_inventory.to_vec();
+        inventory.sort();
+        inventory.dedup();
+        for spec in inventory {
+            update_digest(&mut hasher, "spec_inventory", &spec);
+        }
+        let spec_rel = normalize_rel(spec_path.strip_prefix(root).unwrap_or(spec_path));
+        let mut input_paths = BTreeSet::new();
+        input_paths.insert(spec_rel);
+        let (requirements, companions) = find_companion_files(spec_path);
+        for companion in requirements.iter().chain(companions.iter()) {
+            input_paths.insert(normalize_rel(
+                companion.strip_prefix(root).unwrap_or(companion),
+            ));
+        }
+        if let Ok(content) = fs::read_to_string(spec_path) {
+            input_paths.extend(extract_frontmatter_files(&content));
+        }
+        input_paths.extend(global_inputs.iter().cloned());
+        for input in input_paths {
+            update_digest(&mut hasher, "input_path", &input);
+            let state = HashCache::hash_file(&root.join(&input))
+                .map(|hash| format!("sha256:{hash}"))
+                .unwrap_or_else(|| "missing-or-unreadable".to_string());
+            update_digest(&mut hasher, "input_state", &state);
+        }
+        format!("{:x}", hasher.finalize())
+    }
+
+    /// A spec whose `requirements.md` repeats one ID, which this build refuses (#865).
+    fn duplicated_requirement_project(root: &Path) -> (PathBuf, Vec<String>) {
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        let spec_path = root.join("specs/auth/auth.spec.md");
+        fs::write(&spec_path, "---\nfiles:\n  - src/auth.rs\n---\n").unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
+        fs::write(
+            root.join("specs/auth/requirements.md"),
+            "# Requirements\n\n### REQ-auth-001\n\nLog in.\n\n### REQ-auth-001\n\nLog in again.\n",
+        )
+        .unwrap();
+        (spec_path, vec!["specs/auth/auth.spec.md".to_string()])
+    }
+
+    /// A clean snapshot for the duplicated-ID project, bound to the build with `build_fingerprint`.
+    fn clean_snapshot_from_build(
+        build_fingerprint: &str,
+        root: &Path,
+        spec_path: &Path,
+        inventory: &[String],
+    ) -> CachedValidationSnapshot {
+        let mut snapshot = CachedValidationSnapshot {
+            snapshot_version: SNAPSHOT_VERSION,
+            spec_path: "specs/auth/auth.spec.md".into(),
+            errors: vec![],
+            warnings: vec![],
+            notices: vec![],
+            input_digest: validation_input_digest_for_build(
+                build_fingerprint,
+                root,
+                spec_path,
+                &[],
+                inventory,
+            ),
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = validation_snapshot_digest(&snapshot);
+        snapshot
+    }
+
+    /// Verifies REQ-hash-cache-005 (#878). A snapshot from another build of this same package
+    /// version is not replayed, and the same snapshot from this build is: the build fingerprint,
+    /// and nothing else, decides.
+    #[test]
+    fn only_the_build_that_recorded_a_snapshot_replays_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        assert_eq!(
+            BUILD_FINGERPRINT.len(),
+            64,
+            "build.rs compiles in a SHA-256"
+        );
+        let mut cache = HashCache::default();
+
+        cache.snapshots.insert(
+            "specs/auth/auth.spec.md".into(),
+            clean_snapshot_from_build(&"0".repeat(64), root, &spec_path, &inventory),
+        );
+        assert!(
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "another build of this version must re-validate"
+        );
+
+        cache.snapshots.insert(
+            "specs/auth/auth.spec.md".into(),
+            clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory),
+        );
+        assert!(
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some(),
+            "this build replays its own snapshot"
+        );
+    }
+
+    /// Verifies REQ-hash-cache-005 (#878). DISCRIMINATOR: a build from before the duplicate-ID
+    /// rule, reporting this same package version, recorded a clean result for these exact bytes.
+    /// Replaying it would hide the refusal this build makes until a file changed.
+    #[test]
+    fn a_clean_snapshot_written_before_878_does_not_hide_a_new_refusal() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        let mut snapshot = CachedValidationSnapshot {
+            snapshot_version: SNAPSHOT_VERSION,
+            spec_path: "specs/auth/auth.spec.md".into(),
+            errors: vec![],
+            warnings: vec![],
+            notices: vec![],
+            input_digest: validation_input_digest_before_878(root, &spec_path, &[], &inventory),
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = validation_snapshot_digest(&snapshot);
+        let mut cache = HashCache::default();
+        cache
+            .snapshots
+            .insert("specs/auth/auth.spec.md".into(), snapshot);
+
+        assert!(
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "a clean result recorded before #878 must not replay over this build's refusal"
+        );
+        let requirements = fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap();
+        assert_eq!(
+            crate::validator::duplicate_requirement_errors_in(
+                &requirements,
+                "specs/auth/requirements.md"
+            ),
+            vec![
+                "requirement ID `REQ-auth-001` appears 2 times in specs/auth/requirements.md"
+                    .to_string()
+            ],
+            "re-validation is what reports the refusal the replay would have hidden"
+        );
     }
 }

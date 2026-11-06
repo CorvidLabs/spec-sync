@@ -1150,3 +1150,42 @@ fn a_cached_legacy_introduction_pass_never_hides_a_changed_archive_or_baseline()
     again.unwrap();
     assert_eq!(again_processes, warm_processes);
 }
+
+/// Git processes one warm `change status` of an archived change spawns in a repository that also
+/// tracks `extra` ordinary files.
+fn warm_archived_status_processes_with_tracked_files(extra: usize) -> usize {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let target = finalized_archived_change(root);
+    if extra > 0 {
+        let dir = root.join("src-extra");
+        fs::create_dir_all(&dir).unwrap();
+        for index in 0..extra {
+            fs::write(dir.join(format!("file-{index:05}.txt")), format!("{index}\n")).unwrap();
+        }
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-q", "-m", "more tracked files"]);
+    }
+    git_processes_for_one_scoped_read(root, &target.id).0.unwrap();
+    let (result, processes) = git_processes_for_one_scoped_read(root, &target.id);
+    result.unwrap();
+    processes
+}
+
+// Warm path (SPEED-1.a): a warm status of an archived change must not digest the whole working
+// tree. Today `summarize_change_with_effective` computes `scoped_review_current` for every state,
+// which takes the project-input digest twice over every tracked file (on Raven, 130 of 183 Git
+// processes and about 60% of the time), although an archived change's review is history.
+#[test]
+fn warm_archived_status_git_processes_do_not_grow_with_tracked_files() {
+    let few = warm_archived_status_processes_with_tracked_files(0);
+    let many = warm_archived_status_processes_with_tracked_files(3000);
+    eprintln!("warm archived status Git processes: {few} with no extra files, {many} with 3000");
+    assert!(
+        many < few + 3,
+        "3000 more tracked files added {} Git processes to one warm archived status read \
+         ({few} without them, {many} with them)",
+        many.saturating_sub(few)
+    );
+}

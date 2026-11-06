@@ -3556,6 +3556,8 @@ fn live_archived_state_paths(
         &[
             "log",
             "--full-history",
+            // A root commit's paths are candidates whatever `log.showRoot` says.
+            "--root",
             "--format=",
             "--name-only",
             "-z",
@@ -4513,7 +4515,10 @@ thread_local! {
 /// The command's lifecycle-state history index for `root`, building it on first use. `None`
 /// outside a change read scope, or when the walk cannot answer; callers then ask Git per change.
 fn lifecycle_state_history(root: &Path) -> Option<std::rc::Rc<LifecycleStateHistory>> {
-    if lifecycle_state_history_disabled() || read_scope_value(root, |_| Some(())).is_none() {
+    if lifecycle_state_history_disabled()
+        || read_scope_value(root, |_| Some(())).is_none()
+        || !history_is_fixed_by_head(root)
+    {
         return None;
     }
     let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
@@ -4532,6 +4537,42 @@ fn lifecycle_state_history(root: &Path) -> Option<std::rc::Rc<LifecycleStateHist
         *slot.borrow_mut() = Some((root.to_path_buf(), head, built.clone()));
     });
     built
+}
+
+/// Whether the history Git walks from `HEAD` is fixed by that commit alone: not a shallow
+/// clone (deepening it reveals commits), no grafts and no replace refs (both rewrite parents and
+/// trees without moving `HEAD`). Only then may an index built for one `HEAD` be reused. These are
+/// the read cache's conditions; a partial clone is fine here, since a missing object makes the
+/// read fail rather than change what the walk lists.
+fn history_is_fixed_by_head(root: &Path) -> bool {
+    let Some(probe) = git_output(
+        root,
+        &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
+    ) else {
+        return false;
+    };
+    let mut probe = probe.lines();
+    if probe.next() != Some("false") {
+        return false;
+    }
+    let Some(common_dir) = probe.next().map(PathBuf::from) else {
+        return false;
+    };
+    let common_dir = if common_dir.is_absolute() {
+        common_dir
+    } else {
+        root.join(common_dir)
+    };
+    if common_dir.join("info").join("grafts").exists() {
+        return false;
+    }
+    run_git_bounded(
+        root,
+        &["for-each-ref", "--count=1", "--format=%(refname)", "refs/replace/"],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .is_ok_and(|refs| refs.status.success() && refs.stdout.trim_ascii().is_empty())
 }
 
 fn build_lifecycle_state_history(root: &Path, head: &str) -> Option<LifecycleStateHistory> {

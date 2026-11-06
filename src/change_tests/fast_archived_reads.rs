@@ -1004,6 +1004,50 @@ fn follows_an_earlier_archive_path_through_a_hidden_downgrade(root: &Path) {
     );
 }
 
+/// The read-cache identity every build wrote before #878: the package version and the bundled
+/// limits, and nothing that names the code. Every build of one version shared it, and the cache
+/// lives in the Git common directory, so sibling worktrees on different code shared it too.
+/// Frozen on purpose, because it stands for caches already on disk; do not update it.
+fn read_cache_identity_before_878() -> String {
+    format!(
+        "{}+{}",
+        env!("CARGO_PKG_VERSION"),
+        sha256_hex(include_str!("../lifecycle-validation-limits.json").as_bytes())
+    )
+}
+
+/// Verifies REQ-change-134 (#878). DISCRIMINATOR: the persistent read cache holds a passing
+/// workflow-history verdict stamped by a build from before #878 at this same version. This build
+/// must not reuse it: it recomputes the verdict and rewrites the cache under its own identity.
+#[test]
+fn a_read_cache_written_by_a_build_before_878_is_not_reused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+    let path = persistent_read_cache_path(root).expect("the fixture repository caches");
+    let mut cache: PersistentReadCache =
+        serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert!(
+        cache.workflow_history.contains_key(&record.id),
+        "the first read cached the archived change's passing verdict"
+    );
+    cache.specsync_version = read_cache_identity_before_878();
+    fs::write(&path, serde_json::to_vec(&cache).unwrap()).unwrap();
+
+    git_processes_for_one_scoped_read(root, &record.id).0.unwrap();
+    let rewritten: PersistentReadCache =
+        serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert_ne!(
+        rewritten.specsync_version,
+        read_cache_identity_before_878(),
+        "a read cache stamped by a build from before #878 must not be reused"
+    );
+    assert_eq!(rewritten.specsync_version, read_cache_build_identity());
+    assert!(rewritten.workflow_history.contains_key(&record.id));
+}
+
 /// A repository whose `count` legacy archives were each introduced by their own commit before
 /// the cutoff, with the baseline that enumerates them, its ledger digest, and their current
 /// subtrees captured the way `load_legacy_archive_baseline_context` captures them.

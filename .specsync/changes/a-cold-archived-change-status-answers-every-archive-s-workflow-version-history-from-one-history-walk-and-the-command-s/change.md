@@ -1,6 +1,6 @@
 ---
 id: a-cold-archived-change-status-answers-every-archive-s-workflow-version-history-from-one-history-walk-and-the-command-s
-state: approved
+state: implementing
 type: feature
 base_commit: 0623412fe1e3cd6e1cc636efb097d100d468a631
 ---

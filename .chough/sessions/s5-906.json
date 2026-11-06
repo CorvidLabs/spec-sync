@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-63f012bed1de50d9896143fe",
-    "head": "EVT-7f571f1e1f32a944d64621f9",
+    "head": "EVT-a086ff8ea9e3a31da98366ce",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "accept",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -34,19 +34,19 @@
     "decided: the fixture's verify lane is `specsync check --strict` run on the current tip, because the fixture has no product test suite and SpecSync itself never runs or observes a project lane",
     "Leif decided \"Scope approval of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif; queued for his morning, recorded by orc)\": \"Ok yes I approve all\" (orc tab, 06:1x MST 2026-11-06, relayed by orc t18; native approval recorded as 0xLeif by the orc at 2043e73c); recorded by claude (ss-docs); a relayed claim, not authenticated",
     "Option A for #906 (Leif, orc tab 2026-11-06, relayed by orc t18): add '# fill in specs/auth/ (the spec and its companions; Spec Format guide)' after add-spec auth on the landing page; the harness fills the scaffold in at that line; the fixture lane stays specsync check --strict. Rejected: B (non-strict lane for the landing fixture: weaker, and a strict reader still goes red) and C (README-only now: leaves DOCS-2 unmet on the landing page)",
-    "Leif decided \"Re-approval of the amended scope of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif, option A; recorded by orc)\": \"A: add one page line\" (orc tab 2026-11-06, relayed by orc t18; native re-approval recorded as 0xLeif by the orc at b7a2a5f6); recorded by claude (ss-docs); a relayed claim, not authenticated"
+    "Leif decided \"Re-approval of the amended scope of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif, option A; recorded by orc)\": \"A: add one page line\" (orc tab 2026-11-06, relayed by orc t18; native re-approval recorded as 0xLeif by the orc at b7a2a5f6); recorded by claude (ss-docs); a relayed claim, not authenticated",
+    "Leif decided \"Implementation review of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif, on GitHub; the orc records change review as 0xLeif only after that)\": \"pass (review relayed by orc)\" (orc tab 2026-11-06, relayed by orc t18; native change review recorded as 0xLeif (pass) by the orc at 990de72b; shipped at 8c951b54); recorded by claude (ss-docs); a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
     "Failing test at 3758d970: landing_page_change_workflow_runs_from_its_quick_start fails at change review (no verify step); README passes, and fails at review with its verify line removed (mutation run locally, then restored)",
-    "Built #906 option A at 1583d6c6 on top of #917's archive tip (merged a991b943): landing page verify-lane line (a6a028ee) and fill-in line, harness fills the add-spec scaffold, lane stays strict. Mutations at 1583d6c6: dropping the fill-in line fails at 'tells the reader to fill in'; dropping the verify-lane line fails at the review. fledge lanes run verify green at 1583d6c6 on rust 1.89.0 (7 steps, 26m44s; 2830 unit passed/2 ignored, 497 integration passed). No chough evidence record: this no-spec change has no contract for chough evidence add"
+    "Built #906 option A at 1583d6c6 on top of #917's archive tip (merged a991b943): landing page verify-lane line (a6a028ee) and fill-in line, harness fills the add-spec scaffold, lane stays strict. Mutations at 1583d6c6: dropping the fill-in line fails at 'tells the reader to fill in'; dropping the verify-lane line fails at the review. fledge lanes run verify green at 1583d6c6 on rust 1.89.0 (7 steps, 26m44s; 2830 unit passed/2 ignored, 497 integration passed). No chough evidence record: this no-spec change has no contract for chough evidence add",
+    "Review recorded as 0xLeif (pass) by the orc at 990de72b; change ship archived it at 8c951b54 with no commit between"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Implementation review of make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906 (Leif, on GitHub; the orc records change review as 0xLeif only after that)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After Leif's review is recorded: change ship make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906, push the archive tip, CI; merge in the queue on the orc's word, pinned"
+  "next_action": "Push the archive tip, CI; PR #952 merges after #936 in the queue, on the orc's word, pinned"
 }

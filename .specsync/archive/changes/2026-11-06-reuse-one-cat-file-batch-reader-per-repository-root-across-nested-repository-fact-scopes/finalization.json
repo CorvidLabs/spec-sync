@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes",
+  "implementation_commit": "008aee5133d75daa3051d3f14f259d9b842036a6",
+  "implementation_tree": "becc0d6b3194808b0277df4a0af0292435661c71",
+  "contract_digest": "7a3f64cac7cfd315357c34c3f1c9ee7019bcd4712a3b65068cb6518ca58a21b5",
+  "workspace_digest": "9833edc47e8e22414bc0d5419ea0773c27ee460b3a18367d3f581b3299ae9586",
+  "closing_digest": "fcfee694d52b79e875f8ff2781248cdd0baa24dc72e854294fa2f75871517860",
+  "review_digest": "0c2d138f612faf872b7120467040ece5842c11dfc754d6fec10a6c4ecd211596",
+  "finalization_digest": "1ca5c2551c3831d367e62e39b781adea0743d6cd0139e48c864a0796f1039340",
+  "timestamp": 1793935946
+}

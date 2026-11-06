@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "let-change-check-commit-a-project-rooted-in-a-repository-subdirectory",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8b0be3cbedc656244e3b9a9917eff8423f4154fc",
+      "contract_digest": "218ccd84e610af260db40566dce92a721da7a49b1059dd293ec9a510acb91fbc",
+      "execution_digest": "d1a09d6b46b68447b93bbef98811a681e6e517724f55c31299daee5133830f7b",
+      "workspace_digest": "0d2776bdc6b1cd21e2195b7cdebe5126c5a506bce4e7a03bb03f4118496f8d38",
+      "timestamp": 1793934029
+    }
+  ]
+}

@@ -124,6 +124,7 @@ Within one SpecSync process, committed blob contents and tree listings read at a
 #### Acceptance Criteria
 
 - Reading many blobs at fixed commits in one process starts one `git cat-file --batch` child.
+- A read in a scope nested inside an open scope for the same root uses the reader the outer scope already started, and a reader a nested scope starts is the one later reads in the outer scope use.
 - Batched reads equal per-file reads byte for byte, including empty files and binary content.
 - A missing path or object reads as absent, as before.
 - A read through `HEAD` after the process commits returns the new commit's content.

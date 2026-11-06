@@ -4727,12 +4727,14 @@ fn acceptance_manifest_internal(
     if let Some(signed) = signed {
         extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
     }
-    let (mut paths, evidence) = stable_discovered_evidence(
+    // Clean files are named by object id and streamed one blob at a time below, so the scope's
+    // clean bytes are never read in one batch (REQ-change-144).
+    let (mut paths, mut evidence) = stable_discovered_evidence(
         root,
         Some(&discovery_scopes),
         &extra_candidates,
         false,
-        false,
+        true,
     )?;
     paths.retain(|path| {
         (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
@@ -4743,29 +4745,33 @@ fn acceptance_manifest_internal(
     } else {
         None
     };
+    let mut payloads = DeliveryPayloads::new(root);
+    if signed.is_none() {
+        payloads.materialize_affected_specs(record, &mut evidence)?;
+    }
     let mut entries = Vec::new();
     for relative in paths {
-        let (kind, mode, payload) = if let Some(content) = override_content.get(&relative) {
+        let (kind, mode, payload_digest) = if let Some(content) = override_content.get(&relative)
+        {
             let mode = evidence.generated_file_mode(&relative)?;
             let kind = acceptance_kind_for_mode(mode);
-            (kind, mode, content.to_vec())
+            (kind, mode, sha256_hex(content))
         } else if relative == SEQUENCE_PATH
             && let Some(content) = &historical_sequence_ledger
         {
             (
                 AcceptanceInputKind::File,
                 evidence.generated_file_mode(&relative)?,
-                content.clone(),
+                sha256_hex(content),
             )
         } else {
             let captured = evidence.entry(&relative)?;
             (
                 captured.kind.clone(),
                 captured.mode,
-                captured.payload.clone(),
+                sha256_hex(&payloads.of(&relative, captured)?),
             )
         };
-        let payload_digest = sha256_hex(&payload);
         let owners = if let Some(signed) = signed {
             signed
                 .entries

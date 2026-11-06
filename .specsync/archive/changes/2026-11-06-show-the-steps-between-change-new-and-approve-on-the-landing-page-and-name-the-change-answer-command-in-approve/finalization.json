@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "show-the-steps-between-change-new-and-approve-on-the-landing-page-and-name-the-change-answer-command-in-approve",
+  "implementation_commit": "39ec1ee36bf79eacb0ec0f27d904acb7b7d69574",
+  "implementation_tree": "e2c3fbf177bc9481f52a97a650cf7583befcc7ed",
+  "contract_digest": "f2c19ddc7ee4d4f9df0eb492dbff0403d6d1b77ffc8a79cf8fd7c3a36ec5d7ea",
+  "workspace_digest": "98ecbf6fbdd71d9c021b45bfb99bf701edcd70d81a4ede021aa47fe2898fecb1",
+  "closing_digest": "b83f2c65629b8506ee6472b7c923f8b2da2f133bc829bc6b0ab36a3d61b02711",
+  "review_digest": "1bf03f4ea266554ca5219f8f4766fc468fb3feb215c55665967308e128f7ce6c",
+  "finalization_digest": "59e20e7c540238cff66aada21979843a677e4be646afd88a464380560bbe9857",
+  "timestamp": 1793946961
+}

@@ -36,6 +36,8 @@ artifact: testing
 | M892-status-text | text `Next:` has no prefix | text status must name the open task first |
 | M892-ship-status | no ship-status blocker | `ready_to_finalize` / blocker assertion |
 
+- The first full `cargo test` run (pinned 1.89) failed one test: `post_move_same_pr_finalization_resumes_across_dates_without_another_approval`. The finalize gate also ran on a resumed, already-moved finalization and could not find the active `tasks.md`. At 261bd4aa the gate runs only before acceptance (Verifying). That test, the 22 `finaliz` unit tests and the gate-level test pass, and M892-finalize, re-run against the moved gate, is still killed ("unexpected success" at finalize).
+
 ## Requirement evidence
 
 | Requirement | Evidence |

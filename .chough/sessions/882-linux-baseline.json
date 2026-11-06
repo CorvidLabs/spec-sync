@@ -23,7 +23,7 @@
       "INSTALL-1.c"
     ],
     "requirements": [
-      "REQ-github-024"
+      "REQ-github-025"
     ],
     "cases": [],
     "design": [],
@@ -39,7 +39,8 @@
     "Leif (2026-11-05 20:35 MST, orc tab, relayed by orc t18): \"Both arches, glibc 2.35, + musl\": intent INSTALL-1/1.a/1.b/1.c as drafted; fix x86_64 and ARM64 gnu builds on Ubuntu 22.04 (floor glibc 2.35 = Ubuntu 22.04 / Debian 12+); add specsync-linux-aarch64-musl as the fallback; a release whose Linux download wouldn't start on the floor is stopped (CI runs the built binaries in ubuntu:22.04 and debian:12). No tag or publish.",
     "rejected: ARM64-only scope and documenting cargo install as the only ARM64 fallback because Leif chose both arches plus an aarch64 musl download",
     "decided: record the release baseline as REQ-github-024 in the github spec because the release-matrix contract has lived there since CHG-0075 and the Windows drop, and Chough evidence needs a native contract",
-    "rejected: a no-spec change like CHG-0048 because the github spec owns the release distribution contract"
+    "rejected: a no-spec change like CHG-0048 because the github spec owns the release distribution contract",
+    "decided: renumber the release-baseline requirement from REQ-github-024 to REQ-github-025 because spec-sync#886 (branch fix/886-comment-readonly-token, approved) already holds 024 (orc t18); scope unchanged"
   ],
   "open_questions": [],
   "completed": [
@@ -54,8 +55,8 @@
     "change check --commit verified (575ddcd9); fledge verify steps pass on pinned 1.89; pre-push green",
     "Shipped: archived at 2bc2ba92",
     "Captured approved INSTALL-1, 1.a, 1.b, 1.c in hi/install.md (Leif's approval relayed by orc t18, 20:35 MST)",
-    "Defined native change build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (operations, spec github, REQ-github-024 delta, 11 acceptance criteria, all artifacts complete)",
-    "Failing test first: .github/scripts/linux-baseline.py + test-linux-baseline.py written; red recorded in the change testing.md (v6.2.0 ARM64 rejected with GLIBC_2.39 on ubuntu:22.04 and debian:12; 15 structural failures on the unmodified tree); positive control passes on new-recipe ARM64 archives"
+    "Failing test first: .github/scripts/linux-baseline.py + test-linux-baseline.py written; red recorded in the change testing.md (v6.2.0 ARM64 rejected with GLIBC_2.39 on ubuntu:22.04 and debian:12; 15 structural failures on the unmodified tree); positive control passes on new-recipe ARM64 archives",
+    "Defined native change build-the-linux-glibc-release-binaries-on-ubuntu-22-04-add-a-static-aarch64-musl-fallback-and-stop-a-release-whose (operations, spec github, REQ-github-025 delta, 11 acceptance criteria, all artifacts complete)"
   ],
   "observations": [],
   "bugs": [],

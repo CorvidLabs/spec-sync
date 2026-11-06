@@ -5,7 +5,7 @@ artifact: requirements
 
 # Requirements
 
-- REQ-github-024 (added, `github`): the prebuilt Linux release downloads start on their documented
+- REQ-github-025 (added, `github`): the prebuilt Linux release downloads start on their documented
   baseline. The glibc downloads are linked on Ubuntu 22.04, so they start on glibc 2.35 or newer
   (Ubuntu 22.04, Debian 12 and newer). The static musl downloads, one per architecture, are the
   fallback below that floor. Both release workflows refuse to upload a Linux archive that fails

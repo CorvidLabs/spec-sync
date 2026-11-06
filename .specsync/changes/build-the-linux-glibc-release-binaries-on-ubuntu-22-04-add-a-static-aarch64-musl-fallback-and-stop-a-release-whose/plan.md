@@ -36,7 +36,7 @@ release workflows, and exercise the same recipe and check in PR CI. Write the fa
    `implementation-gate` and `corvid-pet`, and add the path filter.
 4. Add the aarch64 musl archive to `EXPECTED_ARTIFACT_ARCHIVES` and update its tests.
 5. Add the `linux-baseline-test` fledge task to the `verify`, `ci` and `repo` lanes.
-6. Docs: README, Action docs, RELEASING.md, HLD.md, SCOPE.md, CHANGELOG. `specsync change check` materializes REQ-github-024; then bump the `github` spec version, add its Change Log row and a `github.3md` lesson plane.
+6. Docs: README, Action docs, RELEASING.md, HLD.md, SCOPE.md, CHANGELOG. `specsync change check` materializes REQ-github-025; then bump the `github` spec version, add its Change Log row and a `github.3md` lesson plane.
 7. Green: build the ARM64 glibc and musl archives locally with the new recipe (in Ubuntu 22.04
    and 24.04 containers), then run the check on them. Run the structural, release-validator and
    CI-gate tests, then `fledge lanes run verify`, `specsync check --strict`, `hi check` and the
@@ -64,7 +64,7 @@ Estimate, by relative size, because `chough timing` history for this kind of cha
 
 ## Constraints consulted
 
-- `specs/github/github.3md`: hermetic release guards (stdlib-only Python run with `-I`, YAML read through Ruby's Psych); archive-first CI; offline tests do not prove publication or platform qualification. The release-matrix contract has lived in the `github` spec since CHG-0075 and the Windows drop, so this change records REQ-github-024 there rather than shipping as no-spec, as CHG-0048 did.
+- `specs/github/github.3md`: hermetic release guards (stdlib-only Python run with `-I`, YAML read through Ruby's Psych); archive-first CI; offline tests do not prove publication or platform qualification. The release-matrix contract has lived in the `github` spec since CHG-0075 and the Windows drop, so this change records REQ-github-025 there rather than shipping as no-spec, as CHG-0048 did.
 - CHG-0048 (#392) and the musl toolchain pattern.
 - `release.yml` "NO CACHE HERE" on the publishing job (kept: no cache is added there).
 - The `implementation-gate` rules enforced by `test-required-ci-gate.py` (#796).

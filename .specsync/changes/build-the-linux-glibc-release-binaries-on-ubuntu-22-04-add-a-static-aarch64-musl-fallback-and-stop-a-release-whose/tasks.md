@@ -11,7 +11,7 @@ artifact: tasks
 - [ ] `validate-release-candidate.py` expects `specsync-linux-aarch64-musl`; tests follow
 - [ ] `linux-baseline-test` fledge task in the verify, ci and repo lanes
 - [ ] README, Action docs, RELEASING.md, HLD.md, SCOPE.md and CHANGELOG
-- [ ] `github` spec: REQ-github-024 materialized by `change check`, version bump, Change Log row, and a lesson plane in `github.3md`
+- [ ] `github` spec: REQ-github-025 materialized by `change check`, version bump, Change Log row, and a lesson plane in `github.3md`
 - [ ] Green local evidence: new-recipe ARM64 archives pass the check; all script tests and lanes pass
 
 Human gates, not tasks: scope approval and implementation review, both relayed through orc t18.

@@ -16,4 +16,4 @@ artifact: docs
 - `CHANGELOG.md` Unreleased: the Linux downloads start on glibc 2.35 (Ubuntu 22.04, Debian 12) and
   the new ARM64 musl download (#882).
 - `hi/install.md` and the `INTENT.md` index: INSTALL-1 to INSTALL-1.c, as captured.
-- `specs/github`: REQ-github-024 in `requirements.md` (materialized), a version bump and Change Log row in `github.spec.md`, and a new lesson plane in `github.3md`.
+- `specs/github`: REQ-github-025 in `requirements.md` (materialized), a version bump and Change Log row in `github.spec.md`, and a new lesson plane in `github.3md`.

@@ -17,7 +17,7 @@ Build the Linux glibc release binaries on Ubuntu 22.04, add a static aarch64 mus
 
 ## Acceptance Criteria
 
-- The `github` spec gains REQ-github-024: the prebuilt Linux release downloads start on the documented glibc 2.35 baseline (Ubuntu 22.04, Debian 12 and newer), a static musl download per architecture starts below it, and both release workflows refuse to upload a Linux archive that does not start on its baseline; the spec version, Public API notes and Change Log follow.
+- The `github` spec gains REQ-github-025: the prebuilt Linux release downloads start on the documented glibc 2.35 baseline (Ubuntu 22.04, Debian 12 and newer), a static musl download per architecture starts below it, and both release workflows refuse to upload a Linux archive that does not start on its baseline; the spec version, Public API notes and Change Log follow.
 - `release.yml` and `rc-assets.yml` build `specsync-linux-x86_64` and `specsync-linux-aarch64` natively on GitHub's Ubuntu 22.04 runners (`ubuntu-22.04` and `ubuntu-22.04-arm`) instead of `ubuntu-latest`, so no Linux glibc download needs a glibc newer than 2.35 (INSTALL-1).
 - Both release workflows build a new static `specsync-linux-aarch64-musl` download natively on `ubuntu-24.04-arm` with `musl-tools`, and the release artifact validator expects it alongside the existing five archives (INSTALL-1.b).
 - `.github/scripts/linux-baseline.py check` verifies a packaged Linux archive against its `.sha256` sidecar, extracts the single binary and runs it with no network, as user 65534 on a read-only root filesystem, in digest-pinned containers: glibc downloads on `ubuntu:22.04` (the floor) and `debian:12-slim` (the system reported in #882), musl downloads on those two plus `debian:11-slim` and `alpine:3.22`.

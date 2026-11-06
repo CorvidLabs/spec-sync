@@ -58,4 +58,4 @@ Results and commands are recorded below and as Chough evidence while the work ru
    - README and the Action docs not naming the floor.
 
 Chough evidence for these runs is recorded after approval, by re-running them before the fix,
-because the evidence links REQ-github-024, which `change check` materializes only after approval.
+because the evidence links REQ-github-025, which `change check` materializes only after approval.

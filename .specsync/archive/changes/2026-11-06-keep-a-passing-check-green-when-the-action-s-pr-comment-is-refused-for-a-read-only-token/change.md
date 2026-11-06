@@ -1,6 +1,6 @@
 ---
 id: keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ad50bdef3db58a715877877d2407485bcaed0f32
 ---

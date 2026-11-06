@@ -13,12 +13,12 @@ artifact: design
 - The command is the one that refused, with its flags:
   - check: `specsync change check <id>`, plus `--strict`, `--commit` and `--push` as given. This uses a new `CheckInvocation` passed by the CLI; `check_change_with_strict` stays as a wrapper.
   - verify: `specsync change verify <id>` (`--strict`).
-  - review: `specsync change review <id> --reviewer <reviewer>`, single-quoted if it contains a space.
+  - review: `specsync change review <id> --reviewer=<reviewer>`, attached with `=` so a claim starting with `-` parses, and single-quoted if it contains a space (Codex review of #903).
   - finalize: `specsync change finalize <id>`.
   - ship: `specsync change ship <id>` with `--dry-run`, `--push` and `--wait` as given.
 - Where the gate runs, each time before any record is written:
   - review: after state and approval checks, for a `pass` verdict only. A non-pass verdict on unfinished work stays legitimate.
-  - finalize: after the legacy and materialization checks, before acceptance, for a Verifying change. A resumed finalization (Accepted) already passed the gate when it was accepted, and its workspace may already be in the archive. `post_move_same_pr_finalization_resumes_across_dates_without_another_approval` caught the first cut, which also gated the resume.
+  - finalize: after the legacy and materialization checks, before acceptance (Verifying), and again when a finalization that stopped after acceptance is retried while its workspace is still under `.specsync/changes/`, because a task can be reopened in between. A workspace already moved into the archive resumes; it passed the gate when it was accepted. The first cut gated every resume, and `post_move_same_pr_finalization_resumes_across_dates_without_another_approval` caught it. The second cut skipped every resume, and the Codex review of #903 caught that.
   - ship: right before its readiness refusal, so the message is not doubled.
   - ship-status: an incomplete-tasks blocker, so `ready_to_finalize` is false.
 - Status: for Approved, Implementing and Verifying, with a current approval and complete artifacts, `Next:` becomes `<next step>, then <what it would otherwise say>`. This holds in the CLI text and in the library JSON `next_action`. Sequence-freeze and `verification_ignored_paths` actions still come first.

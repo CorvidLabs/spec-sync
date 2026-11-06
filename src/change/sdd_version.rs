@@ -96,6 +96,10 @@ thread_local! {
     /// When true, `reconstruct_legacy_at_anchor` pretends `git worktree remove` failed.
     /// Product #511: cleanup hygiene must not discard a successful reconstruction.
     static FORCE_LEGACY_WORKTREE_REMOVE_FAILURE: Cell<bool> = const { Cell::new(false) };
+    /// `(batch, object)`: shrinks the evidence read bounds so a small fixture can exceed them
+    /// (#976). `None` keeps the production bound.
+    static TEST_GIT_EVIDENCE_CAPS: Cell<(Option<usize>, Option<usize>)> =
+        const { Cell::new((None, None)) };
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]

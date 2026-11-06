@@ -1,4 +1,48 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793987970,
+      "digest": "4b0faddaf422cdece06dda6f2c6a49946daf20400e26ab359c4bfdaeb4357bc7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent",
+        "title": "Stop review and finalize when the upstream archive cannot be read instead of reading it as absent",
+        "description": "Stop review and finalize when the upstream archive cannot be read instead of reading it as absent",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "src/change/",
+          "src/change_tests/upstream_archive.rs",
+          "tests/integration/archived_upstream.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A project with no remote default, or a remote default whose archive is read and holds no copy of the change, is unchanged: nothing is reported and review and finalize proceed.",
+          "A unit test and an integration test that remove the archived record's blob from the clone fail on the base first and pass after.",
+          "SHIP-3.c: when a remote default exists and its archived state records cannot be listed or read (a failed or truncated ls-tree or cat-file --batch, or a failed lookup of a matching package's addition or ancestry), `change review` and `change finalize` refuse before acceptance and write no archive.",
+          "The refusal names the remote default reference, says the tool cannot tell whether the change is already archived there, and names how to find out: fetch the remote default, then list its archived packages for this id.",
+          "`change status` and `change ship-status` report the same refusal, never `safe` or ready to finalize."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "a8e3b13f199078afe43c0a713a4942b00da5d2cd00b5a917240a3b14fcac6eee"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

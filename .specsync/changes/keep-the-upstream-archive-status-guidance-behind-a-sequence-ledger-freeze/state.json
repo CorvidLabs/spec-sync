@@ -7,10 +7,11 @@
   "title": "Keep the upstream-archive status guidance behind a sequence-ledger freeze",
   "description": "Keep the upstream-archive status guidance behind a sequence-ledger freeze",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b",
   "created_at": 1793948324,
-  "updated_at": 1793948334,
+  "updated_at": 1793971092,
   "affected_specs": [
     "change",
     "cmd_change"

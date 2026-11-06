@@ -1,6 +1,6 @@
 ---
 module: change
-version: 218
+version: 219
 status: active
 files:
   - src/change.rs
@@ -736,6 +736,7 @@ Acceptance Criteria
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-06 | keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze: Keep the upstream-archive status guidance behind a sequence-ledger freeze |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

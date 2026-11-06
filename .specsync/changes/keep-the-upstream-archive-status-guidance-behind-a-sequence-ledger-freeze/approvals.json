@@ -1,4 +1,49 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793970818,
+      "digest": "e240409345999079b79421d5647963fa85bcca33c695be0c9b5634cc00fdf6eb",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze",
+        "title": "Keep the upstream-archive status guidance behind a sequence-ledger freeze",
+        "description": "Keep the upstream-archive status guidance behind a sequence-ledger freeze",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "src/change/",
+          "src/commands/change.rs",
+          "tests/integration/archived_upstream.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An integration test built from the auditor's squash fixture plus a frozen ledger fails on main first and passes after.",
+          "Text `change status` and the ship-status lifecycle next action give the same freeze step in that case.",
+          "When a change is archived upstream and the change-sequence ledger is frozen, `change status --json` gives the freeze in `next_action` and in `handoff.before_clearing`, not the upstream-archive rebase step.",
+          "Without a freeze, the upstream-archive guidance is unchanged: text, JSON next_action and handoff all name it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "468bb3c6c0ebd3e716d29cbb87f586a9d6df22159e2f5c38b16c55bc2267c0c0",
+        "cmd_change": "bd8438ea57be430a4cef156bc6e56fe3404f5dde7f6a2f33f990ccd24d2c7954"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

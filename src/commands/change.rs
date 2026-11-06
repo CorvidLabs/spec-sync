@@ -927,6 +927,11 @@ fn text_mode_next_action(
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
     }
+    // After the project-wide refusals above, in the same order as JSON status: an archive of
+    // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).
+    if let Some(upstream) = change::upstream_archive_of(root, record) {
+        return change::upstream_archive_message(id, &upstream);
+    }
     match record.state {
         ChangeState::Draft if !questions.is_empty() => {
             let question = questions
@@ -1062,12 +1067,18 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             "{refusal}; fix `.specsync/sdd.json` before check, review or finalize"
         ));
     }
+    let upstream_archive = change::upstream_archive_of(root, record);
+    if let Some(upstream) = &upstream_archive {
+        blockers.push(change::upstream_archive_message(&record.id, upstream));
+    }
     // No digest sees checkbox state, so the currency blockers below cannot report an open task;
-    // check, review, finalize and ship would each refuse it (REQ-cmd-change-031).
-    let open_tasks_step = matches!(
-        record.state,
-        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-    )
+    // check, review, finalize and ship would each refuse it (REQ-cmd-change-031). A change already
+    // archived upstream is told that instead.
+    let open_tasks_step = (upstream_archive.is_none()
+        && matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        ))
     .then(|| change::open_tasks_next_step(root, record))
     .flatten();
     if let Some(step) = &open_tasks_step {
@@ -1192,7 +1203,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             })
         });
 
-    let ship_next = if ready_to_finalize {
+    let ship_next = if let Some(upstream) = &upstream_archive {
+        change::upstream_archive_message(&record.id, upstream)
+    } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(
         record.state,
@@ -2383,15 +2396,17 @@ fn run_ship(
         return Err(before);
     }
     // Before the generic readiness refusal, so the command to re-run is this one, flags and all
-    // (REQ-cmd-change-031).
+    // (REQ-cmd-change-031). A change already archived upstream gets that blocker below instead.
     if matches!(
         record.state,
         ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-    ) && let Some(refusal) = change::open_tasks_refusal(
-        root,
-        &record,
-        &ship_command(&record.id, dry_run, push, wait, wait_timeout_secs),
-    ) {
+    ) && change::upstream_archive_of(root, &record).is_none()
+        && let Some(refusal) = change::open_tasks_refusal(
+            root,
+            &record,
+            &ship_command(&record.id, dry_run, push, wait, wait_timeout_secs),
+        )
+    {
         return Err(refusal);
     }
     if !ready {

@@ -46,5 +46,18 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane",
+      "actor": "0xLeif",
+      "reason": "Add .github/scripts/test-linux-baseline.py to affected_paths: dropping the path filters breaks its rc-assets trigger assertion, which must keep checking whenever a filter exists. Leif approved adding the file (orc tab, 2026-11-06).",
+      "timestamp": 1793980093,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": false
+    }
+  ]
 }

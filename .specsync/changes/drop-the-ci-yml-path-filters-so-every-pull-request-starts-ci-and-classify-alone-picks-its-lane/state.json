@@ -7,10 +7,10 @@
   "title": "Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane",
   "description": "Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane",
   "kind": "operations",
-  "state": "approved",
+  "state": "draft",
   "base_commit": "7ae7245f97e7cfd66cd80ce39b611becb1095642",
   "created_at": 1793979443,
-  "updated_at": 1793979902,
+  "updated_at": 1793980121,
   "affected_specs": [
     "github"
   ],
@@ -20,7 +20,8 @@
     "fledge.toml",
     "specs/github/",
     "hi/ci.md",
-    "INTENT.md"
+    "INTENT.md",
+    ".github/scripts/test-linux-baseline.py"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

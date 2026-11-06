@@ -39,6 +39,23 @@ pub struct LateCloseRecord {
     pub dropped_collision_acknowledgement: Option<LateCloseCollision>,
 }
 
+/// Whether `name` is a closed-late package directory for `id`: `YYYY-MM-DD-<id>`, the only form a
+/// late close writes.
+fn is_closed_late_name_for(name: &str, id: &str) -> bool {
+    let Some(date) = name.strip_suffix(id).and_then(|rest| rest.strip_suffix('-')) else {
+        return false;
+    };
+    let bytes = date.as_bytes();
+    bytes.len() == 10
+        && bytes.iter().enumerate().all(|(index, byte)| {
+            if matches!(index, 4 | 7) {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+}
+
 /// The closed-late package for `id`, if there is one.
 fn closed_late_package(root: &Path, id: &str) -> Option<PathBuf> {
     fs::read_dir(root.join(CLOSED_LATE_PATH))
@@ -50,7 +67,7 @@ fn closed_late_package(root: &Path, id: &str) -> Option<PathBuf> {
                 && path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .is_some_and(|name| is_dated_package_for(name, id))
+                    .is_some_and(|name| is_closed_late_name_for(name, id))
         })
 }
 
@@ -110,7 +127,7 @@ fn closed_late_ids(root: &Path) -> Vec<(String, PathBuf)> {
         .filter_map(|entry| {
             let name = entry.file_name().to_str()?.to_string();
             let id = name.get(11..)?.to_string();
-            is_dated_package_for(&name, &id).then(|| (id, entry.path()))
+            is_closed_late_name_for(&name, &id).then(|| (id, entry.path()))
         })
         .collect();
     ids.sort();
@@ -621,18 +638,20 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
     })
 }
 
-/// The dated package under `.specsync/archive/changes/` whose name ends in `id`.
+/// The package under `.specsync/archive/changes/` whose `state.json` records `id`. An archive is
+/// identified by what it records, not by its directory name, which a hand archive need not
+/// follow (#907).
 fn archived_package_for(root: &Path, id: &str) -> Option<PathBuf> {
     fs::read_dir(root.join(ARCHIVE_PATH))
         .ok()?
         .flatten()
         .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
         .find(|path| {
-            path.is_dir()
-                && path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| is_dated_package_for(name, id))
+            fs::read(path.join("state.json"))
+                .ok()
+                .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
+                .is_some_and(|record| record.id == id)
         })
 }
 

@@ -1,0 +1,100 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793971197,
+      "digest": "f99a8011166f42459d62942abd1d2ca5aa657c12a14019c4ed70e2d9ceb54b27",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906",
+        "title": "Make the documented workflow tests run the local verify step and require it before the scoped review (#906)",
+        "description": "Make the documented workflow tests run the local verify step and require it before the scoped review (#906)",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "site/src/content/docs/index.md",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A documentation test and one landing-page line; no module contract, export or requirement changes",
+        "acceptance_criteria": [
+          "In the README and landing-page workflow tests, a prose step naming the verify lane runs the fixture lane (specsync check --strict), which must pass, on the current tip; change review is allowed only after that ran on the tip it reviews (DOCS-2, #906).",
+          "No assertion of the existing documented-workflow tests is loosened.",
+          "The landing page closeout gains the verify step after change check --commit, worded like the README (run the local verify lane; CI does not test a tip whose change is still open), and its test passes.",
+          "The tests fail if a documented closeout drops its verify step or puts it before change check --commit or after change review: the README with its verify line removed fails at the review, and the landing page fails at 3758d970 because it has none."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793978636,
+      "digest": "f34643f157163666efaec214b35d4f4f340fc0f063f64f2731467f16551ff902",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906",
+        "title": "Make the documented workflow tests run the local verify step and require it before the scoped review (#906)",
+        "description": "Make the documented workflow tests run the local verify step and require it before the scoped review (#906)",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "site/src/content/docs/index.md",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A documentation test and one landing-page line; no module contract, export or requirement changes",
+        "acceptance_criteria": [
+          "In the README and landing-page workflow tests, a prose step naming the verify lane runs the fixture lane (specsync check --strict), which must pass, on the current tip; change review is allowed only after that ran on the tip it reviews (DOCS-2, #906).",
+          "No assertion of the existing documented-workflow tests is loosened.",
+          "The landing page closeout gains the verify step after change check --commit, worded like the README (run the local verify lane; CI does not test a tip whose change is still open), and its test passes.",
+          "The landing page's Quick Start tells the reader to fill in the add-spec auth scaffold before the change starts, in one line after add-spec: '# fill in specs/auth/ (the spec and its companions; Spec Format guide)'. The landing-page tests fill it in at that line as a reader would (real sections, status: active, login documented, no scaffold markers), and the fixture lane stays specsync check --strict (Leif, 2026-11-06, option A).",
+          "The tests fail if a documented closeout drops its verify step or puts it before change check --commit or after change review: the README with its verify line removed fails at the review, and the landing page fails at 3758d970 because it has none."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793980840,
+      "digest": "b6d25313185aede7036aab910f46a44d63867b547d3475ba63a476480e042230",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "make-the-documented-workflow-tests-run-the-local-verify-step-and-require-it-before-the-scoped-review-906",
+      "actor": "0xLeif",
+      "reason": "Leif chose option A (orc tab, 2026-11-06): the landing page also tells the reader to fill in specs/auth/ after add-spec, so the verify lane stays strict; that line goes beyond the approved wording.",
+      "timestamp": 1793976168,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": false
+    }
+  ]
+}

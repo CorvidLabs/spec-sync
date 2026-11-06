@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1793934917,
+      "commit": "31b98a59ac4de1b6c706b0a7aa82d9254699b0c3",
+      "contract_digest": "7a3f64cac7cfd315357c34c3f1c9ee7019bcd4712a3b65068cb6518ca58a21b5",
+      "execution_digest": "4583c1351bfb3a745c0a1e66238337e73eac48ea7a2819083754c2fadd6cf677",
+      "workspace_digest": "2a9a84c40ce74120952a58e061a8b8be7688373b9920f4485a27153a3a38082d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-git-utils-010"
+      ]
+    },
+    {
+      "timestamp": 1793934924,
+      "commit": "cd604af347fa95edb17034c2ef6142e3f9307dfd",
+      "contract_digest": "7a3f64cac7cfd315357c34c3f1c9ee7019bcd4712a3b65068cb6518ca58a21b5",
+      "execution_digest": "4583c1351bfb3a745c0a1e66238337e73eac48ea7a2819083754c2fadd6cf677",
+      "workspace_digest": "9833edc47e8e22414bc0d5419ea0773c27ee460b3a18367d3f581b3299ae9586",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-git-utils-010"
+      ]
+    },
+    {
+      "timestamp": 1793934924,
+      "commit": "008aee5133d75daa3051d3f14f259d9b842036a6",
+      "contract_digest": "7a3f64cac7cfd315357c34c3f1c9ee7019bcd4712a3b65068cb6518ca58a21b5",
+      "execution_digest": "4583c1351bfb3a745c0a1e66238337e73eac48ea7a2819083754c2fadd6cf677",
+      "workspace_digest": "9833edc47e8e22414bc0d5419ea0773c27ee460b3a18367d3f581b3299ae9586",
+      "acceptance_input_digest": "4234e8bbd106a916a3369960f885dce8e75c3ce5b10b12395e3f76076910539d",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/git_utils/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3d23c5d6f50f66a3278715f83da9b12095e5c01c5374bf6f9c7e97ba8eb732d6",
+            "entry_digest": "88a0bc3945d29f90a29dca7312af9577e6c64d83e76f871e7f320bc2e926d44d",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/git_utils.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4f830de934961b2120ffc83503038b4401797d99e101981854e2b8b2b28494a2",
+            "entry_digest": "e9200a69a4be87cf615b75203973dbefcc5631cd412f7e11aa2ab1a73e2ab29a",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/git_utils.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "83fc47baa93e753472eef52a1d22bf00c75b456dcaca1d845b7b2d23d7fc6628",
+            "entry_digest": "1fe2e0b0b0722a0a06db378a52896f74f39a98e0268a63915299a56caf914026",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "228ff3e376e5fc88e69d2b87582fc309ec121c0e592a8687e375675c369d22df",
+            "entry_digest": "90a49936a71e8b8d3d5cb7e7aa069705b423a44c26fbff50b4335ca7253279aa",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9d79e47a56f31b49801c8068d80ed0dbfd1a1ed61b51e1ae38fb8059914793b8",
+            "entry_digest": "ca5f4741b98a466e082cc8bdd605c2178f673ee68813a71ee684df4a0e21a00c",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "edc7e0f5402cdf90e4f50c620960c88152e4ab1f0e6c6cf0f5419849863cd942",
+            "entry_digest": "1b361a7b931591a96e726a5755142c36892cf6390ae4af5579a0da44c9f2df63",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "src/git_utils.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8ce163e255ba938f776bedd7941b5d39340d64418a14edf67604c48f2757e017",
+            "entry_digest": "6a1a074a07369f1bd1e16677c28ee425b6abd462896a84015daf3a3f190390c0",
+            "owners": [
+              "git_utils"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-git-utils-010"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes",
+  "slug": "reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes",
+  "title": "Reuse one cat-file batch reader per repository root across nested repository-fact scopes",
+  "description": "Reuse one cat-file batch reader per repository root across nested repository-fact scopes",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ad50bdef3db58a715877877d2407485bcaed0f32",
+  "created_at": 1793934651,
+  "updated_at": 1793935978,
+  "affected_specs": [
+    "git_utils"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A batched read inside a scope nested in an open same-root scope reuses the outer scope's cat-file --batch reader instead of starting a second one (REQ-git-utils-010)",
+    "A failing unit test shows two batch children for one root before the fix and one after",
+    "Invalidation still closes every frame's reader, so a read after a git write sees the new state",
+    "Per-command spawn ceilings in lifecycle_commands_stay_within_git_spawn_ceilings still pass and no count rises"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "SPEED-1.c and REQ-git-utils-010: one cat-file --batch child per root per command, and invalidation must still discard every reader so no stale ref snapshot is reused",
+    "public_contract": "no"
+  }
+}

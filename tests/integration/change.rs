@@ -4330,3 +4330,406 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
         );
     }
 }
+
+// Issue #892 (audit SS-M05) through the built binary, under workflow v2: one task box is opened
+// before the first check, and later reopened after a passing check. Every verb that would pass,
+// review or finalize the change refuses, names the open task and the exact command to re-run, and
+// the test runs that command after ticking the box. Bypassing the incomplete-task guard (the
+// SS-M05 mutation) makes the first check pass, so this test fails.
+struct OpenTaskCli {
+    _temp: TempDir,
+    root: PathBuf,
+    id: String,
+}
+
+const OPEN_TASKS_DONE: &str = "# Tasks\n\n- [x] Write the fix.\n- [x] Prove the fix.\n";
+const OPEN_TASKS_ONE_OPEN: &str = "# Tasks\n\n- [x] Write the fix.\n- [ ] Prove the fix.\n";
+
+impl OpenTaskCli {
+    fn new() -> Self {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().to_path_buf();
+        let fixture = Self {
+            _temp: temp,
+            root,
+            id: String::new(),
+        };
+        fixture.git(&["init", "-b", "main"]);
+        fixture.git(&["config", "user.email", "test@example.com"]);
+        fixture.git(&["config", "user.name", "Test"]);
+        fixture.git(&["config", "core.autocrlf", "false"]);
+        fixture.git(&["config", "core.eol", "lf"]);
+        let root = &fixture.root;
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(root.join(".github/scripts")).unwrap();
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(".github/scripts/lifecycle-validation-limits.json"),
+            root.join(".github/scripts/lifecycle-validation-limits.json"),
+        )
+        .unwrap();
+        fs::write(root.join("docs/guide.md"), "# Guide\n").unwrap();
+        fs::write(
+            root.join(".specsync/sdd.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "version": 2,
+                "enabled": true,
+                "require_change_for_meaningful_files": false,
+                "meaningful_paths": [],
+                "ignored_paths": [".specsync/"],
+                "verification_commands": ["true"],
+                "custom_artifacts": {},
+                "principles_file": null
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fixture.git(&["add", "."]);
+        fixture.git(&["commit", "-m", "base"]);
+        let created: Value = serde_json::from_slice(
+            &fixture
+                .run(&[
+                    "--json",
+                    "change",
+                    "new",
+                    "Keep the guide current",
+                    "--kind",
+                    "bug-fix",
+                    "--path",
+                    "docs/guide.md",
+                    "--no-spec-change",
+                    "--rationale",
+                    "Documentation-only behavior does not alter a technical contract",
+                ])
+                .success()
+                .get_output()
+                .stdout,
+        )
+        .unwrap();
+        let id = created["change"]["id"].as_str().unwrap().to_string();
+        let fixture = Self { id, ..fixture };
+        for (question, answer) in [
+            ("acceptance_criteria", "The guide is current"),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            fixture
+                .run(&["change", "answer", &fixture.id, question, answer])
+                .success();
+        }
+        let state: Value = serde_json::from_str(
+            &fs::read_to_string(fixture.workspace().join("state.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            state["workflow_version"], 2,
+            "a workflow-v2 defect needs a v2 change"
+        );
+        let artifacts = state["selected_artifacts"].as_array().unwrap();
+        assert!(
+            artifacts.iter().any(|artifact| artifact == "tasks"),
+            "the fixture must select tasks.md: {artifacts:?}"
+        );
+        for artifact in artifacts {
+            let artifact = artifact.as_str().unwrap();
+            let content = match artifact {
+                "tasks" => OPEN_TASKS_DONE.to_string(),
+                "plan" => super::helpers::SUBSTANTIVE_PLAN.to_string(),
+                _ => format!("# {artifact}\n\nComplete evidence for the guide.\n"),
+            };
+            fs::write(fixture.workspace().join(format!("{artifact}.md")), content).unwrap();
+        }
+        fixture
+            .run(&[
+                "change",
+                "approve",
+                &fixture.id,
+                "--actor",
+                "Fixture Approver",
+            ])
+            .success();
+        fs::write(fixture.root.join("docs/guide.md"), "# Guide\n\nCurrent.\n").unwrap();
+        fixture.git(&["add", "--all"]);
+        fixture.git(&["commit", "-m", "implement"]);
+        fixture
+    }
+
+    fn workspace(&self) -> PathBuf {
+        self.root.join(".specsync/changes").join(&self.id)
+    }
+
+    fn tasks_path(&self) -> String {
+        format!(".specsync/changes/{}/tasks.md", self.id)
+    }
+
+    fn git(&self, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(&self.root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn run(&self, args: &[&str]) -> assert_cmd::assert::Assert {
+        specsync()
+            .args(["--root", self.root.to_str().unwrap()])
+            .args(args)
+            .assert()
+    }
+
+    fn set_tasks(&self, content: &str) {
+        fs::write(self.workspace().join("tasks.md"), content).unwrap();
+    }
+
+    /// Run a refused command; return its stderr after asserting that it names the open task.
+    fn refused(&self, args: &[&str]) -> String {
+        let output = self.run(args).failure().get_output().clone();
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(
+            stderr.contains("tasks.md contains incomplete tasks"),
+            "`{}` must refuse the open task: {stderr}",
+            args.join(" ")
+        );
+        assert!(
+            stderr.contains(&self.tasks_path())
+                && stderr.contains("line 4")
+                && stderr.contains("Prove the fix."),
+            "the refusal names the task file, line and text: {stderr}"
+        );
+        stderr
+    }
+
+    /// The exact command a refusal names after "then re-run".
+    fn named_rerun(stderr: &str) -> String {
+        let start = stderr
+            .find("then re-run `")
+            .unwrap_or_else(|| panic!("the refusal names no command to re-run: {stderr}"))
+            + "then re-run `".len();
+        let length = stderr[start..].find('`').unwrap();
+        stderr[start..start + length].to_string()
+    }
+
+    /// Run a command exactly as a refusal printed it.
+    fn run_named(&self, command: &str) -> assert_cmd::assert::Assert {
+        let words = shell_words_for_test(command);
+        assert_eq!(
+            words.first().map(String::as_str),
+            Some("specsync"),
+            "{command}"
+        );
+        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+        self.run(&args)
+    }
+
+    fn status_text_next(&self) -> String {
+        let output = self
+            .run(&["change", "status", &self.id])
+            .success()
+            .get_output()
+            .clone();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        stdout
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("Next: "))
+            .unwrap_or_else(|| panic!("status prints no Next line: {stdout}"))
+            .to_string()
+    }
+
+    fn status_json_next(&self) -> String {
+        let output = self
+            .run(&["--json", "change", "status", &self.id])
+            .success()
+            .get_output()
+            .clone();
+        let status: Value = serde_json::from_slice(&output.stdout).unwrap();
+        status["summary"]["next_action"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    fn assert_next_names_open_task_then(&self, text_then: &str, json_then: &str) {
+        for (surface, next, then) in [
+            ("text", self.status_text_next(), text_then),
+            ("json", self.status_json_next(), json_then),
+        ] {
+            let task = next.find("line 4").unwrap_or_else(|| {
+                panic!("{surface} status must name the open task first: {next}")
+            });
+            assert!(
+                next.contains(&self.tasks_path()) && next.contains("Prove the fix."),
+                "{surface} status names the task file and text: {next}"
+            );
+            let command = next
+                .find(then)
+                .unwrap_or_else(|| panic!("{surface} status must then name `{then}`: {next}"));
+            assert!(
+                task < command,
+                "{surface} status names the task before `{then}`: {next}"
+            );
+        }
+    }
+
+    fn archived(&self) -> bool {
+        let archive = self.root.join(".specsync/archive/changes");
+        fs::read_dir(&archive).is_ok_and(|entries| {
+            entries
+                .flatten()
+                .any(|entry| entry.file_name().to_string_lossy().ends_with(&self.id))
+        })
+    }
+}
+
+/// Split a printed command on spaces, honouring single quotes (enough for the commands the
+/// lifecycle prints: ids, flags and a quoted reviewer).
+fn shell_words_for_test(command: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut quoted = false;
+    for character in command.chars() {
+        match character {
+            '\'' => quoted = !quoted,
+            ' ' if !quoted => {
+                if !word.is_empty() {
+                    words.push(std::mem::take(&mut word));
+                }
+            }
+            _ => word.push(character),
+        }
+    }
+    assert!(!quoted, "unbalanced quote in `{command}`");
+    if !word.is_empty() {
+        words.push(word);
+    }
+    words
+}
+
+// Verifies REQ-change-131, REQ-change-132 and REQ-cmd-change-031 (issue #892, audit SS-M05).
+// DISCRIMINATOR for the guard: with it bypassed the first `change check` passes and this fails.
+#[test]
+fn open_task_gate_refuses_and_names_the_command_that_recovers() {
+    let fixture = OpenTaskCli::new();
+    let id = fixture.id.clone();
+
+    // 1. One task open before the first check.
+    fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
+    fixture.git(&["commit", "-am", "leave one task open"]);
+    let stderr = fixture.refused(&["change", "check", &id, "--commit"]);
+    assert_eq!(
+        OpenTaskCli::named_rerun(&stderr),
+        format!("specsync change check {id} --commit"),
+        "check names itself with the flags it was given"
+    );
+    assert!(
+        !fixture.workspace().join("verification.json").exists(),
+        "a refused check records no verification"
+    );
+    let check_next = format!("then run `specsync change check {id}`");
+    fixture.assert_next_names_open_task_then(&check_next, &check_next);
+
+    // Tick the box and run exactly what the refusal named.
+    fixture.set_tasks(OPEN_TASKS_DONE);
+    fixture
+        .run_named(&OpenTaskCli::named_rerun(&stderr))
+        .success();
+    assert!(fixture.workspace().join("verification.json").exists());
+
+    // 2. A task reopened after the passing check: review refuses.
+    fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
+    fixture.git(&["commit", "-am", "reopen one task"]);
+    fixture.assert_next_names_open_task_then(
+        &format!("then run `specsync change check {id} --commit` if needed"),
+        &format!("then run `specsync change review {id}"),
+    );
+    let stderr = fixture.refused(&["change", "review", &id, "--reviewer", "Fixture Reviewer"]);
+    assert_eq!(
+        OpenTaskCli::named_rerun(&stderr),
+        format!("specsync change review {id} --reviewer='Fixture Reviewer'")
+    );
+    assert!(
+        !fixture.workspace().join("review.json").exists(),
+        "a refused review records nothing"
+    );
+    // A blocking verdict on unfinished work is still recordable.
+    fixture
+        .run(&[
+            "change",
+            "review",
+            &id,
+            "--reviewer",
+            "Fixture Reviewer",
+            "--verdict",
+            "block",
+        ])
+        .success();
+    let review: Value =
+        serde_json::from_str(&fs::read_to_string(fixture.workspace().join("review.json")).unwrap())
+            .unwrap();
+    assert_eq!(review["verdict"], "block", "{review}");
+    fixture.set_tasks(OPEN_TASKS_DONE);
+    fixture
+        .run_named(&OpenTaskCli::named_rerun(&stderr))
+        .success();
+    let review: Value =
+        serde_json::from_str(&fs::read_to_string(fixture.workspace().join("review.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        review["verdict"], "pass",
+        "the named review command records the pass: {review}"
+    );
+
+    // 3. Reopened again after the review: ship-status, finalize and ship refuse.
+    fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
+    let output = fixture
+        .run(&["--json", "change", "ship-status", &id])
+        .get_output()
+        .clone();
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["ready_to_finalize"], false, "{report}");
+    assert!(
+        report["blockers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|blocker| {
+                blocker
+                    .as_str()
+                    .is_some_and(|text| text.contains("tasks.md contains incomplete tasks"))
+            }),
+        "ship-status reports the open task as a blocker: {report}"
+    );
+    let stderr = fixture.refused(&["change", "finalize", &id]);
+    assert_eq!(
+        OpenTaskCli::named_rerun(&stderr),
+        format!("specsync change finalize {id}")
+    );
+    assert!(!fixture.archived(), "a refused finalize archives nothing");
+    let stderr = fixture.refused(&["change", "ship", &id, "--dry-run"]);
+    assert_eq!(
+        OpenTaskCli::named_rerun(&stderr),
+        format!("specsync change ship {id} --dry-run")
+    );
+    let stderr = fixture.refused(&["change", "ship", &id]);
+    assert_eq!(
+        OpenTaskCli::named_rerun(&stderr),
+        format!("specsync change ship {id}")
+    );
+    assert!(!fixture.archived(), "a refused ship archives nothing");
+
+    // Tick the box and run the named ship command: the change archives.
+    fixture.set_tasks(OPEN_TASKS_DONE);
+    fixture
+        .run_named(&OpenTaskCli::named_rerun(&stderr))
+        .success();
+    assert!(
+        fixture.archived(),
+        "the named ship command archives the change"
+    );
+}

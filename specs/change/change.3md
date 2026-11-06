@@ -368,11 +368,14 @@ is CI's job. The verifier is the same in-process spec↔code pass as `specsync c
 test/build commands are not executed, so there is no verification child to reap and no Cargo
 build-directory lock for this path to wait on. The wait-notice helpers remain as unused derivation
 code covered by unit tests; they are not on the `verify_change` path.
+The rest of this section records how those unwired helpers were designed while `change check`
+still spawned the commands; none of it runs on a lifecycle path today (REQ-change-023,
+REQ-change-091).
 
 What is true, and all that is claimed: Cargo's line reaches the operator on inherited stderr, and
 it names neither the file, nor the holder, nor a remedy. This notice is ADDITIVE to it — the path,
 the holder's PID where the platform reports one, the remediation, and an emitter that is SpecSync
-rather than the child, printed before the child starts rather than after it has blocked.
+rather than the child, printed before the child started rather than after it had blocked.
 
 Three deliberate refusals, each of which would have made the notice worse than silence:
 
@@ -434,7 +437,7 @@ verification command that read the controlling terminal would stop on `SIGTTIN` 
 tostop`, on `SIGTTOU` when writing) instead of prompting — and because `wait` does not pass
 `WUNTRACED`, a stopped child hangs the check rather than merely pausing. Verification commands are
 non-interactive by contract item 5, so this is a cost accepted, not a case handled. Ctrl-C still
-reaches the child, because the handler forwards the signal it received rather than assuming the
+reached the child, because the handler forwarded the signal it received rather than assuming the
 terminal delivered it to both.
 
 A second accepted cost, and the lesson the first `change check` of #721 taught by failing on this

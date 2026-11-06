@@ -17,7 +17,7 @@ spec: cmd_comment.spec.md
 - When `--pr N` is set, the repo is resolved via `github::resolve_repo` and the comment is posted via `gh pr comment --repo <repo> --body <body>`
 - Exits 1 if `gh` CLI is missing, `gh pr comment` exits non-zero, or the GitHub repo cannot be resolved
 - The marketplace action (`action.yml`, `comment: true`) and CI workflow (`.github/workflows/ci.yml`) both invoke `specsync comment` in stdout mode — no alternative comment generation paths exist
-- `comment` executes no configured SDD verification command (REQ-cmd-comment-004), so no child output can reach the markdown body
+- `comment` executes no configured SDD verification command (REQ-cmd-comment-003), so no child output can reach the markdown body
 - The project CI invokes `cargo run --quiet -- comment` and applies a defensive UTF-8-safe byte cap before forwarding the body to action inputs and job outputs
 
 ## Constraints

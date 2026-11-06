@@ -169,6 +169,12 @@ fn comment_contracts_say_no_configured_verification_command_runs() {
         protocol.contains("executes no configured SDD verification command"),
         "REQ-cmd-comment-003 must say why nothing reaches stdout but the report: {protocol}"
     );
+    assert!(
+        tracked_text(requirements).contains(
+            "`comment` executes no configured SDD verification command (REQ-cmd-comment-003)"
+        ),
+        "the top-level acceptance list must cite the rule that owns comment's no-spawn behavior"
+    );
     let no_folding =
         tracked_requirement(requirements, "REQ-cmd-comment-004").expect("REQ-cmd-comment-004");
     for clause in [

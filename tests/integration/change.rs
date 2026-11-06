@@ -2729,6 +2729,19 @@ fn change_contracts_give_one_answer_on_configured_verification_commands() {
             "{id} mentions configured verification commands and must cite REQ-change-023: {block}"
         );
     }
+    let lessons = tracked_text("specs/change/change.3md");
+    assert!(
+        lessons.contains(
+            "The rest of this section records how those unwired helpers were designed while \
+             `change check` still spawned the commands; none of it runs on a lifecycle path today \
+             (REQ-change-023, REQ-change-091)."
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .as_str()
+        ),
+        "change.3md must mark its wait-notice and own-group child design notes as historical"
+    );
     let retired = [
         "still executes every configured verification command",
         "remain unaffected and execute once",
@@ -2736,6 +2749,9 @@ fn change_contracts_give_one_answer_on_configured_verification_commands() {
         "as initialization instructs",
         "and native verification commands while",
         "rejection before lifecycle state or attempt history mutates",
+        // change.3md lesson text that described the unwired helpers as running (#899 review).
+        "printed before the child starts rather than after it has blocked",
+        "Ctrl-C still reaches the child",
     ];
     for relative in [
         "specs/change/requirements.md",

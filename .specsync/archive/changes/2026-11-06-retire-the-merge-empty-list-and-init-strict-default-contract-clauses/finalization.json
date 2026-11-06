@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-the-merge-empty-list-and-init-strict-default-contract-clauses",
+  "implementation_commit": "30c184c248bf15f6a0eb9c178b777c6c2f3db52e",
+  "implementation_tree": "e7b2c83aa4de314b8061eabdc7822f8719701470",
+  "contract_digest": "8bafced7731d0f92f0dd9c31db3e8f8d3df86dd85f08b428883ed441326530ab",
+  "workspace_digest": "4a736869d051d9deadd3fcc7d962af5116ab49aaca333ef3635f81b5d2e8d24e",
+  "closing_digest": "0a3c21f16ad5271727e1557cd33ad4de218d6e37a93ce3adff572b3ab93916ff",
+  "review_digest": "33aea17bf7287fde5dfb87a3f9301edd90abd67d0f2e7328d44315291232294c",
+  "finalization_digest": "9dc600df90f9865fd615026e0576705773a89b769d79f07cffc51c12bdfb9603",
+  "timestamp": 1793946541
+}

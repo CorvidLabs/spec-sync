@@ -37,6 +37,7 @@ on:
       - '.github/workflows/lifecycle-policy-guard.yml'
       - '.github/workflows/post-merge-archive.yml'
       - '.github/workflows/release.yml'
+      - '.github/workflows/rc-assets.yml'
       - '.github/workflows/trust.yml'
       - 'CHANGELOG.md'
       - 'README.md'
@@ -71,6 +72,7 @@ on:
       - '.github/workflows/lifecycle-policy-guard.yml'
       - '.github/workflows/post-merge-archive.yml'
       - '.github/workflows/release.yml'
+      - '.github/workflows/rc-assets.yml'
       - '.github/workflows/trust.yml'
       - 'CHANGELOG.md'
       - 'README.md'
@@ -438,6 +440,8 @@ jobs:
         run: python3 .github/scripts/validate-release-version.py
       - name: Test the required CI gate
         run: python3 .github/scripts/test-required-ci-gate.py
+      - name: Test the Linux release baseline lockstep
+        run: python3 .github/scripts/test-linux-baseline.py
 
   action-consumer:
     name: Packaged GitHub Action consumer
@@ -571,6 +575,122 @@ jobs:
           fi
           echo "Archive gate blocked the open change."
 
+  linux-baseline:
+    name: Linux release baseline (${{ matrix.artifact }})
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Same Linux rows as the release.yml and rc-assets.yml build jobs, held to
+          # LINUX_ARTIFACTS in .github/scripts/linux-baseline.py by test-linux-baseline.py.
+          # This job builds them the same way and runs the same check the release runs
+          # before upload. A pull request whose Linux download would not start on its
+          # documented baseline fails here before any release can (#882, REQ-github-025).
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: specsync-linux-x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: specsync-linux-x86_64-musl
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: specsync-linux-aarch64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            artifact: specsync-linux-aarch64-musl
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl toolchain (Linux musl)
+        if: contains(matrix.target, 'musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          # musl-gcc compiles the tree-sitter grammars' C code for the host architecture.
+          case "$TARGET" in
+            x86_64-unknown-linux-musl)
+              echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+            aarch64-unknown-linux-musl)
+              echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_aarch64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::No musl toolchain mapping for ${TARGET}"
+              exit 1
+              ;;
+          esac
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT: ${{ matrix.artifact }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "target/${TARGET}/release/specsync" "$ARTIFACT"
+          chmod +x "$ARTIFACT"
+          tar czf "${ARTIFACT}.tar.gz" "$ARTIFACT"
+          shasum -a 256 "${ARTIFACT}.tar.gz" > "${ARTIFACT}.tar.gz.sha256"
+      - name: Start the packaged Linux archive on its documented baseline
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(cargo metadata --no-deps --format-version 1 | python3 -I -c \
+            'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "specsync"))')"
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/linux-baseline.py check \
+            --archive "${ARTIFACT}.tar.gz" \
+            --expect-version "$version"
+      - name: Require the check to reject the v6.2.0 ARM64 archive that did not start on Debian 12
+        # The negative control for the check itself: the published v6.2.0 ARM64 download
+        # needs GLIBC_2.39 and exits before --version on Ubuntu 22.04 and Debian 12 (#882).
+        # A check that let it through would let the next one through too.
+        if: matrix.artifact == 'specsync-linux-aarch64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          control="${RUNNER_TEMP}/specsync-v6.2.0"
+          mkdir -p "$control"
+          curl -fsSL --retry 3 -o "${control}/specsync-linux-aarch64.tar.gz" \
+            https://github.com/CorvidLabs/spec-sync/releases/download/v6.2.0/specsync-linux-aarch64.tar.gz
+          # The published asset's digest, pinned here rather than read from its own sidecar.
+          printf '%s  %s\n' 86e081a5ef8084f1282d77d807e495b1dbdbc8ae89840594ed3e915439bcf35a \
+            specsync-linux-aarch64.tar.gz > "${control}/specsync-linux-aarch64.tar.gz.sha256"
+          set +e
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/linux-baseline.py check \
+            --archive "${control}/specsync-linux-aarch64.tar.gz" \
+            --expect-version 6.2.0 > "${control}/check.log" 2>&1
+          status=$?
+          set -e
+          # Show the rejection without turning its expected ::error:: lines into annotations.
+          sed 's/^::/: :/' "${control}/check.log"
+          if [[ "$status" -ne 1 ]]; then
+            echo "::error::The baseline check must reject the v6.2.0 ARM64 archive with exit 1; it exited ${status}"
+            exit 1
+          fi
+          if ! grep -q "GLIBC_2.39" "${control}/check.log"; then
+            echo "::error::The baseline check rejected the v6.2.0 ARM64 archive, but not for GLIBC_2.39"
+            exit 1
+          fi
+          echo "The baseline check rejects the v6.2.0 ARM64 archive that did not start on Debian 12."
+
   spec-check:
     needs: [classify, lifecycle-gate]
     if: needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true'
@@ -631,7 +751,7 @@ jobs:
     # here cannot fail this gate (#796). Archive is the root of the graph: an
     # open change fails it and skips everything else, and this gate says so.
     # .github/scripts/test-required-ci-gate.py fails when another job is missing.
-    needs: [archive, classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    needs: [archive, classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, linux-baseline, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         # One row per job in `needs`: `<job> <selected> <result>`. <selected> is
@@ -654,6 +774,7 @@ jobs:
             hi-check ${{ needs.classify.outputs.full == 'true' }} ${{ needs.hi-check.result }}
             validate-action ${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }} ${{ needs.validate-action.result }}
             action-consumer ${{ needs.classify.outputs.full == 'true' }} ${{ needs.action-consumer.result }}
+            linux-baseline ${{ needs.classify.outputs.full == 'true' }} ${{ needs.linux-baseline.result }}
             spec-check ${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }} ${{ needs.spec-check.result }}
             audit ${{ needs.classify.outputs.full == 'true' }} ${{ needs.audit.result }}
             coverage ${{ needs.classify.outputs.full == 'true' }} ${{ needs.coverage.result }}
@@ -730,7 +851,7 @@ jobs:
     # request that selected the product lane. Forks run the same read-only
     # review without attempting a comment or review write.
     if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.full == 'true' }}
-    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, linux-baseline, spec-check, audit, coverage, site, vscode-extension]
     permissions:
       contents: read
       pull-requests: write
@@ -745,6 +866,7 @@ jobs:
           CHECK_HI: "Human intent check=${{ needs.hi-check.result }}"
           CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
           CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.action-consumer.result }}"
+          CHECK_LINUX_BASELINE: "Linux Release Baseline=${{ needs.linux-baseline.result }}"
           CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
           CHECK_AUDIT: "Dependency Audit=${{ needs.audit.result }}"
           CHECK_COVERAGE: "Code Coverage=${{ needs.coverage.result }}"

@@ -927,6 +927,11 @@ fn text_mode_next_action(
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
     }
+    // After the project-wide refusals above, in the same order as JSON status: an archive of
+    // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).
+    if let Some(upstream) = change::upstream_archive_of(root, record) {
+        return change::upstream_archive_message(id, &upstream);
+    }
     match record.state {
         ChangeState::Draft if !questions.is_empty() => {
             let question = questions
@@ -1053,6 +1058,10 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             "{refusal}; fix `.specsync/sdd.json` before check, review or finalize"
         ));
     }
+    let upstream_archive = change::upstream_archive_of(root, record);
+    if let Some(upstream) = &upstream_archive {
+        blockers.push(change::upstream_archive_message(&record.id, upstream));
+    }
     if matches!(
         record.state,
         ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
@@ -1172,7 +1181,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             })
         });
 
-    let ship_next = if ready_to_finalize {
+    let ship_next = if let Some(upstream) = &upstream_archive {
+        change::upstream_archive_message(&record.id, upstream)
+    } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(
         record.state,

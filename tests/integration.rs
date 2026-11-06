@@ -47,6 +47,9 @@ mod watch;
 #[path = "integration/quickstart.rs"]
 mod quickstart;
 
+#[path = "integration/documented_workflows.rs"]
+mod documented_workflows;
+
 #[path = "integration/generated_output_has_no_dashes.rs"]
 mod generated_output_has_no_dashes;
 
@@ -110,3 +113,6 @@ fn every_integration_test_file_is_registered() {
 
 #[path = "integration/subdirectory_check_commit.rs"]
 mod subdirectory_check_commit;
+
+#[path = "integration/archived_upstream.rs"]
+mod archived_upstream;

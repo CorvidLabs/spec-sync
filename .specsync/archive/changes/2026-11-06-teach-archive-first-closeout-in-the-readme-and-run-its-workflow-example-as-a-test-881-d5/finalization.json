@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "teach-archive-first-closeout-in-the-readme-and-run-its-workflow-example-as-a-test-881-d5",
+  "implementation_commit": "5ef818a06edce327bc918abe67d2228fdbbba2c6",
+  "implementation_tree": "e4acb895b463b78cc00a8c5606f3e7cca089dc5e",
+  "contract_digest": "8de0c03a490d1b6bfee822144def686c10bf9f3e469151e1876a9f128a0d24f9",
+  "workspace_digest": "506e6523260e36b2701701325456cfa92f8581b3e4fda26045902fa7358dd43f",
+  "closing_digest": "7e31aa99eb22af68aa033c2840faeb00d50174db718783de6c5154dd8abdda59",
+  "review_digest": "db11274715fa40d11f5daa9cd15505268411dd052c50db11cce1a4dfc9730e94",
+  "finalization_digest": "4bf39048b7c7513b2c4de73ef1dedd343245cc3872db5ff4bd91383a386ad3c6",
+  "timestamp": 1793940668
+}

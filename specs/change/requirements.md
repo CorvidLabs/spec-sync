@@ -1697,3 +1697,12 @@ Acceptance Criteria
 - A reported path without the repository prefix, or a prefixed path that is not a candidate, is refused as out of scope and named.
 - A project at the repository root behaves as before.
 
+### REQ-change-129
+
+The system SHALL refuse `change review` and `change finalize`, and SHALL NOT report readiness `safe` from `change status` or `change ship-status`, for a change whose record is not archived while the remote default branch holds an archive of the same change id that `HEAD` does not contain. The refusal SHALL name the reference and commit of that archive, the unarchived copy, and the recovery: rebase onto that reference dropping the commit that added the copy (or reset to it when the branch has nothing else). Merging, or deleting the copy in a new commit, is not a recovery: the resulting history fails integrity. An archive that `HEAD` already contains SHALL NOT be refused: that is the reopen-and-rearchive path.
+
+Acceptance Criteria
+- With the remote default holding an archive of the change, `change review` refuses before recording acceptance and the record stays `verifying`.
+- `change finalize` refuses with the same named cause and writes no archive.
+- Without an upstream archive, a squash before finalize still reviews and finalizes.
+- An unarchived record whose archive `HEAD` already contains is not refused.

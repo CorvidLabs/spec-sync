@@ -13,6 +13,8 @@ Approved by Leif in the Herdr orc tab on 2026-11-05 20:30 MST (relayed by orc t1
 
 CI-6 is Leif's own sentence, captured as he gave it ("Capture it, fix CI") in the Herdr orc tab on 2026-11-06 (relayed by orc t18). He wrote it after PR #941, which changed only `.chough/` records, never started CI and so could not get the required check.
 
+CI-7 is captured from Leif's answer in the Herdr orc tab on 2026-11-06 ("Broad", relayed by orc t18), choosing the broader of two wordings the agent proposed for issue #977, a unit test from #969 that could fail when two reviews landed in the same second. Recorded by the ss-977 Claude agent.
+
 ## Criteria
 
 - **CI-1**  The same check I run locally runs in my pipeline as a ready-made step, with nothing to build.
@@ -27,3 +29,4 @@ CI-6 is Leif's own sentence, captured as he gave it ("Capture it, fix CI") in th
 - **CI-5**  A contract with drift can raise an issue, so the gap does not vanish with the build log.
   - **CI-5.a**  An issue reference already written into a contract can be checked as real.
 - **CI-6**  A pull request that only changes Chough records still gets the checks the branch requires.
+- **CI-7**  A failing test always means something is actually wrong, never that it ran at an unlucky moment.

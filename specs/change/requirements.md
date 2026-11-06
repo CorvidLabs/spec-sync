@@ -1740,15 +1740,6 @@ Acceptance Criteria
 - An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
 - A definition that approval refused before is still refused.
 
-### REQ-change-134
-
-The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
-
-#### Acceptance Criteria
-
-- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
-- Removing the fingerprint from the read-cache identity fails that test.
-
 ### REQ-change-135
 
 The archive-introduction index SHALL be built from one `git log` walk of the archive root that names the paths each commit added, and SHALL read package bytes through the per-command object batch reader, so the Git processes a cold archived `change status` spawns SHALL NOT grow with the number of commits that introduced archives. The index SHALL hold the same introductions, and every refusal it backs SHALL be unchanged (SPEED-1.a).
@@ -1777,6 +1768,15 @@ Acceptance Criteria
 - Verdicts completed before the deadline are in the read cache afterwards, so the next run does not redo them.
 - The report names the phase and progress, for example `archive-introduction index` and `140/214`.
 
+### REQ-change-134
+
+The persistent read cache SHALL be reused only by the build that wrote it. Its build identity SHALL be the package version plus the build fingerprint of REQ-hash-cache-005. A cache written by another build SHALL NOT be loaded, so its passing workflow-history verdicts are recomputed live. That includes another build of the same version that shares the Git common directory, such as a sibling worktree, and a build from before this requirement.
+
+#### Acceptance Criteria
+
+- A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
+- Removing the fingerprint from the read-cache identity fails that test.
+
 ### REQ-change-139
 
 The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
@@ -1802,14 +1802,6 @@ Acceptance Criteria
 - A listed state blob that cannot be read refuses the archive and leaves no cached absence.
 - A cold archived status past its `--timeout` still exits 124 with the phase and progress.
 
-### REQ-change-145
-
-When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
-
-Acceptance Criteria
-- In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
-- A cutoff with no archive root gives the same verdict as before.
-
 ### REQ-change-relayed-decision-001
 
 A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.
@@ -1823,4 +1815,22 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 - The finalization review digest is computed over the review with `relayed_by` left out, so a 6.x binary that drops the unknown key computes the same digest; a later edit to a relay record is therefore not detected, exactly like an edit to an approval's actor.
 - A `--portable-5-0-1` approval carries the relay on both records of the pair.
 - `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
+
+### REQ-change-144
+
+Building a change's acceptance manifest or acceptance input digest SHALL read the clean tracked files in its delivery scope one blob at a time, each under the existing per-object bound, so that `change reopen`, and every other read that builds that evidence, does not fail because the total size of those files exceeds a single in-memory Git read.
+
+Acceptance Criteria
+- Reopen of a stale accepted change whose clean affected files exceed one `git cat-file --batch` read, with or without an acceptance manifest, no longer fails with "`git cat-file --batch` output exceeds deterministic bounds".
+- The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
+- Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
+- The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
+
+### REQ-change-145
+
+When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
+
+Acceptance Criteria
+- In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
+- A cutoff with no archive root gives the same verdict as before.
 

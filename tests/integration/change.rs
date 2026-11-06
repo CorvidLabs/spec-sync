@@ -2320,6 +2320,45 @@ fn indirect_recursive_lifecycle_subcommands_fail_once_with_context() {
     }
 }
 
+// Verifies REQ-cli-003 at the contract level (#911, SHIP-1.c.1, SHIP-1.c.2).
+//
+// Honest label: CONTRACT PIN. The two tests above pin the guard's behavior; this fails when the cli
+// contracts go back to describing a verification child that SpecSync makes. SpecSync sets
+// `SPECSYNC_VERIFICATION_CONTEXT` on no child of its own, because verification executes no
+// configured command (REQ-change-023), so the guard only ever sees a context an outside caller set.
+#[test]
+fn cli_contracts_describe_an_inherited_verification_context_not_a_child() {
+    let requirement =
+        tracked_requirement("specs/cli/requirements.md", "REQ-cli-003").expect("REQ-cli-003");
+    assert!(
+        requirement.contains("inherited `SPECSYNC_VERIFICATION_CONTEXT`")
+            && requirement.contains("REQ-change-023"),
+        "REQ-cli-003 must name the inherited marker and cite REQ-change-023: {requirement}"
+    );
+    let retired = [
+        "configured verification child",
+        "configured verification children",
+        "a verification child calling",
+    ];
+    for relative in [
+        "specs/cli/requirements.md",
+        "specs/cli/cli.spec.md",
+        "specs/cli/cli.3md",
+        "specs/cli/context.md",
+        "specs/cli/testing.md",
+        "specs/cli/tasks.md",
+        "docs/HLD.md",
+    ] {
+        let text = tracked_text(relative);
+        for phrase in retired {
+            assert!(
+                !text.contains(phrase),
+                "{relative} still describes a SpecSync-made verification child: `{phrase}`"
+            );
+        }
+    }
+}
+
 // Verifies REQ-cmd-migrate-002 and REQ-cli-args-007.
 #[test]
 fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {

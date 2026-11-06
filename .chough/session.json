@@ -28,7 +28,8 @@
     "Rejected: optimized test profile as the main lever (opt-level 2 measured 386s vs 343s on the slowest test); larger runner (not needed if spawns drop)",
     "Leif (2026-11-05 09:35 MST, orc tab): approved the four-part scope; qualify timeout returns to 45 in a one-line follow-up after the next RC's macOS qualify measures well under 45, not in this change",
     "Leif (2026-11-05 18:23 MST, orc tab, relayed by orc t18): \"Record and merge\" for PR #869; review recorded as 0xLeif (pass) at 113893d8; acceptance granted",
-    "Leif (2026-11-05 ~19:58 MST, orc tab, relayed by orc t18): \"Resolve and merge\" #869, then fix #891 item (1) as its own small change"
+    "Leif (2026-11-05 ~19:58 MST, orc tab, relayed by orc t18): \"Resolve and merge\" #869, then fix #891 item (1) as its own small change",
+    "Leif (2026-11-05 20:30 MST, orc tab, relayed by orc t18): \"Record and merge\" for #894; review recorded as 0xLeif at 008aee51"
   ],
   "open_questions": [],
   "completed": [
@@ -41,7 +42,8 @@
     "Spawn ceilings per command pass: new 13, answer 15, approve 29, check 82, status 50, review 128, finalize 239 (baseline 63/71/89/388/66/323/739); slowest test 5,535 spawns vs 15,563 (35.6%) before the batch reader",
     "test-nextest task, release-candidate lane, pinned cargo-nextest 0.9.151 install in release.yml (published sha256 verified)",
     "change check --commit verified (575ddcd9); fledge verify steps pass on pinned 1.89; pre-push green",
-    "Shipped: archived at 2bc2ba92"
+    "Shipped: archived at 2bc2ba92",
+    "Shipped #891 item 1: archived at 84ed6b74"
   ],
   "observations": [],
   "bugs": [],
@@ -50,5 +52,5 @@
     "Scope approval for reuse-one-cat-file-batch-reader-per-repository-root-across-nested-repository-fact-scopes"
   ],
   "run_consents": [],
-  "next_action": "Scope approval by Leif, then failing nested-scope test"
+  "next_action": "Merge #894 pinned on green"
 }

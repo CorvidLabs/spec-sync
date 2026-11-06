@@ -1,6 +1,6 @@
 ---
 id: the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 14903d0bb499e0ab6f2d3a83b539cacf026a1ed2
 ---

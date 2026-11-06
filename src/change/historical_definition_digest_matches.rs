@@ -3582,10 +3582,13 @@ fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSumm
 /// `Handoff:` lines of one text result share one walk.
 pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     let sequence_frozen = sequence_ledger_freeze_next_action(root).is_some();
+    let verification_ignored_refused = record.state != ChangeState::Archived
+        && ensure_change_clear_of_verification_ignored(root, record).is_err();
     let mut signals = HandoffSignals {
         state: record.state,
         workflow_version: record.workflow_version,
         sequence_frozen,
+        verification_ignored_refused,
         open_questions: false,
         artifacts_complete: true,
         approval_valid: true,
@@ -3596,7 +3599,7 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         terminal_evidence_stale: false,
         corrupt_archive: None,
     };
-    if sequence_frozen {
+    if sequence_frozen || verification_ignored_refused {
         return classify_handoff(&record.id, &signals);
     }
     if let Some(upstream) = upstream_archive_of(root, record) {
@@ -3668,6 +3671,12 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
             HandoffReadiness::NotYet,
             "the change-sequence ledger is frozen project-wide, and a fresh session inherits the block without knowing what caused it",
             vec!["clear the freeze named under Next".into()],
+        )
+    } else if signals.verification_ignored_refused {
+        (
+            HandoffReadiness::NotYet,
+            "the `verification_ignored_paths` policy refuses this change's check, review and finalize, so a fresh session would resume at a step that cannot run",
+            vec!["fix the `verification_ignored_paths` entry in `.specsync/sdd.json` named under Next".into()],
         )
     } else {
         match signals.state {
@@ -4184,8 +4193,8 @@ fn summarize_change_with_effective(
         }
         _ => next_action,
     };
-    // Same priority as `next_action` above: a sequence freeze or a verification_ignored_paths
-    // refusal outranks the upstream archive, and `classify_handoff` reports both (#908).
+    // Same priority as `next_action` above: a sequence freeze, then a verification_ignored_paths
+    // refusal, outranks the upstream archive, and `classify_handoff` reports both (#908, #937).
     let upstream_handoff = upstream_archive
         .as_ref()
         .filter(|_| sequence_freeze.is_none() && !matches!(verification_ignored, Some(Err(_))));
@@ -4198,6 +4207,7 @@ fn summarize_change_with_effective(
             state: record.state,
             workflow_version: record.workflow_version,
             sequence_frozen: sequence_freeze.is_some(),
+            verification_ignored_refused: matches!(verification_ignored, Some(Err(_))),
             open_questions: !next_questions_for(root, record).is_empty(),
             artifacts_complete,
             approval_valid,

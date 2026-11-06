@@ -1,0 +1,46 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-d6627d76a7e7d9a1ee9352cd",
+    "head": "EVT-2a53d053f8ba123af666f190",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Archive readiness must not tell an upstream-archived copy to run ship (#902)",
+  "intent_scope": "CHANGE",
+  "modules": [
+    "cmd_change"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship",
+  "references": {
+    "criteria": [],
+    "requirements": [
+      "REQ-cmd-change-029"
+    ],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "orc t18 (2026-11-06, overnight): take #902 in worktree ss-902 to 'ready for approval' (queued for Leif)",
+    "decided: the script mirrors upstream_archive_of and never fetches, because the Archive gate runs without SpecSync and other repositories use it through the packaged Action; with no remote default ref it keeps today's classification, as Rust does when Git cannot answer",
+    "rejected: a Rust integration test through 'change status', because status prints the pull-request sentence without its command; every command that prints the full sentence pushes or archives, so the Rust test is a unit test"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Red first: test-archive-readiness.sh prints 'Run specsync change ship stale-copy' for an upstream-archived copy; commands::change::tests::an_upstream_archived_copy_is_not_told_to_ship fails on main cd8cab5e"
+  ],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Leif via orc t18 (morning): approve the scope of stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship (no new intent criterion; MODIFIED REQ-cmd-change-029)"
+  ],
+  "run_consents": [],
+  "next_action": "After approval: implement in Rust and the script, check --commit, verify, PR (Fixes #902)"
+}

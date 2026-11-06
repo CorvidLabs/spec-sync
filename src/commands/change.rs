@@ -3125,6 +3125,81 @@ if the floor call is removed from this function"
         git_in(root, &["commit", "-m", "base"]);
     }
 
+    /// #902: a copy of a change that the remote default already archived is not an archive
+    /// candidate to ship, even with a passing review at `HEAD` and its verification (the review
+    /// predates the upstream archive). The pull-request sentence that `change pr` and the
+    /// Archive check print then names `change status`, which carries #889's recovery.
+    #[test]
+    fn an_upstream_archived_copy_is_not_told_to_ship() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        let id = reviewed_change_fixture(&root);
+        let workspace = root.join(".specsync/changes").join(&id);
+        let reviewed = git_rev_parse(&root, "HEAD").unwrap();
+        let record = change::load_change(&root, &id).unwrap();
+        assert!(
+            archive_candidate_can_ship(&root, &record, &workspace),
+            "control: a passing review at HEAD with no upstream archive ships"
+        );
+        let review = fs::read(workspace.join("review.json")).unwrap();
+        let attempts = fs::read(workspace.join("review-attempts.json")).unwrap();
+
+        // Archive it, publish that as origin's default branch, then return to the reviewed copy.
+        change::finalize_change(&root, &id).expect("finalize");
+        git_in(&root, &["add", "--all"]);
+        git_in(&root, &["commit", "-q", "-m", "archive", "--allow-empty"]);
+        let archived = git_rev_parse(&root, "HEAD").unwrap();
+        let origin = temp.path().join("origin.git");
+        git_in(
+            temp.path(),
+            &[
+                "init",
+                "-q",
+                "--bare",
+                "-b",
+                "main",
+                origin.to_str().unwrap(),
+            ],
+        );
+        git_in(
+            &root,
+            &["remote", "add", "origin", origin.to_str().unwrap()],
+        );
+        git_in(
+            &root,
+            &[
+                "push",
+                "-q",
+                "origin",
+                &format!("{archived}:refs/heads/main"),
+            ],
+        );
+        git_in(&root, &["fetch", "-q", "origin"]);
+        git_in(&root, &["remote", "set-head", "origin", "main"]);
+        git_in(&root, &["checkout", "-q", "-B", "stale-copy", &reviewed]);
+        fs::write(workspace.join("review.json"), &review).unwrap();
+        fs::write(workspace.join("review-attempts.json"), &attempts).unwrap();
+
+        let stale = change::load_change(&root, &id).unwrap();
+        assert_eq!(stale.state, ChangeState::Verifying);
+        assert!(
+            change::upstream_archive_of(&root, &stale).is_some(),
+            "fixture: origin/main must hold an archive HEAD does not contain"
+        );
+        assert!(
+            !archive_candidate_can_ship(&root, &stale, &workspace),
+            "an upstream-archived copy must not be told to ship"
+        );
+        let sentence = pull_request_sentence(&root).unwrap();
+        assert!(
+            sentence.contains(&format!("Run `specsync change status {id}`")),
+            "{sentence}"
+        );
+        assert!(!sentence.contains("specsync change ship"), "{sentence}");
+    }
+
     /// Drives one change to `Verifying` with committed verification and a current scoped
     /// review — the exact state `ship-status` claims is ready and `finalize` is asked to
     /// honour. The caller owns the repository and the branch, because the three #743/#689

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 30
+version: 31
 status: stable
 files:
   - src/main.rs
@@ -45,7 +45,7 @@ depends_on:
 
 ## Purpose
 
-The `specsync` command-line entry point parses global options, blocks configured verification children from recursively dispatching `check`, `change`, or `lifecycle` commands, routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
+The `specsync` command-line entry point parses global options, refuses `check`, `change`, or `lifecycle` commands that run under an inherited `SPECSYNC_VERIFICATION_CONTEXT` (SpecSync starts no verification child of its own), routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
 
 ## Public API
 
@@ -391,3 +391,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
 | 2026-11-05 | v30 / #862: dispatch `merge --install` and `merge-file` for the module-contract merge driver |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-06 | describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child: Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child |

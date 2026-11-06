@@ -1274,18 +1274,40 @@ fn validate_scoped_review_ledger_contents(
         {
             return Err("scoped review attempt history contains invalid evidence".into());
         }
-        definition_approver_for_review_contract(&approvals, attempt)?;
+        // History, not currency: an attempt recorded before a send-back bound the approval that
+        // send-back cancelled, and it stays valid evidence of that review (CHANGE-12.c). Whether
+        // a review still counts is `scoped_review_currency`'s question (#914).
+        historical_definition_approver_for_review(&approvals, attempt)?;
     }
     Ok(())
 }
 
+/// The approver of the live definition approval `review` binds. A definition approval a
+/// send-back cancelled binds no current review (CHANGE-12.b).
 fn definition_approver_for_review_contract<'a>(
     approvals: &'a ApprovalLedger,
     review: &ScopedReviewRecord,
 ) -> Result<&'a str, String> {
-    // A definition approval a send-back cancelled binds no review (CHANGE-12.b).
-    let cancelled = send_back_cancelled_prefix(approvals);
-    if let Some(approval) = approvals.approvals.iter().skip(cancelled).rev().find(|approval| {
+    definition_approver_bound_from(approvals, review, send_back_cancelled_prefix(approvals))
+}
+
+/// The approver of the definition approval `review` bound when it was recorded, counting one a
+/// later send-back cancelled. For validating review history only; never for currency (#914).
+fn historical_definition_approver_for_review<'a>(
+    approvals: &'a ApprovalLedger,
+    review: &ScopedReviewRecord,
+) -> Result<&'a str, String> {
+    definition_approver_bound_from(approvals, review, 0)
+}
+
+/// Binds `review` to a definition approval at ledger index `first` or later, directly or through
+/// a scope adoption whose source approval is at `first` or later.
+fn definition_approver_bound_from<'a>(
+    approvals: &'a ApprovalLedger,
+    review: &ScopedReviewRecord,
+    first: usize,
+) -> Result<&'a str, String> {
+    if let Some(approval) = approvals.approvals.iter().skip(first).rev().find(|approval| {
         approval.gate == "definition"
             && (approval.digest == review.contract_digest
                 || approval.definition_pair.as_ref().is_some_and(|pair| {
@@ -1302,7 +1324,7 @@ fn definition_approver_for_review_contract<'a>(
         let approval = approvals
             .approvals
             .get(adoption.source_approval_index as usize)
-            .filter(|_| adoption.source_approval_index as usize >= cancelled)
+            .filter(|_| adoption.source_approval_index as usize >= first)
             .filter(|approval| approval.gate == "definition")
             .ok_or_else(|| {
                 "scoped review scope-adoption approval identity is missing".to_string()
@@ -1842,6 +1864,23 @@ fn scoped_review_currency(
     if review.verdict != ScopedReviewVerdict::Pass {
         return ScopedReviewCurrency::Stale("the recorded review verdict is not a pass".into());
     }
+    // A definition approval a send-back cancelled binds no current review (CHANGE-12.b). Review
+    // history may still bind it, which is what keeps that history readable (#914).
+    match load_approvals(root, record) {
+        Ok(approvals) => {
+            if definition_approver_for_review_contract(&approvals, review).is_err() {
+                return ScopedReviewCurrency::Stale(
+                    "the review binds only a definition approval a later send-back cancelled"
+                        .into(),
+                );
+            }
+        }
+        Err(error) => {
+            return ScopedReviewCurrency::Unavailable(format!(
+                "the approval ledger could not be read ({error})"
+            ));
+        }
+    }
     match definition_digest_matches(root, record, &review.contract_digest) {
         Ok(true) => {}
         Ok(false) => {
@@ -2193,6 +2232,17 @@ pub fn record_scoped_review(
     record_scoped_review_with_verdict(root, id, reviewer, ScopedReviewVerdict::Pass)
 }
 
+/// `--reviewer=<claim>` as one shell word. Attached with `=` so a claim that starts with `-`
+/// still parses as the value; the claim's alphabet allows a space but no quote, so single quotes
+/// are enough.
+fn reviewer_argument(reviewer: &str) -> String {
+    if reviewer.contains(' ') {
+        format!("--reviewer='{reviewer}'")
+    } else {
+        format!("--reviewer={reviewer}")
+    }
+}
+
 pub fn record_scoped_review_with_verdict(
     root: &Path,
     id: &str,
@@ -2211,6 +2261,20 @@ pub fn record_scoped_review_with_verdict(
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
     let reviewer = validate_scoped_reviewer_claim(&reviewer)?;
+    // Checkbox state is outside every digest a review binds, so a task reopened after a passing
+    // check is invisible to currency and must be asked here (REQ-change-131). Only a passing
+    // verdict is refused: recording that unfinished work fails review stays possible.
+    if verdict == ScopedReviewVerdict::Pass {
+        ensure_tasks_complete(
+            root,
+            &record,
+            &format!(
+                "specsync change review {} {}",
+                record.id,
+                reviewer_argument(reviewer)
+            ),
+        )?;
+    }
     let current_commit = git_output(root, &["rev-parse", "HEAD"])
         .ok_or_else(|| "scoped review requires a committed implementation".to_string())?;
     validate_verification_for_commit_binding(root, &record, &verification, true).map_err(|error| {
@@ -2532,6 +2596,13 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
             "canonical deltas are not materialized; run `specsync change check` before review"
                 .into(),
         );
+    }
+    // No digest sees a task reopened after the passing check (REQ-change-131). Ask before
+    // acceptance writes anything, and again when a finalization that stopped after acceptance is
+    // retried while its workspace is still active: a task can be reopened in between. A
+    // workspace already moved into the archive resumes; it passed this gate when it was accepted.
+    if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
+        ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     }
     if record.state == ChangeState::Verifying {
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
@@ -3871,6 +3942,28 @@ fn summarize_change_with_effective(
                 None => "merge the PR on GitHub if it is still open".into(),
             },
         }
+    };
+    // Checkbox state is outside every digest the currency helpers above compare, so an open task
+    // never shows up as staleness. Name it before the step it would refuse (REQ-change-132).
+    // A workflow-v2 change accepted by a finalization that stopped before the archive move is
+    // told the same, so the retry it is pointed at does not refuse it unexplained.
+    let next_action = match effective {
+        Some(definition)
+            if open_tasks_block(record)
+                && sequence_freeze.is_none()
+                && !matches!(verification_ignored, Some(Err(_)))
+                && upstream_archive.is_none()
+                && (record.state == ChangeState::Accepted || (approval_valid && artifacts_complete)) =>
+        {
+            match open_tasks_selected(root, &record.id, &definition.selected_artifacts) {
+                Ok(open) if !open.is_empty() => format!(
+                    "{}, then {next_action}",
+                    open_tasks_sentence(&record.id, &open)
+                ),
+                _ => next_action,
+            }
+        }
+        _ => next_action,
     };
     let handoff = if let Some(upstream) = &upstream_archive {
         upstream_archive_handoff(&record.id, upstream)

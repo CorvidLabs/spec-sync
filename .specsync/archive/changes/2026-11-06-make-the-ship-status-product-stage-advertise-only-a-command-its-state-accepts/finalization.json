@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-the-ship-status-product-stage-advertise-only-a-command-its-state-accepts",
+  "implementation_commit": "2f9c6528e0633747e06a5631aa31f059dadef1a8",
+  "implementation_tree": "204878ecfed6a1308bc1138739a38c0c07835616",
+  "contract_digest": "41823fa74c40422460047eee4ff56b7b64f7be3a0f017bbdee26e2d6b0e249ba",
+  "workspace_digest": "79624e80e4572c245f21aa29ce4a3beb17f04d70529301bf49e7fe18a845d076",
+  "closing_digest": "81ea1c01ca18971d652d8548025b4f8f5bdbcddbc36cc90892a495975b1d8afb",
+  "review_digest": "0c1f1ce63291c2d892b3d2fd0e426f061b045f0e00feffbf55cef06982a2d062",
+  "finalization_digest": "507d8efb0387d1ffac99d94644378eff26c17d3bdbcb7b46038daec731284cfb",
+  "timestamp": 1793976534
+}

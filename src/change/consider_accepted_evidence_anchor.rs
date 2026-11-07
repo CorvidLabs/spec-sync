@@ -938,7 +938,7 @@ fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String
     let Some(raw) = snapshot.get("core.autocrlf") else {
         return Ok(None);
     };
-    return normalize_checkout_core_value("core.autocrlf", raw).map(Some);
+    normalize_checkout_core_value("core.autocrlf", raw).map(Some)
 }
 
 fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {

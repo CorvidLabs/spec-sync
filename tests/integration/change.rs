@@ -16,15 +16,14 @@ fn path_for_bash(path: &Path) -> String {
         .or_else(|| displayed.strip_prefix("//?/"))
         .unwrap_or(&displayed);
     let forward = stripped.replace('\\', "/");
-    if let Some((drive, rest)) = forward.split_once(':') {
-        if drive.len() == 1
-            && drive
-                .chars()
-                .next()
-                .is_some_and(|character| character.is_ascii_alphabetic())
-        {
-            return format!("/{}{}", drive.to_ascii_lowercase(), rest);
-        }
+    if let Some((drive, rest)) = forward.split_once(':')
+        && drive.len() == 1
+        && drive
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_alphabetic())
+    {
+        return format!("/{}{}", drive.to_ascii_lowercase(), rest);
     }
     forward
 }

@@ -1157,15 +1157,13 @@ fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
     );
     let stale_report = check_project(root);
     assert!(
-        stale_report.errors.iter().any(|error| *error == expected),
+        stale_report.errors.contains(&expected),
         "{:?}",
         stale_report.errors
     );
     assert!(
         check_project(root)
-            .errors
-            .iter()
-            .any(|error| *error == expected)
+            .errors.contains(&expected)
     );
 }
 
@@ -1259,7 +1257,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
     );
     let stale_report = check_project(root);
     assert!(
-        stale_report.errors.iter().any(|error| *error == expected),
+        stale_report.errors.contains(&expected),
         "{:?}",
         stale_report.errors
     );
@@ -1287,7 +1285,7 @@ fn stale_accepted_change_error_names_the_successor_rejected_for_failed_authentic
     );
     let stale_report = check_project(root);
     assert!(
-        stale_report.errors.iter().any(|error| *error == expected),
+        stale_report.errors.contains(&expected),
         "{:?}",
         stale_report.errors
     );
@@ -1954,7 +1952,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
     );
     let stale_report = check_project(root);
     assert!(
-        stale_report.errors.iter().any(|error| *error == expected),
+        stale_report.errors.contains(&expected),
         "{:?}",
         stale_report.errors
     );
@@ -2419,8 +2417,10 @@ fn owner_correction_rejects_invalid_requests_without_mutation() {
 fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecessor() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut predecessor = completed_section_only_record(
         root,

@@ -89,10 +89,12 @@ fn write_lifecycle_test_policy(root: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
     }
-    let mut policy = SddPolicy::default();
-    policy.enabled = true;
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["true".into()];
+    let policy = SddPolicy {
+        enabled: true,
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["true".into()],
+        ..SddPolicy::default()
+    };
     write_json(&path, &policy).unwrap();
 }
 

@@ -86,9 +86,12 @@ fn canonical_companion_names(module: &str) -> Vec<String> {
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
+/// A test hook called with the PID of each spawned Git child.
+#[cfg(test)]
+type TestGitChildSpawnedHook = Box<dyn FnOnce(u32)>;
 #[cfg(test)]
 thread_local! {
-    static TEST_GIT_CHILD_SPAWNED: RefCell<Option<Box<dyn FnOnce(u32)>>> = RefCell::new(None);
+    static TEST_GIT_CHILD_SPAWNED: RefCell<Option<TestGitChildSpawnedHook>> = RefCell::new(None);
     static TEST_GIT_STDIN_WRITER_JOINED: Cell<bool> = const { Cell::new(false) };
     static TRANSACTION_WRITE_FAILURE_INDEX: RefCell<Option<usize>> = const { RefCell::new(None) };
     static TRANSACTION_AFTER_JOURNAL_HOOK: RefCell<Option<Box<dyn FnOnce()>>> =

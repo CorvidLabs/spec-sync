@@ -3507,7 +3507,7 @@ if the floor call is removed from this function"
         );
         assert!(
             recovery.contains(&format!(
-                "specsync change answer {id} affected_specs billing"
+                "specsync change answer '{id}' affected_specs 'billing'"
             )),
             "{recovery}"
         );

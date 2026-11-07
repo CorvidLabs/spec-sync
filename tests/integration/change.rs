@@ -3937,8 +3937,8 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     for expected in [
         "src/billing/charge.ts",
         "billing",
-        &format!("specsync change send-back {id}"),
-        &format!("specsync change answer {id} affected_specs billing"),
+        &format!("specsync change send-back '{id}'"),
+        &format!("specsync change answer '{id}' affected_specs 'billing'"),
     ] {
         assert!(
             ship_status.contains(expected),
@@ -3957,7 +3957,7 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     );
     assert!(
         dry_text.contains(&format!(
-            "specsync change answer {id} affected_specs billing"
+            "specsync change answer '{id}' affected_specs 'billing'"
         )),
         "the dry run names the recovery:\n{dry_text}"
     );

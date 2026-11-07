@@ -4664,7 +4664,10 @@ fn unowned_production_delivery_inputs(
         .entries
         .iter()
         .filter(|entry| {
+            // A reserved delivery path is signed with the exact delivery owner by design, and
+            // finalize accepts it; only the fallback assignment marks an unowned input.
             path_is_production_source(root, &entry.path)
+                && !path_is_recognized_delivery_metadata(&entry.path)
                 && entry.owners.iter().all(|owner| owner == EXACT_DELIVERY_OWNER)
         })
         .map(|entry| entry.path.clone())

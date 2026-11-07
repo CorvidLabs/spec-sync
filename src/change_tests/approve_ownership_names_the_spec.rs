@@ -348,7 +348,7 @@ fn approve_refuses_a_no_spec_change_draft_over_owned_production_source_and_names
             && error.contains("`specs/billing/billing.spec.md` lists it for module `billing`"),
         "the refusal names the path and the module that owns it: {error}"
     );
-    let answer = format!("specsync change answer {} affected_specs billing", record.id);
+    let answer = format!("specsync change answer '{}' affected_specs 'billing'", record.id);
     assert!(
         error.contains(&answer),
         "the refusal names the command that fixes this draft: {error}"
@@ -385,7 +385,7 @@ fn approve_does_not_recommend_a_module_whose_listing_spec_is_not_canonical() {
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("approve must refuse production source no declared module owns");
     assert!(
-        !error.contains("affected_specs billing") && !error.contains("add `--spec billing`"),
+        !error.contains("affected_specs 'billing'") && !error.contains("add `--spec billing`"),
         "declaring `billing` would not own the path, so it must not be recommended: {error}"
     );
     assert!(

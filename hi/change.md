@@ -33,6 +33,8 @@ CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05
 
 CHANGE-14.c was drafted by the agent after a fixture showed a task reopened after a passing check being reviewed and finalized (#892). Leif approved it in the Herdr orc tab on 2026-11-05 at 20:24 MST ("Widen S6"), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
+CHANGE-7.b is captured from Leif's answer in the orc tab on 2026-11-06 at about 17:35 MST (issue #931, from the Codex review of #901): "Capture both", for this sentence as drafted by the agent. Relayed by orc t18; recorded by the t18 worker Claude agent.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -56,6 +58,7 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
     - **CHANGE-7.a.1**  A change whose archive fails its integrity check is never called safe to walk away from.
     - **CHANGE-7.a.2**  I am told the exact command that restores that archive from trusted history, and once it is restored I am told it is safe again.
+  - **CHANGE-7.b**  A name that comes from my repository is shown as plain text: it cannot add lines or terminal commands to what status tells me.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
 - **CHANGE-10**  When `change approve` refuses an affected path that no module owns, the error says which spec to edit.

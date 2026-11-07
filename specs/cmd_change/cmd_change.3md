@@ -134,3 +134,12 @@ Issue #902. #889 taught `change review` and `change finalize` to refuse a copy t
 
 @plane z=9 label="Recorded claims in status (#633)"
 `change status` and `change show` read `change::recorded_claims` before printing. A relay record that cannot be read refuses the command with its recovery, rather than leaving the claim out. Text prints `Approval:` and `Review:` as recorded claims, with any `Relayed:` line underneath. Every recorded string passes through `printable_claim_text`, so a control character prints as its escape and cannot move or recolour the terminal. JSON adds `recorded_claims` only when there is one. An approve or review without relay flags still calls the original entry points, so those paths stay exercised and dead-code free.
+
+@plane z=10 label="Readiness runs the refusing check (#986, #956)"
+`ship-status` may only say "ready to finalize" when `ship` would finalize. Open tasks (#892) and canonical ownership (#986, #956) were both refusals that only finalize knew about. Each such refusal belongs in ship preflight as a blocker, and the next action names its recovery, not `change ship`.
+
+@plane z=11 label="One answer command across refusal and status (#958)"
+A single interview choice is a literal answer, not an angle-bracket placeholder: `constraints none` runs as printed, while `<none>` is shell input redirection. The domain owns one helper for approve's refusal and both status projections, including the scope-specific placeholders and the option to name constraining lessons or principles. Text status must recompute the draft's open questions itself; its caller may have an empty list even though `constraints` remains. When refusal guidance and status disagree, probe every refusal through both text and JSON and execute the command exactly as printed.
+
+@plane z=12 label="Disclose unrun commands without running them (#893)"
+A verification pass is spec↔code evidence, not proof the project's tests ran. Text check, committed check, and audit therefore share one stderr note, while successful JSON carries the same ordered list. Count top-level, component, and strict commands once each, in policy order; deduplication is part of the count, not just the JSON. The note never spawns a command or changes a verdict. Keep the committed path explicit because it renders its own summary, and do not invent a JSON success document for `--commit` (#839). SpecSync's own repository empties only the top-level list: retaining component and strict commands keeps the disclosure visible, which is preferable to silencing a useful warning.

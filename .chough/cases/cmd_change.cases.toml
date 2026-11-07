@@ -1,0 +1,23 @@
+profile = "chough-testing/1"
+module = "cmd_change"
+
+[[case]]
+id = "TC-cmd_change-status-names-refusal-answer-command"
+title = "Text and JSON status name the command from each approval refusal"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["DOCS-3.c"]
+requirements = ["REQ-cmd-change-answer-hint-001"]
+paths = ["src/commands/change.rs", "tests/integration/documented_workflows.rs"]
+environments = ["local-macos-arm64"]
+artifacts = ["test-log"]
+setup = ["The documented workflow creates a draft without scope"]
+steps = ["Run the documented-workflow probe through every approval refusal"]
+expected = ["After every refusal, text and JSON status name its answer command and the single-choice command runs exactly as printed"]
+
+[case.bind]
+adapter = "command"
+argv = ["cargo", "test", "--locked", "--test", "integration", "--", "--exact", "documented_workflows::approve_refusals_for_a_draft_created_without_scope_name_the_scope_answers"]
+expect_output = ["running 1 test", "test result: ok"]
+timeout_seconds = 300

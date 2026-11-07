@@ -36,6 +36,24 @@
       "requirement_ids": [
         "REQ-github-028"
       ]
+    },
+    {
+      "timestamp": 1794018593,
+      "commit": "bc37a30adbc94716742dcd3e0a796c133bdff86b",
+      "contract_digest": "2bef3e150f3b46a44c6c107c37ac8c8a3b13f44524e206295816c336d1566179",
+      "execution_digest": "fba9e7223dd3e7b79142d92e57b65fb60585ccaa13af7aab956e2312b2c9984d",
+      "workspace_digest": "3a220f3829761e5e5c20150f6fc8fb90c1c8c48e0151b4023fd38a86a96b7a7c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_init --spec cmd_scaffold --spec generator --spec github --spec hash_cache --spec merge --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-028"
+      ]
     }
   ]
 }

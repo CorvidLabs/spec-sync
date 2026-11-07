@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication",
+  "slug": "record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication",
+  "title": "Record relayed human decisions on approvals and reviews as claims, not authentication",
+  "description": "Record relayed human decisions on approvals and reviews as claims, not authentication",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b179a4f254af1ddada0671eece1f8616729e2eff",
+  "created_at": 1793935372,
+  "updated_at": 1793976211,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change/relayed_decision.rs",
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests.rs",
+    "src/change_tests/relayed_decision.rs",
+    "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/cli.rs",
+    "src/commands/change.rs",
+    "tests/integration.rs",
+    "tests/integration/relayed_decision.rs",
+    "specs/change",
+    "specs/cmd_change",
+    "specs/cli_args",
+    "hi/change.md",
+    "hi/ship.md",
+    "INTENT.md",
+    "README.md",
+    "CHANGELOG.md",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/cli.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.",
+    "When an agent records a decision a person made somewhere else, I can see who decided, their exact words, where they said it, and which agent wrote it down.",
+    "That record is optional, so a person approving at their own terminal is not asked for one.",
+    "The change's status shows it beside the approval or review it belongs to.",
+    "The status says plainly that the record is a claim too, not proof that the person decided.",
+    "A record missing one of those details is refused before anything is written, and the refusal says which detail is missing.",
+    "A review an agent records for a person can carry the same record, shown the same way."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change.3md 'Release review: claims and authentication': names and provider declarations are claims, authentication is separately enforced policy; this change states that for approvals too and adds no authentication. sdd_version.rs forward-compat note: ScopedReviewRecord is a digest preimage, so per Leif ('Keep it out', 2026-11-05 20:19 MST via orc t18) relayed_by is left out of the review digest and records without it keep their exact bytes. Shared shape with Chough (ch-d7, chough#123), approved by Leif: relayed_by {decided_by, words, where, recorded_by}, all required, non-blank, <=4096 bytes, unknown keys refused, absent not null. A relay record never satisfies, clears or replaces a gate. Never weaken a gate, bound or test.",
+    "public_contract": "yes"
+  }
+}

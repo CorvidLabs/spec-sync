@@ -30,3 +30,5 @@ spec: cli_args.spec.md
 REQ-cli-args-020: change_historical_reconciliation_requires_explicit_actor_and_reason
 
 REQ-cli-args-021: change_send_back_requires_and_collects_audit_inputs
+
+REQ-cli-args-relayed-decision-001: change_approve_and_review_take_an_optional_relayed_decision; change_check_review_and_finalize_are_plain_commands still parses review without the flags.

@@ -467,7 +467,7 @@ pub enum ChangeAction {
     Approve {
         /// Change ID
         id: String,
-        /// Human actor recorded in portable approval evidence
+        /// Person who approved; recorded as a claim, not authenticated identity
         #[arg(long)]
         actor: Option<String>,
         /// Optional approval note
@@ -476,6 +476,15 @@ pub enum ChangeAction {
         /// Atomically append a marked current/SpecSync-5.0.1 portable definition pair
         #[arg(long)]
         portable_5_0_1: bool,
+        /// Relayed decision: the approver's exact words (with --where and --recorded-by)
+        #[arg(long)]
+        words: Option<String>,
+        /// Relayed decision: where and when they said it, including any relay chain
+        #[arg(long = "where", value_name = "WHERE")]
+        relay_where: Option<String>,
+        /// Relayed decision: the agent recording it
+        #[arg(long)]
+        recorded_by: Option<String>,
     },
     /// Compatibility alias for projects created before approval entered implementation automatically
     #[command(hide = true)]
@@ -493,12 +502,21 @@ pub enum ChangeAction {
     Review {
         /// Change ID
         id: String,
-        /// Stable ASCII reviewer claim (not authenticated identity)
+        /// Stable ASCII reviewer name; recorded as a claim, not authenticated identity
         #[arg(long)]
         reviewer: String,
         /// Scoped review verdict
         #[arg(long, value_parser = ["pass", "block"], default_value = "pass")]
         verdict: String,
+        /// Relayed decision: the reviewer's exact words (with --where and --recorded-by)
+        #[arg(long)]
+        words: Option<String>,
+        /// Relayed decision: where and when they said it, including any relay chain
+        #[arg(long = "where", value_name = "WHERE")]
+        relay_where: Option<String>,
+        /// Relayed decision: the agent recording it
+        #[arg(long)]
+        recorded_by: Option<String>,
     },
     /// Reopen stale accepted evidence for a fresh verification and closing approval
     Reopen {
@@ -940,6 +958,80 @@ mod tests {
         ));
     }
 
+    /// REQ-cli-args-relayed-decision-001: the relayed-decision flags parse on approve and review,
+    /// and both commands parse exactly as before without them.
+    #[test]
+    fn change_approve_and_review_take_an_optional_relayed_decision() {
+        let relayed = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "approve",
+            "add-passkeys",
+            "--actor",
+            "Ada",
+            "--words",
+            "Approve it",
+            "--where",
+            "orc tab",
+            "--recorded-by",
+            "agent",
+        ])
+        .unwrap();
+        assert!(matches!(
+            relayed.command,
+            Some(Command::Change {
+                action: ChangeAction::Approve {
+                    actor: Some(actor),
+                    words: Some(words),
+                    relay_where: Some(relay_where),
+                    recorded_by: Some(recorded_by),
+                    ..
+                }
+            }) if actor == "Ada" && words == "Approve it" && relay_where == "orc tab"
+                && recorded_by == "agent"
+        ));
+        let review = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "review",
+            "add-passkeys",
+            "--reviewer",
+            "Ada",
+            "--words",
+            "Pass it",
+            "--where",
+            "orc tab",
+            "--recorded-by",
+            "agent",
+        ])
+        .unwrap();
+        assert!(matches!(
+            review.command,
+            Some(Command::Change {
+                action: ChangeAction::Review {
+                    words: Some(words),
+                    relay_where: Some(_),
+                    recorded_by: Some(_),
+                    ..
+                }
+            }) if words == "Pass it"
+        ));
+        let plain = Cli::try_parse_from(["specsync", "change", "approve", "add-passkeys"]).unwrap();
+        assert!(matches!(
+            plain.command,
+            Some(Command::Change {
+                action: ChangeAction::Approve {
+                    actor: None,
+                    words: None,
+                    relay_where: None,
+                    recorded_by: None,
+                    portable_5_0_1: false,
+                    ..
+                }
+            })
+        ));
+    }
+
     #[test]
     fn change_check_review_and_finalize_are_plain_commands() {
         let check =
@@ -987,7 +1079,8 @@ mod tests {
                 action: ChangeAction::Review {
                     id,
                     reviewer,
-                    verdict
+                    verdict,
+                    ..
                 }
             }) if id == "CHG-0001-passkeys"
                 && reviewer == "Independent agent"

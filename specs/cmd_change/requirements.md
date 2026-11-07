@@ -186,6 +186,13 @@ Acceptance Criteria
 `specsync change ship [ID]` SHALL run ship preflight for one change and, when
 `ready_to_finalize` is true, perform finalize. When not ready it SHALL exit
 non-zero and print blockers and the next stage without mutating state.
+Ship preflight, including `--dry-run`, SHALL run the canonical-ownership check
+finalize runs over the change's delivery inputs. A production-source input that
+no declared module owns SHALL be a blocker naming the path, the module that owns
+it, and the recovery (`specsync change send-back <id>`, then
+`specsync change answer <id> affected_specs <modules>`); `change ship-status`
+SHALL report the same blocker and SHALL NOT report the change ready to finalize
+(#986, #956).
 
 Optional orchestration flags after a successful finalize (or for already-archived
 changes):
@@ -209,6 +216,10 @@ Acceptance Criteria
   include `push` and `wait` result objects when those flags are used.
 - When sibling active changes remain after finalize, next guidance names them and
   requires their own check → review → ship cycle before merge.
+- A no-spec-change change whose directory scope delivers production source a
+  module owns is not ready: `change ship-status` names the blocker and the
+  recovery, `change ship --dry-run` exits non-zero, and running the named
+  recovery ships it (#986, #956).
 
 ### REQ-cmd-change-009
 
@@ -489,6 +500,18 @@ Acceptance Criteria
 - Text output escapes control characters in recorded names and relayed fields, so recorded words cannot move the cursor or recolour the terminal.
 - A change with no approval and no review prints neither line, and its JSON omits `recorded_claims`.
 
+### REQ-cmd-change-relay-repair-001
+
+`change repair-relays <id>` SHALL run `repair_relayed_decisions` and print one line for each record it repaired: the file and the record's position, then where the original was put back from, or that it was removed together with the removed value. `--json` SHALL print the repair report.
+
+#### Acceptance Criteria
+
+- A put-back prints `<place>: put back from <copy>`, where the place is `approvals.json approval <n>`, `review-attempts.json attempt <n>` or `review.json`, and the copy is `HEAD`, `review.json` or `review-attempts.json attempt <n>`.
+- A removal prints `<place>: removed`, says that no copy of the original exists, and shows the removed value with control characters escaped.
+- With nothing damaged it prints `No relayed decision in <id> needs repair.` and exits 0.
+- A refusal exits non-zero and names its recovery command.
+- `--json` prints `{"change": <id>, "repairs": [...]}` with each repair's `file`, `record`, `action`, and `from` or `removed`.
+
 ### REQ-cmd-change-035
 
 `specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.
@@ -502,16 +525,4 @@ Acceptance Criteria
 - `--close-late <id>` (repeatable) or `--close-late all` closes the named or every eligible change late, only with a non-empty `--actor` and `--reason`. A change named more than once is closed once. Every named change is checked before anything is written, and one refusal writes nothing and names the refused change.
 - After every late close or applied fix, each remaining safe fix is revalidated against a fresh scan, and a change closed late in the same call gets no safe fix.
 - A late close of a collision member says that the ledger edit needs an open change declaring `.specsync/change-sequence.json` wherever meaningful files require one.
-
-### REQ-cmd-change-relay-repair-001
-
-`change repair-relays <id>` SHALL run `repair_relayed_decisions` and print one line for each record it repaired: the file and the record's position, then where the original was put back from, or that it was removed together with the removed value. `--json` SHALL print the repair report.
-
-#### Acceptance Criteria
-
-- A put-back prints `<place>: put back from <copy>`, where the place is `approvals.json approval <n>`, `review-attempts.json attempt <n>` or `review.json`, and the copy is `HEAD`, `review.json` or `review-attempts.json attempt <n>`.
-- A removal prints `<place>: removed`, says that no copy of the original exists, and shows the removed value with control characters escaped.
-- With nothing damaged it prints `No relayed decision in <id> needs repair.` and exits 0.
-- A refusal exits non-zero and names its recovery command.
-- `--json` prints `{"change": <id>, "repairs": [...]}` with each repair's `file`, `record`, `action`, and `from` or `removed`.
 

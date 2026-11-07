@@ -157,6 +157,10 @@ fn verification_freshness_status_and_check_are_environment_independent() {
             "Harden verification freshness",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -2512,6 +2516,10 @@ fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> Stri
             "Reap an interrupted verification child",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -2911,6 +2919,10 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
             "Tell agents when to clear",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -3783,6 +3795,200 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
         reviews[0], first_attempts["reviews"][0],
         "the pre-send-back review is kept unchanged"
     );
+}
+
+// Verifies REQ-cmd-change-008 and SHIP-4.a through the built binary (#986, #956). A no-spec-change change scoped to a
+// directory that holds production source a module owns passes approve, check and review: approve
+// cannot see which owned files a directory scope will deliver. ship-status and `ship --dry-run`
+// used to say "ready to finalize", and only finalize refused on canonical ownership. Both now run
+// finalize's ownership check, refuse to call the change ready, and name the recovery; the test
+// runs that recovery and ships.
+#[test]
+fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recovery_ships() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    // `billing` owns src/billing/charge.ts; the change scopes the whole directory.
+    fs::create_dir_all(root.join("specs/billing")).unwrap();
+    fs::write(
+        root.join("specs/billing/billing.spec.md"),
+        "---\nmodule: billing\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Billing\n\n## Purpose\n\nCharges.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "const rate = 1;\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let invoke = |args: &[&str]| {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        specsync().args(&full).output().unwrap()
+    };
+    let run = |args: &[&str]| -> String {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Tune the charge rate",
+        "--kind",
+        "bug-fix",
+        "--path",
+        "src/billing/",
+        "--no-spec-change",
+        "--rationale",
+        "The rate is internal and no contract describes it",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The charge rate is tuned"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let active_dir = root.join(".specsync/changes").join(&id);
+    let write_artifacts = || {
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap())
+                .unwrap();
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let artifact = artifact.as_str().unwrap();
+            let content = if artifact == "tasks" {
+                "# Tasks\n\n- [x] Tune the rate.\n".to_string()
+            } else {
+                format!("# {artifact}\n\nComplete evidence for the rate.\n")
+            };
+            fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+        }
+    };
+    write_artifacts();
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "tune the rate"]);
+    run(&["change", "check", &id, "--commit"]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+
+    // Readiness tells the truth before finalize does.
+    let ship_status = run(&["change", "ship-status", &id]);
+    assert!(
+        !ship_status.contains("ready to finalize"),
+        "a change finalize refuses on ownership is not ready:\n{ship_status}"
+    );
+    for expected in [
+        "src/billing/charge.ts",
+        "billing",
+        &format!("specsync change send-back '{id}'"),
+        &format!("specsync change answer '{id}' affected_specs 'billing'"),
+    ] {
+        assert!(
+            ship_status.contains(expected),
+            "ship-status names `{expected}`:\n{ship_status}"
+        );
+    }
+    let dry_run = invoke(&["change", "ship", &id, "--dry-run"]);
+    let dry_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&dry_run.stdout),
+        String::from_utf8_lossy(&dry_run.stderr)
+    );
+    assert!(
+        !dry_run.status.success() && !dry_text.contains("ready to finalize"),
+        "the dry run refuses as the real ship would:\n{dry_text}"
+    );
+    assert!(
+        dry_text.contains(&format!(
+            "specsync change answer '{id}' affected_specs 'billing'"
+        )),
+        "the dry run names the recovery:\n{dry_text}"
+    );
+
+    // The named recovery: send back, declare the owner, re-approve, re-check, a fresh review, ship.
+    run(&[
+        "change",
+        "send-back",
+        &id,
+        "--actor",
+        "Scope owner",
+        "--reason",
+        "declare the module that owns the charge",
+    ]);
+    run(&["change", "answer", &id, "affected_specs", "billing"]);
+    run(&["change", "answer", &id, "constraints", "none"]);
+    write_artifacts();
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    run(&["change", "check", &id, "--commit"]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let ready = run(&["change", "ship-status", &id]);
+    assert!(ready.contains("ready to finalize"), "{ready}");
+    run(&["change", "ship", &id]);
+    let archived: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
+    assert_eq!(archived["change"]["state"], "archived", "{archived}");
 }
 
 // Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic

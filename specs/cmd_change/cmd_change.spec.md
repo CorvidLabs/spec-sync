@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 72
+version: 74
 status: active
 files:
   - src/commands/change.rs
@@ -204,4 +204,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship: Stop the Archive check and change pr from telling a copy already archived upstream to run ship |
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
+| 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |

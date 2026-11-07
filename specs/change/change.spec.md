@@ -1,6 +1,6 @@
 ---
 module: change
-version: 203
+version: 205
 status: active
 files:
   - src/change.rs
@@ -256,6 +256,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `repair_relayed_decisions` | `root, id` | `Result<RelayRepairReport, String>` | Repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`: put each back from the same record at `HEAD`, then from its twin (`review.json` and the last attempt), and otherwise remove only that relay; never removes an approval or attempt or changes a verdict, writes every file in one step, and writes nothing when nothing is damaged; refuses an archived change or a file that is not JSON, naming the `git checkout HEAD` recovery when one exists |
 | `recorded_scoped_review_currency` | `root, record` | `Option<ScopedReviewCurrency>` | Classify a change's recorded scoped review against the tree on disk; `None` means no usable review record exists, which is a different question from currency |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
+| `ownership_preflight_blocker` | `root, record` | `Result<Option<(String, String)>, String>` | The ship-preflight blocker, and the recovery to name next, for production source in the change's delivery that no declared module owns; builds finalize's acceptance manifest read-only, so it names every input finalize would refuse (REQ-cmd-change-008, #986, #956) |
 | `send_back_change` | `root, id, actor, reason` | `Result<SendBackResult, String>` | Move an approved, implementing or verifying change back to draft for re-scoping, append an audited send-back, and cancel the earlier definition approval without removing it |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
@@ -344,6 +345,7 @@ Acceptance Criteria
 48. A scoped review recorded before a send-back stays valid review history. It validates against the definition approval it bound, including one the send-back cancelled, so it never blocks a fresh `change review` after re-approval, and it is never removed or rewritten. Whether a review counts is a separate question, answered as before: it must match the current contract and evidence and bind a definition approval the latest send-back did not cancel. A review bound only to a cancelled approval is reported stale, never unreadable, and never lets `change ship` or `change finalize` through (#914, REQ-change-123, CHANGE-12.b, CHANGE-12.d).
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
+51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
 
 ## Behavioral Examples
 
@@ -480,6 +482,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v195: approve refuses a no-spec-change draft over owned production source and names the `change answer` command; ship preflight and ship-status run finalize's ownership check (#986, #956). |
 | 2026-11-07 | v200: carry the selected root in `CannotTell` so command adapters remain unchanged within the original change-only scope. v199: keep the selected project root as a quoted `--root` argument in cannot-tell recovery; execute the printed status command from the repository parent (#967, REQ-change-142). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
 | 2026-11-06 | v200: Reject symlink components in late-close destinations during planning/dry-run, before any batch write under the lifecycle lock, and again after directory creation before each rename; include dangling links and name how to retry safely (REQ-change-143, #994 P1) |
@@ -700,6 +703,7 @@ Acceptance Criteria
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
 | 2026-11-06 | hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected: Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths |
 | 2026-11-06 | the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change: The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change |
+| 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
 | 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |
 | 2026-11-06 | a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency: A warm status of an archived change does not digest the whole working tree to report its review currency |
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |

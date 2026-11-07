@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A change over production source that no declared module owns is caught before anyone approves or reviews it, not at finalize. `change approve` no longer skips a `--no-spec-change` change with no declared specs: an existing production-source path in its scope is refused, naming the module that owns it and, for a draft, the `specsync change answer <id> affected_specs <modules>` command that declares it. For what approve cannot see (for example a directory scope that delivers an owned file), `change ship-status`, `change ship` and `change ship --dry-run` now run the same ownership check finalize runs. They report each such input as a blocker and name the recovery (send back, declare the owner, approve, check and review again), so `ready to finalize` is never printed for a change finalize refuses. Every change id and module name in that guidance is shell-quoted, and reserved delivery paths that finalize signs with the exact delivery owner are not reported (#986, #956).
 - The git merge driver no longer reports a clean merge that changes what a side wrote (#870, #872, #875, #876). Four cases changed:
   - A quoted list item YAML would read as a number, boolean or null (`"123"`, `"true"`, `"null"`) stays quoted after a `files`, `db_tables` or `depends_on` union.
   - Prose or a second table after a blank line that follows the change log stays where it was, and its rows are no longer sorted into the change log.

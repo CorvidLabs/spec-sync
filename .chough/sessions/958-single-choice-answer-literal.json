@@ -47,5 +47,5 @@
     "Scope approval of #958 change print-a-single-choice-interview-answer-literally-..., sent to orc t18"
   ],
   "run_consents": [],
-  "next_action": "After scope approval: apply the parked helper patch (signature id, question, choices), swap the specs/paths order, wire text and JSON status"
+  "next_action": "After Leif's scope approval (relay via orc t18, record with --relayed-by flags): merge origin/main, apply _audits/handoffs/ss-triage-958-impl.patch then adapt it to the design (see handoff), run tests, change check --commit, verify lane, review, ship, PR"
 }

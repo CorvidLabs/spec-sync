@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-34b160818491ea57539bf81c",
-    "head": "EVT-4ad75a6115bb4c9fe445fbea",
+    "head": "EVT-82541285b9e2ec7de22b50c0",
     "legacy": null
   },
   "schema_version": 2,
@@ -27,7 +27,8 @@
   "decisions": [
     "MERGE-5 and 5.a-5.d captured as drafted (Leif, 2026-11-06, 'Capture MERGE-5 + cases', via orc t18)",
     "Rejected: joining two differing version comments (invents text); quoting every list item (churns formatting)",
-    "Codex round 1 P2 on order-independent conflicts: kept git's ours/theirs labels; the test pins mirror symmetry"
+    "Codex round 1 P2 on order-independent conflicts: kept git's ours/theirs labels; the test pins mirror symmetry",
+    "Leif decided \"Leif's GitHub review of PR #1006\": \"Yes to all 3 (Recommended)\" (Moshi question from orc t18, 2026-11-06, reviewing #1006 at 6c7d4583); recorded by k-ss-testgaps; a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
@@ -36,9 +37,7 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif's GitHub review of PR #1006"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Leif's GitHub review of #1006, then the orc records the native review; change ship with no commit between; push the archive tip; CI; merge in queue order"
+  "next_action": "Wait for archive-tip CI, then merge PR #1006 at the merge-queue turn"
 }

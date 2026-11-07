@@ -101,3 +101,4 @@ spec: change.spec.md
 - [x] Record an optional relayed decision on definition approvals (portable pair included) and scoped reviews, leave it out of the review digest, and project recorded claims for status (REQ-change-relayed-decision-001, #633).
 - [x] Name `specsync change repair-relays <id>` in an active change's relay refusals and repair a damaged relay from `HEAD` or its twin, otherwise removing only that `relayed_by` (#904, REQ-change-relay-repair-001).
 - [x] Report cannot-tell, never no archive, when the remote default's archive cannot be read, and read its root as a literal pathspec (#946, #962, REQ-change-142).
+- [x] Make the cannot-tell recovery repair missing objects and `origin/HEAD`, then rerun the upstream lookup through `change status` instead of grepping from the caller's directory (#967).

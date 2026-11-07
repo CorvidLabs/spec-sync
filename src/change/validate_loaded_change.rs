@@ -3145,8 +3145,27 @@ fn workflow_v1_record_present_in_cutoff_tree(
         None,
         MAX_GIT_COMMAND_OUTPUT_BYTES,
     )?;
-    // A cutoff without an archive root has no archived candidates; any other failure leaves only
-    // the active path, which can only make the answer "absent", a refusal.
+    // A cutoff without an archive root has no archived candidates. Any other failure means the
+    // archive tree is there but cannot be read (an offline partial clone that never fetched it),
+    // and that is said, never answered as "absent" (REQ-change-145).
+    if !listing.status.success() {
+        let root_listing = run_git_bounded(
+            root,
+            &["ls-tree", "--full-tree", "-z", "--name-only", cutoff, "--", &archive_root],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )?;
+        let has_archive_root = String::from_utf8_lossy(&root_listing.stdout)
+            .split('\0')
+            .any(|entry| entry == archive_root);
+        if !root_listing.status.success() || has_archive_root {
+            let stderr = String::from_utf8_lossy(&listing.stderr);
+            return Err(format!(
+                "the archive tree at the trusted pre-v2 cutoff {cutoff} could not be read: {}",
+                stderr.trim()
+            ));
+        }
+    }
     if listing.status.success() {
         let suffix = format!("-{}", record.id);
         for entry in String::from_utf8_lossy(&listing.stdout).split('\0') {

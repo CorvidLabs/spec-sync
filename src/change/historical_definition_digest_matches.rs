@@ -1979,9 +1979,10 @@ fn scoped_review_currency(
     review_commit_currency(root, record, review)
 }
 
-/// Whether an archived change's package directory differs from `HEAD`: modified, staged or
-/// untracked files under it. One Git call limited to the package, never the whole tree. When
-/// Git can't answer, it counts as uncommitted, so the full check runs as before.
+/// Whether an archived change's package directory differs from `HEAD`: its `state.json` is not
+/// tracked (a package Git ignores is untracked too), or files under it are modified, staged or
+/// untracked. Two Git calls limited to the package, never the whole tree. When Git can't
+/// answer, it counts as uncommitted, so the full check runs as before.
 fn archived_package_is_uncommitted(root: &Path, record: &ChangeRecord) -> bool {
     let Ok(package) = find_change_dir(root, &record.id) else {
         return true;
@@ -1990,6 +1991,16 @@ fn archived_package_is_uncommitted(root: &Path, record: &ChangeRecord) -> bool {
         return true;
     };
     let pathspec = format!(":(top,literal){package}");
+    let state = format!(":(top,literal){package}/state.json");
+    match run_git_bounded(
+        root,
+        &["ls-files", "-z", "--", state.as_str()],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() && !output.stdout.is_empty() => {}
+        _ => return true,
+    }
     match run_git_bounded(
         root,
         &[

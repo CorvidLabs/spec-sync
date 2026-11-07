@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency",
+  "implementation_commit": "8749eec02de67074693a27240579e7063a5251f2",
+  "implementation_tree": "6929c4f90a05716b2d60eab288e7a9a59d4fbeca",
+  "contract_digest": "f55ec31577e86f9952e47ec5588981da1c80db16110c83113d1b0f2e70ac2546",
+  "workspace_digest": "07c9c66692246afaeebdb02393299320ba409fdd53e500f262204a6e46815772",
+  "closing_digest": "9dc066402a93edb0806d8796d6818f09f02a004636ec83878366885731a8e917",
+  "review_digest": "545e010242407c88f38ac01d41925f15d82b6fac775579d8ed93738496350c01",
+  "finalization_digest": "c93697aa429190aa7c312b954cf07d12b27026ab88316fddb1c41f15e10a5bbf",
+  "timestamp": 1794011836
+}

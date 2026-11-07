@@ -1776,6 +1776,14 @@ The persistent read cache SHALL be reused only by the build that wrote it. Its b
 - A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
 - Removing the fingerprint from the read-cache identity fails that test.
 
+### REQ-change-139
+
+The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
+
+Acceptance Criteria
+- A renamed or undated upstream package of the change is found.
+- The lookup uses one tree listing and one batched blob read of the archive directory, plus per-match work only for a matching package.
+
 ### REQ-change-140
 
 Inside a change read scope, the workflow-version history of every archived change SHALL be answered from one lifecycle-state history index per command, built from a fixed number of Git walks from `HEAD` over the lifecycle state paths of the changes root and the archive root. Each archive's candidate state paths, its oldest-first state-path history and its history commits' parents SHALL be derived from that index, and every archive SHALL still be fully validated. A cold archived `change status` SHALL NOT spawn more Git processes as the project holds more archives (SPEED-1.a.1). The index SHALL never change a verdict: each archive SHALL be accepted or refused exactly as the per-archive check would, with the same first refusal and message, the same non-canonical archive path refusal, and the same per-archive history and parent bounds. When the index cannot be built (over its commit bound or output limit, or a Git call fails), each archive SHALL fall back to the per-archive check.
@@ -1793,23 +1801,6 @@ Acceptance Criteria
 - A listed state blob that cannot be read refuses the archive and leaves no cached absence.
 - A cold archived status past its `--timeout` still exits 124 with the phase and progress.
 
-### REQ-change-139
-
-The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
-
-Acceptance Criteria
-- A renamed or undated upstream package of the change is found.
-- The lookup uses one tree listing and one batched blob read of the archive directory, plus per-match work only for a matching package.
-
-### REQ-change-144
-
-Building a change's acceptance manifest or acceptance input digest SHALL read the clean tracked files in its delivery scope one blob at a time, each under the existing per-object bound, so that `change reopen`, and every other read that builds that evidence, does not fail because the total size of those files exceeds a single in-memory Git read.
-
-Acceptance Criteria
-- Reopen of a stale accepted change whose clean affected files exceed one `git cat-file --batch` read, with or without an acceptance manifest, no longer fails with "`git cat-file --batch` output exceeds deterministic bounds".
-- The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
-- Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
-- The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
 ### REQ-change-relayed-decision-001
 
 A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.
@@ -1824,6 +1815,15 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 - A `--portable-5-0-1` approval carries the relay on both records of the pair.
 - `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
 
+### REQ-change-144
+
+Building a change's acceptance manifest or acceptance input digest SHALL read the clean tracked files in its delivery scope one blob at a time, each under the existing per-object bound, so that `change reopen`, and every other read that builds that evidence, does not fail because the total size of those files exceeds a single in-memory Git read.
+
+Acceptance Criteria
+- Reopen of a stale accepted change whose clean affected files exceed one `git cat-file --batch` read, with or without an acceptance manifest, no longer fails with "`git cat-file --batch` output exceeds deterministic bounds".
+- The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
+- Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
+- The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
 ### REQ-change-145
 
 When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
@@ -1854,4 +1854,12 @@ Acceptance Criteria
 - `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
 - `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.
 - SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`.
+
+### REQ-change-147
+
+A change summary of an archived change SHALL NOT take the whole-tree project-input digest to report `scoped_review_current` once its archived package is committed; it SHALL report `false`, which is what the full check gives for a committed archive. While the archived package has uncommitted changes, the summary SHALL compute it as before. A warm `change status` of an archived change SHALL NOT spawn more Git processes as the project tracks more files (SPEED-1.a). Summaries of changes before archive are unchanged.
+
+Acceptance Criteria
+- `warm_archived_status_git_processes_do_not_grow_with_tracked_files`: 3000 more tracked files add fewer than 3 Git processes to a warm archived status.
+- `an_archived_change_reports_the_scoped_review_currency_the_full_check_gives`: the summary reports what the full check gives, right after finalize (uncommitted), once committed, after later commits, after an unrelated edit and for a moved archive.
 

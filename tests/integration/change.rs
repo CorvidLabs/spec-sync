@@ -2913,27 +2913,32 @@ fn an_empty_policy_gets_no_note_about_unrun_commands() {
     }
 }
 
-// Verifies SHIP-1.c.3 for this repository (#893, Leif's "3b-yes"). Honest label: CONTRACT PIN.
-// spec-sync's own policy configures no verification command, so its own checks carry no note
-// and its policy no longer lists commands nothing runs.
+// Verifies SHIP-1.c.3 for this repository (#893, Leif's narrowed 3b decision). Honest label:
+// CONTRACT PIN. Only the top-level list is empty; the component and strict lists stay configured,
+// so the new note still discloses those commands instead of being silenced here.
 #[test]
 fn this_repository_configures_no_verification_command() {
     let policy: Value = serde_json::from_str(&tracked_text(".specsync/sdd.json")).unwrap();
-    for key in ["verification_commands", "strict_verification_commands"] {
-        assert!(
-            policy[key].as_array().is_none_or(|list| list.is_empty()),
-            "`{key}` lists commands `change check` does not run: {}",
-            policy[key]
-        );
-    }
     assert!(
+        policy["verification_commands"]
+            .as_array()
+            .is_none_or(|list| list.is_empty()),
+        "`verification_commands` lists commands `change check` does not run: {}",
+        policy["verification_commands"]
+    );
+    assert_eq!(
         policy["component_verification_commands"]
             .as_object()
-            .is_none_or(|lists| lists.values().all(|list| {
-                list.as_array().is_none_or(|list| list.is_empty())
-            })),
-        "`component_verification_commands` lists commands `change check` does not run: {}",
-        policy["component_verification_commands"]
+            .map_or(0, |lists| lists.len()),
+        13,
+        "the component verification commands stay configured"
+    );
+    assert_eq!(
+        policy["strict_verification_commands"]
+            .as_array()
+            .map_or(0, |list| list.len()),
+        3,
+        "the strict verification commands stay configured"
     );
 }
 

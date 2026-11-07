@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-8f304d0fcf15ff3c046a8927",
-    "head": "EVT-bae48a75b8fc83da365cb9b3",
+    "head": "EVT-9b472ae0f8e6fdc066bd70c3",
     "legacy": null
   },
   "schema_version": 2,
@@ -17,13 +17,14 @@
     "callers": [],
     "iteration": 1
   },
-  "native_change": null,
+  "native_change": "change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is",
   "references": {
     "criteria": [
       "SHIP-1.c.3"
     ],
     "requirements": [
-      "REQ-change-023"
+      "REQ-change-023",
+      "REQ-cmd-change-unrun-commands-001"
     ],
     "cases": [],
     "design": [],
@@ -31,18 +32,22 @@
   },
   "decisions": [
     "Leif decided \"Intent decision for #893 (SHIP-1.c.3)\": \"1A 2yes 3yes 3b-yes\" (Herdr orc tab, relayed by orc t18 to t15w, 2026-11-06 ~19:35 MST); recorded by claude (ss-triage t15w); a relayed claim, not authenticated",
-    "Leif 3yes: stderr note in text on change check and change audit, JSON list configured_commands_not_run, never fails or runs anything; 3b-yes: empty spec-sync's own verification_commands (relayed by orc t18 2026-11-06 ~19:35 MST)"
+    "Leif 3yes: stderr note in text on change check and change audit, JSON list configured_commands_not_run, never fails or runs anything; 3b-yes: empty spec-sync's own verification_commands (relayed by orc t18 2026-11-06 ~19:35 MST)",
+    "Leif narrowed 3b: empty only verification_commands and keep the 13 component and 3 strict commands, so the note stays visible for this repository; relayed by orc t18 on 2026-11-06"
   ],
-  "open_questions": [
-    "3b scope: sdd.json also has component_verification_commands (13 modules) and strict_verification_commands (3); the note covers them, so silencing it needs all three emptied. Leif approved emptying verification_commands; confirm the other two at scope approval"
+  "open_questions": [],
+  "completed": [
+    "Narrowed this_repository_configures_no_verification_command to empty only verification_commands and pin the retained 13 component and 3 strict commands",
+    "Created and completed the native cmd_change change for #893; status names scope approval as the next action"
   ],
-  "completed": [],
   "observations": [
     "OBS-product-test-693137d491cd153adf290ec2"
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Scope approval of #893 change change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is, sent to orc t18"
+  ],
   "run_consents": [],
-  "next_action": "Create the native change (specs cmd_change; paths src/commands/change.rs, tests/integration/change.rs, .specsync/sdd.json, site/src/content/docs/configuration.md, docs/ADOPTING.md, specs/cmd_change/, CHANGELOG.md, hi/ship.md, INTENT.md, .chough/), ADDED REQ-cmd-change-unrun-commands-001, then send 'ready for approval' to orc t18"
+  "next_action": "Waiting for Leif's scope approval of #893; do not implement before it is recorded"
 }

@@ -337,13 +337,49 @@ fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
     }
     // A change named for a late close is not read for evidence: the late close re-checks nothing,
     // and on the changes it exists for the read is what fails (Codex review of #994).
-    for record in roster
+    let accepted: Vec<(&ChangeRecord, TerminalEvidenceSummary)> = roster
         .records
         .iter()
         .filter(|record| record.state == ChangeState::Accepted && !closing.contains(&record.id))
-    {
-        let evidence = terminal_evidence_summary_with_records(root, record, &records);
+        .map(|record| {
+            let evidence = terminal_evidence_summary_with_records(root, record, &records);
+            (record, evidence)
+        })
+        .collect();
+    // Every accepted record whose evidence is not current stops the archive preflight a finalize
+    // or archive runs, so resuming one is not safe while another is still there (Codex review of
+    // #994). An accepted package left in the archive stops it too.
+    let mut blockers: BTreeSet<String> = accepted
+        .iter()
+        .filter(|(_, evidence)| {
+            !matches!(
+                evidence.validity,
+                TerminalEvidenceValidity::Exact | TerminalEvidenceValidity::SuccessorCovered
+            )
+        })
+        .map(|(record, _)| record.id.clone())
+        .collect();
+    blockers.extend(
+        archived_accepted_packages(root)
+            .into_iter()
+            .map(|(_, record)| record.id)
+            .filter(|id| !closing.contains(id)),
+    );
+    for (record, evidence) in &accepted {
         if evidence.validity == TerminalEvidenceValidity::Stale {
+            let reopen = format!(
+                "specsync change reopen {} --actor <name> --reason <text>",
+                shell_word(&record.id)
+            );
+            let merged = reference.as_ref().is_some_and(|reference| {
+                package_is_on_reference(
+                    root,
+                    &format!("{CHANGES_PATH}/{}/state.json", record.id),
+                    reference,
+                )
+            });
+            // A late close applies only to a merged change, so an unmerged one is offered the
+            // reopen that can actually run (Codex review of #994).
             let mut drifted = finding(
                 "accepted-inputs-drifted",
                 Some(&record.id),
@@ -353,12 +389,15 @@ fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
                     .clone()
                     .unwrap_or_else(|| "its accepted evidence is no longer current".into()),
                 DoctorFixClass::Decision,
-                close_late_command(&record.id),
+                if merged {
+                    close_late_command(&record.id)
+                } else {
+                    reopen.clone()
+                },
             );
-            drifted.fix.alternative = Some(format!(
-                "specsync change reopen {} --actor <name> --reason <text>",
-                shell_word(&record.id)
-            ));
+            if merged {
+                drifted.fix.alternative = Some(reopen);
+            }
             findings.push(drifted);
             continue;
         }
@@ -378,27 +417,47 @@ fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
             ));
             continue;
         }
-        if record.workflow_version >= 2 {
-            if change_dir(root, &record.id).join("finalization.json").is_file() {
-                findings.push(finding(
-                    "stopped-finalize",
-                    Some(&record.id),
-                    "active",
-                    "its finalize stopped after acceptance; the package was never archived".into(),
-                    DoctorFixClass::Safe,
-                    format!("specsync change finalize {}", shell_word(&record.id)),
-                ));
+        let (stopped, command) = if record.workflow_version >= 2 {
+            if !change_dir(root, &record.id).join("finalization.json").is_file() {
+                continue;
             }
+            (
+                "its finalize stopped after acceptance; the package was never archived",
+                format!("specsync change finalize {}", shell_word(&record.id)),
+            )
         } else {
-            findings.push(finding(
+            (
+                "it was accepted under workflow v1 and never archived",
+                format!("specsync change archive {}", shell_word(&record.id)),
+            )
+        };
+        let others: Vec<String> = blockers
+            .iter()
+            .filter(|id| *id != &record.id)
+            .map(|id| format!("`{id}`"))
+            .collect();
+        findings.push(if others.is_empty() {
+            finding(
                 "stopped-finalize",
                 Some(&record.id),
                 "active",
-                "it was accepted under workflow v1 and never archived".into(),
+                stopped.into(),
                 DoctorFixClass::Safe,
-                format!("specsync change archive {}", shell_word(&record.id)),
-            ));
-        }
+                command,
+            )
+        } else {
+            finding(
+                "stopped-finalize",
+                Some(&record.id),
+                "active",
+                format!(
+                    "{stopped}; the archive preflight would stop at {} first, so close those late or reopen them, then `doctor --fix` resumes it",
+                    others.join(", ")
+                ),
+                DoctorFixClass::ReportOnly,
+                command,
+            )
+        });
     }
     let verifying: Vec<&ChangeRecord> = roster
         .records
@@ -693,6 +752,18 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
             record.id
         ));
     }
+    // A record this binary cannot validate is not moved: its lifecycle format is unknown here
+    // (Codex review of #994).
+    validate_loaded_change(&record, id, &state_path)
+        .map_err(|error| format!("change `{id}` cannot be closed late: {error}"))?;
+    // The package keeps its bytes, so a late-close record it already holds would be overwritten.
+    let existing_record = source.join(LATE_CLOSE_RECORD);
+    if fs::symlink_metadata(&existing_record).is_ok() {
+        return Err(format!(
+            "change `{id}` cannot be closed late: its package already holds `{}`",
+            portable_project_path(root, &existing_record)
+        ));
+    }
     let from_path = portable_project_path(root, &source);
     if from_path.starts_with(&format!("{ARCHIVE_PATH}/")) && record.state != ChangeState::Accepted {
         return Err(format!(
@@ -936,7 +1007,10 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
             let mut eligible: Vec<String> = report
                 .findings
                 .iter()
-                .filter(|finding| finding.fix.class == DoctorFixClass::Decision)
+                .filter(|finding| {
+                    finding.fix.class == DoctorFixClass::Decision
+                        && finding.fix.command.starts_with("specsync doctor --fix --close-late ")
+                })
                 .filter_map(|finding| finding.change.clone())
                 .collect();
             eligible.sort();
@@ -1014,7 +1088,9 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
     // Each safe fix is revalidated against a fresh scan after every move: a late close or an applied
     // fix can make the next one unsafe or moot (Codex review of #994). A dry run moves nothing, so
     // it plans from the first scan less the changes it would close late.
-    let mut findings_now = if request.dry_run || closing.is_empty() {
+    // With late closes in this call, the plan comes from a scan that treats them as gone: they are
+    // no longer blockers, and get no safe fix. A dry run moves nothing, so this is its preview.
+    let mut findings_now = if closing.is_empty() {
         report.findings.clone()
     } else {
         doctor_scan(root, &closing)

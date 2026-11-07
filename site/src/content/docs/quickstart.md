@@ -22,7 +22,7 @@ brew install CorvidLabs/tap/spec-sync
 # Via GitHub releases (no Rust toolchain needed)
 # Download the Linux or macOS binary for your platform from:
 # https://github.com/CorvidLabs/spec-sync/releases
-# Windows is not a supported target as of 6.0 - use WSL, or cargo install
+# On Windows, run the Linux version inside WSL 2; native Windows is unsupported
 
 # Via GitHub Action (CI only)
 # See integrations/github-action
@@ -300,7 +300,7 @@ Once you're up and running, explore these features:
 | Schema validation | Add `schema_dir` to config | [Configuration](configuration.md) |
 | Cross-project refs | `owner/repo@module` syntax | [Cross-Project Refs](cross-project-refs.md) |
 | MCP server | `specsync mcp` | [AI Agents](integrations/ai-agents.md) |
-| VS Code extension | Install from marketplace | [VS Code Extension](integrations/vscode-extension.md) |
+| VS Code extension | Build and install a local VSIX | [VS Code Extension](integrations/vscode-extension.md) |
 | Agent instructions | `specsync hooks` | [CLI Reference](cli.md#hooks) |
 | Merge conflicts | `specsync merge` | [CLI Reference](cli.md#merge) |
 

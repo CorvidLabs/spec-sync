@@ -45,10 +45,10 @@ SPECSYNC_BIN="$PWD/target/release/specsync" ./examples/sdd-concurrent-changes/ru
 SPECSYNC_BIN="$PWD/target/release/specsync" ./examples/sdd-five-epics/run.sh
 ```
 
-The Rust test suite also injects phantom exports, undocumented exports, missing files, schema drift, stale evidence, malformed deltas, conflicting changes, unsafe paths, and cross-platform Git states. CI runs the same deterministic binary on Linux, macOS, and a packaged GitHub Action consumer, and qualifies each release candidate on Ubuntu and macOS runners before a final tag can be created. Windows is not a supported target as of 6.0, and no Windows binary is published.
+The Rust test suite also injects phantom exports, undocumented exports, missing files, schema drift, stale evidence, malformed deltas, conflicting changes, unsafe paths, and cross-platform Git states. Ordinary CI runs the product suite and packaged GitHub Action consumer on Ubuntu. The immutable release-candidate lane qualifies each candidate on Ubuntu and macOS before a final tag can be created. Native Windows is unsupported and no Windows binary is published; Windows users run the Linux version inside WSL 2.
 
 ## Fair interpretation
 
 This is not a claim that Spec Kit or OpenSpec cannot find drift. A capable coding agent, extension, or custom workflow can find many of these mutations. The narrower claim is testable: their core artifact workflows do not ship SpecSync's language-aware export and database-schema parser as a deterministic blocking contract checker. Conversely, SpecSync does not replace Spec Kit's orchestration ecosystem or OpenSpec's lightweight proposal experience.
 
-Sources: [Spec Kit workflow](https://github.github.com/spec-kit/quickstart.html), [Spec Kit persistence models](https://github.github.com/spec-kit/concepts/spec-persistence.html), and [OpenSpec artifact model](https://github.com/Fission-AI/OpenSpec/blob/main/docs/getting-started.md). Verified 2026-07-11.
+Sources: [Spec Kit workflow](https://github.github.com/spec-kit/quickstart.html), [Spec Kit persistence models](https://github.github.com/spec-kit/how-to/spec-persistence.html), and [OpenSpec artifact model](https://github.com/Fission-AI/OpenSpec/blob/main/docs/getting-started.md). Comparison verified 2026-07-11; moved persistence link refreshed 2026-11-06.

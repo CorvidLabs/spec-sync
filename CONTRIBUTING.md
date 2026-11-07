@@ -8,10 +8,15 @@ Thank you for your interest in contributing to SpecSync! This guide will help yo
 
 - [Rust](https://rustup.rs/) 1.89 or newer (the CI toolchain is pinned; see `rust-toolchain.toml`)
 - Git
-- Linux or macOS. Windows is neither built nor published as a 6.0 target (#735); the code still
-  compiles there, but CI does not qualify it and no release asset exists for it.
+- Linux or macOS. On Windows, use Linux through WSL 2. Native Windows builds are unsupported
+  and no Windows release asset is published.
 
 ### Development Setup
+
+Use rustup's `cargo` and `rustc` shims for repository checks so they honor `rust-toolchain.toml`.
+On macOS, a Homebrew Cargo earlier on PATH can select a different compiler and Clippy. Put
+`~/.cargo/bin` first (`export PATH="$HOME/.cargo/bin:$PATH"`) and check `rustc --version` before
+running the verification lane; it should match the repository's pinned toolchain.
 
 ```bash
 # Clone the repo
@@ -34,12 +39,17 @@ cargo fmt
 ### Before every push (required, keep it fast)
 
 ```bash
+specsync change audit --strict
 fledge lanes run pre-push
 # or: ./scripts/pre-push-gate.sh
 ```
 
 Runs **fmt + cargo check + strict path/spec coverage** only (target: ~seconds–2 min warm).  
 Does **not** run full `cargo test` or clippy — those are `fledge lanes run verify` / CI. Do not push red.
+
+The separate `change audit --strict` also runs in CI's lifecycle and Trust gates. It checks
+active change coherence, including whether changed paths are declared in `affected_paths`;
+`change check --commit` and the pre-push lane do not replace it.
 
 ### Running Locally
 
@@ -75,7 +85,9 @@ Use the [Feature Request](https://github.com/CorvidLabs/spec-sync/issues/new?tem
 
 ### Documentation
 
-The documentation marketing site lives in `site/` (Astro + MDX). To work on docs locally:
+Documentation content lives in `site/` (Astro + MDX) and is published on the
+[CorvidLabs hub](https://corvidlabs.xyz/spec-sync/docs/). The standalone Pages site now serves
+redirects and badges. To check the local content and redirect build:
 
 ```bash
 cd site
@@ -85,7 +97,9 @@ bun run build     # production build → site/dist/
 bun test          # run all site tests
 ```
 
-Docs content lives in `site/src/content/docs/`. The site is deployed automatically to GitHub Pages on every push to `main` via `.github/workflows/pages.yml`.
+Docs content lives in `site/src/content/docs/`. `.github/workflows/pages.yml` deploys the
+standalone redirects to GitHub Pages on pushes to `main`; that is separate from the hub's
+deployment. Verify the canonical hub pages after its deployment when checking published copy.
 
 ### Pull Requests
 

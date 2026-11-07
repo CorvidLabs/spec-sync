@@ -1,0 +1,7 @@
+Checked 2026-11-06; HTTP reachability, not renewed comparison qualification.
+curl -LsS --max-time 20 -o /dev/null -w HTTP_STATUS https://github.github.com/spec-kit/workflows/overview.html
+exit=0; 200 https://github.github.com/spec-kit/workflows/overview.html; 
+curl -LsS --max-time 20 -o /dev/null -w HTTP_STATUS https://github.github.com/spec-kit/extensions/overview.html
+exit=0; 200 https://github.github.com/spec-kit/extensions/overview.html; 
+curl -LsS --max-time 20 -o /dev/null -w HTTP_STATUS https://github.github.com/spec-kit/how-to/spec-persistence.html
+exit=0; 200 https://github.github.com/spec-kit/how-to/spec-persistence.html; 

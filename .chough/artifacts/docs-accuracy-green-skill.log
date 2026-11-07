@@ -1,0 +1,70 @@
+   Compiling specsync v6.2.0 (/Users/leif/Development/_CorvidLabs/_worktrees/ss-docs-accuracy)
+warning: variable does not need to be mutable
+    --> src/change/../change_tests/substantive_plan.rs:3862:9
+     |
+3862 |     let mut successor = create_change(
+     |         ----^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `specsync` (bin "specsync" test) generated 1 warning (run `cargo fix --bin "specsync" -p specsync --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.39s
+     Running unittests src/main.rs (target/debug/deps/specsync-fbd46d3e3b5bc7f2)
+
+running 45 tests
+test agents::tests::agent_tool_all_returns_four_targets ... ok
+test agents::tests::agent_tool_name_returns_expected_strings ... ok
+test agents::tests::agent_tool_all_contains_all_variants ... ok
+test agents::tests::from_str_is_case_insensitive ... ok
+test agents::tests::from_str_parses_all_targets ... ok
+test agents::tests::from_str_returns_none_for_unknown ... ok
+test agents::tests::checked_in_asset_parity_normalizes_windows_checkout_line_endings ... ok
+test agents::tests::a_manifest_written_by_a_newer_six_is_still_usable ... ok
+test agents::tests::claude_paths_are_correct ... ok
+test agents::tests::gemini_has_both_skill_and_command_paths ... ok
+test agents::tests::cursor_command_path_is_flat ... ok
+test agents::tests::codex_has_no_command_path ... ok
+test agents::tests::is_installed_returns_false_for_empty_dir ... ok
+test agents::tests::install_codex_creates_skill_only ... ok
+test agents::tests::tracked_agent_files_teach_archive_first_ci ... ok
+test agents::tests::tracked_skill_files_carry_the_current_same_actor_guidance ... ok
+test agents::tests::tracked_skill_files_teach_check_is_the_product ... ok
+test agents::tests::install_preserves_and_reports_non_utf8_customization ... ok
+test agents::tests::install_preserves_untracked_stale_command_as_conflict ... ok
+test agents::tests::install_preserves_untracked_stale_skill_as_conflict ... ok
+test agents::tests::gemini_create_change_uses_native_args_and_quotes_answers ... ok
+test agents::tests::install_claude_creates_skill_and_command ... ok
+test agents::tests::install_cursor_command_has_no_frontmatter ... ok
+test agents::tests::install_adopts_matching_legacy_artifacts_without_rewriting_them ... ok
+test agents::tests::uninstall_codex_removes_skill_only ... ok
+test agents::tests::install_does_not_rewrite_unchanged_content ... ok
+test agents::tests::uninstall_returns_false_when_not_installed ... ok
+test agents::tests::install_gemini_creates_skill_and_command ... ok
+test agents::tests::install_records_versioned_digests_for_generated_artifacts ... ok
+test agents::tests::manifest_allows_unmodified_generated_artifact_upgrade ... ok
+test agents::tests::install_reports_and_preserves_all_customized_artifacts ... ok
+test agents::tests::uninstall_claude_removes_skill_and_command ... ok
+test agents::tests::uninstall_preserves_untracked_artifact_and_user_skill_sibling ... ok
+test agents::tests::uninstall_cursor_flat_file_does_not_touch_commands_dir ... ok
+test agents::tests::uninstall_preserves_user_files_inside_generated_skill_directory ... ok
+test agents::tests::uninstall_preserves_all_customized_artifacts_without_partial_removal ... ok
+test agents::tests::uninstall_gemini_removes_skill_and_command ... ok
+test agents::tests::uninstall_preserves_sibling_commands ... ok
+test agents::tests::create_spec_commands_classify_the_complete_remaining_input ... ok
+test agents::tests::checked_in_create_spec_commands_match_generated_assets ... ok
+test agents::tests::generated_agent_artifacts_contain_no_em_or_en_dash ... ok
+test agents::tests::every_generated_lifecycle_surface_quotes_free_text_answers ... ok
+test agents::tests::install_is_idempotent ... ok
+test agents::tests::tracked_agent_artifacts_and_manifest_match_a_fresh_install ... ok
+test agents::tests::reinstall_keeps_all_generated_artifacts_byte_identical ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 2794 filtered out; finished in 1.26s
+
+     Running tests/integration.rs (target/debug/deps/integration-d327c9089ba08fa6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 497 filtered out; finished in 0.00s
+

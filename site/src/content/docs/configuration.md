@@ -127,6 +127,11 @@ The `[rules]` table controls spec-quality constraints:
 | `min_invariants` | Set the minimum invariant count |
 | `max_spec_size_kb` | Warn on oversized specs |
 | `require_depends_on` | Require explicit dependencies |
+| `require_draft_files` | Default `false`: a draft may name planned source files that do not exist yet (a notice). Set `true` to require those files even for drafts |
+
+Missing source files remain errors for non-draft specs. Drafts skip required-section and
+API-symbol validation; review specs skip API-symbol validation and may omit Public API.
+Other scaffold warnings can still fail `check --strict`.
 
 ## Maturity lifecycle guards
 

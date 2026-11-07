@@ -79,7 +79,7 @@ Each canonical spec may have policy-selected companion files. Read and update th
 Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, CI is
 archive-first: a pushed tip with any open change fails the Archive check and runs nothing else.
 Verify locally (`change check --commit` and the local verify lane), record `change review`, run
-`change ship` without committing in between, then commit and push the archive tip. CI runs the
+`change ship` without committing in between. It creates the archive commit; push the archive tip. CI runs the
 full lane on that tip; merge only when it is green. Open the PR first: do not
 record review or ship before the PR exists.
 

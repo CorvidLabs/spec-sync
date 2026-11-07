@@ -86,8 +86,8 @@ Releases up to and including 6.2.0 predate this floor
 2.39, and they have no ARM64 musl download. On those versions use `specsync-linux-x86_64-musl`,
 or build from source with `cargo install specsync --locked`.
 
-Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
-under WSL, or build it from source with `cargo install specsync`.
+SpecSync supports macOS and Linux. On Windows, run the Linux version through **WSL 2**;
+native Windows builds are not supported or published.
 
 ## A contract change in 60 seconds
 
@@ -160,6 +160,10 @@ SpecSync validates Markdown module specs (`*.spec.md`) against source code in bo
 | A source import is undeclared | Strict dependency error |
 | A documented database table or column is missing | Error |
 | A schema column is undocumented or has a type mismatch | Warning |
+
+Validation follows spec status: draft and review specs skip export comparison. A draft may
+map a not-yet-created file as a planned source notice unless `require_draft_files = true`.
+Active specs still fail on missing mapped files; strict mode still rejects scaffold warnings.
 
 It also provides a verified spec-driven development lifecycle, coverage gates, quality scoring, dependency analysis, cross-project references, Git hooks, editor integration, and agent-native workflows.
 
@@ -256,6 +260,7 @@ specs/auth/
 | `requirements.md` | Stable `REQ-*` identities, normative SHALL statements, and acceptance criteria |
 | `tasks.md` | Work still to do; requirements are not checkboxes |
 | `context.md` | Decisions, constraints, key files, and handoff state |
+| `<module>.3md` (optional) | First plane is context; later planes are lessons. When it parses, it replaces `context.md` as the lesson source |
 | `testing.md` | Requirement traceability, automated coverage, manual QA, and adversarial cases |
 | `.specsync/changes/<change-id>/` | Proposed deltas, approvals, verification, and closing evidence |
 

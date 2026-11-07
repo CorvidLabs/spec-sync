@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 21
+version: 22
 status: stable
 files:
   - src/agents.rs
@@ -155,3 +155,4 @@ managed bytes from user customization.
 | 2026-11-01 | SpecSync | v19: teach generated skills and `/specsync:check` archive-first CI: `--commit` is local evidence, review and ship happen without waiting on remote CI, and the full lane runs on the pushed archive tip |
 | 2026-11-01 | SpecSync | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
 | 2026-11-01 | SpecSync | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
+| 2026-11-06 | SpecSync | correct-reference-documentation-and-validate-mermaid-lifecycle-diagrams: Correct reference documentation and validate Mermaid lifecycle diagrams |

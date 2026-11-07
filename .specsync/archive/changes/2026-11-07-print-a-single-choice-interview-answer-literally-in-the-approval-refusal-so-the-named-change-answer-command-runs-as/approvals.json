@@ -59,6 +59,13 @@
         "where": "Moshi question from orc t18, 2026-11-06, approving #958 at 9c401605",
         "recorded_by": "orc t18"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794082849,
+      "digest": "00f79958260ca6f51e097b0e4c1181e8a78245d71801c66cfac53db283b7e288",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

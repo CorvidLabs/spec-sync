@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-e08f7052312cfd6b8bbd4f85",
-    "head": "EVT-2bca5d958f855613f4af4001",
+    "head": "EVT-a35fe6d03417ca7477617484",
     "legacy": null
   },
   "schema_version": 2,
@@ -48,7 +48,8 @@
     "Leif via orc t18 ('Capture all + approve design', 2026-11-06): capture SHIP-12 and .a-.f verbatim; D1 closed_late is a new terminal state (rejected: archived plus a marker, which could pass as verified); D2 drafts closable, recorded never approved; D3 several IDs all-or-nothing plus --dry-run (--all-merged deferred); D4 this PR first; it Fixes #833; the reopen overflow is #976 in its own PR (REQ-change-144).",
     "Leif via orc t18 (new direction, 2026-11-06): build it as specsync doctor; the late close is one doctor fix stored where 6.x never reads; ship in 6.3.0 with no new state (rejected: closed_late ChangeState, which 6.0-6.2 cannot parse; rejected: top-level .specsync/closed-late/, which 6.x treats as a project input).",
     "Leif via orc t18 ('Capture + recommended design'): capture SHIP-12.g and RECOVER-3 .a-.d verbatim; D2 stale verification is report-only; D3 --close-late <id>... or all with --actor/--reason; D4 the 6.0.0/6.2.0 compat test runs in CI; D5 a collision member drops and records its acknowledgement; IDs REQ-change-143 (reworded), REQ-cmd-change-035, REQ-cli-args-025. Remove the never-approved close-late draft.",
-    "0xLeif decided \"Leif's scope approval of the doctor change, relayed by orc t18\": \"Leif approved specsync doctor; recorded as 0xLeif at 2e65c8a8\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated"
+    "0xLeif decided \"Leif's scope approval of the doctor change, relayed by orc t18\": \"Leif approved specsync doctor; recorded as 0xLeif at 2e65c8a8\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated",
+    "Leif via orc t18 (option A, 2026-11-06): send-back recorded as 0xLeif after change ship refused with 'acceptance input src/agents.rs is production source without deterministic canonical ownership' (the approved affected_paths named all of src/); narrow affected_paths to the touched files and add cli (owner of src/main.rs) with a Purpose delta; the cancelled review stays in history. Rejected: 127 owner corrections for files the change never touched; --all-missing (one module for every file is a false ownership claim)."
   ],
   "open_questions": [],
   "completed": [
@@ -57,7 +58,9 @@
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Leif's re-approval of the re-scoped doctor change, relayed by orc t18"
+  ],
   "run_consents": [],
-  "next_action": "Send 'ready for approval' to orc t18; then write the failing tests and record that they fail on 1276e314"
+  "next_action": "Fix the three Codex P2s on #994 (failing tests recorded), then send 'ready for approval'"
 }

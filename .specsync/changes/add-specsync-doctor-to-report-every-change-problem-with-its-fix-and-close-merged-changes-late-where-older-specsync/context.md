@@ -28,3 +28,13 @@ REQ-change-143 (reworded), REQ-cmd-change-035 and REQ-cli-args-025.
 
 The never-approved draft `close-a-change-that-merged-but-was-never-archived-…` is removed in this commit. Its
 approval was refused with "semantic delta modules must exactly match affected specs".
+
+Re-scope after the first review: Leif approved and reviewed this change at 2e65c8a8 and 45772452. `change ship`
+then refused it with "acceptance input `src/agents.rs` is production source without deterministic canonical
+ownership", because the approved affected paths named all of `src/`. Acceptance gives every production file in
+scope an owner among the affected specs, and 127 of the 164 files under `src/` belong to other modules. Leif sent
+it back (recorded by orc t18; option A). The affected paths now name exactly the files the change touches. `cli`
+joins the affected specs because it owns `src/main.rs`, which gains the doctor dispatch arm, and its Purpose now
+says that it routes `specsync doctor`. The code, tests and acceptance criteria are unchanged. The review the
+send-back cancelled stays in the append-only history.
+

@@ -66,5 +66,47 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync",
+      "actor": "0xLeif",
+      "reason": "Narrow affected_paths from all of src/ to the files this change touches, and add the cli spec (src/main.rs dispatch arm) with a Purpose delta; ship refused on src/agents.rs ownership. Code and tests unchanged.",
+      "timestamp": 1794010362,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 1,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-143",
+          "content": "A late close SHALL move a change package that is committed on the remote default branch but was never archived, byte for byte, into `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` record, without reading the change's delivery evidence and without adding a change state, and SpecSync SHALL never treat a closed-late change as verified.\n\nAcceptance Criteria\n- The package comes from `.specsync/changes/` or `.specsync/archive/changes/`. Its `state.json` keeps its bytes and the state in it, and every other file keeps its bytes.\n- The package's `state.json`, at its current path, must be present on the remote default reference (`origin/HEAD`, else `origin/main` or `origin/master`). When no remote default resolves, or the package is not on it, the close is refused and nothing is written.\n- No delivery input, acceptance manifest, acceptance input digest or verification is read or rebuilt.\n- `late-close.json` records the schema version, change ID, actor, reason, timestamp, the state it was closed from, its workflow version, the path it came from, the remote default reference and its commit, the commit that added the package and that commit's date, and `verified: false`.\n- For a member of an acknowledged sequence collision, the acknowledgement is removed from `.specsync/change-sequence.json` and recorded in `late-close.json`; the ledger's sequence and claim are unchanged.\n- A closed-late change is never part of the archive preflight, the successor walk or the sequence accounting, which read only `.specsync/changes/` and `.specsync/archive/changes/`.\n- `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.\n- `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.\n- SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-035",
+          "content": "`specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.\n\nAcceptance Criteria\n- Findings cover: a change merged but never archived; an accepted change whose inputs drifted, including an `accepted` package under `.specsync/archive/changes/`; a finalize that stopped halfway, including a workflow-v1 change accepted but not archived; stale verification; and records another SpecSync version wrote (missing 5.0.1-era digest fields, workflow-v1 plans without the 6.2 sections, a newer schema, an ID that a closed-late package already holds).\n- Each finding names its kind, change, reason, fix class and the exact command or doctor flag that applies the fix. Text and JSON carry the same findings.\n- A check that cannot run becomes a finding that names its error, and every other finding is still reported.\n- Plain `doctor` writes nothing. `--fix --dry-run` reports exactly what `--fix` would do with the same arguments and writes nothing.\n- The safe fixes are the `migrate 5.0` backfill, and resuming a stopped finalize (workflow v1: `change archive`) when no other finding blocks it. Stale verification is report-only and names `change check <id> --commit`.\n- `--close-late <id>` (repeatable) or `--close-late all` closes the named or every eligible change late, only with a non-empty `--actor` and `--reason`. Every named change is checked before anything is written, and one refusal writes nothing and names the refused change.\n- A late close of a collision member says that the ledger edit needs an open change declaring `.specsync/change-sequence.json` wherever meaningful files require one."
+        },
+        {
+          "module": "cli_args",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cli-args-025",
+          "content": "The `doctor` subcommand SHALL accept `--fix`, `--dry-run`, a repeatable `--close-late <id|all>`, `--actor <name>` and `--reason <text>`, together with the global output flags; argument parsing SHALL refuse `--close-late` given without `--fix`, `--actor` and `--reason`, and `--dry-run` given without `--fix`.\n\nAcceptance Criteria\n- `specsync doctor`, `specsync doctor --fix`, `specsync doctor --fix --dry-run` and `specsync doctor --fix --close-late a --close-late b --actor X --reason Y` parse.\n- `specsync doctor --close-late a --actor X --reason Y` (no `--fix`), `specsync doctor --fix --close-late a` (no actor or reason) and `specsync doctor --dry-run` are refused by argument parsing."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change",
+        "cli_args"
+      ]
+    }
+  ]
 }

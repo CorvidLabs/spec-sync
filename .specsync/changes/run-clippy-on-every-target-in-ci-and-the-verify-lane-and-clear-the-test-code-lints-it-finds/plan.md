@@ -22,7 +22,7 @@ Failing test first: the lockstep test, plus `cargo clippy --all-targets -- -D wa
 1. Commit CI-8, the failing `test-clippy-all-targets.py` and this definition; record approval.
 2. Fix the 36 lints file by file (research.md).
 3. Change CI's clippy step and the fledge `lint` task to `--all-targets`, add the `clippy-all-targets-test` task to `ci`, `verify` and `repo`, and add the `ci.yml` `validate-action` step.
-4. In `specs/github`: materialize REQ-github-028, bump the spec version, add a testing row, a Change Log row, and a lesson plane in `github.3md`.
+4. In `specs/github`: materialize REQ-github-028, bump the spec version, add a testing row, a Change Log row, and a lesson plane in `github.3md`. The eight owning specs' verbatim Purpose deltas materialize as a version bump plus this change's Change Log row each, with no section text changed.
 5. Run `specsync change check --commit`, `specsync change audit --strict`, `fledge lanes run pre-push` and `fledge lanes run verify` (niced). Then review, ship, archive and push; CI must be green.
 
 ## Risks

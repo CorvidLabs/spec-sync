@@ -96,10 +96,10 @@ pub fn closed_late_sentence(root: &Path, id: &str) -> Option<String> {
         Ok(record) => format!(
             "change `{id}` was closed late on {} by {} ({}); it merged in {} on {} and was never re-checked, so it is not verified{}; its package is `{location}`",
             utc_date(record.timestamp),
-            record.actor,
-            record.reason,
-            short_commit(&record.merged_commit),
-            record.merged_at,
+            printable_record_text(&record.actor),
+            printable_record_text(&record.reason),
+            short_commit(&printable_record_text(&record.merged_commit)),
+            printable_record_text(&record.merged_at),
             if record.from_state == ChangeState::Draft {
                 "; it was never approved"
             } else {
@@ -107,7 +107,8 @@ pub fn closed_late_sentence(root: &Path, id: &str) -> Option<String> {
             },
         ),
         Err(error) => format!(
-            "change `{id}` was closed late, but its record cannot be read ({error}); it is not verified; its package is `{location}`"
+            "change `{id}` was closed late, but its record cannot be read ({}); it is not verified; its package is `{location}`",
+            printable_record_text(&error)
         ),
     })
 }
@@ -173,7 +174,8 @@ pub struct DoctorFinding {
 pub struct DoctorAction {
     pub kind: &'static str,
     pub change: Option<String>,
-    /// `applied`, `would-apply`, `skipped` or `failed`.
+    /// `applied`, `would-apply`, `after-revalidation` (a dry run's later lifecycle moves), `skipped`
+    /// or `failed`.
     pub outcome: &'static str,
     pub detail: String,
 }
@@ -203,8 +205,45 @@ pub struct DoctorRequest {
     pub reason: Option<String>,
 }
 
+/// `id` as one shell word: unchanged when it holds only characters a shell leaves alone, single-quoted
+/// otherwise, so a printed fix command can be copied whatever the ID holds (Codex review of #994).
+fn shell_word(id: &str) -> String {
+    if !id.is_empty()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'/'))
+    {
+        id.to_string()
+    } else {
+        shell_quote(id)
+    }
+}
+
 fn close_late_command(id: &str) -> String {
-    format!("specsync doctor --fix --close-late {id} --actor <name> --reason <text>")
+    format!(
+        "specsync doctor --fix --close-late {} --actor <name> --reason <text>",
+        shell_word(id)
+    )
+}
+
+/// Recorded text is printed, not obeyed: control and bidirectional formatting characters are shown
+/// as escapes, so an actor or reason cannot move the cursor, recolour the terminal or reorder the
+/// line it is printed on (Codex review of #994).
+fn printable_record_text(text: &str) -> String {
+    let mut printable = String::with_capacity(text.len());
+    for character in text.chars() {
+        if character.is_control() {
+            printable.extend(character.escape_debug());
+        } else if matches!(
+            character,
+            '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+        ) {
+            printable.extend(character.escape_unicode());
+        } else {
+            printable.push(character);
+        }
+    }
+    printable
 }
 
 fn finding(
@@ -231,7 +270,7 @@ fn finding(
 /// Every problem doctor can find in the repository's change records, each with its fix. It writes
 /// nothing. A check that cannot run becomes a finding that names its error, and the scan goes on
 /// (RECOVER-3, RECOVER-3.a, RECOVER-3.d).
-fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
+fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
     let mut findings = Vec::new();
     let roster = match list_changes(root) {
         Ok(roster) => roster,
@@ -258,6 +297,16 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
         ));
     }
     let reference = remote_default_ref(root);
+    if reference.is_none() && !roster.records.is_empty() {
+        findings.push(finding(
+            "could-not-check",
+            None,
+            "project",
+            "no remote default branch (`origin/HEAD`, `origin/main` or `origin/master`) resolves, so doctor cannot tell which changes merged but were never archived".into(),
+            DoctorFixClass::ReportOnly,
+            "git fetch origin && git remote set-head origin --auto".into(),
+        ));
+    }
     for record in &roster.records {
         if let Some(reference) = &reference
             && package_is_on_reference(root, &format!("{CHANGES_PATH}/{}/state.json", record.id), reference)
@@ -286,10 +335,12 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
     for record in archived_records(root) {
         records.entry(record.id.clone()).or_insert(record);
     }
+    // A change named for a late close is not read for evidence: the late close re-checks nothing,
+    // and on the changes it exists for the read is what fails (Codex review of #994).
     for record in roster
         .records
         .iter()
-        .filter(|record| record.state == ChangeState::Accepted)
+        .filter(|record| record.state == ChangeState::Accepted && !closing.contains(&record.id))
     {
         let evidence = terminal_evidence_summary_with_records(root, record, &records);
         if evidence.validity == TerminalEvidenceValidity::Stale {
@@ -306,7 +357,7 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
             );
             drifted.fix.alternative = Some(format!(
                 "specsync change reopen {} --actor <name> --reason <text>",
-                record.id
+                shell_word(&record.id)
             ));
             findings.push(drifted);
             continue;
@@ -323,7 +374,7 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
                     format!("its accepted evidence reads as {}", evidence.validity.as_str())
                 }),
                 DoctorFixClass::ReportOnly,
-                format!("specsync change status {}", record.id),
+                format!("specsync change status {}", shell_word(&record.id)),
             ));
             continue;
         }
@@ -335,7 +386,7 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
                     "active",
                     "its finalize stopped after acceptance; the package was never archived".into(),
                     DoctorFixClass::Safe,
-                    format!("specsync change finalize {}", record.id),
+                    format!("specsync change finalize {}", shell_word(&record.id)),
                 ));
             }
         } else {
@@ -345,14 +396,18 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
                 "active",
                 "it was accepted under workflow v1 and never archived".into(),
                 DoctorFixClass::Safe,
-                format!("specsync change archive {}", record.id),
+                format!("specsync change archive {}", shell_word(&record.id)),
             ));
         }
     }
     let verifying: Vec<&ChangeRecord> = roster
         .records
         .iter()
-        .filter(|record| record.state == ChangeState::Verifying)
+        .filter(|record| {
+            record.state == ChangeState::Verifying
+                || (record.state == ChangeState::Implementing
+                    && change_dir(root, &record.id).join("verification.json").is_file())
+        })
         .collect();
     if !verifying.is_empty() {
         match project_input_digest(root) {
@@ -373,7 +428,7 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
                             "active",
                             format!("its verification is not current: {reason}"),
                             DoctorFixClass::ReportOnly,
-                            format!("specsync change check {} --commit", record.id),
+                            format!("specsync change check {} --commit", shell_word(&record.id)),
                         ));
                     }
                 }
@@ -468,6 +523,19 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
             "repair the record the reason names".into(),
         )),
     }
+    for (package, error) in unreadable_archive_records(root) {
+        findings.push(finding(
+            "could-not-check",
+            None,
+            "archive",
+            format!(
+                "`{}` cannot be read: {error}",
+                portable_project_path(root, &package)
+            ),
+            DoctorFixClass::ReportOnly,
+            "restore the archived record from Git (`git checkout HEAD -- <path>`)".into(),
+        ));
+    }
     for (package, record) in archived_accepted_packages(root) {
         findings.push(finding(
             "accepted-in-archive",
@@ -482,6 +550,19 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
         ));
     }
     for (id, package) in closed_late_ids(root) {
+        if let Some((_, Err(error))) = closed_late_record(root, &id) {
+            findings.push(finding(
+                "could-not-check",
+                Some(&id),
+                "closed-late",
+                format!(
+                    "`{}` was closed late, but its record cannot be read: {error}",
+                    portable_project_path(root, &package)
+                ),
+                DoctorFixClass::ReportOnly,
+                "restore late-close.json from Git (`git checkout HEAD -- <path>`)".into(),
+            ));
+        }
         if find_change_dir(root, &id).is_ok() {
             findings.push(finding(
                 "duplicate-id",
@@ -502,8 +583,31 @@ fn doctor_scan(root: &Path) -> Vec<DoctorFinding> {
     findings
 }
 
-/// Every record under `.specsync/archive/changes/` that parses; a package that does not is left
-/// to the scans that report it.
+/// Every package under `.specsync/archive/changes/` whose `state.json` exists but cannot be read
+/// or parsed. A directory with no `state.json` is a legacy tombstone or a Git husk, as the roster
+/// treats it, and is not reported.
+fn unreadable_archive_records(root: &Path) -> Vec<(PathBuf, String)> {
+    let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) else {
+        return Vec::new();
+    };
+    let mut unreadable: Vec<(PathBuf, String)> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.join("state.json").is_file())
+        .filter_map(|path| {
+            let error = match fs::read(path.join("state.json")) {
+                Err(error) => error.to_string(),
+                Ok(content) => serde_json::from_slice::<ChangeRecord>(&content).err()?.to_string(),
+            };
+            Some((path, error))
+        })
+        .collect();
+    unreadable.sort();
+    unreadable
+}
+
+/// Every record under `.specsync/archive/changes/` that parses; a package that does not is
+/// reported by `unreadable_archive_records`.
 fn archived_records(root: &Path) -> Vec<ChangeRecord> {
     let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) else {
         return Vec::new();
@@ -558,6 +662,15 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
         return Err(format!("change `{id}` was already closed late"));
     }
     let active = change_dir(root, id);
+    if active.is_dir()
+        && let Some(archived) = archived_package_for(root, id)
+    {
+        return Err(format!(
+            "change `{id}` is ambiguous: both `{}` and `{}` hold it; decide which package is the change before closing it late",
+            portable_project_path(root, &active),
+            portable_project_path(root, &archived)
+        ));
+    }
     let source = if active.is_dir() {
         active
     } else {
@@ -597,6 +710,24 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
     if !package_is_on_reference(root, &state_project_path, &default_ref) {
         return Err(format!(
             "change `{id}` has not merged: `{state_project_path}` is not on `{default_ref}`, so its pull request has not merged; finish it through review and finalize instead"
+        ));
+    }
+    // The package must be what merged, not a later version an unmerged branch advanced.
+    let package_repo_path = git_repo_relative_path(root, &from_path)?;
+    let package_pathspec = format!(":(top,literal){package_repo_path}");
+    let unchanged = git_output_allow_empty(
+        root,
+        &["diff", "--quiet", &default_ref, "--", &package_pathspec],
+    )
+    .is_some()
+        && git_output_allow_empty(
+            root,
+            &["ls-files", "--others", "--exclude-standard", "--", &package_pathspec],
+        )
+        .is_some_and(|untracked| untracked.trim().is_empty());
+    if !unchanged {
+        return Err(format!(
+            "change `{id}`'s package `{from_path}` differs from `{default_ref}`: the version here has not merged, so its pull request has not merged; finish it through review and finalize instead"
         ));
     }
     let repo_path = git_repo_relative_path(root, &state_project_path)?;
@@ -722,23 +853,65 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     };
     let outcome = write();
     if let Err(error) = outcome {
-        for (source, destination) in moved.iter().rev() {
-            let _ = fs::remove_file(destination.join(LATE_CLOSE_RECORD));
-            let _ = rename_durable(destination, source);
+        let mut failures = restore_late_close_moves(&moved);
+        if let Some(bytes) = original_ledger
+            && let Err(restore) = fs::write(&ledger_path, bytes)
+        {
+            failures.push(format!(
+                "`{SEQUENCE_PATH}` could not be restored: {restore}"
+            ));
         }
-        if let Some(bytes) = original_ledger {
-            let _ = fs::write(&ledger_path, bytes);
+        if failures.is_empty() {
+            return Err(format!("{error}; nothing was closed late"));
         }
-        return Err(format!("{error}; nothing was closed late"));
+        return Err(format!(
+            "{error}; the rollback did not finish, so restore these by hand: {}",
+            failures.join("; ")
+        ));
     }
     Ok(())
+}
+
+/// Move every package in `moved` back, newest first, removing the record a late close wrote into
+/// it. Returns one sentence per package that could not be put back (Codex review of #994).
+fn restore_late_close_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
+    let mut failures = Vec::new();
+    for (source, destination) in moved.iter().rev() {
+        match fs::remove_file(destination.join(LATE_CLOSE_RECORD)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => failures.push(format!(
+                "`{}` could not be removed: {error}",
+                destination.join(LATE_CLOSE_RECORD).display()
+            )),
+        }
+        if let Err(error) = rename_durable(destination, source) {
+            failures.push(format!(
+                "`{}` could not be moved back to `{}`: {error}",
+                destination.display(),
+                source.display()
+            ));
+        }
+    }
+    failures
 }
 
 /// Run `specsync doctor`: scan, then with `--fix` apply the decisions named with `--close-late`
 /// and every safe fix, or with `--dry-run` report what that would do (REQ-cmd-change-035). A
 /// refused late close writes nothing and is an error.
 pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, String> {
-    let findings = doctor_scan(root);
+    // A change named for a late close takes no evidence read (`all` is resolved from the scan).
+    let named: BTreeSet<String> = if request.fix {
+        request
+            .close_late
+            .iter()
+            .filter(|id| id.as_str() != "all")
+            .cloned()
+            .collect()
+    } else {
+        BTreeSet::new()
+    };
+    let findings = doctor_scan(root, &named);
     let mut report = DoctorReport {
         findings,
         dry_run: request.dry_run,
@@ -844,8 +1017,9 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
     let mut findings_now = if request.dry_run || closing.is_empty() {
         report.findings.clone()
     } else {
-        doctor_scan(root)
+        doctor_scan(root, &closing)
     };
+    let mut previewed_move = false;
     let mut attempted: BTreeSet<(&'static str, Option<String>, String)> = BTreeSet::new();
     let mut migrated = false;
     loop {
@@ -868,11 +1042,27 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
         attempted.insert((finding.kind, finding.change.clone(), finding.fix.command.clone()));
         let change = finding.change.clone();
         if request.dry_run {
+            // A real run rescans after every lifecycle move, which can make the next one unsafe;
+            // the preview promises only the first (Codex review of #994).
+            let lifecycle_move = finding.fix.command.starts_with("specsync change finalize ")
+                || finding.fix.command.starts_with("specsync change archive ");
+            let (outcome, detail) = if lifecycle_move && previewed_move {
+                (
+                    "after-revalidation",
+                    format!(
+                        "would run `{}` only if a fresh scan after the previous move still finds it safe",
+                        finding.fix.command
+                    ),
+                )
+            } else {
+                ("would-apply", format!("would run `{}`", finding.fix.command))
+            };
+            previewed_move |= lifecycle_move;
             report.actions.push(DoctorAction {
                 kind: finding.kind,
                 change,
-                outcome: "would-apply",
-                detail: format!("would run `{}`", finding.fix.command),
+                outcome,
+                detail,
             });
             continue;
         }
@@ -920,7 +1110,7 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
                 detail: format!("`{}` refused: {error}", finding.fix.command),
             },
         });
-        findings_now = doctor_scan(root);
+        findings_now = doctor_scan(root, &closing);
     }
     Ok(report)
 }

@@ -3435,11 +3435,17 @@ if the floor call is removed from this function"
     /// `billing` owns, and `src/billing/orphan.ts`, which no module owns: approved, checked and
     /// reviewed at HEAD, so only canonical ownership stands between it and finalize (#986, #956).
     fn reviewed_unowned_delivery_fixture(root: &Path) -> String {
+        reviewed_delivery_fixture(root, "billing", "src/billing/", &["src/billing/orphan.ts"])
+    }
+
+    /// The general form: `module`'s canonical spec owns `src/billing/charge.ts`; a
+    /// no-spec-change change scoped to `scope` edits it and adds `extra` files.
+    fn reviewed_delivery_fixture(root: &Path, module: &str, scope: &str, extra: &[&str]) -> String {
         git_project_fixture(root);
-        fs::create_dir_all(root.join("specs/billing")).unwrap();
+        fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
         fs::write(
-            root.join("specs/billing/billing.spec.md"),
-            "---\nmodule: billing\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Billing\n\n## Purpose\n\nCharges.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+            root.join(format!("specs/{module}/{module}.spec.md")),
+            format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Billing\n\n## Purpose\n\nCharges.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
         )
         .unwrap();
         fs::create_dir_all(root.join("src/billing")).unwrap();
@@ -3452,7 +3458,7 @@ if the floor call is removed from this function"
                 description: "Tune billing".into(),
                 kind: ChangeKind::BugFix,
                 affected_specs: Vec::new(),
-                affected_paths: vec!["src/billing/".into()],
+                affected_paths: vec![scope.into()],
                 requested_artifacts: Vec::new(),
                 no_spec_change: true,
                 rationale: Some("Internal billing details".into()),
@@ -3462,7 +3468,11 @@ if the floor call is removed from this function"
         let id = record.id.clone();
         approve_and_implement_fixture(root, &id);
         fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
-        fs::write(root.join("src/billing/orphan.ts"), "const spare = 0;\n").unwrap();
+        for path in extra {
+            let path = root.join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "const spare = 0;\n").unwrap();
+        }
         git_in(root, &["add", "."]);
         git_in(root, &["commit", "-m", "implement"]);
         change::check_change(root, Some(&id)).expect("check");
@@ -3522,6 +3532,112 @@ if the floor call is removed from this function"
         assert!(
             !archive_candidate_can_ship(&root, &record, &workspace),
             "ship refuses unowned production source, so the candidate is not told to ship"
+        );
+    }
+
+    /// Codex P2 on #999: a reserved delivery path (here `.github/scripts/check.py`, production
+    /// source once `source_dirs` includes `.`) is signed with the exact delivery owner, which
+    /// finalize accepts, so the preflight must not call it unowned.
+    #[test]
+    fn reserved_delivery_paths_are_not_ownership_blockers() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\".\"]\n",
+        )
+        .unwrap();
+        let id = reviewed_delivery_fixture(
+            &root,
+            "billing",
+            ".github/scripts/",
+            &[".github/scripts/check.py"],
+        );
+        let record = change::load_change(&root, &id).unwrap();
+        assert_eq!(
+            change::ownership_preflight_blocker(&root, &record).unwrap(),
+            None,
+            "finalize signs reserved delivery paths with the exact delivery owner"
+        );
+    }
+
+    /// Codex P2 on #999: the preflight resolves listing specs once, not once per unowned path
+    /// (each walk rereads up to 10,000 spec-tree entries).
+    #[test]
+    fn the_ownership_preflight_walks_the_spec_tree_once() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let id = reviewed_delivery_fixture(
+            &root,
+            "billing",
+            "src/billing/",
+            &["src/billing/a.ts", "src/billing/b.ts", "src/billing/c.ts"],
+        );
+        let record = change::load_change(&root, &id).unwrap();
+        change::reset_test_spec_listing_walks();
+        let (blocker, _) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("four unowned inputs");
+        assert!(blocker.contains("src/billing/c.ts"), "{blocker}");
+        assert_eq!(change::test_spec_listing_walks(), 1);
+    }
+
+    /// Codex P1 on #999: the recovery quotes every word it interpolates, so a module name with
+    /// shell syntax reaches `change answer` as one argument and runs nothing.
+    #[test]
+    fn the_ownership_recovery_quotes_every_interpolated_word() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let module = "billing;touch PWN";
+        let id = reviewed_delivery_fixture(&root, module, "src/billing/", &[]);
+        let record = change::load_change(&root, &id).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("charge.ts is owned by an undeclared module");
+        let sandbox = tempfile::TempDir::new().unwrap();
+        let argv: Vec<Vec<String>> = recovery
+            .split('`')
+            .skip(1)
+            .step_by(2)
+            .map(|command| {
+                let (_, arguments) = command.split_once(' ').unwrap();
+                let output = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(format!("printf '%s\\n' {arguments}"))
+                    .current_dir(sandbox.path())
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "sh rejected `{command}`");
+                String::from_utf8(output.stdout)
+                    .unwrap()
+                    .lines()
+                    .map(str::to_string)
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            fs::read_dir(sandbox.path()).unwrap().count(),
+            0,
+            "{recovery}"
+        );
+        assert_eq!(
+            argv.last().unwrap(),
+            &vec![
+                "change".to_string(),
+                "answer".into(),
+                id.clone(),
+                "affected_specs".into(),
+                module.into()
+            ],
+            "{recovery}"
+        );
+        assert_eq!(
+            argv[0][..3],
+            ["change".to_string(), "send-back".into(), id.clone()],
+            "{recovery}"
         );
     }
 

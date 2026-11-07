@@ -5005,7 +5005,25 @@ fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
 
 /// Every `*.spec.md` under the specs directory whose `files:` lists `path`, as
 /// `(portable spec path, frontmatter module)`, sorted by spec path.
+#[cfg(test)]
+thread_local! {
+    /// Spec-tree walks this thread made to find listing specs (#999 review).
+    static TEST_SPEC_LISTING_WALKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_test_spec_listing_walks() {
+    TEST_SPEC_LISTING_WALKS.with(|walks| walks.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn test_spec_listing_walks() -> usize {
+    TEST_SPEC_LISTING_WALKS.with(std::cell::Cell::get)
+}
+
 fn specs_listing_path(root: &Path, specs_dir: &str, path: &str) -> Vec<(String, Option<String>)> {
+    #[cfg(test)]
+    TEST_SPEC_LISTING_WALKS.with(|walks| walks.set(walks.get() + 1));
     let mut listing = Vec::new();
     let mut stack = vec![root.join(specs_dir)];
     let mut visited = 0usize;

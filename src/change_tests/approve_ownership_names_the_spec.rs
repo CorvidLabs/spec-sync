@@ -394,3 +394,40 @@ fn approve_does_not_recommend_a_module_whose_listing_spec_is_not_canonical() {
         "the refusal says why the listing does not count: {error}"
     );
 }
+
+/// Codex P1 on #999: module names are validated only as portable path components, so a name may
+/// carry spaces or shell syntax. The draft answer quotes every word it interpolates, so copying
+/// it runs `change answer` with the module as one argument and runs nothing else.
+#[test]
+fn the_draft_answer_quotes_every_interpolated_word() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let module = "billing;touch PWN";
+    ownership_spec(root, module, &["src/billing/charge.ts"]);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "export const value = 1;\n").unwrap();
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    record.affected_paths = vec!["src/billing/charge.ts".into()];
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("approve must refuse production source no declared module owns");
+    let line = error
+        .lines()
+        .find(|line| line.starts_with("On this draft"))
+        .unwrap_or_else(|| panic!("no draft answer in: {error}"));
+    assert_eq!(
+        shell_argv_of_step(line),
+        vec![vec![
+            "change".to_string(),
+            "answer".into(),
+            record.id.clone(),
+            "affected_specs".into(),
+            module.into(),
+        ]],
+        "{line}"
+    );
+}

@@ -50,17 +50,19 @@
     "Leif via orc t18 ('Capture + recommended design'): capture SHIP-12.g and RECOVER-3 .a-.d verbatim; D2 stale verification is report-only; D3 --close-late <id>... or all with --actor/--reason; D4 the 6.0.0/6.2.0 compat test runs in CI; D5 a collision member drops and records its acknowledgement; IDs REQ-change-143 (reworded), REQ-cmd-change-035, REQ-cli-args-025. Remove the never-approved close-late draft.",
     "0xLeif decided \"Leif's scope approval of the doctor change, relayed by orc t18\": \"Leif approved specsync doctor; recorded as 0xLeif at 2e65c8a8\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated",
     "Leif via orc t18 (option A, 2026-11-06): send-back recorded as 0xLeif after change ship refused with 'acceptance input src/agents.rs is production source without deterministic canonical ownership' (the approved affected_paths named all of src/); narrow affected_paths to the touched files and add cli (owner of src/main.rs) with a Purpose delta; the cancelled review stays in history. Rejected: 127 owner corrections for files the change never touched; --all-missing (one module for every file is a false ownership claim).",
-    "0xLeif decided \"Leif's re-approval of the re-scoped doctor change, relayed by orc t18\": \"#994 re-approval recorded as 0xLeif at 3a15acb2, including the wording changes from the three P2 fixes\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated"
+    "0xLeif decided \"Leif's re-approval of the re-scoped doctor change, relayed by orc t18\": \"#994 re-approval recorded as 0xLeif at 3a15acb2, including the wording changes from the three P2 fixes\" (orc t18 relay, 2026-11-06); recorded by claude (t-ss worker); a relayed claim, not authenticated",
+    "Leif's scoped review of #994 after the re-scope: pass, recorded as 0xLeif by orc t18 at c0e905dd ('#994 fresh review recorded as 0xLeif, pass at c0e905dd. Ship, push the archive tip, watch the new compat CI job, then queue')"
   ],
   "open_questions": [],
   "completed": [
     "Proof: real 6.0.0, 6.0.1, 6.1.0, 6.1.1, 6.1.2, 6.2.0 and main ignore .specsync/archive/closed-late/ (synthetic fixture and site clone); limits L1-L4 recorded in research.md",
-    "Re-approved at 3a15acb2; main merged at 0ec91f3a; materialized at 7fc935c7; verify green at 64fe846e"
+    "Re-approved at 3a15acb2; main merged at 0ec91f3a; materialized at 7fc935c7; verify green at 64fe846e",
+    "Shipped: archived at f56fb483 with no commit between review and ship"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Send 'ready for Leif's GitHub review' for #994; on review, ship with no commit between, push, CI, queue"
+  "next_action": "Push the archive tip, watch CI including closed-late-compat, then merge pinned on the orc's queue turn"
 }

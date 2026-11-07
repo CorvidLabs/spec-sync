@@ -5027,12 +5027,12 @@ thread_local! {
 }
 
 #[cfg(test)]
-pub(crate) fn reset_test_spec_listing_walks() {
+fn reset_test_spec_listing_walks() {
     TEST_SPEC_LISTING_WALKS.with(|walks| walks.set(0));
 }
 
 #[cfg(test)]
-pub(crate) fn test_spec_listing_walks() -> usize {
+fn test_spec_listing_walks() -> usize {
     TEST_SPEC_LISTING_WALKS.with(std::cell::Cell::get)
 }
 

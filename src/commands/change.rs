@@ -3562,28 +3562,6 @@ if the floor call is removed from this function"
         );
     }
 
-    /// Codex P2 on #999: the preflight resolves listing specs once, not once per unowned path
-    /// (each walk rereads up to 10,000 spec-tree entries).
-    #[test]
-    fn the_ownership_preflight_walks_the_spec_tree_once() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let root = temp.path().join("work");
-        fs::create_dir_all(&root).unwrap();
-        let id = reviewed_delivery_fixture(
-            &root,
-            "billing",
-            "src/billing/",
-            &["src/billing/a.ts", "src/billing/b.ts", "src/billing/c.ts"],
-        );
-        let record = change::load_change(&root, &id).unwrap();
-        change::reset_test_spec_listing_walks();
-        let (blocker, _) = change::ownership_preflight_blocker(&root, &record)
-            .unwrap()
-            .expect("four unowned inputs");
-        assert!(blocker.contains("src/billing/c.ts"), "{blocker}");
-        assert_eq!(change::test_spec_listing_walks(), 1);
-    }
-
     /// Codex P1 on #999: the recovery quotes every word it interpolates, so a module name with
     /// shell syntax reaches `change answer` as one argument and runs nothing.
     #[test]

@@ -431,3 +431,33 @@ fn the_draft_answer_quotes_every_interpolated_word() {
         "{line}"
     );
 }
+
+/// Codex P2 on #999: the ship preflight resolves listing specs once, not once per unowned path
+/// (each walk rereads up to 10,000 spec-tree entries). Four delivered inputs, one walk.
+#[test]
+fn the_ownership_preflight_walks_the_spec_tree_once() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    for file in ["charge", "a", "b", "c"] {
+        fs::write(root.join(format!("src/billing/{file}.ts")), "const value = 1;\n").unwrap();
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "billing"]);
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    record.affected_paths = vec!["src/billing/".into()];
+    // A delivering change covers its scope; a draft covers nothing to sign.
+    record.state = ChangeState::Verifying;
+    save_change(root, &record).unwrap();
+
+    reset_test_spec_listing_walks();
+    let (blocker, _) = ownership_preflight_blocker(root, &record)
+        .unwrap()
+        .expect("four unowned inputs");
+    assert!(blocker.contains("src/billing/c.ts"), "{blocker}");
+    assert_eq!(test_spec_listing_walks(), 1);
+}

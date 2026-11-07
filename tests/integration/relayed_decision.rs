@@ -1094,3 +1094,75 @@ fn repair_relays_on_a_committed_file_that_is_not_json_names_git_checkout_and_it_
     );
     project.run(&["change", "status", ID]).success();
 }
+
+/// DISCRIMINATOR for the second #995 review (P2): `change send-back` reads the review attempts too,
+/// so a damaged relay there is refused naming `repair-relays` before anything is written, and
+/// after that command the send-back goes ahead.
+#[test]
+fn send_back_refuses_a_damaged_review_attempt_relay_naming_repair_relays_and_then_proceeds() {
+    let project = Project::in_the_review_to_ship_window();
+    let original = fs::read_to_string(project.attempts_path()).unwrap();
+    let approvals_before = fs::read_to_string(project.approvals_path()).unwrap();
+    let send_back = [
+        "change",
+        "send-back",
+        ID,
+        "--actor",
+        ACTOR,
+        "--reason",
+        "The session code moved",
+    ];
+
+    for edited in damaged_last(&original) {
+        fs::write(project.attempts_path(), edited).unwrap();
+        let error = project.refusal(&send_back);
+        assert!(error.contains("relayed_by"), "{error}");
+        assert!(error.contains(&repair_command()), "{error}");
+        assert_eq!(
+            fs::read_to_string(project.approvals_path()).unwrap(),
+            approvals_before,
+            "a refused send-back writes nothing"
+        );
+        project.stdout(&["change", "repair-relays", "--", ID]);
+        assert_eq!(
+            fs::read_to_string(project.attempts_path()).unwrap(),
+            original
+        );
+    }
+    project.run(&send_back).success();
+}
+
+/// DISCRIMINATOR for the second #995 review (P2): every ledger must read before anything is
+/// written. With a damaged `review.json` relay beside an `approvals.json` that is JSON but not a
+/// ledger, `repair-relays` refuses, writes nothing and names the restore for `approvals.json`;
+/// after that restore it repairs the review.
+#[test]
+fn repair_relays_refuses_while_another_ledger_does_not_read_and_writes_nothing() {
+    let project = Project::in_the_review_to_ship_window();
+    let review = fs::read_to_string(project.review_path()).unwrap();
+    let damaged_review = damaged(&review).pop().unwrap();
+    let approvals = format!(".specsync/changes/{ID}/approvals.json");
+    assert!(project.committed(&approvals));
+    fs::write(project.review_path(), &damaged_review).unwrap();
+    fs::write(project.approvals_path(), "{}\n").unwrap();
+
+    let error = project.refusal(&["change", "repair-relays", "--", ID]);
+    assert!(error.contains("approvals.json"), "{error}");
+    assert!(
+        error.contains(&format!("git checkout HEAD -- '{approvals}'")),
+        "{error}"
+    );
+    assert_eq!(
+        fs::read_to_string(project.review_path()).unwrap(),
+        damaged_review,
+        "nothing is written while another ledger does not read"
+    );
+
+    project.git(&["checkout", "HEAD", "--", &approvals]);
+    let repaired = project.stdout(&["change", "repair-relays", "--", ID]);
+    assert!(
+        repaired.contains("review.json: put back from review-attempts.json attempt 1"),
+        "{repaired}"
+    );
+    assert_eq!(fs::read_to_string(project.review_path()).unwrap(), review);
+}

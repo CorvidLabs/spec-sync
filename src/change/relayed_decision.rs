@@ -354,6 +354,10 @@ struct RelayLedgerFile {
     records_key: Option<&'static str>,
     /// The field `decided_by` must equal: an approval's `actor`, a review's `reviewer`.
     decider_key: &'static str,
+    /// The project path, for refusals.
+    shown: String,
+    /// Whether `HEAD` holds a copy of the file, which decides the restore a refusal names.
+    has_committed_copy: bool,
     current: serde_json::Value,
     committed: Option<serde_json::Value>,
 }
@@ -444,10 +448,15 @@ fn relay_ledger_record_mut<'a>(
 }
 
 /// The bytes of the project file `shown` as committed at `HEAD`. `Ok(None)` only when Git has
-/// answered that no copy exists: the project is not in a Git work tree, `HEAD` has no commit, or
-/// `HEAD`'s tree has no such path. A Git failure, or a path `HEAD` lists but Git cannot read, is
-/// an error, so a relay is never removed while its original may still be at `HEAD` (#995 review).
+/// answered that no copy exists: the project is not in a Git work tree, `HEAD` is unborn (its
+/// branch has no commit yet), or `HEAD`'s tree has no such path. A Git failure, a `HEAD` that
+/// exists but does not resolve, or a path `HEAD` lists but Git cannot read, is an error, so a relay
+/// is never removed while its original may still be at `HEAD` (#995 review).
 fn committed_copy_at_head(root: &Path, shown: &str) -> Result<Option<Vec<u8>>, String> {
+    let inside = run_git_bounded(root, &["rev-parse", "--is-inside-work-tree"], None, 64)?;
+    if !inside.status.success() {
+        return Ok(None);
+    }
     let head = run_git_bounded(
         root,
         &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
@@ -455,7 +464,10 @@ fn committed_copy_at_head(root: &Path, shown: &str) -> Result<Option<Vec<u8>>, S
         1024,
     )?;
     if !head.status.success() {
-        return Ok(None);
+        if head_is_unborn(root)? {
+            return Ok(None);
+        }
+        return Err("HEAD exists but does not resolve to a commit".into());
     }
     let repository_path = git_repo_relative_path(root, shown)?;
     let listed = run_git_bounded(
@@ -494,6 +506,34 @@ fn committed_copy_at_head(root: &Path, shown: &str) -> Result<Option<Vec<u8>>, S
         ));
     }
     Ok(Some(read.stdout))
+}
+
+/// Whether `HEAD` names a branch that has no commit yet: the branch ref exists neither as a loose
+/// file nor in the packed refs. A branch ref that exists but does not resolve is damage, not this.
+fn head_is_unborn(root: &Path) -> Result<bool, String> {
+    let symbolic = run_git_bounded(root, &["symbolic-ref", "--quiet", "HEAD"], None, 1024)?;
+    if !symbolic.status.success() {
+        return Ok(false);
+    }
+    let reference = String::from_utf8_lossy(&symbolic.stdout).trim().to_string();
+    let loose = run_git_bounded(root, &["rev-parse", "--git-path", &reference], None, 4096)?;
+    if !loose.status.success() {
+        return Err(format!(
+            "git rev-parse --git-path failed: {}",
+            String::from_utf8_lossy(&loose.stderr).trim()
+        ));
+    }
+    let loose = root.join(String::from_utf8_lossy(&loose.stdout).trim());
+    if loose.exists() {
+        return Ok(false);
+    }
+    let packed = run_git_bounded(
+        root,
+        &["for-each-ref", "--format=%(refname)", &reference],
+        None,
+        4096,
+    )?;
+    Ok(packed.status.success() && packed.stdout.is_empty())
 }
 
 /// Repair every damaged relayed decision of an active change (#904, CHANGE-13.e to CHANGE-13.g).
@@ -551,12 +591,15 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
                  relayed decisions, so {recovery}"
             )
         })?;
+        let has_committed_copy = committed_bytes.is_some();
         let committed = committed_bytes.and_then(|bytes| serde_json::from_slice(&bytes).ok());
         files.push(RelayLedgerFile {
             name,
             path,
             records_key,
             decider_key,
+            shown,
+            has_committed_copy,
             current,
             committed,
         });
@@ -635,32 +678,51 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             });
             repaired = true;
         }
-        if !repaired {
-            continue;
-        }
+        // Every ledger must read, repaired or not, before anything is written (#995 review), so a
+        // repair never reports success while the change still cannot be read.
         let name = file.name;
-        let still = |error: serde_json::Error| {
+        let recovery = if file.has_committed_copy {
             format!(
-                "{name} still does not read after repairing its relayed decisions ({error}), so \
-                 nothing was written; its damage is not only a relayed decision"
+                "restore it with `git checkout HEAD -- {}`",
+                shell_quote(&file.shown)
             )
+        } else {
+            "it was never committed, so no copy of it exists to restore".to_string()
+        };
+        let unreadable = |error: serde_json::Error| {
+            if repaired {
+                format!(
+                    "{name} still does not read after repairing its relayed decisions ({error}), \
+                     so nothing was written; its damage is not only a relayed decision, so \
+                     {recovery}"
+                )
+            } else {
+                format!(
+                    "{name} does not read ({error}), so nothing was written: \
+                     `specsync change repair-relays` repairs only relayed decisions, and this is \
+                     not one, so {recovery}"
+                )
+            }
         };
         let content = if name == "approvals.json" {
             json_content(
-                &serde_json::from_value::<ApprovalLedger>(file.current.clone()).map_err(still)?,
+                &serde_json::from_value::<ApprovalLedger>(file.current.clone())
+                    .map_err(unreadable)?,
             )?
         } else if name == SCOPED_REVIEW_ATTEMPTS_FILE {
             json_content(
                 &serde_json::from_value::<ScopedReviewAttemptLedger>(file.current.clone())
-                    .map_err(still)?,
+                    .map_err(unreadable)?,
             )?
         } else {
             json_content(
                 &serde_json::from_value::<ScopedReviewRecord>(file.current.clone())
-                    .map_err(still)?,
+                    .map_err(unreadable)?,
             )?
         };
-        prepared.push((file.path.clone(), content));
+        if repaired {
+            prepared.push((file.path.clone(), content));
+        }
     }
     if !prepared.is_empty() {
         write_prepared_files(root, &prepared)?;

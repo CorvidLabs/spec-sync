@@ -1258,9 +1258,25 @@ fn load_scoped_review_attempt_ledger(
     }
     let content = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read scoped review history: {error}"))?;
-    serde_json::from_str(&content)
-        .map(Some)
-        .map_err(|error| format!("invalid scoped review attempt history: {error}"))
+    // The same relay checks and recovery `load_scoped_review` applies: send-back and the review
+    // ordering read the attempts through here (#995 review).
+    let ledger: ScopedReviewAttemptLedger = serde_json::from_str(&content).map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            record,
+            &path,
+            format!("invalid scoped review attempt history: {error}"),
+        )
+    })?;
+    ensure_read_relays_name_their_deciders(
+        ledger
+            .reviews
+            .iter()
+            .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, record, &path, message))?;
+    Ok(Some(ledger))
 }
 
 /// Whether `review`, at `review_index` in the attempt history, was recorded after `send_back`

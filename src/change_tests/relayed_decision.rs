@@ -477,3 +477,59 @@ fn relay_recoveries_quote_the_change_id_and_path_after_double_dash() {
     let it = "it's";
     assert_eq!(shell_quote(it), "'it'\\''s'");
 }
+
+/// DISCRIMINATOR for the second #995 review (P2): a committed copy is "absent" only when Git says
+/// so: no work tree, an unborn `HEAD`, or no such path in `HEAD`'s tree. A `HEAD` that exists but
+/// does not resolve is an error, so `repair-relays` never removes a relay `HEAD` may still hold.
+#[test]
+fn only_git_saying_so_counts_as_no_committed_copy() {
+    let git = |root: &Path, args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::write(root.join("ledger.json"), "{}\n").unwrap();
+    assert_eq!(committed_copy_at_head(root, "ledger.json").unwrap(), None);
+
+    git(root, &["init", "-q"]);
+    assert_eq!(
+        committed_copy_at_head(root, "ledger.json").unwrap(),
+        None,
+        "an unborn HEAD holds no copy"
+    );
+
+    git(root, &["add", "ledger.json"]);
+    git(
+        root,
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-q",
+            "-m",
+            "ledger",
+        ],
+    );
+    assert_eq!(
+        committed_copy_at_head(root, "ledger.json").unwrap(),
+        Some(b"{}\n".to_vec())
+    );
+    assert_eq!(committed_copy_at_head(root, "missing.json").unwrap(), None);
+
+    let reference = git(root, &["symbolic-ref", "HEAD"]).trim().to_string();
+    fs::write(root.join(".git").join(reference), "not a commit\n").unwrap();
+    let error = committed_copy_at_head(root, "ledger.json").unwrap_err();
+    assert!(error.contains("does not resolve"), "{error}");
+}

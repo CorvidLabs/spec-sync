@@ -571,9 +571,10 @@ impl Project {
     /// refusal about the interview must name the `change answer` command that finishes it.
     /// The probe runs the named command (filling its placeholder: a sentence for the outcome,
     /// the example's `src/auth.ts` and `auth` for the scope, the recommended `no` for a
-    /// yes-or-no question, the single choice `none` for constraints, and `none` for free text)
-    /// and approves again, until the refusal is about the selected artifacts, which a reader
-    /// writes by hand. Returns the named commands.
+    /// yes-or-no question, and `none` for free text) and approves again, until the refusal is
+    /// about the selected artifacts, which a reader writes by hand. A single-choice question
+    /// such as `constraints` names its answer itself, so that command runs exactly as printed
+    /// (#958). Returns the named commands.
     fn approval_refusals_name_answer_commands(&self, root: &Path, approve: &str) -> Vec<String> {
         let mut named = Vec::new();
         loop {
@@ -594,12 +595,12 @@ impl Project {
             };
             let (arguments, _) = rest.split_once('`').unwrap();
             let command = format!("specsync change answer {arguments}");
+            self.status_names_the_same_answer_command(root, &command);
             let runnable = command
                 .replace("\"<observable outcome>\"", "\"login returns true\"")
                 .replace("\"<path>\"", "\"src/auth.ts\"")
                 .replace("\"<module>\"", "\"auth\"")
                 .replace("<yes|no>", "no")
-                .replace("<none>", "none")
                 .replace("\"<answer>\"", "\"none\"");
             assert!(
                 !runnable.contains('<'),
@@ -618,6 +619,34 @@ impl Project {
             );
         }
         named
+    }
+
+    /// DOCS-3.c (#958): text and JSON `change status` name the command approval's refusal just
+    /// named, for the same draft at the same point.
+    fn status_names_the_same_answer_command(&self, root: &Path, command: &str) {
+        let id = command
+            .strip_prefix("specsync change answer ")
+            .and_then(|arguments| arguments.split_whitespace().next())
+            .unwrap();
+        let named = format!("`{command}`");
+        let text = self.run_documented(root, &format!("specsync change status {id}"));
+        let stdout = String::from_utf8_lossy(&text.stdout);
+        assert!(
+            stdout
+                .lines()
+                .any(|line| line.trim_start().starts_with("Next:") && line.contains(&named)),
+            "text status names another next step than approval's refusal ({named}):\n{}",
+            describe(&text)
+        );
+        let json = self.run_documented(root, &format!("specsync change status {id} --json"));
+        let status: Value = serde_json::from_slice(&json.stdout).unwrap();
+        let next = status["summary"]["next_action"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(
+            next.contains(&named),
+            "JSON status next_action `{next}` does not name approval's {named}"
+        );
     }
 }
 

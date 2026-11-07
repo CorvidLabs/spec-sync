@@ -137,3 +137,6 @@ Issue #902. #889 taught `change review` and `change finalize` to refuse a copy t
 
 @plane z=10 label="Readiness runs the refusing check (#986, #956)"
 `ship-status` may only say "ready to finalize" when `ship` would finalize. Open tasks (#892) and canonical ownership (#986, #956) were both refusals that only finalize knew about. Each such refusal belongs in ship preflight as a blocker, and the next action names its recovery, not `change ship`.
+
+@plane z=11 label="One answer command across refusal and status (#958)"
+A single interview choice is a literal answer, not an angle-bracket placeholder: `constraints none` runs as printed, while `<none>` is shell input redirection. The domain owns one helper for approve's refusal and both status projections, including the scope-specific placeholders and the option to name constraining lessons or principles. Text status must recompute the draft's open questions itself; its caller may have an empty list even though `constraints` remains. When refusal guidance and status disagree, probe every refusal through both text and JSON and execute the command exactly as printed.

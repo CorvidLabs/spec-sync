@@ -10,7 +10,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 - [check](hi/check.md): CHECK (22 criteria)
 - [ci](hi/ci.md): CI (13 criteria)
 - [coverage](hi/coverage.md): COVERAGE (10 criteria)
-- [docs](hi/docs.md): DOCS (6 criteria)
+- [docs](hi/docs.md): DOCS (8 criteria)
 - [install](hi/install.md): INSTALL (4 criteria)
 - [link](hi/link.md): LINK (8 criteria)
 - [maturity](hi/maturity.md): MATURITY (12 criteria)

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 205
+version: 206
 status: active
 files:
   - src/change.rs
@@ -241,6 +241,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
 | `configured_principles_file` | `root` | `Result<Option<String>, String>` | The configured principles file, or the error when `.specsync/sdd.json` cannot be read |
 | `principles_file_is_present` | `root`, `path` | `Result<bool, String>` | Whether that path is a file inside the project. An absolute path or `..` is an error |
+| `answer_command_hint` | `id: &str, question_id: &str, choices: &[String]` | `String` | The backticked `change answer` command shared by draft refusals and text/JSON status: multiple choices form a placeholder, one choice is literal, and scope questions retain their specific free-text placeholders (REQ-change-133) |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
@@ -430,7 +431,7 @@ Acceptance Criteria
 | Condition | Behavior |
 |-----------|----------|
 | Missing acceptance criteria or affected scope | Definition approval fails. A draft is told which answer finishes it: `specsync change answer <id> acceptance_criteria "<observable outcome>"`, `affected_paths "<path>"` or `affected_specs "<module>"`. A record past draft keeps the bare condition, because `change answer` refuses outside draft (REQ-change-133) |
-| Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first, with the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none; a record past draft keeps the bare condition (REQ-change-133) |
+| Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first. Two or more choices are the placeholder (`<yes|no>`), one choice is the answer itself (`constraints none`, with the option to name constraining lessons or principles instead), and no choice takes `"<answer>"`; a record past draft keeps the bare condition (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |
@@ -709,3 +710,4 @@ Acceptance Criteria
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |

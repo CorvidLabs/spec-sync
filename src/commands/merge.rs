@@ -386,6 +386,40 @@ mod install_tests {
     }
 
     #[test]
+    fn root_specs_dir_matches_contracts() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .unwrap()
+        };
+        assert!(run(&["init", "-q"]).status.success());
+        for specs_dir in [".", "./"] {
+            fs::write(
+                root.join(".gitattributes"),
+                attribute_lines(specs_dir).join("\n") + "\n",
+            )
+            .unwrap();
+            for path in [
+                "root.spec.md",
+                "nested/root.spec.md",
+                "requirements.md",
+                "nested/requirements.md",
+            ] {
+                let output = run(&["check-attr", "merge", "--", path]);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                assert!(
+                    stdout.ends_with("merge: specsync\n"),
+                    "specs_dir={specs_dir} path={path}: {stdout}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn failed_install_leaves_gitattributes_unchanged() {
         let temp = tempfile::TempDir::new().unwrap();
         let root = temp.path();

@@ -3181,6 +3181,52 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    /// #923 (REQ-cmd-change-032): the printed resume command must run exactly the arguments it
+    /// names. Splitting it with `sh` gives back every original argument, metacharacters and all.
+    #[test]
+    fn the_resume_command_splits_back_into_the_original_arguments() {
+        let original = [
+            "--root",
+            "/tmp/a$HOME;rm -rf x*",
+            "change",
+            "status",
+            "it's",
+            "",
+            "two words",
+            "--json",
+        ];
+        let resume = resume_command_without_timeout(
+            original
+                .iter()
+                .map(|argument| (*argument).to_string())
+                .chain(["--timeout".to_string(), "5".to_string()]),
+        );
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "set -- {resume}; shift; for a in \"$@\"; do printf '%s\\0' \"$a\"; done"
+            ))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{resume}");
+        let split: Vec<String> = String::from_utf8(output.stdout)
+            .unwrap()
+            .split('\0')
+            .map(str::to_string)
+            .collect();
+        let mut expected: Vec<String> = original
+            .iter()
+            .map(|argument| (*argument).to_string())
+            .collect();
+        expected.push(String::new());
+        assert_eq!(
+            split, expected,
+            "the resume command {resume} must name exactly the original arguments"
+        );
+        assert!(resume.starts_with("specsync "), "{resume}");
+        assert!(!resume.contains("--timeout"), "{resume}");
+    }
+
     /// The floor must be WIRED, not merely present (#533).
     ///
     /// `floor_sequence_ledger_to_committed` has its own unit tests, but those

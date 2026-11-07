@@ -4353,9 +4353,13 @@ fn an_archived_status_past_its_timeout_exits_124_and_names_how_to_resume() {
         .get_output()
         .stdout
         .clone();
-    assert_eq!(
-        serde_json::from_slice::<Value>(&from_env).unwrap()["error"],
-        "timeout"
+    let from_env: Value = serde_json::from_slice(&from_env).unwrap();
+    assert_eq!(from_env["error"], "timeout");
+    // #953: the resume command must not inherit the deadline it is resuming from.
+    let resume = from_env["resume"].as_str().unwrap();
+    assert!(
+        resume.starts_with("SPECSYNC_TIMEOUT= specsync "),
+        "with SPECSYNC_TIMEOUT set, the resume command must clear it: {resume}"
     );
     // Text `change status` of an archived change is cheap and reaches no long phase, so it
     // completes; `ship-status` reads the archive-introduction index and reports in text.

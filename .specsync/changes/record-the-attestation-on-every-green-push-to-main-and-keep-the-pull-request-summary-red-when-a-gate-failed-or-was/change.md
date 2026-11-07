@@ -1,6 +1,6 @@
 ---
 id: record-the-attestation-on-every-green-push-to-main-and-keep-the-pull-request-summary-red-when-a-gate-failed-or-was
-state: approved
+state: implementing
 type: operations
 base_commit: b3ca5f97aa9c07b09ab6bfd8d7eece28f2c30f79
 ---

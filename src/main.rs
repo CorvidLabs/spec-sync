@@ -287,6 +287,23 @@ fn run() {
                 commands::merge::cmd_merge(&root, dry_run, all, format);
             }
         }
+        Command::Doctor {
+            fix,
+            dry_run,
+            close_late,
+            actor,
+            reason,
+        } => commands::change::cmd_doctor(
+            &root,
+            change::DoctorRequest {
+                fix,
+                dry_run,
+                close_late,
+                actor,
+                reason,
+            },
+            format,
+        ),
         Command::MergeFile {
             ancestor,
             current,

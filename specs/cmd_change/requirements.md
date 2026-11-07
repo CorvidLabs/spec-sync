@@ -186,6 +186,13 @@ Acceptance Criteria
 `specsync change ship [ID]` SHALL run ship preflight for one change and, when
 `ready_to_finalize` is true, perform finalize. When not ready it SHALL exit
 non-zero and print blockers and the next stage without mutating state.
+Ship preflight, including `--dry-run`, SHALL run the canonical-ownership check
+finalize runs over the change's delivery inputs. A production-source input that
+no declared module owns SHALL be a blocker naming the path, the module that owns
+it, and the recovery (`specsync change send-back <id>`, then
+`specsync change answer <id> affected_specs <modules>`); `change ship-status`
+SHALL report the same blocker and SHALL NOT report the change ready to finalize
+(#986, #956).
 
 Optional orchestration flags after a successful finalize (or for already-archived
 changes):
@@ -209,6 +216,10 @@ Acceptance Criteria
   include `push` and `wait` result objects when those flags are used.
 - When sibling active changes remain after finalize, next guidance names them and
   requires their own check → review → ship cycle before merge.
+- A no-spec-change change whose directory scope delivers production source a
+  module owns is not ready: `change ship-status` names the blocker and the
+  recovery, `change ship --dry-run` exits non-zero, and running the named
+  recovery ships it (#986, #956).
 
 ### REQ-cmd-change-009
 
@@ -500,6 +511,20 @@ Acceptance Criteria
 - With nothing damaged it prints `No relayed decision in <id> needs repair.` and exits 0.
 - A refusal exits non-zero and names its recovery command.
 - `--json` prints `{"change": <id>, "repairs": [...]}` with each repair's `file`, `record`, `action`, and `from` or `removed`.
+
+### REQ-cmd-change-035
+
+`specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.
+
+Acceptance Criteria
+- Findings cover: a change merged but never archived; an accepted change whose inputs drifted, including an `accepted` package under `.specsync/archive/changes/`; a finalize that stopped halfway, including a workflow-v1 change accepted but not archived; stale verification; and records another SpecSync version wrote (missing 5.0.1-era digest fields, workflow-v1 plans without the 6.2 sections, a newer schema, an ID that a closed-late package already holds).
+- Each finding names its kind, change, reason, fix class and the exact command or doctor flag that applies the fix. Text and JSON carry the same findings.
+- A check that cannot run becomes a finding that names its error, and every other finding is still reported.
+- Plain `doctor` writes nothing. `--fix --dry-run` reports exactly what `--fix` would do with the same arguments and writes nothing.
+- The safe fixes are the `migrate 5.0` backfill, and resuming a stopped finalize (workflow v1: `change archive`) when no other finding blocks it. Stale verification is report-only and names `change check <id> --commit`.
+- `--close-late <id>` (repeatable) or `--close-late all` closes the named or every eligible change late, only with a non-empty `--actor` and `--reason`. A change named more than once is closed once. Every named change is checked before anything is written, and one refusal writes nothing and names the refused change.
+- After every late close or applied fix, each remaining safe fix is revalidated against a fresh scan, and a change closed late in the same call gets no safe fix.
+- A late close of a collision member says that the ledger edit needs an open change declaring `.specsync/change-sequence.json` wherever meaningful files require one.
 
 ### REQ-cmd-change-answer-hint-001
 

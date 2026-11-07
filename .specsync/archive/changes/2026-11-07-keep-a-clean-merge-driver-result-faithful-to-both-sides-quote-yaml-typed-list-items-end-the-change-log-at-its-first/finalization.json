@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first",
+  "implementation_commit": "6c7d45834e6e990f6a958c7570282e37c3f04111",
+  "implementation_tree": "ae6147f388440bdbc67673f65e9b778070c57375",
+  "contract_digest": "450b7229d1095374f1e0744c1ee41e0346dd39e708c4fe6840a0d546795e2eb0",
+  "workspace_digest": "29ab86f9b99601983eda392657bfcde246da4333595fd49901d75a22f70ff0fb",
+  "closing_digest": "c480dfcd74949ed456477ddeccbf3c3a15ee946696b46d0642904a8300b6b16a",
+  "review_digest": "122f74ab79493d8ec130b227a04119d52a8a1162e9c5a4b9b537943c430acc6c",
+  "finalization_digest": "6f64278d7f9f7b43d81343ffa4728fb2cbdbc613ee213ce019696f1a94a7c493",
+  "timestamp": 1794021808
+}

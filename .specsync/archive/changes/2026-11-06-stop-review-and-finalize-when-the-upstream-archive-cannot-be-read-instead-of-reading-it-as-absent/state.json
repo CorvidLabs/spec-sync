@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent",
+  "slug": "stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent",
+  "title": "Stop review and finalize when the upstream archive cannot be read instead of reading it as absent",
+  "description": "Stop review and finalize when the upstream archive cannot be read instead of reading it as absent",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ae3d7bcad107701057bc43667422c5abbed7ce55",
+  "created_at": 1793983734,
+  "updated_at": 1793989823,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "src/change_tests/upstream_archive.rs",
+    "tests/integration/archived_upstream.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "SHIP-3.c: when a remote default exists and its archived state records cannot be listed or read (a failed or truncated ls-tree or cat-file --batch, or a failed lookup of a matching package's addition or ancestry), `change review` and `change finalize` refuse before acceptance and write no archive.",
+    "The refusal names the remote default reference, says the tool cannot tell whether the change is already archived there, and names how to find out: fetch the remote default, then list its archived packages for this id.",
+    "`change status` and `change ship-status` report the same refusal, never `safe` or ready to finalize.",
+    "A project with no remote default, or a remote default whose archive is read and holds no copy of the change, is unchanged: nothing is reported and review and finalize proceed.",
+    "A unit test and an integration test that remove the archived record's blob from the clone fail on the base first and pass after."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

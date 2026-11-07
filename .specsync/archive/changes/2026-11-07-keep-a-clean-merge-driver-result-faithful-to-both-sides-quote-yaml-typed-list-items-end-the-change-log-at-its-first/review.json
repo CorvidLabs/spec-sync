@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6c7d45834e6e990f6a958c7570282e37c3f04111",
+  "contract_digest": "450b7229d1095374f1e0744c1ee41e0346dd39e708c4fe6840a0d546795e2eb0",
+  "execution_digest": "cab515b8cea32bf5af0d77511001a367d0de03b855ad3a8dc746b8b99bf926e0",
+  "workspace_digest": "29ab86f9b99601983eda392657bfcde246da4333595fd49901d75a22f70ff0fb",
+  "timestamp": 1794021077,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "Yes to all 3 (Recommended)",
+    "where": "Moshi question from orc t18, 2026-11-06, reviewing #1006 at 6c7d4583",
+    "recorded_by": "orc t18"
+  }
+}

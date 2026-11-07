@@ -11,6 +11,11 @@ use crate::types::OutputFormat;
 
 const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 
+// `specsync doctor` renders here, beside the change commands it reports on (REQ-cmd-change-035).
+#[path = "doctor.rs"]
+mod doctor;
+pub use doctor::cmd_doctor;
+
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.
@@ -102,8 +107,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     }
                 }
                 if let Some(id) = id {
-                    change::load_change(root, &id)
-                        .and_then(|record| print_record(root, &record, format, false, strict))
+                    closed_late_report(root, &id, format, "change status").unwrap_or_else(|| {
+                        change::load_change(root, &id)
+                            .and_then(|record| print_record(root, &record, format, false, strict))
+                    })
                 } else {
                     change::list_changes(root)
                         .and_then(|roster| print_roster(root, &roster, format, strict))
@@ -114,8 +121,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
-                change::load_change(root, &id)
-                    .and_then(|record| print_ship_status(root, &record, format))
+                closed_late_report(root, &id, format, "change ship-status").unwrap_or_else(|| {
+                    change::load_change(root, &id)
+                        .and_then(|record| print_ship_status(root, &record, format))
+                })
             } else {
                 change::list_changes(root).and_then(|roster| {
                 let records = &roster.records;
@@ -1262,6 +1271,27 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     if let Some(step) = &open_tasks_step {
         blockers.push(format!("tasks.md contains incomplete tasks: {step}"));
     }
+    // Finalize refuses production source no declared module owns; ship-status and ship
+    // preflight run the same check so "ready to finalize" never names a change it refuses
+    // (REQ-cmd-change-008, #986, #956).
+    let ownership_recovery = if record.state == ChangeState::Verifying && upstream_archive.is_none()
+    {
+        match change::ownership_preflight_blocker(root, record) {
+            Ok(Some((blocker, recovery))) => {
+                blockers.push(blocker);
+                Some(recovery)
+            }
+            Ok(None) => None,
+            Err(error) => {
+                blockers.push(format!(
+                    "the acceptance ownership preflight could not run ({error}); finalize would not either"
+                ));
+                None
+            }
+        }
+    } else {
+        None
+    };
     if matches!(
         record.state,
         ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
@@ -1383,6 +1413,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
 
     let ship_next = if let Some(upstream) = &upstream_archive {
         change::upstream_archive_message(&record.id, upstream)
+    } else if let Some(recovery) = &ownership_recovery {
+        recovery.clone()
     } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(
@@ -1786,7 +1818,12 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     // Asked last, so Git runs only for a copy that would otherwise ship. `ship` refuses a
     // change the remote default already archived (REQ-change-129); naming it here sent the
     // operator to a certain refusal instead of to `change status`, which names the recovery.
-    reviewed_at_head && change::upstream_archive_of(root, record).is_none()
+    // Last of all, and only for a change that would otherwise ship: `ship` refuses production
+    // source no declared module owns (REQ-cmd-change-008), so such a change is sent to
+    // `change status`, which names the recovery (#986, #956).
+    reviewed_at_head
+        && change::upstream_archive_of(root, record).is_none()
+        && matches!(change::ownership_preflight_blocker(root, record), Ok(None))
 }
 
 fn pull_request_sentence(root: &Path) -> Result<String, String> {
@@ -3099,6 +3136,74 @@ fn print_handoff_line_for(root: &Path, id: &str) {
     }
 }
 
+/// The report `change status` and `change ship-status` give for a closed-late change, or `None`
+/// when `id` resolves to a live or archived workspace, which an older SpecSync can mint again after
+/// a late close and which is the record every lifecycle verb acts on (Codex review of #994).
+fn closed_late_report(
+    root: &Path,
+    id: &str,
+    format: OutputFormat,
+    phase: &str,
+) -> Option<Result<(), String>> {
+    if !change::is_only_closed_late(root, id) {
+        return None;
+    }
+    // The read deadline covers this lookup like every other status read.
+    if let Err(error) = change::check_read_deadline(phase, 0, 1) {
+        return Some(Err(error));
+    }
+    print_closed_late(root, id, format)
+}
+
+/// Who closed a change late, when and why, the commit that merged it, and that it was never
+/// re-checked and is not verified (REQ-change-143). `None` when `id` was not closed late.
+fn print_closed_late(root: &Path, id: &str, format: OutputFormat) -> Option<Result<(), String>> {
+    let (package, record) = change::closed_late_record(root, id)?;
+    let sentence = change::closed_late_sentence(root, id)?;
+    let package = package
+        .strip_prefix(root)
+        .unwrap_or(&package)
+        .to_string_lossy()
+        .replace('\\', "/");
+    match format {
+        OutputFormat::Json => {
+            let closed_late = match &record {
+                Ok(record) => serde_json::to_value(record).unwrap_or(serde_json::Value::Null),
+                Err(error) => serde_json::json!({ "error": error, "verified": false }),
+            };
+            print_json(&serde_json::json!({
+                "id": id,
+                "closed_late": closed_late,
+                "package": package,
+                "verified": false,
+                "summary": {
+                    "id": id,
+                    "state": "closed-late",
+                    "next_action": CLOSED_LATE_NEXT_ACTION,
+                    "handoff": {
+                        "readiness": "safe",
+                        "reason": CLOSED_LATE_HANDOFF,
+                    },
+                },
+            }));
+        }
+        _ => {
+            println!("{id}");
+            println!("  State: closed late; never re-checked, not verified");
+            println!("  {sentence}");
+            println!("  Next: {CLOSED_LATE_NEXT_ACTION}");
+            println!("  Handoff: safe; {CLOSED_LATE_HANDOFF}");
+        }
+    }
+    Some(Ok(()))
+}
+
+/// The next action status gives a closed-late change: there is none.
+const CLOSED_LATE_NEXT_ACTION: &str = "none: a closed-late change is never re-checked or finalized";
+/// Why a session may clear its context after reading a closed-late change.
+const CLOSED_LATE_HANDOFF: &str =
+    "the change was closed late; nothing this session knows is still needed";
+
 fn print_json<Value: serde::Serialize>(value: &Value) {
     match serde_json::to_string_pretty(value) {
         Ok(content) => println!("{content}"),
@@ -3447,6 +3552,196 @@ if the floor call is removed from this function"
         change::write_default_policy(root, vec!["true".to_string()]).expect("policy");
         git_in(root, &["add", "."]);
         git_in(root, &["commit", "-m", "base"]);
+    }
+
+    /// A directory-scoped no-spec-change change that delivers `src/billing/charge.ts`, which
+    /// `billing` owns, and `src/billing/orphan.ts`, which no module owns: approved, checked and
+    /// reviewed at HEAD, so only canonical ownership stands between it and finalize (#986, #956).
+    fn reviewed_unowned_delivery_fixture(root: &Path) -> String {
+        reviewed_delivery_fixture(root, "billing", "src/billing/", &["src/billing/orphan.ts"])
+    }
+
+    /// The general form: `module`'s canonical spec owns `src/billing/charge.ts`; a
+    /// no-spec-change change scoped to `scope` edits it and adds `extra` files.
+    fn reviewed_delivery_fixture(root: &Path, module: &str, scope: &str, extra: &[&str]) -> String {
+        git_project_fixture(root);
+        fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+        fs::write(
+            root.join(format!("specs/{module}/{module}.spec.md")),
+            format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Billing\n\n## Purpose\n\nCharges.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("src/billing")).unwrap();
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 1;\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "billing"]);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Tune billing".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: Vec::new(),
+                affected_paths: vec![scope.into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        for path in extra {
+            let path = root.join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "const spare = 0;\n").unwrap();
+        }
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "implement"]);
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record verification"]);
+        change::record_scoped_review_with_verdict(
+            root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect("review");
+        id
+    }
+
+    /// Codex P2 on #999: the recovery repairs every unowned input, not only the ones a module
+    /// claims: `billing` is declared by the answer, and the path no module owns is named for a
+    /// `files:` entry.
+    #[test]
+    fn the_ownership_recovery_names_a_repair_for_every_unowned_input() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let id = reviewed_unowned_delivery_fixture(&root);
+        let record = change::load_change(&root, &id).unwrap();
+        let (blocker, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("both inputs lack a declared owner");
+        assert!(
+            blocker.contains("src/billing/charge.ts") && blocker.contains("src/billing/orphan.ts"),
+            "{blocker}"
+        );
+        assert!(
+            recovery.contains(&format!(
+                "specsync change answer '{id}' affected_specs 'billing'"
+            )),
+            "{recovery}"
+        );
+        assert!(
+            recovery.contains("src/billing/orphan.ts") && recovery.contains("`files:`"),
+            "the path no module owns needs its own repair: {recovery}"
+        );
+    }
+
+    /// Codex P2 on #999: `change status`, `change pr` and the Archive check take their ship advice
+    /// from `archive_candidate_can_ship`, so it must not call a change ready that ship refuses on
+    /// canonical ownership.
+    #[test]
+    fn an_archive_candidate_with_unowned_production_source_is_not_told_to_ship() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let id = reviewed_unowned_delivery_fixture(&root);
+        let workspace = root.join(".specsync/changes").join(&id);
+        let record = change::load_change(&root, &id).unwrap();
+        assert_eq!(record.state, ChangeState::Verifying);
+        assert!(
+            !archive_candidate_can_ship(&root, &record, &workspace),
+            "ship refuses unowned production source, so the candidate is not told to ship"
+        );
+    }
+
+    /// Codex P2 on #999: a reserved delivery path (here `.github/scripts/check.py`, production
+    /// source once `source_dirs` includes `.`) is signed with the exact delivery owner, which
+    /// finalize accepts, so the preflight must not call it unowned.
+    #[test]
+    fn reserved_delivery_paths_are_not_ownership_blockers() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\".\"]\n",
+        )
+        .unwrap();
+        let id = reviewed_delivery_fixture(
+            &root,
+            "billing",
+            ".github/scripts/",
+            &[".github/scripts/check.py"],
+        );
+        let record = change::load_change(&root, &id).unwrap();
+        assert_eq!(
+            change::ownership_preflight_blocker(&root, &record).unwrap(),
+            None,
+            "finalize signs reserved delivery paths with the exact delivery owner"
+        );
+    }
+
+    /// Codex P1 on #999: the recovery quotes every word it interpolates, so a module name with
+    /// shell syntax reaches `change answer` as one argument and runs nothing.
+    #[test]
+    fn the_ownership_recovery_quotes_every_interpolated_word() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let module = "billing;touch PWN";
+        let id = reviewed_delivery_fixture(&root, module, "src/billing/", &[]);
+        let record = change::load_change(&root, &id).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("charge.ts is owned by an undeclared module");
+        let sandbox = tempfile::TempDir::new().unwrap();
+        // `<name>` is a placeholder a person fills in (and a redirection to `sh`), so only the
+        // placeholder-free commands are run; the send-back's id is checked as text.
+        assert!(
+            recovery.contains(&format!("specsync change send-back '{id}' --actor <name>")),
+            "{recovery}"
+        );
+        let argv: Vec<Vec<String>> = recovery
+            .split('`')
+            .skip(1)
+            .step_by(2)
+            .filter(|command| !command.contains("<name>"))
+            .map(|command| {
+                let (_, arguments) = command.split_once(' ').unwrap();
+                let output = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(format!("printf '%s\\n' {arguments}"))
+                    .current_dir(sandbox.path())
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "sh rejected `{command}`");
+                String::from_utf8(output.stdout)
+                    .unwrap()
+                    .lines()
+                    .map(str::to_string)
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            fs::read_dir(sandbox.path()).unwrap().count(),
+            0,
+            "{recovery}"
+        );
+        assert_eq!(
+            argv.last().unwrap(),
+            &vec![
+                "change".to_string(),
+                "answer".into(),
+                id.clone(),
+                "affected_specs".into(),
+                module.into()
+            ],
+            "{recovery}"
+        );
     }
 
     /// #902: a copy of a change that the remote default already archived is not an archive

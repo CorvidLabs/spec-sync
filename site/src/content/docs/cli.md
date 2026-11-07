@@ -359,6 +359,33 @@ Display configured validation rules and their current status (built-in rules, cu
 specsync rules                             # show all rules and their configuration
 ```
 
+### `doctor`
+
+Report every problem in the change records, each with its fix, and apply the safe ones on request.
+
+```bash
+specsync doctor                            # list findings; writes nothing
+specsync doctor --fix --dry-run            # show what --fix would do; writes nothing
+specsync doctor --fix                      # apply the safe fixes
+specsync doctor --fix --close-late <id> --actor <name> --reason <text>   # close a merged change late
+specsync doctor --fix --close-late all --actor <name> --reason <text>    # every eligible change
+```
+
+Findings: a change merged but never archived, an accepted change whose inputs drifted (including an
+`accepted` package left in `.specsync/archive/changes/`), a finalize that stopped halfway, stale
+verification, and records another SpecSync version wrote. A check that cannot run is a finding too.
+
+- **Safe** fixes, applied by `--fix`: resume a stopped finalize (workflow v1: archive an accepted
+  change whose evidence is current) and the `migrate 5.0` ledger backfill.
+- **Decisions**, applied only with `--close-late`, `--actor` and `--reason`: a late close moves a
+  package that is on the remote default branch, byte for byte, into
+  `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` that says it was never
+  re-checked and is not verified. Several IDs are all or nothing.
+- **Report only**: everything else, including stale verification (`change check <id> --commit`).
+
+SpecSync 6.0 to 6.2 never read `.specsync/archive/closed-late/`, so they neither trip on a
+closed-late change nor count it as checked.
+
 ### `change`
 
 Manage the single verified change workflow. Every command supports global `--json` output for agent clients.

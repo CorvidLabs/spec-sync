@@ -4667,6 +4667,29 @@ fn acceptance_manifest_legacy(
     )
 }
 
+/// The production-source delivery inputs finalize would refuse for want of a declared owner,
+/// read-only: the acceptance manifest finalize builds, over the deltas it would apply, with an
+/// unowned production input falling to the exact delivery owner instead of failing (#986, #956).
+fn unowned_production_delivery_inputs(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<String>, String> {
+    let prepared = prepare_pending_delta_application(root, record)?.files;
+    let manifest = acceptance_manifest_legacy(root, record, &prepared)?;
+    Ok(manifest
+        .entries
+        .iter()
+        .filter(|entry| {
+            // A reserved delivery path is signed with the exact delivery owner by design, and
+            // finalize accepts it; only the fallback assignment marks an unowned input.
+            path_is_production_source(root, &entry.path)
+                && !path_is_recognized_delivery_metadata(&entry.path)
+                && entry.owners.iter().all(|owner| owner == EXACT_DELIVERY_OWNER)
+        })
+        .map(|entry| entry.path.clone())
+        .collect())
+}
+
 fn acceptance_manifest_with_signed_owners(
     root: &Path,
     record: &ChangeRecord,

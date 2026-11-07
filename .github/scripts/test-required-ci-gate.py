@@ -779,6 +779,20 @@ class RequiredGateContractTests(unittest.TestCase):
         )
 
 
+    def test_the_scoped_review_waits_for_and_reports_every_product_job(self) -> None:
+        # Codex review of #994: corvid-pet summarised the PR while closed-late-compat could still
+        # be running or red, because that job was missing from its needs and its CHECK_ table.
+        jobs = self.workflow["jobs"]
+        product = set(jobs[GATE_JOB]["needs"]) - {"archive", "corvid-pet"}
+        review = jobs["corvid-pet"]
+        self.assertEqual(set(review["needs"]), product)
+        reported = " ".join(
+            str(value) for step in review["steps"] for value in (step.get("env") or {}).values()
+        )
+        for job in sorted(product - {"classify", "preflight", "lifecycle-gate"}):
+            self.assertIn(f"needs.{job}.result", reported, f"corvid-pet does not report {job}")
+
+
 class GuardMutationTests(unittest.TestCase):
     """The structural guard fails on each way the gate can drift."""
 
@@ -916,16 +930,19 @@ class RequiredGateSimulationTests(unittest.TestCase):
         expectations = {
             "Archive-only PR (workflow-v2 archive move)": {
                 "test", "fmt", "hi-check", "validate-action", "action-consumer",
+                "closed-late-compat",
                 "linux-baseline", "spec-check", "audit", "coverage", "site",
                 "vscode-extension", "corvid-pet",
             },
             "Review-only PR (review.json + review-attempts.json)": {
                 "test", "fmt", "hi-check", "validate-action", "action-consumer",
+                "closed-late-compat",
                 "linux-baseline", "spec-check", "audit", "coverage", "site",
                 "vscode-extension", "corvid-pet",
             },
             "Site-only PR (site/**)": {
-                "test", "fmt", "hi-check", "action-consumer", "linux-baseline", "audit",
+                "test", "fmt", "hi-check", "action-consumer", "closed-late-compat", "linux-baseline",
+                "audit",
                 "coverage", "vscode-extension", "corvid-pet",
             },
         }

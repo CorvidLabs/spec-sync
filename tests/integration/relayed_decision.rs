@@ -546,7 +546,7 @@ fn a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_comm
         assert!(error.contains("relayed_by"), "{error}");
         assert!(error.contains(&repair_command()), "{error}");
 
-        let repaired = project.stdout(&["change", "repair-relays", ID]);
+        let repaired = project.stdout(&["change", "repair-relays", "--", ID]);
         assert!(
             repaired.contains(&format!(
                 "approvals.json approval {position}: put back from HEAD"
@@ -559,6 +559,61 @@ fn a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_comm
         );
         project.run(&["change", "status", ID]).success();
     }
+}
+
+/// DISCRIMINATOR for the #995 review (P2): a relay is removed only once Git has answered that
+/// `HEAD` holds no copy. When `HEAD` lists the file but Git cannot read it, `repair-relays` refuses,
+/// writes nothing and names `git fsck` and the rerun; once the object is back, that rerun puts the
+/// committed original back instead of removing it.
+#[test]
+fn repair_relays_refuses_when_git_cannot_read_the_head_copy_and_its_rerun_puts_it_back() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-m", "approve"]);
+    let original = fs::read_to_string(project.approvals_path()).unwrap();
+    let position = project.approvals()["approvals"].as_array().unwrap().len();
+    let relative = format!(".specsync/changes/{ID}/approvals.json");
+    let blob = Command::new("git")
+        .args(["rev-parse", &format!("HEAD:{relative}")])
+        .current_dir(&project.root)
+        .output()
+        .unwrap();
+    assert!(blob.status.success());
+    let blob = String::from_utf8(blob.stdout).unwrap().trim().to_string();
+    let object = project
+        .root
+        .join(".git/objects")
+        .join(&blob[..2])
+        .join(&blob[2..]);
+    let object_bytes = fs::read(&object).expect("a fresh repository keeps the blob loose");
+
+    let damaged_bytes = damaged(&original).pop().unwrap();
+    fs::write(project.approvals_path(), &damaged_bytes).unwrap();
+    fs::remove_file(&object).unwrap();
+
+    let error = project.refusal(&["change", "repair-relays", "--", ID]);
+    assert!(error.contains(&relative), "{error}");
+    assert!(error.contains("git fsck"), "{error}");
+    assert!(error.contains(&repair_command()), "{error}");
+    assert_eq!(
+        fs::read_to_string(project.approvals_path()).unwrap(),
+        damaged_bytes,
+        "nothing is removed while HEAD cannot be read"
+    );
+
+    fs::write(&object, object_bytes).unwrap();
+    let repaired = project.stdout(&["change", "repair-relays", "--", ID]);
+    assert!(
+        repaired.contains(&format!(
+            "approvals.json approval {position}: put back from HEAD"
+        )),
+        "{repaired}"
+    );
+    assert_eq!(
+        fs::read_to_string(project.approvals_path()).unwrap(),
+        original
+    );
 }
 
 /// DISCRIMINATOR for REQ-cmd-change-relayed-decision-001: recorded words are printed, not
@@ -653,7 +708,7 @@ fn a_refused_blocking_review_names_a_rerun_that_keeps_the_verdict() {
 // with no surviving copy is removed, never the approval or attempt it sits on.
 
 fn repair_command() -> String {
-    format!("specsync change repair-relays {ID}")
+    format!("specsync change repair-relays -- '{ID}'")
 }
 
 /// The three damages the reader refuses, applied to the first relay in `original`: an unknown
@@ -764,7 +819,7 @@ fn a_damaged_review_relay_in_the_review_to_ship_window_is_repaired_by_the_named_
             "HEAD holds no review.json in this window: {error}"
         );
 
-        let repaired = project.stdout(&["change", "repair-relays", ID]);
+        let repaired = project.stdout(&["change", "repair-relays", "--", ID]);
         assert!(
             repaired.contains("review.json: put back from review-attempts.json attempt 1"),
             "{repaired}"
@@ -794,7 +849,7 @@ fn a_damaged_relay_on_the_last_review_attempt_is_put_back_from_review_json() {
         assert!(error.contains("relayed_by"), "{error}");
         assert!(error.contains(&repair_command()), "{error}");
 
-        let repaired = project.stdout(&["change", "repair-relays", ID]);
+        let repaired = project.stdout(&["change", "repair-relays", "--", ID]);
         assert!(
             repaired.contains("review-attempts.json attempt 1: put back from review.json"),
             "{repaired}"
@@ -849,7 +904,8 @@ fn a_damaged_relay_with_no_surviving_copy_is_removed_and_every_attempt_and_verdi
     assert!(error.contains(&repair_command()), "{error}");
 
     let report: Value =
-        serde_json::from_str(&project.stdout(&["--json", "change", "repair-relays", ID])).unwrap();
+        serde_json::from_str(&project.stdout(&["--json", "change", "repair-relays", "--", ID]))
+            .unwrap();
     let mut removed = expected_relay("Block it");
     removed["decided_by"] = Value::from("Mallory");
     assert_eq!(
@@ -897,7 +953,7 @@ fn a_damaged_approval_relay_before_its_first_commit_is_removed_and_the_approval_
     assert!(error.contains(&repair_command()), "{error}");
     assert!(!error.contains("git checkout HEAD"), "{error}");
 
-    let repaired = project.stdout(&["change", "repair-relays", ID]);
+    let repaired = project.stdout(&["change", "repair-relays", "--", ID]);
     assert!(
         repaired.contains(&format!("approvals.json approval {position}: removed")),
         "{repaired}"
@@ -932,7 +988,7 @@ fn repair_relays_with_nothing_damaged_says_so_and_writes_nothing() {
         .map(|path| fs::read_to_string(path).unwrap())
         .collect();
 
-    let text = project.stdout(&["change", "repair-relays", ID]);
+    let text = project.stdout(&["change", "repair-relays", "--", ID]);
     assert!(
         text.contains(&format!("No relayed decision in {ID} needs repair.")),
         "{text}"
@@ -965,7 +1021,7 @@ fn an_archived_damaged_relay_still_names_git_checkout_and_that_command_recovers(
         let error = project.refusal(&["change", "status", ID]);
         assert!(error.contains("relayed_by"), "{error}");
         assert!(
-            error.contains(&format!("git checkout HEAD -- {relative}")),
+            error.contains(&format!("git checkout HEAD -- '{relative}'")),
             "{error}"
         );
         assert!(!error.contains("repair-relays"), "{error}");
@@ -991,10 +1047,10 @@ fn repair_relays_on_an_archived_change_names_git_checkout_and_that_command_recov
     let original = fs::read_to_string(&review).unwrap();
     fs::write(&review, &damaged(&original)[0]).unwrap();
 
-    let error = project.refusal(&["change", "repair-relays", ID]);
+    let error = project.refusal(&["change", "repair-relays", "--", ID]);
     assert!(error.contains("archived"), "{error}");
     assert!(
-        error.contains(&format!("git checkout HEAD -- {package}")),
+        error.contains(&format!("git checkout HEAD -- '{package}'")),
         "{error}"
     );
     assert_eq!(
@@ -1020,10 +1076,10 @@ fn repair_relays_on_a_committed_file_that_is_not_json_names_git_checkout_and_it_
     let original = fs::read_to_string(project.approvals_path()).unwrap();
     fs::write(project.approvals_path(), "{ \"approvals\": [").unwrap();
 
-    let error = project.refusal(&["change", "repair-relays", ID]);
+    let error = project.refusal(&["change", "repair-relays", "--", ID]);
     assert!(error.contains("not JSON"), "{error}");
     assert!(
-        error.contains(&format!("git checkout HEAD -- {relative}")),
+        error.contains(&format!("git checkout HEAD -- '{relative}'")),
         "{error}"
     );
     assert_eq!(

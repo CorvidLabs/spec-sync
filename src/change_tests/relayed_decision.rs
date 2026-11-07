@@ -289,7 +289,7 @@ fn a_read_relay_must_name_its_own_record_decider() {
     let error = load_approvals(root, &record).unwrap_err();
     assert!(error.contains("says `Mallory` decided"), "{error}");
     assert!(
-        error.contains(&format!("specsync change repair-relays {}", record.id)),
+        error.contains(&format!("specsync change repair-relays -- '{}'", record.id)),
         "{error}"
     );
     assert!(!error.contains("git checkout HEAD"), "{error}");
@@ -437,4 +437,43 @@ fn review_history_comparisons_ignore_relays_but_not_other_edits() {
     )
     .unwrap_err();
     assert!(error.contains("removed or rewrote committed evidence"), "{error}");
+}
+
+/// DISCRIMINATOR for the #995 review (P1): a change id is any portable path component, so it can
+/// hold spaces and shell syntax or start with `-`. Every recovery command a relay refusal names
+/// renders the id and the path as single shell words after `--`, so copying it runs exactly that
+/// command and the id cannot be read as an option.
+#[test]
+fn relay_recoveries_quote_the_change_id_and_path_after_double_dash() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_section_only_current_record(root, RELAY_DELTA);
+    record.id = "-x a;$(y)".into();
+    let active = with_relayed_read_recovery(
+        root,
+        &record,
+        &root.join(".specsync/changes/-x a;$(y)/review.json"),
+        "invalid relayed_by".into(),
+    );
+    assert!(
+        active.contains("`specsync change repair-relays -- '-x a;$(y)'`"),
+        "{active}"
+    );
+    assert!(!active.contains("repair-relays -x"), "{active}");
+
+    record.state = ChangeState::Archived;
+    let archived = with_relayed_read_recovery(
+        root,
+        &record,
+        &root.join(".specsync/archive/changes/2026-11-06--x a;$(y)/review.json"),
+        "invalid relayed_by".into(),
+    );
+    assert!(
+        archived.contains(
+            "`git checkout HEAD -- '.specsync/archive/changes/2026-11-06--x a;$(y)/review.json'`"
+        ),
+        "{archived}"
+    );
+    let it = "it's";
+    assert_eq!(shell_quote(it), "'it'\\''s'");
 }

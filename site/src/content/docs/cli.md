@@ -510,7 +510,7 @@ made elsewhere: `--words "<their exact words>" --where "<where and when>" --reco
 all three together. `change status` shows each approval and review as a recorded claim, with any
 relayed decision on the next line; `--json` carries them under `recorded_claims`.
 
-`change repair-relays <id>` repairs a damaged relayed decision in an active change, committed or not. Each damaged `relayed_by` in `approvals.json`, `review-attempts.json` or `review.json` is put back from the same record at `HEAD`, then from its twin, and with no copy only that `relayed_by` is removed. It prints one line per repair and writes nothing when nothing is damaged; `--json` prints `{"change", "repairs"}`. An archived change is refused, naming `git checkout HEAD -- <package>`.
+`change repair-relays <id>` repairs a damaged relayed decision in an active change, committed or not. Each damaged `relayed_by` in `approvals.json`, `review-attempts.json` or `review.json` is put back from the same record at `HEAD`, then from its twin, and with no copy only that `relayed_by` is removed. If `HEAD` lists the file but Git cannot read it, the command refuses and writes nothing, naming `git fsck` and the rerun. Recovery commands quote the change id after `--`, for example `specsync change repair-relays -- 'add-passkeys'`. It prints one line per repair and writes nothing when nothing is damaged; `--json` prints `{"change", "repairs"}`. An archived change is refused, naming `git checkout HEAD -- <package>`.
 
 ```text
 $ specsync change repair-relays add-passkeys

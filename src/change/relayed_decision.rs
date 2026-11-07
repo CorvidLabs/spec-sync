@@ -245,16 +245,17 @@ fn with_relayed_read_recovery(
         return format!(
             "{message}. A relayed decision is written only by `specsync change approve` or \
              `specsync change review`; finalize committed this archived package, so restore it \
-             with `git checkout HEAD -- {shown}`"
+             with `git checkout HEAD -- {}`",
+            shell_quote(&shown)
         );
     }
     format!(
         "{message}. The damaged relayed decision is in {shown}. A relayed decision is written \
          only by `specsync change approve` or `specsync change review`; repair it with \
-         `specsync change repair-relays {}`, which puts the original back from the last commit or \
+         `specsync change repair-relays -- {}`, which puts the original back from the last commit or \
          from its twin copy and otherwise removes only the damaged relayed_by, never the approval \
          or review it belongs to",
-        record.id
+        shell_quote(&record.id)
     )
 }
 
@@ -442,6 +443,59 @@ fn relay_ledger_record_mut<'a>(
     }
 }
 
+/// The bytes of the project file `shown` as committed at `HEAD`. `Ok(None)` only when Git has
+/// answered that no copy exists: the project is not in a Git work tree, `HEAD` has no commit, or
+/// `HEAD`'s tree has no such path. A Git failure, or a path `HEAD` lists but Git cannot read, is
+/// an error, so a relay is never removed while its original may still be at `HEAD` (#995 review).
+fn committed_copy_at_head(root: &Path, shown: &str) -> Result<Option<Vec<u8>>, String> {
+    let head = run_git_bounded(
+        root,
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        None,
+        1024,
+    )?;
+    if !head.status.success() {
+        return Ok(None);
+    }
+    let repository_path = git_repo_relative_path(root, shown)?;
+    let listed = run_git_bounded(
+        root,
+        &[
+            "ls-tree",
+            "--full-tree",
+            "--name-only",
+            "HEAD",
+            "--",
+            &repository_path,
+        ],
+        None,
+        64 * 1024,
+    )?;
+    if !listed.status.success() {
+        return Err(format!(
+            "git ls-tree failed: {}",
+            String::from_utf8_lossy(&listed.stderr).trim()
+        ));
+    }
+    if listed.stdout.is_empty() {
+        return Ok(None);
+    }
+    let object = format!("HEAD:{repository_path}");
+    let read = run_git_bounded(
+        root,
+        &["cat-file", "blob", &object],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    )?;
+    if !read.status.success() {
+        return Err(format!(
+            "HEAD lists it but Git cannot read it: {}",
+            String::from_utf8_lossy(&read.stderr).trim()
+        ));
+    }
+    Ok(Some(read.stdout))
+}
+
 /// Repair every damaged relayed decision of an active change (#904, CHANGE-13.e to CHANGE-13.g).
 ///
 /// Each damaged `relayed_by` in `approvals.json`, `review-attempts.json` and `review.json` is
@@ -461,7 +515,7 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             "{} is archived, and finalize committed its package, so the last commit holds every \
              original; restore it with `git checkout HEAD -- {}`",
             record.id,
-            portable_project_path(root, &workspace)
+            shell_quote(&portable_project_path(root, &workspace))
         ));
     }
     let mut files = Vec::new();
@@ -475,15 +529,20 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             continue;
         }
         let shown = portable_project_path(root, &path);
-        let committed_bytes = git_repo_relative_path(root, &shown)
-            .and_then(|repository_path| git_file_at_commit(root, "HEAD", &repository_path))
-            .ok()
-            .flatten();
+        let committed_bytes = committed_copy_at_head(root, &shown).map_err(|detail| {
+            format!(
+                "cannot read the committed copy of {shown} at HEAD ({detail}), so nothing was \
+                 written: a relayed decision is removed only once HEAD is known to hold no copy. \
+                 Run `git fsck` to find what Git cannot read, restore it, then run \
+                 `specsync change repair-relays -- {}` again",
+                shell_quote(&record.id)
+            )
+        })?;
         let content =
             fs::read_to_string(&path).map_err(|error| format!("failed to read {shown}: {error}"))?;
         let current: serde_json::Value = serde_json::from_str(&content).map_err(|error| {
             let recovery = if committed_bytes.is_some() {
-                format!("restore it with `git checkout HEAD -- {shown}`")
+                format!("restore it with `git checkout HEAD -- {}`", shell_quote(&shown))
             } else {
                 "it was never committed, so no copy of it exists to restore".to_string()
             };

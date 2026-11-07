@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 35
+version: 36
 status: stable
 files:
   - src/cli.rs
@@ -165,3 +165,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-11-06 | `--timeout <secs>` on `change status`, `show`, `list` and `ship-status` (REQ-cli-args-024, S9) |
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
+| 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |

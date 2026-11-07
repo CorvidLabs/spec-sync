@@ -510,6 +510,15 @@ made elsewhere: `--words "<their exact words>" --where "<where and when>" --reco
 all three together. `change status` shows each approval and review as a recorded claim, with any
 relayed decision on the next line; `--json` carries them under `recorded_claims`.
 
+`change repair-relays <id>` repairs a damaged relayed decision in an active change, committed or not. Each damaged `relayed_by` in `approvals.json`, `review-attempts.json` or `review.json` is put back from the same record at `HEAD`, then from its twin, and with no copy only that `relayed_by` is removed. If `HEAD` lists the file but Git cannot read it, or `HEAD` does not resolve, the command refuses and writes nothing, naming `git fsck` and the rerun. Every ledger must read before anything is written, so a ledger damaged in some other way is refused with its own restore. Recovery commands quote the change id after `--`, for example `specsync change repair-relays -- 'add-passkeys'`. It prints one line per repair and writes nothing when nothing is damaged; `--json` prints `{"change", "repairs"}`. An archived change is refused, naming `git checkout HEAD -- <package>`.
+
+```text
+$ specsync change repair-relays add-passkeys
+✓ Repaired relayed decisions in add-passkeys:
+  review.json: put back from review-attempts.json attempt 1
+  Every approval and review attempt is kept, verdicts included; no digest or gate reads a relayed decision, so nothing went stale.
+```
+
 Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale. A predecessor entry signed under a reserved exact owner (`@exact:test`, `@exact:delivery`) can be adopted by any module that owns the path now through `[modules."<name>"] owns` in `.specsync/config.toml`; no reopen or owner correction is needed.
 
 ### `lifecycle`

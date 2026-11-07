@@ -227,21 +227,35 @@ fn reviews_match_ignoring_relays(left: &[ScopedReviewRecord], right: &[ScopedRev
         })
 }
 
-/// A read refusal caused by a malformed relay record names restoring the file from Git.
-fn with_relayed_read_recovery(root: &Path, path: &Path, message: String) -> String {
+/// A read refusal caused by a damaged relay names the one recovery that works for the state the
+/// file is in (#904, CHANGE-13.e). An active change's review files stay uncommitted between
+/// `change review` and `change ship`, so `git checkout HEAD` cannot restore them; the refusal
+/// names `repair-relays`. Finalize commits an archived package, so `HEAD` restores it.
+fn with_relayed_read_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    path: &Path,
+    message: String,
+) -> String {
     if !message.contains("relayed_by") {
         return message;
     }
-    let shown = path
-        .strip_prefix(root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/");
+    let shown = portable_project_path(root, path);
+    if record.state == ChangeState::Archived {
+        return format!(
+            "{message}. A relayed decision is written only by `specsync change approve` or \
+             `specsync change review`; finalize committed this archived package, so restore it \
+             with `git checkout HEAD -- {}`",
+            shell_quote(&shown)
+        );
+    }
     format!(
-        "{message}. A relayed decision is written only by `specsync change approve` or \
-         `specsync change review`; restore the recorded file with \
-         `git checkout HEAD -- {shown}` (or `git checkout <commit> -- {shown}` from the commit that \
-         recorded it)"
+        "{message}. The damaged relayed decision is in {shown}. A relayed decision is written \
+         only by `specsync change approve` or `specsync change review`; repair it with \
+         `specsync change repair-relays -- {}`, which puts the original back from the last commit or \
+         from its twin copy and otherwise removes only the damaged relayed_by, never the approval \
+         or review it belongs to",
+        shell_quote(&record.id)
     )
 }
 
@@ -289,6 +303,7 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
         let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
             with_relayed_read_recovery(
                 root,
+                record,
                 &review_path,
                 format!("invalid independent scoped review evidence: {error}"),
             )
@@ -297,7 +312,7 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
             [(review.reviewer.as_str(), review.relayed_by.as_ref())],
             "the review's reviewer",
         )
-        .map_err(|message| with_relayed_read_recovery(root, &review_path, message))?;
+        .map_err(|message| with_relayed_read_recovery(root, record, &review_path, message))?;
         claims.push(RecordedClaim {
             gate: "review".into(),
             name: review.reviewer.clone(),
@@ -306,4 +321,414 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
         });
     }
     Ok(claims)
+}
+
+/// One relayed decision `repair_relayed_decisions` put back or removed. `record` counts from 1
+/// within `file`. A put-back names the copy it came `from`; a removal carries the damaged value
+/// it `removed`, so nothing is dropped without being shown (CHANGE-13.g).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RelayRepair {
+    pub file: String,
+    pub record: usize,
+    pub action: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub removed: Option<serde_json::Value>,
+}
+
+/// What `repair_relayed_decisions` did to one change: empty `repairs` means nothing was damaged
+/// and nothing was written.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RelayRepairReport {
+    pub change: String,
+    pub repairs: Vec<RelayRepair>,
+}
+
+/// One ledger that can hold relayed decisions, read as JSON so a damaged relay can be seen
+/// without the typed reader refusing the whole file.
+struct RelayLedgerFile {
+    name: &'static str,
+    path: PathBuf,
+    /// The array holding the records, or `None` when the file is one record (`review.json`).
+    records_key: Option<&'static str>,
+    /// The field `decided_by` must equal: an approval's `actor`, a review's `reviewer`.
+    decider_key: &'static str,
+    /// The project path, for refusals.
+    shown: String,
+    /// Whether `HEAD` holds a copy of the file, which decides the restore a refusal names.
+    has_committed_copy: bool,
+    current: serde_json::Value,
+    committed: Option<serde_json::Value>,
+}
+
+/// Whether the reader refuses `record`'s relay: a shape it cannot read, or a `decided_by` that is
+/// not the record's own actor or reviewer.
+fn relay_is_damaged(record: &serde_json::Value, decider_key: &str) -> bool {
+    let Some(relay) = record.get("relayed_by") else {
+        return false;
+    };
+    match RelayedDecision::try_from(relay.clone()) {
+        Ok(relay) => {
+            record.get(decider_key).and_then(serde_json::Value::as_str)
+                != Some(relay.decided_by.as_str())
+        }
+        Err(_) => true,
+    }
+}
+
+/// `record` without its `relayed_by`, as SpecSync reads it: through the typed approval or review
+/// record, so a key the reader ignores (for example one a hand edit left behind) is not part of
+/// the record. A record the typed reader refuses stays as written, so it matches only itself.
+fn without_relay(record: &serde_json::Value, decider_key: &str) -> serde_json::Value {
+    let mut record = record.clone();
+    if let Some(object) = record.as_object_mut() {
+        object.remove("relayed_by");
+    }
+    let read = if decider_key == "actor" {
+        serde_json::from_value::<ApprovalRecord>(record.clone())
+            .ok()
+            .and_then(|typed| serde_json::to_value(typed).ok())
+    } else {
+        serde_json::from_value::<ScopedReviewRecord>(record.clone())
+            .ok()
+            .and_then(|typed| serde_json::to_value(typed).ok())
+    };
+    read.unwrap_or(record)
+}
+
+/// The original relay `candidate` holds for `record`, when `candidate` is the same record (every
+/// field other than `relayed_by` equal, as SpecSync reads it) and its relay reads cleanly.
+/// `Some(None)` means the original had no relay; `None` means `candidate` is no copy of `record`.
+fn original_relay_in(
+    record: &serde_json::Value,
+    candidate: Option<&serde_json::Value>,
+    decider_key: &str,
+) -> Option<Option<serde_json::Value>> {
+    let candidate = candidate?;
+    (without_relay(candidate, decider_key) == without_relay(record, decider_key)
+        && !relay_is_damaged(candidate, decider_key))
+    .then(|| candidate.get("relayed_by").cloned())
+}
+
+fn relay_ledger_len(value: &serde_json::Value, key: Option<&str>) -> usize {
+    match key {
+        Some(key) => value
+            .get(key)
+            .and_then(serde_json::Value::as_array)
+            .map_or(0, Vec::len),
+        None => 1,
+    }
+}
+
+fn relay_ledger_record<'a>(
+    value: &'a serde_json::Value,
+    key: Option<&str>,
+    index: usize,
+) -> Option<&'a serde_json::Value> {
+    match key {
+        Some(key) => value.get(key)?.as_array()?.get(index),
+        None => (index == 0).then_some(value),
+    }
+}
+
+fn relay_ledger_record_mut<'a>(
+    value: &'a mut serde_json::Value,
+    key: Option<&str>,
+    index: usize,
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    match key {
+        Some(key) => value
+            .get_mut(key)?
+            .as_array_mut()?
+            .get_mut(index)?
+            .as_object_mut(),
+        None => value.as_object_mut(),
+    }
+}
+
+/// The bytes of the project file `shown` as committed at `HEAD`. `Ok(None)` only when Git has
+/// answered that no copy exists: the project is not in a Git work tree, `HEAD` is unborn (its
+/// branch has no commit yet), or `HEAD`'s tree has no such path. A Git failure, a `HEAD` that
+/// exists but does not resolve, or a path `HEAD` lists but Git cannot read, is an error, so a relay
+/// is never removed while its original may still be at `HEAD` (#995 review).
+fn committed_copy_at_head(root: &Path, shown: &str) -> Result<Option<Vec<u8>>, String> {
+    let inside = run_git_bounded(root, &["rev-parse", "--is-inside-work-tree"], None, 64)?;
+    if !inside.status.success() {
+        return Ok(None);
+    }
+    let head = run_git_bounded(
+        root,
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        None,
+        1024,
+    )?;
+    if !head.status.success() {
+        if head_is_unborn(root)? {
+            return Ok(None);
+        }
+        return Err("HEAD exists but does not resolve to a commit".into());
+    }
+    let repository_path = git_repo_relative_path(root, shown)?;
+    let listed = run_git_bounded(
+        root,
+        &[
+            "ls-tree",
+            "--full-tree",
+            "--name-only",
+            "HEAD",
+            "--",
+            &repository_path,
+        ],
+        None,
+        64 * 1024,
+    )?;
+    if !listed.status.success() {
+        return Err(format!(
+            "git ls-tree failed: {}",
+            String::from_utf8_lossy(&listed.stderr).trim()
+        ));
+    }
+    if listed.stdout.is_empty() {
+        return Ok(None);
+    }
+    let object = format!("HEAD:{repository_path}");
+    let read = run_git_bounded(
+        root,
+        &["cat-file", "blob", &object],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    )?;
+    if !read.status.success() {
+        return Err(format!(
+            "HEAD lists it but Git cannot read it: {}",
+            String::from_utf8_lossy(&read.stderr).trim()
+        ));
+    }
+    Ok(Some(read.stdout))
+}
+
+/// Whether `HEAD` names a branch that has no commit yet: the branch ref exists neither as a loose
+/// file nor in the packed refs. A branch ref that exists but does not resolve is damage, not this.
+fn head_is_unborn(root: &Path) -> Result<bool, String> {
+    let symbolic = run_git_bounded(root, &["symbolic-ref", "--quiet", "HEAD"], None, 1024)?;
+    if !symbolic.status.success() {
+        return Ok(false);
+    }
+    let reference = String::from_utf8_lossy(&symbolic.stdout).trim().to_string();
+    let loose = run_git_bounded(root, &["rev-parse", "--git-path", &reference], None, 4096)?;
+    if !loose.status.success() {
+        return Err(format!(
+            "git rev-parse --git-path failed: {}",
+            String::from_utf8_lossy(&loose.stderr).trim()
+        ));
+    }
+    let loose = root.join(String::from_utf8_lossy(&loose.stdout).trim());
+    if loose.exists() {
+        return Ok(false);
+    }
+    let packed = run_git_bounded(
+        root,
+        &["for-each-ref", "--format=%(refname)", &reference],
+        None,
+        4096,
+    )?;
+    Ok(packed.status.success() && packed.stdout.is_empty())
+}
+
+/// Repair every damaged relayed decision of an active change (#904, CHANGE-13.e to CHANGE-13.g).
+///
+/// Each damaged `relayed_by` in `approvals.json`, `review-attempts.json` and `review.json` is
+/// put back from the first copy of the same record that still reads cleanly: the record at the
+/// same position in the file as committed at `HEAD`, then its twin (`review.json` and the last
+/// attempt are copies of each other). With no copy, only that `relayed_by` is removed. No
+/// approval or attempt is removed and no verdict changes, so no blocking review is erased
+/// (REQ-change-046). No digest or gate reads a relay, so this stales nothing. Files are written
+/// the way SpecSync writes them, all in one step under the project lock, and only when
+/// something was repaired.
+pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairReport, String> {
+    let _lock = acquire_project_lock(root)?;
+    let record = load_change(root, id)?;
+    let workspace = find_change_dir(root, &record.id)?;
+    if record.state == ChangeState::Archived {
+        return Err(format!(
+            "{} is archived, and finalize committed its package, so the last commit holds every \
+             original; restore it with `git checkout HEAD -- {}`",
+            record.id,
+            shell_quote(&portable_project_path(root, &workspace))
+        ));
+    }
+    let mut files = Vec::new();
+    for (name, records_key, decider_key) in [
+        ("approvals.json", Some("approvals"), "actor"),
+        (SCOPED_REVIEW_ATTEMPTS_FILE, Some("reviews"), "reviewer"),
+        (SCOPED_REVIEW_FILE, None, "reviewer"),
+    ] {
+        let path = workspace.join(name);
+        if !path.exists() {
+            continue;
+        }
+        let shown = portable_project_path(root, &path);
+        let committed_bytes = committed_copy_at_head(root, &shown).map_err(|detail| {
+            format!(
+                "cannot read the committed copy of {shown} at HEAD ({detail}), so nothing was \
+                 written: a relayed decision is removed only once HEAD is known to hold no copy. \
+                 Run `git fsck` to find what Git cannot read, restore it, then run \
+                 `specsync change repair-relays -- {}` again",
+                shell_quote(&record.id)
+            )
+        })?;
+        let content =
+            fs::read_to_string(&path).map_err(|error| format!("failed to read {shown}: {error}"))?;
+        let current: serde_json::Value = serde_json::from_str(&content).map_err(|error| {
+            let recovery = if committed_bytes.is_some() {
+                format!("restore it with `git checkout HEAD -- {}`", shell_quote(&shown))
+            } else {
+                "it was never committed, so no copy of it exists to restore".to_string()
+            };
+            format!(
+                "{shown} is not JSON ({error}); `specsync change repair-relays` repairs only \
+                 relayed decisions, so {recovery}"
+            )
+        })?;
+        let has_committed_copy = committed_bytes.is_some();
+        let committed = committed_bytes.and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        files.push(RelayLedgerFile {
+            name,
+            path,
+            records_key,
+            decider_key,
+            shown,
+            has_committed_copy,
+            current,
+            committed,
+        });
+    }
+
+    // The twins, as they are before anything is repaired.
+    let review_twin = files
+        .iter()
+        .find(|file| file.name == SCOPED_REVIEW_FILE)
+        .map(|file| file.current.clone());
+    let attempt_twin = files
+        .iter()
+        .find(|file| file.name == SCOPED_REVIEW_ATTEMPTS_FILE)
+        .and_then(|file| {
+            let attempts = file.current.get("reviews")?.as_array()?;
+            Some((attempts.last()?.clone(), attempts.len()))
+        });
+
+    let mut repairs = Vec::new();
+    let mut prepared = Vec::new();
+    for file in &mut files {
+        let count = relay_ledger_len(&file.current, file.records_key);
+        let mut repaired = false;
+        for index in 0..count {
+            let Some(record_value) =
+                relay_ledger_record(&file.current, file.records_key, index).cloned()
+            else {
+                continue;
+            };
+            if !relay_is_damaged(&record_value, file.decider_key) {
+                continue;
+            }
+            let committed = file
+                .committed
+                .as_ref()
+                .and_then(|committed| relay_ledger_record(committed, file.records_key, index));
+            let twin = if file.name == SCOPED_REVIEW_FILE {
+                attempt_twin.as_ref().map(|(attempt, position)| {
+                    (
+                        attempt,
+                        format!("{SCOPED_REVIEW_ATTEMPTS_FILE} attempt {position}"),
+                    )
+                })
+            } else if file.name == SCOPED_REVIEW_ATTEMPTS_FILE && index + 1 == count {
+                review_twin
+                    .as_ref()
+                    .map(|review| (review, SCOPED_REVIEW_FILE.to_string()))
+            } else {
+                None
+            };
+            let original = original_relay_in(&record_value, committed, file.decider_key)
+                .map(|relay| (relay, "HEAD".to_string()))
+                .or_else(|| {
+                    let (twin, name) = twin?;
+                    original_relay_in(&record_value, Some(twin), file.decider_key)
+                        .map(|relay| (relay, name))
+                });
+            let object = relay_ledger_record_mut(&mut file.current, file.records_key, index)
+                .ok_or_else(|| format!("{} record {} is not an object", file.name, index + 1))?;
+            let damaged = object.remove("relayed_by");
+            let (action, from, removed) = match original {
+                Some((relay, from)) => {
+                    if let Some(relay) = relay {
+                        object.insert("relayed_by".into(), relay);
+                    }
+                    ("put_back", Some(from), None)
+                }
+                None => ("removed", None, damaged),
+            };
+            repairs.push(RelayRepair {
+                file: file.name.into(),
+                record: index + 1,
+                action: action.into(),
+                from,
+                removed,
+            });
+            repaired = true;
+        }
+        // Every ledger must read, repaired or not, before anything is written (#995 review), so a
+        // repair never reports success while the change still cannot be read.
+        let name = file.name;
+        let recovery = if file.has_committed_copy {
+            format!(
+                "restore it with `git checkout HEAD -- {}`",
+                shell_quote(&file.shown)
+            )
+        } else {
+            "it was never committed, so no copy of it exists to restore".to_string()
+        };
+        let unreadable = |error: serde_json::Error| {
+            if repaired {
+                format!(
+                    "{name} still does not read after repairing its relayed decisions ({error}), \
+                     so nothing was written; its damage is not only a relayed decision, so \
+                     {recovery}"
+                )
+            } else {
+                format!(
+                    "{name} does not read ({error}), so nothing was written: \
+                     `specsync change repair-relays` repairs only relayed decisions, and this is \
+                     not one, so {recovery}"
+                )
+            }
+        };
+        let content = if name == "approvals.json" {
+            json_content(
+                &serde_json::from_value::<ApprovalLedger>(file.current.clone())
+                    .map_err(unreadable)?,
+            )?
+        } else if name == SCOPED_REVIEW_ATTEMPTS_FILE {
+            json_content(
+                &serde_json::from_value::<ScopedReviewAttemptLedger>(file.current.clone())
+                    .map_err(unreadable)?,
+            )?
+        } else {
+            json_content(
+                &serde_json::from_value::<ScopedReviewRecord>(file.current.clone())
+                    .map_err(unreadable)?,
+            )?
+        };
+        if repaired {
+            prepared.push((file.path.clone(), content));
+        }
+    }
+    if !prepared.is_empty() {
+        write_prepared_files(root, &prepared)?;
+    }
+    Ok(RelayRepairReport {
+        change: record.id,
+        repairs,
+    })
 }

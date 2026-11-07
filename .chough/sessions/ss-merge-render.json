@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-34b160818491ea57539bf81c",
-    "head": null,
+    "head": "EVT-4ad75a6115bb4c9fe445fbea",
     "legacy": null
   },
   "schema_version": 2,
@@ -16,7 +16,7 @@
     "callers": [],
     "iteration": 1
   },
-  "native_change": null,
+  "native_change": "keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first",
   "references": {
     "criteria": [],
     "requirements": [],
@@ -24,13 +24,21 @@
     "design": [],
     "files": []
   },
-  "decisions": [],
+  "decisions": [
+    "MERGE-5 and 5.a-5.d captured as drafted (Leif, 2026-11-06, 'Capture MERGE-5 + cases', via orc t18)",
+    "Rejected: joining two differing version comments (invents text); quoting every list item (churns formatting)",
+    "Codex round 1 P2 on order-independent conflicts: kept git's ours/theirs labels; the test pins mirror symmetry"
+  ],
   "open_questions": [],
-  "completed": [],
+  "completed": [
+    "Red tests at 3bbcfc26; fix; 5 mutants killed; change check --commit; verify green at 10305420; Codex round 2 clean"
+  ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Leif's GitHub review of PR #1006"
+  ],
   "run_consents": [],
-  "next_action": "Read scoped intent and native status, then choose the next action within the authorized scope."
+  "next_action": "Leif's GitHub review of #1006, then the orc records the native review; change ship with no commit between; push the archive tip; CI; merge in queue order"
 }

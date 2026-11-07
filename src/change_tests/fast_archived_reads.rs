@@ -1424,17 +1424,16 @@ fn lifecycle_history_parse_folds_merge_blocks_and_refuses_other_shapes() {
     assert!(parse_lifecycle_state_history(&split).is_none(), "a commit listed twice apart");
 }
 
+/// Each archive's captured subtree, keyed by archive and then by path, as `(mode, bytes)`.
+type ArchiveSubtreeSnapshots = BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>;
+
 /// A repository whose `count` legacy archives were each introduced by their own commit before
 /// the cutoff, with the baseline that enumerates them, its ledger digest, and their current
 /// subtrees captured the way `load_legacy_archive_baseline_context` captures them.
 fn legacy_archives_introduced_before_cutoff(
     root: &Path,
     count: usize,
-) -> (
-    LegacyArchiveBaselineV1,
-    String,
-    BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
-) {
+) -> (LegacyArchiveBaselineV1, String, ArchiveSubtreeSnapshots) {
     fast_read_repository(root);
     let mut entries = Vec::new();
     for index in 0..count {

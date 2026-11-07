@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Testing
 
+REQ-change-143 (#994 P1): `late_close_refuses_symlinked_closed_late_destination`, `late_close_refuses_symlinked_archive_destination` and their dangling-link variants in `tests/integration/doctor.rs` each exercise dry-run and an actual two-package close against same-filesystem outside targets. They require a refusal naming the link and recovery, unchanged source/project/outside bytes, no dangling-target creation, then successful byte-preserving close after replacing the link with an in-project directory. `late_close_revalidates_symlinked_destinations_before_any_batch_write` in `src/change_tests/doctor_collision.rs` bypasses planning to model a link planted afterward, covering both parent directories and the second plan's final component, linked and dangling; no package moves and the ledger stays byte-identical. Symlink tests are Unix-only. All five failed before the fix; existing late-close and rollback tests remain the normal-path controls.
+
 REQ-change-108: `change_new_refuses_a_broken_sdd_policy` writes `{` to `.specsync/sdd.json` and requires `create_change` to fail with `invalid SDD policy`. `status_reads_the_same_broken_policy_error` requires `configured_principles_file` to return that same error, which is what `change status` propagates.
 
 REQ-change-096: `timed_out_git_runner_reaps_child_and_joins_blocked_writer` and `timed_out_git_runner_reaps_child_before_child_can_make_progress` capture PID after spawn in the parent, require a deadline error, assert ECHILD after runner cleanup, and observe the stdin writer join. The latter stops the child before starting the deadline. Neither test depends on a child-written readiness file. Cleanup and writer-join mutations must fail these assertions.

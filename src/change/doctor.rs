@@ -754,12 +754,31 @@ struct LateClosePlan {
     record: LateCloseRecord,
 }
 
+/// Refuse existing links (including dangling links) before creating or moving anything. The
+/// lifecycle lock uses the same component walk; checking only `exists()` follows the link.
+fn validate_late_close_destination(root: &Path, destination: &Path) -> Result<(), String> {
+    reject_symlink_components_for(root, destination, "late-close destination").map_err(|error| {
+        if error.starts_with("refusing symlinked ") {
+            format!("{error}; replace the symlink with an in-project directory, then retry")
+        } else {
+            error
+        }
+    })?;
+    match fs::symlink_metadata(destination) {
+        Ok(_) => Err(format!("{} already exists", portable_project_path(root, destination))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("failed to inspect {}: {error}", destination.display())),
+    }
+}
+
 /// Check one change for a late close and plan it; nothing is written (SHIP-12.e).
 fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str) -> Result<LateClosePlan, String> {
     validate_change_id(id)?;
+    let destination = root.join(CLOSED_LATE_PATH).join(format!("{date}-{id}"));
     if closed_late_package(root, id).is_some() {
         return Err(format!("change `{id}` was already closed late"));
     }
+    validate_late_close_destination(root, &destination)?;
     let active = change_dir(root, id);
     if active.is_dir()
         && let Some(archived) = archived_package_for(root, id)
@@ -860,7 +879,7 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
         .ok_or_else(|| format!("unexpected `git log` answer `{added}`"))?;
     Ok(LateClosePlan {
         source,
-        destination: root.join(CLOSED_LATE_PATH).join(format!("{date}-{id}")),
+        destination,
         record: LateCloseRecord {
             schema_version: 1,
             change_id: id.to_string(),
@@ -923,7 +942,16 @@ fn drop_collision_acknowledgement(
 /// Close every planned change late, or none: each package moves byte for byte into the
 /// closed-late folder and gets its record, and a failed write restores what was moved.
 fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), String> {
+    if plans.is_empty() {
+        return Ok(());
+    }
     let _lock = acquire_project_lock(root)?;
+    // Planning (including dry-run) is read-only and happens before this lock. Recheck the whole
+    // batch before any write so a link planted since planning cannot move even its first member.
+    for plan in plans.iter() {
+        validate_late_close_destination(root, &plan.destination)
+            .map_err(|error| format!("{error}; nothing was closed late"))?;
+    }
     let mut ledger = load_change_sequence_ledger(root)?;
     let mut ledger_changed = false;
     if let Some(ledger) = ledger.as_mut() {
@@ -947,12 +975,9 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
         fs::create_dir_all(root.join(CLOSED_LATE_PATH))
             .map_err(|error| format!("failed to create {CLOSED_LATE_PATH}: {error}"))?;
         for plan in plans.iter() {
-            if plan.destination.exists() {
-                return Err(format!(
-                    "{} already exists",
-                    portable_project_path(root, &plan.destination)
-                ));
-            }
+            // Like lifecycle-lock acquisition, check again after creating the parent and at
+            // each move boundary. The existing rollback still protects earlier batch members.
+            validate_late_close_destination(root, &plan.destination)?;
             rename_durable(&plan.source, &plan.destination)?;
             moved.push((plan.source.clone(), plan.destination.clone()));
             write_json(&plan.destination.join(LATE_CLOSE_RECORD), &plan.record)?;

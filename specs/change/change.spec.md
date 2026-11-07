@@ -1,6 +1,6 @@
 ---
 module: change
-version: 199
+version: 200
 status: active
 files:
   - src/change.rs
@@ -183,7 +183,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
-| `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
+| `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
 | `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
 | `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
@@ -481,6 +481,7 @@ Acceptance Criteria
 | Date | Change |
 |------|--------|
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
+| 2026-11-06 | v200: Reject symlink components in late-close destinations during planning/dry-run, before any batch write under the lifecycle lock, and again after directory creation before each rename; include dangling links and name how to retry safely (REQ-change-143, #994 P1) |
 | 2026-11-06 | v187: `specsync doctor`'s late close moves a merged but never-archived package byte for byte into `.specsync/archive/closed-late/<date>-<id>/` with `late-close.json` (`verified: false`); it reads no delivery evidence and adds no change state, so SpecSync 6.0 to 6.2 never read it. A collision member's acknowledgement is dropped and recorded. 6.3 reports a closed-late change in status and ship-status, refuses it in every lifecycle verb, and reserves its ID in `change new` (REQ-change-143, #833) |
 | 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | v190: the acceptance manifest and the acceptance input digest name clean delivery files by object id and hash each blob from one `git cat-file --batch` child, one blob at a time, under the per-object bound, so reopen, finalize and accepted-input validation no longer refuse a change whose clean affected files exceed one whole-scope read; recorded manifests and digests are byte-identical (REQ-change-144, #976). |

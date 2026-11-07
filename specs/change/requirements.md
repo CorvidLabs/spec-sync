@@ -1854,6 +1854,7 @@ A late close SHALL move a change package that is committed on the remote default
 
 Acceptance Criteria
 - The package comes from `.specsync/changes/` or `.specsync/archive/changes/`. Its `state.json` keeps its bytes and the state in it, and every other file keeps its bytes.
+- Destination components below the project root, including `.specsync`, `archive`, `closed-late` and the dated package name, must not be symlinks, including dangling links. Planning/dry-run refuses them with the offending path and recovery; the locked writer revalidates every plan before batch writes and each destination after directory creation before renaming. Refusal preserves source package bytes, the sequence ledger and outside targets.
 - The package's `state.json`, at its current path, must be present on the remote default reference (`origin/HEAD`, else `origin/main` or `origin/master`). When no remote default resolves, or the package is not on it, the close is refused and nothing is written.
 - No delivery input, acceptance manifest, acceptance input digest or verification is read or rebuilt.
 - `late-close.json` records the schema version, change ID, actor, reason, timestamp, the state it was closed from, its workflow version, the path it came from, the remote default reference and its commit, the commit that added the package and that commit's date, and `verified: false`.

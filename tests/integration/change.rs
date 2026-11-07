@@ -3785,7 +3785,7 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
     );
 }
 
-// Verifies SHIP-4.a through the built binary (#986, #956). A no-spec-change change scoped to a
+// Verifies REQ-cmd-change-008 and SHIP-4.a through the built binary (#986, #956). A no-spec-change change scoped to a
 // directory that holds production source a module owns passes approve, check and review: approve
 // cannot see which owned files a directory scope will deliver. ship-status and `ship --dry-run`
 // used to say "ready to finalize", and only finalize refused on canonical ownership. Both now run

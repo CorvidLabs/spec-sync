@@ -17,6 +17,14 @@ artifact: testing
 3. The existing approve-ownership, open-task blocker and ship tests stay green.
 4. `specsync change check <id> --commit`, `specsync change audit --strict`, `fledge lanes run verify` on pinned 1.89, pre-push.
 
+## Requirement evidence
+
+| Requirement | Evidence |
+|---|---|
+| `REQ-change-053` | `approve_refuses_a_no_spec_change_draft_over_owned_production_source_and_names_the_answer`: a justified no-spec-change draft with no declared specs is ownership-checked at approve, and its existing owned production path is refused. |
+| `REQ-change-120` | The same test: the refusal names `specs/billing/billing.spec.md`, module `billing` and, for the draft, `specsync change answer <id> affected_specs billing`; running it clears the refusal. The existing `approve_ownership_refusal_*` tests keep the wording for declared changes. |
+| `REQ-cmd-change-008` | `ship_readiness_names_unowned_production_source_before_finalize_and_the_recovery_ships`: ship-status names the blocker and the recovery, `ship --dry-run` exits non-zero, and the named recovery ships. |
+
 ## Results
 
 - Both new tests failed on main 9dd2affd: approve accepted the draft, and ship-status said "ready to finalize" while `ship` refused with the #956 error. Both pass with the fix; the integration test runs the named recovery and ships.

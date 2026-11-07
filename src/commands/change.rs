@@ -703,9 +703,16 @@ fn read_deadline_for(
     ))
 }
 
-/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed.
+/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed, quoted
+/// so that a POSIX shell splits it back into exactly those arguments. When `SPECSYNC_TIMEOUT` is
+/// set, the command clears it, so the resumed run has no deadline (REQ-cmd-change-036).
 fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String {
-    let mut kept = vec!["specsync".to_string()];
+    let timeout_env = std::env::var_os("SPECSYNC_TIMEOUT").is_some();
+    let mut kept = Vec::new();
+    if timeout_env {
+        kept.push("SPECSYNC_TIMEOUT=".to_string());
+    }
+    kept.push("specsync".to_string());
     let mut args = args.peekable();
     while let Some(argument) = args.next() {
         if argument == "--timeout" {
@@ -715,13 +722,15 @@ fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String 
         if argument.starts_with("--timeout=") {
             continue;
         }
-        kept.push(
-            if argument.is_empty() || argument.contains(char::is_whitespace) {
-                format!("'{}'", argument.replace('\'', "'\\''"))
-            } else {
-                argument
-            },
-        );
+        let shell_safe = !argument.is_empty()
+            && argument
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&byte));
+        kept.push(if shell_safe {
+            argument
+        } else {
+            format!("'{}'", argument.replace('\'', "'\\''"))
+        });
     }
     kept.join(" ")
 }

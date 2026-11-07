@@ -7,10 +7,10 @@
   "title": "A timed-out read prints a resume command that runs exactly as printed and does not time out again",
   "description": "A timed-out read prints a resume command that runs exactly as printed and does not time out again",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "db16db8af6a16f7ab2dd61deb2a9f2de0584dbe1",
   "created_at": 1794012216,
-  "updated_at": 1794012228,
+  "updated_at": 1794014816,
   "affected_specs": [
     "cmd_change"
   ],

@@ -11,6 +11,8 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
 
 SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. Recorded by claude (ss-d7).
 
+SHIP-3.d is captured from Leif's answer in the orc tab on 2026-11-06 at about 17:35 MST (issue #961, from the Codex review of #943): "Capture both", for this sentence as drafted by the agent. Relayed by orc t18; recorded by the t18 worker Claude agent.
+
 ## Criteria
 
 - **SHIP-1**  Once the scope is approved, the agreed contract edit is applied for me rather than retyped by hand.
@@ -29,6 +31,7 @@ SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif 
 - **SHIP-3**  Finalizing moves the whole package into a dated archive on the same pull request, so the trail travels with the merge.
   - **SHIP-3.a**  Finalizing needs verification and review that are both still current.
   - **SHIP-3.b**  I am warned plainly that merging before finalizing strands the evidence.
+  - **SHIP-3.d**  An archive that belongs to another change never stops mine from being reviewed or finalized.
 - **SHIP-4**  I can ask whether a change is ready to ship.
   - **SHIP-4.a**  The answer names the stage I am on and the one thing holding it.
   - **SHIP-4.b**  Readiness reflects what my pipeline actually reports rather than a guess.

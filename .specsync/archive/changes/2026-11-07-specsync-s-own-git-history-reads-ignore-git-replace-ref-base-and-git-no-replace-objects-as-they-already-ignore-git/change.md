@@ -1,6 +1,6 @@
 ---
 id: specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 3073e8ed33b0d83516eda46bbf76ab8c3800a463
 ---

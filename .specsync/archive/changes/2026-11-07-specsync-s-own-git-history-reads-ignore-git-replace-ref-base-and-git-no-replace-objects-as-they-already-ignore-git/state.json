@@ -7,11 +7,11 @@
   "title": "SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE",
   "description": "SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "3073e8ed33b0d83516eda46bbf76ab8c3800a463",
   "created_at": 1794006691,
-  "updated_at": 1794009412,
+  "updated_at": 1794010297,
   "affected_specs": [
     "change",
     "cli"

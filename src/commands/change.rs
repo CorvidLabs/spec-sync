@@ -3071,7 +3071,7 @@ fn closed_late_report(
     format: OutputFormat,
     phase: &str,
 ) -> Option<Result<(), String>> {
-    if change::find_change_dir(root, id).is_ok() {
+    if !change::is_only_closed_late(root, id) {
         return None;
     }
     // The read deadline covers this lookup like every other status read.

@@ -182,6 +182,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
 | `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
+| `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
 | `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
 | `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |

@@ -813,7 +813,7 @@ jobs:
     # request that selected the product lane. Forks run the same read-only
     # review without attempting a comment or review write.
     if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.full == 'true' }}
-    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, linux-baseline, spec-check, audit, coverage, site, vscode-extension]
+    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, closed-late-compat, linux-baseline, spec-check, audit, coverage, site, vscode-extension]
     permissions:
       contents: read
       pull-requests: write
@@ -828,6 +828,7 @@ jobs:
           CHECK_HI: "Human intent check=${{ needs.hi-check.result }}"
           CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
           CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.action-consumer.result }}"
+          CHECK_CLOSED_LATE_COMPAT: "Closed-late compatibility (SpecSync 6.0.0 and 6.2.0)=${{ needs.closed-late-compat.result }}"
           CHECK_LINUX_BASELINE: "Linux Release Baseline=${{ needs.linux-baseline.result }}"
           CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
           CHECK_AUDIT: "Dependency Audit=${{ needs.audit.result }}"

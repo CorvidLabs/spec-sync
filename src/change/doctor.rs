@@ -71,6 +71,15 @@ fn closed_late_package(root: &Path, id: &str) -> Option<PathBuf> {
         })
 }
 
+/// Whether `id` is held only by a closed-late package: no active workspace and no archive package
+/// records it. Status reports the closed-late record only then, so it never contradicts the
+/// records the lifecycle verbs act on (Codex review of #994).
+pub fn is_only_closed_late(root: &Path, id: &str) -> bool {
+    !change_dir(root, id).is_dir()
+        && archived_package_for(root, id).is_none()
+        && closed_late_package(root, id).is_some()
+}
+
 /// The closed-late package for `id` and its record, read from `late-close.json`.
 pub fn closed_late_record(
     root: &Path,
@@ -642,6 +651,37 @@ fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
     findings
 }
 
+/// The changes `--close-late all` can close: active packages and accepted packages left in the
+/// archive whose `state.json` is on the remote default. Decided from merge presence alone, so no
+/// delivery evidence is read for them.
+fn merged_late_close_candidates(root: &Path) -> BTreeSet<String> {
+    let Some(reference) = remote_default_ref(root) else {
+        return BTreeSet::new();
+    };
+    let mut candidates = BTreeSet::new();
+    if let Ok(roster) = list_changes(root) {
+        for record in roster.records {
+            if package_is_on_reference(
+                root,
+                &format!("{CHANGES_PATH}/{}/state.json", record.id),
+                &reference,
+            ) {
+                candidates.insert(record.id);
+            }
+        }
+    }
+    for (package, record) in archived_accepted_packages(root) {
+        if package_is_on_reference(
+            root,
+            &format!("{}/state.json", portable_project_path(root, &package)),
+            &reference,
+        ) {
+            candidates.insert(record.id);
+        }
+    }
+    candidates
+}
+
 /// Every package under `.specsync/archive/changes/` whose `state.json` exists but cannot be read
 /// or parsed. A directory with no `state.json` is a legacy tombstone or a Git husk, as the roster
 /// treats it, and is not reported.
@@ -943,25 +983,28 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     Ok(())
 }
 
-/// Move every package in `moved` back, newest first, removing the record a late close wrote into
-/// it. Returns one sentence per package that could not be put back (Codex review of #994).
+/// Move every package in `moved` back, newest first, then remove the record a late close wrote
+/// into it. Returns one sentence per package that could not be put back (Codex review of #994).
 fn restore_late_close_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
     let mut failures = Vec::new();
     for (source, destination) in moved.iter().rev() {
-        match fs::remove_file(destination.join(LATE_CLOSE_RECORD)) {
+        // The record stays with a package that cannot be moved back, so it is never stranded
+        // under closed-late without its actor, reason and merge proof (Codex review of #994).
+        if let Err(error) = rename_durable(destination, source) {
+            failures.push(format!(
+                "`{}` could not be moved back to `{}`, and keeps its late-close record: {error}",
+                destination.display(),
+                source.display()
+            ));
+            continue;
+        }
+        match fs::remove_file(source.join(LATE_CLOSE_RECORD)) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => failures.push(format!(
                 "`{}` could not be removed: {error}",
-                destination.join(LATE_CLOSE_RECORD).display()
+                source.join(LATE_CLOSE_RECORD).display()
             )),
-        }
-        if let Err(error) = rename_durable(destination, source) {
-            failures.push(format!(
-                "`{}` could not be moved back to `{}`: {error}",
-                destination.display(),
-                source.display()
-            ));
         }
     }
     failures
@@ -971,14 +1014,18 @@ fn restore_late_close_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
 /// and every safe fix, or with `--dry-run` report what that would do (REQ-cmd-change-035). A
 /// refused late close writes nothing and is an error.
 pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, String> {
-    // A change named for a late close takes no evidence read (`all` is resolved from the scan).
-    let named: BTreeSet<String> = if request.fix {
-        request
-            .close_late
-            .iter()
-            .filter(|id| id.as_str() != "all")
-            .cloned()
-            .collect()
+    // A change named for a late close takes no evidence read. `all` is resolved from merge
+    // presence alone, before the scan, so its candidates take none either (Codex review of #994).
+    let select_all = request.fix && request.close_late.iter().any(|id| id == "all");
+    if select_all && (find_change_dir(root, "all").is_ok() || closed_late_package(root, "all").is_some()) {
+        return Err(
+            "`--close-late all` is ambiguous here: a change is named `all`; name the changes to close late one by one".into(),
+        );
+    }
+    let named: BTreeSet<String> = if select_all {
+        merged_late_close_candidates(root)
+    } else if request.fix {
+        request.close_late.iter().cloned().collect()
     } else {
         BTreeSet::new()
     };
@@ -1002,7 +1049,6 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
         if reason.is_empty() {
             return Err("a late close needs a non-empty reason passed with --reason".into());
         }
-        let select_all = request.close_late.iter().any(|id| id == "all");
         let ids: Vec<String> = if select_all {
             let mut eligible: Vec<String> = report
                 .findings

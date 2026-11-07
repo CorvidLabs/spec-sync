@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "print-archive-recovery-commands-that-a-shell-and-git-read-literally-with-control-bytes-shown-as-text",
+  "slug": "print-archive-recovery-commands-that-a-shell-and-git-read-literally-with-control-bytes-shown-as-text",
+  "title": "Print archive recovery commands that a shell and Git read literally, with control bytes shown as text",
+  "description": "Print archive recovery commands that a shell and Git read literally, with control bytes shown as text",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "a36341cc6383e6f5d0874dc93f34fc65b245f172",
+  "created_at": 1794019997,
+  "updated_at": 1794019997,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "src/change_tests/literal_guidance.rs",
+    "src/change_tests.rs",
+    "tests/integration/change.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {}
+}

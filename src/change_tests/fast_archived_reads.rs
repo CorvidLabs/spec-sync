@@ -1792,3 +1792,27 @@ fn an_ignored_just_finalized_archive_reports_the_full_review_currency() {
         "an ignored, uncommitted archive must still be judged by the full check"
     );
 }
+
+// G-deadline (#954, REQ-change-149): the archive-introduction index checks its deadline before
+// its bulk `diff-tree --stdin`, so a deadline that has passed stops it even when there is no
+// archive-introducing commit to loop over. (On a worker-style deadline the check returns an
+// error instead of exiting, which lets the test observe it.)
+#[test]
+fn an_expired_deadline_stops_the_archive_index_before_it_lists_anything() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let _scope = begin_change_read_scope(root);
+    let _deadline = begin_worker_read_deadline(Some(ReadDeadline {
+        until: Instant::now(),
+        limit_secs: 0,
+    }));
+    let result = archive_introduction_index(root);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("archive-introduction index")),
+        "an expired deadline let the archive-introduction index answer {:?}",
+        result.map(|index| index.len())
+    );
+}

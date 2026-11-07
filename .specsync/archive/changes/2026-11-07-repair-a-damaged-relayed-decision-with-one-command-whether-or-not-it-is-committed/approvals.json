@@ -58,6 +58,13 @@
         "change: REQUIREMENT REQ-change-relayed-decision-001": "01bb2ed59e9c16017adc3369d1adccfcfdbc0430b4164f7598b5ed3c1fd61c13",
         "change: SPEC SECTION Public API": "875ea5461c91103da86b5edd9988f991f2878a2b15e222c0459f80cd7c944cfb"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794010292,
+      "digest": "3ddef3c6b7ead7cf2d42371e35a43904527153b32f3528385ca3d52eb4d4cb63",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

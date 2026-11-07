@@ -2564,6 +2564,9 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
     let mut index: ArchiveIntroductionIndex = BTreeMap::new();
     // One `diff-tree --stdin` lists what every uncached commit added (REQ-change-135); a commit
     // it did not answer is read on its own, as before.
+    // Check before the bulk listing, not only between commits after it: a deadline that has
+    // passed must not start the one long Git read (REQ-change-149).
+    check_read_deadline("archive-introduction index", 0, commits.len())?;
     let listings = archive_introduction_listings(root, &commits, &history_pathspec);
     let total = commits.len();
     for (done, commit) in commits.into_iter().enumerate() {

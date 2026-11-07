@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Failing tests committed (`ebe614da`)
-- [ ] checked_add; boundaries in active loading, the history walk and before the bulk listing
-- [ ] CHANGELOG
+- [x] checked_add; boundaries in active loading, the history walk and before the bulk listing
+- [x] CHANGELOG

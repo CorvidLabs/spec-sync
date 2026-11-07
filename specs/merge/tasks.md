@@ -11,6 +11,7 @@ spec: merge.spec.md
 ## Done
 
 - [x] Git merge driver for parallel module contracts (#862, MERGE-1): `merge_contract` counts both version bumps and unions change-log rows, `files:`, and requirement blocks. Marker resolution is unchanged.
+- [x] A clean merge-driver result keeps both sides' meaning (MERGE-5, REQ-merge-006): YAML-typed list items stay quoted (#872), the change log ends at its first blank line (#875), version comments merge three ways (#876), renumbering stops at `u64::MAX` (#870).
 
 - [x] `merge_specs` driver: git-conflicted vs all-files scan, dry-run, write-back
 - [x] `has_conflict_markers` detection of `<<<<<<< ` markers

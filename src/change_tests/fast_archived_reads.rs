@@ -1721,3 +1721,36 @@ fn an_archived_change_reports_the_scoped_review_currency_the_full_check_gives() 
         assert_eq!(summary, full, "{case}: the summary must report what the full check gives");
     }
 }
+
+// REQ-change-147: a just-finalized package that Git ignores (`.git/info/exclude` lists the
+// archive) is still uncommitted, so the summary must still report what the full check gives.
+#[test]
+fn an_ignored_just_finalized_archive_reports_the_full_review_currency() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    if quiet_git(root, &["ls-files", WORKFLOW_V2_BASELINE_PATH]).is_empty() {
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+    }
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "implement approved change"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    let exclude = root.join(".git/info/exclude");
+    let mut patterns = fs::read_to_string(&exclude).unwrap_or_default();
+    patterns.push_str(&format!("/{ARCHIVE_PATH}/\n"));
+    fs::write(&exclude, patterns).unwrap();
+    finalize_change(root, &record.id).unwrap();
+    let archived = load_change(root, &record.id).unwrap();
+    assert_eq!(archived.state, ChangeState::Archived);
+    let full = full_scoped_review_currency(root, &archived);
+    assert_eq!(
+        summary_scoped_review_current(root, &record.id),
+        full,
+        "an ignored, uncommitted archive must still be judged by the full check"
+    );
+}

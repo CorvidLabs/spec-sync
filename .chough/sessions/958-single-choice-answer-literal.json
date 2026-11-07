@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-4973daf6b2ccd257ac4ca282",
-    "head": "EVT-02cf2ad6a0f523ba0368d78a",
+    "head": "EVT-ee8bcc2418c90351f99f5b4b",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "test",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -49,7 +49,9 @@
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Implementation review of #958 change (native change review, recorded by orc only)"
+  ],
   "run_consents": [],
   "next_action": "Run fledge lanes run verify and fledge trust verify, then commit and run change check --commit"
 }

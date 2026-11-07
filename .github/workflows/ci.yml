@@ -384,6 +384,8 @@ jobs:
         run: python3 .github/scripts/test-linux-baseline.py
       - name: Test that every pull request starts CI
         run: python3 .github/scripts/test-ci-trigger-paths.py
+      - name: Test the attestation condition and the pull request summary
+        run: python3 .github/scripts/test-ci-attest-and-summary.py
 
   action-consumer:
     name: Packaged GitHub Action consumer
@@ -803,17 +805,25 @@ jobs:
       - name: Determine combined status
         id: status
         env:
-          CHECK_TEST: "Tests (build, test, clippy)=${{ needs.test.result }}"
-          CHECK_FMT: "Format Check=${{ needs.fmt.result }}"
-          CHECK_HI: "Human intent check=${{ needs.hi-check.result }}"
-          CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
-          CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.action-consumer.result }}"
-          CHECK_LINUX_BASELINE: "Linux Release Baseline=${{ needs.linux-baseline.result }}"
-          CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
-          CHECK_AUDIT: "Dependency Audit=${{ needs.audit.result }}"
-          CHECK_COVERAGE: "Code Coverage=${{ needs.coverage.result }}"
-          CHECK_SITE: "Docs Site=${{ needs.site.result }}"
-          CHECK_VSCODE: "VS Code Extension=${{ needs.vscode-extension.result }}"
+          # One row per job this review waits on, except classify (#799, CI-10):
+          # `<label>=<selected>=<result>`. <selected> is that job's own `if:`, less a
+          # leading `always() &&`, the same selection implementation-gate's GATES rows
+          # carry. A skipped job reads "Not selected" only when classify deselected it.
+          # A selected job that was skipped was blocked by a failure and turns this red.
+          # .github/scripts/test-ci-attest-and-summary.py holds each row to its job.
+          CHECK_PREFLIGHT: "Lifecycle preflight=true=${{ needs.preflight.result }}"
+          CHECK_LIFECYCLE: "Lifecycle gate=true=${{ needs.lifecycle-gate.result }}"
+          CHECK_TEST: "Tests (build, test, clippy)=${{ needs.classify.outputs.full == 'true' }}=${{ needs.test.result }}"
+          CHECK_FMT: "Format Check=${{ needs.classify.outputs.full == 'true' }}=${{ needs.fmt.result }}"
+          CHECK_HI: "Human intent check=${{ needs.classify.outputs.full == 'true' }}=${{ needs.hi-check.result }}"
+          CHECK_ACTION: "Validate action.yml=${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }}=${{ needs.validate-action.result }}"
+          CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.classify.outputs.full == 'true' }}=${{ needs.action-consumer.result }}"
+          CHECK_LINUX_BASELINE: "Linux Release Baseline=${{ needs.classify.outputs.full == 'true' }}=${{ needs.linux-baseline.result }}"
+          CHECK_SPEC: "Spec Validation=${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }}=${{ needs.spec-check.result }}"
+          CHECK_AUDIT: "Dependency Audit=${{ needs.classify.outputs.full == 'true' }}=${{ needs.audit.result }}"
+          CHECK_COVERAGE: "Code Coverage=${{ needs.classify.outputs.full == 'true' }}=${{ needs.coverage.result }}"
+          CHECK_SITE: "Docs Site=${{ needs.classify.outputs.full == 'true' || needs.classify.outputs.site == 'true' }}=${{ needs.site.result }}"
+          CHECK_VSCODE: "VS Code Extension=${{ needs.classify.outputs.full == 'true' || needs.classify.outputs.vscode == 'true' }}=${{ needs.vscode-extension.result }}"
           REPORT_SPEC: ${{ needs.spec-check.outputs.body }}
         run: |
           OVERALL="success"
@@ -824,12 +834,17 @@ jobs:
             VAR_NAME="${line%%=*}"
             VAR_VALUE="${!VAR_NAME}"
             LABEL="${VAR_VALUE%%=*}"
-            RESULT="${VAR_VALUE##*=}"
+            REST="${VAR_VALUE#*=}"
+            SELECTED="${REST%%=*}"
+            RESULT="${REST#*=}"
 
             if [ "$RESULT" = "success" ]; then
               ICON="✅ Passed"
-            elif [ "$RESULT" = "skipped" ]; then
+            elif [ "$RESULT" = "skipped" ] && [ "$SELECTED" = "false" ]; then
               ICON="⏭️ Not selected"
+            elif [ "$RESULT" = "skipped" ]; then
+              ICON="⛔ Blocked: a job it needs did not succeed"
+              OVERALL="failure"
             else
               ICON="❌ ${RESULT}"
               OVERALL="failure"
@@ -882,7 +897,10 @@ jobs:
     # "proceed", so it must not sign off on a commit where any real check failed.
     # (corvid-pet is a same-repository PR mascot, not a gate, so it is intentionally out.)
     needs: [ci-gate]
-    if: needs.ci-gate.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # always(): without a status function GitHub adds an implicit success() over
+    # every job upstream of ci-gate, and corvid-pet is skipped on every push, so
+    # attest never ran (#798, CI-9). ci-gate's own success is required explicitly.
+    if: ${{ always() && needs.ci-gate.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     # contents: write lets the step push refs/notes/attest.
     permissions:
       contents: write

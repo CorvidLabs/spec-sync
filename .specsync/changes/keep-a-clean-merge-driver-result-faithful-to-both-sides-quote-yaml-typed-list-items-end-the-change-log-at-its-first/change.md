@@ -1,6 +1,6 @@
 ---
 id: keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first
-state: draft
+state: implementing
 type: bug_fix
 base_commit: ab6882464fadb1bdfc71416d729534323e5a3836
 ---

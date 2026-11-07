@@ -447,15 +447,11 @@ fn parse_changelog_table(section: &str) -> Option<ChangeTable> {
     for (index, line) in lines.iter().enumerate().skip(separator_at + 1) {
         let bare = line.trim_end_matches('\n');
         let trimmed = bare.trim();
+        // A blank line ends a Markdown table. It and everything after it, prose or another
+        // table, are the suffix, merged as text and never as change-log rows (#875).
         if trimmed.is_empty() {
-            if lines[index + 1..]
-                .iter()
-                .all(|later| later.trim().is_empty())
-            {
-                suffix_at = index;
-                break;
-            }
-            continue;
+            suffix_at = index;
+            break;
         }
         if trimmed.starts_with('|') && !is_separator_row(trimmed) {
             rows.push(trimmed.to_string());
@@ -534,7 +530,12 @@ fn union_changelog_tables(
                 if cell.parse::<u64>().is_err() {
                     return changelog_conflict(ours, theirs);
                 }
-                next += 1;
+                // No higher `u64` to number this row with: a conflict, never a panic or a
+                // wrap to 0 that would number it below the ancestor (#870, REQ-merge-006).
+                let Some(following) = next.checked_add(1) else {
+                    return changelog_conflict(ours, theirs);
+                };
+                next = following;
                 numbered.push(rewrite_row_cell(&row, index, &next.to_string()));
                 changed = true;
             }
@@ -881,6 +882,22 @@ fn merge_version_field(
             &theirs.lines.join("\n"),
         ));
     };
+    // What follows the number (the closing quote's tail or a ` # comment`) merges three
+    // ways, so the result is the same in either merge order and a one-sided note survives;
+    // two different notes are a conflict (#876, REQ-merge-006).
+    let our_note = version_decoration(our_raw);
+    let their_note = version_decoration(their_raw);
+    let base_note = base_raw.map(version_decoration);
+    let note_side = if our_note == their_note || base_note == Some(their_note) {
+        our_raw
+    } else if base_note == Some(our_note) {
+        their_raw
+    } else {
+        return FieldMerge::Conflict(conflict_block(
+            &ours.lines.join("\n"),
+            &theirs.lines.join("\n"),
+        ));
+    };
     let raised = match (combined, version_floor) {
         (NumericVersion::Int(value), Some(floor)) => NumericVersion::Int(value.max(floor)),
         (other, _) => other,
@@ -894,6 +911,7 @@ fn merge_version_field(
     if let NumericVersion::Int(value) = raised
         && parse_numeric_version(their_raw) == Some(NumericVersion::Int(value))
         && version_floor.is_none()
+        && note_side == their_raw
     {
         return FieldMerge::Keep(theirs.lines.join("\n"));
     }
@@ -905,8 +923,21 @@ fn merge_version_field(
             patch,
         } => format!("{major}.{minor}.{patch}"),
     };
-    let line = format!("version: {}", rewrite_scalar(our_raw, &rendered));
+    let line = format!("version: {}", rewrite_scalar(note_side, &rendered));
     FieldMerge::Keep(line)
+}
+
+/// The text after a version scalar's value: what follows the closing quote, or the ` #`
+/// comment of a plain scalar. `rewrite_scalar` keeps exactly this part.
+fn version_decoration(raw: &str) -> &str {
+    let raw = raw.trim();
+    if let Some(quote) = raw.chars().next().filter(|ch| *ch == '"' || *ch == '\'') {
+        let rest = &raw[quote.len_utf8()..];
+        return rest
+            .find(quote)
+            .map_or("", |close| &rest[close + quote.len_utf8()..]);
+    }
+    raw.find(" #").map_or("", |comment| &raw[comment..])
 }
 
 /// The quote character a scalar opens with, if any.
@@ -1190,11 +1221,48 @@ fn render_list_item(item: &str) -> String {
         && item.chars().all(|ch| {
             ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '/' | '-' | '+' | '~')
         });
-    if plain {
+    if plain && !yaml_reads_as_non_string(item) {
         item.to_string()
     } else {
         format!("\"{}\"", item.replace('\\', "\\\\").replace('"', "\\\""))
     }
+}
+
+/// Whether YAML (1.1 or 1.2) would read this plain scalar as something other than a string:
+/// a boolean, a null, or a number. Such an item is written quoted so a union keeps it a
+/// string (#872, REQ-merge-006). Quoting more than needed is safe; it stays a string.
+fn yaml_reads_as_non_string(item: &str) -> bool {
+    let lower = item.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off" | "y" | "n" | "null" | "~"
+    ) {
+        return true;
+    }
+    if item.parse::<f64>().is_ok() {
+        return true;
+    }
+    let unsigned = lower.strip_prefix(['+', '-']).unwrap_or(&lower);
+    if matches!(unsigned, ".inf" | ".nan") {
+        return true;
+    }
+    let radix = |prefix: &str, digit: fn(char) -> bool| {
+        unsigned
+            .strip_prefix(prefix)
+            .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|ch| digit(ch) || ch == '_'))
+    };
+    if radix("0x", |ch| ch.is_ascii_hexdigit())
+        || radix("0o", |ch| matches!(ch, '0'..='7'))
+        || radix("0b", |ch| matches!(ch, '0' | '1'))
+    {
+        return true;
+    }
+    // YAML 1.1 numbers may carry underscores (`1_000`, `1_000.5`).
+    unsigned.starts_with(|ch: char| ch.is_ascii_digit())
+        && unsigned
+            .chars()
+            .all(|ch| ch.is_ascii_digit() || ch == '_' || ch == '.')
+        && unsigned.matches('.').count() <= 1
 }
 
 fn has_duplicate_keys(fields: &[Field]) -> bool {
@@ -1904,12 +1972,16 @@ mod tests {
         let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
         assert!(merged.clean, "{}", merged.content);
         assert!(
-            merged.content.contains("db_tables:\n  - \"true\"\n"),
+            merged
+                .content
+                .contains("db_tables:\n  - orders\n  - \"true\"\n  - users\n"),
             "{}",
             merged.content
         );
         assert!(
-            merged.content.contains("depends_on:\n  - \"null\"\n"),
+            merged.content.contains(
+                "depends_on:\n  - \"null\"\n  - specs/a/a.spec.md\n  - specs/b/b.spec.md\n"
+            ),
             "{}",
             merged.content
         );
@@ -1978,15 +2050,19 @@ mod tests {
             );
         }
 
-        // The same comment on both sides is kept once.
-        let same = bump("6 # A");
-        let merged = merge_contract(&base, &same, &same, "specs/cli/cli.spec.md");
-        assert!(merged.clean, "{}", merged.content);
-        assert!(
-            merged.content.contains("version: 7 # A\n"),
-            "{}",
-            merged.content
-        );
+        // The same comment on two otherwise different changes is kept, and both bumps count.
+        let rows = ["| 2026-01-01 | base: initial |"];
+        let ours = spec("6 # A", &["src/cli.rs", "src/a.rs"], &rows);
+        let theirs = spec("6 # A", &["src/cli.rs", "src/b.rs"], &rows);
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("version: 7 # A\n"),
+                "{}",
+                merged.content
+            );
+        }
 
         // Two different comments are a conflict that keeps both, in either order.
         let ours = bump("6 # A");

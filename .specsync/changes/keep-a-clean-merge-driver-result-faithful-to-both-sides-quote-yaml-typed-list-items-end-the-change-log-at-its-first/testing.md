@@ -20,6 +20,12 @@ New unit tests in `src/merge_driver.rs`; each runs both merge orders:
 - The existing 23 merge-driver tests stay unchanged and green.
 - `fledge lanes run verify` (pinned 1.89) and pre-push.
 
+## Requirement evidence
+
+| Requirement | Evidence |
+| --- | --- |
+| REQ-merge-006 | unit tests `yaml_typed_list_items_stay_strings_after_a_union`, `text_after_the_change_log_table_survives_a_row_union`, `version_comments_merge_three_ways_in_either_order` and `changelog_version_renumbering_stops_at_u64_max` in `src/merge_driver.rs` (failing first at `3bbcfc26`; each fix's mutant killed) |
+
 ## Results (local macOS, pinned rustc 1.89.0)
 
 - Red first, on main ab688246 plus the four new tests only: 23 passed, 4 failed.
@@ -27,3 +33,17 @@ New unit tests in `src/merge_driver.rs`; each runs both merge orders:
   - `text_after_the_change_log_table_survives_a_row_union`: the merged text differs from both sides' unchanged tail.
   - `version_comments_merge_three_ways_in_either_order`: `version: 7 # B` missing in one order (the comment was dropped).
   - `yaml_typed_list_items_stay_strings_after_a_union`: `123` was written unquoted.
+- Two expectations in the draft's tests were corrected after the fix, without weakening either. Main's code still fails both corrected tests (below).
+  - The #872 test now asserts the exact sorted lists. The union sorts items, so `"true"` sits between `orders` and `users`.
+  - The #876 "same comment" case now uses two different changes. Byte-identical sides are one change, not two bumps. The red run never reached that case.
+- Green: all 113 tests matching `merge` pass, including the 27 merge-driver tests.
+- Mutants, each restored byte for byte (sha before and after `046f67d754e7`):
+
+| Mutant | Change | Test that fails |
+| --- | --- | --- |
+| M870 | renumbering uses an unchecked `+= 1` | `changelog_version_renumbering_stops_at_u64_max` |
+| M872 | `render_list_item` ignores YAML-typed items | `yaml_typed_list_items_stay_strings_after_a_union` |
+| M875 | a blank line inside the change log is skipped again | `text_after_the_change_log_table_survives_a_row_union` |
+| M876-side | the version line takes `ours`' decoration again | `version_comments_merge_three_ways_in_either_order` |
+| M876-conflict | two different version notes no longer conflict | `version_comments_merge_three_ways_in_either_order` |
+| MAIN | main's code (ab688246) with the corrected tests | all four new tests; the other 23 pass |

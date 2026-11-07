@@ -62,6 +62,25 @@
         "REQ-change-133",
         "REQ-cmd-change-answer-hint-001"
       ]
+    },
+    {
+      "timestamp": 1794075613,
+      "commit": "a6e529e6157b84867bc27276ae3af10e1ea0958e",
+      "contract_digest": "0cbb7c805a6b9fb181cf8f66d94311a2bf5b5f79a30a894f14dd12b58884ef5d",
+      "execution_digest": "81a85a748baa266eae65f37c862d334734cfbf1fb5c615c3afadf6b6cf9e1ced",
+      "workspace_digest": "08429302ea0461598186484dcee0405bb2fb425408de179a85f5af2bad6452da",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-133",
+        "REQ-cmd-change-answer-hint-001"
+      ]
     }
   ]
 }

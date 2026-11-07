@@ -1,6 +1,6 @@
 ---
 id: change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is
-state: approved
+state: implementing
 type: feature
 base_commit: 22a2dcaca598949dfb3a34907ea2fb0cfd18a820
 ---

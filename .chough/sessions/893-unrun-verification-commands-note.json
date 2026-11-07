@@ -38,7 +38,9 @@
   "open_questions": [],
   "completed": [
     "Narrowed this_repository_configures_no_verification_command to empty only verification_commands and pin the retained 13 component and 3 strict commands",
-    "Created and completed the native cmd_change change for #893; status names scope approval as the next action"
+    "Created and completed the native cmd_change change for #893; status names scope approval as the next action",
+    "Merged origin/main 4936b81b at 2fe73af8; 5 conflicts resolved keeping both histories; focused probes 5/5 green on the merge",
+    "Materialized REQ-cmd-change-unrun-commands-001 in requirements.md; spec v76 contract item 13; strict check 62/62, score 100"
   ],
   "observations": [
     "OBS-product-test-693137d491cd153adf290ec2"
@@ -47,5 +49,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Implement the approved configured-command disclosure, then run focused and full verification"
+  "next_action": "Await fledge lanes run verify (t1gf), then native change check --commit, fledge trust verify, freeze, and the exact-head implementation gate to orc t19f"
 }

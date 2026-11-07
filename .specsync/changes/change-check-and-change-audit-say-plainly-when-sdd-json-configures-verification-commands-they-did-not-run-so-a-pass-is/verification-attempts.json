@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794086403,
+      "commit": "2fe73af8c03c4ac44a3c80d50b95ca12ef864749",
+      "contract_digest": "2b8e766f52f4488895468f8ffb17d2fad3eb92772c8c1b6c411294d785b2866d",
+      "execution_digest": "eee6e729d3be00dd367bdf1e8925d93675a6af9c04ee952e9cf70478fbd29e53",
+      "workspace_digest": "4df03cfed103ee98827c02d3fdc260c05ca31a4c153b2241c7080bc34a554551",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-change-unrun-commands-001"
+      ]
+    }
+  ]
+}

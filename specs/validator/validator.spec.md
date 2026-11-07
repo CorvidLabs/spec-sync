@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 47
+version: 48
 status: stable
 files:
   - src/validator.rs
@@ -324,3 +324,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-10-15 | refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1: Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1 |
 | 2026-11-05 | v47 / #862: `check` refuses a requirements file that contains the same requirement ID twice and names that ID |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 10
+version: 11
 status: stable
 files:
   - src/hash_cache.rs
@@ -148,3 +148,4 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-08-15 | Persist and replay per-spec validation snapshots so a warm `check` cannot drop findings (#429) |
 | 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |
 | 2026-11-06 | reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a: Reuse a cached validation snapshot or read-cache verdict only in the build that wrote it, so a stale pass cannot hide a new refusal (#878) |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

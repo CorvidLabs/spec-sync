@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 19
+version: 20
 status: stable
 files:
   - src/commands/init.rs
@@ -97,3 +97,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-10-10 | keep-3md-files-from-being-classified-as-roff: Keep 3md files from being classified as Roff |
 | 2026-11-01 | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
 | 2026-11-06 | retire-the-merge-empty-list-and-init-strict-default-contract-clauses: Retire the merge empty-list and init strict-default contract clauses |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

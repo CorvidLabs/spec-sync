@@ -134,3 +134,6 @@ Issue #902. #889 taught `change review` and `change finalize` to refuse a copy t
 
 @plane z=9 label="Recorded claims in status (#633)"
 `change status` and `change show` read `change::recorded_claims` before printing. A relay record that cannot be read refuses the command with its recovery, rather than leaving the claim out. Text prints `Approval:` and `Review:` as recorded claims, with any `Relayed:` line underneath. Every recorded string passes through `printable_claim_text`, so a control character prints as its escape and cannot move or recolour the terminal. JSON adds `recorded_claims` only when there is one. An approve or review without relay flags still calls the original entry points, so those paths stay exercised and dead-code free.
+
+@plane z=10 label="Readiness runs the refusing check (#986, #956)"
+`ship-status` may only say "ready to finalize" when `ship` would finalize. Open tasks (#892) and canonical ownership (#986, #956) were both refusals that only finalize knew about. Each such refusal belongs in ship preflight as a blocker, and the next action names its recovery, not `change ship`.

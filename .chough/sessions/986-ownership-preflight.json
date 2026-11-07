@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-d8116a5e855af41b02a68250",
-    "head": "EVT-1d2b9eafd7e2eadbe60f5ab0",
+    "head": "EVT-39ace53a56a38120018ab664",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "intent",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -34,18 +34,18 @@
   "decisions": [
     "orc t18 (2026-11-06): fix #986 and #956 in one PR, HI first, failing test first",
     "decided: approve stops skipping no-spec-change drafts (REQ-change-053 modified) and names the change answer command; ship preflight, --dry-run and ship-status run finalize's acceptance_input_owners over delivery inputs as a blocker with the recovery",
-    "rejected: expanding directory scopes at approve, because a directory covers files the change may never deliver"
+    "rejected: expanding directory scopes at approve, because a directory covers files the change may never deliver",
+    "Leif decided \"Leif via orc t18: approve the scope of report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to\": \"Leif approved #986+#956 (relayed)\" (Herdr orc tab, 2026-11-06; relayed by orc t18, who recorded the native approval as 0xLeif at 2479616f); recorded by ss-s3 Claude agent; a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
-    "Red first on main 9dd2affd: the approve unit test (approve succeeds) and the directory-scope integration test (ship-status says ready to finalize; the real ship refuses with the #956 error, reproduced)"
+    "Red first on main 9dd2affd: the approve unit test (approve succeeds) and the directory-scope integration test (ship-status says ready to finalize; the real ship refuses with the #956 error, reproduced)",
+    "Fixed at 638924be: approve checks no-spec-change drafts and names the change answer command; ship preflight, --dry-run and ship-status report unowned production delivery inputs from finalize's own manifest (read-only) with the recovery; both red tests green; 91 unit + 23 integration ship/approve/finalize tests green"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif via orc t18: approve the scope of report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After approval: implement, check --commit, audit, verify, push, PR (Fixes #986, #956), ready for Leif's GitHub review"
+  "next_action": "check --commit, audit --strict, verify, push, PR (Fixes #986, #956), ready for Leif's GitHub review"
 }

@@ -19,4 +19,5 @@ artifact: testing
 
 ## Results
 
-Pending.
+- Both new tests failed on main 9dd2affd: approve accepted the draft, and ship-status said "ready to finalize" while `ship` refused with the #956 error. Both pass with the fix; the integration test runs the named recovery and ships.
+- The ship, approve, ownership, open-task, scoped-review and finalize suites are green: 91 unit and 23 integration tests.

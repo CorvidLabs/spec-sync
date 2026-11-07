@@ -6,6 +6,6 @@ artifact: tasks
 # Tasks
 
 - [x] Failing approve unit test and directory-scope integration test; red on main 9dd2affd.
-- [ ] Approve checks no-spec-change drafts and names the `change answer` command.
-- [ ] Read-only ownership preflight in ship preflight, `--dry-run` and ship-status, with the recovery.
-- [ ] Deltas, spec invariant, CHANGELOG, lessons.
+- [x] Approve checks no-spec-change drafts and names the `change answer` command.
+- [x] Read-only ownership preflight in ship preflight, `--dry-run` and ship-status, with the recovery.
+- [x] Deltas, spec invariant, CHANGELOG, lessons.

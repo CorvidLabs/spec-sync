@@ -447,15 +447,11 @@ fn parse_changelog_table(section: &str) -> Option<ChangeTable> {
     for (index, line) in lines.iter().enumerate().skip(separator_at + 1) {
         let bare = line.trim_end_matches('\n');
         let trimmed = bare.trim();
+        // A blank line ends a Markdown table. It and everything after it, prose or another
+        // table, are the suffix, merged as text and never as change-log rows (#875).
         if trimmed.is_empty() {
-            if lines[index + 1..]
-                .iter()
-                .all(|later| later.trim().is_empty())
-            {
-                suffix_at = index;
-                break;
-            }
-            continue;
+            suffix_at = index;
+            break;
         }
         if trimmed.starts_with('|') && !is_separator_row(trimmed) {
             rows.push(trimmed.to_string());
@@ -534,7 +530,12 @@ fn union_changelog_tables(
                 if cell.parse::<u64>().is_err() {
                     return changelog_conflict(ours, theirs);
                 }
-                next += 1;
+                // No higher `u64` to number this row with: a conflict, never a panic or a
+                // wrap to 0 that would number it below the ancestor (#870, REQ-merge-006).
+                let Some(following) = next.checked_add(1) else {
+                    return changelog_conflict(ours, theirs);
+                };
+                next = following;
                 numbered.push(rewrite_row_cell(&row, index, &next.to_string()));
                 changed = true;
             }
@@ -881,6 +882,22 @@ fn merge_version_field(
             &theirs.lines.join("\n"),
         ));
     };
+    // What follows the number (the closing quote's tail or a ` # comment`) merges three
+    // ways, so the result is the same in either merge order and a one-sided note survives;
+    // two different notes are a conflict (#876, REQ-merge-006).
+    let our_note = version_decoration(our_raw);
+    let their_note = version_decoration(their_raw);
+    let base_note = base_raw.map(version_decoration);
+    let note_side = if our_note == their_note || base_note == Some(their_note) {
+        our_raw
+    } else if base_note == Some(our_note) {
+        their_raw
+    } else {
+        return FieldMerge::Conflict(conflict_block(
+            &ours.lines.join("\n"),
+            &theirs.lines.join("\n"),
+        ));
+    };
     let raised = match (combined, version_floor) {
         (NumericVersion::Int(value), Some(floor)) => NumericVersion::Int(value.max(floor)),
         (other, _) => other,
@@ -894,6 +911,7 @@ fn merge_version_field(
     if let NumericVersion::Int(value) = raised
         && parse_numeric_version(their_raw) == Some(NumericVersion::Int(value))
         && version_floor.is_none()
+        && note_side == their_raw
     {
         return FieldMerge::Keep(theirs.lines.join("\n"));
     }
@@ -905,8 +923,21 @@ fn merge_version_field(
             patch,
         } => format!("{major}.{minor}.{patch}"),
     };
-    let line = format!("version: {}", rewrite_scalar(our_raw, &rendered));
+    let line = format!("version: {}", rewrite_scalar(note_side, &rendered));
     FieldMerge::Keep(line)
+}
+
+/// The text after a version scalar's value: what follows the closing quote, or the ` #`
+/// comment of a plain scalar. `rewrite_scalar` keeps exactly this part.
+fn version_decoration(raw: &str) -> &str {
+    let raw = raw.trim();
+    if let Some(quote) = raw.chars().next().filter(|ch| *ch == '"' || *ch == '\'') {
+        let rest = &raw[quote.len_utf8()..];
+        return rest
+            .find(quote)
+            .map_or("", |close| &rest[close + quote.len_utf8()..]);
+    }
+    raw.find(" #").map_or("", |comment| &raw[comment..])
 }
 
 /// The quote character a scalar opens with, if any.
@@ -1190,11 +1221,45 @@ fn render_list_item(item: &str) -> String {
         && item.chars().all(|ch| {
             ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '/' | '-' | '+' | '~')
         });
-    if plain {
+    if plain && !yaml_reads_as_non_string(item) {
         item.to_string()
     } else {
         format!("\"{}\"", item.replace('\\', "\\\\").replace('"', "\\\""))
     }
+}
+
+/// Whether YAML (1.1 or 1.2) would read this plain scalar as something other than a string:
+/// a boolean, a null, or a number. Such an item is written quoted so a union keeps it a
+/// string (#872, REQ-merge-006). Quoting more than needed is safe; it stays a string.
+fn yaml_reads_as_non_string(item: &str) -> bool {
+    let lower = item.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off" | "y" | "n" | "null" | "~"
+    ) {
+        return true;
+    }
+    if item.parse::<f64>().is_ok() {
+        return true;
+    }
+    let unsigned = lower.strip_prefix(['+', '-']).unwrap_or(&lower);
+    if matches!(unsigned, ".inf" | ".nan") {
+        return true;
+    }
+    let radix = |prefix: &str, digit: fn(char) -> bool| {
+        unsigned
+            .strip_prefix(prefix)
+            .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|ch| digit(ch) || ch == '_'))
+    };
+    if radix("0x", |ch| ch.is_ascii_hexdigit())
+        || radix("0o", |ch| matches!(ch, '0'..='7'))
+        || radix("0b", |ch| matches!(ch, '0' | '1'))
+    {
+        return true;
+    }
+    // YAML 1.1 numbers may carry underscores anywhere in the digits, exponent forms included
+    // (`1_000`, `1_000.5e+2`): read it as a number once they are gone.
+    item.contains('_') && item.replace('_', "").parse::<f64>().is_ok()
 }
 
 fn has_duplicate_keys(fields: &[Field]) -> bool {
@@ -1849,5 +1914,218 @@ mod tests {
             "{}",
             merged.content
         );
+    }
+
+    // #872 (REQ-merge-006): a quoted list item that YAML would read as a number, boolean or
+    // null is still a string after a union. Plain paths stay plain.
+    #[test]
+    fn yaml_typed_list_items_stay_strings_after_a_union() {
+        let make = |files: &str, tables: &str, deps: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 5\nstatus: stable\nfiles: {files}\ndb_tables: {tables}\ndepends_on: {deps}\n---\n\n# CLI\n\n## Purpose\n\nThe command line.\n"
+            )
+        };
+        for typed in [
+            "123",
+            "1.5",
+            "1e3",
+            "0x1F",
+            "0o17",
+            ".inf",
+            ".NaN",
+            "true",
+            "False",
+            "null",
+            "Null",
+            "~",
+            "yes",
+            "No",
+            "on",
+            "OFF",
+            "1_000",
+            "1_000.5e+2",
+            "+1_000.5",
+            "0x_1F",
+        ] {
+            let base = make(&format!(r#"["src/cli.rs", "{typed}"]"#), "[]", "[]");
+            let ours = make(
+                &format!(r#"["src/cli.rs", "{typed}", "src/a.rs"]"#),
+                "[]",
+                "[]",
+            );
+            let theirs = make(
+                &format!(r#"["src/cli.rs", "{typed}", "src/b.rs"]"#),
+                "[]",
+                "[]",
+            );
+            for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+                let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+                assert!(merged.clean, "{typed}: {}", merged.content);
+                assert!(
+                    merged.content.contains(&format!("  - \"{typed}\"\n")),
+                    "`{typed}` must stay a quoted string: {}",
+                    merged.content
+                );
+                assert!(
+                    merged.content.contains("  - src/a.rs\n"),
+                    "{}",
+                    merged.content
+                );
+            }
+        }
+        let base = make(r#"["src/cli.rs"]"#, r#"["true"]"#, r#"["null"]"#);
+        let ours = make(
+            r#"["src/cli.rs"]"#,
+            r#"["true", "users"]"#,
+            r#"["null", "specs/a/a.spec.md"]"#,
+        );
+        let theirs = make(
+            r#"["src/cli.rs"]"#,
+            r#"["true", "orders"]"#,
+            r#"["null", "specs/b/b.spec.md"]"#,
+        );
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        assert!(merged.clean, "{}", merged.content);
+        assert!(
+            merged
+                .content
+                .contains("db_tables:\n  - orders\n  - \"true\"\n  - users\n"),
+            "{}",
+            merged.content
+        );
+        assert!(
+            merged.content.contains(
+                "depends_on:\n  - \"null\"\n  - specs/a/a.spec.md\n  - specs/b/b.spec.md\n"
+            ),
+            "{}",
+            merged.content
+        );
+    }
+
+    // #875 (REQ-merge-006): the first blank line after the change-log rows ends the table.
+    // Prose or a second table after it comes out byte-for-byte, and that table's rows are not
+    // sorted into the change log.
+    #[test]
+    fn text_after_the_change_log_table_survives_a_row_union() {
+        for after in [
+            "\nNotes after the table.\n\n| Key | Value |\n|-----|-------|\n| z | 1 |\n| a | 2 |\n",
+            "\n| Key | Value |\n|-----|-------|\n| z | 1 |\n| a | 2 |\n",
+        ] {
+            let with = |version: &str, rows: &[&str]| {
+                format!("{}{after}", spec(version, &["src/cli.rs"], rows))
+            };
+            let base = with("5", &["| 2026-01-01 | base: initial |"]);
+            let ours = with(
+                "6",
+                &[
+                    "| 2026-01-01 | base: initial |",
+                    "| 2026-11-05 | change-a: add a |",
+                ],
+            );
+            let theirs = with(
+                "6",
+                &[
+                    "| 2026-01-01 | base: initial |",
+                    "| 2026-11-05 | change-b: add b |",
+                ],
+            );
+            let expected = with(
+                "7",
+                &[
+                    "| 2026-01-01 | base: initial |",
+                    "| 2026-11-05 | change-a: add a |",
+                    "| 2026-11-05 | change-b: add b |",
+                ],
+            );
+            for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+                let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+                assert!(merged.clean, "{}", merged.content);
+                assert_eq!(merged.content, expected);
+            }
+        }
+    }
+
+    // #876 (REQ-merge-006): when both sides bump `version:`, the comment after the number
+    // merges three ways and the result does not depend on the merge order.
+    #[test]
+    fn version_comments_merge_three_ways_in_either_order() {
+        let base = spec("5", &["src/cli.rs"], &["| 2026-01-01 | base: initial |"]);
+        let bump = |value: &str| base.replace("version: 5\n", &format!("version: {value}\n"));
+
+        // A comment added on one side only survives, whichever side it is on.
+        let plain = bump("6");
+        let noted = bump("6 # B");
+        for (left, right) in [(&plain, &noted), (&noted, &plain)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("version: 7 # B\n"),
+                "{}",
+                merged.content
+            );
+        }
+
+        // The same comment on two otherwise different changes is kept, and both bumps count.
+        let rows = ["| 2026-01-01 | base: initial |"];
+        let ours = spec("6 # A", &["src/cli.rs", "src/a.rs"], &rows);
+        let theirs = spec("6 # A", &["src/cli.rs", "src/b.rs"], &rows);
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("version: 7 # A\n"),
+                "{}",
+                merged.content
+            );
+        }
+
+        // Two different comments are a conflict that keeps both, in either order. Like every
+        // conflict the driver writes, each side sits under its own label (`ours` is the branch
+        // merged into), so the two orders are mirror images: the same lines, halves swapped.
+        let ours = bump("6 # A");
+        let theirs = bump("6 # B");
+        let forward = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        let backward = merge_contract(&base, &theirs, &ours, "specs/cli/cli.spec.md");
+        for merged in [&forward, &backward] {
+            assert!(!merged.clean, "{}", merged.content);
+            assert!(merged.content.contains("# A"), "{}", merged.content);
+            assert!(merged.content.contains("# B"), "{}", merged.content);
+        }
+        assert!(
+            forward.content.contains(
+                "<<<<<<< ours\nversion: 6 # A\n=======\nversion: 6 # B\n>>>>>>> theirs\n"
+            ),
+            "{}",
+            forward.content
+        );
+        assert_eq!(
+            backward.content,
+            forward.content.replace(
+                "<<<<<<< ours\nversion: 6 # A\n=======\nversion: 6 # B\n>>>>>>> theirs\n",
+                "<<<<<<< ours\nversion: 6 # B\n=======\nversion: 6 # A\n>>>>>>> theirs\n"
+            )
+        );
+    }
+
+    // #870 (REQ-merge-006): renumbering a new change-log `Version` cell past `u64::MAX` leaves
+    // the table a conflict instead of panicking or wrapping to 0.
+    #[test]
+    fn changelog_version_renumbering_stops_at_u64_max() {
+        let table = |rows: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 2\nstatus: stable\nfiles:\n  - src/cli.rs\ndb_tables: []\ndepends_on: []\n---\n\n# CLI\n\n## Change Log\n\n| Version | Date | Change |\n|---------|------|--------|\n| {} | 2026-01-01 | initial |\n{rows}",
+                u64::MAX
+            )
+        };
+        let base = table("");
+        let ours = table("| 1 | 2026-11-05 | change-a |\n");
+        let theirs = table("| 1 | 2026-11-05 | change-b |\n");
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(!merged.clean, "{}", merged.content);
+            assert!(!merged.content.contains("| 0 |"), "{}", merged.content);
+            assert!(merged.content.contains("change-a"), "{}", merged.content);
+            assert!(merged.content.contains("change-b"), "{}", merged.content);
+        }
     }
 }

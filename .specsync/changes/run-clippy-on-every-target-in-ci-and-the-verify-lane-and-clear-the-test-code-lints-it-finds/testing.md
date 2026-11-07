@@ -8,7 +8,7 @@ artifact: testing
 | Case | Expected | How |
 |---|---|---|
 | A clippy step or task without `--all-targets` | The test fails and names the recovery | `test_every_ci_clippy_step_lints_every_target_and_denies_warnings` and `test_every_fledge_clippy_task_lints_every_target_and_denies_warnings` fail on the unmodified `ci.yml` and `fledge.toml` |
-| A clippy command that lets lints through (`-A`, `--allow`, `--cap-lints`, no `-D warnings`) | Caught | `test_the_problem_check_catches_each_weakening` feeds each form to the rule |
+| A clippy command that lets lints through (`-A`, joined `-A…`, `--allow`, `--cap-lints`, no `-D warnings`) | Caught | `test_the_problem_check_catches_each_weakening` feeds each form to the rule; the joined form failed before its Codex round-1 fix |
 | The lint gate is removed | The test fails | CI's `test` job must run clippy; `lint` must exist and run in `verify` and `ci` (`test_the_verify_and_ci_lanes_run_the_lint_task`) |
 | The test stops running | The test fails | `test_this_test_runs_through_fledge_and_ci` |
 | The test code lints clean | `cargo clippy --all-targets -- -D warnings` exits 0 | Fails with 36 errors on ab688246 and passes at the tip; `cargo test` and `cargo clippy -- -D warnings` still pass |

@@ -11,7 +11,7 @@ Closes #<!-- issue number -->
 ## Checklist
 
 - [ ] `cargo test` passes
-- [ ] `cargo clippy -- -D warnings` passes
+- [ ] `cargo clippy --all-targets -- -D warnings` passes
 - [ ] `cargo fmt` applied
 - [ ] Documentation updated (if behavior changed)
 - [ ] Spec files updated (if adding/changing features)

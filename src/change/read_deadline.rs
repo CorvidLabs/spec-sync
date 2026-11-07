@@ -61,10 +61,13 @@ pub fn begin_read_deadline(
     resume: &str,
     json: bool,
 ) -> ReadDeadlineGuard {
-    let deadline = ReadDeadline {
-        until: Instant::now() + Duration::from_secs(limit_secs),
-        limit_secs,
+    // A limit the clock can't hold is longer than any read, so it is no deadline at all, not a
+    // panic (REQ-change-149).
+    let Some(until) = Instant::now().checked_add(Duration::from_secs(limit_secs)) else {
+        let previous = READ_DEADLINE.with(|slot| slot.borrow().clone());
+        return ReadDeadlineGuard { previous };
     };
+    let deadline = ReadDeadline { until, limit_secs };
     let report = ReadDeadlineReport {
         command: command.to_string(),
         resume: resume.to_string(),

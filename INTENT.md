@@ -18,7 +18,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 - [plan](hi/plan.md): PLAN (9 criteria)
 - [recover](hi/recover.md): RECOVER (2 criteria)
 - [setup](hi/setup.md): SETUP (18 criteria)
-- [ship](hi/ship.md): SHIP (35 criteria)
+- [ship](hi/ship.md): SHIP (36 criteria)
 - [spec](hi/spec.md): SPEC (17 criteria)
 - [speed](hi/speed.md): SPEED (13 criteria)
 - [split](hi/split.md): SPLIT (3 criteria)

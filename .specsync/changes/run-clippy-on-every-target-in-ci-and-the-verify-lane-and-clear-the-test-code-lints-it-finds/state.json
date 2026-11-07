@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds",
+  "slug": "run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds",
+  "title": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
+  "description": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
+  "kind": "operations",
+  "state": "draft",
+  "base_commit": "ab6882464fadb1bdfc71416d729534323e5a3836",
+  "created_at": 1794011883,
+  "updated_at": 1794011975,
+  "affected_specs": [
+    "github",
+    "change",
+    "validator",
+    "merge",
+    "hash_cache",
+    "generator",
+    "cmd_scaffold",
+    "cmd_init",
+    "agents"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    "fledge.toml",
+    ".github/scripts/test-clippy-all-targets.py",
+    "hi/ci.md",
+    "INTENT.md",
+    "specs/github",
+    "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+    "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+    "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/change_tests/fast_archived_reads.rs",
+    "src/change/sdd_version.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "tests/integration/change.rs",
+    "src/validator/tests.rs",
+    "src/merge_driver.rs",
+    "src/hash_cache.rs",
+    "src/generator.rs",
+    "src/commands/scaffold.rs",
+    "src/commands/init.rs",
+    "src/agents.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The `github` spec gains REQ-github-028: CI's `test` job and the fledge `lint` task (which the `verify`, `ci`, `check`, `pre-commit` and `repo` lanes run) run `cargo clippy --all-targets -- -D warnings`, so the lint gate compiles and lints the test code as well as the shipped code (CI-8); the spec version, a testing row and the Change Log follow.",
+    "`.github/scripts/test-clippy-all-targets.py` fails, naming the recovery, when any `cargo clippy` step in `ci.yml` or task in `fledge.toml` lacks `--all-targets` or `-D warnings`, or passes `-A`, `--allow` or `--cap-lints`; when CI's `test` job or the fledge `lint` task stops running clippy; when the `verify` or `ci` lane stops running `lint`; and when the `verify` and `ci` lanes or `ci.yml` stop running the test itself.",
+    "`cargo clippy --all-targets -- -D warnings` exits 0 at the change's tip. The 36 lints it reports on main (ab688246), all in test code across 15 files, are fixed in the code: no new `allow` or `expect` attribute, no lint group lowered, no lint flag added, and no test weakened or removed (the constant assertion in `src/agents.rs` becomes a compile-time `const` assertion). The 28 existing `allow(clippy::...)` attributes are unchanged.",
+    "`hi/ci.md` gains CI-8 in Leif's words, \"When the pipeline says the code lints clean, that includes the tests.\", with its source in the Intent section, and `INTENT.md` is regenerated with `hi index`.",
+    "Failing test first: on the unmodified tree the new test fails (neither CI's clippy step nor the fledge `lint` task has `--all-targets`, and the test is not wired into fledge or CI) and `cargo clippy --all-targets -- -D warnings` fails with 36 errors; after the change both pass, and `cargo test` and `cargo clippy -- -D warnings` still pass. No tag or release is created or published."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Never weaken a lint: every fix goes in the code, never in an allow or expect attribute, a lint-level flag or a lowered group. The toolchain is pinned (rust-toolchain.toml and dtolnay/rust-toolchain@1.89.0), so local clippy and CI's give the same answers. Test-only code changes keep each test's meaning; none is removed or loosened. CI is archive-first, so a tip with an open change fails Archive before any lane runs. Workflow tests read YAML through the required-gate model's Ruby Psych loader, as the other workflow validators do. Builds run modestly (nice, -j 4) because the machine is shared.",
+    "public_contract": "no"
+  }
+}

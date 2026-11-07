@@ -7,7 +7,7 @@ artifact: tasks
 
 - [x] Capture CHANGE-13.h in hi.
 - [x] Write failing tests first.
-- [ ] Project relays out of the approval-succession check.
-- [ ] Hash the correction ledger through `correction_digest_projection` in the definition digest.
-- [ ] Compare projected corrections in the trusted correction history.
-- [ ] Record requirement evidence, the lesson and the CHANGELOG entry.
+- [x] Project relays out of the approval-succession check.
+- [x] Hash the correction ledger through `correction_digest_projection` in the definition digest.
+- [x] Compare projected corrections in the trusted correction history.
+- [x] Record requirement evidence, the lesson and the CHANGELOG entry.

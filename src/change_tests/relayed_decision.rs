@@ -720,6 +720,14 @@ fn trusted_correction_history_ignores_a_relay_an_older_binary_dropped() {
     git(&["commit", "-m", "accept a correction whose closing approval carries a relay"]);
     let committed = fs::read_to_string(&corrections_path).unwrap();
     assert!(committed.contains("relayed_by"));
+    let head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+    let directory = format!("{CHANGES_PATH}/{}", record.id);
+    assert!(
+        closing_authenticated_correction_anchor(root, &head, &directory, &record.id)
+            .unwrap()
+            .is_some(),
+        "the committed correction is a trusted anchor, so the comparison below is not vacuous"
+    );
 
     let mut older = ledger.clone();
     older.corrections[0].superseded_closing_approval.relayed_by = None;

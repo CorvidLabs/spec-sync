@@ -12,6 +12,11 @@ use crate::types::OutputFormat;
 
 const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 
+// `specsync doctor` renders here, beside the change commands it reports on (REQ-cmd-change-035).
+#[path = "doctor.rs"]
+mod doctor;
+pub use doctor::cmd_doctor;
+
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.
@@ -103,8 +108,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     }
                 }
                 if let Some(id) = id {
-                    change::load_change(root, &id)
-                        .and_then(|record| print_record(root, &record, format, false, strict))
+                    closed_late_report(root, &id, format, "change status").unwrap_or_else(|| {
+                        change::load_change(root, &id)
+                            .and_then(|record| print_record(root, &record, format, false, strict))
+                    })
                 } else {
                     change::list_changes(root)
                         .and_then(|roster| print_roster(root, &roster, format, strict))
@@ -115,8 +122,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
-                change::load_change(root, &id)
-                    .and_then(|record| print_ship_status(root, &record, format))
+                closed_late_report(root, &id, format, "change ship-status").unwrap_or_else(|| {
+                    change::load_change(root, &id)
+                        .and_then(|record| print_ship_status(root, &record, format))
+                })
             } else {
                 change::list_changes(root).and_then(|roster| {
                 let records = &roster.records;
@@ -3130,6 +3139,74 @@ fn print_handoff_line_for(root: &Path, id: &str) {
         print_handoff_line(&change::handoff_summary(root, &record));
     }
 }
+
+/// The report `change status` and `change ship-status` give for a closed-late change, or `None`
+/// when `id` resolves to a live or archived workspace, which an older SpecSync can mint again after
+/// a late close and which is the record every lifecycle verb acts on (Codex review of #994).
+fn closed_late_report(
+    root: &Path,
+    id: &str,
+    format: OutputFormat,
+    phase: &str,
+) -> Option<Result<(), String>> {
+    if !change::is_only_closed_late(root, id) {
+        return None;
+    }
+    // The read deadline covers this lookup like every other status read.
+    if let Err(error) = change::check_read_deadline(phase, 0, 1) {
+        return Some(Err(error));
+    }
+    print_closed_late(root, id, format)
+}
+
+/// Who closed a change late, when and why, the commit that merged it, and that it was never
+/// re-checked and is not verified (REQ-change-143). `None` when `id` was not closed late.
+fn print_closed_late(root: &Path, id: &str, format: OutputFormat) -> Option<Result<(), String>> {
+    let (package, record) = change::closed_late_record(root, id)?;
+    let sentence = change::closed_late_sentence(root, id)?;
+    let package = package
+        .strip_prefix(root)
+        .unwrap_or(&package)
+        .to_string_lossy()
+        .replace('\\', "/");
+    match format {
+        OutputFormat::Json => {
+            let closed_late = match &record {
+                Ok(record) => serde_json::to_value(record).unwrap_or(serde_json::Value::Null),
+                Err(error) => serde_json::json!({ "error": error, "verified": false }),
+            };
+            print_json(&serde_json::json!({
+                "id": id,
+                "closed_late": closed_late,
+                "package": package,
+                "verified": false,
+                "summary": {
+                    "id": id,
+                    "state": "closed-late",
+                    "next_action": CLOSED_LATE_NEXT_ACTION,
+                    "handoff": {
+                        "readiness": "safe",
+                        "reason": CLOSED_LATE_HANDOFF,
+                    },
+                },
+            }));
+        }
+        _ => {
+            println!("{id}");
+            println!("  State: closed late; never re-checked, not verified");
+            println!("  {sentence}");
+            println!("  Next: {CLOSED_LATE_NEXT_ACTION}");
+            println!("  Handoff: safe; {CLOSED_LATE_HANDOFF}");
+        }
+    }
+    Some(Ok(()))
+}
+
+/// The next action status gives a closed-late change: there is none.
+const CLOSED_LATE_NEXT_ACTION: &str = "none: a closed-late change is never re-checked or finalized";
+/// Why a session may clear its context after reading a closed-late change.
+const CLOSED_LATE_HANDOFF: &str =
+    "the change was closed late; nothing this session knows is still needed";
 
 fn print_json<Value: serde::Serialize>(value: &Value) {
     match serde_json::to_string_pretty(value) {

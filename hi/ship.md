@@ -29,6 +29,7 @@ SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif 
 - **SHIP-3**  Finalizing moves the whole package into a dated archive on the same pull request, so the trail travels with the merge.
   - **SHIP-3.a**  Finalizing needs verification and review that are both still current.
   - **SHIP-3.b**  I am warned plainly that merging before finalizing strands the evidence.
+  - **SHIP-3.c**  When the tool cannot tell whether my change was already archived on the main branch, review and finalize stop and tell me how to find out, instead of archiving it a second time.
 - **SHIP-4**  I can ask whether a change is ready to ship.
   - **SHIP-4.a**  The answer names the stage I am on and the one thing holding it.
   - **SHIP-4.b**  Readiness reflects what my pipeline actually reports rather than a guess.
@@ -48,3 +49,11 @@ SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif 
 - **SHIP-11**  When I want a pull request, one command archives the change and prepares the pull request.
   - **SHIP-11.a**  If the pull request is already open, that command leaves that pull request in place.
   - **SHIP-11.b**  That command does not merge the pull request.
+- **SHIP-12**  When I start a change, no change someone merged before me is still open and standing in my way.
+  - **SHIP-12.a**  A change closed long after it merged says so, rather than looking as if it had been checked at the time.
+  - **SHIP-12.b**  A change closed late never counts as checked, for itself or for any change that comes after it.
+  - **SHIP-12.c**  I can close such a change in one step, even when its old evidence can no longer be checked.
+  - **SHIP-12.d**  Closing late asks who is authorizing it and why, and that reason stays in the change's history.
+  - **SHIP-12.e**  A change whose pull request has not merged cannot be closed late.
+  - **SHIP-12.f**  I can close several at once, and each one is recorded as if I had closed it alone.
+  - **SHIP-12.g**  A change closed late does not trip up an older version of SpecSync, and that older version never counts it as checked.

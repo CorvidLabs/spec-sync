@@ -45,7 +45,8 @@
     "Verified existing GitHub review PRR_kwDORqhp_88AAAABWkrDrg at f97b8938fce7e1e6da46ead62597655fc2bae981, relayed by orc t18; bookkeeping continuation is authorized. Withdrew the obsolete duplicate Chough review reminder; recorded no new approval or review.",
     "Merged current main d06f8d4bcc8e6fdf16ca3add00f89c8130ec8a0d as 44a2f77f9df744b091421bc5ad402a752745acdd; retained both changelog entries. Branch release rebuild and native archived status passed; full qualification pending.",
     "Full verify passed at clean source head 995694aba251659a702bd9fd0d295849c4e67a0e: 2908 unit + 527 integration, 2 benchmark ignores, 8 steps. Receipt .chough/artifacts/ss999-qualification/verify-receipt.txt binds the complete durable log checksum.",
-    "Qualification bookkeeping recovery: advancing Chough to done auto-archived sessions and generated knowledge. Restored all affected sibling files byte-for-byte from 995694aba251659a702bd9fd0d295849c4e67a0e; preserved generated/moved proof and diagnostics in the durable #999 receipts. Product source and SpecSync archive packages were unchanged."
+    "Qualification bookkeeping recovery: advancing Chough to done auto-archived sessions and generated knowledge. Restored all affected sibling files byte-for-byte from 995694aba251659a702bd9fd0d295849c4e67a0e; preserved generated/moved proof and diagnostics in the durable #999 receipts. Product source and SpecSync archive packages were unchanged.",
+    "Orc t19f released #999 after #967 b4df640101adf836613f002b016cbfe794a1327d and #994 91983ba7743226aa66a2477b3cc09403b3a958ca merged. Current-main integration retains both spec histories and renumbers only the ownership lesson to plane 33; focused and final exact-head qualification pending."
   ],
   "observations": [
     "OBS-product-test-e75d3369395637c959915dd6"
@@ -54,5 +55,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Finish final branch native/build/audit/pre-push/configured Trust gates and full exact-head hosted CI, then stop at orc t19f merge queue. #967 must land first. Chough done auto-archives sessions on subsequent helper use: preserve sibling records; no further Chough mutation is needed. No approval/review, new native change or merge."
+  "next_action": "Prove expected union with main 91983ba7743226aa66a2477b3cc09403b3a958ca; run focused integration qualification and rebuilt native/strict audit/pre-push/configured Trust, then full hosted CI on the pushed exact head. Report <=3 lines to orc t19f; root owns pinned merge. Preserve accepted code, archives, policies and sibling sessions. No native approval/review or merge."
 }

@@ -692,7 +692,6 @@ Acceptance Criteria
 - Selecting zero, one, or many open changes behaves as before (nothing / that id / error listing ids).
 - Archive terminal evidence is not required for a successful scoped check.
 
-
 ### REQ-change-047
 
 The change lifecycle SHALL prefer completing incomplete selected artifacts over definition approval for draft changes once the interview is complete and artifact completeness validation fails.
@@ -1827,7 +1826,6 @@ Acceptance Criteria
 - The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
 - Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
 - The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
-
 ### REQ-change-145
 
 When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
@@ -1866,4 +1864,28 @@ Acceptance Criteria
 - Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
 - An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
 - A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
+
+### REQ-change-142
+
+When a remote default exists and its archived state records cannot be listed or read, the upstream-archive lookup SHALL report that it cannot tell whether the change is already archived there, rather than reporting no upstream archive. `change review` and `change finalize` SHALL refuse before acceptance and write no archive, and `change status` and `change ship-status` SHALL report the same refusal. The refusal SHALL name the remote default reference and how to find out (SHIP-3.c).
+
+Acceptance Criteria
+- A failed listing, a failed or truncated batched read, or a failed addition or ancestry lookup for a matching package is reported as cannot-tell.
+- No remote default, or a readable archive with no copy of the change, reports nothing.
+
+### REQ-change-143
+
+A late close SHALL move a change package that is committed on the remote default branch but was never archived, byte for byte, into `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` record, without reading the change's delivery evidence and without adding a change state, and SpecSync SHALL never treat a closed-late change as verified.
+
+Acceptance Criteria
+- The package comes from `.specsync/changes/` or `.specsync/archive/changes/`. Its `state.json` keeps its bytes and the state in it, and every other file keeps its bytes.
+- Destination components below the project root, including `.specsync`, `archive`, `closed-late` and the dated package name, must not be symlinks, including dangling links. Planning/dry-run refuses them with the offending path and recovery; the locked writer revalidates every plan before batch writes and each destination after directory creation before renaming. Refusal preserves source package bytes, the sequence ledger and outside targets.
+- The package's `state.json`, at its current path, must be present on the remote default reference (`origin/HEAD`, else `origin/main` or `origin/master`). When no remote default resolves, or the package is not on it, the close is refused and nothing is written.
+- No delivery input, acceptance manifest, acceptance input digest or verification is read or rebuilt.
+- `late-close.json` records the schema version, change ID, actor, reason, timestamp, the state it was closed from, its workflow version, the path it came from, the remote default reference and its commit, the commit that added the package and that commit's date, and `verified: false`.
+- For a member of an acknowledged sequence collision, the change is taken out of that acknowledgement in `.specsync/change-sequence.json`, the acknowledgement goes once fewer than two members remain, and the acknowledgement as it stood is recorded in `late-close.json`; the ledger's sequence and claim are unchanged.
+- A closed-late change is never part of the archive preflight, the successor walk or the sequence accounting, which read only `.specsync/changes/` and `.specsync/archive/changes/`.
+- `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
+- `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.
+- SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`.
 

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 32
+version: 33
 status: stable
 files:
   - src/main.rs
@@ -45,7 +45,7 @@ depends_on:
 
 ## Purpose
 
-The `specsync` command-line entry point parses global options, refuses `check`, `change`, or `lifecycle` commands that run under an inherited `SPECSYNC_VERIFICATION_CONTEXT` (SpecSync starts no verification child of its own), routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
+The `specsync` command-line entry point parses global options, refuses `check`, `change`, or `lifecycle` commands that run under an inherited `SPECSYNC_VERIFICATION_CONTEXT` (SpecSync starts no verification child of its own), routes canonical validation, verified SDD lifecycle commands and `specsync doctor` (REQ-cmd-change-035) to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
 
 ## Public API
 
@@ -393,3 +393,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-06 | describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child: Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child |
 | 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |
+| 2026-11-07 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |

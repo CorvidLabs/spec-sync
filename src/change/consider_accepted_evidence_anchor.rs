@@ -5085,13 +5085,25 @@ mod project_relative_diff_path_tests {
     }
 }
 
-/// An archive of a change that the remote default branch holds and `HEAD` does not (#694).
+/// What the remote default branch says about an archive of a change that `HEAD` does not hold.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct UpstreamArchive {
-    /// The remote default reference, such as `origin/main`.
-    pub(crate) reference: String,
-    /// The commit on that reference that added the archived package.
-    pub(crate) commit: String,
+pub(crate) enum UpstreamArchive {
+    /// The remote default holds an archive of the change and `HEAD` does not (#694).
+    Archived {
+        /// The remote default reference, such as `origin/main`.
+        reference: String,
+        /// The commit on that reference that added the archived package.
+        commit: String,
+    },
+    /// The remote default resolved, but its archived state records, or a matching package's
+    /// addition or ancestry, could not be read: the tool cannot tell whether the change is
+    /// already archived there, so it is never read as absent (#946, REQ-change-142).
+    CannotTell {
+        /// The remote default reference, such as `origin/main`.
+        reference: String,
+        /// The selected project whose lookup must be retried by recovery.
+        project_root: PathBuf,
+    },
 }
 
 /// The remote default's archive of `record`, when this branch does not contain it.
@@ -5100,7 +5112,9 @@ pub(crate) struct UpstreamArchive {
 /// again would write a second archive, so finalize refuses it, and review, status and ship-status
 /// must say so first instead of reporting it ready (REQ-change-129). An archive that `HEAD`
 /// already contains is not reported: that is the reopen-and-rearchive path, which keeps working.
-/// When Git cannot answer, this returns `None` and every other gate still applies.
+/// With no remote default this returns `None`. Once one resolves, a Git failure anywhere on the
+/// lookup returns [`UpstreamArchive::CannotTell`] instead of `None`, so the same gates refuse
+/// rather than archive the change a second time (REQ-change-142).
 ///
 /// The lookup is targeted so it can run for every unarchived state: one tree listing and one
 /// batched read of the remote default's archived `state.json` files, matched on their `id`, and
@@ -5111,38 +5125,70 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
         return None;
     }
     let reference = remote_default_ref(root)?;
-    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
-    archived_state_paths_for(root, &reference, &archive_root, &record.id)?
-        .into_iter()
-        .find_map(|state_path| {
-            let commit = git_output(
-                root,
-                &[
-                    "log",
-                    "-1",
-                    "--format=%H",
-                    "--no-renames",
-                    "--diff-filter=A",
-                    &reference,
-                    "--",
-                    &format!(":(top,literal){state_path}"),
-                ],
-            )?;
-            let commit = commit.trim().to_string();
-            if commit.is_empty() || commit_is_ancestor(root, &commit, "HEAD")? {
-                return None;
+    let cannot_tell = || UpstreamArchive::CannotTell {
+        reference: reference.clone(),
+        project_root: root.to_path_buf(),
+    };
+    let Ok(archive_root) = git_repo_relative_path(root, ARCHIVE_PATH) else {
+        return Some(cannot_tell());
+    };
+    let Some(state_paths) = archived_state_paths_for(root, &reference, &archive_root, &record.id)
+    else {
+        return Some(cannot_tell());
+    };
+    let mut unreadable = false;
+    for state_path in state_paths {
+        match upstream_addition_outside_head(root, &reference, &state_path) {
+            Some(Some(commit)) => {
+                return Some(UpstreamArchive::Archived {
+                    reference: reference.clone(),
+                    commit,
+                });
             }
-            Some(UpstreamArchive {
-                reference: reference.clone(),
-                commit,
-            })
-        })
+            Some(None) => {}
+            None => unreadable = true,
+        }
+    }
+    unreadable.then(cannot_tell)
+}
+
+/// The commit on `reference` that added `state_path`, when `HEAD` does not contain it:
+/// `Some(Some(commit))` when it does not, `Some(None)` when it does, `None` when Git could not say.
+fn upstream_addition_outside_head(
+    root: &Path,
+    reference: &str,
+    state_path: &str,
+) -> Option<Option<String>> {
+    let commit = git_output(
+        root,
+        &[
+            "log",
+            "-1",
+            "--format=%H",
+            "--no-renames",
+            "--diff-filter=A",
+            reference,
+            "--",
+            &format!(":(top,literal){state_path}"),
+        ],
+    )?;
+    let commit = commit.trim().to_string();
+    // The path exists at `reference`, so some commit added it; finding none is not an answer.
+    if commit.is_empty() {
+        return None;
+    }
+    if commit_is_ancestor(root, &commit, "HEAD")? {
+        return Some(None);
+    }
+    Some(Some(commit))
 }
 
 /// The `state.json` paths under `archive_root` at `reference` whose record carries `id`.
 ///
 /// Packages are matched by the id inside `state.json`, as `find_change_dir` does, so a renamed or
-/// undated package counts (REQ-change-139). Two Git processes however many packages there are:
+/// undated package counts (REQ-change-139). `None` means Git could not list or read them (a failed or
+/// truncated listing or batch, or a record it did not return), which the caller reports as
+/// cannot-tell (REQ-change-142). Two Git processes however many packages there are:
 /// one `ls-tree -r` for the blob ids and one `cat-file --batch` for their bytes.
 fn archived_state_paths_for(
     root: &Path,
@@ -5159,7 +5205,7 @@ fn archived_state_paths_for(
             "--full-tree",
             reference,
             "--",
-            &format!("{archive_root}/"),
+            &format!(":(top,literal){archive_root}/"),
         ],
         None,
         MAX_GIT_COMMAND_OUTPUT_BYTES,
@@ -5215,20 +5261,39 @@ fn archived_state_paths_for(
         let size: usize = header.rsplit(' ').next()?.parse().ok()?;
         let body = rest.get(header_end + 1..header_end + 1 + size)?;
         rest = rest.get(header_end + 1 + size + 1..).unwrap_or_default();
-        if serde_json::from_slice::<ChangeRecord>(body).is_ok_and(|record| record.id == id) {
+        if archived_record_id(body)? == id {
             matches.push(path.clone());
         }
     }
     Some(matches)
 }
 
+/// The `id` an archived `state.json` carries: from the change record, or, for a record this
+/// build does not decode, from its top-level `id` string. `None` when neither reads, because that
+/// record could be this change's archive (Codex review of #967).
+fn archived_record_id(body: &[u8]) -> Option<String> {
+    if let Ok(record) = serde_json::from_slice::<ChangeRecord>(body) {
+        return Some(record.id);
+    }
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()?
+        .get("id")?
+        .as_str()
+        .map(str::to_string)
+}
+
 /// The one sentence review, finalize, status and ship-status print for an upstream archive.
 pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> String {
-    format!(
-        "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; rebase this branch onto `{reference}`, whose archive is authoritative, dropping the commit that added `{CHANGES_PATH}/{id}/` (or reset to `{reference}` when the branch has nothing else), instead of closing it a second time. Merging, or deleting the copy in a new commit, leaves history that fails integrity",
-        reference = upstream.reference,
-        commit = upstream.commit,
-    )
+    match upstream {
+        UpstreamArchive::Archived { reference, commit } => format!(
+            "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; rebase this branch onto `{reference}`, whose archive is authoritative, dropping the commit that added `{CHANGES_PATH}/{id}/` (or reset to `{reference}` when the branch has nothing else), instead of closing it a second time. Merging, or deleting the copy in a new commit, leaves history that fails integrity"
+        ),
+        UpstreamArchive::CannotTell { reference, project_root } => format!(
+            "cannot tell whether `{id}` is already archived on `{reference}`: its archived state records could not be read here, so review and finalize refuse rather than archive it a second time. Run `git fetch --refetch origin` to repair this clone's objects and `git remote set-head origin --auto` to repair its remote default, then `specsync --root {} change status -- {}`, which reruns this lookup for the selected project and either clears the refusal or names the archive and the rebase",
+            shell_quote(&project_root.to_string_lossy()),
+            shell_quote(id)
+        ),
+    }
 }
 
 /// `Some(true)` when `ancestor` is an ancestor of `descendant`, `Some(false)` when it is not,

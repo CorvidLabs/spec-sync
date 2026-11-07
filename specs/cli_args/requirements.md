@@ -270,3 +270,12 @@ The `change approve` and `change review` grammar SHALL accept optional `--words`
 - `change approve <id> --actor <name> --words <text> --where <text> --recorded-by <agent>` and the same three flags on `change review <id> --reviewer <name>` parse into the change action.
 - `change approve` and `change review` without the three flags parse exactly as before.
 
+### REQ-cli-args-relay-repair-001
+
+The CLI SHALL parse `change repair-relays <id>` into the change action, taking the change id and no other arguments.
+
+#### Acceptance Criteria
+
+- Help lists `repair-relays` under `change`.
+- `change repair-relays` without an id fails argument parsing, and existing change grammar parses exactly as before.
+

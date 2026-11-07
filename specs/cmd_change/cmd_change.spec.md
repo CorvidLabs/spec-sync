@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 75
+version: 77
 status: active
 files:
   - src/commands/change.rs
@@ -37,6 +37,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
     integrity after acquiring the persistence lock and render from the returned validated snapshot,
     so neither rendering failure nor a lock-wait race can conceal a mutation that already took effect.
 12. Status and check render a non-empty `verification_ignored_paths` list in text and status JSON with the standing note that SpecSync cannot tell whether project tests or CI read those files, render nothing extra when the list is absent or empty, and ship-status names an invalid entry as a blocker.
+13. Text `change check` (plain and `--commit`) and a passing text `change audit` print one stderr note counting the verification commands configured in `.specsync/sdd.json` that they did not run — `verification_commands` first, then `component_verification_commands` by module, then `strict_verification_commands`, each command once — and JSON check and a passing JSON audit carry the same deduplicated list as top-level `configured_commands_not_run` (`[]` when none is configured). The disclosure never spawns a configured command and never changes a verdict or exit status; `change check --commit --json` gains no field because that path has no JSON success output (REQ-cmd-change-unrun-commands-001).
 
 ## Public API
 
@@ -125,6 +126,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-11-07 | v76: text `change check` (plain and `--commit`) and a passing text `change audit` print one stderr note counting the configured verification commands they did not run, across top-level, component, and strict policy lists; JSON check and a passing JSON audit carry the deduplicated list as `configured_commands_not_run` (`[]` when empty). The disclosure never runs a command or changes a verdict (REQ-cmd-change-unrun-commands-001, #893) |
 | 2026-11-06 | v69: `specsync doctor` (`cmd_doctor`, a submodule of the change commands) prints every finding with its fix class, what `--fix` applied and what `--dry-run` would do, in text or JSON; `change status` and `ship-status` report a closed-late change instead of refusing it (REQ-cmd-change-035, REQ-change-143, #833) |
 | 2026-11-05 | v62: `change ship` refuses an open task and names `specsync change ship <id>` with its flags; `change ship-status` reports it as a blocker and names it before the next step; `change check --commit` refusals name `--commit` (REQ-cmd-change-031, #892). |
 | 2026-11-05 | v57: `specsync change` handlers read repository facts and committed objects through the per-command memo and batch reader, and clear them after their own git writes (REQ-cmd-change-028, #861). |
@@ -207,3 +209,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
+| 2026-11-07 | change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is: Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893) |

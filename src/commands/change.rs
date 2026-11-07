@@ -1,4 +1,5 @@
 use colored::Colorize;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -11,6 +12,53 @@ use crate::types::OutputFormat;
 
 const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 
+fn configured_commands_not_run(root: &Path) -> Result<Vec<String>, String> {
+    let path = root.join(".specsync/sdd.json");
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
+    let policy: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
+    let mut commands = Vec::new();
+    if let Some(configured) = policy["verification_commands"].as_array() {
+        commands.extend(configured.iter().filter_map(serde_json::Value::as_str));
+    }
+    if let Some(components) = policy["component_verification_commands"].as_object() {
+        let mut modules = components.keys().collect::<Vec<_>>();
+        modules.sort();
+        for module in modules {
+            if let Some(configured) = components[module].as_array() {
+                commands.extend(configured.iter().filter_map(serde_json::Value::as_str));
+            }
+        }
+    }
+    if let Some(configured) = policy["strict_verification_commands"].as_array() {
+        commands.extend(configured.iter().filter_map(serde_json::Value::as_str));
+    }
+    let mut seen = BTreeSet::new();
+    let mut commands = commands.into_iter().map(str::to_owned).collect::<Vec<_>>();
+    commands.retain(|command| seen.insert(command.clone()));
+    Ok(commands)
+}
+
+fn print_configured_commands_not_run(root: &Path) -> Result<(), String> {
+    let commands = configured_commands_not_run(root)?;
+    if !commands.is_empty() {
+        let noun = if commands.len() == 1 {
+            "command"
+        } else {
+            "commands"
+        };
+        eprintln!(
+            "note: .specsync/sdd.json configures {} verification {noun} that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note",
+            commands.len()
+        );
+    }
+    Ok(())
+}
+
 // `specsync doctor` renders here, beside the change commands it reports on (REQ-cmd-change-035).
 #[path = "doctor.rs"]
 mod doctor;
@@ -20,7 +68,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.
     let _facts = crate::git_utils::begin_repository_fact_scope(root);
-    let result = match action {
+    let result = (|| {
+        match action {
         ChangeAction::New {
             description,
             kind,
@@ -544,6 +593,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             } else {
                 change::check_change(root, id.as_deref())
             };
+            if !matches!(format, OutputFormat::Json) {
+                print_configured_commands_not_run(root)?;
+            }
             // A failed check is the moment a lesson exists: an approach was tried and did not
             // work. Say so while it is still true, and name where it goes.
             //
@@ -569,7 +621,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             match format {
                 OutputFormat::Json => match &verification {
                     Ok(Some(record)) => {
-                        print_json(&serde_json::json!({ "verification": record }));
+                        print_json(&serde_json::json!({
+                            "verification": record,
+                            "configured_commands_not_run": configured_commands_not_run(root)?,
+                        }));
                         if !record.passed {
                             process::exit(1);
                         }
@@ -578,6 +633,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         print_json(&serde_json::json!({
                             "verification": null,
                             "message": "nothing to check",
+                            "configured_commands_not_run": configured_commands_not_run(root)?,
                         }));
                     }
                     Err(error) => {
@@ -645,9 +701,19 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             let passed = report.errors.is_empty();
             match format {
                 OutputFormat::Json => {
-                    print_json(&serde_json::json!({ "report": report }));
+                    if passed {
+                        print_json(&serde_json::json!({
+                            "report": report,
+                            "configured_commands_not_run": configured_commands_not_run(root)?,
+                        }));
+                    } else {
+                        print_json(&serde_json::json!({ "report": report }));
+                    }
                 }
                 _ => {
+                    if passed {
+                        print_configured_commands_not_run(root)?;
+                    }
                     if report.enabled {
                         println!(
                             "Auditing active changes ({})…",
@@ -688,7 +754,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     }
                 }
             }),
-    };
+    }
+    })();
 
     if let Err(error) = result {
         match format {
@@ -5229,6 +5296,7 @@ fn run_checked_commit(
     }
     say("Verified, committed, and consistent with the committed tree.");
     if !quiet {
+        print_configured_commands_not_run(root)?;
         print_verification_ignored_lines(root);
     }
     Ok(())

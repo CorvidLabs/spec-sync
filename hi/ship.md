@@ -11,6 +11,8 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
 
 SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. Recorded by claude (ss-d7).
 
+SHIP-1.c.3 was drafted by the agent for issue #893. Leif approved it as drafted in the Herdr orc tab on 2026-11-06 at about 19:35 MST ("3yes 3b-yes": the note and its JSON list, and emptying spec-sync's own `verification_commands`), relayed by orc t18. Recorded by the ss-triage Claude agent (t15w). Leif later narrowed the 3b policy choice through orc t18: empty only `verification_commands` and keep the 13 component modules and 3 strict commands, so this repository's note remains visible; the criterion text is unchanged.
+
 ## Criteria
 
 - **SHIP-1**  Once the scope is approved, the agreed contract edit is applied for me rather than retyped by hand.
@@ -19,6 +21,7 @@ SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif 
   - **SHIP-1.c**  It compares contract to code; running the project's tests stays the pipeline's job.
     - **SHIP-1.c.1**  Every current contract gives the same answer about the verification commands I configure: the change check does not run them.
     - **SHIP-1.c.2**  If a current contract starts promising to run them again, a test tells me.
+    - **SHIP-1.c.3**  When I have configured verification commands, the change check and the audit tell me they did not run them, so a pass is not read as my tests passing.
   - **SHIP-1.d**  I can commit the verified result in the same step, so the evidence matches the tree it describes.
 - **SHIP-2**  A person reviews the implementation against what was approved before it can ship.
   - **SHIP-2.a**  That review is recorded with the change rather than left in a chat thread.

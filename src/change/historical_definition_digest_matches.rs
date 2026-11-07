@@ -4012,15 +4012,18 @@ fn summarize_change_with_effective(
     } else {
         match record.state {
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
-                let question = next_questions_for(root, record)
-                    .into_iter()
-                    .next()
-                    .map(|question| question.id)
-                    .unwrap_or_else(|| "<question>".into());
-                format!(
-                    "run `specsync change answer {} {} <answer>`",
-                    record.id, question
-                )
+                // The command approve's refusal names for the same question
+                // (REQ-cmd-change-answer-hint-001).
+                match next_questions_for(root, record).first() {
+                    Some(question) => format!(
+                        "run {}",
+                        answer_command_hint(&record.id, &question.id, &question.choices)
+                    ),
+                    None => format!(
+                        "run `specsync change answer {} <question> \"<answer>\"`",
+                        record.id
+                    ),
+                }
             }
             // Prefer completing selected artifacts over approve when interview is done
             // but TODO/empty stubs remain (sandbox #16).

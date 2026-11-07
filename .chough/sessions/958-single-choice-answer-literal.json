@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-4973daf6b2ccd257ac4ca282",
-    "head": "EVT-5f6dd381cd219ad69d62be75",
+    "head": "EVT-02cf2ad6a0f523ba0368d78a",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "test",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -37,15 +37,19 @@
     "Leif decided \"Intent decision for #958 (DOCS-3.b, DOCS-3.c)\": \"1A 2yes 3yes 3b-yes\" (Herdr orc tab, relayed by orc t18 to t15w, 2026-11-06 ~19:35 MST); recorded by claude (ss-triage t15w); a relayed claim, not authenticated"
   ],
   "open_questions": [],
-  "completed": [],
+  "completed": [
+    "Merged origin/main, implemented the shared answer-command helper and specs-first refusal, and passed five focused unit probes plus both documented-workflow probes",
+    "Native change check passed; strict specs passed 62/62 at 100% coverage; both touched specs scored 100; three selected cases passed"
+  ],
   "observations": [
-    "OBS-product-test-41c82ca012cdb82a78af57e7"
+    "OBS-product-test-41c82ca012cdb82a78af57e7",
+    "OBS-tc-change-single-choice-answer-runs-as-printed-bd302565154afb3002634c8f",
+    "OBS-tc-change-specs-refusal-matches-interview-order-1d9a6066f7663420e2f91263",
+    "OBS-tc-cmd-change-status-names-refusal-answer-command-117b1cc7b51552e41eef029b"
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of #958 change print-a-single-choice-interview-answer-literally-..., sent to orc t18"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "After Leif's scope approval (relay via orc t18, record with --relayed-by flags): merge origin/main, apply _audits/handoffs/ss-triage-958-impl.patch then adapt it to the design (see handoff), run tests, change check --commit, verify lane, review, ship, PR"
+  "next_action": "Run fledge lanes run verify and fledge trust verify, then commit and run change check --commit"
 }

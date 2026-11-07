@@ -1,6 +1,6 @@
 ---
 id: print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as
-state: draft
+state: implementing
 type: bug_fix
 base_commit: db6419678a19b5814e0b6c1ece58eb3543d8402e
 ---

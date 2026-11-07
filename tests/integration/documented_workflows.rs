@@ -640,7 +640,9 @@ impl Project {
         );
         let json = self.run_documented(root, &format!("specsync change status {id} --json"));
         let status: Value = serde_json::from_slice(&json.stdout).unwrap();
-        let next = status["summary"]["next_action"].as_str().unwrap_or_default();
+        let next = status["summary"]["next_action"]
+            .as_str()
+            .unwrap_or_default();
         assert!(
             next.contains(&named),
             "JSON status next_action `{next}` does not name approval's {named}"

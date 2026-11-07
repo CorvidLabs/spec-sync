@@ -4,8 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::change::{
-    self, ArtifactKind, ChangeKind, ChangeRecord, ChangeState, CorrectionField,
-    CreateChangeRequest, InterviewQuestion,
+    self, ArtifactKind, ChangeKind, ChangeRecord, ChangeState, CorrectionField, CreateChangeRequest,
 };
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
@@ -589,10 +588,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                             if let Some(change_id) = &verified_id
                                 && let Ok(change_record) = change::load_change(root, change_id)
                             {
-                                let questions = change::next_questions_for(root, &change_record);
                                 println!(
                                     "  Next: {}",
-                                    text_mode_next_action(root, &change_record, &questions)
+                                    text_mode_next_action(root, &change_record)
                                 );
                                 print_handoff_line(&change::handoff_summary(root, &change_record));
                             }
@@ -799,7 +797,7 @@ fn print_record(
             // `text_mode_next_action` uses lightweight artifact file reads only.
             print_change_text_identity(record);
             print_open_change_briefing(root, record);
-            let next = text_mode_next_action(root, record, &questions);
+            let next = text_mode_next_action(root, record);
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
@@ -966,7 +964,7 @@ fn print_mutation_record(
             // ledger after the transaction has completed.
             print_change_text_identity(record);
             print_open_change_briefing(root, record);
-            let next = text_mode_next_action(root, record, &questions);
+            let next = text_mode_next_action(root, record);
             println!("  Next: {next}");
             print_handoff_line(&change::handoff_summary(root, record));
             print_change_text_answers(record);
@@ -1092,11 +1090,7 @@ fn print_change_text_answers(record: &ChangeRecord) {
 /// currency. Nothing digest-bearing reaches the string (CodeQL cleartext-logging): artifacts are
 /// read through `artifacts_complete_for_guidance`, and approval currency arrives as the boolean
 /// `approval_current_for_guidance` returns.
-fn text_mode_next_action(
-    root: &Path,
-    record: &ChangeRecord,
-    questions: &[InterviewQuestion],
-) -> String {
+fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
     let id = record.id.as_str();
     // The same refusal every later verb would give, named before any state-local step
     // (REQ-change-115). It carries entry paths and rule text only, never a digest.
@@ -1113,12 +1107,16 @@ fn text_mode_next_action(
         return change::upstream_archive_message(id, &upstream);
     }
     match record.state {
-        ChangeState::Draft if !questions.is_empty() => {
-            let question = questions
-                .first()
-                .map(|question| question.id.as_str())
-                .unwrap_or("<question>");
-            format!("run `specsync change answer {id} {question} <answer>`")
+        // The command approve's refusal names for the same question
+        // (REQ-cmd-change-answer-hint-001).
+        ChangeState::Draft if !change::next_questions_for(root, record).is_empty() => {
+            match change::next_questions_for(root, record).first() {
+                Some(question) => format!(
+                    "run {}",
+                    change::answer_command_hint(id, &question.id, &question.choices)
+                ),
+                None => format!("run `specsync change answer {id} <question> \"<answer>\"`"),
+            }
         }
         ChangeState::Draft if !change::artifacts_complete_for_guidance(root, record) => {
             format!("complete selected artifacts, then run `specsync change status {id}`")
@@ -1183,8 +1181,7 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 /// all archived, so HEAD is where the merge decision is made. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
-    let questions = change::next_questions_for(root, record);
-    let lifecycle_next = text_mode_next_action(root, record, &questions);
+    let lifecycle_next = text_mode_next_action(root, record);
     let tip = classify_head_tip(root)?;
 
     // Resolve the workspace wherever the change actually lives. Both reads below used
@@ -3025,11 +3022,10 @@ fn print_records(
                 ensure_text_correction_ledger_valid(root, record)?;
             }
             for record in records {
-                let questions = change::next_questions_for(root, record);
                 let id = record.id.clone();
                 let title = record.title.clone();
                 let state = record.state.as_str().to_owned();
-                let next = text_mode_next_action(root, record, &questions);
+                let next = text_mode_next_action(root, record);
                 println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
                 print_open_change_briefing(root, record);
             }
@@ -3342,7 +3338,7 @@ if the floor call is removed from this function"
         assert!(questions.is_empty(), "interview must be complete");
 
         for surface in ["status", "show", "list"] {
-            let next = text_mode_next_action(root, &record, &questions);
+            let next = text_mode_next_action(root, &record);
             assert!(
                 next.contains("complete selected artifacts"),
                 "{surface} text recommended the wrong next action: {next}"
@@ -3652,7 +3648,7 @@ if the floor call is removed from this function"
         .unwrap();
         let record = change::load_change(root, &id).expect("load");
 
-        let next = text_mode_next_action(root, &record, &[]);
+        let next = text_mode_next_action(root, &record);
 
         assert_eq!(next, reapprove_action(&id));
         assert_eq!(
@@ -3690,7 +3686,7 @@ if the floor call is removed from this function"
             let mut record = record.clone();
             record.state = lifecycle;
             assert_eq!(
-                text_mode_next_action(root, &record, &[]),
+                text_mode_next_action(root, &record),
                 reapprove_action(&id),
                 "{lifecycle:?}"
             );
@@ -3707,7 +3703,7 @@ if the floor call is removed from this function"
             let id = fixture(root);
             let record = change::load_change(root, &id).expect("load");
             assert_eq!(
-                text_mode_next_action(root, &record, &[]),
+                text_mode_next_action(root, &record),
                 format!("run `specsync change check {id}`")
             );
         }
@@ -4177,7 +4173,7 @@ if the floor call is removed from this function"
         );
         let next = report["ship_next"].as_str().expect("ship_next");
         assert!(next.starts_with("finish the 1 open task"), "{next}");
-        let text = text_mode_next_action(root, &record, &[]);
+        let text = text_mode_next_action(root, &record);
         assert!(text.starts_with("finish the 1 open task"), "{text}");
 
         let refusal = run_ship(

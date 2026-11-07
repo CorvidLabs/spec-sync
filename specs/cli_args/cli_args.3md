@@ -44,3 +44,6 @@ A valid stored receipt does not prove that its old file bytes existed at a later
 
 @plane z=5 label="Lesson (#862)"
 `Merge` gained `--install`. `MergeFile` is the driver grammar: ancestor, current, other, optional pathname. Global flags still wrap both. No existing flag was relaxed.
+
+@plane z=6 label="Relayed-decision flags (#633)"
+`change approve` and `change review` take optional `--words`, `--where` and `--recorded-by`. The `--where` flag is the field `relay_where`, because `where` is a Rust keyword. The `--actor` and `--reviewer` help says the name is a recorded claim, not authenticated identity. Without the three flags, both commands parse exactly as before.

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-one-test-fixture-line-that-merging-969-into-900-needs",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "f471c6a922ac76fecc9d5382e0e68c4540a7c56f",
+  "contract_digest": "c00b59d62080556fae107eb0031fb4b016d033bf27b1831c50ebabcc62888fa3",
+  "execution_digest": "81c96bef59c5c566da0a22db078ac5bf77ca1a2ef72c988c44722039c0afa8db",
+  "workspace_digest": "ea42976d7e115757300d91e0593ce5fee8301a100e13ccc153ee4fec9ea304b0",
+  "timestamp": 1794004209
+}

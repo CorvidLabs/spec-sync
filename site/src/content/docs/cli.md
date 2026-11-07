@@ -374,7 +374,7 @@ specsync change answer add-passkeys acceptance_criteria "Passkey login works"
 # answer remaining questions and complete the selected artifacts before approval
 specsync change list
 specsync change show add-passkeys
-specsync change status add-passkeys
+specsync change status add-passkeys          # --timeout <secs> bounds a read; exit 124 names how to resume
 specsync change approve add-passkeys --actor "Ada"
 # implement and test the approved scope
 specsync change check add-passkeys --commit
@@ -448,6 +448,30 @@ cases JSON and text `Next:` name `change approve`, the handoff is `not yet`, and
 reports the refusal `change check` gives. Editing `plan.md` or another execution artifact after
 approval stales verification, not approval.
 
+#### Read timeouts
+
+`change status`, `change show`, `change list` and `change ship-status` accept `--timeout <secs>`. Without it they read `SPECSYNC_TIMEOUT`, and with neither there is no limit. Long phases check the deadline between items, such as each commit of the archive-introduction index or each archive's workflow history. Once it has passed, the command:
+
+- writes nothing to any change,
+- keeps every verdict it completed in the read cache under the Git directory, so a rerun continues from there,
+- prints the phase, its progress and the exact command that resumes the work,
+- exits **124**.
+
+A read that never reaches a long phase finishes and prints its normal output, even with `--timeout 0`.
+
+```text
+specsync: change ship-status timed out after 30s during archive-introduction index (140/214). Nothing was written. Completed work is cached, so rerunning continues from there:
+  specsync change ship-status add-passkeys
+```
+
+With `--json` the report goes to stdout:
+
+```json
+{"error":"timeout","command":"change status","timeout_secs":30,"phase":"archive-introduction index","progress":"140/214","wrote":false,"resume":"specsync change status add-passkeys --json"}
+```
+
+A tool that bounds SpecSync with its own timer can pass that limit as `--timeout`, and it gets the phase instead of a bare timeout.
+
 `change status <id> --json` and `change show <id> --json` also carry a top-level
 `approved_deltas` array, one entry per affected module, sorted by module. `change answer`,
 `depend` and `supersede --json` carry the same key, built in the same transaction as their
@@ -481,9 +505,15 @@ A tool that links to a requirement not yet in `requirements.md` should accept it
 `summary.approval_valid` is true and the module's `delta_intact` is `true`, and should label it
 pending until `materialized` is `true`.
 
-Reviewer labels and stored provider declarations do not authenticate identity. Local finalization
-checks recorded content and history; authenticated provenance requires separately configured
-hosted checks and policy verification. The scope approver may perform the implementation review.
+Actor and reviewer labels, relayed decisions and stored provider declarations do not authenticate
+identity. Local finalization checks recorded content and history; authenticated provenance
+requires separately configured hosted checks and policy verification. The scope approver may
+perform the implementation review.
+
+`change approve` and `change review` take an optional relayed decision for a decision a person
+made elsewhere: `--words "<their exact words>" --where "<where and when>" --recorded-by "<agent>"`,
+all three together. `change status` shows each approval and review as a recorded claim, with any
+relayed decision on the next line; `--json` carries them under `recorded_claims`.
 
 Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale. A predecessor entry signed under a reserved exact owner (`@exact:test`, `@exact:delivery`) can be adopted by any module that owns the path now through `[modules."<name>"] owns` in `.specsync/config.toml`; no reopen or owner correction is needed.
 

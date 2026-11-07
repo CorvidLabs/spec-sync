@@ -74,17 +74,20 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 print_transition_with_handoff(root, &record, format, "historical reconciliation requested; old file transitions remain unproven; fresh definition approval required")
             })
         }
-        ChangeAction::List => {
+        ChangeAction::List { timeout } => {
+            let _deadline = read_deadline_for("change list", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             change::list_changes(root)
                 .and_then(|roster| print_roster(root, &roster, format, strict))
         }
-        ChangeAction::Show { id } => {
+        ChangeAction::Show { id, timeout } => {
+            let _deadline = read_deadline_for("change show", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             change::load_change(root, &id)
                 .and_then(|record| print_record(root, &record, format, true, strict))
         }
-        ChangeAction::Status { id } => {
+        ChangeAction::Status { id, timeout } => {
+            let _deadline = read_deadline_for("change status", timeout, format);
             // A broken policy must not look like "no principles". `rules` already
             // fails here; status was still printing a briefing as if the file parsed.
             if let Err(error) = change::configured_principles_file(root) {
@@ -108,7 +111,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
         }
-        ChangeAction::ShipStatus { id } => {
+        ChangeAction::ShipStatus { id, timeout } => {
+            let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
                 change::load_change(root, &id)
@@ -179,16 +183,36 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             actor,
             note,
             portable_5_0_1,
-        } => {
-            let result = if portable_5_0_1 {
+            words,
+            relay_where,
+            recorded_by,
+        } => change::relayed_decision(
+            // The re-run keeps every flag that changes what is recorded (#900 review).
+            &format!(
+                "specsync change approve {id} --actor <who decided>{}{}",
+                if note.is_some() { " --note \"<your note>\"" } else { "" },
+                if portable_5_0_1 { " --portable-5-0-1" } else { "" }
+            ),
+            actor.as_deref(),
+            words,
+            relay_where,
+            recorded_by,
+        )
+        .and_then(|relayed_by| match relayed_by {
+            None if portable_5_0_1 => {
                 change::approve_definition_portable_v501(root, &id, actor, note)
-            } else {
-                change::approve_definition(root, &id, actor, note)
-            };
-            result.map(|record| {
-                print_transition_with_handoff(root, &record, format, "definition approved")
-            })
-        }
+            }
+            None => change::approve_definition(root, &id, actor, note),
+            relayed_by => change::approve_definition_with_relay(
+                root,
+                &id,
+                actor,
+                note,
+                portable_5_0_1,
+                relayed_by,
+            ),
+        })
+        .map(|record| print_transition_with_handoff(root, &record, format, "definition approved")),
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),
         ChangeAction::Verify { id } => {
@@ -211,11 +235,30 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             id,
             reviewer,
             verdict,
-        } => change::ScopedReviewVerdict::parse(&verdict).and_then(|verdict| {
-            let result = if verdict == change::ScopedReviewVerdict::Pass {
-                change::record_scoped_review(root, &id, reviewer)
-            } else {
-                change::record_scoped_review_with_verdict(root, &id, reviewer, verdict)
+            words,
+            relay_where,
+            recorded_by,
+        } => change::relayed_decision(
+            // The re-run keeps the verdict: dropping `--verdict block` would record a pass (#900
+            // review).
+            &format!("specsync change review {id} --reviewer <who decided> --verdict {verdict}"),
+            Some(reviewer.trim()),
+            words,
+            relay_where,
+            recorded_by,
+        )
+        .and_then(|relayed_by| {
+            change::ScopedReviewVerdict::parse(&verdict).map(|verdict| (verdict, relayed_by))
+        })
+        .and_then(|(verdict, relayed_by)| {
+            let result = match relayed_by {
+                None if verdict == change::ScopedReviewVerdict::Pass => {
+                    change::record_scoped_review(root, &id, reviewer)
+                }
+                None => change::record_scoped_review_with_verdict(root, &id, reviewer, verdict),
+                relayed_by => {
+                    change::record_scoped_review_with_relay(root, &id, reviewer, verdict, relayed_by)
+                }
             };
             result.map(|review| {
                 match format {
@@ -643,6 +686,45 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     }
 }
 
+/// The read deadline for a read-only command, from `--timeout` or `SPECSYNC_TIMEOUT`
+/// (REQ-cmd-change-032). The resume command is this invocation without its timeout.
+fn read_deadline_for(
+    command: &str,
+    timeout: Option<u64>,
+    format: OutputFormat,
+) -> Option<change::ReadDeadlineGuard> {
+    let limit = change::read_timeout_secs(timeout)?;
+    let resume = resume_command_without_timeout(std::env::args().skip(1));
+    Some(change::begin_read_deadline(
+        limit,
+        command,
+        &resume,
+        matches!(format, OutputFormat::Json),
+    ))
+}
+
+/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed.
+fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String {
+    let mut kept = vec!["specsync".to_string()];
+    let mut args = args.peekable();
+    while let Some(argument) = args.next() {
+        if argument == "--timeout" {
+            args.next();
+            continue;
+        }
+        if argument.starts_with("--timeout=") {
+            continue;
+        }
+        kept.push(
+            if argument.is_empty() || argument.contains(char::is_whitespace) {
+                format!("'{}'", argument.replace('\'', "'\\''"))
+            } else {
+                argument
+            },
+        );
+    }
+    kept.join(" ")
+}
 fn print_record(
     root: &Path,
     record: &ChangeRecord,
@@ -655,6 +737,9 @@ fn print_record(
     } else {
         Vec::new()
     };
+    // Who each recorded approval and review names, with any relayed decision (#633). Read first,
+    // so a relay record that cannot be read refuses the command and names its recovery.
+    let claims = change::recorded_claims(root, record)?;
     match format {
         OutputFormat::Json => {
             // JSON keeps digests and correction ledgers for machine consumers.
@@ -692,6 +777,9 @@ fn print_record(
                             serde_json::json!(false),
                         );
                     }
+                    if !claims.is_empty() {
+                        object.insert("recorded_claims".into(), serde_json::json!(claims));
+                    }
                     object
                 })
                 .unwrap_or_default(),
@@ -709,6 +797,7 @@ fn print_record(
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
+            print_recorded_claims(&claims);
             print_verification_ignored_lines(root);
             print_change_text_answers(record);
             print_change_text_correction_counts(record);
@@ -724,6 +813,47 @@ fn print_record(
         }
     }
     Ok(())
+}
+
+/// Each recorded approval and review as the claim it is, with any relayed decision on the next
+/// line (CHANGE-6.d, CHANGE-13.b, CHANGE-13.c). `RecordedClaim` holds names and relayed words
+/// only, never a digest.
+fn print_recorded_claims(claims: &[change::RecordedClaim]) {
+    for claim in claims {
+        let name = printable_claim_text(&claim.name);
+        match (claim.gate.as_str(), claim.verdict.as_deref()) {
+            ("review", Some(verdict)) => println!(
+                "  Review: {name} ({}; {})",
+                printable_claim_text(verdict),
+                change::RECORDED_CLAIM_BOUNDARY
+            ),
+            _ => println!("  Approval: {name} ({})", change::RECORDED_CLAIM_BOUNDARY),
+        }
+        if let Some(relay) = &claim.relayed_by {
+            println!(
+                "    Relayed: {} said \"{}\" ({}); recorded by {}; {}",
+                printable_claim_text(&relay.decided_by),
+                printable_claim_text(&relay.words),
+                printable_claim_text(&relay.where_),
+                printable_claim_text(&relay.recorded_by),
+                change::RELAYED_CLAIM_BOUNDARY
+            );
+        }
+    }
+}
+
+/// Recorded words are printed, not obeyed: a control character is shown as its escape, so a
+/// relayed `words` field cannot move the cursor or recolour the terminal.
+fn printable_claim_text(text: &str) -> String {
+    let mut printable = String::with_capacity(text.len());
+    for character in text.chars() {
+        if character.is_control() {
+            printable.extend(character.escape_debug());
+        } else {
+            printable.push(character);
+        }
+    }
+    printable
 }
 
 fn print_mutation_record(
@@ -970,7 +1100,10 @@ fn text_mode_next_action(
             format!("run `specsync change ship {id}` or `specsync change finalize {id}`"),
         ),
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
-        ChangeState::Archived => "no further action".into(),
+        // An archive that fails its integrity check is not finished: name the same restore the
+        // JSON next action and the handoff carry (#880). Path and literals only, no digest.
+        ChangeState::Archived => change::corrupt_archive_recovery_for_guidance(root, record)
+            .unwrap_or_else(|| "no further action".into()),
     }
 }
 
@@ -1573,11 +1706,11 @@ fn open_archive_candidates(root: &Path) -> Result<Vec<ArchiveCandidate>, String>
 
 /// Whether the Archive check may tell this workspace to run `change ship`.
 ///
-/// A blocking review, a legacy workflow, or a review recorded against a different
-/// commit cannot be archived by that command. The same proof is in
-/// `.github/scripts/archive-readiness.sh`: verdict `pass`, workflow v2, and
-/// `implementation_commit` equal to HEAD. Anything the check cannot prove stays
-/// on `change status`.
+/// A blocking review, a legacy workflow, a review recorded against a different
+/// commit, or a copy the remote default already archived cannot be archived by
+/// that command. The same proof is in `.github/scripts/archive-readiness.sh`:
+/// verdict `pass`, workflow v2, `implementation_commit` equal to HEAD, and no
+/// upstream archive. Anything the check cannot prove stays on `change status`.
 fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) -> bool {
     if record.workflow_version < 2 || record.state != change::ChangeState::Verifying {
         return false;
@@ -1600,9 +1733,13 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     else {
         return false;
     };
-    git_rev_parse(root, "HEAD")
+    let reviewed_at_head = git_rev_parse(root, "HEAD")
         .ok()
-        .is_some_and(|head| head == commit)
+        .is_some_and(|head| head == commit);
+    // Asked last, so Git runs only for a copy that would otherwise ship. `ship` refuses a
+    // change the remote default already archived (REQ-change-129); naming it here sent the
+    // operator to a certain refusal instead of to `change status`, which names the recovery.
+    reviewed_at_head && change::upstream_archive_of(root, record).is_none()
 }
 
 fn pull_request_sentence(root: &Path) -> Result<String, String> {
@@ -3264,6 +3401,81 @@ if the floor call is removed from this function"
         change::write_default_policy(root, vec!["true".to_string()]).expect("policy");
         git_in(root, &["add", "."]);
         git_in(root, &["commit", "-m", "base"]);
+    }
+
+    /// #902: a copy of a change that the remote default already archived is not an archive
+    /// candidate to ship, even with a passing review at `HEAD` and its verification (the review
+    /// predates the upstream archive). The pull-request sentence that `change pr` and the
+    /// Archive check print then names `change status`, which carries #889's recovery.
+    #[test]
+    fn an_upstream_archived_copy_is_not_told_to_ship() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        let id = reviewed_change_fixture(&root);
+        let workspace = root.join(".specsync/changes").join(&id);
+        let reviewed = git_rev_parse(&root, "HEAD").unwrap();
+        let record = change::load_change(&root, &id).unwrap();
+        assert!(
+            archive_candidate_can_ship(&root, &record, &workspace),
+            "control: a passing review at HEAD with no upstream archive ships"
+        );
+        let review = fs::read(workspace.join("review.json")).unwrap();
+        let attempts = fs::read(workspace.join("review-attempts.json")).unwrap();
+
+        // Archive it, publish that as origin's default branch, then return to the reviewed copy.
+        change::finalize_change(&root, &id).expect("finalize");
+        git_in(&root, &["add", "--all"]);
+        git_in(&root, &["commit", "-q", "-m", "archive", "--allow-empty"]);
+        let archived = git_rev_parse(&root, "HEAD").unwrap();
+        let origin = temp.path().join("origin.git");
+        git_in(
+            temp.path(),
+            &[
+                "init",
+                "-q",
+                "--bare",
+                "-b",
+                "main",
+                origin.to_str().unwrap(),
+            ],
+        );
+        git_in(
+            &root,
+            &["remote", "add", "origin", origin.to_str().unwrap()],
+        );
+        git_in(
+            &root,
+            &[
+                "push",
+                "-q",
+                "origin",
+                &format!("{archived}:refs/heads/main"),
+            ],
+        );
+        git_in(&root, &["fetch", "-q", "origin"]);
+        git_in(&root, &["remote", "set-head", "origin", "main"]);
+        git_in(&root, &["checkout", "-q", "-B", "stale-copy", &reviewed]);
+        fs::write(workspace.join("review.json"), &review).unwrap();
+        fs::write(workspace.join("review-attempts.json"), &attempts).unwrap();
+
+        let stale = change::load_change(&root, &id).unwrap();
+        assert_eq!(stale.state, ChangeState::Verifying);
+        assert!(
+            change::upstream_archive_of(&root, &stale).is_some(),
+            "fixture: origin/main must hold an archive HEAD does not contain"
+        );
+        assert!(
+            !archive_candidate_can_ship(&root, &stale, &workspace),
+            "an upstream-archived copy must not be told to ship"
+        );
+        let sentence = pull_request_sentence(&root).unwrap();
+        assert!(
+            sentence.contains(&format!("Run `specsync change status {id}`")),
+            "{sentence}"
+        );
+        assert!(!sentence.contains("specsync change ship"), "{sentence}");
     }
 
     /// Drives one change to `Verifying` with committed verification and a current scoped

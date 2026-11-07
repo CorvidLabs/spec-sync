@@ -14,6 +14,7 @@ shopt -s nullglob
 
 python3 - "$root" <<'PY'
 import json
+import re
 import stat
 import subprocess
 import sys
@@ -43,6 +44,79 @@ def holds_tracked_entry(directory: Path) -> bool:
             if holds_tracked_entry(child):
                 return True
         else:
+            return True
+    return False
+
+
+def git(*args):
+    try:
+        return subprocess.run(
+            ["git", *args], cwd=root, check=False, capture_output=True, text=True
+        )
+    except OSError:
+        return None
+
+
+def git_text(*args):
+    completed = git(*args)
+    if completed is None or completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def remote_default_ref():
+    ref = (git_text("symbolic-ref", "--short", "refs/remotes/origin/HEAD") or "").strip()
+    if ref:
+        return ref
+    for candidate in ("origin/main", "origin/master"):
+        if git_text("rev-parse", "--verify", candidate) is not None:
+            return candidate
+    return None
+
+
+def is_dated_package_for(package, change_id):
+    suffix = "-" + change_id
+    if not package.endswith(suffix):
+        return False
+    return re.fullmatch(r"\d{4}-\d{2}-\d{2}", package[: -len(suffix)]) is not None
+
+
+def archived_upstream(change_id):
+    """The test `upstream_archive_of` in src/change makes (#889, #902).
+
+    True when the remote default holds a dated archive package of this change id,
+    added by a commit HEAD does not contain. `ship` refuses such a copy, so it must
+    not be told to run it. The script never fetches: without a remote default ref,
+    as in a single-commit CI checkout, or when Git cannot answer, it says nothing.
+    """
+    reference = remote_default_ref()
+    prefix = git_text("rev-parse", "--show-prefix")
+    if reference is None or prefix is None:
+        return False
+    archive_root = prefix.strip() + ".specsync/archive/changes/"
+    listing = git_text("ls-tree", "--full-tree", "--name-only", reference, "--", archive_root)
+    for entry in (listing or "").splitlines():
+        if not is_dated_package_for(entry.rsplit("/", 1)[-1], change_id):
+            continue
+        state_path = f"{entry}/state.json"
+        state = git_text("show", f"{reference}:{state_path}", "--")
+        try:
+            archived = json.loads(state) if state is not None else None
+        except json.JSONDecodeError:
+            archived = None
+        if not isinstance(archived, dict) or archived.get("id") != change_id:
+            continue
+        commit = (
+            git_text(
+                "log", "-1", "--format=%H", "--diff-filter=A", reference,
+                "--", f":(top,literal){state_path}",
+            )
+            or ""
+        ).strip()
+        if not commit:
+            continue
+        ancestry = git("merge-base", "--is-ancestor", commit, "HEAD")
+        if ancestry is not None and ancestry.returncode == 1:
             return True
     return False
 
@@ -111,6 +185,7 @@ if changes.is_dir():
             and reviewed_commit != ""
             and reviewed_commit == head
             and (directory / "verification.json").is_file()
+            and not archived_upstream(change_id)
         )
         rows.append((rank, change_id, ship))
 

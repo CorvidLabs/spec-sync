@@ -179,17 +179,28 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         return Err("description is empty".into());
     }
     if record.acceptance_criteria.is_empty() {
-        return Err(format!(
-            "at least one acceptance criterion is required; run `specsync change answer {} \
-             acceptance_criteria \"<observable outcome>\"`",
-            record.id
+        return Err(unfinished_definition_refusal(
+            record,
+            "at least one acceptance criterion is required",
+            "acceptance_criteria",
+            "\"<observable outcome>\"",
         ));
     }
     if record.affected_paths.is_empty() {
-        return Err("at least one affected path is required".into());
+        return Err(unfinished_definition_refusal(
+            record,
+            "at least one affected path is required",
+            "affected_paths",
+            "\"<path>\"",
+        ));
     }
     if record.affected_specs.is_empty() && !record.no_spec_change {
-        return Err("affected specs are required unless no_spec_change is justified".into());
+        return Err(unfinished_definition_refusal(
+            record,
+            "affected specs are required unless no_spec_change is justified",
+            "affected_specs",
+            "\"<module>\"",
+        ));
     }
     for module in &record.affected_specs {
         crate::commands::validate_module_name(module)
@@ -221,7 +232,11 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     }
     let remaining = next_questions_for(root, record);
     if !remaining.is_empty() {
-        return Err(interview_incomplete_refusal(&record.id, &remaining));
+        return Err(if record.state == ChangeState::Draft {
+            interview_incomplete_refusal(&record.id, &remaining)
+        } else {
+            INTERVIEW_INCOMPLETE.into()
+        });
     }
     if let Some(policy) = load_policy_checked(root)?
         && let Some(principles) = policy.principles_file
@@ -239,9 +254,30 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     validate_artifacts(root, record)
 }
 
-/// The refusal for an unfinished interview: every question still open, and the
-/// `change answer` command for the first one (REQ-change-133). A question with two or more
-/// choices shows them as the placeholder (`<yes|no>`); any other takes free text.
+const INTERVIEW_INCOMPLETE: &str = "the deterministic interview is incomplete";
+
+/// The refusal for a definition missing `question`'s answer (REQ-change-133). Only a draft is
+/// told to run `change answer`, which refuses every other state; a record past draft reaches
+/// this through check, verification or audit and keeps the bare condition.
+fn unfinished_definition_refusal(
+    record: &ChangeRecord,
+    condition: &str,
+    question: &str,
+    placeholder: &str,
+) -> String {
+    if record.state == ChangeState::Draft {
+        format!(
+            "{condition}; run `specsync change answer {} {question} {placeholder}`",
+            record.id
+        )
+    } else {
+        condition.to_string()
+    }
+}
+
+/// A draft's refusal for an unfinished interview: every question still open, and the
+/// `change answer` command for the first one (REQ-change-133). A question with choices shows
+/// them as the placeholder (`<yes|no>`, `<none>`); one without takes free text.
 fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
     let open = remaining
         .iter()
@@ -249,15 +285,15 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
         .collect::<Vec<_>>()
         .join(", ");
     let Some(first) = remaining.first() else {
-        return "the deterministic interview is incomplete".into();
+        return INTERVIEW_INCOMPLETE.into();
     };
-    let placeholder = if first.choices.len() >= 2 {
-        format!("<{}>", first.choices.join("|"))
-    } else {
+    let placeholder = if first.choices.is_empty() {
         "\"<answer>\"".to_string()
+    } else {
+        format!("<{}>", first.choices.join("|"))
     };
     format!(
-        "the deterministic interview is incomplete (still to answer: {open}); run \
+        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run \
          `specsync change answer {id} {} {placeholder}`",
         first.id
     )
@@ -3929,7 +3965,8 @@ fn correction_prefix_digest(
     digest.frame(b"change-id", record.id.as_bytes());
     digest.frame(b"count", corrections.len().to_string().as_bytes());
     for correction in corrections {
-        let bytes = serde_json::to_vec(correction)
+        // Without the embedded approvals' relayed decisions (#633), like `corrected_view_digest`.
+        let bytes = serde_json::to_vec(&correction_digest_projection(correction))
             .map_err(|error| format!("failed to hash correction prefix: {error}"))?;
         digest.frame(b"correction", &bytes);
     }
@@ -4691,12 +4728,14 @@ fn acceptance_manifest_internal(
     if let Some(signed) = signed {
         extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
     }
-    let (mut paths, evidence) = stable_discovered_evidence(
+    // Clean files are named by object id and streamed one blob at a time below, so the scope's
+    // clean bytes are never read in one batch (REQ-change-144).
+    let (mut paths, mut evidence) = stable_discovered_evidence(
         root,
         Some(&discovery_scopes),
         &extra_candidates,
         false,
-        false,
+        true,
     )?;
     paths.retain(|path| {
         (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
@@ -4707,29 +4746,33 @@ fn acceptance_manifest_internal(
     } else {
         None
     };
+    let mut payloads = DeliveryPayloads::new(root);
+    if signed.is_none() {
+        payloads.materialize_affected_specs(record, &mut evidence)?;
+    }
     let mut entries = Vec::new();
     for relative in paths {
-        let (kind, mode, payload) = if let Some(content) = override_content.get(&relative) {
+        let (kind, mode, payload_digest) = if let Some(content) = override_content.get(&relative)
+        {
             let mode = evidence.generated_file_mode(&relative)?;
             let kind = acceptance_kind_for_mode(mode);
-            (kind, mode, content.to_vec())
+            (kind, mode, sha256_hex(content))
         } else if relative == SEQUENCE_PATH
             && let Some(content) = &historical_sequence_ledger
         {
             (
                 AcceptanceInputKind::File,
                 evidence.generated_file_mode(&relative)?,
-                content.clone(),
+                sha256_hex(content),
             )
         } else {
             let captured = evidence.entry(&relative)?;
             (
                 captured.kind.clone(),
                 captured.mode,
-                captured.payload.clone(),
+                sha256_hex(&payloads.of(&relative, captured)?),
             )
         };
-        let payload_digest = sha256_hex(&payload);
         let owners = if let Some(signed) = signed {
             signed
                 .entries

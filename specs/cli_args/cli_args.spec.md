@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 32
+version: 35
 status: stable
 files:
   - src/cli.rs
@@ -124,15 +124,14 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 
 | Date | Change |
 |------|--------|
-| 2026-10-10 | Add `cli_args.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
 | 2026-07-01 | Add AgentsAction enum and Agents command variant |
 | 2026-07-10 | Add ChangeAction and the 5.0 SDD lifecycle namespace |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
-| 2026-07-11 | CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links: Correct initialization and full-scaffold help while preserving the CLI grammar |
 | 2026-07-11 | CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links: Correct SpecSync 5.0 documentation, CLI help, and hub deep links |
+| 2026-07-11 | CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links: Correct initialization and full-scaffold help while preserving the CLI grammar |
 | 2026-07-13 | Add required actor/reason grammar for audited stale-accepted reopen |
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
 | 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
@@ -152,13 +151,17 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-08-08 | CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship: Ship --push --wait archive tip orchestration for buttery multi-tip ship |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
 | 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |
-| 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | feat-mcp-tools-lock: Add optional `McpAction` lock/diff grammar under `specsync mcp` |
+| 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
+| 2026-10-10 | Add `cli_args.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |
 | 2026-11-01 | acknowledge-anchored-historical-receipts-explicitly-without-weakening-normal-transition-proof: Acknowledge anchored historical receipts explicitly without weakening normal transition proof |
 | 2026-11-04 | send-an-approved-change-back-to-draft-for-re-scoping: Send an approved change back to draft for re-scoping |
 | 2026-11-05 | finalize-validates-only-the-change-it-archives: Finalize validates only the change it archives |
-| 2026-11-05 | v32 / #862: `merge --install` and `merge-file %O %A %B %P` are part of the command grammar |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-05 | v32 / #862: `merge --install` and `merge-file %O %A %B %P` are part of the command grammar |
+| 2026-11-06 | `--timeout <secs>` on `change status`, `show`, `list` and `ship-status` (REQ-cli-args-024, S9) |
+| 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
+| 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |

@@ -21,3 +21,4 @@ spec: cli_args.spec.md
 - [x] Add an explicit pass/block verdict to the plain scoped-review command
 
 - [x] Clarify scoped-review claims versus separately enforced authentication without changing runtime review rules.
+- [x] Parse the relayed-decision flags on `change approve` and `change review` and say the actor and reviewer are recorded claims (REQ-cli-args-relayed-decision-001, #633).

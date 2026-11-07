@@ -349,6 +349,10 @@ fn rooted_git_command(root: &Path) -> Command {
         "GIT_NAMESPACE",
         "GIT_SHALLOW_FILE",
         "GIT_GRAFT_FILE",
+        // Replacement refs outside `refs/replace/`, or replacements switched off, change the
+        // history Git walks behind the read-cache and index guards (REQ-change-148).
+        "GIT_REPLACE_REF_BASE",
+        "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     ] {
@@ -2024,6 +2028,24 @@ fn is_git_lfs_pointer(bytes: &[u8]) -> bool {
     saw_oid && saw_size
 }
 
+/// The output bound of one whole-scope `git cat-file --batch` evidence read.
+fn git_evidence_batch_cap() -> usize {
+    #[cfg(test)]
+    if let Some(cap) = TEST_GIT_EVIDENCE_CAPS.with(|caps| caps.get().0) {
+        return cap;
+    }
+    MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES
+}
+
+/// The bound on one evidence blob read on its own.
+fn git_evidence_object_cap() -> usize {
+    #[cfg(test)]
+    if let Some(cap) = TEST_GIT_EVIDENCE_CAPS.with(|caps| caps.get().1) {
+        return cap;
+    }
+    MAX_GIT_EVIDENCE_PAYLOAD_BYTES
+}
+
 fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
     if let Some(bytes) = GIT_BLOB_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))
@@ -2038,7 +2060,7 @@ fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
         root,
         &["cat-file", "blob", object],
         None,
-        MAX_GIT_EVIDENCE_PAYLOAD_BYTES,
+        git_evidence_object_cap(),
     )?;
     if stdout.len() <= MAX_CHANGE_ARTIFACT_BYTES as usize {
         let mut cache = GIT_BLOB_CACHE
@@ -2533,9 +2555,23 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
         ));
     }
     let mut index: ArchiveIntroductionIndex = BTreeMap::new();
-    for commit in commits {
-        let introduced =
-            archive_introductions_at_commit(root, commit, &history_pathspec, &directory_prefix)?;
+    // One `diff-tree --stdin` lists what every uncached commit added (REQ-change-135); a commit
+    // it did not answer is read on its own, as before.
+    let listings = archive_introduction_listings(root, &commits, &history_pathspec);
+    let total = commits.len();
+    for (done, commit) in commits.into_iter().enumerate() {
+        check_read_deadline("archive-introduction index", done, total)?;
+        let listed = listings
+            .as_ref()
+            .and_then(|listings| listings.get(commit))
+            .map(Vec::as_slice);
+        let introduced = archive_introductions_at_commit(
+            root,
+            commit,
+            &history_pathspec,
+            &directory_prefix,
+            listed,
+        )?;
         for (id, directory, approvals) in introduced {
             let introductions = index.entry(id).or_default();
             if introductions
@@ -3027,12 +3063,14 @@ fn acceptance_input_digest(
         })
         .collect::<Result<_, String>>()?;
     let extra_candidates = override_content.keys().cloned().collect();
+    // Clean files are named by object id and streamed one blob at a time below, so the scope's
+    // clean bytes are never read in one batch (REQ-change-144).
     let (mut paths, evidence) = stable_discovered_evidence(
         root,
         Some(&discovery_scopes),
         &extra_candidates,
         false,
-        false,
+        true,
     )?;
     paths.retain(|path| {
         !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
@@ -3042,6 +3080,7 @@ fn acceptance_input_digest(
     } else {
         None
     };
+    let mut payloads = DeliveryPayloads::new(root);
     let mut digest = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
     for relative in paths {
         if let Some(content) = override_content.get(&relative) {
@@ -3059,11 +3098,12 @@ fn acceptance_input_digest(
             digest.entry(&relative, b"file", mode, content);
         } else {
             let entry = evidence.entry(&relative)?;
+            let payload = payloads.of(&relative, entry)?;
             digest.entry(
                 &relative,
                 acceptance_kind_bytes(&entry.kind),
                 entry.mode,
-                &entry.payload,
+                &payload,
             );
         }
     }
@@ -4143,12 +4183,37 @@ fn load_legacy_archive_baseline_context(
                 .map(|snapshot| (entry.id.clone(), snapshot))
         })
         .collect::<Result<_, _>>()?;
-    validate_legacy_archive_introductions(root, &baseline, &snapshots)?;
+    validate_legacy_archive_introductions_cached(root, &baseline_digest, &baseline, &snapshots)?;
 
     Ok(LegacyArchiveBaselineContext {
         baseline,
         snapshots,
     })
+}
+
+/// `validate_legacy_archive_introductions` for `load_legacy_archive_baseline_context`, answered
+/// from the persistent read cache when this exact baseline, cutoff and set of current archive
+/// subtrees already passed (#901). The proof walks every introduction commit and two trees per
+/// legacy archive, so without this every archived read of a legacy archive grew with all of
+/// them. A refusal is never cached, so it is re-derived live on every read.
+fn validate_legacy_archive_introductions_cached(
+    root: &Path,
+    baseline_digest: &str,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Result<(), String> {
+    let key = legacy_introductions_cache_key(baseline_digest, baseline, snapshots);
+    if key
+        .as_deref()
+        .is_some_and(|key| legacy_introductions_proven(root, key))
+    {
+        return Ok(());
+    }
+    validate_legacy_archive_introductions(root, baseline, snapshots)?;
+    if let Some(key) = key {
+        remember_legacy_introductions_proven(root, key);
+    }
+    Ok(())
 }
 
 fn validate_legacy_archive_introductions(
@@ -4538,6 +4603,223 @@ fn git_tree_snapshot(
     Ok(snapshot)
 }
 
+/// The longest `git cat-file --batch` header a delivery blob can have: object id, type and size.
+const MAX_DELIVERY_BLOB_HEADER_BYTES: u64 = 256;
+
+/// One `git cat-file --batch` child that returns one clean delivery blob per request, so the
+/// acceptance evidence holds at most one blob at a time however large its scope is
+/// (REQ-change-144). Each blob is bounded by `git_evidence_object_cap()`, checked from its header
+/// before any payload is read. The whole stream is bounded by the Git command deadline.
+struct DeliveryBlobStream {
+    child: Arc<Mutex<std::process::Child>>,
+    stdin: Option<std::process::ChildStdin>,
+    stdout: std::io::BufReader<std::process::ChildStdout>,
+    finished: Option<std::sync::mpsc::Sender<()>>,
+    watchdog: Option<std::thread::JoinHandle<()>>,
+    timed_out: Arc<AtomicBool>,
+}
+
+impl DeliveryBlobStream {
+    fn open(root: &Path) -> Result<Self, String> {
+        let mut command = configured_git_command(root);
+        command
+            .args(["cat-file", "--batch"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        record_test_git_process();
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("failed to run `git cat-file --batch`: {error}"))?;
+        let stdin = child.stdin.take();
+        let Some(stdout) = child.stdout.take() else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("failed to capture Git stdout".into());
+        };
+        let child = Arc::new(Mutex::new(child));
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let (finished, until_finished) = std::sync::mpsc::channel::<()>();
+        let watched = Arc::clone(&child);
+        let expired = Arc::clone(&timed_out);
+        let watchdog = std::thread::spawn(move || {
+            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                until_finished.recv_timeout(GIT_COMMAND_DEADLINE)
+            {
+                expired.store(true, Ordering::Release);
+                if let Ok(mut child) = watched.lock() {
+                    let _ = child.kill();
+                }
+            }
+        });
+        Ok(Self {
+            child,
+            stdin,
+            stdout: std::io::BufReader::new(stdout),
+            finished: Some(finished),
+            watchdog: Some(watchdog),
+            timed_out,
+        })
+    }
+
+    /// The bytes of the clean delivery input `relative`, whose index names Git object `object`.
+    fn read(&mut self, relative: &str, object: &str) -> Result<Vec<u8>, String> {
+        use std::io::BufRead;
+        if object.is_empty() || object.bytes().any(|byte| byte.is_ascii_whitespace()) {
+            return Err(format!(
+                "delivery input `{relative}` names an invalid Git object `{object}`"
+            ));
+        }
+        let failed = |stream: &Self, error: std::io::Error| {
+            if stream.timed_out.load(Ordering::Acquire) {
+                format!(
+                    "`git cat-file --batch` exceeded its {GIT_COMMAND_DEADLINE:?} wall-clock deadline while reading delivery input `{relative}`"
+                )
+            } else {
+                format!("failed to read delivery input `{relative}` from Git: {error}")
+            }
+        };
+        let Some(stdin) = self.stdin.as_mut() else {
+            return Err(format!(
+                "failed to read delivery input `{relative}` from Git: the batch reader is closed"
+            ));
+        };
+        if let Err(error) = stdin
+            .write_all(object.as_bytes())
+            .and_then(|()| stdin.write_all(b"\n"))
+            .and_then(|()| stdin.flush())
+        {
+            return Err(failed(self, error));
+        }
+        let mut header = Vec::new();
+        if let Err(error) = (&mut self.stdout)
+            .take(MAX_DELIVERY_BLOB_HEADER_BYTES)
+            .read_until(b'\n', &mut header)
+        {
+            return Err(failed(self, error));
+        }
+        if header.pop() != Some(b'\n') {
+            return Err(failed(
+                self,
+                std::io::Error::other("the batch header is truncated"),
+            ));
+        }
+        let header = String::from_utf8(header)
+            .map_err(|_| format!("Git batch header for delivery input `{relative}` is not UTF-8"))?;
+        let mut fields = header.split(' ');
+        let (Some(oid), Some(kind), Some(size), None) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            return Err(format!(
+                "unexpected Git batch header `{header}` for delivery input `{relative}`"
+            ));
+        };
+        if oid != object || kind != "blob" {
+            return Err(format!(
+                "unexpected Git batch header `{header}` for delivery input `{relative}`"
+            ));
+        }
+        let size: usize = size
+            .parse()
+            .map_err(|_| format!("Git batch header for delivery input `{relative}` has an invalid size"))?;
+        let cap = git_evidence_object_cap();
+        if size > cap {
+            return Err(format!(
+                "delivery input `{relative}` is {size} bytes, over the {cap}-byte bound on one evidence blob"
+            ));
+        }
+        let mut payload = vec![0; size];
+        if let Err(error) = self.stdout.read_exact(&mut payload) {
+            return Err(failed(self, error));
+        }
+        let mut terminator = [0_u8; 1];
+        if let Err(error) = self.stdout.read_exact(&mut terminator) {
+            return Err(failed(self, error));
+        }
+        if terminator != [b'\n'] {
+            return Err(format!(
+                "Git batch output for delivery input `{relative}` has no terminator"
+            ));
+        }
+        Ok(payload)
+    }
+}
+
+impl Drop for DeliveryBlobStream {
+    fn drop(&mut self) {
+        drop(self.stdin.take());
+        if let Some(finished) = self.finished.take() {
+            let _ = finished.send(());
+        }
+        if let Some(watchdog) = self.watchdog.take() {
+            let _ = watchdog.join();
+        }
+        if let Ok(mut child) = self.child.lock() {
+            if !matches!(child.try_wait(), Ok(Some(_))) {
+                let _ = child.kill();
+            }
+            let _ = child.wait();
+        }
+    }
+}
+
+/// The payload of each delivery entry, in the order the evidence builders ask for them. An entry
+/// that names a clean blob by object id is read through one `DeliveryBlobStream`, opened on the
+/// first such entry; every other entry already carries its bytes (REQ-change-144).
+struct DeliveryPayloads<'root> {
+    root: &'root Path,
+    stream: Option<DeliveryBlobStream>,
+}
+
+impl<'root> DeliveryPayloads<'root> {
+    fn new(root: &'root Path) -> Self {
+        Self { root, stream: None }
+    }
+
+    fn of<'entry>(
+        &mut self,
+        relative: &str,
+        captured: &'entry GitCapturedEntry,
+    ) -> Result<Cow<'entry, [u8]>, String> {
+        if !captured.object_identity {
+            return Ok(Cow::Borrowed(&captured.payload));
+        }
+        let object = captured
+            .object
+            .as_deref()
+            .ok_or_else(|| format!("clean delivery input `{relative}` has no Git object id"))?;
+        let stream = match &mut self.stream {
+            Some(stream) => stream,
+            None => self.stream.insert(DeliveryBlobStream::open(self.root)?),
+        };
+        stream.read(relative, object).map(Cow::Owned)
+    }
+
+    /// Give each affected spec's evidence entry its bytes. Owner lookup parses a spec's `files:`
+    /// list from them (`acceptance_input_owners`); every other clean file stays named by object id.
+    fn materialize_affected_specs(
+        &mut self,
+        record: &ChangeRecord,
+        evidence: &mut GitEvidence,
+    ) -> Result<(), String> {
+        let config = crate::config::load_config(self.root);
+        for module in &record.affected_specs {
+            let (spec_path, _) = canonical_module_paths(self.root, &config.specs_dir, module)?;
+            let spec_relative = strict_portable_project_path(self.root, &spec_path)?;
+            let Some(entry) = evidence.entries.get_mut(&spec_relative) else {
+                continue;
+            };
+            if !entry.object_identity {
+                continue;
+            }
+            let bytes = self.of(&spec_relative, entry)?.into_owned();
+            entry.payload = bytes;
+            entry.object_identity = false;
+        }
+        Ok(())
+    }
+}
+
 fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, String> {
     if objects.is_empty() {
         return Ok(Vec::new());
@@ -4554,7 +4836,7 @@ fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, S
         root,
         &["cat-file", "--batch"],
         Some(input),
-        MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES,
+        git_evidence_batch_cap(),
     )?;
     let mut cursor = 0;
     let mut blobs = Vec::with_capacity(objects.len());
@@ -4820,71 +5102,124 @@ pub(crate) struct UpstreamArchive {
 /// already contains is not reported: that is the reopen-and-rearchive path, which keeps working.
 /// When Git cannot answer, this returns `None` and every other gate still applies.
 ///
-/// The lookup is targeted so it can run for every unarchived state: one tree listing of the
-/// remote default's archive directory, and only on a match the package's `state.json`, the commit
-/// that added it and one ancestry check. It never builds the full archive index.
+/// The lookup is targeted so it can run for every unarchived state: one tree listing and one
+/// batched read of the remote default's archived `state.json` files, matched on their `id`, and
+/// only for a match the commit that added it and one ancestry check. It never builds the full
+/// archive index.
 pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<UpstreamArchive> {
     if record.state == ChangeState::Archived {
         return None;
     }
     let reference = remote_default_ref(root)?;
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH).ok()?;
-    let listing = git_output(
+    archived_state_paths_for(root, &reference, &archive_root, &record.id)?
+        .into_iter()
+        .find_map(|state_path| {
+            let commit = git_output(
+                root,
+                &[
+                    "log",
+                    "-1",
+                    "--format=%H",
+                    "--no-renames",
+                    "--diff-filter=A",
+                    &reference,
+                    "--",
+                    &format!(":(top,literal){state_path}"),
+                ],
+            )?;
+            let commit = commit.trim().to_string();
+            if commit.is_empty() || commit_is_ancestor(root, &commit, "HEAD")? {
+                return None;
+            }
+            Some(UpstreamArchive {
+                reference: reference.clone(),
+                commit,
+            })
+        })
+}
+
+/// The `state.json` paths under `archive_root` at `reference` whose record carries `id`.
+///
+/// Packages are matched by the id inside `state.json`, as `find_change_dir` does, so a renamed or
+/// undated package counts (REQ-change-139). Two Git processes however many packages there are:
+/// one `ls-tree -r` for the blob ids and one `cat-file --batch` for their bytes.
+fn archived_state_paths_for(
+    root: &Path,
+    reference: &str,
+    archive_root: &str,
+    id: &str,
+) -> Option<Vec<String>> {
+    let listing = run_git_bounded(
         root,
         &[
             "ls-tree",
+            "-r",
+            "-z",
             "--full-tree",
-            "--name-only",
-            &reference,
+            reference,
             "--",
             &format!("{archive_root}/"),
         ],
-    )?;
-    listing.lines().find_map(|entry| {
-        let package = entry.rsplit('/').next()?;
-        if !is_dated_package_for(package, &record.id) {
-            return None;
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    if !listing.status.success() {
+        return None;
+    }
+    let prefix = format!("{archive_root}/");
+    let mut candidates = Vec::new();
+    for entry in listing.stdout.split(|byte| *byte == 0) {
+        let entry = std::str::from_utf8(entry).ok()?;
+        let Some((meta, path)) = entry.split_once('\t') else {
+            continue;
+        };
+        let Some(package) = path
+            .strip_prefix(&prefix)
+            .and_then(|rest| rest.strip_suffix("/state.json"))
+        else {
+            continue;
+        };
+        if package.is_empty() || package.contains('/') {
+            continue;
         }
-        let state_path = format!("{entry}/state.json");
-        let state = git_output(root, &["show", &format!("{reference}:{state_path}"), "--"])?;
-        let archived: ChangeRecord = serde_json::from_str(&state).ok()?;
-        if archived.id != record.id {
-            return None;
+        let mut fields = meta.split(' ');
+        if let (Some(_mode), Some("blob"), Some(object)) = (fields.next(), fields.next(), fields.next()) {
+            candidates.push((object.to_string(), path.to_string()));
         }
-        let commit = git_output(
-            root,
-            &[
-                "log",
-                "-1",
-                "--format=%H",
-                "--diff-filter=A",
-                &reference,
-                "--",
-                &format!(":(top,literal){state_path}"),
-            ],
-        )?;
-        let commit = commit.trim().to_string();
-        if commit.is_empty() || commit_is_ancestor(root, &commit, "HEAD")? {
-            return None;
+    }
+    if candidates.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut request = String::new();
+    for (object, _) in &candidates {
+        request.push_str(object);
+        request.push('\n');
+    }
+    let batch = run_git_bounded(
+        root,
+        &["cat-file", "--batch"],
+        Some(request.into_bytes()),
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .ok()?;
+    if !batch.status.success() {
+        return None;
+    }
+    let mut rest = batch.stdout.as_slice();
+    let mut matches = Vec::new();
+    for (_, path) in &candidates {
+        let header_end = rest.iter().position(|byte| *byte == b'\n')?;
+        let header = std::str::from_utf8(&rest[..header_end]).ok()?;
+        let size: usize = header.rsplit(' ').next()?.parse().ok()?;
+        let body = rest.get(header_end + 1..header_end + 1 + size)?;
+        rest = rest.get(header_end + 1 + size + 1..).unwrap_or_default();
+        if serde_json::from_slice::<ChangeRecord>(body).is_ok_and(|record| record.id == id) {
+            matches.push(path.clone());
         }
-        Some(UpstreamArchive {
-            reference: reference.clone(),
-            commit,
-        })
-    })
-}
-
-/// Whether an archive directory name is exactly `YYYY-MM-DD-<id>`.
-fn is_dated_package_for(package: &str, id: &str) -> bool {
-    let Some(date) = package.strip_suffix(id).and_then(|rest| rest.strip_suffix('-')) else {
-        return false;
-    };
-    let bytes = date.as_bytes();
-    bytes.len() == 10
-        && bytes
-            .iter()
-            .enumerate()
-            .all(|(index, byte)| if matches!(index, 4 | 7) { *byte == b'-' } else { byte.is_ascii_digit() })
+    }
+    Some(matches)
 }
 
 /// The one sentence review, finalize, status and ship-status print for an upstream archive.

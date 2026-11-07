@@ -99,6 +99,9 @@ fn initial_correction_view_digest(record: &ChangeRecord) -> Result<String, Strin
 }
 
 fn corrected_view_digest(previous: &str, record: &CorrectionRecord) -> Result<String, String> {
+    // The embedded approvals are hashed without their relayed decision (#633), as the review
+    // digest is, so an older 6.x binary that drops the key computes the same digest.
+    let record = &correction_digest_projection(record);
     let payload = CorrectionDigestPayload {
         schema_version: record.schema_version,
         sequence: record.sequence,
@@ -1200,16 +1203,77 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     let path = workspace.join(SCOPED_REVIEW_FILE);
     let content = fs::read_to_string(&path)
         .map_err(|_| "independent scoped review evidence is missing".to_string())?;
-    let review: ScopedReviewRecord = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid independent scoped review evidence: {error}"))?;
+    let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            &path,
+            format!("invalid independent scoped review evidence: {error}"),
+        )
+    })?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
     let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
         &fs::read_to_string(&attempts_path)
             .map_err(|_| "append-only scoped review history is missing".to_string())?,
     )
-    .map_err(|error| format!("invalid scoped review attempt history: {error}"))?;
+    .map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            &attempts_path,
+            format!("invalid scoped review attempt history: {error}"),
+        )
+    })?;
+    ensure_read_relays_name_their_deciders(
+        [(review.reviewer.as_str(), review.relayed_by.as_ref())],
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    // Every attempt, not only the latest projection: earlier attempts stay uncommitted until ship
+    // too, so no Git prefix check would notice an edited one (#900 review).
+    ensure_read_relays_name_their_deciders(
+        attempts
+            .reviews
+            .iter()
+            .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &attempts_path, message))?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
+}
+
+/// How many scoped review attempts the change's `review-attempts.json` holds; `0` when it has none.
+fn recorded_scoped_review_attempts(root: &Path, record: &ChangeRecord) -> Result<usize, String> {
+    Ok(load_scoped_review_attempt_ledger(root, record)?.map_or(0, |ledger| ledger.reviews.len()))
+}
+
+fn load_scoped_review_attempt_ledger(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<ScopedReviewAttemptLedger>, String> {
+    let path = find_change_dir(root, &record.id)?.join(SCOPED_REVIEW_ATTEMPTS_FILE);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read scoped review history: {error}"))?;
+    serde_json::from_str(&content)
+        .map(Some)
+        .map_err(|error| format!("invalid scoped review attempt history: {error}"))
+}
+
+/// Whether `review`, at `review_index` in the attempt history, was recorded after `send_back`
+/// (CHANGE-12.e). A send-back that recorded how many attempts preceded it answers by position.
+/// One recorded before that count existed answers by time, strictly, so a review in the same
+/// second as the send-back does not count and needs one fresh review.
+fn review_recorded_after_send_back(
+    send_back: &SendBackRecord,
+    review_index: Option<usize>,
+    review: &ScopedReviewRecord,
+) -> bool {
+    match send_back.cancelled_review_attempts {
+        Some(before) => review_index.is_some_and(|index| index >= before),
+        None => review.timestamp > send_back.timestamp,
+    }
 }
 
 fn validate_scoped_review_attempts(
@@ -1240,7 +1304,10 @@ fn validate_scoped_review_attempts(
             .map_err(|error| format!("invalid committed scoped review history: {error}"))?;
         if committed.schema_version != 1
             || attempts.reviews.len() < committed.reviews.len()
-            || attempts.reviews[..committed.reviews.len()] != committed.reviews
+            || !reviews_match_ignoring_relays(
+                &attempts.reviews[..committed.reviews.len()],
+                &committed.reviews,
+            )
         {
             return Err(
                 "scoped review attempt history removed or rewrote committed evidence".into(),
@@ -1534,7 +1601,9 @@ fn validate_scoped_review_history_transition(
     {
         return Err("scoped review history moved evidence outside finalization".into());
     }
-    if current_ledger == previous_ledger {
+    if current_ledger.schema_version == previous_ledger.schema_version
+        && reviews_match_ignoring_relays(&current_ledger.reviews, &previous_ledger.reviews)
+    {
         return Ok(());
     }
     // Appending a review and moving the package can land in ONE commit: the whole
@@ -1544,7 +1613,10 @@ fn validate_scoped_review_history_transition(
     // survive byte-identical — and only the count restriction is relaxed across a move,
     // where a squash can legitimately collapse several attempts into one commit.
     let appended_only = current_ledger.reviews.len() > previous_ledger.reviews.len()
-        && current_ledger.reviews[..previous_ledger.reviews.len()] == previous_ledger.reviews;
+        && reviews_match_ignoring_relays(
+            &current_ledger.reviews[..previous_ledger.reviews.len()],
+            &previous_ledger.reviews,
+        );
     if appended_only
         && (current_path != previous_path
             || current_ledger.reviews.len() == previous_ledger.reviews.len() + 1)
@@ -1595,9 +1667,7 @@ fn collapsed_scoped_review_archive_is_terminal(
     let Ok(review) = serde_json::from_slice::<ScopedReviewRecord>(&review_bytes) else {
         return Ok(false);
     };
-    let review_digest = serde_json::to_vec(&review)
-        .map(|bytes| sha256_hex(&bytes))
-        .map_err(|error| format!("failed to hash collapsed scoped review: {error}"))?;
+    let review_digest = scoped_review_digest(&review)?;
     Ok(state.id == record.id
         && state.state == ChangeState::Archived
         && state.workflow_version == 2
@@ -1736,12 +1806,10 @@ fn validate_finalization_evidence_with_review_binding(
             return Err("finalization implementation is outside the scoped-review history".into());
         }
     }
-    let review_bytes = serde_json::to_vec(&review)
-        .map_err(|error| format!("failed to hash scoped review: {error}"))?;
     // The reopen-only mode retains the whole mismatched historical review as
     // untrusted, including its claimed hash. It grants no acceptance authority.
     // Finalization's own digest and every non-review integrity check stay strict.
-    if !recorded_workspace_mismatch && sha256_hex(&review_bytes) != finalization.review_digest {
+    if !recorded_workspace_mismatch && scoped_review_digest(&review)? != finalization.review_digest {
         return Err("finalization scoped-review digest does not match review.json".into());
     }
     if finalization_digest(&finalization) != finalization.finalization_digest {
@@ -1874,6 +1942,25 @@ fn scoped_review_currency(
                         .into(),
                 );
             }
+            // A send-back also cancels every review recorded before it, even when the scope comes
+            // back unchanged and the re-approval has the same digest (CHANGE-12.e, #960).
+            if let Some(send_back) = approvals.send_backs.last() {
+                let review_index = match load_scoped_review_attempt_ledger(root, record) {
+                    Ok(ledger) => ledger.and_then(|ledger| {
+                        ledger.reviews.iter().rposition(|attempt| attempt == review)
+                    }),
+                    Err(error) => {
+                        return ScopedReviewCurrency::Unavailable(format!(
+                            "the scoped review history could not be read ({error})"
+                        ));
+                    }
+                };
+                if !review_recorded_after_send_back(send_back, review_index, review) {
+                    return ScopedReviewCurrency::Stale(
+                        "the review was recorded before the change was last sent back".into(),
+                    );
+                }
+            }
         }
         Err(error) => {
             return ScopedReviewCurrency::Unavailable(format!(
@@ -1923,6 +2010,47 @@ fn scoped_review_currency(
         }
     }
     review_commit_currency(root, record, review)
+}
+
+/// Whether an archived change's package directory differs from `HEAD`: its `state.json` is not
+/// tracked (a package Git ignores is untracked too), or files under it are modified, staged or
+/// untracked. Two Git calls limited to the package, never the whole tree. When Git can't
+/// answer, it counts as uncommitted, so the full check runs as before.
+fn archived_package_is_uncommitted(root: &Path, record: &ChangeRecord) -> bool {
+    let Ok(package) = find_change_dir(root, &record.id) else {
+        return true;
+    };
+    let Ok(package) = git_repo_relative_path(root, &portable_project_path(root, &package)) else {
+        return true;
+    };
+    let pathspec = format!(":(top,literal){package}");
+    let state = format!(":(top,literal){package}/state.json");
+    match run_git_bounded(
+        root,
+        &["ls-files", "-z", "--", state.as_str()],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() && !output.stdout.is_empty() => {}
+        _ => return true,
+    }
+    match run_git_bounded(
+        root,
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=all",
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() => !output.stdout.is_empty(),
+        _ => true,
+    }
 }
 
 fn scoped_review_is_current(
@@ -2249,6 +2377,25 @@ pub fn record_scoped_review_with_verdict(
     reviewer: String,
     verdict: ScopedReviewVerdict,
 ) -> Result<ScopedReviewRecord, String> {
+    record_scoped_review_with_relay(root, id, reviewer, verdict, None)
+}
+
+/// Record a scoped review carrying an optional relayed decision (#633, SHIP-2.e). The relay must
+/// name the validated reviewer claim as the one who decided.
+pub fn record_scoped_review_with_relay(
+    root: &Path,
+    id: &str,
+    reviewer: String,
+    verdict: ScopedReviewVerdict,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<ScopedReviewRecord, String> {
+    if relayed_by.is_some() {
+        ensure_relay_names_the_decider(
+            relayed_by.as_ref(),
+            validate_scoped_reviewer_claim(&reviewer)?,
+            "--reviewer",
+        )?;
+    }
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
@@ -2326,6 +2473,7 @@ pub fn record_scoped_review_with_verdict(
         execution_digest: Some(execution_digest),
         workspace_digest,
         timestamp: now(),
+        relayed_by,
     };
     attempts.reviews.push(review.clone());
     write_prepared_files(
@@ -2434,6 +2582,7 @@ fn accept_change_with_gate(
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2464,6 +2613,8 @@ fn accept_change_with_gate(
                 approved_delta_bases: effective_definition_approval(root, &record, &ledger)?
                     .approved_delta_bases
                     .clone(),
+                // Recorded by whoever runs this acceptance, not relayed from the original approver.
+                relayed_by: None,
             });
         }
         ledger.approvals.push(ApprovalRecord {
@@ -2477,6 +2628,7 @@ fn accept_change_with_gate(
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2533,9 +2685,7 @@ fn accept_change_with_gate(
             ],
         )
         .ok_or_else(|| "finalization requires a committed implementation tree".to_string())?;
-        let review_bytes = serde_json::to_vec(&review)
-            .map_err(|error| format!("failed to hash scoped review: {error}"))?;
-        let review_digest = sha256_hex(&review_bytes);
+        let review_digest = scoped_review_digest(&review)?;
         let mut finalization = FinalizationRecord {
             schema_version: 2,
             change_id: record.id.clone(),
@@ -3364,10 +3514,6 @@ pub fn summarize_change_with_strict(
     summarize_change_with_effective(root, record, explicit_strict, effective.as_ref())
 }
 
-/// The handoff verdict for one change, from the same signals `summarize_change` reads — but
-/// gathered only as far as the state needs. Text-mode `status` prints this on every change,
-/// and an archived record's terminal-evidence walk over the whole archive would turn that line
-/// into a minutes-long wait for a verdict that is `safe` regardless.
 /// Never `Safe`: review and finalize refuse a change the remote default already archived, so a
 /// fresh session must first rebase off the stale copy (REQ-change-129).
 fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
@@ -3379,6 +3525,12 @@ fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSumm
     }
 }
 
+/// The handoff verdict for one change, from the same signals `summarize_change` reads — but
+/// gathered only as far as the state needs. An archived record reads the same terminal-evidence
+/// verdict `ChangeSummary` carries: an archive that fails its integrity check is not safe to
+/// leave, and assuming it was let the text line call `safe` what JSON reported as
+/// `corrupt-history` (#880). Inside a read scope that verdict is memoized, so the `Next:` and
+/// `Handoff:` lines of one text result share one walk.
 pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     let sequence_frozen = sequence_ledger_freeze_next_action(root).is_some();
     let mut signals = HandoffSignals {
@@ -3393,6 +3545,7 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         verification_current: true,
         scoped_review_current: true,
         terminal_evidence_stale: false,
+        corrupt_archive: None,
     };
     if sequence_frozen {
         return classify_handoff(&record.id, &signals);
@@ -3401,7 +3554,10 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         return upstream_archive_handoff(&record.id, &upstream);
     }
     match record.state {
-        ChangeState::Archived => {}
+        ChangeState::Archived => {
+            signals.corrupt_archive =
+                corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)));
+        }
         ChangeState::Draft => {
             signals.open_questions = !next_questions_for(root, record).is_empty();
             signals.artifacts_complete =
@@ -3461,11 +3617,18 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
         )
     } else {
         match signals.state {
-            ChangeState::Archived => (
-                HandoffReadiness::Safe,
-                "the change is archived; nothing this session knows is still needed",
-                Vec::new(),
-            ),
+            ChangeState::Archived => match &signals.corrupt_archive {
+                Some(corrupt) => (
+                    HandoffReadiness::NotYet,
+                    "the archive fails its integrity check, so a fresh session cannot trust it, and only this session may know what changed it",
+                    vec![corrupt_archive_recovery(id, corrupt)],
+                ),
+                None => (
+                    HandoffReadiness::Safe,
+                    "the change is archived; nothing this session knows is still needed",
+                    Vec::new(),
+                ),
+            },
             ChangeState::Draft if signals.open_questions => (
                 HandoffReadiness::Conditional,
                 "the interview is unfinished, so what this session has decided is not recorded yet",
@@ -3578,6 +3741,108 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
     }
 }
 
+/// The step that restores an archive failing its integrity check, ending with the status read
+/// that confirms it. When the package differs from `HEAD` the committed bytes are one command
+/// away; when the damage is committed, the commit that archived the package holds them; when the
+/// package is intact, the failing evidence is elsewhere and the status JSON names it. Built from
+/// literals, the change ID and the package path only — never a digest — and every interpolated
+/// word is shell-quoted, because a change ID or archive directory may carry `;`, `$` or spaces and
+/// the step is meant to be copied into a shell (#901 review).
+fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
+    let status = format!("specsync change status {}", shell_quote(id));
+    match corrupt {
+        CorruptArchive::DiffersFromHead { package } => format!(
+            "run `git restore --source=HEAD --staged --worktree -- {}` to put back the committed archive, then `{status}`",
+            shell_quote(package)
+        ),
+        CorruptArchive::DamageCommitted { package } => format!(
+            "run `git restore --source=<commit> --staged --worktree -- {}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {}`), commit the restore, then run `{status}`",
+            shell_quote(package),
+            shell_quote(&format!("{package}/state.json"))
+        ),
+        CorruptArchive::OutsidePackage => format!(
+            "run `{status} --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `{status}`"
+        ),
+    }
+}
+
+/// Single-quotes `text` as one POSIX shell word: nothing inside single quotes is expanded, and an
+/// embedded `'` closes, escapes and reopens. The same quoting `commands::merge` uses for the
+/// merge-driver command line.
+fn shell_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+/// The restore step for an archived record whose terminal evidence is `corrupt-history`, for the
+/// text adapters' `Next:` line; `None` for any other state or an archive that authenticates.
+/// The same string `ChangeSummary.next_action` and the handoff's first step carry.
+pub fn corrupt_archive_recovery_for_guidance(root: &Path, record: &ChangeRecord) -> Option<String> {
+    if record.state != ChangeState::Archived {
+        return None;
+    }
+    corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)))
+        .map(|corrupt| corrupt_archive_recovery(&record.id, &corrupt))
+}
+
+/// The corrupt-archive signal for one record: `Some` only for an archived record whose terminal
+/// evidence is `corrupt-history`. Locating the package and asking Git where its trusted bytes are
+/// happens on that path alone, so an archive that authenticates costs nothing extra.
+fn corrupt_archive_signal(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: Option<&TerminalEvidenceSummary>,
+) -> Option<CorruptArchive> {
+    if record.state != ChangeState::Archived
+        || evidence?.validity != TerminalEvidenceValidity::CorruptHistory
+    {
+        return None;
+    }
+    let archive_root = root.join(ARCHIVE_PATH);
+    let package = find_change_dir(root, &record.id)
+        .ok()
+        .filter(|directory| directory.starts_with(&archive_root))
+        .and_then(|directory| {
+            directory
+                .strip_prefix(root)
+                .ok()
+                .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        });
+    // Outside a work tree `git diff` silently becomes `--no-index`, compares a path named `HEAD`,
+    // and exits 1 as if the package differed, so the repository is confirmed first.
+    let Some(package) = package.filter(|_| git_repository_present(root).unwrap_or(false)) else {
+        return Some(CorruptArchive::OutsidePackage);
+    };
+    // Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly when the
+    // package's tracked content differs from that commit, staged or not.
+    let differs_from = |commit: &str| {
+        crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args(["diff", "--quiet", commit, "--", &package])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| status.code() == Some(1))
+    };
+    if differs_from("HEAD") {
+        return Some(CorruptArchive::DiffersFromHead { package });
+    }
+    let state = format!("{package}/state.json");
+    let archiving_commit = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["log", "-1", "--diff-filter=A", "--format=%H", "--", &state])
+            .current_dir(root),
+    )
+    .ok()
+    .filter(|output| output.status.success())
+    .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    .filter(|commit| !commit.is_empty());
+    // A package that still matches the commit that archived it is not what failed: restoring it
+    // would change nothing and leave the next session blocked on the same verdict.
+    match archiving_commit {
+        Some(commit) if differs_from(&commit) => Some(CorruptArchive::DamageCommitted { package }),
+        _ => Some(CorruptArchive::OutsidePackage),
+    }
+}
+
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,
 /// ignoring `.specsync/`: lifecycle evidence is uncommitted by design between `change review`
 /// and `change finalize`, and counting it would report `conditional` at exactly the moment the
@@ -3683,8 +3948,17 @@ fn summarize_change_with_effective(
     let verification_current = record.state == ChangeState::Verifying
         && load_verification(root, record)
             .is_ok_and(|verification| verification_is_current(root, record, &verification));
-    let scoped_review_current = load_scoped_review(root, record)
-        .is_ok_and(|review| scoped_review_is_current(root, record, &review));
+    // A committed archive's review never matches the working tree again, so it reports `false`
+    // without digesting the whole tree; only while its package is still uncommitted (the window
+    // between `finalize` and its commit) is the full check needed (REQ-change-147).
+    let scoped_review_current = if record.state == ChangeState::Archived
+        && !archived_package_is_uncommitted(root, record)
+    {
+        false
+    } else {
+        load_scoped_review(root, record)
+            .is_ok_and(|review| scoped_review_is_current(root, record, &review))
+    };
     let routing = load_verification_routing(root).unwrap_or_default();
     let strict_validation_required =
         explicit_strict || change_requires_strict_validation(record, &routing);
@@ -3699,6 +3973,9 @@ fn summarize_change_with_effective(
     )];
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
+    // One signal feeds both the archived next action and the handoff, so the JSON cannot name a
+    // restore while calling the same archive safe to leave (#880).
+    let corrupt_archive = corrupt_archive_signal(root, record, terminal_evidence.as_ref());
     // Sequence-ledger freezes must outrank state-local next actions (including reopen /
     // finalize). Premature multi-id acknowledgements block change new/adopt project-wide.
     let sequence_freeze = sequence_ledger_freeze_next_action(root);
@@ -3819,17 +4096,10 @@ fn summarize_change_with_effective(
             ChangeState::Accepted => {
                 format!("run `specsync change archive {}`", record.id)
             }
-            ChangeState::Archived
-                if terminal_evidence.as_ref().is_some_and(|evidence| {
-                    evidence.validity == TerminalEvidenceValidity::CorruptHistory
-                }) =>
-            {
-                format!(
-                    "restore the archive for {} from trusted Git history, then run `specsync change check`",
-                    record.id
-                )
-            }
-            ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
+            ChangeState::Archived => match &corrupt_archive {
+                Some(corrupt) => corrupt_archive_recovery(&record.id, corrupt),
+                None => "merge the PR on GitHub if it is still open".into(),
+            },
         }
     };
     // Checkbox state is outside every digest the currency helpers above compare, so an open task
@@ -3881,6 +4151,7 @@ fn summarize_change_with_effective(
                 || (record.state == ChangeState::Accepted
                     && record.workflow_version < 2
                     && ensure_closing_approval_valid(root, record).is_err()),
+            corrupt_archive,
         },
         )
     };

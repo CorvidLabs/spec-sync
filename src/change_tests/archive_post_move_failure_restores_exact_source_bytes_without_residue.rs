@@ -726,13 +726,16 @@ fn strict_check_reports_standalone_unprovable_archived_history() {
         report.terminal_evidence[0].evidence.validity,
         TerminalEvidenceValidity::CorruptHistory
     );
-    assert_eq!(
-        summarize_change(root, &record).next_action,
-        format!(
-            "restore the archive for {} from trusted Git history, then run `specsync change check`",
-            record.id
-        )
+    // No repository here, so no package restore can be named: the step points at the evidence
+    // the status JSON reports, and the dead `specsync change check` tail is gone (#880).
+    let summary = summarize_change(root, &record);
+    let step = format!(
+        "run `specsync change status '{0}' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status '{0}'`",
+        record.id
     );
+    assert_eq!(summary.next_action, step);
+    assert_eq!(summary.handoff.readiness, HandoffReadiness::NotYet);
+    assert_eq!(summary.handoff.before_clearing, vec![step]);
 }
 
 #[test]
@@ -3109,6 +3112,7 @@ fn unallowlisted_scope_migration_cannot_rewrite_an_approval_projection() {
         }),
         approved_delta_digests: None,
         approved_delta_bases: None,
+        relayed_by: None,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -3216,6 +3220,7 @@ fn scope_adoption_fails_closed_when_anchor_is_unavailable_or_replayed() {
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         }],
         scope_adoptions: vec![ScopeAdoptionV1 {
             schema_version: 1,
@@ -3388,6 +3393,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         },
     );
     assert_invalid(intervening);
@@ -3433,6 +3439,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
         scope_migration: None,
         approved_delta_digests: None,
         approved_delta_bases: None,
+        relayed_by: None,
     });
     assert!(
         resolve_definition_approval_event(
@@ -3461,6 +3468,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
         scope_migration: None,
         approved_delta_digests: None,
         approved_delta_bases: None,
+        relayed_by: None,
     });
     assert!(
         resolve_definition_approval_event(

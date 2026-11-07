@@ -1,0 +1,202 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793936558,
+      "digest": "21ddd8847a1a8c110b57ccd017de8869f6c248cf19694c4ce61b4891767b931a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+        "title": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "description": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "hi/change.md",
+          "src/change/",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An archive whose terminal evidence authenticates, including `historical-transition-unproven`, keeps handoff `safe`, the text `Next: no further action` and the JSON next action to merge the PR on GitHub if it is still open.",
+          "An archived change whose terminal evidence is `corrupt-history` reports handoff readiness `not-yet`, never `safe`, in `change status --json` (`summary.handoff`) and on the text `Handoff:` line, with a reason naming the failed integrity check.",
+          "Running the named command verbatim on a tampered, uncommitted archive, and the archiving-commit restore on committed damage, returns terminal evidence `authenticated-history` and handoff `safe` in JSON and text; `change status` writes nothing to the archive.",
+          "Text `change status`, and the `Handoff:` line `finalize` and `ship` print, judge an archived change with the same terminal-evidence verdict JSON reports. The measured text-status cost on this repository (247 archives) is recorded in testing.md, and no test, gate, bound or timeout is weakened.",
+          "The integration test fails on main ad50bdef with readiness `safe` and passes with the fix.",
+          "The step before clearing, the JSON `next_action`, the text `Next:` line and `change ship-status`'s next action name the same recovery, ending with `specsync change status <id>`: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`; otherwise the same restore from the commit that archived it (`git log -1 --diff-filter=A --format=%H -- <package>/state.json`), then a commit. No step contains a digest, and `specsync change check`, which checks nothing for an archived change, is no longer named."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "cmd_change lesson: a text next action and a JSON next action are two projections of one value, so the fix reaches both (and ship-status, which reuses the text one). change lesson: a workflow-v2 defect is reproduced under workflow v2, and a refusal test asserts the refusal's text, not only its readiness. No digest reaches a text sink (CodeQL cleartext-logging): the recovery carries literals, the change ID and the package path only.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "cb10271e905f1fbd856c1e127f8d19e168f8abb6762aaed0f8a0b21990e54acf",
+        "cmd_change": "7d93253f27d0c9ce6152fd8791ac4edc77993fb0c2a8b9b5bc450dea619d243b"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-093": "d3340e014cdc351e80a8cfbdd5608f2cac86181bec7ef9f1beb50f294b8a9b71",
+        "cmd_change: REQUIREMENT REQ-cmd-change-014": "11f4ad09e41e0f8dda4e753300d477a9336a450a46308fcd7f8718282baab4bd"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793942683,
+      "digest": "65d3648d16101b76400bfde45a571e0d649f1d9ef8d34fb6c62fb29f42047d42",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+        "title": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "description": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "hi/change.md",
+          "src/change/",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An archive whose terminal evidence authenticates, including `historical-transition-unproven`, keeps handoff `safe`, the text `Next: no further action` and the JSON next action to merge the PR on GitHub if it is still open.",
+          "An archived change whose terminal evidence is `corrupt-history` reports handoff readiness `not-yet`, never `safe`, in `change status --json` (`summary.handoff`) and on the text `Handoff:` line, with a reason naming the failed integrity check.",
+          "Every change ID and path interpolated into a printed command is single-quoted as one shell word, so copying the step from a repository whose change ID or archive directory carries `;`, `$`, quotes or spaces runs exactly the named command (Codex P1 on #901).",
+          "Running the named command verbatim through a shell on a tampered, uncommitted archive, and the archiving-commit restore on committed damage, returns terminal evidence `authenticated-history` and handoff `safe` in JSON and text; `change status` writes nothing to the archive.",
+          "Text `change status`, and the `Handoff:` line `finalize` and `ship` print, judge an archived change with the same terminal-evidence verdict JSON reports. The measured text-status cost on this repository (247 archives) is recorded in testing.md (follow-up #897), and no test, gate, bound or timeout is weakened.",
+          "The integration test fails on main ad50bdef with readiness `safe` and passes with the fix; the quoting and outside-package tests fail on db2e3ab4 and pass with the fix.",
+          "The step before clearing, the JSON `next_action`, the text `Next:` line and `change ship-status`'s next action name the same recovery, ending with `specsync change status <id>`: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`; the same restore from the commit that archived it (`git log -1 --diff-filter=A --format=%H -- <package>/state.json`), then a commit, when the package matches `HEAD` but not that commit; and, when the package still matches the commit that archived it (or no package or repository can answer), `specsync change status <id> --json` to read what `terminal_evidence.reason` names and restore that from trusted Git history. No step contains a digest, and `specsync change check`, which checks nothing for an archived change, is no longer named."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "cmd_change lesson: a text next action and a JSON next action are two projections of one value, so the fix reaches both (and ship-status, which reuses the text one). change lesson: a workflow-v2 defect is reproduced under workflow v2, and a refusal test asserts the refusal's text, not only its readiness. No digest reaches a text sink (CodeQL cleartext-logging): the recovery carries literals, the change ID and the package path only.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "a82978fd60630bfb6439848966a23d68e47a99ccc0d18a722bec5364b2a4a124",
+        "cmd_change": "7d93253f27d0c9ce6152fd8791ac4edc77993fb0c2a8b9b5bc450dea619d243b"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-093": "d3400211e47bbafaca730982f57df193273fb7112a59f7a4f9825498b1ec7fa9",
+        "cmd_change: REQUIREMENT REQ-cmd-change-014": "11f4ad09e41e0f8dda4e753300d477a9336a450a46308fcd7f8718282baab4bd"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793946409,
+      "digest": "65d3648d16101b76400bfde45a571e0d649f1d9ef8d34fb6c62fb29f42047d42",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+        "title": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "description": "Report a not-yet handoff for an archive that fails its integrity check and name the git restore that recovers it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "hi/change.md",
+          "src/change/",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An archive whose terminal evidence authenticates, including `historical-transition-unproven`, keeps handoff `safe`, the text `Next: no further action` and the JSON next action to merge the PR on GitHub if it is still open.",
+          "An archived change whose terminal evidence is `corrupt-history` reports handoff readiness `not-yet`, never `safe`, in `change status --json` (`summary.handoff`) and on the text `Handoff:` line, with a reason naming the failed integrity check.",
+          "Every change ID and path interpolated into a printed command is single-quoted as one shell word, so copying the step from a repository whose change ID or archive directory carries `;`, `$`, quotes or spaces runs exactly the named command (Codex P1 on #901).",
+          "Running the named command verbatim through a shell on a tampered, uncommitted archive, and the archiving-commit restore on committed damage, returns terminal evidence `authenticated-history` and handoff `safe` in JSON and text; `change status` writes nothing to the archive.",
+          "Text `change status`, and the `Handoff:` line `finalize` and `ship` print, judge an archived change with the same terminal-evidence verdict JSON reports. The measured text-status cost on this repository (247 archives) is recorded in testing.md (follow-up #897), and no test, gate, bound or timeout is weakened.",
+          "The integration test fails on main ad50bdef with readiness `safe` and passes with the fix; the quoting and outside-package tests fail on db2e3ab4 and pass with the fix.",
+          "The step before clearing, the JSON `next_action`, the text `Next:` line and `change ship-status`'s next action name the same recovery, ending with `specsync change status <id>`: `git restore --source=HEAD --staged --worktree -- <package>` when the package differs from `HEAD`; the same restore from the commit that archived it (`git log -1 --diff-filter=A --format=%H -- <package>/state.json`), then a commit, when the package matches `HEAD` but not that commit; and, when the package still matches the commit that archived it (or no package or repository can answer), `specsync change status <id> --json` to read what `terminal_evidence.reason` names and restore that from trusted Git history. No step contains a digest, and `specsync change check`, which checks nothing for an archived change, is no longer named."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "cmd_change lesson: a text next action and a JSON next action are two projections of one value, so the fix reaches both (and ship-status, which reuses the text one). change lesson: a workflow-v2 defect is reproduced under workflow v2, and a refusal test asserts the refusal's text, not only its readiness. No digest reaches a text sink (CodeQL cleartext-logging): the recovery carries literals, the change ID and the package path only.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "a82978fd60630bfb6439848966a23d68e47a99ccc0d18a722bec5364b2a4a124",
+        "cmd_change": "7d93253f27d0c9ce6152fd8791ac4edc77993fb0c2a8b9b5bc450dea619d243b"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-093": "d3400211e47bbafaca730982f57df193273fb7112a59f7a4f9825498b1ec7fa9",
+        "cmd_change: REQUIREMENT REQ-cmd-change-014": "11f4ad09e41e0f8dda4e753300d477a9336a450a46308fcd7f8718282baab4bd"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793984507,
+      "digest": "6c3af48e38e0fcfb8463d188cfb952a1952af50855d99ceaf4a7ec351d64238f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "report-a-not-yet-handoff-for-an-archive-that-fails-its-integrity-check-and-name-the-git-restore-that-recovers-it",
+      "actor": "ss-s3 Claude agent",
+      "reason": "Codex review of PR #901 at db2e3ab4: P1, the printed restore interpolated the archive directory and change ID unquoted (shell injection from a hostile repository); P2, the package restore is a no-op when the failing evidence is outside the package (shared legacy baseline). The fix adds a third recovery case and shell-quoting, so the acceptance criteria and REQ-change-093 change. Send-back authorized by orc t18 under the standing 'fix P1s and small real issues' rule; Leif's earlier review at db2e3ab4 is superseded.",
+      "timestamp": 1793942442,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-change-093",
+          "content": "The lifecycle SHALL compute a handoff readiness for every change so an agent can tell whether\nclearing its context — or handing the change to a fresh session — loses anything the lifecycle\nstill needs, and SHALL say what to do first when it does.\n\nAcceptance Criteria\n- `handoff_summary` returns `safe`, `conditional`, or `not-yet` with a plain-language reason, the\n  resume command `specsync change status <id>`, and, when readiness is not `safe`, at least one\n  concrete step to take before clearing. No reason or step contains a digest.\n- `classify_handoff` is a pure function of `HandoffSignals`; every branch has a unit test that\n  needs no repository.\n- A frozen sequence ledger, a definition changed after its approval, an invalid correction\n  ledger, stale legacy terminal evidence, and an archive whose terminal evidence is\n  `corrupt-history` are `not-yet`, and the step named is the repair the lifecycle already requires\n  (clear the freeze, re-approve, restore the ledger, reopen, restore the archive package).\n- A Draft is never `safe`: open questions, stub artifacts, and a complete-but-unapproved\n  definition are each `conditional`, and the steps name answering, finishing the artifacts, or\n  approving — approval is the first boundary a fresh session can resume from.\n- Uncommitted edits under the change's `affected_paths` make an approved, implementing, or\n  verifying change `conditional` and name committing or writing the intent into `change.md`;\n  uncommitted files under `.specsync/` alone never do, because `change review` then\n  `change finalize` runs with that evidence uncommitted by design.\n- A verifying change whose recorded verification is stale is `conditional` and names\n  `specsync change check <id> --commit`; one whose verification is current is `safe` whether the\n  scoped review has been recorded yet or not, and the reason says which step a fresh session\n  resumes at.\n- An accepted workflow-v2 change and an archived change whose terminal evidence authenticates\n  (including `historical-transition-unproven`) are `safe`.\n- For an archived change whose terminal evidence is `corrupt-history`, the step before clearing\n  and the summary's next action are one string: `git restore --source=HEAD --staged --worktree --\n  <package>` when the package's tracked files differ from `HEAD`, otherwise the same restore from\n  the commit that archived the package (named by `git log -1 --diff-filter=A --format=%H --\n  <package>/state.json`) followed by a commit, and in every case then `specsync change status\n  <id>`. Running that step on a tampered archive returns `authenticated-history` and `safe`.\n- `handoff_summary` judges an archived record from the same terminal-evidence verdict\n  `ChangeSummary` carries, so the text line cannot call an archive `safe` that JSON reports as\n  `corrupt-history`.\n- `ChangeSummary` carries the decision as `handoff`, so JSON consumers read the same verdict the\n  text line prints.",
+          "previous_content": "The lifecycle SHALL compute a handoff readiness for every change so an agent can tell whether\nclearing its context — or handing the change to a fresh session — loses anything the lifecycle\nstill needs, and SHALL say what to do first when it does.\n\nAcceptance Criteria\n- `handoff_summary` returns `safe`, `conditional`, or `not-yet` with a plain-language reason, the\n  resume command `specsync change status <id>`, and, when readiness is not `safe`, at least one\n  concrete step to take before clearing. No reason or step contains a digest.\n- `classify_handoff` is a pure function of `HandoffSignals`; every branch has a unit test that\n  needs no repository.\n- A frozen sequence ledger, a definition changed after its approval, an invalid correction\n  ledger, and stale legacy terminal evidence are `not-yet`, and the step named is the repair the\n  lifecycle already requires (clear the freeze, re-approve, restore the ledger, reopen).\n- A Draft is never `safe`: open questions, stub artifacts, and a complete-but-unapproved\n  definition are each `conditional`, and the steps name answering, finishing the artifacts, or\n  approving — approval is the first boundary a fresh session can resume from.\n- Uncommitted edits under the change's `affected_paths` make an approved, implementing, or\n  verifying change `conditional` and name committing or writing the intent into `change.md`;\n  uncommitted files under `.specsync/` alone never do, because `change review` then\n  `change finalize` runs with that evidence uncommitted by design.\n- A verifying change whose recorded verification is stale is `conditional` and names\n  `specsync change check <id> --commit`; one whose verification is current is `safe` whether the\n  scoped review has been recorded yet or not, and the reason says which step a fresh session\n  resumes at.\n- An accepted workflow-v2 change and an archived change are `safe`.\n- `ChangeSummary` carries the decision as `handoff`, so JSON consumers read the same verdict the\n  text line prints."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-cmd-change-014",
+          "content": "`change ship-status` SHALL name a next action the same binary will accept, and SHALL resolve a change's verification and review evidence from wherever that change currently lives.\n\nAcceptance Criteria\n- Outside the shipping window — draft, accepted, and archived — the printed next action equals the lifecycle next action, so a draft is told to answer its interview rather than to commit verification, an archived change whose terminal evidence authenticates is told there is no further action, and an archived change whose terminal evidence is `corrupt-history` is told the restore that recovers it, the same step `change status` names.\n- The next action is always a runnable command and never a restatement of a blocker; blockers continue to render on their own lines.\n- An archived change reports the verification commit and the scoped review recorded in its archive package, rather than reporting none and missing because the artifacts were sought at the active workspace path it has left.\n- Evidence resolution reuses the single active-or-archive workspace resolver rather than introducing a third path-construction idiom.\n- An unreadable or unparseable archived verification artifact reports no verification evidence and leaves the command successful, so an already-damaged repository is not made harder to inspect.",
+          "previous_content": "`change ship-status` SHALL name a next action the same binary will accept, and SHALL resolve a change's verification and review evidence from wherever that change currently lives.\n\nAcceptance Criteria\n- Outside the shipping window — draft, accepted, and archived — the printed next action equals the lifecycle next action, so a draft is told to answer its interview rather than to commit verification, and an archived change is told there is no further action.\n- The next action is always a runnable command and never a restatement of a blocker; blockers continue to render on their own lines.\n- An archived change reports the verification commit and the scoped review recorded in its archive package, rather than reporting none and missing because the artifacts were sought at the active workspace path it has left.\n- Evidence resolution reuses the single active-or-archive workspace resolver rather than introducing a third path-construction idiom.\n- An unreadable or unparseable archived verification artifact reports no verification evidence and leaves the command successful, so an already-damaged repository is not made harder to inspect."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
+}

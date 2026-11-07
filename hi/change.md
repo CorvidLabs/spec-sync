@@ -17,7 +17,13 @@ CHANGE-11 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7
 
 CHANGE-12 is captured from Leif's answer in a Grok Bot widget on 2026-11-04 at 7:34 AM MST (issue #844): he chose "Both A and B" for the options, which confirms option A (send a change back for re-scoping) with these criteria. Recorded by corvid-agent.
 
+CHANGE-7.a.1 and CHANGE-7.a.2 are captured from Leif's answer in the orc tab on 2026-11-05 at 20:42 MST (issue #880, audit D3): "Approve", for these two sentences as worded. Relayed by orc t18; recorded by the ss-s3 Claude agent.
+
 CHANGE-12.d is captured from Leif's answer in the orc tab on 2026-11-06 at 06:1x MST (issue #914): "Ok yes I approve all", in reply to a brief that proposed this sentence as worded. Relayed by orc t18; recorded by the ss-914 Claude agent.
+
+CHANGE-12.e is captured from Leif's answer in the orc tab on 2026-11-06 (issue #960, from the Codex review of #944): "Capture both", confirming this sentence as worded. Relayed by orc t18; recorded by the ss-960 Claude agent.
+
+The retirement of CHANGE-6.b, CHANGE-6.d, and CHANGE-13 through CHANGE-13.d were drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. On whether the relay record belongs in the review digest he said "Keep it out". Recorded by claude (ss-d7).
 
 CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05 audit findings (a bypassed incomplete-task guard left every selected test passing, and the refusal named no recovery while status repeated the check command). Leif approved them in the Herdr orc tab on 2026-11-05 at 20:20 MST ("Approve", the agent's wording, renumbered from the proposed CHANGE-13), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
@@ -40,10 +46,12 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-5.b**  Two live changes editing the same part of the same contract is a conflict I hear about early, not at merge.
 - **CHANGE-6**  Exactly one human approval stands between an agreed change and the work starting.
   - **CHANGE-6.a**  That approval is bound to the content it approved, so later edits cannot ride on it.
-  - **CHANGE-6.b**  A coding agent can never grant that approval to itself.
   - **CHANGE-6.c**  Changing the agreed intent, contract, criteria or scope costs a fresh approval; getting on with the implementation does not.
+  - **CHANGE-6.d**  An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.
 - **CHANGE-7**  At any moment I can ask what state a change is in and be told the single next thing to do.
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
+    - **CHANGE-7.a.1**  A change whose archive fails its integrity check is never called safe to walk away from.
+    - **CHANGE-7.a.2**  I am told the exact command that restores that archive from trusted history, and once it is restored I am told it is safe again.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
 - **CHANGE-10**  When `change approve` refuses an affected path that no module owns, the error says which spec to edit.
@@ -59,7 +67,18 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-12.b**  Sending it back cancels its approval, so the new scope needs a fresh one.
   - **CHANGE-12.c**  Nothing already recorded about the change is lost.
   - **CHANGE-12.d**  A change I send back after it was reviewed can be reviewed again once it is approved again, and the earlier review stays in its history.
+  - **CHANGE-12.e**  After I send a change back, it needs a fresh review before it can ship, even when its scope comes back unchanged.
+- **CHANGE-13**  When an agent records a decision a person made somewhere else, I can see who decided, their exact words, where they said it, and which agent wrote it down.
+  - **CHANGE-13.a**  That record is optional, so a person approving at their own terminal is not asked for one.
+  - **CHANGE-13.b**  The change's status shows it beside the approval or review it belongs to.
+  - **CHANGE-13.c**  The status says plainly that the record is a claim too, not proof that the person decided.
+  - **CHANGE-13.d**  A record missing one of those details is refused before anything is written, and the refusal says which detail is missing.
 - **CHANGE-14**  A change cannot pass its check while any of its tasks is still open.
   - **CHANGE-14.a**  The refusal names each open task and the command to run once it is done.
   - **CHANGE-14.b**  The change's status names that same way forward instead of telling me to run the check again.
   - **CHANGE-14.c**  A task reopened after a passing check stops the change from being reviewed or finalized until it is done again.
+
+## Retired
+
+  - **CHANGE-6.b**  A coding agent can never grant that approval to itself.
+    retired: An approval records the name it is given; nothing local can tell a person from an agent typing that name (audit D7, #633). Replaced by CHANGE-6.d.

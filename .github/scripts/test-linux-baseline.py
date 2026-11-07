@@ -185,7 +185,13 @@ class WorkflowLockstepTests(unittest.TestCase):
         triggers = self.ci.get("on") or self.ci.get("true") or {}
         for event in ("push", "pull_request"):
             with self.subTest(event=event):
-                self.assertIn(".github/workflows/rc-assets.yml", triggers[event]["paths"])
+                self.assertIn(event, triggers)
+                trigger = triggers[event] or {}
+                self.assertNotIn("paths-ignore", trigger)
+                paths = trigger.get("paths")
+                # No filter means CI starts for every change (REQ-github-026); a filter must list it.
+                if paths is not None:
+                    self.assertIn(".github/workflows/rc-assets.yml", paths)
 
 
 class TableTests(unittest.TestCase):

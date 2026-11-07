@@ -7,10 +7,11 @@
   "title": "Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads",
   "description": "Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "1276e314790521904552e375a659ae3214aa04dc",
   "created_at": 1793995806,
-  "updated_at": 1794012075,
+  "updated_at": 1794012295,
   "affected_specs": [
     "change",
     "cmd_change",

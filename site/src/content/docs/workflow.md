@@ -292,8 +292,9 @@ The package moves byte for byte into `.specsync/archive/closed-late/`, with a `l
 records who, when and why, the commit that merged it, and `verified: false`. It never counts as
 checked: `change status` says it was closed late, and every lifecycle verb refuses it. Only a change
 whose package is on the remote default branch can be closed late. SpecSync 6.0 to 6.2 never read
-that folder. If the change belonged to an acknowledged sequence collision, doctor removes that
-acknowledgement from `.specsync/change-sequence.json` and keeps it in the record; where meaningful
+that folder. If the change belonged to an acknowledged sequence collision, doctor takes it out of that
+acknowledgement in `.specsync/change-sequence.json` (the whole acknowledgement once fewer than two
+members remain) and keeps the acknowledgement as it stood in the record; where meaningful
 files need an open change, the pull request's change must declare that file.
 
 ## 5. Legacy workflow-v1 recovery: correct accepted classification

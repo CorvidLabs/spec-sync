@@ -7,8 +7,8 @@
 const CLOSED_LATE_PATH: &str = ".specsync/archive/closed-late";
 const LATE_CLOSE_RECORD: &str = "late-close.json";
 
-/// The acknowledged sequence collision a late close removed from `.specsync/change-sequence.json`
-/// because one of its members left the directories SpecSync enumerates (D5).
+/// The acknowledged sequence collision, as it stood, that a late close took this change out of in
+/// `.specsync/change-sequence.json`, because the change left the directories SpecSync enumerates (D5).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LateCloseCollision {
     pub sequence: u64,
@@ -655,8 +655,9 @@ fn archived_package_for(root: &Path, id: &str) -> Option<PathBuf> {
         })
 }
 
-/// Remove the acknowledged collision that names `id`, if any, and return it (D5). The ledger's
-/// sequence and claim are untouched.
+/// Take `id` out of the acknowledged collision that names it, and return that acknowledgement as it
+/// stood (D5). The acknowledgement stays for the members SpecSync still enumerates while at least
+/// two remain, and goes once fewer than two do. The ledger's sequence and claim are untouched.
 fn drop_collision_acknowledgement(
     ledger: &mut ChangeSequenceLedger,
     id: &str,
@@ -665,11 +666,16 @@ fn drop_collision_acknowledgement(
         .acknowledged_collisions
         .iter()
         .position(|collision| collision.ids.iter().any(|member| member == id))?;
-    let collision = ledger.acknowledged_collisions.remove(index);
-    Some(LateCloseCollision {
-        sequence: collision.sequence,
-        ids: collision.ids,
-    })
+    let as_it_stood = LateCloseCollision {
+        sequence: ledger.acknowledged_collisions[index].sequence,
+        ids: ledger.acknowledged_collisions[index].ids.clone(),
+    };
+    let collision = &mut ledger.acknowledged_collisions[index];
+    collision.ids.retain(|member| member != id);
+    if collision.ids.len() < 2 {
+        ledger.acknowledged_collisions.remove(index);
+    }
+    Some(as_it_stood)
 }
 
 /// Close every planned change late, or none: each package moves byte for byte into the
@@ -741,6 +747,8 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
     if !request.fix {
         return Ok(report);
     }
+    // The changes this call closes late, or with --dry-run would: no safe fix applies to them.
+    let mut closing: BTreeSet<String> = BTreeSet::new();
     if !request.close_late.is_empty() {
         let actor = request.actor.as_deref().map(str::trim).unwrap_or_default();
         if actor.is_empty() {
@@ -762,9 +770,13 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
             eligible.dedup();
             eligible
         } else {
-            let mut named = request.close_late.clone();
-            named.dedup();
-            named
+            let mut seen = BTreeSet::new();
+            request
+                .close_late
+                .iter()
+                .filter(|id| seen.insert(id.as_str()))
+                .cloned()
+                .collect()
         };
         let date = today();
         let mut plans = Vec::new();
@@ -789,6 +801,7 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
                 refusals.join("; ")
             ));
         }
+        closing.extend(plans.iter().map(|plan| plan.record.change_id.clone()));
         if request.dry_run {
             for plan in &plans {
                 report.actions.push(DoctorAction {
@@ -812,7 +825,7 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
                 );
                 if let Some(collision) = &plan.record.dropped_collision_acknowledgement {
                     detail.push_str(&format!(
-                        "; the CHG-{:04} collision acknowledgement was removed from `{SEQUENCE_PATH}` and kept in its record, so an open change on this pull request must declare `{SEQUENCE_PATH}` where meaningful files require one",
+                        "; it was taken out of the CHG-{:04} collision acknowledgement in `{SEQUENCE_PATH}` (the acknowledgement as it stood is kept in its record), so an open change on this pull request must declare `{SEQUENCE_PATH}` where meaningful files require one",
                         collision.sequence
                     ));
                 }
@@ -825,14 +838,34 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
             }
         }
     }
-    let safe: Vec<DoctorFinding> = report
-        .findings
-        .iter()
-        .filter(|finding| finding.fix.class == DoctorFixClass::Safe)
-        .cloned()
-        .collect();
+    // Each safe fix is revalidated against a fresh scan after every move: a late close or an applied
+    // fix can make the next one unsafe or moot (Codex review of #994). A dry run moves nothing, so
+    // it plans from the first scan less the changes it would close late.
+    let mut findings_now = if request.dry_run || closing.is_empty() {
+        report.findings.clone()
+    } else {
+        doctor_scan(root)
+    };
+    let mut attempted: BTreeSet<(&'static str, Option<String>, String)> = BTreeSet::new();
     let mut migrated = false;
-    for finding in safe {
+    loop {
+        let next = findings_now
+            .iter()
+            .filter(|finding| finding.fix.class == DoctorFixClass::Safe)
+            .filter(|finding| {
+                finding
+                    .change
+                    .as_ref()
+                    .is_none_or(|change| !closing.contains(change))
+            })
+            .find(|finding| {
+                !attempted.contains(&(finding.kind, finding.change.clone(), finding.fix.command.clone()))
+            })
+            .cloned();
+        let Some(finding) = next else {
+            break;
+        };
+        attempted.insert((finding.kind, finding.change.clone(), finding.fix.command.clone()));
         let change = finding.change.clone();
         if request.dry_run {
             report.actions.push(DoctorAction {
@@ -887,6 +920,7 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
                 detail: format!("`{}` refused: {error}", finding.fix.command),
             },
         });
+        findings_now = doctor_scan(root);
     }
     Ok(report)
 }

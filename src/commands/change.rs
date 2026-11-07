@@ -3190,8 +3190,10 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    /// #923 (REQ-cmd-change-032): the printed resume command must run exactly the arguments it
-    /// names. Splitting it with `sh` gives back every original argument, metacharacters and all.
+    /// #923 and #953 (REQ-cmd-change-036): the printed resume command must run exactly the
+    /// arguments it names. Splitting it with `sh` gives back every original argument,
+    /// metacharacters and all, with and without `SPECSYNC_TIMEOUT` in the environment (the test
+    /// passes that in, so it does not depend on the environment the suite runs in).
     #[test]
     fn the_resume_command_splits_back_into_the_original_arguments() {
         let original = [
@@ -3204,36 +3206,44 @@ mod tests {
             "two words",
             "--json",
         ];
-        let resume = resume_command_without_timeout(
-            original
+        for timeout_env in [false, true] {
+            let resume = resume_command_for(
+                original
+                    .iter()
+                    .map(|argument| (*argument).to_string())
+                    .chain(["--timeout".to_string(), "5".to_string()]),
+                timeout_env,
+            );
+            let (prefix, leading) = if timeout_env {
+                ("SPECSYNC_TIMEOUT= specsync ", 2)
+            } else {
+                ("specsync ", 1)
+            };
+            assert!(resume.starts_with(prefix), "{resume}");
+            assert!(!resume.contains("--timeout"), "{resume}");
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!(
+                    "set -- {resume}; shift {leading}; for a in \"$@\"; do printf '%s\\0' \"$a\"; done"
+                ))
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{resume}");
+            let split: Vec<String> = String::from_utf8(output.stdout)
+                .unwrap()
+                .split('\0')
+                .map(str::to_string)
+                .collect();
+            let mut expected: Vec<String> = original
                 .iter()
                 .map(|argument| (*argument).to_string())
-                .chain(["--timeout".to_string(), "5".to_string()]),
-        );
-        let output = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!(
-                "set -- {resume}; shift; for a in \"$@\"; do printf '%s\\0' \"$a\"; done"
-            ))
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{resume}");
-        let split: Vec<String> = String::from_utf8(output.stdout)
-            .unwrap()
-            .split('\0')
-            .map(str::to_string)
-            .collect();
-        let mut expected: Vec<String> = original
-            .iter()
-            .map(|argument| (*argument).to_string())
-            .collect();
-        expected.push(String::new());
-        assert_eq!(
-            split, expected,
-            "the resume command {resume} must name exactly the original arguments"
-        );
-        assert!(resume.starts_with("specsync "), "{resume}");
-        assert!(!resume.contains("--timeout"), "{resume}");
+                .collect();
+            expected.push(String::new());
+            assert_eq!(
+                split, expected,
+                "the resume command {resume} must name exactly the original arguments"
+            );
+        }
     }
 
     /// The floor must be WIRED, not merely present (#533).

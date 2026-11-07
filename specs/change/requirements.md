@@ -1834,6 +1834,14 @@ Acceptance Criteria
 - In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
 - A cutoff with no archive root gives the same verdict as before.
 
+### REQ-change-147
+
+A change summary of an archived change SHALL NOT take the whole-tree project-input digest to report `scoped_review_current` once its archived package is committed; it SHALL report `false`, which is what the full check gives for a committed archive. While the archived package has uncommitted changes, the summary SHALL compute it as before. A warm `change status` of an archived change SHALL NOT spawn more Git processes as the project tracks more files (SPEED-1.a). Summaries of changes before archive are unchanged.
+
+Acceptance Criteria
+- `warm_archived_status_git_processes_do_not_grow_with_tracked_files`: 3000 more tracked files add fewer than 3 Git processes to a warm archived status.
+- `an_archived_change_reports_the_scoped_review_currency_the_full_check_gives`: the summary reports what the full check gives, right after finalize (uncommitted), once committed, after later commits, after an unrelated edit and for a moved archive.
+
 ### REQ-change-148
 
 SpecSync's lifecycle reads SHALL walk only the history its read-cache and lifecycle-index guards check: the object graph with `refs/replace/` and `info/grafts`. Environment that points Git at other replacement or graft sources (`GIT_REPLACE_REF_BASE`, `GIT_NO_REPLACE_OBJECTS`, `GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`) SHALL NOT change what a lifecycle read concludes, whether it answers fresh or from the persistent read cache (SPEED-1.a.2, CI-2).

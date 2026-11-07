@@ -2012,6 +2012,47 @@ fn scoped_review_currency(
     review_commit_currency(root, record, review)
 }
 
+/// Whether an archived change's package directory differs from `HEAD`: its `state.json` is not
+/// tracked (a package Git ignores is untracked too), or files under it are modified, staged or
+/// untracked. Two Git calls limited to the package, never the whole tree. When Git can't
+/// answer, it counts as uncommitted, so the full check runs as before.
+fn archived_package_is_uncommitted(root: &Path, record: &ChangeRecord) -> bool {
+    let Ok(package) = find_change_dir(root, &record.id) else {
+        return true;
+    };
+    let Ok(package) = git_repo_relative_path(root, &portable_project_path(root, &package)) else {
+        return true;
+    };
+    let pathspec = format!(":(top,literal){package}");
+    let state = format!(":(top,literal){package}/state.json");
+    match run_git_bounded(
+        root,
+        &["ls-files", "-z", "--", state.as_str()],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() && !output.stdout.is_empty() => {}
+        _ => return true,
+    }
+    match run_git_bounded(
+        root,
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=all",
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() => !output.stdout.is_empty(),
+        _ => true,
+    }
+}
+
 fn scoped_review_is_current(
     root: &Path,
     record: &ChangeRecord,
@@ -3907,8 +3948,17 @@ fn summarize_change_with_effective(
     let verification_current = record.state == ChangeState::Verifying
         && load_verification(root, record)
             .is_ok_and(|verification| verification_is_current(root, record, &verification));
-    let scoped_review_current = load_scoped_review(root, record)
-        .is_ok_and(|review| scoped_review_is_current(root, record, &review));
+    // A committed archive's review never matches the working tree again, so it reports `false`
+    // without digesting the whole tree; only while its package is still uncommitted (the window
+    // between `finalize` and its commit) is the full check needed (REQ-change-147).
+    let scoped_review_current = if record.state == ChangeState::Archived
+        && !archived_package_is_uncommitted(root, record)
+    {
+        false
+    } else {
+        load_scoped_review(root, record)
+            .is_ok_and(|review| scoped_review_is_current(root, record, &review))
+    };
     let routing = load_verification_routing(root).unwrap_or_default();
     let strict_validation_required =
         explicit_strict || change_requires_strict_validation(record, &routing);

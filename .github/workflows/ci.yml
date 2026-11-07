@@ -517,6 +517,25 @@ jobs:
           fi
           echo "Archive gate blocked the open change."
 
+  closed-late-compat:
+    name: Closed-late compatibility (SpecSync 6.0.0 and 6.2.0)
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Old releases read what doctor writes (REQ-change-143, SHIP-12.g)
+        shell: bash
+        # Real 6.0.0 and 6.2.0 release binaries, pinned by sha256 in the script, run against
+        # repositories after `specsync doctor --fix --close-late`. The site and Corvidinho pin 6.0.0.
+        run: |
+          set -euo pipefail
+          cargo build --release
+          .github/scripts/test-closed-late-compat.sh target/release/specsync
+
   linux-baseline:
     name: Linux release baseline (${{ matrix.artifact }})
     needs: classify
@@ -693,7 +712,7 @@ jobs:
     # here cannot fail this gate (#796). Archive is the root of the graph: an
     # open change fails it and skips everything else, and this gate says so.
     # .github/scripts/test-required-ci-gate.py fails when another job is missing.
-    needs: [archive, classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, linux-baseline, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    needs: [archive, classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, closed-late-compat, linux-baseline, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         # One row per job in `needs`: `<job> <selected> <result>`. <selected> is
@@ -716,6 +735,7 @@ jobs:
             hi-check ${{ needs.classify.outputs.full == 'true' }} ${{ needs.hi-check.result }}
             validate-action ${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }} ${{ needs.validate-action.result }}
             action-consumer ${{ needs.classify.outputs.full == 'true' }} ${{ needs.action-consumer.result }}
+            closed-late-compat ${{ needs.classify.outputs.full == 'true' }} ${{ needs.closed-late-compat.result }}
             linux-baseline ${{ needs.classify.outputs.full == 'true' }} ${{ needs.linux-baseline.result }}
             spec-check ${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }} ${{ needs.spec-check.result }}
             audit ${{ needs.classify.outputs.full == 'true' }} ${{ needs.audit.result }}
@@ -793,7 +813,7 @@ jobs:
     # request that selected the product lane. Forks run the same read-only
     # review without attempting a comment or review write.
     if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.full == 'true' }}
-    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, linux-baseline, spec-check, audit, coverage, site, vscode-extension]
+    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, closed-late-compat, linux-baseline, spec-check, audit, coverage, site, vscode-extension]
     permissions:
       contents: read
       pull-requests: write
@@ -808,6 +828,7 @@ jobs:
           CHECK_HI: "Human intent check=${{ needs.hi-check.result }}"
           CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
           CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.action-consumer.result }}"
+          CHECK_CLOSED_LATE_COMPAT: "Closed-late compatibility (SpecSync 6.0.0 and 6.2.0)=${{ needs.closed-late-compat.result }}"
           CHECK_LINUX_BASELINE: "Linux Release Baseline=${{ needs.linux-baseline.result }}"
           CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
           CHECK_AUDIT: "Dependency Audit=${{ needs.audit.result }}"

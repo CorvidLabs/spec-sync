@@ -4,6 +4,7 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Reject linked and dangling late-close destinations in planning/dry-run and revalidate all plans at the locked write boundary; prove byte preservation, refusal recovery and normal late close (#994 P1, REQ-change-143).
 - [x] Refuse to open a change when `.specsync/sdd.json` cannot be parsed (REQ-change-108).
 - [x] Return from a bounded Git read when the direct child exits, even if a descendant still holds its output pipe (#854, #855, REQ-change-126, SPEED-1.a).
 - [x] Show an opened change the lessons and principles it should honor, and require a selected plan to say how.

@@ -1,11 +1,12 @@
 ---
 module: change
-version: 200
+version: 203
 status: active
 files:
   - src/change.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
+  - src/change/doctor.rs
   - src/change/historical_definition_digest_matches.rs
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
@@ -22,6 +23,7 @@ files:
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
+  - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs
   - src/change_tests/historical_reconciliation.rs
@@ -168,11 +170,23 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
 | `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
 | `LifecycleCommitScope` | Crate-private answer to what one change's lifecycle commit may stage: the untracked paths the lifecycle wrote or the change owns, and the runtime files (lock, transaction journal) it must neither stage nor report |
+| `LateCloseRecord` | What a late close writes beside the package it moved: actor, reason, timestamp, the state the package still holds, workflow version, the path it came from, the remote default reference and commit, the commit that merged it and its date, `verified: false`, and any dropped collision acknowledgement (REQ-change-143) |
+| `LateCloseCollision` | The acknowledged sequence collision a late close removed from `.specsync/change-sequence.json` because its member left the enumerated directories (REQ-change-143) |
+| `DoctorRequest` | What `specsync doctor` was asked to do: `fix`, `dry_run`, the IDs (or `all`) to close late, and the actor and reason a late close needs (REQ-cmd-change-035) |
+| `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
+| `DoctorFinding` | One problem doctor found: its kind, change (or none for the project), location, reason and fix |
+| `DoctorFix` | A finding's fix: its class, the exact command or what to edit, and an optional alternative a person may choose |
+| `DoctorFixClass` | `safe` (`doctor --fix` applies it), `decision` (`--close-late` with `--actor` and `--reason`) or `report-only` |
+| `DoctorAction` | One thing `doctor --fix` did, or with `--dry-run` would do: kind, change, outcome and detail |
 
 **Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
+| `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
+| `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
+| `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
 | `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
 | `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
 | `check_read_deadline` | `phase, done, total` | `Result<(), String>` | Call between items of a long read phase; past the deadline the command's thread flushes its read caches, reports and exits 124, and a worker gets `Err` |
@@ -468,6 +482,8 @@ Acceptance Criteria
 |------|--------|
 | 2026-11-07 | v200: carry the selected root in `CannotTell` so command adapters remain unchanged within the original change-only scope. v199: keep the selected project root as a quoted `--root` argument in cannot-tell recovery; execute the printed status command from the repository parent (#967, REQ-change-142). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
+| 2026-11-06 | v200: Reject symlink components in late-close destinations during planning/dry-run, before any batch write under the lifecycle lock, and again after directory creation before each rename; include dangling links and name how to retry safely (REQ-change-143, #994 P1) |
+| 2026-11-06 | v187: `specsync doctor`'s late close moves a merged but never-archived package byte for byte into `.specsync/archive/closed-late/<date>-<id>/` with `late-close.json` (`verified: false`); it reads no delivery evidence and adds no change state, so SpecSync 6.0 to 6.2 never read it. A collision member's acknowledgement is dropped and recorded. 6.3 reports a closed-late change in status and ship-status, refuses it in every lifecycle verb, and reserves its ID in `change new` (REQ-change-143, #833) |
 | 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | v190: the acceptance manifest and the acceptance input digest name clean delivery files by object id and hash each blob from one `git cat-file --batch` child, one blob at a time, under the per-object bound, so reopen, finalize and accepted-input validation no longer refuse a change whose clean affected files exceed one whole-scope read; recorded manifests and digests are byte-identical (REQ-change-144, #976). |
 | 2026-11-06 | v198: the upstream-archive lookup reports `CannotTell` instead of no archive when the remote default's archived state records cannot be read, so review and finalize refuse and status and ship-status say how to find out (REQ-change-142, #946); the archive root is read as a literal pathspec from the top (#962). Codex review of #967: a record with no readable `id` is `CannotTell`; the recovery refetches, repairs `origin/HEAD`, and reruns `change status` with the id shell-quoted instead of grepping from the caller's directory. |
@@ -688,3 +704,4 @@ Acceptance Criteria
 | 2026-11-06 | a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency: A warm status of an archived change does not digest the whole working tree to report its review currency |
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
+| 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |

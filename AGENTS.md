@@ -34,6 +34,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change ship-status [id]` | Ship readiness: tip class, stages, live GitHub check-run trust when `GITHUB_TOKEN` is set (else local guidance), blockers, multi-active ordering warnings |
 | `specsync change ship [id]` | Preflight ship readiness and finalize when ready (`--dry-run`; after finalize `--push` / `--wait` for archive tip + check-run wait) |
 | `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
+| `specsync doctor` | List every problem in the change records with its fix; `--fix` applies the safe ones, `--dry-run` shows them, and `--close-late <id>|all --actor --reason` closes a merged but never-archived change late, recorded as never re-checked |
 | `specsync change correct-owner <id>` | Append audited exact owner corrections (single `--path/--spec`, or batch: repeated flags, `--manifest`, `--all-missing`) |
 | `specsync change finalize <id>` | Validate current review/evidence and move the package into the dated archive in the same PR; GitHub performs the merge |
 | `specsync change check [id]` | Scoped verification for one change (materialize + spec↔code sync); not archive history |

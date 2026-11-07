@@ -99,3 +99,4 @@ spec: change.spec.md
 - [ ] Decide whether to batch the cold archive-introduction reads (three Git processes per introducing commit) behind the closing check without loosening the partial-clone conclusiveness rules.
 - [x] Find the remote default's archive of a change by the id in each package's `state.json`, with one tree listing and one batched read (#907, REQ-change-139).
 - [x] Record an optional relayed decision on definition approvals (portable pair included) and scoped reviews, leave it out of the review digest, and project recorded claims for status (REQ-change-relayed-decision-001, #633).
+- [x] Name `specsync change repair-relays <id>` in an active change's relay refusals and repair a damaged relay from `HEAD` or its twin, otherwise removing only that `relayed_by` (#904, REQ-change-relay-repair-001).

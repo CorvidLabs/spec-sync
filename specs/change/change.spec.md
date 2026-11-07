@@ -1,6 +1,6 @@
 ---
 module: change
-version: 197
+version: 198
 status: active
 files:
   - src/change.rs
@@ -108,6 +108,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ApprovalRecord` | Actor claim, timestamp, gate, digest, optional note, optional backward-readable portable-pair metadata, the optional per-module semantic delta body digests a definition gate approved, and the optional `relayed_by` decision an agent relayed; the digest binds content, never the actor |
 | `RelayedDecision` | Shared relayed-decision claim: `decided_by`, verbatim `words`, `where` (including any relay chain) and `recorded_by`; all four required, non-blank and at most 4096 bytes, with `null` and unknown keys refused on read; covered by no digest |
 | `RecordedClaim` | Status projection of the effective definition approval or the latest scoped review: gate, named actor or reviewer, review verdict, optional relayed decision; carries no digest |
+| `RelayRepair` | One relayed decision `repair_relayed_decisions` put back or removed: `file`, the record's 1-based position in it, `action` (`put_back` or `removed`), the copy it came `from` for a put-back, and the damaged value it `removed` for a removal |
+| `RelayRepairReport` | What `repair_relayed_decisions` did to one change: the change id and its repairs; empty repairs means nothing was damaged and nothing was written |
 | `ApprovedScopeV1` | Canonical stable intent, acceptance contract, risk declarations, and affected scope bound by one human approval |
 | `NonMaterialScopeChangeCategory` | Closed implementation, test/evidence, canonical-materialization, and lifecycle-metadata classification set |
 | `NonMaterialScopeChangeV1` | Path and concise evidence-backed classification for one approval-preserving migration change |
@@ -235,8 +237,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
 | `record_scoped_review_with_relay` | `root, id, reviewer, verdict, relayed_by` | `Result<ScopedReviewRecord, String>` | Record a scoped review carrying an optional relayed decision whose `decided_by` must be the validated reviewer claim |
-| `recorded_claims` | `root, record` | `Result<Vec<RecordedClaim>, String>` | Read-only projection of the effective definition approval (never one a send-back cancelled) and the latest scoped review, with any relayed decision; empty when neither exists, and an error naming the `git checkout` recovery when a relay record cannot be read |
+| `recorded_claims` | `root, record` | `Result<Vec<RecordedClaim>, String>` | Read-only projection of the effective definition approval (never one a send-back cancelled) and the latest scoped review, with any relayed decision; empty when neither exists, and, when a relay record cannot be read, an error naming `specsync change repair-relays <id>` for an active change or the `git checkout HEAD` recovery for an archived one |
 | `relayed_decision` | `rerun, decided_by, words, where_, recorded_by` | `Result<Option<RelayedDecision>, String>` | Build the optional record from command flags: none given is `None`; some given is refused naming every missing flag and the full `rerun` command; a blank or over-4096-byte field is refused naming its flag |
+| `repair_relayed_decisions` | `root, id` | `Result<RelayRepairReport, String>` | Repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`: put each back from the same record at `HEAD`, then from its twin (`review.json` and the last attempt), and otherwise remove only that relay; never removes an approval or attempt or changes a verdict, writes every file in one step, and writes nothing when nothing is damaged; refuses an archived change or a file that is not JSON, naming the `git checkout HEAD` recovery when one exists |
 | `recorded_scoped_review_currency` | `root, record` | `Option<ScopedReviewCurrency>` | Classify a change's recorded scoped review against the tree on disk; `None` means no usable review record exists, which is a different question from currency |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
 | `send_back_change` | `root, id, actor, reason` | `Result<SendBackResult, String>` | Move an approved, implementing or verifying change back to draft for re-scoping, append an audited send-back, and cancel the earlier definition approval without removing it |
@@ -681,4 +684,5 @@ Acceptance Criteria
 | 2026-11-06 | the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change: The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change |
 | 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |
 | 2026-11-06 | a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency: A warm status of an archived change does not digest the whole working tree to report its review currency |
+| 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

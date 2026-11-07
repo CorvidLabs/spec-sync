@@ -134,6 +134,7 @@ class ClippyAllTargetsTests(unittest.TestCase):
             "cargo clippy -- -D warnings",
             "cargo clippy --all-targets",
             "cargo clippy --all-targets -- -D warnings -A clippy::all",
+            "cargo clippy --all-targets -- -D warnings -Aclippy::all",
             "cargo clippy --all-targets -- -D warnings --cap-lints=warn",
             "cargo clippy --all-targets -- --allow=clippy::all -D warnings",
         ):

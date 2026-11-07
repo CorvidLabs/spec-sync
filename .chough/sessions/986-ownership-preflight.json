@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-d8116a5e855af41b02a68250",
-    "head": "EVT-39ace53a56a38120018ab664",
+    "head": "EVT-435168fe25156368d222e39d",
     "legacy": null
   },
   "schema_version": 2,
@@ -40,12 +40,15 @@
   "open_questions": [],
   "completed": [
     "Red first on main 9dd2affd: the approve unit test (approve succeeds) and the directory-scope integration test (ship-status says ready to finalize; the real ship refuses with the #956 error, reproduced)",
-    "Fixed at 638924be: approve checks no-spec-change drafts and names the change answer command; ship preflight, --dry-run and ship-status report unowned production delivery inputs from finalize's own manifest (read-only) with the recovery; both red tests green; 91 unit + 23 integration ship/approve/finalize tests green"
+    "Fixed at 638924be: approve checks no-spec-change drafts and names the change answer command; ship preflight, --dry-run and ship-status report unowned production delivery inputs from finalize's own manifest (read-only) with the recovery; both red tests green; 91 unit + 23 integration ship/approve/finalize tests green",
+    "Shipped (archive 0aafedf1) after Leif's review at 03dd0630; Codex round 2 fixed test-first in 76064852/93684f22 (P1 shell quoting, reserved delivery paths in the preflight, one spec-tree walk); verify green at 93684f22 (2900 unit + 516 integration, 8 steps); round-3 P2s tracked in #1011 under Leif's 2-round cap"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Leif's GitHub review of #999's fix commits since 03dd0630 (76064852..HEAD)"
+  ],
   "run_consents": [],
-  "next_action": "check --commit, audit --strict, verify, push, PR (Fixes #986, #956), ready for Leif's GitHub review"
+  "next_action": "Handoff to the Kimi worker: after Leif reviews the delta, merge #999 pinned on green CI and CLEAN at the orc's go; then #1011 item 2 (reserved delivery paths at no-spec approval, a #999 regression) first, then G-inputs (#426, #432) and the correctness P1s"
 }

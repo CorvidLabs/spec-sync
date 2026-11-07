@@ -17,6 +17,7 @@ artifact: testing
 | `warm_archived_status_git_processes_do_not_grow_with_tracked_files` (0 vs 3000 extra files) | 89 vs 196, failed (`a5b54557`) | 70 vs 70 |
 | `warm_archived_status_git_processes_do_not_grow_with_legacy_changes` (2 vs 8) | 91 vs 91 | 72 vs 72 |
 | `an_archived_change_reports_the_scoped_review_currency_the_full_check_gives` | passes | passes (true right after finalize while uncommitted; false in the four committed cases) |
+| `an_ignored_just_finalized_archive_reports_the_full_review_currency` (from review) | n/a | failed first (`f85d4a35`: summary false, full check true), passes |
 
 Raven (150 archives, 5,629 tracked files; release builds; load average about 56), warm `change status <archived-id> --json`, three runs each:
 
@@ -31,4 +32,4 @@ The JSON output is identical.
 
 | Requirement | Evidence |
 | --- | --- |
-| REQ-change-147 | change tests `warm_archived_status_git_processes_do_not_grow_with_tracked_files` (failing first, `a5b54557`) and `an_archived_change_reports_the_scoped_review_currency_the_full_check_gives` |
+| REQ-change-147 | change tests `warm_archived_status_git_processes_do_not_grow_with_tracked_files` (failing first, `a5b54557`), `an_archived_change_reports_the_scoped_review_currency_the_full_check_gives` and `an_ignored_just_finalized_archive_reports_the_full_review_currency` (failing first, `f85d4a35`) |

@@ -18,6 +18,24 @@
       "requirement_ids": [
         "REQ-merge-006"
       ]
+    },
+    {
+      "timestamp": 1794015716,
+      "commit": "659cf11a352e3f9e6dc2e0775aa08e8a511ba856",
+      "contract_digest": "450b7229d1095374f1e0744c1ee41e0346dd39e708c4fe6840a0d546795e2eb0",
+      "execution_digest": "77140b4d2f5f7c140f854941a1ff553df95228deebdadefb09a52c0c044d235d",
+      "workspace_digest": "ef6d27ff937e12c68f39b1924de5d84bab785eae46f5bda2f9178100b606c8a3",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-merge-006"
+      ]
     }
   ]
 }

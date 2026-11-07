@@ -82,3 +82,24 @@ fn a_late_closed_member_of_a_larger_collision_leaves_the_rest_acknowledged() {
     );
     assert_eq!(ledger.acknowledged_collisions.len(), 2);
 }
+
+// Codex review of #994: a change ID with spaces or shell metacharacters is quoted in every fix
+// command doctor prints.
+#[test]
+fn doctor_quotes_change_ids_in_its_fix_commands() {
+    let command = close_late_command("a b;c");
+    assert!(command.contains("--close-late 'a b;c'"), "{command}");
+}
+
+// Codex review of #994: a rollback that cannot put a package back says so instead of claiming
+// nothing was closed late.
+#[test]
+fn a_failed_late_close_rollback_reports_each_package_it_could_not_restore() {
+    let temp = TempDir::new().unwrap();
+    let destination = temp.path().join("closed-late/2026-11-07-a");
+    fs::create_dir_all(&destination).unwrap();
+    let source = temp.path().join("gone/changes/a");
+    let failures = restore_late_close_moves(&[(source.clone(), destination.clone())]);
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(failures[0].contains("2026-11-07-a"), "{failures:?}");
+}

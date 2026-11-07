@@ -1046,3 +1046,320 @@ fn a_change_named_twice_is_closed_late_once() {
     assert!(closed_late_package(&root, BLOCKER).is_some());
     assert!(closed_late_package(&root, "write-a-faq").is_some());
 }
+
+// ─── Codex P2s on #994, second round (fix commits after archive) ─────────────────────────────
+
+fn doctor_report(root: &Path, args: &[&str]) -> Value {
+    let mut full = vec!["--json", "doctor"];
+    full.extend_from_slice(args);
+    let output = run(root, &full);
+    serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("doctor JSON: {error}\n{}", text(&output)))
+}
+
+/// Two lifecycle moves that are both safe at the first scan: a current accepted v1 change and a
+/// stopped v2 finalize, on a feature branch.
+fn two_safe_moves(root: &Path) {
+    stale_blocker(root);
+    switch_to_v2(root);
+    git(root, &["checkout", "-q", "-b", "feature"]);
+    stopped_finalize(root, "add-a-guide");
+    fs::write(root.join("README.md"), "Update the readme.\n").unwrap();
+    commit_all(root, "Restore the readme");
+}
+
+#[test]
+fn a_dry_run_previews_only_the_next_lifecycle_move() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    two_safe_moves(&root);
+    let report = doctor_report(&root, &["--fix", "--dry-run"]);
+    let moves: Vec<&Value> = report["actions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|action| action["kind"] == "stopped-finalize")
+        .collect();
+    assert_eq!(moves.len(), 2, "{report:#}");
+    let next = moves
+        .iter()
+        .filter(|action| action["outcome"] == "would-apply")
+        .count();
+    let later = moves
+        .iter()
+        .filter(|action| action["outcome"] == "after-revalidation")
+        .count();
+    assert_eq!((next, later), (1, 1), "{report:#}");
+}
+
+#[test]
+fn an_implementing_record_with_stale_verification_is_reported() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    fs::write(root.join("NOTES.md"), "Notes.\n").unwrap();
+    draft(&root, "Add notes", "add-notes", "NOTES.md");
+    run_ok(
+        &root,
+        &["change", "approve", "add-notes", "--actor", "Definer"],
+    );
+    run_ok(&root, &["change", "start", "add-notes"]);
+    run_ok(&root, &["change", "verify", "add-notes"]);
+    let state_path = active(&root, "add-notes").join("state.json");
+    let mut state = json(&state_path);
+    state["state"] = Value::from("implementing");
+    fs::write(
+        &state_path,
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+    )
+    .unwrap();
+    fs::write(root.join("NOTES.md"), "Notes, edited after the check.\n").unwrap();
+    let found = findings(&root);
+    finding(&found, "stale-verification", "add-notes");
+}
+
+#[test]
+fn a_named_late_close_takes_no_delivery_evidence_read() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    git(&root, &["update-index", "--assume-unchanged", "README.md"]);
+    let report = doctor_report(
+        &root,
+        &[
+            "--fix",
+            "--close-late",
+            BLOCKER,
+            "--actor",
+            ACTOR,
+            "--reason",
+            REASON,
+        ],
+    );
+    let evidence_findings: Vec<&Value> = report["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|finding| {
+            finding["change"] == BLOCKER
+                && (finding["kind"] == "accepted-inputs-drifted"
+                    || finding["kind"] == "could-not-check")
+        })
+        .collect();
+    assert!(evidence_findings.is_empty(), "{evidence_findings:#?}");
+    assert!(closed_late_package(&root, BLOCKER).is_some());
+}
+
+#[test]
+fn closed_late_status_names_its_next_action_and_handoff() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    assert!(close_late(&root, &[BLOCKER]).status.success());
+    let status = text(&run(&root, &["change", "status", BLOCKER]));
+    assert!(status.contains("Next:"), "status:\n{status}");
+    assert!(status.contains("Handoff:"), "status:\n{status}");
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", BLOCKER])).unwrap();
+    assert!(status["summary"]["handoff"].is_object(), "{status}");
+    assert!(
+        status["summary"]["next_action"]
+            .as_str()
+            .is_some_and(|next| !next.is_empty()),
+        "{status}"
+    );
+}
+
+#[test]
+fn a_live_workspace_is_reported_before_a_closed_late_record_of_its_id() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    assert!(close_late(&root, &[BLOCKER]).status.success());
+    // An older SpecSync, which cannot see the closed-late folder, mints the ID again.
+    let package = closed_late_package(&root, BLOCKER).unwrap();
+    let live = active(&root, BLOCKER);
+    fs::create_dir_all(&live).unwrap();
+    for entry in fs::read_dir(&package).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_name() != "late-close.json" && entry.file_type().unwrap().is_file() {
+            fs::copy(entry.path(), live.join(entry.file_name())).unwrap();
+        }
+    }
+    let status = text(&run(&root, &["change", "status", BLOCKER]));
+    assert!(!status.contains("closed late"), "status:\n{status}");
+    let ship = text(&run(&root, &["change", "ship-status", BLOCKER]));
+    assert!(!ship.contains("closed late"), "ship-status:\n{ship}");
+}
+
+#[test]
+fn a_package_changed_after_it_merged_is_not_closed_late() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    fs::write(root.join("FAQ.md"), "FAQ.\n").unwrap();
+    draft(&root, "Write a FAQ", "write-a-faq", "FAQ.md");
+    commit_all(&root, "Draft the FAQ change");
+    publish(&root);
+    git(&root, &["checkout", "-q", "-b", "feature"]);
+    run_ok(
+        &root,
+        &["change", "approve", "write-a-faq", "--actor", "Definer"],
+    );
+    commit_all(
+        &root,
+        "Approve the FAQ change on a branch that has not merged",
+    );
+    let before = tree(&root);
+    let output = close_late(&root, &["write-a-faq"]);
+    let refusal = text(&output);
+    assert!(
+        !output.status.success(),
+        "closed an unmerged version:\n{refusal}"
+    );
+    assert!(refusal.contains("differs from `origin/main`"), "{refusal}");
+    assert_eq!(tree(&root), before, "a refused late close wrote");
+}
+
+#[test]
+fn recorded_late_close_text_is_escaped_when_printed() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    let reason = "merged long ago\u{1b}[2J\nFAKE: verified";
+    let output = run(
+        &root,
+        &[
+            "doctor",
+            "--fix",
+            "--close-late",
+            BLOCKER,
+            "--actor",
+            ACTOR,
+            "--reason",
+            reason,
+        ],
+    );
+    assert!(output.status.success(), "{}", text(&output));
+    for args in [
+        vec!["change", "status", BLOCKER],
+        vec![
+            "change", "reopen", BLOCKER, "--actor", ACTOR, "--reason", REASON,
+        ],
+    ] {
+        let printed = text(&run(&root, &args));
+        assert!(
+            !printed.contains('\u{1b}'),
+            "{} printed an escape:\n{printed:?}",
+            args.join(" ")
+        );
+        assert!(
+            !printed.contains("\nFAKE"),
+            "{} printed a raw newline:\n{printed}",
+            args.join(" ")
+        );
+    }
+}
+
+#[test]
+fn an_unreadable_closed_late_record_is_a_finding() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    assert!(close_late(&root, &[BLOCKER]).status.success());
+    let package = closed_late_package(&root, BLOCKER).unwrap();
+    fs::write(package.join("late-close.json"), "{ truncated").unwrap();
+    let found = findings(&root);
+    let unreadable = finding(&found, "could-not-check", BLOCKER);
+    assert_eq!(unreadable["location"], "closed-late", "{unreadable}");
+}
+
+#[test]
+fn an_ambiguous_source_is_not_closed_late() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    let archived_copy = root
+        .join(".specsync/archive/changes")
+        .join(format!("2026-01-01-{BLOCKER}"));
+    fs::create_dir_all(&archived_copy).unwrap();
+    for entry in fs::read_dir(active(&root, BLOCKER)).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            fs::copy(entry.path(), archived_copy.join(entry.file_name())).unwrap();
+        }
+    }
+    commit_all(&root, "Leave a second copy in the archive");
+    publish(&root);
+    let before = tree(&root);
+    let output = close_late(&root, &[BLOCKER]);
+    let refusal = text(&output);
+    assert!(
+        !output.status.success(),
+        "closed one of two copies:\n{refusal}"
+    );
+    assert!(refusal.contains("ambiguous"), "{refusal}");
+    assert_eq!(tree(&root), before, "a refused late close wrote");
+}
+
+#[test]
+fn an_unreadable_archive_record_is_a_finding() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    let broken = root.join(".specsync/archive/changes/2026-01-01-broken-record");
+    fs::create_dir_all(&broken).unwrap();
+    fs::write(broken.join("state.json"), "{ truncated").unwrap();
+    let found = findings(&root);
+    assert!(
+        found
+            .iter()
+            .any(|finding| finding["kind"] == "could-not-check"
+                && finding["location"] == "archive"
+                && finding["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("2026-01-01-broken-record"))),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn closed_late_status_honors_the_read_timeout() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    assert!(close_late(&root, &[BLOCKER]).status.success());
+    for command in ["status", "ship-status"] {
+        let output = run(
+            &root,
+            &["--json", "change", command, BLOCKER, "--timeout", "0"],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(124),
+            "{command}: {}",
+            text(&output)
+        );
+    }
+}
+
+#[test]
+fn a_missing_remote_default_is_a_finding() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("work");
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["config", "user.email", "test@example.com"]);
+    git(&root, &["config", "user.name", "Test"]);
+    write_sdd(&root, 1);
+    fs::write(root.join("FAQ.md"), "FAQ.\n").unwrap();
+    draft(&root, "Write a FAQ", "write-a-faq", "FAQ.md");
+    commit_all(&root, "Draft the FAQ change");
+    let found = findings(&root);
+    assert!(
+        found
+            .iter()
+            .any(|finding| finding["kind"] == "could-not-check"
+                && finding["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("remote default"))),
+        "{found:#?}"
+    );
+}

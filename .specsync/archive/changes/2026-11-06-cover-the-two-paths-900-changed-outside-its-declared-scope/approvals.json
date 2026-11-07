@@ -1,0 +1,94 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793979181,
+      "digest": "9ce2c1796e3e0e1a104ad192da150f3434d4dff0e92a02baefd3888c269e8574",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+        "title": "Cover the two paths #900 changed outside its declared scope",
+        "description": "Cover the two paths #900 changed outside its declared scope",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "#900 already changed these two files and Leif reviewed them at 1b21d31f: correction_prefix_digest hashes the correction without embedded relays (the #900 P1 fix), and the exact status key-set test expects recorded_claims. This change only declares them; no spec text and no code changes.",
+        "acceptance_criteria": [
+          "An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.",
+          "The change's status shows it beside the approval or review it belongs to."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793981540,
+      "digest": "fade7ccee7dc015cd9375d0e484a1254f1bf393d57e8778426b4479cc9d67c98",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+        "title": "Cover the two paths #900 changed outside its declared scope",
+        "description": "Cover the two paths #900 changed outside its declared scope",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "#900 already changed these two files and Leif reviewed them at 1b21d31f: correction_prefix_digest hashes the correction without embedded relays (the #900 P1 fix), and the exact status key-set test expects recorded_claims. This change only declares them; no spec text and no code changes.",
+        "acceptance_criteria": [
+          "An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.",
+          "The change's status shows it beside the approval or review it belongs to."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md 'Approvals are claims; relayed decisions (#633)': a relay is covered by no digest, so correction_prefix_digest hashes correction_digest_projection like corrected_view_digest. This change only declares two files #900 already changed; the change spec owns src/change/collect_requirement_ids.rs through its files list, and there is no spec text change. Leif: 'Do the covering change' (CHANGE-6.d, CHANGE-13.b) and 'Yes, add the spec' (2026-11-06, relayed by orc t18). Never weaken a gate, bound or test.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793988035,
+      "digest": "2b817741fbe8f81aec678f543e07821f05e1c5b31e06b679159281223e245434",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+      "actor": "0xLeif",
+      "reason": "Add the affected spec 'change' (still --no-spec-change) so the production file has a canonical owner at ship. Leif approved (orc tab, 2026-11-06, 'Yes, add the spec').",
+      "timestamp": 1793981141,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "canonical_applied": true
+    }
+  ]
+}

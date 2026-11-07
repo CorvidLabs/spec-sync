@@ -1,0 +1,56 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793992977,
+      "digest": "32d7be16ec91a1677adae1fb048f4c4efaabbaeaf40ee6dc09093d35c65ceaa1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected",
+        "title": "Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths",
+        "description": "Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/change/",
+          "src/change/",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Each clean blob is still bounded by MAX_GIT_EVIDENCE_PAYLOAD_BYTES, and a blob over it is refused by name; the path-count bound and the Git read deadline are unchanged, and every other caller of inspect_git_candidates keeps both of its caps.",
+          "Failing tests first: each new test fails on main f7180c34 and passes after the change; no gate, timeout or assertion is loosened.",
+          "SHIP-6 (REQ-change-144): reopen of a stale accepted change whose clean affected files exceed one git cat-file --batch read, with or without an acceptance manifest, no longer fails with \"`git cat-file --batch` output exceeds deterministic bounds\"; a test-only seam shrinks the cap so the test runs on small fixtures.",
+          "The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, an LFS pointer and the sequence ledger, so every recorded manifest and digest still matches.",
+          "The accepted-input validation behind change status and the archive preflight builds that evidence the same way."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Leif approved the plan through orc t18 ('Capture all + approve design', 2026-11-06): no new HI, SHIP-6 covers it; REQ-change-144 claimed by the orc; #976. The one bound that changes is named for approval: these two evidence builders lose their all-at-once total-bytes cap and keep a per-blob cap of the same size (memory stays bounded by one blob). No other gate, bound, timeout or assertion is loosened. Recorded manifests and digests must stay byte-identical. No tag, release or crates.io publish.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "137c7d5c7358656a21acc999a7d364b5b6d41555193be1a66c1261faf5aa1220"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794001775,
+      "digest": "c7753c047a9a5d2b347a582a39fe092b14f101fccf8c2cfb7882f2914ff93ab6",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

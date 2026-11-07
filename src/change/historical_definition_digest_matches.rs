@@ -99,6 +99,9 @@ fn initial_correction_view_digest(record: &ChangeRecord) -> Result<String, Strin
 }
 
 fn corrected_view_digest(previous: &str, record: &CorrectionRecord) -> Result<String, String> {
+    // The embedded approvals are hashed without their relayed decision (#633), as the review
+    // digest is, so an older 6.x binary that drops the key computes the same digest.
+    let record = &correction_digest_projection(record);
     let payload = CorrectionDigestPayload {
         schema_version: record.schema_version,
         sequence: record.sequence,
@@ -1200,14 +1203,40 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     let path = workspace.join(SCOPED_REVIEW_FILE);
     let content = fs::read_to_string(&path)
         .map_err(|_| "independent scoped review evidence is missing".to_string())?;
-    let review: ScopedReviewRecord = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid independent scoped review evidence: {error}"))?;
+    let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            &path,
+            format!("invalid independent scoped review evidence: {error}"),
+        )
+    })?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
     let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
         &fs::read_to_string(&attempts_path)
             .map_err(|_| "append-only scoped review history is missing".to_string())?,
     )
-    .map_err(|error| format!("invalid scoped review attempt history: {error}"))?;
+    .map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            &attempts_path,
+            format!("invalid scoped review attempt history: {error}"),
+        )
+    })?;
+    ensure_read_relays_name_their_deciders(
+        [(review.reviewer.as_str(), review.relayed_by.as_ref())],
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    // Every attempt, not only the latest projection: earlier attempts stay uncommitted until ship
+    // too, so no Git prefix check would notice an edited one (#900 review).
+    ensure_read_relays_name_their_deciders(
+        attempts
+            .reviews
+            .iter()
+            .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &attempts_path, message))?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
 }
@@ -1275,7 +1304,10 @@ fn validate_scoped_review_attempts(
             .map_err(|error| format!("invalid committed scoped review history: {error}"))?;
         if committed.schema_version != 1
             || attempts.reviews.len() < committed.reviews.len()
-            || attempts.reviews[..committed.reviews.len()] != committed.reviews
+            || !reviews_match_ignoring_relays(
+                &attempts.reviews[..committed.reviews.len()],
+                &committed.reviews,
+            )
         {
             return Err(
                 "scoped review attempt history removed or rewrote committed evidence".into(),
@@ -1569,7 +1601,9 @@ fn validate_scoped_review_history_transition(
     {
         return Err("scoped review history moved evidence outside finalization".into());
     }
-    if current_ledger == previous_ledger {
+    if current_ledger.schema_version == previous_ledger.schema_version
+        && reviews_match_ignoring_relays(&current_ledger.reviews, &previous_ledger.reviews)
+    {
         return Ok(());
     }
     // Appending a review and moving the package can land in ONE commit: the whole
@@ -1579,7 +1613,10 @@ fn validate_scoped_review_history_transition(
     // survive byte-identical — and only the count restriction is relaxed across a move,
     // where a squash can legitimately collapse several attempts into one commit.
     let appended_only = current_ledger.reviews.len() > previous_ledger.reviews.len()
-        && current_ledger.reviews[..previous_ledger.reviews.len()] == previous_ledger.reviews;
+        && reviews_match_ignoring_relays(
+            &current_ledger.reviews[..previous_ledger.reviews.len()],
+            &previous_ledger.reviews,
+        );
     if appended_only
         && (current_path != previous_path
             || current_ledger.reviews.len() == previous_ledger.reviews.len() + 1)
@@ -1630,9 +1667,7 @@ fn collapsed_scoped_review_archive_is_terminal(
     let Ok(review) = serde_json::from_slice::<ScopedReviewRecord>(&review_bytes) else {
         return Ok(false);
     };
-    let review_digest = serde_json::to_vec(&review)
-        .map(|bytes| sha256_hex(&bytes))
-        .map_err(|error| format!("failed to hash collapsed scoped review: {error}"))?;
+    let review_digest = scoped_review_digest(&review)?;
     Ok(state.id == record.id
         && state.state == ChangeState::Archived
         && state.workflow_version == 2
@@ -1771,12 +1806,10 @@ fn validate_finalization_evidence_with_review_binding(
             return Err("finalization implementation is outside the scoped-review history".into());
         }
     }
-    let review_bytes = serde_json::to_vec(&review)
-        .map_err(|error| format!("failed to hash scoped review: {error}"))?;
     // The reopen-only mode retains the whole mismatched historical review as
     // untrusted, including its claimed hash. It grants no acceptance authority.
     // Finalization's own digest and every non-review integrity check stay strict.
-    if !recorded_workspace_mismatch && sha256_hex(&review_bytes) != finalization.review_digest {
+    if !recorded_workspace_mismatch && scoped_review_digest(&review)? != finalization.review_digest {
         return Err("finalization scoped-review digest does not match review.json".into());
     }
     if finalization_digest(&finalization) != finalization.finalization_digest {
@@ -1977,6 +2010,47 @@ fn scoped_review_currency(
         }
     }
     review_commit_currency(root, record, review)
+}
+
+/// Whether an archived change's package directory differs from `HEAD`: its `state.json` is not
+/// tracked (a package Git ignores is untracked too), or files under it are modified, staged or
+/// untracked. Two Git calls limited to the package, never the whole tree. When Git can't
+/// answer, it counts as uncommitted, so the full check runs as before.
+fn archived_package_is_uncommitted(root: &Path, record: &ChangeRecord) -> bool {
+    let Ok(package) = find_change_dir(root, &record.id) else {
+        return true;
+    };
+    let Ok(package) = git_repo_relative_path(root, &portable_project_path(root, &package)) else {
+        return true;
+    };
+    let pathspec = format!(":(top,literal){package}");
+    let state = format!(":(top,literal){package}/state.json");
+    match run_git_bounded(
+        root,
+        &["ls-files", "-z", "--", state.as_str()],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() && !output.stdout.is_empty() => {}
+        _ => return true,
+    }
+    match run_git_bounded(
+        root,
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=all",
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) {
+        Ok(output) if output.status.success() => !output.stdout.is_empty(),
+        _ => true,
+    }
 }
 
 fn scoped_review_is_current(
@@ -2303,6 +2377,25 @@ pub fn record_scoped_review_with_verdict(
     reviewer: String,
     verdict: ScopedReviewVerdict,
 ) -> Result<ScopedReviewRecord, String> {
+    record_scoped_review_with_relay(root, id, reviewer, verdict, None)
+}
+
+/// Record a scoped review carrying an optional relayed decision (#633, SHIP-2.e). The relay must
+/// name the validated reviewer claim as the one who decided.
+pub fn record_scoped_review_with_relay(
+    root: &Path,
+    id: &str,
+    reviewer: String,
+    verdict: ScopedReviewVerdict,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<ScopedReviewRecord, String> {
+    if relayed_by.is_some() {
+        ensure_relay_names_the_decider(
+            relayed_by.as_ref(),
+            validate_scoped_reviewer_claim(&reviewer)?,
+            "--reviewer",
+        )?;
+    }
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
@@ -2380,6 +2473,7 @@ pub fn record_scoped_review_with_verdict(
         execution_digest: Some(execution_digest),
         workspace_digest,
         timestamp: now(),
+        relayed_by,
     };
     attempts.reviews.push(review.clone());
     write_prepared_files(
@@ -2488,6 +2582,7 @@ fn accept_change_with_gate(
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2518,6 +2613,8 @@ fn accept_change_with_gate(
                 approved_delta_bases: effective_definition_approval(root, &record, &ledger)?
                     .approved_delta_bases
                     .clone(),
+                // Recorded by whoever runs this acceptance, not relayed from the original approver.
+                relayed_by: None,
             });
         }
         ledger.approvals.push(ApprovalRecord {
@@ -2531,6 +2628,7 @@ fn accept_change_with_gate(
             scope_migration: None,
             approved_delta_digests: None,
             approved_delta_bases: None,
+            relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -2587,9 +2685,7 @@ fn accept_change_with_gate(
             ],
         )
         .ok_or_else(|| "finalization requires a committed implementation tree".to_string())?;
-        let review_bytes = serde_json::to_vec(&review)
-            .map_err(|error| format!("failed to hash scoped review: {error}"))?;
-        let review_digest = sha256_hex(&review_bytes);
+        let review_digest = scoped_review_digest(&review)?;
         let mut finalization = FinalizationRecord {
             schema_version: 2,
             change_id: record.id.clone(),
@@ -3860,8 +3956,17 @@ fn summarize_change_with_effective(
     let verification_current = record.state == ChangeState::Verifying
         && load_verification(root, record)
             .is_ok_and(|verification| verification_is_current(root, record, &verification));
-    let scoped_review_current = load_scoped_review(root, record)
-        .is_ok_and(|review| scoped_review_is_current(root, record, &review));
+    // A committed archive's review never matches the working tree again, so it reports `false`
+    // without digesting the whole tree; only while its package is still uncommitted (the window
+    // between `finalize` and its commit) is the full check needed (REQ-change-147).
+    let scoped_review_current = if record.state == ChangeState::Archived
+        && !archived_package_is_uncommitted(root, record)
+    {
+        false
+    } else {
+        load_scoped_review(root, record)
+            .is_ok_and(|review| scoped_review_is_current(root, record, &review))
+    };
     let routing = load_verification_routing(root).unwrap_or_default();
     let strict_validation_required =
         explicit_strict || change_requires_strict_validation(record, &routing);

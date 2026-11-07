@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+  "slug": "cover-the-two-paths-900-changed-outside-its-declared-scope",
+  "title": "Cover the two paths #900 changed outside its declared scope",
+  "description": "Cover the two paths #900 changed outside its declared scope",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ccc35abd6013041c37d2737e2dcb3290996f9b58",
+  "created_at": 1793978831,
+  "updated_at": 1793988037,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "#900 already changed these two files and Leif reviewed them at 1b21d31f: correction_prefix_digest hashes the correction without embedded relays (the #900 P1 fix), and the exact status key-set test expects recorded_claims. This change only declares them; no spec text and no code changes.",
+  "acceptance_criteria": [
+    "An approval tells me it matches the content it approved and nothing more; the name on it is a claim, not proof of who gave it.",
+    "The change's status shows it beside the approval or review it belongs to."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change.3md 'Approvals are claims; relayed decisions (#633)': a relay is covered by no digest, so correction_prefix_digest hashes correction_digest_projection like corrected_view_digest. This change only declares two files #900 already changed; the change spec owns src/change/collect_requirement_ids.rs through its files list, and there is no spec text change. Leif: 'Do the covering change' (CHANGE-6.d, CHANGE-13.b) and 'Yes, add the spec' (2026-11-06, relayed by orc t18). Never weaken a gate, bound or test.",
+    "public_contract": "no"
+  }
+}

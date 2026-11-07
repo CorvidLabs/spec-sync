@@ -96,6 +96,10 @@ thread_local! {
     /// When true, `reconstruct_legacy_at_anchor` pretends `git worktree remove` failed.
     /// Product #511: cleanup hygiene must not discard a successful reconstruction.
     static FORCE_LEGACY_WORKTREE_REMOVE_FAILURE: Cell<bool> = const { Cell::new(false) };
+    /// `(batch, object)`: shrinks the evidence read bounds so a small fixture can exceed them
+    /// (#976). `None` keeps the production bound.
+    static TEST_GIT_EVIDENCE_CAPS: Cell<(Option<usize>, Option<usize>)> =
+        const { Cell::new((None, None)) };
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -1174,6 +1178,14 @@ pub struct ApprovalRecord {
     // reads as unknown, never as violated, exactly like `approved_delta_digests` above.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approved_delta_bases: Option<BTreeMap<String, String>>,
+    // A human decision an agent relayed (#633, CHANGE-13). A claim like `actor`, covered by no
+    // digest, and omitted when absent so every approval written without one keeps its bytes.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_relayed_decision"
+    )]
+    pub relayed_by: Option<RelayedDecision>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1418,6 +1430,14 @@ pub struct ScopedReviewRecord {
     pub execution_digest: Option<String>,
     pub workspace_digest: String,
     pub timestamp: u64,
+    // A human decision an agent relayed (#633, SHIP-2.e). Left out of the finalization review
+    // digest (`scoped_review_digest`), so a 6.x binary that drops the key computes the same one.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_relayed_decision"
+    )]
+    pub relayed_by: Option<RelayedDecision>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -3035,7 +3055,7 @@ pub fn approve_definition(
     actor: Option<String>,
     note: Option<String>,
 ) -> Result<ChangeRecord, String> {
-    approve_definition_with_projection(root, id, actor, note, false)
+    approve_definition_with_relay(root, id, actor, note, false, None)
 }
 
 pub fn approve_definition_portable_v501(
@@ -3044,16 +3064,30 @@ pub fn approve_definition_portable_v501(
     actor: Option<String>,
     note: Option<String>,
 ) -> Result<ChangeRecord, String> {
-    approve_definition_with_projection(root, id, actor, note, true)
+    approve_definition_with_relay(root, id, actor, note, true, None)
 }
 
-fn approve_definition_with_projection(
+/// Record a definition approval, or the portable 5.0.1 pair, carrying an optional relayed
+/// decision (#633). The relay must name the approval's explicit actor as the one who decided,
+/// and is refused before anything is written otherwise.
+pub fn approve_definition_with_relay(
     root: &Path,
     id: &str,
     actor: Option<String>,
     note: Option<String>,
     portable_v501: bool,
+    relayed_by: Option<RelayedDecision>,
 ) -> Result<ChangeRecord, String> {
+    if relayed_by.is_some() {
+        let Some(decider) = actor.as_deref() else {
+            return Err(
+                "a relayed decision names who decided with --actor <who decided>; without it the \
+                 actor comes from Git or $USER, which names the recording agent"
+                    .into(),
+            );
+        };
+        ensure_relay_names_the_decider(relayed_by.as_ref(), decider, "--actor")?;
+    }
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     ensure_no_sequence_collision(root, &record)?;
@@ -3084,10 +3118,10 @@ fn approve_definition_with_projection(
     validate_declared_path_ownership(root, &record)?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     if portable_v501 {
-        append_portable_definition_approval_v501(root, &record, actor, note)?;
+        append_portable_definition_approval_v501_with_relay(root, &record, actor, note, relayed_by)?;
     } else {
         let digest = definition_digest(root, &record)?;
-        append_approval(root, &record, "definition", actor, digest, note)?;
+        append_approval_with_relay(root, &record, "definition", actor, digest, note, relayed_by)?;
     }
     record.state = match prior_state {
         ChangeState::Draft | ChangeState::Approved => ChangeState::Approved,

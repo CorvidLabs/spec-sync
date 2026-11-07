@@ -6,8 +6,7 @@ spec: change.spec.md
 
 ### REQ-change-001
 
-The system SHALL require exactly one human scope approval for each new meaningful change and SHALL
-record finalization as automated terminal evidence rather than a second approval.
+The system SHALL require exactly one recorded scope approval, naming the person it is claimed for, for each new meaningful change and SHALL record finalization as automated terminal evidence rather than a second approval. The approval binds content by digest; its actor is a recorded claim that SpecSync does not authenticate.
 
 #### Acceptance Criteria
 
@@ -27,6 +26,7 @@ record finalization as automated terminal evidence rather than a second approval
   appending a second approval.
 - Historical closing approvals remain readable and verifiable without being required for new
   workflow-version-2 changes.
+- The approval digest covers the approved content and never the actor, so an approval shows what was approved and not who approved it; an actor label, or a relayed decision, is a claim and not authentication.
 
 ### REQ-change-002
 
@@ -1809,4 +1809,52 @@ When a remote default exists and its archived state records cannot be listed or 
 Acceptance Criteria
 - A failed listing, a failed or truncated batched read, or a failed addition or ancestry lookup for a matching package is reported as cannot-tell.
 - No remote default, or a readable archive with no copy of the change, reports nothing.
+
+### REQ-change-144
+
+Building a change's acceptance manifest or acceptance input digest SHALL read the clean tracked files in its delivery scope one blob at a time, each under the existing per-object bound, so that `change reopen`, and every other read that builds that evidence, does not fail because the total size of those files exceeds a single in-memory Git read.
+
+Acceptance Criteria
+- Reopen of a stale accepted change whose clean affected files exceed one `git cat-file --batch` read, with or without an acceptance manifest, no longer fails with "`git cat-file --batch` output exceeds deterministic bounds".
+- The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
+- Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
+- The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
+
+### REQ-change-145
+
+When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
+
+Acceptance Criteria
+- In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
+- A cutoff with no archive root gives the same verdict as before.
+
+### REQ-change-147
+
+A change summary of an archived change SHALL NOT take the whole-tree project-input digest to report `scoped_review_current` once its archived package is committed; it SHALL report `false`, which is what the full check gives for a committed archive. While the archived package has uncommitted changes, the summary SHALL compute it as before. A warm `change status` of an archived change SHALL NOT spawn more Git processes as the project tracks more files (SPEED-1.a). Summaries of changes before archive are unchanged.
+
+Acceptance Criteria
+- `warm_archived_status_git_processes_do_not_grow_with_tracked_files`: 3000 more tracked files add fewer than 3 Git processes to a warm archived status.
+- `an_archived_change_reports_the_scoped_review_currency_the_full_check_gives`: the summary reports what the full check gives, right after finalize (uncommitted), once committed, after later commits, after an unrelated edit and for a moved archive.
+
+### REQ-change-148
+
+SpecSync's lifecycle reads SHALL walk only the history its read-cache and lifecycle-index guards check: the object graph with `refs/replace/` and `info/grafts`. Environment that points Git at other replacement or graft sources (`GIT_REPLACE_REF_BASE`, `GIT_NO_REPLACE_OBJECTS`, `GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`) SHALL NOT change what a lifecycle read concludes, whether it answers fresh or from the persistent read cache (SPEED-1.a.2, CI-2).
+
+Acceptance Criteria
+- With a replacement under a custom `GIT_REPLACE_REF_BASE` that swaps HEAD for a copy whose archived record lost its workflow version, `change status` under that variable gives exactly the plain read, fresh and cached.
+- `GIT_NO_REPLACE_OBJECTS=1` gives the plain read too.
+
+### REQ-change-relayed-decision-001
+
+A definition approval and a scoped review MAY carry a `relayed_by` record of a human decision that an agent relays: `decided_by` (who is said to have decided), `words` (their words, verbatim), `where` (where and when they said it, including any relay chain) and `recorded_by` (the agent that wrote the record). The record SHALL be an unauthenticated claim. It SHALL NOT satisfy, clear or replace any gate, and SpecSync SHALL check nothing about it except its own shape and that `decided_by` is the record's actor or reviewer.
+
+#### Acceptance Criteria
+
+- All four fields are required when the record is present, each non-blank and at most 4096 bytes; `words` is stored exactly as given.
+- `decided_by` is the approval's actor or the review's reviewer; a relay naming anyone else is refused before anything is written.
+- An approval or review written without a relay omits the `relayed_by` key, so its bytes match what a binary that predates the record writes.
+- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field, and names restoring the file from Git with `git checkout <commit> -- <path>`.
+- The finalization review digest is computed over the review with `relayed_by` left out, so a 6.x binary that drops the unknown key computes the same digest; a later edit to a relay record is therefore not detected, exactly like an edit to an approval's actor.
+- A `--portable-5-0-1` approval carries the relay on both records of the pair.
+- `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
 

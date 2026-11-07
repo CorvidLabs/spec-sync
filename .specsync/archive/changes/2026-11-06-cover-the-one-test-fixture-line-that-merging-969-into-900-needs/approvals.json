@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794001818,
+      "digest": "c00b59d62080556fae107eb0031fb4b016d033bf27b1831c50ebabcc62888fa3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-one-test-fixture-line-that-merging-969-into-900-needs",
+        "title": "Cover the one test fixture line that merging #969 into #900 needs",
+        "description": "Cover the one test fixture line that merging #969 into #900 needs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests/send_back_for_rescope.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Merging main through #969 into #900 needs one line in #969's new test a_send_back_answers_review_order_by_attempt_count_and_falls_back_to_time: its ScopedReviewRecord literal gets relayed_by: None, the field #900 adds, as #900's own fixtures already do. Without it the merged tree does not compile. This change only declares that file; no spec text and no other code changes.",
+        "acceptance_criteria": [
+          "A review an agent records for a person can carry the same record, shown the same way.",
+          "The change's status shows it beside the approval or review it belongs to."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md 'Approvals are claims; relayed decisions (#633)': a record written without a relay omits relayed_by, so a fixture built as a struct literal says relayed_by: None, as #900's own fixtures do. change.3md 'Cancel by position, not by digest' (#960): the line leaves #969's send-back ordering test unchanged in what it checks. This change only declares one test file the merge of main changed; no spec text and no other code change. Leif chose the second covering change, criteria SHIP-2.e and CHANGE-13.b verbatim (2026-11-06, relayed by orc t18). Never weaken a gate, bound or test.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794004255,
+      "digest": "51b4909d6b85abd4fcf443299c41e7a51443fea1324ce1e0741ac0cba02f2fc9",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

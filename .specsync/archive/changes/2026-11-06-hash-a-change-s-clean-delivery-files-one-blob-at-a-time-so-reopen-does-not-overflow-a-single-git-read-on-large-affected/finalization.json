@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected",
+  "implementation_commit": "481f588d9796f14d27d9a598d2dc876f76df9bfb",
+  "implementation_tree": "823378ec5d282c63497fd69f3d57764c97b7b900",
+  "contract_digest": "32d7be16ec91a1677adae1fb048f4c4efaabbaeaf40ee6dc09093d35c65ceaa1",
+  "workspace_digest": "efdf9cfa7d93d0ccede76f7920866610ab473879c5de288ce5aa1972add6f9e0",
+  "closing_digest": "c7753c047a9a5d2b347a582a39fe092b14f101fccf8c2cfb7882f2914ff93ab6",
+  "review_digest": "a2b11421a75b8245fde828374612bbf93e9be2374a12f5e4c47586ed56fe5a92",
+  "finalization_digest": "96243968fd580d3768728f3fd66ca66fc2d60828df361ca7a33037706ec17720",
+  "timestamp": 1794001775
+}

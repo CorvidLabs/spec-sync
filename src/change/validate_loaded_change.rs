@@ -613,6 +613,7 @@ fn is_positive_legacy_tombstone(path: &Path) -> bool {
     })
 }
 
+#[cfg(test)]
 fn append_approval(
     root: &Path,
     record: &ChangeRecord,
@@ -620,6 +621,18 @@ fn append_approval(
     actor: Option<String>,
     digest: String,
     note: Option<String>,
+) -> Result<(), String> {
+    append_approval_with_relay(root, record, gate, actor, digest, note, None)
+}
+
+fn append_approval_with_relay(
+    root: &Path,
+    record: &ChangeRecord,
+    gate: &str,
+    actor: Option<String>,
+    digest: String,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
     let mut ledger = load_approvals(root, record)?;
     let approved_scope = (gate == "definition" && record.workflow_version >= 2)
@@ -651,6 +664,7 @@ fn append_approval(
         scope_migration: None,
         approved_delta_digests,
         approved_delta_bases,
+        relayed_by,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -658,11 +672,22 @@ fn append_approval(
     )
 }
 
+#[cfg(test)]
 fn append_portable_definition_approval_v501(
     root: &Path,
     record: &ChangeRecord,
     actor: Option<String>,
     note: Option<String>,
+) -> Result<(), String> {
+    append_portable_definition_approval_v501_with_relay(root, record, actor, note, None)
+}
+
+fn append_portable_definition_approval_v501_with_relay(
+    root: &Path,
+    record: &ChangeRecord,
+    actor: Option<String>,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
     let (current_digest, legacy_digest, correction_prefix_digest) =
         portable_definition_digest_pair_v501(root, record)?;
@@ -731,6 +756,8 @@ fn append_portable_definition_approval_v501(
         scope_migration: None,
         approved_delta_digests: approved_delta_digests.clone(),
         approved_delta_bases: approved_delta_bases.clone(),
+        // Both records of the pair are one approval, so both carry the relay.
+        relayed_by: relayed_by.clone(),
     };
     let legacy = ApprovalRecord {
         gate: "definition".into(),
@@ -743,6 +770,7 @@ fn append_portable_definition_approval_v501(
         scope_migration: None,
         approved_delta_digests,
         approved_delta_bases,
+        relayed_by,
     };
     let approvals = document
         .get_mut("approvals")
@@ -789,16 +817,25 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
     let path = find_change_dir(root, &record.id)?.join("approvals.json");
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&content).map_err(|error| {
+    let ledger: ApprovalLedger = serde_json::from_str(&content).map_err(|error| {
         let message = error.to_string();
         if message.contains("missing field `stale_acceptance_input_digest`")
             || message.contains("missing field `current_acceptance_input_digest`")
         {
             format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
         } else {
-            message
+            with_relayed_read_recovery(root, &path, message)
         }
-    })
+    })?;
+    ensure_read_relays_name_their_deciders(
+        ledger
+            .approvals
+            .iter()
+            .map(|approval| (approval.actor.as_str(), approval.relayed_by.as_ref())),
+        "the approval's actor",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    Ok(ledger)
 }
 
 /// Accepted acceptance-input entries for a change, or an empty list when it has no
@@ -3108,8 +3145,27 @@ fn workflow_v1_record_present_in_cutoff_tree(
         None,
         MAX_GIT_COMMAND_OUTPUT_BYTES,
     )?;
-    // A cutoff without an archive root has no archived candidates; any other failure leaves only
-    // the active path, which can only make the answer "absent", a refusal.
+    // A cutoff without an archive root has no archived candidates. Any other failure means the
+    // archive tree is there but cannot be read (an offline partial clone that never fetched it),
+    // and that is said, never answered as "absent" (REQ-change-145).
+    if !listing.status.success() {
+        let root_listing = run_git_bounded(
+            root,
+            &["ls-tree", "--full-tree", "-z", "--name-only", cutoff, "--", &archive_root],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )?;
+        let has_archive_root = String::from_utf8_lossy(&root_listing.stdout)
+            .split('\0')
+            .any(|entry| entry == archive_root);
+        if !root_listing.status.success() || has_archive_root {
+            let stderr = String::from_utf8_lossy(&listing.stderr);
+            return Err(format!(
+                "the archive tree at the trusted pre-v2 cutoff {cutoff} could not be read: {}",
+                stderr.trim()
+            ));
+        }
+    }
     if listing.status.success() {
         let suffix = format!("-{}", record.id);
         for entry in String::from_utf8_lossy(&listing.stdout).split('\0') {
@@ -4383,10 +4439,40 @@ fn is_zero_u64(value: &u64) -> bool {
 }
 
 fn now() -> u64 {
+    #[cfg(test)]
+    if let Some(pinned) = TEST_PINNED_NOW.with(std::cell::Cell::get) {
+        return pinned;
+    }
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A second `now()` returns on this thread while a `PinnedTestClock` lives, so a test can put
+    /// two records in the same second on purpose instead of by luck (CI-7, #977).
+    static TEST_PINNED_NOW: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Pins `now()` on this thread to one second until dropped. Test builds only.
+#[cfg(test)]
+struct PinnedTestClock;
+
+#[cfg(test)]
+impl PinnedTestClock {
+    fn at(seconds: u64) -> Self {
+        TEST_PINNED_NOW.with(|pinned| pinned.set(Some(seconds)));
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for PinnedTestClock {
+    fn drop(&mut self) {
+        TEST_PINNED_NOW.with(|pinned| pinned.set(None));
+    }
 }
 
 fn today() -> String {

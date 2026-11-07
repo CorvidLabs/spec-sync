@@ -2800,17 +2800,14 @@ fn change_check_notes_the_configured_commands_it_did_not_run() {
         .success()
         .get_output()
         .clone();
-    let document: Value = serde_json::from_slice(&json.stdout)
-        .expect("JSON check prints one document on stdout");
+    let document: Value =
+        serde_json::from_slice(&json.stdout).expect("JSON check prints one document on stdout");
     assert_eq!(
         document["configured_commands_not_run"],
         serde_json::json!([reporter, "cargo test lib::", "cargo test"]),
         "the configured commands, each once, in policy order: {document}"
     );
-    assert!(
-        !marker.exists(),
-        "the note never runs a configured command"
-    );
+    assert!(!marker.exists(), "the note never runs a configured command");
 }
 
 // Verifies REQ-cmd-change-unrun-commands-001 (#893, SHIP-1.c.3).
@@ -2824,7 +2821,14 @@ fn change_check_commit_notes_the_configured_commands_it_did_not_run() {
     let root = temp.path();
     let id = change_ready_to_verify(root, &["cargo test".to_string()]);
     let output = specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "check", &id, "--commit"])
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--commit",
+        ])
         .assert()
         .success()
         .get_output()
@@ -2846,7 +2850,10 @@ fn change_check_commit_notes_the_configured_commands_it_did_not_run() {
 fn change_audit_notes_the_configured_commands_it_did_not_run() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    change_ready_to_verify(root, &["cargo test".to_string(), "cargo clippy".to_string()]);
+    change_ready_to_verify(
+        root,
+        &["cargo test".to_string(), "cargo clippy".to_string()],
+    );
     let root_arg = root.to_str().unwrap();
     let text = specsync()
         .args(["--root", root_arg, "change", "audit"])

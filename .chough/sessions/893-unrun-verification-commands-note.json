@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-8f304d0fcf15ff3c046a8927",
-    "head": "EVT-9b472ae0f8e6fdc066bd70c3",
+    "head": "EVT-99f2b5b63a353d9911943de7",
     "legacy": null
   },
   "schema_version": 2,
@@ -12,7 +12,7 @@
     "cmd_change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -45,9 +45,7 @@
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Scope approval of #893 change change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is, sent to orc t18"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Waiting for Leif's scope approval of #893; do not implement before it is recorded"
+  "next_action": "Implement the approved configured-command disclosure, then run focused and full verification"
 }

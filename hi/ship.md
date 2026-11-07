@@ -11,7 +11,7 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
 
 SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif in the Herdr orc tab on 2026-11-05 at 20:19 MST, relayed by orc t18: "Approve", as proposed. Recorded by claude (ss-d7).
 
-SHIP-1.c.3 was drafted by the agent for issue #893. Leif approved it as drafted in the Herdr orc tab on 2026-11-06 at about 19:35 MST ("3yes 3b-yes": the note and its JSON list, and emptying spec-sync's own `verification_commands`), relayed by orc t18. Recorded by the ss-triage Claude agent (t15w).
+SHIP-1.c.3 was drafted by the agent for issue #893. Leif approved it as drafted in the Herdr orc tab on 2026-11-06 at about 19:35 MST ("3yes 3b-yes": the note and its JSON list, and emptying spec-sync's own `verification_commands`), relayed by orc t18. Recorded by the ss-triage Claude agent (t15w). Leif later narrowed the 3b policy choice through orc t18: empty only `verification_commands` and keep the 13 component modules and 3 strict commands, so this repository's note remains visible; the criterion text is unchanged.
 
 ## Criteria
 

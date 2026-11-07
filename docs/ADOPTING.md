@@ -81,7 +81,10 @@ want `change audit` to demand one.
 `change check` does not run your tests. It compares the specs this change owns or maps to the
 code, in-process, and records that as evidence. `verification_commands` is still accepted in
 `sdd.json` for adopters who list it, but nothing executes it — `cargo test` / `swift test` /
-`bun test` belong in CI, next to `specsync check`.
+`bun test` belong in CI, next to `specsync check`. Text check and audit print one stderr note
+counting the configured commands they did not run, including component and strict lists. Their
+JSON output exposes the deduplicated list as `configured_commands_not_run` (`[]` when empty).
+The disclosure never runs a command or changes the verdict; empty the configured lists to stop it.
 
 ## 4. Drive one real change end to end
 

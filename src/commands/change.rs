@@ -1215,6 +1215,27 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     if let Some(step) = &open_tasks_step {
         blockers.push(format!("tasks.md contains incomplete tasks: {step}"));
     }
+    // Finalize refuses production source no declared module owns; ship-status and ship
+    // preflight run the same check so "ready to finalize" never names a change it refuses
+    // (REQ-cmd-change-008, #986, #956).
+    let ownership_recovery = if record.state == ChangeState::Verifying && upstream_archive.is_none()
+    {
+        match change::ownership_preflight_blocker(root, record) {
+            Ok(Some((blocker, recovery))) => {
+                blockers.push(blocker);
+                Some(recovery)
+            }
+            Ok(None) => None,
+            Err(error) => {
+                blockers.push(format!(
+                    "the acceptance ownership preflight could not run ({error}); finalize would not either"
+                ));
+                None
+            }
+        }
+    } else {
+        None
+    };
     if matches!(
         record.state,
         ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
@@ -1336,6 +1357,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
 
     let ship_next = if let Some(upstream) = &upstream_archive {
         change::upstream_archive_message(&record.id, upstream)
+    } else if let Some(recovery) = &ownership_recovery {
+        recovery.clone()
     } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(

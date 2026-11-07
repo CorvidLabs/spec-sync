@@ -4776,17 +4776,14 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     }
     // Ownership is resolved against the change's declared specs. Empty specs
     // reach here only for justified `no_spec_change` work (validate_definition
-    // already rejects empty specs without that flag). There is then no owner set
-    // to resolve against; finalize still enforces production ownership against
-    // full delivery evidence for that class.
-    if record.affected_specs.is_empty() {
-        if !record.no_spec_change {
-            return Err(
-                "affected specs are required for path ownership validation unless no_spec_change is justified"
-                    .into(),
-            );
-        }
-        return Ok(());
+    // already rejects empty specs without that flag). With no declared module an
+    // existing production-source path has no owner, and finalize refuses it, so
+    // it is refused here, before anyone approves or reviews it (#986, #956).
+    if record.affected_specs.is_empty() && !record.no_spec_change {
+        return Err(
+            "affected specs are required for path ownership validation unless no_spec_change is justified"
+                .into(),
+        );
     }
     let evidence = acceptance_owner_spec_evidence(root, record)?;
     let mut unowned = Vec::new();
@@ -4809,7 +4806,7 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         .iter()
         .map(|path| format!("  - {path}: {}", ownership_hint(root, record, path)))
         .collect();
-    Err(format!(
+    let mut message = format!(
         "no declared module canonically owns {}: {}. Declare the owning module with `--spec`, \
          or add the path to an owning spec's `files:` list:\n{}",
         if unowned.len() == 1 {
@@ -4819,7 +4816,99 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         },
         unowned.join(", "),
         hints.join("\n")
-    ))
+    );
+    if record.state == ChangeState::Draft
+        && let Some(answer) = declare_owners_answer(root, record, &unowned)
+    {
+        message.push_str(&format!("\nOn this draft, declare them with `{answer}`."));
+    }
+    Err(message)
+}
+
+/// Every module that owns `path` and that `record` does not declare: modules whose configured
+/// `owns` covers it (sorted by name), then modules whose canonical spec lists it in `files:`
+/// (in spec path order), each once. The same modules `ownership_hint` tells the operator to add.
+fn undeclared_owning_modules(root: &Path, record: &ChangeRecord, path: &str) -> Vec<String> {
+    let config = crate::config::load_config(root);
+    let mut modules: Vec<String> = config
+        .modules
+        .keys()
+        .filter(|module| !record.affected_specs.contains(*module))
+        .filter(|module| configured_module_owns_path(&config, module, path))
+        .cloned()
+        .collect();
+    modules.sort();
+    for (_, module) in specs_listing_path(root, &config.specs_dir, path) {
+        if let Some(module) = module
+            && !record.affected_specs.contains(&module)
+            && !modules.contains(&module)
+        {
+            modules.push(module);
+        }
+    }
+    modules
+}
+
+/// `specsync change answer <id> affected_specs <modules>` that declares, beside the modules
+/// `record` already declares, every module that owns one of `paths`; `None` when no module owns
+/// any of them, so declaring cannot help (#986).
+fn declare_owners_answer(root: &Path, record: &ChangeRecord, paths: &[&str]) -> Option<String> {
+    let mut modules = record.affected_specs.clone();
+    let before = modules.len();
+    for path in paths {
+        for module in undeclared_owning_modules(root, record, path) {
+            if !modules.contains(&module) {
+                modules.push(module);
+            }
+        }
+    }
+    (modules.len() > before).then(|| {
+        format!(
+            "specsync change answer {} affected_specs {}",
+            record.id,
+            modules.join(",")
+        )
+    })
+}
+
+/// The ship-preflight blocker for production source in the change's delivery that no declared
+/// module owns, and the recovery to name as the next action; `None` when every input has an
+/// owner (REQ-cmd-change-008).
+///
+/// Finalize signs the delivery inputs with `acceptance_manifest` and refuses an unowned
+/// production-source input. This builds the same manifest read-only, letting such an input fall
+/// to the exact delivery owner instead of failing, so it can name every one of them at once:
+/// a production-source entry left with only that owner is exactly what finalize refuses.
+pub fn ownership_preflight_blocker(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<(String, String)>, String> {
+    let unowned = unowned_production_delivery_inputs(root, record)?;
+    if unowned.is_empty() {
+        return Ok(None);
+    }
+    let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|path| format!("{path}: {}", ownership_hint(root, record, path)))
+        .collect();
+    let recovery = match declare_owners_answer(root, record, &paths) {
+        Some(answer) => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, then approve, check and review again",
+            record.id
+        ),
+        None => format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+            record.id
+        ),
+    };
+    Ok(Some((
+        format!(
+            "finalize would refuse production source no declared module owns: {}",
+            hints.join("; ")
+        ),
+        recovery,
+    )))
 }
 
 /// Names what to change for one unowned affected path.

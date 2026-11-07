@@ -3812,16 +3812,7 @@ fn corrupt_archive_signal(
     let Some(package) = package.filter(|_| git_repository_present(root).unwrap_or(false)) else {
         return Some(CorruptArchive::OutsidePackage);
     };
-    // Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly when the
-    // package's tracked content differs from that commit, staged or not.
-    let differs_from = |commit: &str| {
-        crate::git_utils::status_without_inherited_output(
-            Command::new("git")
-                .args(["diff", "--quiet", commit, "--", &package])
-                .current_dir(root),
-        )
-        .is_ok_and(|status| status.code() == Some(1))
-    };
+    let differs_from = |commit: &str| archive_package_differs_from(root, commit, &package);
     if differs_from("HEAD") {
         return Some(CorruptArchive::DiffersFromHead { package });
     }
@@ -3841,6 +3832,17 @@ fn corrupt_archive_signal(
         Some(commit) if differs_from(&commit) => Some(CorruptArchive::DamageCommitted { package }),
         _ => Some(CorruptArchive::OutsidePackage),
     }
+}
+
+/// Whether the tracked content of `package` (relative to `root`) differs from `commit`, staged
+/// or not. Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly then.
+fn archive_package_differs_from(root: &Path, commit: &str, package: &str) -> bool {
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["diff", "--quiet", commit, "--", package])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.code() == Some(1))
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,

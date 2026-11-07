@@ -32,3 +32,5 @@ REQ-cli-args-020: change_historical_reconciliation_requires_explicit_actor_and_r
 REQ-cli-args-021: change_send_back_requires_and_collects_audit_inputs
 
 REQ-cli-args-relayed-decision-001: change_approve_and_review_take_an_optional_relayed_decision; change_check_review_and_finalize_are_plain_commands still parses review without the flags.
+
+REQ-cli-args-relay-repair-001 (#904): change_repair_relays_takes_only_the_change_id (src/cli.rs): the id parses, a missing id or any other argument fails, `change --help` lists `repair-relays`, and `change status` still parses.

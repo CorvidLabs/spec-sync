@@ -278,3 +278,12 @@ Acceptance Criteria
 - `specsync doctor`, `specsync doctor --fix`, `specsync doctor --fix --dry-run` and `specsync doctor --fix --close-late a --close-late b --actor X --reason Y` parse.
 - `specsync doctor --close-late a --actor X --reason Y` (no `--fix`), `specsync doctor --fix --close-late a` (no actor or reason) and `specsync doctor --dry-run` are refused by argument parsing.
 
+### REQ-cli-args-relay-repair-001
+
+The CLI SHALL parse `change repair-relays <id>` into the change action, taking the change id and no other arguments.
+
+#### Acceptance Criteria
+
+- Help lists `repair-relays` under `change`.
+- `change repair-relays` without an id fails argument parsing, and existing change grammar parses exactly as before.
+

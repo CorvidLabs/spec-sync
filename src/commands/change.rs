@@ -311,6 +311,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             })
         }
+        ChangeAction::RepairRelays { id } => {
+            change::repair_relayed_decisions(root, &id).map(|report| match format {
+                OutputFormat::Json => print_json(&report),
+                _ => print_relay_repairs(&report),
+            })
+        }
         ChangeAction::Correct {
             id,
             field,
@@ -848,6 +854,50 @@ fn print_recorded_claims(claims: &[change::RecordedClaim]) {
                 change::RELAYED_CLAIM_BOUNDARY
             );
         }
+    }
+}
+
+/// One line per repaired relayed decision (REQ-cmd-change-relay-repair-001): where the original
+/// was put back from, or that it was removed and what it held, escaped like every claim.
+fn print_relay_repairs(report: &change::RelayRepairReport) {
+    if report.repairs.is_empty() {
+        println!("No relayed decision in {} needs repair.", report.change);
+        return;
+    }
+    println!(
+        "{} Repaired relayed decisions in {}:",
+        "✓".green(),
+        report.change
+    );
+    for repair in &report.repairs {
+        let place = match repair.file.as_str() {
+            "approvals.json" => format!("approvals.json approval {}", repair.record),
+            "review-attempts.json" => format!("review-attempts.json attempt {}", repair.record),
+            other => other.to_string(),
+        };
+        match &repair.from {
+            Some(from) => println!("  {place}: put back from {from}"),
+            None => println!(
+                "  {place}: removed, because no copy of the original exists; it was {}",
+                printable_claim_text(
+                    &repair
+                        .removed
+                        .as_ref()
+                        .map(ToString::to_string)
+                        .unwrap_or_default()
+                )
+            ),
+        }
+    }
+    println!(
+        "  Every approval and review attempt is kept, verdicts included; no digest or gate reads a \
+         relayed decision, so nothing went stale."
+    );
+    if report.repairs.iter().any(|repair| repair.from.is_none()) {
+        println!(
+            "  To carry a removed relayed decision again, record that decision again with \
+             --words, --where and --recorded-by."
+        );
     }
 }
 

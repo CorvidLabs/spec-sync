@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 37
+version: 38
 status: stable
 files:
   - src/cli.rs
@@ -163,7 +163,8 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-05 | v32 / #862: `merge --install` and `merge-file %O %A %B %P` are part of the command grammar |
 | 2026-11-06 | `--timeout <secs>` on `change status`, `show`, `list` and `ship-status` (REQ-cli-args-024, S9) |
+| 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
+| 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | v35: the `doctor` subcommand: `--fix`, `--dry-run` (needs `--fix`), repeatable `--close-late <id|all>` (needs `--fix`, `--actor` and `--reason`), `--actor`, `--reason` (REQ-cli-args-025, #833) |
-| 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |

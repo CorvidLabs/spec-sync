@@ -824,7 +824,7 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
         {
             format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
         } else {
-            with_relayed_read_recovery(root, &path, message)
+            with_relayed_read_recovery(root, record, &path, message)
         }
     })?;
     ensure_read_relays_name_their_deciders(
@@ -834,7 +834,7 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
             .map(|approval| (approval.actor.as_str(), approval.relayed_by.as_ref())),
         "the approval's actor",
     )
-    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    .map_err(|message| with_relayed_read_recovery(root, record, &path, message))?;
     Ok(ledger)
 }
 

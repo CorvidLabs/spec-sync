@@ -1,4 +1,44 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794022455,
+      "digest": "8aea5aced720053f5b84f091a0613f4cbbccca751b7e5329e0a7bf63b69d48b9",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-merge-driver-installation-match-contracts-when-the-specs-directory-is-the-repository-root",
+        "title": "Make merge driver installation match contracts when the specs directory is the repository root",
+        "description": "Make merge driver installation match contracts when the specs directory is the repository root",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_merge"
+        ],
+        "affected_paths": [
+          "specs/cmd_merge",
+          "src/commands/merge.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "For specs_dir = . and ./, merge --install writes rules that git check-attr resolves as merge=specsync for root and nested .spec.md and requirements.md paths.",
+          "The change traces to MERGE-1 without new HI wording and adds one cmd_merge requirement assigned by the orc.",
+          "The git check-attr regression test fails on the unmodified base before the fix and passes afterward; existing non-root install, quoting, symlink refusal, and rollback behavior stays unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "cmd_merge.3md plane z=5: committed attribute rules and clone-local driver config stay separate, and a clone without local config keeps ordinary git merge behavior. Existing wildcard escaping, symlink refusal, and config-failure rollback behavior stays unchanged.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_merge": "ac74e9e28858db00d64ca2d5c088607fb4e13f1cbeb774d242d64fd2bee2fb70"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

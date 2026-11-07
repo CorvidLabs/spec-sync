@@ -1,6 +1,6 @@
 ---
 id: make-merge-driver-installation-match-contracts-when-the-specs-directory-is-the-repository-root
-state: draft
+state: approved
 type: bug_fix
 base_commit: b3ca5f97aa9c07b09ab6bfd8d7eece28f2c30f79
 ---

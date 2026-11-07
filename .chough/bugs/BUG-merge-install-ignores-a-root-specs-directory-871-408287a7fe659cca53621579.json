@@ -22,17 +22,28 @@
   ],
   "fixture": "target/tmp/ss-871-repro",
   "observations": [
-    "OBS-product-test-b47ebf5a0d626500e6c08d9c"
+    "OBS-product-test-b47ebf5a0d626500e6c08d9c",
+    "OBS-product-test-8b3cf28186053c41615bf658",
+    "OBS-product-test-e62f4a4b773df570bf80de09"
   ],
   "impact": "Projects whose specs directory is the repository root get no merge-driver protection while installation claims success.",
   "classification": "product-defect",
   "scope": "blocking",
-  "status": "open",
+  "status": "verified",
   "regression_baseline": null,
   "duplicate_of": null,
   "related": [],
   "source": "GitHub issue #871 and local reproduction at b3ca5f97",
-  "notes": [],
+  "notes": [
+    {
+      "at_unix_seconds": 1794064554,
+      "text": "status: open -> verified. Verified after explicit bare-dot normalization: 6/6 install tests pass and the original merge --install plus git check-attr scenario selects specsync for all four root/nested contract paths.",
+      "observations": [
+        "OBS-product-test-8b3cf28186053c41615bf658",
+        "OBS-product-test-e62f4a4b773df570bf80de09"
+      ]
+    }
+  ],
   "created_at_unix_seconds": 1794021155,
-  "updated_at_unix_seconds": 1794021155
+  "updated_at_unix_seconds": 1794064554
 }

@@ -26,3 +26,6 @@ Fully implemented and stable. Spec created to achieve 100% file coverage.
 
 @plane z=5 label="Lesson (#862)"
 `merge --install` is what makes `git merge-tree` call `merge-file`. The attribute lines can be committed; the driver command is local git config and points at this executable, so an upgrade runs `--install` again. Until that config exists, git's ordinary merge still applies.
+
+@plane z=6 label="A root specs directory needs no prefix (#871)"
+A `.gitattributes` pattern beginning `./` never matches, and a bare `.` does not disappear when only slashes are trimmed. Normalize both `.` and `./` to an empty directory prefix, then emit `**/*.spec.md` and `**/requirements.md`. Prove the installed behavior with `git check-attr` on root and nested spec and requirements paths for both spellings; comparing generated strings alone would not prove Git selects the driver.

@@ -164,14 +164,17 @@ fn attribute_lines(specs_dir: &str) -> Vec<String> {
         specs_dir = rest.trim_start_matches('/').to_string();
     }
     let specs_dir = specs_dir.trim_matches('/');
+    let specs_dir = if specs_dir == "." { "" } else { specs_dir };
     let literal = escape_wildmatch(specs_dir);
     ["**/*.spec.md", "**/requirements.md"]
         .iter()
         .map(|tail| {
-            format!(
-                "{} merge=specsync",
-                attribute_pattern(&format!("{literal}/{tail}"))
-            )
+            let pattern = if specs_dir.is_empty() {
+                tail.to_string()
+            } else {
+                format!("{literal}/{tail}")
+            };
+            format!("{} merge=specsync", attribute_pattern(&pattern))
         })
         .collect()
 }

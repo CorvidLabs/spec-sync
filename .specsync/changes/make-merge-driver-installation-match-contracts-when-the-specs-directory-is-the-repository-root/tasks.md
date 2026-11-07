@@ -5,10 +5,10 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Add the root-specs `git check-attr` regression test and record its failure on the unmodified base.
-- [ ] Normalize `.` and `./` to repository-root attribute patterns without changing non-root installation behavior.
-- [ ] Update the `cmd_merge` requirement, spec invariant and change log, module tasks, and `cmd_merge.3md` lesson.
-- [ ] Pass focused install tests and the original `merge --install` plus `git check-attr` scenario.
-- [ ] Pass `fledge lanes run verify`, pre-push, and the archive-tip CI lane.
+- [x] Add the root-specs `git check-attr` regression test and record its failure on the unmodified base.
+- [x] Normalize `.` and `./` to repository-root attribute patterns without changing non-root installation behavior.
+- [x] Update the `cmd_merge` requirement, spec invariant and change log, module tasks, and `cmd_merge.3md` lesson.
+- [x] Pass focused install tests and the original `merge --install` plus `git check-attr` scenario.
+- [ ] Pass `fledge lanes run verify` and pre-push.
 
-Human scope approval and implementation review are orc-recorded gates, not task checkboxes.
+Human scope approval, implementation review, and archive-tip CI are delivery gates, not task checkboxes.

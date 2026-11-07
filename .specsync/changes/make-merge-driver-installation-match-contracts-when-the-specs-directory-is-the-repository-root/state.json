@@ -7,10 +7,10 @@
   "title": "Make merge driver installation match contracts when the specs directory is the repository root",
   "description": "Make merge driver installation match contracts when the specs directory is the repository root",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "b3ca5f97aa9c07b09ab6bfd8d7eece28f2c30f79",
   "created_at": 1794021560,
-  "updated_at": 1794021614,
+  "updated_at": 1794022455,
   "affected_specs": [
     "cmd_merge"
   ],

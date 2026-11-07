@@ -29,11 +29,15 @@
   "decisions": [],
   "open_questions": [],
   "completed": [
-    "Drafted the complete cmd_merge change and proved root_specs_dir_matches_contracts fails before the fix"
+    "Drafted the complete cmd_merge change and proved root_specs_dir_matches_contracts fails before the fix",
+    "Implemented root specs normalization; focused install tests and the original installed-command scenario pass"
   ],
   "observations": [
     "OBS-product-test-b47ebf5a0d626500e6c08d9c",
-    "OBS-product-test-0677784587f48c2115ff3f2c"
+    "OBS-product-test-0677784587f48c2115ff3f2c",
+    "OBS-product-test-8b3cf28186053c41615bf658",
+    "OBS-product-test-e62f4a4b773df570bf80de09",
+    "OBS-product-test-f6bd8d6b1f50fef57acf10bb"
   ],
   "bugs": [
     "BUG-merge-install-ignores-a-root-specs-directory-871-408287a7fe659cca53621579"
@@ -43,5 +47,5 @@
     "HI mapping confirmation for #871: existing MERGE-1, no new wording"
   ],
   "run_consents": [],
-  "next_action": "Commit the change definition and red test, then ask the orc for scope approval; do not implement before approval"
+  "next_action": "Resume #871 only when dispatched: rerun fledge lanes run verify and pre-push, tick the final task, run change check --commit and audit --strict, then push and open the PR for orc review; do not merge main under the current no-merge rule"
 }

@@ -1,6 +1,6 @@
 ---
 id: report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to
-state: draft
+state: approved
 type: bug_fix
 base_commit: 9dd2affdca4628156835a6a0488e32a2f4702e45
 ---

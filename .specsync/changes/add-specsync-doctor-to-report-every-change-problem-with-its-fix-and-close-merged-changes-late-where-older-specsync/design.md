@@ -44,9 +44,12 @@ change's evidence. The scan continues.
 - **Merge proof.** The package's `state.json`, at its current path, must exist on the remote default. The
   record keeps the commit that added it (`git log -1 --diff-filter=A <ref> -- <state.json>`) and its date.
 - **Reads not taken.** Delivery inputs, manifests, digests, verification and the preflight.
-- **Collisions (D5).** For a member of an acknowledged sequence collision, the acknowledgement is removed
-  from `change-sequence.json` and copied into `late-close.json`. The sequence and the high-water claim are
-  untouched.
+- **Collisions (D5).** For a member of an acknowledged sequence collision, the change is taken out of the
+  acknowledgement in `change-sequence.json`; the acknowledgement goes once fewer than two members remain, so
+  the members SpecSync still enumerates stay acknowledged. The acknowledgement as it stood is copied into
+  `late-close.json`. The sequence and the high-water claim are untouched.
+- **Safe fixes after a move.** Each safe fix is revalidated against a fresh scan after every late close or
+  applied fix, and a change closed late in the same call gets none (Codex review of #994).
 - **All or nothing.** Every named change is validated first. A write failure restores the packages already
   moved.
 - **`late-close.json`.**

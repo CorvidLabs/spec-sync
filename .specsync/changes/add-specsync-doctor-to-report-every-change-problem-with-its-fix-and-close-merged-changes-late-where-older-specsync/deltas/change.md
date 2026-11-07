@@ -9,7 +9,7 @@ Acceptance Criteria
 - The package's `state.json`, at its current path, must be present on the remote default reference (`origin/HEAD`, else `origin/main` or `origin/master`). When no remote default resolves, or the package is not on it, the close is refused and nothing is written.
 - No delivery input, acceptance manifest, acceptance input digest or verification is read or rebuilt.
 - `late-close.json` records the schema version, change ID, actor, reason, timestamp, the state it was closed from, its workflow version, the path it came from, the remote default reference and its commit, the commit that added the package and that commit's date, and `verified: false`.
-- For a member of an acknowledged sequence collision, the acknowledgement is removed from `.specsync/change-sequence.json` and recorded in `late-close.json`; the ledger's sequence and claim are unchanged.
+- For a member of an acknowledged sequence collision, the change is taken out of that acknowledgement in `.specsync/change-sequence.json`, the acknowledgement goes once fewer than two members remain, and the acknowledgement as it stood is recorded in `late-close.json`; the ledger's sequence and claim are unchanged.
 - A closed-late change is never part of the archive preflight, the successor walk or the sequence accounting, which read only `.specsync/changes/` and `.specsync/archive/changes/`.
 - `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
 - `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.

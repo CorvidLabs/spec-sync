@@ -10,7 +10,7 @@
   "state": "draft",
   "base_commit": "1276e314790521904552e375a659ae3214aa04dc",
   "created_at": 1793995806,
-  "updated_at": 1794010492,
+  "updated_at": 1794010965,
   "affected_specs": [
     "change",
     "cmd_change",
@@ -56,8 +56,8 @@
     "SHIP-12, SHIP-12.c, SHIP-12.e (REQ-change-143): a late close moves the package byte for byte from .specsync/changes/ or .specsync/archive/changes/ to .specsync/archive/closed-late/<date>-<id>/, keeps its state.json and the state in it, adds late-close.json, and adds no ChangeState variant. It reads none of the change's delivery evidence, and it closes only a package committed on the remote default branch; any other is refused and nothing is written.",
     "SHIP-12.a, SHIP-12.d: late-close.json records the actor, reason, timestamp, the state it was closed from, the workflow version, the path it came from, the remote default ref and commit, the commit that merged it and that commit's date, and verified false. `change status` (text and JSON) and `ship-status` say it was closed late, never re-checked and not verified, and a closed draft also says it was never approved.",
     "SHIP-12.b: a closed-late change is never part of the archive preflight or the successor walk; reopen, review, check, accept, archive and finalize refuse it; and `change new` refuses its slug.",
-    "SHIP-12.f: several late closes in one call are all checked before anything is written; one refusal writes nothing and names the change refused.",
-    "D5: late-closing a member of an acknowledged sequence collision drops that acknowledgement from .specsync/change-sequence.json and records it in late-close.json. The ledger sequence is never lowered, and doctor says the ledger edit needs an open change that declares it wherever meaningful files require one.",
+    "SHIP-12.f: several late closes in one call are all checked before anything is written; one refusal writes nothing and names the change refused; a change named more than once is closed once; and each safe fix is revalidated against a fresh scan after every move, so a change closed late in the same call gets no safe fix.",
+    "D5: late-closing a member of an acknowledged sequence collision takes the change out of that acknowledgement in .specsync/change-sequence.json, drops the acknowledgement once fewer than two members remain, and records the acknowledgement as it stood in late-close.json. The ledger sequence is never lowered, and doctor says the ledger edit needs an open change that declares it wherever meaningful files require one.",
     "SHIP-12.g, D4: a CI job and a fledge lane run real 6.0.0 and 6.2.0 Linux release binaries, pinned by sha256, against a repository after `doctor --fix`. There, audit passes; list omits the closed-late changes; status, ship-status and reopen report them not found; a partial finalize they blocked resumes and archives; a v1 archive passes; and a collision fixture audits clean.",
     "REQ-cli-args-025: the `doctor` subcommand parses `--fix`, `--dry-run`, a repeatable `--close-late <id|all>`, `--actor`, `--reason` and the global output flags, and argument parsing refuses `--close-late` given without `--fix`, `--actor` and `--reason`.",
     "Failing tests first: each new test fails on the branch base before the implementation and passes after; no existing gate, bound, timeout or assertion is loosened."

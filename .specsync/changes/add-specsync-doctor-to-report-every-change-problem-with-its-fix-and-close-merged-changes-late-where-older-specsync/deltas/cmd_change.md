@@ -10,5 +10,6 @@ Acceptance Criteria
 - A check that cannot run becomes a finding that names its error, and every other finding is still reported.
 - Plain `doctor` writes nothing. `--fix --dry-run` reports exactly what `--fix` would do with the same arguments and writes nothing.
 - The safe fixes are the `migrate 5.0` backfill, and resuming a stopped finalize (workflow v1: `change archive`) when no other finding blocks it. Stale verification is report-only and names `change check <id> --commit`.
-- `--close-late <id>` (repeatable) or `--close-late all` closes the named or every eligible change late, only with a non-empty `--actor` and `--reason`. Every named change is checked before anything is written, and one refusal writes nothing and names the refused change.
+- `--close-late <id>` (repeatable) or `--close-late all` closes the named or every eligible change late, only with a non-empty `--actor` and `--reason`. A change named more than once is closed once. Every named change is checked before anything is written, and one refusal writes nothing and names the refused change.
+- After every late close or applied fix, each remaining safe fix is revalidated against a fresh scan, and a change closed late in the same call gets no safe fix.
 - A late close of a collision member says that the ledger edit needs an open change declaring `.specsync/change-sequence.json` wherever meaningful files require one.

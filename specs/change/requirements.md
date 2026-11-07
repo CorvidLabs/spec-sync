@@ -1848,6 +1848,29 @@ Acceptance Criteria
 - With a replacement under a custom `GIT_REPLACE_REF_BASE` that swaps HEAD for a copy whose archived record lost its workflow version, `change status` under that variable gives exactly the plain read, fresh and cached.
 - `GIT_NO_REPLACE_OBJECTS=1` gives the plain read too.
 
+### REQ-change-relay-repair-001
+
+`repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.
+
+#### Acceptance Criteria
+
+- Between `change review` and `change ship`, when neither review file is committed, a damaged relay in `review.json` is put back from the last review attempt, and one in the last attempt is put back from `review.json`, byte for byte; the change then ships with nothing committed in between.
+- A damaged relay in a committed `approvals.json` is put back from `HEAD`, and the file's bytes equal the committed file.
+- A damaged relay with no surviving copy, such as an earlier review attempt or an approval that was never committed, is removed; every approval and attempt stays with its verdict, and the change can ship.
+- A record whose relay reads cleanly is never changed, and with nothing damaged nothing is written.
+- Files are written the way SpecSync writes them, all in one step under the project lock. A file that still does not read after its relays are repaired is refused and nothing is written.
+- Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
+- An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
+- A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
+
+### REQ-change-142
+
+When a remote default exists and its archived state records cannot be listed or read, the upstream-archive lookup SHALL report that it cannot tell whether the change is already archived there, rather than reporting no upstream archive. `change review` and `change finalize` SHALL refuse before acceptance and write no archive, and `change status` and `change ship-status` SHALL report the same refusal. The refusal SHALL name the remote default reference and how to find out (SHIP-3.c).
+
+Acceptance Criteria
+- A failed listing, a failed or truncated batched read, or a failed addition or ancestry lookup for a matching package is reported as cannot-tell.
+- No remote default, or a readable archive with no copy of the change, reports nothing.
+
 ### REQ-change-143
 
 A late close SHALL move a change package that is committed on the remote default branch but was never archived, byte for byte, into `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` record, without reading the change's delivery evidence and without adding a change state, and SpecSync SHALL never treat a closed-late change as verified.
@@ -1863,19 +1886,4 @@ Acceptance Criteria
 - `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
 - `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.
 - SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`.
-
-### REQ-change-relay-repair-001
-
-`repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.
-
-#### Acceptance Criteria
-
-- Between `change review` and `change ship`, when neither review file is committed, a damaged relay in `review.json` is put back from the last review attempt, and one in the last attempt is put back from `review.json`, byte for byte; the change then ships with nothing committed in between.
-- A damaged relay in a committed `approvals.json` is put back from `HEAD`, and the file's bytes equal the committed file.
-- A damaged relay with no surviving copy, such as an earlier review attempt or an approval that was never committed, is removed; every approval and attempt stays with its verdict, and the change can ship.
-- A record whose relay reads cleanly is never changed, and with nothing damaged nothing is written.
-- Files are written the way SpecSync writes them, all in one step under the project lock. A file that still does not read after its relays are repaired is refused and nothing is written.
-- Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
-- An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
-- A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 

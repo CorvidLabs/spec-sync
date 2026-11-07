@@ -7,10 +7,11 @@
   "title": "Leave relayed decisions out of approval succession, the definition digest and the trusted correction history",
   "description": "Leave relayed decisions out of approval succession, the definition digest and the trusted correction history",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "71130737616cf0379694f5e7b0446bceff4628e7",
   "created_at": 1794019150,
-  "updated_at": 1794019176,
+  "updated_at": 1794021495,
   "affected_specs": [
     "change"
   ],

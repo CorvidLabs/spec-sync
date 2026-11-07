@@ -57,12 +57,13 @@
   "completed": [
     "Proof: real 6.0.0, 6.0.1, 6.1.0, 6.1.1, 6.1.2, 6.2.0 and main ignore .specsync/archive/closed-late/ (synthetic fixture and site clone); limits L1-L4 recorded in research.md",
     "Re-approved at 3a15acb2; main merged at 0ec91f3a; materialized at 7fc935c7; verify green at 64fe846e",
-    "Shipped: archived at f56fb483 with no commit between review and ship"
+    "Shipped: archived at f56fb483 with no commit between review and ship",
+    "Main merged at f3e0ca86 (#995 relay repair): change.3md #833 plane renumbered to z=28 and a stray separator line from merge 05171556 removed; build, change audit --strict and pre-push green"
   ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Push the archive tip, watch CI including closed-late-compat, then merge pinned on the orc's queue turn"
+  "next_action": "If PR #994 is still open: push leif/late-close, wait for Required CI gate green and mergeStateStatus CLEAN, then gh pr merge 994 --squash --match-head-commit <pushed head> (Leif OKed the delta at c34e28b6; later head moves are main merges only). If #994 is merged: nothing left in this session. Lane handoff: /Users/leif/Development/_CorvidLabs/_audits/handoffs/ss-contracts.md"
 }

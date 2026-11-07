@@ -423,8 +423,14 @@ fn doctor_lists_each_problem_with_its_class_and_fix() {
     assert_eq!(draft_finding["fix"]["class"], "decision", "{draft_finding}");
     let hand_archived = finding(&found, "accepted-in-archive", "write-notes");
     assert_eq!(hand_archived["fix"]["class"], "decision", "{hand_archived}");
+    // The stale blocker would stop the archive preflight, so resuming is not a safe fix yet: the
+    // finding names the blocker and becomes safe once it is resolved (Codex review of #994).
     let stopped = finding(&found, "stopped-finalize", "add-a-guide");
-    assert_eq!(stopped["fix"]["class"], "safe", "{stopped}");
+    assert_eq!(stopped["fix"]["class"], "report-only", "{stopped}");
+    assert!(
+        stopped["reason"].as_str().unwrap().contains(BLOCKER),
+        "{stopped}"
+    );
     assert!(
         stopped["fix"]["command"]
             .as_str()
@@ -1362,4 +1368,89 @@ fn a_missing_remote_default_is_a_finding() {
                     .is_some_and(|reason| reason.contains("remote default"))),
         "{found:#?}"
     );
+}
+
+// ─── Codex P2s on #994, third round ─────────────────────────────────────────────────────────
+
+#[test]
+fn a_blocked_stopped_finalize_is_not_offered_as_safe() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    switch_to_v2(&root);
+    git(&root, &["checkout", "-q", "-b", "feature"]);
+    stopped_finalize(&root, "add-a-guide");
+    let found = findings(&root);
+    let stopped = finding(&found, "stopped-finalize", "add-a-guide");
+    assert_eq!(stopped["fix"]["class"], "report-only", "{stopped}");
+    assert!(
+        stopped["reason"].as_str().unwrap().contains(BLOCKER),
+        "{stopped}"
+    );
+    let output = run(&root, &["doctor", "--fix"]);
+    assert!(
+        output.status.success(),
+        "a blocked safe fix failed:\n{}",
+        text(&output)
+    );
+}
+
+#[test]
+fn unmerged_drift_is_offered_a_reopen_not_a_late_close() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    v1_accepted(&root, "Add notes", "add-notes", "NOTES.md");
+    fs::write(root.join("NOTES.md"), "Notes, edited after acceptance.\n").unwrap();
+    let found = findings(&root);
+    let drifted = finding(&found, "accepted-inputs-drifted", "add-notes");
+    let command = drifted["fix"]["command"].as_str().unwrap();
+    assert!(
+        command.starts_with("specsync change reopen add-notes"),
+        "{drifted}"
+    );
+    assert!(!command.contains("--close-late"), "{drifted}");
+}
+
+#[test]
+fn a_record_this_version_cannot_validate_is_not_closed_late() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    let state_path = active(&root, BLOCKER).join("state.json");
+    let mut state = json(&state_path);
+    state["workflow_version"] = Value::from(99);
+    fs::write(
+        &state_path,
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+    )
+    .unwrap();
+    commit_all(&root, "A record from a newer SpecSync");
+    publish(&root);
+    let before = tree(&root);
+    let output = close_late(&root, &[BLOCKER]);
+    assert!(
+        !output.status.success(),
+        "closed a record it cannot validate:\n{}",
+        text(&output)
+    );
+    assert_eq!(tree(&root), before, "a refused late close wrote");
+}
+
+#[test]
+fn a_package_that_already_holds_a_late_close_record_is_not_closed_late() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    fs::write(active(&root, BLOCKER).join("late-close.json"), "{}\n").unwrap();
+    commit_all(&root, "A stray late-close record inside the package");
+    publish(&root);
+    let before = tree(&root);
+    let output = close_late(&root, &[BLOCKER]);
+    let refusal = text(&output);
+    assert!(
+        !output.status.success(),
+        "overwrote a late-close record:\n{refusal}"
+    );
+    assert!(refusal.contains("late-close.json"), "{refusal}");
+    assert_eq!(tree(&root), before, "a refused late close wrote");
 }

@@ -759,7 +759,7 @@ struct LateClosePlan {
 fn validate_late_close_destination(root: &Path, destination: &Path) -> Result<(), String> {
     reject_symlink_components_for(root, destination, "late-close destination").map_err(|error| {
         if error.starts_with("refusing symlinked ") {
-            format!("{error}; replace the symlink with an in-project directory, then retry")
+            format!("{error}; replace the symlinked parent with an in-project directory, or remove the link at the dated destination; leave the dated destination absent, then retry")
         } else {
             error
         }

@@ -19,7 +19,9 @@
   "fixture": "Disposable same-filesystem work/origin/outside fixtures in tests/integration/doctor.rs; direct writer matrix in src/change_tests/doctor_collision.rs",
   "observations": [
     "OBS-product-test-8a9f5a47598253cb2208e85c",
-    "OBS-product-test-943d52f230af9865e7c1fe58"
+    "OBS-product-test-943d52f230af9865e7c1fe58",
+    "OBS-product-test-d753cf8983ee0af03f0458f9",
+    "OBS-product-test-a44413a32a903e5b908007e8"
   ],
   "impact": "P1 loss of the only active package from repository history",
   "classification": "product-defect",
@@ -37,8 +39,16 @@
         "OBS-product-test-8a9f5a47598253cb2208e85c",
         "OBS-product-test-943d52f230af9865e7c1fe58"
       ]
+    },
+    {
+      "at_unix_seconds": 1794034739,
+      "text": "Recovery refinement failed first, then all five regressions passed. Final-component retry removes only the link and leaves the dated destination absent; parent recovery remains tested.",
+      "observations": [
+        "OBS-product-test-d753cf8983ee0af03f0458f9",
+        "OBS-product-test-a44413a32a903e5b908007e8"
+      ]
     }
   ],
   "created_at_unix_seconds": 1794034280,
-  "updated_at_unix_seconds": 1794034301
+  "updated_at_unix_seconds": 1794034739
 }

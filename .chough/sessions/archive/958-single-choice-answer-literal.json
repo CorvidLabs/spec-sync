@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-4973daf6b2ccd257ac4ca282",
-    "head": "EVT-ee8bcc2418c90351f99f5b4b",
+    "head": "EVT-7b61d87b0ad5e95d3125c5bf",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "accept",
+    "current": "done",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -34,7 +34,8 @@
   "decisions": [
     "Leif 1A: print constraints none and keep saying the lessons can be named instead (DOCS-3.b), relayed by orc t18 2026-11-06 ~19:35 MST",
     "Leif 2yes: status shares approve's placeholder rule, adds cmd_change (DOCS-3.c)",
-    "Leif decided \"Intent decision for #958 (DOCS-3.b, DOCS-3.c)\": \"1A 2yes 3yes 3b-yes\" (Herdr orc tab, relayed by orc t18 to t15w, 2026-11-06 ~19:35 MST); recorded by claude (ss-triage t15w); a relayed claim, not authenticated"
+    "Leif decided \"Intent decision for #958 (DOCS-3.b, DOCS-3.c)\": \"1A 2yes 3yes 3b-yes\" (Herdr orc tab, relayed by orc t18 to t15w, 2026-11-06 ~19:35 MST); recorded by claude (ss-triage t15w); a relayed claim, not authenticated",
+    "0xLeif decided \"Implementation review of #958 change (native change review, recorded by orc only)\": \"yes\" (direct Leif reply to orc t19f ONE-item #958 implementation acceptance / draft PR #1015 on 2026-11-07; recorded by orc-t19f; receipt _audits/handoffs/orc-ss958-review-2026-11-07.log); recorded by k-ss-triage (Kimi k3); a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
@@ -49,9 +50,7 @@
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Implementation review of #958 change (native change review, recorded by orc only)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "Run fledge lanes run verify and fledge trust verify, then commit and run change check --commit"
 }

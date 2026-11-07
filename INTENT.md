@@ -14,7 +14,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 - [install](hi/install.md): INSTALL (4 criteria)
 - [link](hi/link.md): LINK (8 criteria)
 - [maturity](hi/maturity.md): MATURITY (12 criteria)
-- [merge](hi/merge.md): MERGE (4 criteria)
+- [merge](hi/merge.md): MERGE (9 criteria)
 - [plan](hi/plan.md): PLAN (9 criteria)
 - [recover](hi/recover.md): RECOVER (2 criteria)
 - [setup](hi/setup.md): SETUP (18 criteria)

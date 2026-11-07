@@ -57,3 +57,28 @@ fn a_change_in_no_collision_leaves_the_ledger_as_it_was() {
     assert!(drop_collision_acknowledgement(&mut ledger, "update-the-readme").is_none());
     assert_eq!(ledger.acknowledged_collisions, collision_ledger().acknowledged_collisions);
 }
+
+// Codex review of #994: with three or more members, only the closed one leaves the
+// acknowledgement; the rest still need it, or SpecSync reports an unacknowledged duplicate.
+#[test]
+fn a_late_closed_member_of_a_larger_collision_leaves_the_rest_acknowledged() {
+    let mut ledger = collision_ledger();
+    ledger.acknowledged_collisions[0]
+        .ids
+        .push("CHG-0012-gamma".into());
+    let before = ledger.acknowledged_collisions[0].clone();
+    let recorded = drop_collision_acknowledgement(&mut ledger, "CHG-0012-beta")
+        .expect("the acknowledgement as it stood");
+    assert_eq!(recorded.sequence, 12);
+    assert_eq!(recorded.ids, before.ids, "the record keeps the acknowledgement as it stood");
+    let kept = ledger
+        .acknowledged_collisions
+        .iter()
+        .find(|collision| collision.sequence == 12)
+        .expect("the acknowledgement still covers the remaining members");
+    assert_eq!(
+        kept.ids,
+        vec!["CHG-0012-alpha".to_string(), "CHG-0012-gamma".to_string()]
+    );
+    assert_eq!(ledger.acknowledged_collisions.len(), 2);
+}

@@ -1010,3 +1010,39 @@ fn close_late_all_closes_every_eligible_change() {
         "the stopped finalize did not resume"
     );
 }
+
+// Codex review of #994: a late close moves a package, so a safe fix the scan offered for that
+// same change no longer applies. Each fix is revalidated against a fresh scan.
+#[test]
+fn a_named_late_close_of_a_current_v1_change_does_not_also_try_to_archive_it() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    v1_accepted(&root, "Add notes", "add-notes", "NOTES.md");
+    commit_all(&root, "Accept the notes change");
+    publish(&root);
+    let output = close_late(&root, &["add-notes"]);
+    let report = text(&output);
+    assert!(output.status.success(), "{report}");
+    assert!(!report.contains("failed"), "a fix failed:\n{report}");
+    assert!(closed_late_package(&root, "add-notes").is_some());
+    assert!(
+        archived(&root, "add-notes").is_none(),
+        "it was also archived"
+    );
+}
+
+// Codex review of #994: a change named twice, not next to each other, is closed once.
+#[test]
+fn a_change_named_twice_is_closed_late_once() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    fs::write(root.join("FAQ.md"), "FAQ.\n").unwrap();
+    draft(&root, "Write a FAQ", "write-a-faq", "FAQ.md");
+    commit_all(&root, "Draft the FAQ change");
+    publish(&root);
+    let output = close_late(&root, &[BLOCKER, "write-a-faq", BLOCKER]);
+    assert!(output.status.success(), "{}", text(&output));
+    assert!(closed_late_package(&root, BLOCKER).is_some());
+    assert!(closed_late_package(&root, "write-a-faq").is_some());
+}

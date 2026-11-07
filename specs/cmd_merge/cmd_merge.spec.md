@@ -1,6 +1,6 @@
 ---
 module: cmd_merge
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/merge.rs
@@ -84,3 +84,4 @@ Implements the `specsync merge` command. Auto-resolves git merge conflicts in sp
 | 2026-11-05 | v5 / #862: `merge --install` registers the git driver and `merge-file` merges one contract for it |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-06 | v6 / #871: `merge --install` matches root and nested contracts when the configured specs directory is `.` or `./` (REQ-cmd-merge-004) |
+| 2026-11-07 | make-merge-driver-installation-match-contracts-when-the-specs-directory-is-the-repository-root: Make merge driver installation match contracts when the specs directory is the repository root |

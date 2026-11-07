@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-31864a2429a184d7103318be",
-    "head": "EVT-cce1f897f306277a189bbcbb",
+    "head": "EVT-bf3335d4fb21a4a9045e13d7",
     "legacy": null
   },
   "schema_version": 2,
@@ -26,7 +26,9 @@
     "design": [],
     "files": []
   },
-  "decisions": [],
+  "decisions": [
+    "Leif (historical relay) decided \"HI mapping confirmation for #871: existing MERGE-1, no new wording\": \"Yes to all 5 (Recommended)\" (Historical Leif five-item scope approval via orc t18, 2026-11-06; native #871 approval0391a4c8 including MERGE-1 mapping, interview/wrap-up records; relayed by orc t19f); recorded by k-ss-testgaps (orc t19f relay); a relayed claim, not authenticated"
+  ],
   "open_questions": [],
   "completed": [
     "Drafted the complete cmd_merge change and proved root_specs_dir_matches_contracts fails before the fix",
@@ -43,9 +45,7 @@
     "BUG-merge-install-ignores-a-root-specs-directory-871-408287a7fe659cca53621579"
   ],
   "blockers": [],
-  "awaiting_human": [
-    "HI mapping confirmation for #871: existing MERGE-1, no new wording"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Resume #871 only when dispatched: rerun fledge lanes run verify and pre-push, tick the final task, run change check --commit and audit --strict, then push and open the PR for orc review; do not merge main under the current no-merge rule"
+  "next_action": "Verify lane running post main-merge; then tick final task, change check --commit (last write), audit --strict, pre-push, push, draft PR, await orc review"
 }

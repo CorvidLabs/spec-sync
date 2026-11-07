@@ -14,3 +14,4 @@ artifact: tasks
 - [x] CI's clippy step and the fledge `lint` task run `--all-targets`
 - [x] `clippy-all-targets-test` runs in the fledge `ci`, `verify` and `repo` lanes and in `ci.yml`'s `validate-action` job
 - [x] `specs/github`: REQ-github-028 materialized, version, testing row, Change Log row and `github.3md` lesson plane
+- [x] Reject joined `-A…` lint weakening and keep contributor lint commands on `--all-targets` (Codex round 1)

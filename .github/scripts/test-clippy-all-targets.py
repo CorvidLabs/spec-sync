@@ -92,7 +92,11 @@ def problems(command: list[str]) -> list[str]:
     if not any(lint_args[i : i + 2] == ["-D", "warnings"] for i in range(len(lint_args))) and "-Dwarnings" not in lint_args:
         found.append("it does not deny warnings (`-- -D warnings`)")
     for word in command:
-        if word in WEAKENING or any(word.startswith(flag + "=") for flag in WEAKENING if flag.startswith("--")):
+        if (
+            word.startswith("-A")
+            or word in WEAKENING
+            or any(word.startswith(flag + "=") for flag in WEAKENING if flag.startswith("--"))
+        ):
             found.append(f"it passes `{word}`, which lets a lint through")
     return found
 

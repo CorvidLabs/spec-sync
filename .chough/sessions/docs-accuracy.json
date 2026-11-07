@@ -1,0 +1,34 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-5d8e43782bc767b4daf9a274",
+    "head": null,
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Finish the approved docs accuracy PR #964",
+  "intent_scope": "",
+  "modules": [],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": null,
+  "references": {
+    "criteria": [],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [],
+  "run_consents": [],
+  "next_action": "Read scoped intent and native status, then choose the next action within the authorized scope."
+}

@@ -174,6 +174,23 @@ fn late_close_revalidates_symlinked_destinations_before_any_batch_write() {
             let error = result.expect_err("write boundary accepted a destination symlink");
             assert!(error.contains("symlinked late-close destination"), "{error}");
             assert!(error.contains(component), "{error}");
+            if component.ends_with("2026-11-07-second") {
+                assert!(error.contains("leave the dated destination absent"), "final-component recovery must not create a directory that blocks retry: {error}");
+                fs::remove_file(&linked).unwrap();
+                write_late_closes(&root, &mut plans).expect("retry after removing the final symlink");
+                for plan in &plans {
+                    assert!(!plan.source.exists());
+                    assert_eq!(fs::read(plan.destination.join("state.json")).unwrap(), b"original package bytes\n");
+                    assert!(!json_record_verified(&plan.destination));
+                }
+                assert_eq!(fs::read_dir(&outside).unwrap().count(), 1);
+            }
         }
     }
+}
+
+#[cfg(unix)]
+fn json_record_verified(destination: &Path) -> bool {
+    let record: LateCloseRecord = serde_json::from_slice(&fs::read(destination.join(LATE_CLOSE_RECORD)).unwrap()).unwrap();
+    record.verified
 }

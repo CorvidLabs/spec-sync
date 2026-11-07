@@ -707,7 +707,12 @@ fn read_deadline_for(
 /// so that a POSIX shell splits it back into exactly those arguments. When `SPECSYNC_TIMEOUT` is
 /// set, the command clears it, so the resumed run has no deadline (REQ-cmd-change-036).
 fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String {
-    let timeout_env = std::env::var_os("SPECSYNC_TIMEOUT").is_some();
+    resume_command_for(args, std::env::var_os("SPECSYNC_TIMEOUT").is_some())
+}
+
+/// `resume_command_without_timeout` with whether `SPECSYNC_TIMEOUT` is set passed in, so tests
+/// do not depend on the environment they run in.
+fn resume_command_for(args: impl Iterator<Item = String>, timeout_env: bool) -> String {
     let mut kept = Vec::new();
     if timeout_env {
         kept.push("SPECSYNC_TIMEOUT=".to_string());

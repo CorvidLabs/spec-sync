@@ -2156,6 +2156,8 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         }
         roster.records.push(record);
     }
+    // And once after the last workspace, so a deadline that passed while reading it still stops.
+    check_read_deadline("active change loading", roster.records.len(), roster.records.len())?;
     roster
         .records
         .sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));

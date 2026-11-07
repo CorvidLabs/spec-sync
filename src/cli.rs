@@ -540,6 +540,12 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Repair damaged relayed decisions: put each original back from the last commit or its twin
+    /// copy, otherwise remove only the damaged relayed_by (never an approval or review)
+    RepairRelays {
+        /// Change ID
+        id: String,
+    },
     /// Correct supported accepted interview metadata through append-only audit evidence
     Correct {
         /// Accepted change ID
@@ -1252,6 +1258,46 @@ mod tests {
             args.extend(missing);
             assert!(Cli::try_parse_from(args).is_err());
         }
+    }
+
+    /// REQ-cli-args-relay-repair-001: `change repair-relays <id>` takes the change id and nothing
+    /// else, is listed in `change` help, and leaves the rest of the change grammar as it was.
+    #[test]
+    fn change_repair_relays_takes_only_the_change_id() {
+        let cli =
+            Cli::try_parse_from(["specsync", "change", "repair-relays", "add-passkeys"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::RepairRelays { id }
+            }) if id == "add-passkeys"
+        ));
+        assert!(Cli::try_parse_from(["specsync", "change", "repair-relays"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "repair-relays",
+                "add-passkeys",
+                "--actor",
+                "Ada Reviewer",
+            ])
+            .is_err()
+        );
+        assert!(Cli::try_parse_from(["specsync", "change", "repair-relays", "a", "b"]).is_err());
+        let help = match Cli::try_parse_from(["specsync", "change", "--help"]) {
+            Err(error) => error.to_string(),
+            Ok(_) => panic!("`change --help` prints help"),
+        };
+        assert!(help.contains("repair-relays"), "{help}");
+        assert!(matches!(
+            Cli::try_parse_from(["specsync", "change", "status", "add-passkeys"])
+                .unwrap()
+                .command,
+            Some(Command::Change {
+                action: ChangeAction::Status { .. }
+            })
+        ));
     }
 
     #[test]

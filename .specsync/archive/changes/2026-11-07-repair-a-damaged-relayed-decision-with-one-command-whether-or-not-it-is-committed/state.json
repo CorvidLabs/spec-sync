@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed",
+  "slug": "repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed",
+  "title": "Repair a damaged relayed decision with one command, whether or not it is committed",
+  "description": "Repair a damaged relayed decision with one command, whether or not it is committed",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "bc1859c4cfe1ee13fbfa54ad766a14fa7a2350c4",
+  "created_at": 1793971154,
+  "updated_at": 1794010294,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change/relayed_decision.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/relayed_decision.rs",
+    "src/cli.rs",
+    "src/commands/change.rs",
+    "tests/integration/relayed_decision.rs",
+    "specs/change",
+    "specs/cmd_change",
+    "specs/cli_args",
+    "hi/change.md",
+    "INTENT.md",
+    "CHANGELOG.md",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/cli.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "When one of those records is damaged, I am told one command that repairs it, whether or not it has been committed yet.",
+    "That repair puts the original back when a copy of it still exists, and otherwise removes only the damaged record, never the approval or review it belongs to.",
+    "The repair tells me what it put back and what it removed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change.3md 'Approvals are claims; relayed decisions (#633)': the relay is the one evidence shape read strictly (null and unknown keys refused, decided_by must be the record's actor or reviewer) and its refusals go through with_relayed_read_recovery, which names git checkout HEAD and does not cover a review file that is not committed (#904); this change keeps the strict read and changes only the named recovery. REQ-change-046: review attempts are append-only and no blocking result may be erased, so the repair never removes an approval or an attempt and never edits a verdict. 'Keep it out' (Leif, 2026-11-05 20:19 MST via orc t18): no digest or gate reads a relay, so a repair stales no approval, verification or review. Leif (2026-11-06 06:1x MST via orc t18, 'Ok yes I approve all'): with no surviving copy, remove only the damaged relayed_by rather than refuse. Files are written the way SpecSync writes them (json_content), all in one step under the project lock. Never weaken a gate, bound or test.",
+    "public_contract": "yes"
+  }
+}

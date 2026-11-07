@@ -85,7 +85,7 @@ specsync change approve add-passkeys --actor "Ada" \
     Relayed: Ada said "Approve the passkey scope" (team chat, 2026-11-05 21:40 MST, relayed by the release agent); recorded by release agent; a relayed claim, not authenticated: it records who is said to have decided, not proof that they did.
 ```
 
-A relayed decision is a claim too. It satisfies no gate, and no digest covers it; the finalization review digest leaves it out, so older 6.x binaries read archives that carry one. If a hand-edited `relayed_by` cannot be read, the command names `git checkout HEAD -- <file>` to restore the recorded file.
+A relayed decision is a claim too. It satisfies no gate, and no digest covers it; the finalization review digest leaves it out, so older 6.x binaries read archives that carry one. If a hand-edited `relayed_by` cannot be read in an active change, the command names `specsync change repair-relays <id>`. It works whether or not the file is committed, which matters between `change review` and `change ship`, when neither review file is: it puts each damaged relay back from the last commit, or from its twin (`review.json` and the last review attempt are copies of each other), and otherwise removes only that `relayed_by`, never the approval or review attempt it belongs to, and says what it did. No digest reads a relay, so a repair stales nothing. An archived package is committed by finalize, so there the command names `git checkout HEAD -- <file>`.
 
 ## 3. Check, Review, and Finalize
 

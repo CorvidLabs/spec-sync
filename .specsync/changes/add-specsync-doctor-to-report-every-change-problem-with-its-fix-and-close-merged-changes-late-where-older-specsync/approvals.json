@@ -64,6 +64,87 @@
         "cmd_change": "ea326e36656a1d85aa10de9e8b677c96c8e946a491a03468fed3dab6f00da1f3"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794012075,
+      "digest": "1e2e31af00f56f53c68f5266c26b4ecd62d2308044019a82c598bf370ef30bc2",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync",
+        "title": "Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads",
+        "description": "Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-closed-late-compat.sh",
+          ".github/scripts/test-required-ci-gate.py",
+          ".github/workflows/ci.yml",
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "INTENT.md",
+          "docs/HLD.md",
+          "fledge.toml",
+          "hi/recover.md",
+          "hi/ship.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change/",
+          "specs/cli/",
+          "specs/cli_args/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/doctor.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/doctor_collision.rs",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "src/commands/doctor.rs",
+          "src/main.rs",
+          "tests/integration.rs",
+          "tests/integration/doctor.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "D5: late-closing a member of an acknowledged sequence collision takes the change out of that acknowledgement in .specsync/change-sequence.json, drops the acknowledgement once fewer than two members remain, and records the acknowledgement as it stood in late-close.json. The ledger sequence is never lowered, and doctor says the ledger edit needs an open change that declares it wherever meaningful files require one.",
+          "Failing tests first: each new test fails on the branch base before the implementation and passes after; no existing gate, bound, timeout or assertion is loosened.",
+          "RECOVER-3, RECOVER-3.a (REQ-cmd-change-035): `specsync doctor` reads the repository and lists every finding with its kind, its change, the reason and its fix, classed safe, decision or report-only. The kinds are: a change merged but never archived (an active package committed on the remote default branch); an accepted change whose inputs drifted, including any package in .specsync/archive/changes/ that still says accepted; a finalize that stopped halfway (accepted with finalization.json, or a v1 change accepted but not archived); stale verification; and records that another version of SpecSync wrote (5.0.1-era ledgers missing digest fields, v1 plans missing the 6.2 sections, a schema newer than the binary, a closed-late slug minted again).",
+          "RECOVER-3.b: plain `doctor` writes nothing, and `doctor --fix --dry-run` reports exactly what `--fix` would do with the same arguments and writes nothing.",
+          "RECOVER-3.c: `--fix` applies only the safe fixes: the `migrate 5.0` backfill, and resuming a stopped finalize (v1: `change archive`) when nothing blocks it. Stale verification is report-only and names `change check <id> --commit`. A late close is a decision: it applies only to changes named with `--close-late <id>...` or `--close-late all`, and only with a non-empty `--actor` and `--reason`.",
+          "RECOVER-3.d: a check that cannot run, such as a bounded Git read that overflows (#976), becomes a finding that says so, and doctor still reports every other finding.",
+          "REQ-cli-args-025: the `doctor` subcommand parses `--fix`, `--dry-run`, a repeatable `--close-late <id|all>`, `--actor`, `--reason` and the global output flags, and argument parsing refuses `--close-late` given without `--fix`, `--actor` and `--reason`.",
+          "SHIP-12, SHIP-12.c, SHIP-12.e (REQ-change-143): a late close moves the package byte for byte from .specsync/changes/ or .specsync/archive/changes/ to .specsync/archive/closed-late/<date>-<id>/, keeps its state.json and the state in it, adds late-close.json, and adds no ChangeState variant. It reads none of the change's delivery evidence, and it closes only a package committed on the remote default branch; any other is refused and nothing is written.",
+          "SHIP-12.a, SHIP-12.d: late-close.json records the actor, reason, timestamp, the state it was closed from, the workflow version, the path it came from, the remote default ref and commit, the commit that merged it and that commit's date, and verified false. `change status` (text and JSON) and `ship-status` say it was closed late, never re-checked and not verified, and a closed draft also says it was never approved.",
+          "SHIP-12.b: a closed-late change is never part of the archive preflight or the successor walk; reopen, review, check, accept, archive and finalize refuse it; and `change new` refuses its slug.",
+          "SHIP-12.f: several late closes in one call are all checked before anything is written; one refusal writes nothing and names the change refused; a change named more than once is closed once; and each safe fix is revalidated against a fresh scan after every move, so a change closed late in the same call gets no safe fix.",
+          "SHIP-12.g, D4: a CI job and a fledge lane run real 6.0.0 and 6.2.0 Linux release binaries, pinned by sha256, against a repository after `doctor --fix`. There, audit passes; list omits the closed-late changes; status, ship-status and reopen report them not found; a partial finalize they blocked resumes and archives; a v1 archive passes; and a collision fixture audits clean."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Leif's decisions via orc t18 ('Capture + recommended design', 2026-11-06), which supersede close-late as its own command and the new-state pick. Build it as `specsync doctor`, shipping in 6.3.0. The late close is one doctor fix, stored where 6.x never reads (.specsync/archive/closed-late/), with no ChangeState variant (6.0 to 6.2 refuse unknown values). It was proven against real 6.0.0 to 6.2.0 binaries, and a CI test keeps it proven. D2: stale verification is report-only. D3: --close-late <id>... or all, with --actor/--reason. D4: the compat test runs in CI. D5: a collision member drops and records its acknowledgement. Site and Corvidinho CI pin 6.0.0. Strictness stays: no gate, bound, timeout or existing assertion is loosened. No tag, release or crates.io publish. Re-scope (Leif's send-back, option A): affected paths name exactly the files the change touches, and cli joins the affected specs as owner of src/main.rs.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1c7da66cc0264ecaa770e91590aea01209faafa98b791aa2615df020d32ed31c",
+        "cli": "6d14de8c26cd924005a09b669817d72e8fd6180096f4993dbeeb0d1c7ad9c339",
+        "cli_args": "91518c82caa3cdefa08a5ecf28b4d38e6c55dde354944b5cd76350070b21009b",
+        "cmd_change": "d584af19ffcf5b62295af819f080ca44ad7f1fcc88566b0c09663c162f6fd6ce"
+      },
+      "approved_delta_bases": {
+        "cli: SPEC SECTION Purpose": "5827733f11880bdcceec982279d21481c66283639a021efb3ef1b146940cb57c"
+      }
     }
   ],
   "reopenings": [],

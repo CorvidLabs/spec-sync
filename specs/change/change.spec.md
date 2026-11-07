@@ -1,6 +1,6 @@
 ---
 module: change
-version: 198
+version: 199
 status: active
 files:
   - src/change.rs
@@ -251,7 +251,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |
 | `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
 | `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` with no remote default, or for an archive already in `HEAD` (reopen); once a remote default resolves, a failed or truncated listing or batched read, an archived `state.json` with no readable `id`, or a failed addition or ancestry lookup for a matching package, is `CannotTell`, never `None` (REQ-change-142). The archive root is passed as `:(top,literal)` (#962) |
-| `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print. `Archived`: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy. `CannotTell`: the reference, that the tool cannot tell, and how to find out: `git fetch --refetch origin` (which repairs a missing object even when the reference has not moved), `git remote set-head origin --auto` (which repairs a dangling remote default), then `specsync change status -- '<id>'`, which reruns this lookup and either clears the refusal or names the archive and the rebase; the id is one shell-quoted word |
+| `upstream_archive_message` | `root: &Path, id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print. `Archived`: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy. `CannotTell`: the reference, that the tool cannot tell, and how to find out: `git fetch --refetch origin` (which repairs a missing object even when the reference has not moved), `git remote set-head origin --auto` (which repairs a dangling remote default), then `specsync --root '<project-root>' change status -- '<id>'`, which retains the selected project and reruns this lookup and either clears the refusal or names the archive and the rebase; the root and id are separate shell-quoted words |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 
 **Exported Methods**
@@ -466,6 +466,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v199: keep the selected project root as a quoted `--root` argument in cannot-tell recovery; execute the printed status command from the repository parent (#967, REQ-change-142). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
 | 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | v190: the acceptance manifest and the acceptance input digest name clean delivery files by object id and hash each blob from one `git cat-file --batch` child, one blob at a time, under the per-object bound, so reopen, finalize and accepted-input validation no longer refuse a change whose clean affected files exceed one whole-scope read; recorded manifests and digests are byte-identical (REQ-change-144, #976). |

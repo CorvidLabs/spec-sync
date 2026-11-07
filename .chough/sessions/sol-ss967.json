@@ -1,0 +1,60 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-7dd2b8c8ebe9b87a999dae99",
+    "head": "EVT-df90df0f5496620157df5a2d",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Finish PR #967 recovery commands and verified evidence to the human review gate",
+  "intent_scope": "SHIP-3.c",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent",
+  "references": {
+    "criteria": [
+      "SHIP-3.c"
+    ],
+    "requirements": [
+      "REQ-change-142"
+    ],
+    "cases": [],
+    "design": [],
+    "files": [
+      "src/change/consider_accepted_evidence_anchor.rs",
+      "src/change_tests/upstream_archive.rs",
+      "tests/integration/archived_upstream.rs"
+    ]
+  },
+  "decisions": [
+    "rejected: grep-based archive recovery because it loses project-root context and cannot distinguish stale copies from reopen-and-rearchive"
+  ],
+  "open_questions": [],
+  "completed": [
+    "Prior t172 verify exited 1 in release-candidate-test under Python 3.9; raw receipt /private/tmp/sol-ss967/prior-t172.txt",
+    "Own t19j verify was deliberately interrupted with exit 130 before source edits; it did not pass",
+    "Failing tests: 3d379d77e4873c05e6a166a8c139f2625d23a1fd (original 4 round-2 regressions); 23fffcedee001dac6ede47e89ffe912b819b4552 (executable printed-status root regression)",
+    "Focused fix verification t1b2: 9 unit/command + 4 integration tests passed; full committed lane pending"
+  ],
+  "observations": [
+    "OBS-product-test-2d6da6e25125f8c0fc3cf3a8",
+    "OBS-product-test-efd35a9f612ba24bb9c3ae66"
+  ],
+  "bugs": [
+    "BUG-cannot-tell-status-recovery-loses-selected-project-root-11cb6d86442c49424dda6f96"
+  ],
+  "blockers": [
+    "Chough plan-to-build refuses native-archived for the existing package; post-archive recovery follow-up is explicitly authorized by orc t19f. Preserve archive; do not fabricate lifecycle records."
+  ],
+  "awaiting_human": [
+    "Fresh implementation review of PR #967 at its final verified pushed head"
+  ],
+  "run_consents": [],
+  "next_action": "Complete the full committed verify, strict audit, pre-push and Trust/provenance checks; push the existing branch, update PR evidence, resolve verified round-2 threads and observe exact-head CI; send the review gate to orc t19f and stop. No approval or review recording by this worker."
+}

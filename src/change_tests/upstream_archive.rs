@@ -45,7 +45,7 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
             commit: archive_commit.clone(),
         }
     );
-    let message = upstream_archive_message(&unarchived.id, &upstream);
+    let message = upstream_archive_message(&root, &unarchived.id, &upstream);
     assert!(message.contains("already archived on `origin/main`"), "{message}");
     assert!(message.contains(&archive_commit), "{message}");
     assert!(message.contains("rebase this branch onto `origin/main`"), "{message}");
@@ -159,7 +159,7 @@ fn an_unreadable_upstream_archive_listing_is_reported_not_read_as_absent() {
             reference: "origin/main".into(),
         }
     );
-    let message = upstream_archive_message(&unarchived.id, &found);
+    let message = upstream_archive_message(&root, &unarchived.id, &found);
     assert!(message.contains("cannot tell"), "{message}");
     assert!(message.contains("origin/main"), "{message}");
     assert!(message.contains("git fetch"), "{message}");
@@ -252,11 +252,12 @@ fn offered_git_commands(message: &str) -> Vec<String> {
         .collect()
 }
 
-fn cannot_tell_message(id: &str, upstream: &UpstreamArchive) -> String {
-    let message = upstream_archive_message(id, upstream);
+fn cannot_tell_message(root: &Path, id: &str, upstream: &UpstreamArchive) -> String {
+    let message = upstream_archive_message(root, id, upstream);
     assert!(
         message.contains(&format!(
-            "then `specsync change status -- {}`",
+            "then `specsync --root {} change status -- {}`",
+            shell_quote(&root.to_string_lossy()),
             shell_quote(id)
         )),
         "{message}"
@@ -342,7 +343,7 @@ fn the_cannot_tell_recovery_repairs_the_clone_and_reruns_the_lookup() {
     let mut unarchived = archived.clone();
     unarchived.state = ChangeState::Verifying;
     let found = upstream_archive_of(&root, &unarchived).expect("cannot tell");
-    let message = cannot_tell_message(&unarchived.id, &found);
+    let message = cannot_tell_message(&root, &unarchived.id, &found);
     run_printed_git_recovery(&message, &root);
     assert_eq!(
         upstream_archive_of(&root, &unarchived),
@@ -371,7 +372,7 @@ fn the_cannot_tell_recovery_supports_a_project_root_below_the_shell_directory() 
     let mut unarchived = archived.clone();
     unarchived.state = ChangeState::Verifying;
     let found = upstream_archive_of(&root, &unarchived).expect("cannot tell");
-    let message = cannot_tell_message(&unarchived.id, &found);
+    let message = cannot_tell_message(&root, &unarchived.id, &found);
     run_printed_git_recovery(&message, temp.path());
     assert_eq!(
         upstream_archive_of(&root, &unarchived),
@@ -417,7 +418,7 @@ fn the_cannot_tell_recovery_repairs_a_dangling_remote_default() {
             reference: "origin/main".into(),
         }
     );
-    let message = cannot_tell_message(&unarchived.id, &found);
+    let message = cannot_tell_message(&root, &unarchived.id, &found);
     run_printed_git_recovery(&message, &root);
     assert_eq!(
         upstream_archive_of(&root, &unarchived),
@@ -431,12 +432,31 @@ fn the_cannot_tell_recovery_repairs_a_dangling_remote_default() {
 // The id is data in the status command, even when it contains shell metacharacters.
 #[test]
 fn the_cannot_tell_recovery_quotes_the_change_id_for_the_status_rerun() {
-    let id = "add-auth$(touch pwned)'y";
+    let id = "add-auth$(touch pwned)'\"y";
+    let root = Path::new("/project with 'quotes'");
     let message = cannot_tell_message(
+        root,
         id,
         &UpstreamArchive::CannotTell {
             reference: "origin/main".into(),
         },
     );
     assert!(message.contains(&format!("-- {}", shell_quote(id))), "{message}");
+    let command = message
+        .split('`')
+        .find_map(|span| span.strip_prefix("specsync "))
+        .expect("printed status arguments");
+    let temp = TempDir::new().unwrap();
+    let output = std::process::Command::new("sh")
+        .args(["-c", &format!("set -- {command}; printf '%s\\0' \"$@\"")])
+        .current_dir(temp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let arguments: Vec<_> = output.stdout.split(|byte| *byte == 0).collect();
+    assert_eq!(
+        arguments,
+        [b"--root".as_slice(), root.as_os_str().as_encoded_bytes(), b"change", b"status", b"--", id.as_bytes(), b""]
+    );
+    assert!(!temp.path().join("pwned").exists());
 }

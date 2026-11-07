@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 70
+version: 71
 status: active
 files:
   - src/commands/change.rs
@@ -123,6 +123,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v71: pass the selected project root to upstream-archive refusal guidance in text status and ship-status, preserving the quoted `--root` in the recovery command (#967, REQ-change-142). |
 | 2026-11-05 | v62: `change ship` refuses an open task and names `specsync change ship <id>` with its flags; `change ship-status` reports it as a blocker and names it before the next step; `change check --commit` refusals name `--commit` (REQ-cmd-change-031, #892). |
 | 2026-11-05 | v57: `specsync change` handlers read repository facts and committed objects through the per-command memo and batch reader, and clear them after their own git writes (REQ-cmd-change-028, #861). |
 | 2026-10-10 | Add `cmd_change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |

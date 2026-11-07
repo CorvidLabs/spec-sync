@@ -359,3 +359,38 @@ fn approve_refuses_a_no_spec_change_draft_over_owned_production_source_and_names
     approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect("after the named answer the change approves");
 }
+
+/// Codex P2 on #999: a spec that lists the path but is not its module's canonical spec owns
+/// nothing, so declaring that module would be refused again. The refusal says why, and the draft
+/// answer does not name the module.
+#[test]
+fn approve_does_not_recommend_a_module_whose_listing_spec_is_not_canonical() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::create_dir_all(root.join("specs/legacy")).unwrap();
+    fs::write(
+        root.join("specs/legacy/charges.spec.md"),
+        "---\nmodule: billing\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Charges\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "export const value = 1;\n").unwrap();
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    record.affected_paths = vec!["src/billing/charge.ts".into()];
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("approve must refuse production source no declared module owns");
+    assert!(
+        !error.contains("affected_specs billing") && !error.contains("add `--spec billing`"),
+        "declaring `billing` would not own the path, so it must not be recommended: {error}"
+    );
+    assert!(
+        error.contains("`specs/legacy/charges.spec.md` lists it for module `billing`")
+            && error.contains("canonical spec"),
+        "the refusal says why the listing does not count: {error}"
+    );
+}

@@ -3426,6 +3426,100 @@ if the floor call is removed from this function"
         git_in(root, &["commit", "-m", "base"]);
     }
 
+    /// A directory-scoped no-spec-change change that delivers `src/billing/charge.ts`, which
+    /// `billing` owns, and `src/billing/orphan.ts`, which no module owns: approved, checked and
+    /// reviewed at HEAD, so only canonical ownership stands between it and finalize (#986, #956).
+    fn reviewed_unowned_delivery_fixture(root: &Path) -> String {
+        git_project_fixture(root);
+        fs::create_dir_all(root.join("specs/billing")).unwrap();
+        fs::write(
+            root.join("specs/billing/billing.spec.md"),
+            "---\nmodule: billing\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Billing\n\n## Purpose\n\nCharges.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("src/billing")).unwrap();
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 1;\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "billing"]);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Tune billing".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        fs::write(root.join("src/billing/orphan.ts"), "const spare = 0;\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "implement"]);
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record verification"]);
+        change::record_scoped_review_with_verdict(
+            root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect("review");
+        id
+    }
+
+    /// Codex P2 on #999: the recovery repairs every unowned input, not only the ones a module
+    /// claims: `billing` is declared by the answer, and the path no module owns is named for a
+    /// `files:` entry.
+    #[test]
+    fn the_ownership_recovery_names_a_repair_for_every_unowned_input() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let id = reviewed_unowned_delivery_fixture(&root);
+        let record = change::load_change(&root, &id).unwrap();
+        let (blocker, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("both inputs lack a declared owner");
+        assert!(
+            blocker.contains("src/billing/charge.ts") && blocker.contains("src/billing/orphan.ts"),
+            "{blocker}"
+        );
+        assert!(
+            recovery.contains(&format!(
+                "specsync change answer {id} affected_specs billing"
+            )),
+            "{recovery}"
+        );
+        assert!(
+            recovery.contains("src/billing/orphan.ts") && recovery.contains("`files:`"),
+            "the path no module owns needs its own repair: {recovery}"
+        );
+    }
+
+    /// Codex P2 on #999: `change status`, `change pr` and the Archive check take their ship advice
+    /// from `archive_candidate_can_ship`, so it must not call a change ready that ship refuses on
+    /// canonical ownership.
+    #[test]
+    fn an_archive_candidate_with_unowned_production_source_is_not_told_to_ship() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        let id = reviewed_unowned_delivery_fixture(&root);
+        let workspace = root.join(".specsync/changes").join(&id);
+        let record = change::load_change(&root, &id).unwrap();
+        assert_eq!(record.state, ChangeState::Verifying);
+        assert!(
+            !archive_candidate_can_ship(&root, &record, &workspace),
+            "ship refuses unowned production source, so the candidate is not told to ship"
+        );
+    }
+
     /// #902: a copy of a change that the remote default already archived is not an archive
     /// candidate to ship, even with a passing review at `HEAD` and its verification (the review
     /// predates the upstream archive). The pull-request sentence that `change pr` and the

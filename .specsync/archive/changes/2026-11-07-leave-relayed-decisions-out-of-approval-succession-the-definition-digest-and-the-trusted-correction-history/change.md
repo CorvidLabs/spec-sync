@@ -1,6 +1,6 @@
 ---
 id: leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 71130737616cf0379694f5e7b0446bceff4628e7
 ---

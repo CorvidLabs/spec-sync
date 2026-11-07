@@ -2068,7 +2068,9 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
         Err(error) => return Err(format!("failed to read active changes: {error}")),
     };
-    for entry in entries {
+    for (done, entry) in entries.enumerate() {
+        // Loading active changes is a phase with a deadline boundary (REQ-change-149).
+        check_read_deadline("active change loading", done, 0)?;
         // Enumeration failures are not scoped to one workspace: we cannot name
         // what we could not enumerate, so there is no partial truth to report.
         let entry =
@@ -2149,6 +2151,8 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         }
         roster.records.push(record);
     }
+    // And once after the last workspace, so a deadline that passed while reading it still stops.
+    check_read_deadline("active change loading", roster.records.len(), roster.records.len())?;
     roster
         .records
         .sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));

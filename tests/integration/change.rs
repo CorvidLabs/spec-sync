@@ -5741,3 +5741,56 @@ fn a_custom_replace_ref_base_does_not_change_what_status_reads() {
         "a fresh read under GIT_NO_REPLACE_OBJECTS"
     );
 }
+
+// G-deadline (#925, REQ-change-149): a timeout too large to add to the clock is no deadline,
+// never a panic, whether it comes from `--timeout` or `SPECSYNC_TIMEOUT`.
+#[test]
+fn a_timeout_too_large_for_the_clock_reads_normally() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    let huge = u64::MAX.to_string();
+    let flag = fixture.run(&["change", "status", &id, "--json", "--timeout", &huge]);
+    let output = flag.get_output();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let env = specsync()
+        .env("SPECSYNC_TIMEOUT", &huge)
+        .args([
+            "--root",
+            fixture.root_arg(),
+            "change",
+            "status",
+            &id,
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        env.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&env.stderr)
+    );
+}
+
+// G-deadline (#924, REQ-change-149): loading active changes is a phase with a deadline
+// boundary, so `change list` past its deadline stops with 124 instead of printing a verdict.
+#[test]
+fn change_list_past_its_timeout_stops_while_loading_active_changes() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let output = fixture.run(&["change", "list", "--json", "--timeout", "0"]);
+    let output = output.get_output();
+    assert_eq!(
+        output.status.code(),
+        Some(124),
+        "change list --timeout 0 printed: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["error"], "timeout");
+    assert_eq!(report["phase"], "active change loading", "{report}");
+}

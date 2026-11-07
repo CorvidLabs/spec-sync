@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "60f9bdb9dde046f91671f5006599497fb0196e7d",
+  "contract_digest": "2105d9d5eb35d2c67fe64e900e622eac50b962f9bfd0e1c5c7a133c976de9c67",
+  "execution_digest": "1a679d21380e40ca849d38cbb8a59ca56f81e5904c11e0125970fae5e65ecd7a",
+  "workspace_digest": "a80b44df2a6429cb201a3d283606b8ca73b47e7efb16eda0ec4c6417754d6869",
+  "timestamp": 1794010231
+}

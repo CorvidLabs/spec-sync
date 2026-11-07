@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is",
+  "implementation_commit": "cbfb99d0c68914ac12bf99c4f6417b9a2df6e602",
+  "implementation_tree": "b4b80663c77eb284f2e576d50167ed09ac800ef3",
+  "contract_digest": "2b8e766f52f4488895468f8ffb17d2fad3eb92772c8c1b6c411294d785b2866d",
+  "workspace_digest": "5487260a5b7ebba41f57f8ac84f16e1dd5acb6dbcf83cdc59e4486cd9bf08994",
+  "closing_digest": "efd9e839e8b59b30de836376df1e31e4e8123e529196ae3c6b543b6a7e5d5c07",
+  "review_digest": "980161ed32d5daa7048ad1d9bf95da9676202fd5c21b3d467f9d6d2aa99ddcd7",
+  "finalization_digest": "a61107ad11eb036479351e0b32c96b9252f70b79dea718a9e3fa1502f4c7561d",
+  "timestamp": 1794088989
+}

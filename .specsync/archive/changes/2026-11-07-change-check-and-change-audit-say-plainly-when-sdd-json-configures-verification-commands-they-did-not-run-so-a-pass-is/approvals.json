@@ -48,6 +48,13 @@
         "cmd_change": "3ce1fdff432b4dc7ddc22e1929fa8b54e70a5c82fefb276a7f1a7c651c50fb60"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794088989,
+      "digest": "efd9e839e8b59b30de836376df1e31e4e8123e529196ae3c6b543b6a7e5d5c07",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

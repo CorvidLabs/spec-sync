@@ -64,7 +64,8 @@ pub fn begin_read_deadline(
     // A limit the clock can't hold is longer than any read, so it is no deadline at all, not a
     // panic (REQ-change-149).
     let Some(until) = Instant::now().checked_add(Duration::from_secs(limit_secs)) else {
-        let previous = READ_DEADLINE.with(|slot| slot.borrow().clone());
+        // Clear any outer deadline for this scope; the guard puts it back on drop.
+        let previous = READ_DEADLINE.with(|slot| slot.borrow_mut().take());
         return ReadDeadlineGuard { previous };
     };
     let deadline = ReadDeadline { until, limit_secs };

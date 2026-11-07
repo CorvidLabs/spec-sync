@@ -3479,6 +3479,8 @@ fn validate_workflow_version_history_uncached(
         }
     }
 
+    // And once after the last commit, so its Git reads are bounded too (REQ-change-149).
+    check_read_deadline("workflow-version history", total, total)?;
     for path in &state_paths {
         let Some(bytes) = scoped_review_file_at_commit(root, "HEAD", path)? else {
             continue;

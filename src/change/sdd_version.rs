@@ -4838,15 +4838,24 @@ fn undeclared_owning_modules(root: &Path, record: &ChangeRecord, path: &str) -> 
         .cloned()
         .collect();
     modules.sort();
-    for (_, module) in specs_listing_path(root, &config.specs_dir, path) {
+    for (spec, module) in specs_listing_path(root, &config.specs_dir, path) {
         if let Some(module) = module
             && !record.affected_specs.contains(&module)
             && !modules.contains(&module)
+            && listing_spec_is_canonical(root, &config.specs_dir, &spec, &module)
         {
             modules.push(module);
         }
     }
     modules
+}
+
+/// Whether `spec` is `module`'s canonical spec, the only spec whose `files:` give the module
+/// ownership; a listing anywhere else owns nothing, so declaring the module would not help.
+fn listing_spec_is_canonical(root: &Path, specs_dir: &str, spec: &str, module: &str) -> bool {
+    canonical_module_paths(root, specs_dir, module)
+        .ok()
+        .is_some_and(|(spec_path, _)| portable_project_path(root, &spec_path) == spec)
 }
 
 /// `specsync change answer <id> affected_specs <modules>` that declares, beside the modules
@@ -4892,7 +4901,19 @@ pub fn ownership_preflight_blocker(
         .iter()
         .map(|path| format!("{path}: {}", ownership_hint(root, record, path)))
         .collect();
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it.
+    let unclaimed: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path).is_empty())
+        .collect();
     let recovery = match declare_owners_answer(root, record, &paths) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, and add {} to its owning spec's `files:` list, then approve, check and review again",
+            record.id,
+            unclaimed.join(", ")
+        ),
         Some(answer) => format!(
             "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, then approve, check and review again",
             record.id
@@ -4943,6 +4964,18 @@ fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
             None => explain.push(format!(
                 "`{spec}` lists it but has no `module:` in its frontmatter, so it owns nothing"
             )),
+            Some(module)
+                if !record.affected_specs.contains(&module)
+                    && !listing_spec_is_canonical(root, &config.specs_dir, &spec, &module) =>
+            {
+                let canonical = canonical_module_paths(root, &config.specs_dir, &module)
+                    .ok()
+                    .map(|(spec_path, _)| portable_project_path(root, &spec_path))
+                    .unwrap_or_else(|| format!("{}/{module}/{module}.spec.md", config.specs_dir));
+                explain.push(format!(
+                    "`{spec}` lists it for module `{module}`, but it is not that module's canonical spec `{canonical}`, so declaring `{module}` would not own it"
+                ));
+            }
             Some(module) if !record.affected_specs.contains(&module) => declare.push(format!(
                 "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
             )),

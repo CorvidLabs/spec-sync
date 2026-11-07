@@ -1762,7 +1762,12 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     // Asked last, so Git runs only for a copy that would otherwise ship. `ship` refuses a
     // change the remote default already archived (REQ-change-129); naming it here sent the
     // operator to a certain refusal instead of to `change status`, which names the recovery.
-    reviewed_at_head && change::upstream_archive_of(root, record).is_none()
+    // Last of all, and only for a change that would otherwise ship: `ship` refuses production
+    // source no declared module owns (REQ-cmd-change-008), so such a change is sent to
+    // `change status`, which names the recovery (#986, #956).
+    reviewed_at_head
+        && change::upstream_archive_of(root, record).is_none()
+        && matches!(change::ownership_preflight_blocker(root, record), Ok(None))
 }
 
 fn pull_request_sentence(root: &Path) -> Result<String, String> {

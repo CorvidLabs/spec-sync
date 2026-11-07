@@ -157,6 +157,10 @@ fn verification_freshness_status_and_check_are_environment_independent() {
             "Harden verification freshness",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -2512,6 +2516,10 @@ fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> Stri
             "Reap an interrupted verification child",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -2911,6 +2919,10 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
             "Tell agents when to clear",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",

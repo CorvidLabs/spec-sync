@@ -252,6 +252,49 @@ fn offered_git_commands(message: &str) -> Vec<String> {
         .collect()
 }
 
+fn cannot_tell_message(id: &str, upstream: &UpstreamArchive) -> String {
+    let message = upstream_archive_message(id, upstream);
+    assert!(
+        message.contains(&format!(
+            "then `specsync change status -- {}`",
+            shell_quote(id)
+        )),
+        "{message}"
+    );
+    message
+}
+
+fn run_printed_git_recovery(message: &str, current_dir: &Path) {
+    let commands = offered_git_commands(message);
+    assert_eq!(
+        commands,
+        ["git fetch --refetch origin", "git remote set-head origin --auto"]
+    );
+    for command in commands {
+        let output = std::process::Command::new("sh")
+            .args(["-c", &command])
+            .current_dir(current_dir)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "`{command}` failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+fn remove_loose_object(root: &Path, object: &str) {
+    let git_dir = quiet_git(root, &["rev-parse", "--absolute-git-dir"]);
+    fs::remove_file(
+        Path::new(git_dir.trim())
+            .join("objects")
+            .join(&object[..2])
+            .join(&object[2..]),
+    )
+    .unwrap();
+}
+
 // Codex P1 on #967. An archived `state.json` that Git returns whole but that does not decode as a
 // change record could be this change's archive: the lookup cannot tell, so it must not read as no
 // upstream archive.
@@ -281,51 +324,26 @@ fn an_undecodable_upstream_state_record_is_reported_as_cannot_tell() {
     );
 }
 
-// Codex P1s on #967. The cannot-tell recovery has to work as printed: the fetch repairs a missing
-// object even when `origin/main` has not moved, and the listing names this change's archive by its
-// exact id, not a package whose id or prose only contains it.
+// Codex round 2 on #967. The recovery repairs the clone, then reruns the lookup rather than
+// guessing whether a grep hit is a stale copy or the supported reopen-and-rearchive path.
 #[test]
-fn the_cannot_tell_recovery_repairs_the_clone_and_lists_only_this_change() {
+fn the_cannot_tell_recovery_repairs_the_clone_and_reruns_the_lookup() {
     let temp = TempDir::new().unwrap();
     let (root, base) = seeded_repository(&temp);
     let archived = archived_workflow_record(&root);
     let archive_commit = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
     let state_path = format!("{ARCHIVE_PATH}/2026-07-14-{}/state.json", archived.id);
-    let decoy = root.join(ARCHIVE_PATH).join("2026-07-16-decoy");
-    fs::create_dir_all(&decoy).unwrap();
-    let mut longer = archived.clone();
-    longer.id = format!("{}-later", archived.id);
-    write_json(&decoy.join("state.json"), &longer).unwrap();
-    fs::write(decoy.join("notes.md"), format!("Follows {}.\n", archived.id)).unwrap();
-    quiet_git(&root, &["add", "--all"]);
-    quiet_git(&root, &["commit", "-m", "a later change that names this one"]);
     publish_and_branch_from(&temp, &root, &base);
     let blob = quiet_git(&root, &["rev-parse", &format!("origin/main:{state_path}")])
         .trim()
         .to_string();
-    fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+    remove_loose_object(&root, &blob);
 
     let mut unarchived = archived.clone();
     unarchived.state = ChangeState::Verifying;
     let found = upstream_archive_of(&root, &unarchived).expect("cannot tell");
-    let commands = offered_git_commands(&upstream_archive_message(&unarchived.id, &found));
-    assert_eq!(commands.len(), 2, "{commands:?}");
-    let run = |command: &str| {
-        let output = std::process::Command::new("sh")
-            .args(["-c", command])
-            .current_dir(&root)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "`{command}` failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        String::from_utf8(output.stdout).unwrap()
-    };
-    run(&commands[0]);
-    let listed = run(&commands[1]);
-    assert_eq!(listed.trim(), format!("origin/main:{state_path}"), "{listed}");
+    let message = cannot_tell_message(&unarchived.id, &found);
+    run_printed_git_recovery(&message, &root);
     assert_eq!(
         upstream_archive_of(&root, &unarchived),
         Some(UpstreamArchive::Archived {
@@ -335,21 +353,90 @@ fn the_cannot_tell_recovery_repairs_the_clone_and_lists_only_this_change() {
     );
 }
 
-// Codex P1 on #967. A refname may hold shell metacharacters; the printed recovery passes it to Git
-// as one word, never as shell syntax.
+// The same printed recovery works from the repository root when SpecSync's project root is its
+// `app/` subdirectory. The old grep searched the shell's directory and missed the app's archive.
 #[test]
-fn the_cannot_tell_recovery_quotes_the_reference_as_one_shell_word() {
-    let message = upstream_archive_message(
-        "add-auth",
+fn the_cannot_tell_recovery_supports_a_project_root_below_the_shell_directory() {
+    let (temp, root) = subdirectory_project_named("app");
+    let base = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let archived = archived_workflow_record(&root);
+    let archive_commit = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let state_path = format!("app/{ARCHIVE_PATH}/2026-07-14-{}/state.json", archived.id);
+    publish_and_branch_from(&temp, &root, &base);
+    let blob = quiet_git(&root, &["rev-parse", &format!("origin/main:{state_path}")])
+        .trim()
+        .to_string();
+    remove_loose_object(&root, &blob);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    let found = upstream_archive_of(&root, &unarchived).expect("cannot tell");
+    let message = cannot_tell_message(&unarchived.id, &found);
+    run_printed_git_recovery(&message, temp.path());
+    assert_eq!(
+        upstream_archive_of(&root, &unarchived),
+        Some(UpstreamArchive::Archived {
+            reference: "origin/main".into(),
+            commit: archive_commit,
+        })
+    );
+}
+
+// A fetch does not repair `origin/HEAD` after the remote default is renamed and the old tracking
+// branch is pruned. `git remote set-head origin --auto` does, before the lookup runs again.
+#[test]
+fn the_cannot_tell_recovery_repairs_a_dangling_remote_default() {
+    let temp = TempDir::new().unwrap();
+    let (root, base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let archive_commit = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let state_path = format!("{ARCHIVE_PATH}/2026-07-14-{}/state.json", archived.id);
+    publish_and_branch_from(&temp, &root, &base);
+    let origin = temp.path().join("origin.git");
+    quiet_git(&origin, &["branch", "-m", "main", "trunk"]);
+    quiet_git(&root, &["fetch", "--prune", "origin"]);
+    quiet_git(
+        &root,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ],
+    );
+    let blob = quiet_git(&root, &["rev-parse", &format!("origin/trunk:{state_path}")])
+        .trim()
+        .to_string();
+    remove_loose_object(&root, &blob);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    let found = upstream_archive_of(&root, &unarchived).expect("cannot tell");
+    assert_eq!(
+        found,
+        UpstreamArchive::CannotTell {
+            reference: "origin/main".into(),
+        }
+    );
+    let message = cannot_tell_message(&unarchived.id, &found);
+    run_printed_git_recovery(&message, &root);
+    assert_eq!(
+        upstream_archive_of(&root, &unarchived),
+        Some(UpstreamArchive::Archived {
+            reference: "origin/trunk".into(),
+            commit: archive_commit,
+        })
+    );
+}
+
+// The id is data in the status command, even when it contains shell metacharacters.
+#[test]
+fn the_cannot_tell_recovery_quotes_the_change_id_for_the_status_rerun() {
+    let id = "add-auth$(touch pwned)'y";
+    let message = cannot_tell_message(
+        id,
         &UpstreamArchive::CannotTell {
-            reference: "origin/x$(touch pwned)'y".into(),
+            reference: "origin/main".into(),
         },
     );
-    let commands = offered_git_commands(&message);
-    assert!(
-        commands
-            .iter()
-            .any(|command| command.contains(r"'origin/x$(touch pwned)'\''y'")),
-        "{commands:?}"
-    );
+    assert!(message.contains(&format!("-- {}", shell_quote(id))), "{message}");
 }

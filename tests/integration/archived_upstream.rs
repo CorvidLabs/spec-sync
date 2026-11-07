@@ -62,9 +62,15 @@ fn state(root: &Path) -> String {
 /// A workflow-v2 project with one change approved and checked on `feature`.
 /// Returns the work tree, the base commit and the verified feature commit.
 fn verified_feature(temp: &TempDir) -> (PathBuf, String, String) {
-    let root = temp.path().join("work");
+    verified_feature_at(temp, "")
+}
+
+fn verified_feature_at(temp: &TempDir, project_directory: &str) -> (PathBuf, String, String) {
+    let repository = temp.path().join("work");
+    fs::create_dir_all(&repository).unwrap();
+    git(&repository, &["init", "-q", "-b", "main"]);
+    let root = repository.join(project_directory);
     fs::create_dir_all(&root).unwrap();
-    git(&root, &["init", "-q", "-b", "main"]);
     git(&root, &["config", "user.email", "test@example.com"]);
     git(&root, &["config", "user.name", "Test"]);
     for dir in [".specsync", "src", "specs/auth"] {
@@ -411,4 +417,84 @@ fn review_and_finalize_stop_when_the_upstream_archive_cannot_be_read() {
         !root.join(".specsync/archive").exists(),
         "finalize wrote a second archive"
     );
+}
+
+// #967 round 2: run every printed command, including status, from the caller's directory.
+// A quoted project name also requires the selected root to remain one shell argument.
+#[test]
+fn the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature_at(&temp, "app 'quoted'");
+    let repository = root.parent().unwrap();
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(&root, &["push", "-q", "origin", "HEAD:refs/heads/main"]);
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    let archive = git(repository, &["ls-tree", "-r", "--name-only", "origin/main"])
+        .lines()
+        .find(|path| path.ends_with("/state.json"))
+        .unwrap()
+        .to_string();
+    let blob = git(&root, &["rev-parse", &format!("origin/main:{archive}")]);
+    squash_onto_base(&root, &base, &verified);
+    fs::remove_file(
+        repository
+            .join(".git/objects")
+            .join(&blob[..2])
+            .join(&blob[2..]),
+    )
+    .unwrap();
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"].as_str().unwrap();
+    assert!(next.contains("cannot tell"), "{next}");
+    let commands: Vec<_> = next
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .filter(|span| span.starts_with("git ") || span.starts_with("specsync "))
+        .collect();
+    assert_eq!(commands.len(), 3, "{next}");
+    let binary = Path::new(env!("CARGO_BIN_EXE_specsync"));
+    let mut search_path = vec![binary.parent().unwrap().to_path_buf()];
+    search_path.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+    let search_path = std::env::join_paths(search_path).unwrap();
+    for command in commands {
+        let output = Command::new("sh")
+            .args(["-c", command])
+            .current_dir(repository)
+            .env("PATH", &search_path)
+            .output()
+            .unwrap();
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.status.success(), "`{command}` failed:\n{text}");
+        if command.starts_with("specsync ") {
+            assert!(text.contains("already archived on `origin/main`"), "{text}");
+            assert!(text.contains("rebase this branch"), "{text}");
+        }
+    }
+    assert_eq!(state(&root), "verifying");
+    assert!(!root.join(".specsync/archive").exists());
 }

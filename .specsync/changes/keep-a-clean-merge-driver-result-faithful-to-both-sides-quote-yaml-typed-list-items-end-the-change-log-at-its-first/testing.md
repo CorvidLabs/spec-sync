@@ -47,3 +47,10 @@ New unit tests in `src/merge_driver.rs`; each runs both merge orders:
 | M876-side | the version line takes `ours`' decoration again | `version_comments_merge_three_ways_in_either_order` |
 | M876-conflict | two different version notes no longer conflict | `version_comments_merge_three_ways_in_either_order` |
 | MAIN | main's code (ab688246) with the corrected tests | all four new tests; the other 23 pass |
+
+## Codex review of #1006 at 6821fb7f
+
+- P2 "Quote YAML floats that combine underscores and exponents": fixed. The #872 test gained `1_000`, `1_000.5e+2`, `+1_000.5` and `0x_1F`. It failed on `1_000.5e+2` first. `yaml_reads_as_non_string` now reads an item with underscores as a number when it parses as `f64` once they are removed; that replaces the narrower digits-and-dots rule.
+- P2 "Make differing-comment conflicts independent of merge order": no code change. Every conflict the driver writes labels its halves `ours` (the branch merged into) and `theirs`, as git does. Sorting this one conflict's halves would put `theirs`' text under the `ours` label in one direction. The test now pins the property that holds: the two orders give the same two lines, each under its own label, with the halves mirrored. Invariant 22 now says a clean result is byte-identical in either order and a conflict is mirrored.
+- After both: 113 tests matching `merge` pass, and clippy is clean.
+

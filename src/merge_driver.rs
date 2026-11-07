@@ -1257,12 +1257,9 @@ fn yaml_reads_as_non_string(item: &str) -> bool {
     {
         return true;
     }
-    // YAML 1.1 numbers may carry underscores (`1_000`, `1_000.5`).
-    unsigned.starts_with(|ch: char| ch.is_ascii_digit())
-        && unsigned
-            .chars()
-            .all(|ch| ch.is_ascii_digit() || ch == '_' || ch == '.')
-        && unsigned.matches('.').count() <= 1
+    // YAML 1.1 numbers may carry underscores anywhere in the digits, exponent forms included
+    // (`1_000`, `1_000.5e+2`): read it as a number once they are gone.
+    item.contains('_') && item.replace('_', "").parse::<f64>().is_ok()
 }
 
 fn has_duplicate_keys(fields: &[Field]) -> bool {
@@ -1929,8 +1926,26 @@ mod tests {
             )
         };
         for typed in [
-            "123", "1.5", "1e3", "0x1F", "0o17", ".inf", ".NaN", "true", "False", "null", "Null",
-            "~", "yes", "No", "on", "OFF",
+            "123",
+            "1.5",
+            "1e3",
+            "0x1F",
+            "0o17",
+            ".inf",
+            ".NaN",
+            "true",
+            "False",
+            "null",
+            "Null",
+            "~",
+            "yes",
+            "No",
+            "on",
+            "OFF",
+            "1_000",
+            "1_000.5e+2",
+            "+1_000.5",
+            "0x_1F",
         ] {
             let base = make(&format!(r#"["src/cli.rs", "{typed}"]"#), "[]", "[]");
             let ours = make(
@@ -2064,15 +2079,32 @@ mod tests {
             );
         }
 
-        // Two different comments are a conflict that keeps both, in either order.
+        // Two different comments are a conflict that keeps both, in either order. Like every
+        // conflict the driver writes, each side sits under its own label (`ours` is the branch
+        // merged into), so the two orders are mirror images: the same lines, halves swapped.
         let ours = bump("6 # A");
         let theirs = bump("6 # B");
-        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
-            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+        let forward = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
+        let backward = merge_contract(&base, &theirs, &ours, "specs/cli/cli.spec.md");
+        for merged in [&forward, &backward] {
             assert!(!merged.clean, "{}", merged.content);
             assert!(merged.content.contains("# A"), "{}", merged.content);
             assert!(merged.content.contains("# B"), "{}", merged.content);
         }
+        assert!(
+            forward.content.contains(
+                "<<<<<<< ours\nversion: 6 # A\n=======\nversion: 6 # B\n>>>>>>> theirs\n"
+            ),
+            "{}",
+            forward.content
+        );
+        assert_eq!(
+            backward.content,
+            forward.content.replace(
+                "<<<<<<< ours\nversion: 6 # A\n=======\nversion: 6 # B\n>>>>>>> theirs\n",
+                "<<<<<<< ours\nversion: 6 # B\n=======\nversion: 6 # A\n>>>>>>> theirs\n"
+            )
+        );
     }
 
     // #870 (REQ-merge-006): renumbering a new change-log `Version` cell past `u64::MAX` leaves

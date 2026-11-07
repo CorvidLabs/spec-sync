@@ -1454,3 +1454,92 @@ fn a_package_that_already_holds_a_late_close_record_is_not_closed_late() {
     assert!(refusal.contains("late-close.json"), "{refusal}");
     assert_eq!(tree(&root), before, "a refused late close wrote");
 }
+
+// ─── Codex P2s on #994, fourth round ────────────────────────────────────────────────────────
+
+#[test]
+fn close_late_all_takes_no_delivery_evidence_read() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    git(&root, &["update-index", "--assume-unchanged", "README.md"]);
+    let report = doctor_report(
+        &root,
+        &[
+            "--fix",
+            "--close-late",
+            "all",
+            "--actor",
+            ACTOR,
+            "--reason",
+            REASON,
+        ],
+    );
+    let evidence_findings: Vec<&Value> = report["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|finding| {
+            finding["change"] == BLOCKER
+                && (finding["kind"] == "accepted-inputs-drifted"
+                    || finding["kind"] == "could-not-check")
+        })
+        .collect();
+    assert!(evidence_findings.is_empty(), "{evidence_findings:#?}");
+    assert!(closed_late_package(&root, BLOCKER).is_some());
+}
+
+#[test]
+fn an_ambiguous_live_id_is_reported_before_its_closed_late_record() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    stale_blocker(&root);
+    assert!(close_late(&root, &[BLOCKER]).status.success());
+    let package = closed_late_package(&root, BLOCKER).unwrap();
+    for target in [
+        active(&root, BLOCKER),
+        root.join(".specsync/archive/changes")
+            .join(format!("2026-01-01-{BLOCKER}")),
+    ] {
+        fs::create_dir_all(&target).unwrap();
+        for entry in fs::read_dir(&package).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_name() != "late-close.json" && entry.file_type().unwrap().is_file() {
+                fs::copy(entry.path(), target.join(entry.file_name())).unwrap();
+            }
+        }
+    }
+    for command in ["status", "ship-status"] {
+        let printed = text(&run(&root, &["change", command, BLOCKER]));
+        assert!(printed.contains("ambiguous"), "{command}:\n{printed}");
+        assert!(!printed.contains("closed late"), "{command}:\n{printed}");
+    }
+}
+
+#[test]
+fn close_late_all_is_refused_while_a_change_is_named_all() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    fs::write(root.join("ALL.md"), "All.\n").unwrap();
+    draft(&root, "All", "all", "ALL.md");
+    commit_all(&root, "Draft a change named all");
+    publish(&root);
+    let before = tree(&root);
+    let output = run(
+        &root,
+        &[
+            "doctor",
+            "--fix",
+            "--close-late",
+            "all",
+            "--actor",
+            ACTOR,
+            "--reason",
+            REASON,
+        ],
+    );
+    let refusal = text(&output);
+    assert!(!output.status.success(), "{refusal}");
+    assert!(refusal.contains("ambiguous"), "{refusal}");
+    assert_eq!(tree(&root), before, "a refused late close wrote");
+}

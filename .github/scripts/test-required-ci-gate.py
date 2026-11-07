@@ -779,6 +779,20 @@ class RequiredGateContractTests(unittest.TestCase):
         )
 
 
+    def test_the_scoped_review_waits_for_and_reports_every_product_job(self) -> None:
+        # Codex review of #994: corvid-pet summarised the PR while closed-late-compat could still
+        # be running or red, because that job was missing from its needs and its CHECK_ table.
+        jobs = self.workflow["jobs"]
+        product = set(jobs[GATE_JOB]["needs"]) - {"archive", "corvid-pet"}
+        review = jobs["corvid-pet"]
+        self.assertEqual(set(review["needs"]), product)
+        reported = " ".join(
+            str(value) for step in review["steps"] for value in (step.get("env") or {}).values()
+        )
+        for job in sorted(product - {"classify", "preflight", "lifecycle-gate"}):
+            self.assertIn(f"needs.{job}.result", reported, f"corvid-pet does not report {job}")
+
+
 class GuardMutationTests(unittest.TestCase):
     """The structural guard fails on each way the gate can drift."""
 

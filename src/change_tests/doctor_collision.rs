@@ -103,3 +103,20 @@ fn a_failed_late_close_rollback_reports_each_package_it_could_not_restore() {
     assert_eq!(failures.len(), 1, "{failures:?}");
     assert!(failures[0].contains("2026-11-07-a"), "{failures:?}");
 }
+
+// Codex review of #994: a package that cannot be moved back keeps the record that says what it
+// is, so it is never stranded under closed-late without its actor, reason and merge proof.
+#[test]
+fn a_failed_late_close_rollback_keeps_the_record_in_the_stranded_package() {
+    let temp = TempDir::new().unwrap();
+    let destination = temp.path().join("closed-late/2026-11-07-a");
+    fs::create_dir_all(&destination).unwrap();
+    fs::write(destination.join(LATE_CLOSE_RECORD), "{}\n").unwrap();
+    let source = temp.path().join("gone/changes/a");
+    let failures = restore_late_close_moves(&[(source, destination.clone())]);
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(
+        destination.join(LATE_CLOSE_RECORD).is_file(),
+        "the stranded package lost its record"
+    );
+}

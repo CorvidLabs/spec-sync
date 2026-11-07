@@ -7,10 +7,11 @@
   "title": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
   "description": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
   "kind": "operations",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "ab6882464fadb1bdfc71416d729534323e5a3836",
   "created_at": 1794011883,
-  "updated_at": 1794015111,
+  "updated_at": 1794015578,
   "affected_specs": [
     "github",
     "change",

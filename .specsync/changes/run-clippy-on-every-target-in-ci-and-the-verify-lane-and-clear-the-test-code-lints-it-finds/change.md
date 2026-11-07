@@ -1,6 +1,6 @@
 ---
 id: run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds
-state: approved
+state: implementing
 type: operations
 base_commit: ab6882464fadb1bdfc71416d729534323e5a3836
 ---

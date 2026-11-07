@@ -10,7 +10,7 @@
   "state": "draft",
   "base_commit": "1276e314790521904552e375a659ae3214aa04dc",
   "created_at": 1793995806,
-  "updated_at": 1794010965,
+  "updated_at": 1794011210,
   "affected_specs": [
     "change",
     "cmd_change",
@@ -75,6 +75,7 @@
   "dependencies": [],
   "answers": {
     "architecture_risk": "yes",
+    "constraints": "Leif's decisions via orc t18 ('Capture + recommended design', 2026-11-06), which supersede close-late as its own command and the new-state pick. Build it as `specsync doctor`, shipping in 6.3.0. The late close is one doctor fix, stored where 6.x never reads (.specsync/archive/closed-late/), with no ChangeState variant (6.0 to 6.2 refuse unknown values). It was proven against real 6.0.0 to 6.2.0 binaries, and a CI test keeps it proven. D2: stale verification is report-only. D3: --close-late <id>... or all, with --actor/--reason. D4: the compat test runs in CI. D5: a collision member drops and records its acknowledgement. Site and Corvidinho CI pin 6.0.0. Strictness stays: no gate, bound, timeout or existing assertion is loosened. No tag, release or crates.io publish. Re-scope (Leif's send-back, option A): affected paths name exactly the files the change touches, and cli joins the affected specs as owner of src/main.rs.",
     "public_contract": "yes"
   }
 }

@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-096f4a0939f690b73c151837",
-    "head": "EVT-2559a6b89fee8ab867160e32",
+    "head": "EVT-b4e39e1c754a733eccfc2b2d",
     "legacy": null
   },
   "schema_version": 2,
@@ -46,7 +46,8 @@
     "orc t18 relaying Leif (2026-11-06 morning): #901 first; merge origin/main, fix the Codex P1 test-first, defer every open P2 to its own issue (filed #928-#932, threads replied and resolved)",
     "decided: cache a passing legacy-baseline introductions proof persistently, keyed by baseline digest + full cutoff id + every legacy archive's current subtree digest, because the proof is a pure function of those and immutable commits, so no verdict changes",
     "rejected: a per-record targeted legacy check, because a legacy archive's verdict depends on the shared baseline context (one broken entry marks all legacy archives corrupt), so narrowing it would change verdicts and needs Leif",
-    "Leif (via orc t18, 2026-11-06): #901 review OKed as pass at 5d169c9b, to be recorded once #914 merged; #914 merged as d0a98a0b (#944)"
+    "Leif (via orc t18, 2026-11-06): #901 review OKed as pass at 5d169c9b, to be recorded once #914 merged; #914 merged as d0a98a0b (#944)",
+    "Leif decided \"Leif via orc t18: fresh scoped review of #901 after check --commit and verify; then ship with no commit between\": \"Leif OKs his #901 review (pass at 5d169c9b), to be recorded once #914 merges\" (Herdr orc tab, 2026-11-06, relayed by orc t18; the review was recorded as 0xLeif at 30fb8ec0); recorded by ss-s3 Claude agent; a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [
@@ -70,9 +71,7 @@
   ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Leif via orc t18: fresh scoped review of #901 after check --commit and verify; then ship with no commit between"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
   "next_action": "check --commit, audit --strict, pre-push, push; orc records Leif's review; change ship with no commit between; push archive tip; CI; merge on my queue turn"
 }

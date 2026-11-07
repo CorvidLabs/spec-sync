@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git",
+  "implementation_commit": "60f9bdb9dde046f91671f5006599497fb0196e7d",
+  "implementation_tree": "7dfd5e90fd47bf69caa1e11b1420e9035460e697",
+  "contract_digest": "2105d9d5eb35d2c67fe64e900e622eac50b962f9bfd0e1c5c7a133c976de9c67",
+  "workspace_digest": "a80b44df2a6429cb201a3d283606b8ca73b47e7efb16eda0ec4c6417754d6869",
+  "closing_digest": "a05efee440cc433804ca6487cdc84131149acae29d052dd86bd9efdd3f670162",
+  "review_digest": "9b7836d988ffb3052eb545489d7adaed756b7031f3e83131fcf464d5559eb703",
+  "finalization_digest": "5a599bf69d94d478f9585751e657aeeac4fd07890f6d1ab9e9387a26202f0d04",
+  "timestamp": 1794010295
+}

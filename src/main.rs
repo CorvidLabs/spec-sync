@@ -40,7 +40,24 @@ use cli::{Cli, Command, LifecycleAction, McpAction};
 
 const VERIFICATION_CONTEXT_ENV: &str = "SPECSYNC_VERIFICATION_CONTEXT";
 
+/// Git environment that changes which history Git walks: replacement refs outside
+/// `refs/replace/`, replacements switched off, and graft and shallow files outside the
+/// repository. SpecSync's read-cache and lifecycle-index guards check only the repository's own
+/// `refs/replace/`, `info/grafts` and shallow state, so SpecSync's Git must never see these
+/// (REQ-cli-013, REQ-change-148).
+const HISTORY_REWRITING_GIT_ENV: [&str; 4] = [
+    "GIT_REPLACE_REF_BASE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_GRAFT_FILE",
+    "GIT_SHALLOW_FILE",
+];
+
 fn main() {
+    for key in HISTORY_REWRITING_GIT_ENV {
+        // SAFETY: this is the first thing `main` does, before any thread is spawned and before
+        // anything reads the environment, so no other thread can observe the change.
+        unsafe { std::env::remove_var(key) };
+    }
     let result = std::panic::catch_unwind(run);
     match result {
         Ok(()) => {}

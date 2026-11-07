@@ -349,6 +349,10 @@ fn rooted_git_command(root: &Path) -> Command {
         "GIT_NAMESPACE",
         "GIT_SHALLOW_FILE",
         "GIT_GRAFT_FILE",
+        // Replacement refs outside `refs/replace/`, or replacements switched off, change the
+        // history Git walks behind the read-cache and index guards (REQ-change-148).
+        "GIT_REPLACE_REF_BASE",
+        "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     ] {

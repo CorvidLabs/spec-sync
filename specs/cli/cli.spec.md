@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 31
+version: 32
 status: stable
 files:
   - src/main.rs
@@ -392,3 +392,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-11-05 | v30 / #862: dispatch `merge --install` and `merge-file` for the module-contract merge driver |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-06 | describe-the-cli-recursion-guard-as-refusing-an-inherited-verification-context-not-a-specsync-made-child: Describe the CLI recursion guard as refusing an inherited verification context, not a SpecSync-made child |
+| 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |

@@ -3598,10 +3598,17 @@ if the floor call is removed from this function"
             .unwrap()
             .expect("charge.ts is owned by an undeclared module");
         let sandbox = tempfile::TempDir::new().unwrap();
+        // `<name>` is a placeholder a person fills in (and a redirection to `sh`), so only the
+        // placeholder-free commands are run; the send-back's id is checked as text.
+        assert!(
+            recovery.contains(&format!("specsync change send-back '{id}' --actor <name>")),
+            "{recovery}"
+        );
         let argv: Vec<Vec<String>> = recovery
             .split('`')
             .skip(1)
             .step_by(2)
+            .filter(|command| !command.contains("<name>"))
             .map(|command| {
                 let (_, arguments) = command.split_once(' ').unwrap();
                 let output = std::process::Command::new("sh")
@@ -3632,11 +3639,6 @@ if the floor call is removed from this function"
                 "affected_specs".into(),
                 module.into()
             ],
-            "{recovery}"
-        );
-        assert_eq!(
-            argv[0][..3],
-            ["change".to_string(), "send-back".into(), id.clone()],
             "{recovery}"
         );
     }

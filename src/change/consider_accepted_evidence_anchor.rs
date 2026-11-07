@@ -2627,6 +2627,26 @@ fn ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<serde_json::Va
         .unwrap_or_default()
 }
 
+/// The entries of `field` as SpecSync's digests read them: without `relayed_by` on an approval or
+/// on a reopen event's superseded approval. A relay is covered by no digest, so an older 6.x
+/// binary that drops the key, or an edit to a relay, must not change whether a ledger lawfully
+/// continues another (#926, REQ-change-relay-compare-001). Every other key is kept.
+fn relay_blind_ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<serde_json::Value> {
+    let mut entries = ledger_entries(ledger, field);
+    for entry in &mut entries {
+        if let Some(object) = entry.as_object_mut() {
+            object.remove("relayed_by");
+            if let Some(superseded) = object
+                .get_mut("superseded_approval")
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                superseded.remove("relayed_by");
+            }
+        }
+    }
+    entries
+}
+
 /// Decide whether `current` lawfully continues the ledger an earlier introduction committed.
 ///
 /// `reopen` is append-only: `reopen_unarchived_change` leaves `approvals` untouched and pushes one
@@ -2655,10 +2675,10 @@ fn ledger_succession(earlier: Option<&[u8]>, current: &[u8]) -> LedgerSuccession
     ) else {
         return LedgerSuccession::NotASuccessor;
     };
-    let earlier_approvals = ledger_entries(&earlier, "approvals");
-    let current_approvals = ledger_entries(&current, "approvals");
-    let earlier_reopenings = ledger_entries(&earlier, "reopenings");
-    let current_reopenings = ledger_entries(&current, "reopenings");
+    let earlier_approvals = relay_blind_ledger_entries(&earlier, "approvals");
+    let current_approvals = relay_blind_ledger_entries(&current, "approvals");
+    let earlier_reopenings = relay_blind_ledger_entries(&earlier, "reopenings");
+    let current_reopenings = relay_blind_ledger_entries(&current, "reopenings");
     if current_reopenings.len() <= earlier_reopenings.len()
         || current_approvals.len() < earlier_approvals.len()
         || current_approvals[..earlier_approvals.len()] != earlier_approvals[..]

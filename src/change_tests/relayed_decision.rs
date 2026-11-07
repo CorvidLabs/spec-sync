@@ -533,3 +533,215 @@ fn only_git_saying_so_counts_as_no_committed_copy() {
     let error = committed_copy_at_head(root, "ledger.json").unwrap_err();
     assert!(error.contains("does not resolve"), "{error}");
 }
+
+// G-relay-compare (#926, #927, #971): a relayed decision is covered by no digest and read by no
+// gate, so an older 6.x binary that drops the unknown key must get the same answers, and so must
+// an edit to a relay. Three comparisons still saw it.
+
+fn without_relayed_by(value: &serde_json::Value) -> serde_json::Value {
+    let mut value = value.clone();
+    value.as_object_mut().unwrap().remove("relayed_by");
+    value
+}
+
+/// DISCRIMINATOR for #926: the approval-succession check reads a ledger an older binary rewrote
+/// without `relayed_by` (on the approvals and on the superseded approval) as a lawful successor,
+/// and any other edit to an earlier approval still is not one.
+#[test]
+fn approval_succession_ignores_a_relay_an_older_binary_dropped() {
+    let definition = serde_json::json!({
+        "gate": "definition", "actor": "Ada", "digest": "d1", "relayed_by": relay_json(),
+    });
+    let acceptance = serde_json::json!({
+        "gate": "acceptance", "actor": "Ada", "digest": "a1", "relayed_by": relay_json(),
+    });
+    let earlier = serde_json::json!({ "approvals": [definition, acceptance], "reopenings": [] });
+    let earlier = serde_json::to_vec(&earlier).unwrap();
+    let successor = |approvals: Vec<serde_json::Value>, superseded: serde_json::Value| {
+        serde_json::to_vec(&serde_json::json!({
+            "approvals": approvals,
+            "reopenings": [{ "actor": "Ada", "reason": "fix", "superseded_approval": superseded }],
+        }))
+        .unwrap()
+    };
+
+    let kept = successor(vec![definition.clone(), acceptance.clone()], acceptance.clone());
+    assert_eq!(
+        ledger_succession(Some(&earlier), &kept),
+        LedgerSuccession::LawfulSuccessor
+    );
+    let dropped = successor(
+        vec![without_relayed_by(&definition), without_relayed_by(&acceptance)],
+        without_relayed_by(&acceptance),
+    );
+    assert_eq!(
+        ledger_succession(Some(&earlier), &dropped),
+        LedgerSuccession::LawfulSuccessor,
+        "an older binary's reopen drops relayed_by and is still the successor"
+    );
+
+    let mut edited = without_relayed_by(&definition);
+    edited["actor"] = serde_json::json!("Mallory");
+    let edited = successor(
+        vec![edited, without_relayed_by(&acceptance)],
+        without_relayed_by(&acceptance),
+    );
+    assert_eq!(
+        ledger_succession(Some(&earlier), &edited),
+        LedgerSuccession::NotASuccessor
+    );
+    let mut superseded = without_relayed_by(&acceptance);
+    superseded["digest"] = serde_json::json!("a2");
+    let wrong_superseded = successor(
+        vec![without_relayed_by(&definition), without_relayed_by(&acceptance)],
+        superseded,
+    );
+    assert_eq!(
+        ledger_succession(Some(&earlier), &wrong_superseded),
+        LedgerSuccession::NotASuccessor
+    );
+}
+
+/// DISCRIMINATOR for #927: the definition digest hashes the correction ledger without the relays
+/// its embedded approvals carry, so editing or dropping one changes no gate, and any other edit
+/// to a correction still changes the digest.
+#[test]
+fn the_definition_digest_leaves_relays_in_corrections_out() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    let plain = correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release reviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap()
+    .correction;
+    let mut relayed = plain.clone();
+    relayed.superseded_definition_approval.relayed_by = Some(relay("Release reviewer"));
+    relayed.superseded_closing_approval.relayed_by = Some(relay("Release reviewer"));
+    let change = load_change(root, &record.id).unwrap();
+    let snapshot = DefinitionArtifactSnapshot {
+        entries: Vec::new(),
+        correction_mode: Some(0o100644),
+    };
+    let digest = |correction: &CorrectionRecord| {
+        definition_digest_from_snapshot(
+            &change,
+            b"{}",
+            std::slice::from_ref(correction),
+            &snapshot,
+        )
+        .unwrap()
+    };
+    assert_eq!(digest(&relayed), digest(&plain));
+    let mut other = relayed.clone();
+    other.superseded_closing_approval.relayed_by = Some(relay("Someone else"));
+    assert_eq!(digest(&other), digest(&plain), "editing a relay changes nothing");
+    let mut edited = plain.clone();
+    edited.reason = "A different reason".into();
+    assert_ne!(digest(&edited), digest(&plain));
+}
+
+/// DISCRIMINATOR for #971: the trusted correction-history comparison reads a correction ledger an
+/// older binary rewrote without the embedded relays as the same history, and any other edit to a
+/// committed correction is still divergence.
+#[test]
+fn trusted_correction_history_ignores_a_relay_an_older_binary_dropped() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {} failed",
+            args.join(" ")
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    write_lifecycle_test_policy(root);
+    let mut record = completed_section_only_record(
+        root,
+        "## MODIFIED\n\n### SPEC SECTION Invariants\n\nAccepted passkey changes retain lifecycle evidence.\n",
+    );
+    record.answers.insert("public_contract".into(), "no".into());
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base definition"]);
+    record = accept_completed_record(root, record);
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept original definition"]);
+
+    let first = correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Reviewer".into(),
+        "The accepted implementation has architectural risk".into(),
+    )
+    .unwrap();
+    for artifact in &first.correction.added_artifacts {
+        fs::write(
+            change_dir(root, &record.id).join(artifact.file_name()),
+            if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Review the corrected classification.\n"
+            } else {
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
+            },
+        )
+        .unwrap();
+    }
+    let corrections_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+    let mut ledger: CorrectionLedger =
+        serde_json::from_str(&fs::read_to_string(&corrections_path).unwrap()).unwrap();
+    let decider = ledger.corrections[0].superseded_closing_approval.actor.clone();
+    ledger.corrections[0].superseded_closing_approval.relayed_by = Some(relay(&decider));
+    fs::write(&corrections_path, json_content(&ledger).unwrap()).unwrap();
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept a correction whose closing approval carries a relay"]);
+    let committed = fs::read_to_string(&corrections_path).unwrap();
+    assert!(committed.contains("relayed_by"));
+    let head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+    let directory = format!("{CHANGES_PATH}/{}", record.id);
+    assert!(
+        closing_authenticated_correction_anchor(root, &head, &directory, &record.id)
+            .unwrap()
+            .is_some(),
+        "the committed correction is a trusted anchor, so the comparison below is not vacuous"
+    );
+
+    let mut older = ledger.clone();
+    older.corrections[0].superseded_closing_approval.relayed_by = None;
+    fs::write(&corrections_path, json_content(&older).unwrap()).unwrap();
+    let current = load_change(root, &record.id).unwrap();
+    effective_change_definition(root, &current)
+        .expect("an older binary's rewrite without the relay is the same history");
+
+    let mut edited = older.clone();
+    edited.corrections[0].reason = "A rewritten reason".into();
+    fs::write(&corrections_path, json_content(&edited).unwrap()).unwrap();
+    let error = effective_change_definition(root, &current).unwrap_err();
+    assert!(
+        error.contains("correction history divergence detected"),
+        "{error}"
+    );
+}

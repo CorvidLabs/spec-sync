@@ -3729,9 +3729,11 @@ fn definition_digest_from_snapshot_with_task_mode(
     }
     if !corrections.is_empty() {
         let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
+        // Hashed as both correction digests hash it: without the relays its embedded approvals
+        // carry, so a relay changes no gate (#927, REQ-change-relay-compare-001).
         let ledger = CorrectionLedger {
             schema_version: 1,
-            corrections: corrections.to_vec(),
+            corrections: corrections.iter().map(correction_digest_projection).collect(),
         };
         let content = json_content(&ledger)?;
         let mode = snapshot

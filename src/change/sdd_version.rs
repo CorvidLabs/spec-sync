@@ -4776,17 +4776,14 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     }
     // Ownership is resolved against the change's declared specs. Empty specs
     // reach here only for justified `no_spec_change` work (validate_definition
-    // already rejects empty specs without that flag). There is then no owner set
-    // to resolve against; finalize still enforces production ownership against
-    // full delivery evidence for that class.
-    if record.affected_specs.is_empty() {
-        if !record.no_spec_change {
-            return Err(
-                "affected specs are required for path ownership validation unless no_spec_change is justified"
-                    .into(),
-            );
-        }
-        return Ok(());
+    // already rejects empty specs without that flag). With no declared module an
+    // existing production-source path has no owner, and finalize refuses it, so
+    // it is refused here, before anyone approves or reviews it (#986, #956).
+    if record.affected_specs.is_empty() && !record.no_spec_change {
+        return Err(
+            "affected specs are required for path ownership validation unless no_spec_change is justified"
+                .into(),
+        );
     }
     let evidence = acceptance_owner_spec_evidence(root, record)?;
     let mut unowned = Vec::new();
@@ -4805,11 +4802,12 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if unowned.is_empty() {
         return Ok(());
     }
+    let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
     let hints: Vec<String> = unowned
         .iter()
-        .map(|path| format!("  - {path}: {}", ownership_hint(root, record, path)))
+        .map(|path| format!("  - {path}: {}", ownership_hint(root, record, path, &index)))
         .collect();
-    Err(format!(
+    let mut message = format!(
         "no declared module canonically owns {}: {}. Declare the owning module with `--spec`, \
          or add the path to an owning spec's `files:` list:\n{}",
         if unowned.len() == 1 {
@@ -4819,7 +4817,131 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         },
         unowned.join(", "),
         hints.join("\n")
-    ))
+    );
+    if record.state == ChangeState::Draft
+        && let Some(answer) = declare_owners_answer(root, record, &unowned, &index)
+    {
+        message.push_str(&format!("\nOn this draft, declare them with `{answer}`."));
+    }
+    Err(message)
+}
+
+/// Every module that owns `path` and that `record` does not declare: modules whose configured
+/// `owns` covers it (sorted by name), then modules whose canonical spec lists it in `files:`
+/// (in spec path order), each once. The same modules `ownership_hint` tells the operator to add.
+fn undeclared_owning_modules(
+    root: &Path,
+    record: &ChangeRecord,
+    path: &str,
+    index: &SpecListingIndex,
+) -> Vec<String> {
+    let config = crate::config::load_config(root);
+    let mut modules: Vec<String> = config
+        .modules
+        .keys()
+        .filter(|module| !record.affected_specs.contains(*module))
+        .filter(|module| configured_module_owns_path(&config, module, path))
+        .cloned()
+        .collect();
+    modules.sort();
+    for (spec, module) in index.listing(path) {
+        if let Some(module) = module
+            && !record.affected_specs.contains(&module)
+            && !modules.contains(&module)
+            && listing_spec_is_canonical(root, &config.specs_dir, &spec, &module)
+        {
+            modules.push(module);
+        }
+    }
+    modules
+}
+
+/// Whether `spec` is `module`'s canonical spec, the only spec whose `files:` give the module
+/// ownership; a listing anywhere else owns nothing, so declaring the module would not help.
+fn listing_spec_is_canonical(root: &Path, specs_dir: &str, spec: &str, module: &str) -> bool {
+    canonical_module_paths(root, specs_dir, module)
+        .ok()
+        .is_some_and(|(spec_path, _)| portable_project_path(root, &spec_path) == spec)
+}
+
+/// `specsync change answer <id> affected_specs <modules>` that declares, beside the modules
+/// `record` already declares, every module that owns one of `paths`; `None` when no module owns
+/// any of them, so declaring cannot help (#986).
+fn declare_owners_answer(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> Option<String> {
+    let mut modules = record.affected_specs.clone();
+    let before = modules.len();
+    for path in paths {
+        for module in undeclared_owning_modules(root, record, path, index) {
+            if !modules.contains(&module) {
+                modules.push(module);
+            }
+        }
+    }
+    (modules.len() > before).then(|| {
+        format!(
+            "specsync change answer {} affected_specs {}",
+            shell_quote(&record.id),
+            shell_quote(&modules.join(","))
+        )
+    })
+}
+
+/// The ship-preflight blocker for production source in the change's delivery that no declared
+/// module owns, and the recovery to name as the next action; `None` when every input has an
+/// owner (REQ-cmd-change-008).
+///
+/// Finalize signs the delivery inputs with `acceptance_manifest` and refuses an unowned
+/// production-source input. This builds the same manifest read-only, letting such an input fall
+/// to the exact delivery owner instead of failing, so it can name every one of them at once:
+/// a production-source entry left with only that owner is exactly what finalize refuses.
+pub fn ownership_preflight_blocker(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<(String, String)>, String> {
+    let unowned = unowned_production_delivery_inputs(root, record)?;
+    if unowned.is_empty() {
+        return Ok(None);
+    }
+    let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
+    let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|path| format!("{path}: {}", ownership_hint(root, record, path, &index)))
+        .collect();
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it.
+    let unclaimed: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
+        .collect();
+    let recovery = match declare_owners_answer(root, record, &paths, &index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, and add {} to its owning spec's `files:` list, then approve, check and review again",
+            shell_quote(&record.id),
+            unclaimed.join(", ")
+        ),
+        Some(answer) => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, then approve, check and review again",
+            shell_quote(&record.id)
+        ),
+        None => format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+            shell_quote(&record.id)
+        ),
+    };
+    Ok(Some((
+        format!(
+            "finalize would refuse production source no declared module owns: {}",
+            hints.join("; ")
+        ),
+        recovery,
+    )))
 }
 
 /// Names what to change for one unowned affected path.
@@ -4831,7 +4953,12 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
 /// the deepest directory with the path is the one to edit; ties name every tied spec, and a path
 /// that shares no directory with any declared spec (depth 0) gets the generic message. Nothing here depends on directory iteration or `--spec` order. This only words
 /// the refusal; ownership is still decided by `production_source_lacks_canonical_owner_with_evidence`.
-fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
+fn ownership_hint(
+    root: &Path,
+    record: &ChangeRecord,
+    path: &str,
+    index: &SpecListingIndex,
+) -> String {
     let config = crate::config::load_config(root);
     let mut declare = Vec::new();
     let mut explain = Vec::new();
@@ -4849,11 +4976,23 @@ fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
         ));
     }
 
-    for (spec, module) in specs_listing_path(root, &config.specs_dir, path) {
+    for (spec, module) in index.listing(path) {
         match module {
             None => explain.push(format!(
                 "`{spec}` lists it but has no `module:` in its frontmatter, so it owns nothing"
             )),
+            Some(module)
+                if !record.affected_specs.contains(&module)
+                    && !listing_spec_is_canonical(root, &config.specs_dir, &spec, &module) =>
+            {
+                let canonical = canonical_module_paths(root, &config.specs_dir, &module)
+                    .ok()
+                    .map(|(spec_path, _)| portable_project_path(root, &spec_path))
+                    .unwrap_or_else(|| format!("{}/{module}/{module}.spec.md", config.specs_dir));
+                explain.push(format!(
+                    "`{spec}` lists it for module `{module}`, but it is not that module's canonical spec `{canonical}`, so declaring `{module}` would not own it"
+                ));
+            }
             Some(module) if !record.affected_specs.contains(&module) => declare.push(format!(
                 "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
             )),
@@ -4881,58 +5020,95 @@ fn ownership_hint(root: &Path, record: &ChangeRecord, path: &str) -> String {
     explain.join("; ")
 }
 
-/// Every `*.spec.md` under the specs directory whose `files:` lists `path`, as
-/// `(portable spec path, frontmatter module)`, sorted by spec path.
-fn specs_listing_path(root: &Path, specs_dir: &str, path: &str) -> Vec<(String, Option<String>)> {
-    let mut listing = Vec::new();
-    let mut stack = vec![root.join(specs_dir)];
-    let mut visited = 0usize;
-    'walk: while let Some(directory) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            visited += 1;
-            if visited > 10_000 {
-                break 'walk;
-            }
-            let entry_path = entry.path();
-            let Ok(kind) = entry.file_type() else {
+#[cfg(test)]
+thread_local! {
+    /// Spec-tree walks this thread made to find listing specs (#999 review).
+    static TEST_SPEC_LISTING_WALKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_test_spec_listing_walks() {
+    TEST_SPEC_LISTING_WALKS.with(|walks| walks.set(0));
+}
+
+#[cfg(test)]
+fn test_spec_listing_walks() -> usize {
+    TEST_SPEC_LISTING_WALKS.with(std::cell::Cell::get)
+}
+
+/// Every `*.spec.md` under the specs directory, with its frontmatter module and normalized
+/// `files:` entries, read in one bounded walk (10,000 entries). A refusal or a preflight over many
+/// paths builds it once and asks it per path, instead of rereading the spec tree per path
+/// (#999 review).
+struct SpecListingIndex {
+    /// `(portable spec path, frontmatter module, files)`, sorted by spec path.
+    specs: Vec<(String, Option<String>, BTreeSet<String>)>,
+}
+
+impl SpecListingIndex {
+    fn build(root: &Path, specs_dir: &str) -> Self {
+        #[cfg(test)]
+        TEST_SPEC_LISTING_WALKS.with(|walks| walks.set(walks.get() + 1));
+        let mut specs = Vec::new();
+        let mut stack = vec![root.join(specs_dir)];
+        let mut visited = 0usize;
+        'walk: while let Some(directory) = stack.pop() {
+            let Ok(entries) = fs::read_dir(&directory) else {
                 continue;
             };
-            if kind.is_dir() {
-                stack.push(entry_path);
-                continue;
-            }
-            if !kind.is_file()
-                || !entry_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.ends_with(".spec.md"))
-            {
-                continue;
-            }
-            let Some(parsed) = fs::read_to_string(&entry_path)
-                .ok()
-                .and_then(|content| crate::parser::parse_frontmatter(&content))
-            else {
-                continue;
-            };
-            if parsed
-                .frontmatter
-                .files
-                .iter()
-                .any(|file| normalize_project_path(file).is_ok_and(|file| file == path))
-            {
-                listing.push((
+            for entry in entries.flatten() {
+                visited += 1;
+                if visited > 10_000 {
+                    break 'walk;
+                }
+                let entry_path = entry.path();
+                let Ok(kind) = entry.file_type() else {
+                    continue;
+                };
+                if kind.is_dir() {
+                    stack.push(entry_path);
+                    continue;
+                }
+                if !kind.is_file()
+                    || !entry_path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.ends_with(".spec.md"))
+                {
+                    continue;
+                }
+                let Some(parsed) = fs::read_to_string(&entry_path)
+                    .ok()
+                    .and_then(|content| crate::parser::parse_frontmatter(&content))
+                else {
+                    continue;
+                };
+                let files = parsed
+                    .frontmatter
+                    .files
+                    .iter()
+                    .filter_map(|file| normalize_project_path(file).ok())
+                    .collect();
+                specs.push((
                     portable_project_path(root, &entry_path),
                     parsed.frontmatter.module,
+                    files,
                 ));
             }
         }
+        specs.sort();
+        Self { specs }
     }
-    listing.sort();
-    listing
+
+    /// Every spec whose `files:` lists `path`, as `(portable spec path, frontmatter module)`,
+    /// sorted by spec path.
+    fn listing(&self, path: &str) -> Vec<(String, Option<String>)> {
+        self.specs
+            .iter()
+            .filter(|(_, _, files)| files.contains(path))
+            .map(|(spec, module, _)| (spec.clone(), module.clone()))
+            .collect()
+    }
 }
 
 /// The `files:` edit to suggest when no undeclared module would own `path`.

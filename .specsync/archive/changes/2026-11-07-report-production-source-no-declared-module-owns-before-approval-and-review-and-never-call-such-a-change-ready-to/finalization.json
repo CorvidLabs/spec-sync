@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to",
+  "implementation_commit": "03dd0630df811830aa028a8113bd91b1b43c250b",
+  "implementation_tree": "c254fe8c03a94c957b68a4a30da8a9b6334e4b00",
+  "contract_digest": "428b6453af565b01c023e3919c6339bc29c3a0e8e4ec75435cf1bfa84afddecb",
+  "workspace_digest": "67c74ccf99bd419189ad9197b4979dabd304dca148aa1f5530ec08a301cafbfe",
+  "closing_digest": "bb8ed45e5a446b11fbc6e3cdcc1c1032c5c85019df8f1ba7d835a00b45a16181",
+  "review_digest": "03810b183775e66db0990ac77317f068ae7801730866663742848d3885cf6e67",
+  "finalization_digest": "620f94de177b92bc5d036ec976431cb248bf7bfe2a89a5b0911a8e515c155502",
+  "timestamp": 1794014886
+}

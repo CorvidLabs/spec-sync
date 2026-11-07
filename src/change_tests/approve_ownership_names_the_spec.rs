@@ -319,3 +319,145 @@ fn approve_ownership_refusal_explains_a_declared_module_listing_outside_its_cano
     );
     assert!(!error.contains("check that this change declares"), "{error}");
 }
+
+/// #986/#956: a no-spec-change draft that touches production source a module owns used to pass
+/// approve, check and review, and was refused only by finalize, after a human had approved and
+/// reviewed it. Approve now refuses it, naming the owning module and the `change answer` command
+/// that fixes this draft, and that command clears the refusal (SHIP-4.a, CHANGE-10;
+/// verifies REQ-change-053 and REQ-change-120).
+#[test]
+fn approve_refuses_a_no_spec_change_draft_over_owned_production_source_and_names_the_answer() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "export const value = 1;\n").unwrap();
+    // The #986 shape: no spec change, so no declared module at all.
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    assert!(record.no_spec_change);
+    record.affected_paths = vec!["src/billing/charge.ts".into()];
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("approve must refuse production source no declared module owns");
+    assert!(
+        error.contains("src/billing/charge.ts")
+            && error.contains("`specs/billing/billing.spec.md` lists it for module `billing`"),
+        "the refusal names the path and the module that owns it: {error}"
+    );
+    let answer = format!("specsync change answer '{}' affected_specs 'billing'", record.id);
+    assert!(
+        error.contains(&answer),
+        "the refusal names the command that fixes this draft: {error}"
+    );
+
+    // Running the named command clears the refusal.
+    answer_question(root, &record.id, "affected_specs", "billing").unwrap();
+    approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect("after the named answer the change approves");
+}
+
+/// Codex P2 on #999: a spec that lists the path but is not its module's canonical spec owns
+/// nothing, so declaring that module would be refused again. The refusal says why, and the draft
+/// answer does not name the module.
+#[test]
+fn approve_does_not_recommend_a_module_whose_listing_spec_is_not_canonical() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::create_dir_all(root.join("specs/legacy")).unwrap();
+    fs::write(
+        root.join("specs/legacy/charges.spec.md"),
+        "---\nmodule: billing\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Charges\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "export const value = 1;\n").unwrap();
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    record.affected_paths = vec!["src/billing/charge.ts".into()];
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("approve must refuse production source no declared module owns");
+    assert!(
+        !error.contains("affected_specs 'billing'") && !error.contains("add `--spec billing`"),
+        "declaring `billing` would not own the path, so it must not be recommended: {error}"
+    );
+    assert!(
+        error.contains("`specs/legacy/charges.spec.md` lists it for module `billing`")
+            && error.contains("canonical spec"),
+        "the refusal says why the listing does not count: {error}"
+    );
+}
+
+/// Codex P1 on #999: module names are validated only as portable path components, so a name may
+/// carry spaces or shell syntax. The draft answer quotes every word it interpolates, so copying
+/// it runs `change answer` with the module as one argument and runs nothing else.
+#[test]
+fn the_draft_answer_quotes_every_interpolated_word() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let module = "billing;touch PWN";
+    ownership_spec(root, module, &["src/billing/charge.ts"]);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "export const value = 1;\n").unwrap();
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    record.affected_paths = vec!["src/billing/charge.ts".into()];
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("approve must refuse production source no declared module owns");
+    let line = error
+        .lines()
+        .find(|line| line.starts_with("On this draft"))
+        .unwrap_or_else(|| panic!("no draft answer in: {error}"));
+    assert_eq!(
+        shell_argv_of_step(line),
+        vec![vec![
+            "change".to_string(),
+            "answer".into(),
+            record.id.clone(),
+            "affected_specs".into(),
+            module.into(),
+        ]],
+        "{line}"
+    );
+}
+
+/// Codex P2 on #999: the ship preflight resolves listing specs once, not once per unowned path
+/// (each walk rereads up to 10,000 spec-tree entries). Four delivered inputs, one walk.
+#[test]
+fn the_ownership_preflight_walks_the_spec_tree_once() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    for file in ["charge", "a", "b", "c"] {
+        fs::write(root.join(format!("src/billing/{file}.ts")), "const value = 1;\n").unwrap();
+    }
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "billing"]);
+    let mut record = completed_no_spec_current_record(root);
+    record.affected_specs = Vec::new();
+    record.affected_paths = vec!["src/billing/".into()];
+    // A delivering change covers its scope; a draft covers nothing to sign.
+    record.state = ChangeState::Verifying;
+    save_change(root, &record).unwrap();
+
+    reset_test_spec_listing_walks();
+    let (blocker, _) = ownership_preflight_blocker(root, &record)
+        .unwrap()
+        .expect("four unowned inputs");
+    assert!(blocker.contains("src/billing/c.ts"), "{blocker}");
+    assert_eq!(test_spec_listing_walks(), 1);
+}

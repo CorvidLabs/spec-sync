@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "03dd0630df811830aa028a8113bd91b1b43c250b",
+  "contract_digest": "428b6453af565b01c023e3919c6339bc29c3a0e8e4ec75435cf1bfa84afddecb",
+  "execution_digest": "ef22ad191748e5968110ee4529f78189bc14f236bc68ffd97e10704b5d29191a",
+  "workspace_digest": "67c74ccf99bd419189ad9197b4979dabd304dca148aa1f5530ec08a301cafbfe",
+  "timestamp": 1794014824
+}

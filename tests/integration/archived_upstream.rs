@@ -62,9 +62,15 @@ fn state(root: &Path) -> String {
 /// A workflow-v2 project with one change approved and checked on `feature`.
 /// Returns the work tree, the base commit and the verified feature commit.
 fn verified_feature(temp: &TempDir) -> (PathBuf, String, String) {
-    let root = temp.path().join("work");
+    verified_feature_at(temp, "")
+}
+
+fn verified_feature_at(temp: &TempDir, project_directory: &str) -> (PathBuf, String, String) {
+    let repository = temp.path().join("work");
+    fs::create_dir_all(&repository).unwrap();
+    git(&repository, &["init", "-q", "-b", "main"]);
+    let root = repository.join(project_directory);
     fs::create_dir_all(&root).unwrap();
-    git(&root, &["init", "-q", "-b", "main"]);
     git(&root, &["config", "user.email", "test@example.com"]);
     git(&root, &["config", "user.name", "Test"]);
     for dir in [".specsync", "src", "specs/auth"] {
@@ -307,4 +313,188 @@ fn a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finali
         packages.iter().any(|name| name.ends_with(ID)),
         "no archive for {ID}: {packages:?}"
     );
+}
+
+// #946, SHIP-3.c. When the remote default's archived state records cannot be read, the tool
+// cannot tell whether this change is already archived there. Review and finalize stop, say how
+// to find out, and write no second archive.
+#[test]
+fn review_and_finalize_stop_when_the_upstream_archive_cannot_be_read() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let archived = git(&root, &["rev-parse", "HEAD"]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(
+        &root,
+        &[
+            "push",
+            "-q",
+            "origin",
+            &format!("{archived}:refs/heads/main"),
+        ],
+    );
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    let package = git(
+        &root,
+        &[
+            "ls-tree",
+            "--name-only",
+            "origin/main",
+            "--",
+            ".specsync/archive/changes/",
+        ],
+    );
+    let blob = git(
+        &root,
+        &["rev-parse", &format!("origin/main:{package}/state.json")],
+    );
+    squash_onto_base(&root, &base, &verified);
+
+    // This clone lost the archived record's blob, so the batched read of the remote default's
+    // archive fails.
+    fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+    let cannot_tell = |text: &str| text.contains("cannot tell") && text.contains("origin/main");
+
+    let review = run(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    let review_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
+    assert!(!review.status.success(), "review accepted:\n{review_text}");
+    assert!(cannot_tell(&review_text), "review:\n{review_text}");
+    assert_eq!(state(&root), "verifying", "review moved the change");
+
+    // Status and ship-status report the same refusal, never `safe` or ready to finalize.
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    assert_ne!(
+        status["summary"]["handoff"]["readiness"], "safe",
+        "{status}"
+    );
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(cannot_tell(next), "status next action: {next}");
+    assert!(
+        !next.contains("change finalize") && !next.contains("change ship"),
+        "{next}"
+    );
+    let ship = run(&root, &["change", "ship-status", ID]);
+    let ship_text = String::from_utf8_lossy(&ship.stdout).into_owned();
+    assert!(cannot_tell(&ship_text), "ship-status:\n{ship_text}");
+
+    let finalize = run(&root, &["change", "finalize", ID]);
+    let finalize_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&finalize.stdout),
+        String::from_utf8_lossy(&finalize.stderr)
+    );
+    assert!(
+        !finalize.status.success(),
+        "finalize archived:\n{finalize_text}"
+    );
+    assert!(cannot_tell(&finalize_text), "finalize:\n{finalize_text}");
+    assert!(
+        !root.join(".specsync/archive").exists(),
+        "finalize wrote a second archive"
+    );
+}
+
+// #967 round 2: run every printed command, including status, from the caller's directory.
+// A quoted project name also requires the selected root to remain one shell argument.
+#[test]
+fn the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature_at(&temp, "app 'quoted'");
+    let repository = root.parent().unwrap();
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(&root, &["push", "-q", "origin", "HEAD:refs/heads/main"]);
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    let archive = git(repository, &["ls-tree", "-r", "--name-only", "origin/main"])
+        .lines()
+        .find(|path| path.ends_with("/state.json"))
+        .unwrap()
+        .to_string();
+    let blob = git(&root, &["rev-parse", &format!("origin/main:{archive}")]);
+    squash_onto_base(&root, &base, &verified);
+    fs::remove_file(
+        repository
+            .join(".git/objects")
+            .join(&blob[..2])
+            .join(&blob[2..]),
+    )
+    .unwrap();
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"].as_str().unwrap();
+    assert!(next.contains("cannot tell"), "{next}");
+    let commands: Vec<_> = next
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .filter(|span| span.starts_with("git ") || span.starts_with("specsync "))
+        .collect();
+    assert_eq!(commands.len(), 3, "{next}");
+    let binary = Path::new(env!("CARGO_BIN_EXE_specsync"));
+    let mut search_path = vec![binary.parent().unwrap().to_path_buf()];
+    search_path.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+    let search_path = std::env::join_paths(search_path).unwrap();
+    for command in commands {
+        let output = Command::new("sh")
+            .args(["-c", command])
+            .current_dir(repository)
+            .env("PATH", &search_path)
+            .output()
+            .unwrap();
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.status.success(), "`{command}` failed:\n{text}");
+        if command.starts_with("specsync ") {
+            assert!(text.contains("already archived on `origin/main`"), "{text}");
+            assert!(text.contains("rebase this branch"), "{text}");
+        }
+    }
+    assert_eq!(state(&root), "verifying");
+    assert!(!root.join(".specsync/archive").exists());
 }

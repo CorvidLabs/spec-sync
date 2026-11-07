@@ -1,6 +1,6 @@
 ---
 module: change
-version: 197
+version: 198
 status: active
 files:
   - src/change.rs
@@ -684,3 +684,4 @@ Acceptance Criteria
 | 2026-11-06 | the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change: The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change |
 | 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
 | 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |
+| 2026-11-06 | a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency: A warm status of an archived change does not digest the whole working tree to report its review currency |

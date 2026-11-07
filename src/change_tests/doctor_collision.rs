@@ -120,3 +120,60 @@ fn a_failed_late_close_rollback_keeps_the_record_in_the_stranded_package() {
         "the stranded package lost its record"
     );
 }
+
+// The link can be planted after planning. Revalidate the whole batch at the write boundary,
+// including a dangling final component, before moving the first package or updating the ledger.
+#[cfg(unix)]
+#[test]
+fn late_close_revalidates_symlinked_destinations_before_any_batch_write() {
+    use std::os::unix::fs::symlink;
+
+    for component in [".specsync/archive", CLOSED_LATE_PATH, ".specsync/archive/closed-late/2026-11-07-second"] {
+        for dangling in [false, true] {
+            let temp = TempDir::new().unwrap();
+            let root = temp.path().join("work");
+            let outside = temp.path().join("outside");
+            fs::create_dir_all(&outside).unwrap();
+            fs::write(outside.join("keep.txt"), b"outside bytes\n").unwrap();
+            let ledger = collision_ledger();
+            fs::create_dir_all(root.join(".specsync")).unwrap();
+            write_json(&root.join(SEQUENCE_PATH), &ledger).unwrap();
+            let ledger_before = fs::read(root.join(SEQUENCE_PATH)).unwrap();
+            let mut plans = Vec::new();
+            for id in ["first", "second"] {
+                let source = root.join(".specsync/changes").join(id);
+                fs::create_dir_all(&source).unwrap();
+                fs::write(source.join("state.json"), b"original package bytes\n").unwrap();
+                plans.push(LateClosePlan {
+                    source,
+                    destination: root.join(CLOSED_LATE_PATH).join(format!("2026-11-07-{id}")),
+                    record: LateCloseRecord {
+                        schema_version: 1, change_id: id.into(), actor: "test".into(), reason: "test".into(),
+                        timestamp: 0, from_state: ChangeState::Draft, workflow_version: 2,
+                        from_path: format!(".specsync/changes/{id}"), default_ref: "origin/main".into(),
+                        default_commit: "test".into(), merged_commit: "test".into(), merged_at: "test".into(),
+                        verified: false, dropped_collision_acknowledgement: None,
+                    },
+                });
+            }
+            let linked = root.join(component);
+            fs::create_dir_all(linked.parent().unwrap()).unwrap();
+            let target = if dangling { outside.join("missing") } else { outside.clone() };
+            symlink(&target, &linked).unwrap();
+
+            let result = write_late_closes(&root, &mut plans);
+            for plan in &plans {
+                assert_eq!(fs::read(plan.source.join("state.json")).unwrap_or_default(), b"original package bytes\n", "{component}, dangling={dangling}: {result:?}");
+                assert!(!plan.source.join(LATE_CLOSE_RECORD).exists());
+            }
+            assert_eq!(fs::read(root.join(SEQUENCE_PATH)).unwrap(), ledger_before);
+            assert_eq!(fs::read_dir(&outside).unwrap().count(), 1, "wrote outside: {result:?}");
+            assert_eq!(fs::read(outside.join("keep.txt")).unwrap(), b"outside bytes\n");
+            assert_eq!(fs::read_link(&linked).unwrap(), target);
+            assert_eq!(target.exists(), !dangling);
+            let error = result.expect_err("write boundary accepted a destination symlink");
+            assert!(error.contains("symlinked late-close destination"), "{error}");
+            assert!(error.contains(component), "{error}");
+        }
+    }
+}

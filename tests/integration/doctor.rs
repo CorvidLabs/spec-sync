@@ -640,6 +640,136 @@ fn doctor_fix_backfills_a_5_0_ledger_once() {
 
 // ─── Late close (SHIP-12, REQ-change-143) ───────────────────────────────────
 
+#[cfg(unix)]
+fn assert_late_close_rejects_destination_symlink(component: &str, dangling: bool) {
+    use std::os::unix::fs::symlink;
+
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    let ids = ["add-a-guide", "write-a-faq"];
+    draft(&root, "Add a guide", ids[0], "GUIDE.md");
+    draft(&root, "Write a faq", ids[1], "FAQ.md");
+    commit_all(&root, "Merge both draft packages");
+    publish(&root);
+    let packages = ids.map(|id| tree(&active(&root, id)));
+    let outside = temp.path().join("outside");
+    fs::create_dir(&outside).unwrap();
+    fs::write(outside.join("keep.txt"), b"outside bytes stay here\n").unwrap();
+    let target = if dangling {
+        outside.join("missing")
+    } else {
+        outside.clone()
+    };
+    let linked = root.join(component);
+    fs::create_dir_all(linked.parent().unwrap()).unwrap();
+    symlink(&target, &linked).unwrap();
+    let before = tree(&root);
+    let outside_before = tree(&outside);
+
+    let dry_run = run(
+        &root,
+        &[
+            "doctor",
+            "--fix",
+            "--dry-run",
+            "--close-late",
+            ids[0],
+            "--close-late",
+            ids[1],
+            "--actor",
+            ACTOR,
+            "--reason",
+            REASON,
+        ],
+    );
+    let output = close_late(&root, &ids);
+    let diagnostics = format!("dry-run:\n{}\nwrite:\n{}", text(&dry_run), text(&output));
+    for (id, package) in ids.iter().zip(&packages) {
+        assert_eq!(
+            tree(&active(&root, id)),
+            *package,
+            "{component}: package {id} moved\n{diagnostics}"
+        );
+    }
+    assert_eq!(
+        tree(&root),
+        before,
+        "refusal changed project files\n{diagnostics}"
+    );
+    assert_eq!(
+        tree(&outside),
+        outside_before,
+        "refusal wrote outside the project\n{diagnostics}"
+    );
+    assert_eq!(
+        target.exists(),
+        !dangling,
+        "refusal created the dangling target"
+    );
+    assert_eq!(fs::read_link(&linked).unwrap(), target);
+    for result in [&dry_run, &output] {
+        let message = text(result);
+        assert!(!result.status.success(), "accepted {component}\n{message}");
+        assert!(
+            message.contains("symlinked late-close destination"),
+            "{message}"
+        );
+        assert!(
+            message.contains(component),
+            "refusal must name the link: {message}"
+        );
+        assert!(message.contains("nothing was closed late"), "{message}");
+        assert!(
+            message.contains("replace the symlink"),
+            "refusal must explain recovery: {message}"
+        );
+    }
+
+    // Follow the refusal's recovery without touching the outside target, then close normally.
+    fs::remove_file(&linked).unwrap();
+    fs::create_dir(&linked).unwrap();
+    let recovered = close_late(&root, &ids);
+    assert!(recovered.status.success(), "{}", text(&recovered));
+    for (id, package) in ids.iter().zip(&packages) {
+        assert!(!active(&root, id).exists());
+        let destination = closed_late_package(&root, id).unwrap();
+        assert_bytes_kept(package, &tree(&destination));
+        assert_eq!(
+            json(&destination.join("late-close.json"))["verified"],
+            false
+        );
+    }
+    assert_eq!(
+        tree(&outside),
+        outside_before,
+        "recovery changed the outside target"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn late_close_refuses_symlinked_closed_late_destination() {
+    assert_late_close_rejects_destination_symlink(CLOSED_LATE, false);
+}
+
+#[cfg(unix)]
+#[test]
+fn late_close_refuses_symlinked_archive_destination() {
+    assert_late_close_rejects_destination_symlink(".specsync/archive", false);
+}
+
+#[cfg(unix)]
+#[test]
+fn late_close_refuses_dangling_closed_late_destination() {
+    assert_late_close_rejects_destination_symlink(CLOSED_LATE, true);
+}
+
+#[cfg(unix)]
+#[test]
+fn late_close_refuses_dangling_archive_destination() {
+    assert_late_close_rejects_destination_symlink(".specsync/archive", true);
+}
+
 // SHIP-12, SHIP-12.a, SHIP-12.c: a merged workflow-v2 change closes late in one step.
 #[test]
 fn a_merged_change_closes_late_byte_for_byte_as_never_verified() {

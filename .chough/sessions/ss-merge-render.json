@@ -1,0 +1,36 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-34b160818491ea57539bf81c",
+    "head": null,
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "G-merge-render (#870 #872 #875 #876): a merge the driver calls clean keeps what both sides wrote and meant, or leaves a conflict (MERGE-5, REQ-merge-006)",
+  "intent_scope": "MERGE",
+  "modules": [
+    "merge"
+  ],
+  "stage": {
+    "current": "intent",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": null,
+  "references": {
+    "criteria": [],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [],
+  "run_consents": [],
+  "next_action": "Read scoped intent and native status, then choose the next action within the authorized scope."
+}

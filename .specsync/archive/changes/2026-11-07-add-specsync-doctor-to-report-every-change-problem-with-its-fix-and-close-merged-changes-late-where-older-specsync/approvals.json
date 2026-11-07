@@ -145,6 +145,13 @@
       "approved_delta_bases": {
         "cli: SPEC SECTION Purpose": "5827733f11880bdcceec982279d21481c66283639a021efb3ef1b146940cb57c"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794014557,
+      "digest": "ac1e9068350a36652d9ffb8293e580d93ef646f2e3c978126d2ccaef793e5a47",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

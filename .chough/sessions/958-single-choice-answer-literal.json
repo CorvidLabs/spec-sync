@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-4973daf6b2ccd257ac4ca282",
-    "head": "EVT-be5f103bdab93c7465fcce76",
+    "head": "EVT-5f6dd381cd219ad69d62be75",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "intent",
+    "current": "plan",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -33,7 +33,8 @@
   },
   "decisions": [
     "Leif 1A: print constraints none and keep saying the lessons can be named instead (DOCS-3.b), relayed by orc t18 2026-11-06 ~19:35 MST",
-    "Leif 2yes: status shares approve's placeholder rule, adds cmd_change (DOCS-3.c)"
+    "Leif 2yes: status shares approve's placeholder rule, adds cmd_change (DOCS-3.c)",
+    "Leif decided \"Intent decision for #958 (DOCS-3.b, DOCS-3.c)\": \"1A 2yes 3yes 3b-yes\" (Herdr orc tab, relayed by orc t18 to t15w, 2026-11-06 ~19:35 MST); recorded by claude (ss-triage t15w); a relayed claim, not authenticated"
   ],
   "open_questions": [],
   "completed": [],
@@ -43,7 +44,7 @@
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
-    "Scope approval of print-a-single-choice-interview-answer-literally-... (#958), sent to orc t18"
+    "Scope approval of #958 change print-a-single-choice-interview-answer-literally-..., sent to orc t18"
   ],
   "run_consents": [],
   "next_action": "After scope approval: apply the parked helper patch (signature id, question, choices), swap the specs/paths order, wire text and JSON status"

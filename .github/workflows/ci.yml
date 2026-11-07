@@ -238,7 +238,10 @@ jobs:
       - run: cargo test --verbose
       - name: Run published lifecycle examples
         run: python3 .github/scripts/test-sdd-examples.py --bin target/debug/specsync
-      - run: cargo clippy -- -D warnings
+      # --all-targets: without it clippy never compiles #[cfg(test)] code or tests/, so a green
+      # lint said nothing about the tests (CI-8, REQ-github-028, #608).
+      # .github/scripts/test-clippy-all-targets.py fails if it is dropped.
+      - run: cargo clippy --all-targets -- -D warnings
 
   fmt:
     needs: classify
@@ -384,6 +387,8 @@ jobs:
         run: python3 .github/scripts/test-linux-baseline.py
       - name: Test that every pull request starts CI
         run: python3 .github/scripts/test-ci-trigger-paths.py
+      - name: Test that clippy lints every target
+        run: python3 .github/scripts/test-clippy-all-targets.py
 
   action-consumer:
     name: Packaged GitHub Action consumer

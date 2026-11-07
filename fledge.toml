@@ -10,8 +10,9 @@ cmd = "cargo test"
 [tasks.test-nextest]
 cmd = "cargo nextest run --no-fail-fast"
 
+# --all-targets lints the test code too, as CI does (CI-8, REQ-github-028, #608).
 [tasks.lint]
-cmd = "cargo clippy -- -D warnings"
+cmd = "cargo clippy --all-targets -- -D warnings"
 
 [tasks.fmt]
 cmd = "cargo fmt --check"
@@ -38,6 +39,11 @@ cmd = "python3 .github/scripts/test-linux-baseline.py"
 # changes classify into a lane that reports the Required CI gate (CI-6, #941).
 [tasks.ci-trigger-paths-test]
 cmd = "python3 .github/scripts/test-ci-trigger-paths.py"
+
+# Every clippy command in ci.yml and fledge.toml lints every target and denies warnings, with no
+# allow or cap (CI-8, #608).
+[tasks.clippy-all-targets-test]
+cmd = "python3 .github/scripts/test-clippy-all-targets.py"
 
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
@@ -85,6 +91,7 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "clippy-all-targets-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
 
@@ -110,6 +117,7 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "clippy-all-targets-test",
 ]
 
 # Used by .trust.toml [lifecycle] for the GitHub Trust action only.
@@ -138,5 +146,6 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "clippy-all-targets-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

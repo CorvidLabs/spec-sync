@@ -1665,9 +1665,9 @@ mod tests {
         );
         let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
         assert!(
-            !merged.clean
-                || !(merged.content.contains("base: initial |")
-                    && merged.content.contains("initial release")),
+            !(merged.clean
+                && merged.content.contains("base: initial |")
+                && merged.content.contains("initial release")),
             "obsolete and edited rows were both kept in a clean merge:\n{}",
             merged.content
         );
@@ -1843,9 +1843,9 @@ mod tests {
         let theirs = table("| 1 | 2026-11-05 | change-b |\n");
         let merged = merge_contract(&base, &ours, &theirs, "specs/cli/cli.spec.md");
         assert!(
-            !merged.clean
-                || !(merged.content.contains("| 1 | 2026-11-05 | change-a |")
-                    && merged.content.contains("| 1 | 2026-11-05 | change-b |")),
+            !(merged.clean
+                && merged.content.contains("| 1 | 2026-11-05 | change-a |")
+                && merged.content.contains("| 1 | 2026-11-05 | change-b |")),
             "{}",
             merged.content
         );

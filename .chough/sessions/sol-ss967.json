@@ -33,7 +33,8 @@
     ]
   },
   "decisions": [
-    "rejected: grep-based archive recovery because it loses project-root context and cannot distinguish stale copies from reopen-and-rearchive"
+    "rejected: grep-based archive recovery because it loses project-root context and cannot distinguish stale copies from reopen-and-rearchive",
+    "failed: threading root through command adapters because strict audit rejected cmd_change files outside the archived change-only scope; carry root in the existing CannotTell answer instead"
   ],
   "open_questions": [],
   "completed": [
@@ -41,12 +42,15 @@
     "Own t19j verify was deliberately interrupted with exit 130 before source edits; it did not pass",
     "Failing tests: 3d379d77e4873c05e6a166a8c139f2625d23a1fd (original 4 round-2 regressions); 23fffcedee001dac6ede47e89ffe912b819b4552 (executable printed-status root regression)",
     "Focused t1b2: 9 unit/command + 4 integration tests passed; complete verify t1b6 passed at e93f247be1d6304c2f12ced786a2da74c37f7173 with 2903 unit + 528 integration passed, 2 benchmarks ignored, release build, 62 strict specs and all workflow validators",
-    "Original four-test red receipt includes a dangling-fixture setup failure; corrected dangling fixture was rerun red separately before test commit 3d379d77, with its raw receipt retained too"
+    "Original four-test red receipt includes a dangling-fixture setup failure; corrected dangling fixture was rerun red separately before test commit 3d379d77, with its raw receipt retained too",
+    "Revised root context is carried by CannotTell; 9 unit/command and 4 executable integration tests pass in t1bh. Command adapters and cmd_change companions match handoff bytes."
   ],
   "observations": [
     "OBS-product-test-2d6da6e25125f8c0fc3cf3a8",
     "OBS-product-test-efd35a9f612ba24bb9c3ae66",
-    "OBS-product-test-0c38609f673c0ade52f99417"
+    "OBS-product-test-0c38609f673c0ade52f99417",
+    "OBS-product-test-5d418cd517a127283b86d70b",
+    "OBS-structural-67bff9125d00d3cb05a0df22"
   ],
   "bugs": [
     "BUG-cannot-tell-status-recovery-loses-selected-project-root-11cb6d86442c49424dda6f96"
@@ -58,5 +62,5 @@
     "Fresh implementation review of PR #967 at its final verified pushed head"
   ],
   "run_consents": [],
-  "next_action": "Stop at fresh Leif implementation review of PR #967; orc t19f owns that human gate. Final gate, pushed head and hosted CI receipts are in /Users/leif/Development/_CorvidLabs/_audits/handoffs/sol-ss967-result.md. Before reporting ready, finish hard local gates and observe exact-head CI. No approval, review, archive rewrite, merge or next issue by this worker."
+  "next_action": "Commit revised change-only recovery, rerun branch-built audit --strict on the clean SHA, then ask orc t19f to return the full-verify slot. Do not start a full lane until explicit release; #994 owns t1bg. Prior e93f247b full verification is historical after this source revision. Fresh review, push and hosted CI remain pending."
 }

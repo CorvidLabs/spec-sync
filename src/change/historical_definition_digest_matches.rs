@@ -2421,7 +2421,7 @@ pub fn record_scoped_review_with_relay(
     // Refused before anything is written, so the change stays `verifying` (REQ-change-129).
     // After the configuration refusal, in the order finalize and status use.
     if let Some(upstream) = upstream_archive_of(root, &record) {
-        return Err(upstream_archive_message(root, &record.id, &upstream));
+        return Err(upstream_archive_message(&record.id, &upstream));
     }
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
@@ -2751,7 +2751,7 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     )?;
     // Named before the trusted-transition preflight, which would refuse with "found 0".
     if let Some(upstream) = upstream_archive_of(root, &record) {
-        return Err(upstream_archive_message(root, &record.id, &upstream));
+        return Err(upstream_archive_message(&record.id, &upstream));
     }
     if record.workflow_version < 2 {
         return Err(format!(
@@ -3534,7 +3534,7 @@ pub fn summarize_change_with_strict(
 
 /// Never `Safe`: review and finalize refuse a change the remote default already archived, so a
 /// fresh session must first rebase off the stale copy (REQ-change-129).
-fn upstream_archive_handoff(root: &Path, id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
+fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
     HandoffSummary {
         readiness: HandoffReadiness::NotYet,
         reason: match upstream {
@@ -3547,7 +3547,7 @@ fn upstream_archive_handoff(root: &Path, id: &str, upstream: &UpstreamArchive) -
         }
         .into(),
         resume: format!("specsync change status {id}"),
-        before_clearing: vec![upstream_archive_message(root, id, upstream)],
+        before_clearing: vec![upstream_archive_message(id, upstream)],
     }
 }
 
@@ -3577,7 +3577,7 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         return classify_handoff(&record.id, &signals);
     }
     if let Some(upstream) = upstream_archive_of(root, record) {
-        return upstream_archive_handoff(root, &record.id, &upstream);
+        return upstream_archive_handoff(&record.id, &upstream);
     }
     match record.state {
         ChangeState::Archived => {
@@ -4016,7 +4016,7 @@ fn summarize_change_with_effective(
     } else if let Some(Err(error)) = &verification_ignored {
         verification_ignored_paths_next_action(error, &record.id)
     } else if let Some(upstream) = &upstream_archive {
-        upstream_archive_message(root, &record.id, upstream)
+        upstream_archive_message(&record.id, upstream)
     } else {
         match record.state {
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
@@ -4151,7 +4151,7 @@ fn summarize_change_with_effective(
         _ => next_action,
     };
     let handoff = if let Some(upstream) = &upstream_archive {
-        upstream_archive_handoff(root, &record.id, upstream)
+        upstream_archive_handoff(&record.id, upstream)
     } else {
         classify_handoff(
         &record.id,

@@ -45,7 +45,7 @@ fn upstream_archive_is_reported_only_when_head_does_not_contain_it() {
             commit: archive_commit.clone(),
         }
     );
-    let message = upstream_archive_message(&root, &unarchived.id, &upstream);
+    let message = upstream_archive_message(&unarchived.id, &upstream);
     assert!(message.contains("already archived on `origin/main`"), "{message}");
     assert!(message.contains(&archive_commit), "{message}");
     assert!(message.contains("rebase this branch onto `origin/main`"), "{message}");
@@ -157,9 +157,10 @@ fn an_unreadable_upstream_archive_listing_is_reported_not_read_as_absent() {
         found,
         UpstreamArchive::CannotTell {
             reference: "origin/main".into(),
+            project_root: root.to_path_buf(),
         }
     );
-    let message = upstream_archive_message(&root, &unarchived.id, &found);
+    let message = upstream_archive_message(&unarchived.id, &found);
     assert!(message.contains("cannot tell"), "{message}");
     assert!(message.contains("origin/main"), "{message}");
     assert!(message.contains("git fetch"), "{message}");
@@ -253,7 +254,7 @@ fn offered_git_commands(message: &str) -> Vec<String> {
 }
 
 fn cannot_tell_message(root: &Path, id: &str, upstream: &UpstreamArchive) -> String {
-    let message = upstream_archive_message(root, id, upstream);
+    let message = upstream_archive_message(id, upstream);
     assert!(
         message.contains(&format!(
             "then `specsync --root {} change status -- {}`",
@@ -321,6 +322,7 @@ fn an_undecodable_upstream_state_record_is_reported_as_cannot_tell() {
         upstream_archive_of(&root, &unarchived),
         Some(UpstreamArchive::CannotTell {
             reference: "origin/main".into(),
+            project_root: root.to_path_buf(),
         })
     );
 }
@@ -416,6 +418,7 @@ fn the_cannot_tell_recovery_repairs_a_dangling_remote_default() {
         found,
         UpstreamArchive::CannotTell {
             reference: "origin/main".into(),
+            project_root: root.to_path_buf(),
         }
     );
     let message = cannot_tell_message(&root, &unarchived.id, &found);
@@ -439,6 +442,7 @@ fn the_cannot_tell_recovery_quotes_the_change_id_for_the_status_rerun() {
         id,
         &UpstreamArchive::CannotTell {
             reference: "origin/main".into(),
+            project_root: root.to_path_buf(),
         },
     );
     assert!(message.contains(&format!("-- {}", shell_quote(id))), "{message}");

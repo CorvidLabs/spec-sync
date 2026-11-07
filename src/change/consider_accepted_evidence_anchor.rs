@@ -5101,6 +5101,8 @@ pub(crate) enum UpstreamArchive {
     CannotTell {
         /// The remote default reference, such as `origin/main`.
         reference: String,
+        /// The selected project whose lookup must be retried by recovery.
+        project_root: PathBuf,
     },
 }
 
@@ -5125,6 +5127,7 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
     let reference = remote_default_ref(root)?;
     let cannot_tell = || UpstreamArchive::CannotTell {
         reference: reference.clone(),
+        project_root: root.to_path_buf(),
     };
     let Ok(archive_root) = git_repo_relative_path(root, ARCHIVE_PATH) else {
         return Some(cannot_tell());
@@ -5280,14 +5283,14 @@ fn archived_record_id(body: &[u8]) -> Option<String> {
 }
 
 /// The one sentence review, finalize, status and ship-status print for an upstream archive.
-pub(crate) fn upstream_archive_message(root: &Path, id: &str, upstream: &UpstreamArchive) -> String {
+pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> String {
     match upstream {
         UpstreamArchive::Archived { reference, commit } => format!(
             "`{id}` is already archived on `{reference}` at `{commit}` and this branch holds an unarchived copy; rebase this branch onto `{reference}`, whose archive is authoritative, dropping the commit that added `{CHANGES_PATH}/{id}/` (or reset to `{reference}` when the branch has nothing else), instead of closing it a second time. Merging, or deleting the copy in a new commit, leaves history that fails integrity"
         ),
-        UpstreamArchive::CannotTell { reference } => format!(
+        UpstreamArchive::CannotTell { reference, project_root } => format!(
             "cannot tell whether `{id}` is already archived on `{reference}`: its archived state records could not be read here, so review and finalize refuse rather than archive it a second time. Run `git fetch --refetch origin` to repair this clone's objects and `git remote set-head origin --auto` to repair its remote default, then `specsync --root {} change status -- {}`, which reruns this lookup for the selected project and either clears the refusal or names the archive and the rebase",
-            shell_quote(&root.to_string_lossy()),
+            shell_quote(&project_root.to_string_lossy()),
             shell_quote(id)
         ),
     }

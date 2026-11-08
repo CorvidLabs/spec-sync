@@ -32,7 +32,8 @@
   "open_questions": [],
   "completed": [
     "Drafted the complete cmd_merge change and proved root_specs_dir_matches_contracts fails before the fix",
-    "Implemented root specs normalization; focused install tests and the original installed-command scenario pass"
+    "Implemented root specs normalization; focused install tests and the original installed-command scenario pass",
+    "Human implementation review recorded by orc (t1kd exit 0) at unchanged 78f28ec4; Leif acceptance relayed by orc t19f; change shipped and archived at e36b0e70 (2026-11-08 archive), sibling/prior archive bytes preserved (renames+adds only)"
   ],
   "observations": [
     "OBS-product-test-b47ebf5a0d626500e6c08d9c",
@@ -47,5 +48,5 @@
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Verify lane running post main-merge; then tick final task, change check --commit (last write), audit --strict, pre-push, push, draft PR, await orc review"
+  "next_action": "SAFE_TO_STOP: #871 archived at e36b0e70; push of archive tip, PR #1017 merge and CI watch held for root per orc t19f"
 }

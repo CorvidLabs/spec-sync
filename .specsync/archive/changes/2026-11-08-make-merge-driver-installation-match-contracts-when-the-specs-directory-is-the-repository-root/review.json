@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "make-merge-driver-installation-match-contracts-when-the-specs-directory-is-the-repository-root",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "78f28ec4f4478eebb8fc6033f9a82c8c504ba0e3",
+  "contract_digest": "8aea5aced720053f5b84f091a0613f4cbbccca751b7e5329e0a7bf63b69d48b9",
+  "execution_digest": "d18083cd0743e9884998935237616873ac2ebc7184244ee6045e14e0a37d7464",
+  "workspace_digest": "c9bba2ce0eb2738c7d582b980acb2de7e14a2746413e10707018aa613494a1bf",
+  "timestamp": 1794103413,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "yes to all",
+    "where": "Direct Leif reply to orc t19f TWO-item implementation acceptance batch, item 1, SpecSync #871 / PR1017 at exact head 78f28ec4f4478eebb8fc6033f9a82c8c504ba0e3. Exact words yes to all, received 2026-11-08 UTC (2026-11-07 America/Denver). Native implementation acceptance only; final archive/hosted CI/thread gates before root merge. No release/deploy or passing-provenance claim.",
+    "recorded_by": "orc-t19f"
+  }
+}

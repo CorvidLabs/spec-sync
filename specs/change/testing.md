@@ -209,3 +209,38 @@ An earlier test-only undefined-constant compile failure is retained separately a
 does not count as RED. Formatting cleanup has a canonical-rustfmt equivalence receipt.
 These are focused author checks; full verification, Trust, site and independent/human
 review are separate and were not run by this repair phase. The old archive is unchanged.
+
+## PR1014 numeric independent-review repair
+
+The independent finding against `43a402bc1375df65c7793e1be9030f8ec1c3e7d1` began
+as a source/number model, not an executed Rust failure. Actual committed RED at
+`5446287f5ec22698bd1ef868c8f0f01503217837` ran two new tests:
+`pr1014_numeric_projection_keeps_unknown_decimal_values_distinct` and
+`pr1014_numeric_edit_cannot_reuse_a_reachable_accepted_anchor`.
+Both fail at their intended assertions after the real approval-ledger decoder
+accepts the exact unknown numbers and the original committed anchor is eligible.
+
+Root then requested wire controls. Three additional tests were appended without
+changing either original test body: `pr1014_numeric_wire_rewrites_ignore_only_the_allowed_relay_positions`,
+`pr1014_numeric_wire_projection_refuses_malformed_or_trailing_input`, and
+`pr1014_numeric_wire_projection_preserves_exact_scalars_and_duplicate_unknown_fields`.
+Before the production fix, committed `8eabeb9668445ee2dece73b9205960817b4e77ef`
+reports 2 passed / 3 failed: the first two new controls pass, the original two
+regressions and the exact-scalar control fail. The identical five-test file passes
+on `1dd04380572bf316b5d29ee7c5ed2361f2b421fe`, SHA256
+`11182367434a43160ddfcab1ec672e3acad6a7cf8e734240177d0b67380c73bd`.
+
+Coverage includes relay-only removal at the two allowed positions, whitespace,
+key order, equivalent escaped strings, nested quoted delimiters, exact decimals,
+large exponents/integers, scalar types and duplicate unknown fields. Malformed,
+trailing and invalid-escape inputs refuse. Unknown nested `relayed_by` fields and
+a reopening's own field remain significant. Full-input Serde validation and the
+previous default recursion budget remain; no Cargo feature, public API or schema
+changed. The related relay filter now reports 22 passed / 0 failed / 0 ignored,
+including all 21 prior named tests and one of the five new controls; do not sum
+the overlapping filters as unique tests. Formatting and production Clippy pass.
+
+The initial fixture type-error compile and a later wrapper-only count mismatch
+(expected 21, actual 22 passing tests) are retained separately. Neither is a
+behavioral RED or a product regression. These remain author-focused checks;
+full qualification, independent re-review, human acceptance and delivery are open.

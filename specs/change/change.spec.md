@@ -1,6 +1,6 @@
 ---
 module: change
-version: 199
+version: 200
 status: active
 files:
   - src/change.rs
@@ -687,3 +687,4 @@ Acceptance Criteria
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
 | 2026-11-08 | v199 / PR1014 review: preserve a reopening's own unknown fields, compare and deduplicate accepted approval ledgers without approval relays, and validate both embedded correction deciders before relay projection; existing relay requirements and public API unchanged |
+| 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |

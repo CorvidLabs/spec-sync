@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- PR1014 numeric review: accepted-anchor comparison and deduplication retain exact unknown numeric tokens, scalar types and duplicate unknown members while normalizing harmless key order, whitespace and string escapes. The projection validates all input and removes relays only from ledger approval records and reopening superseded approvals; no dependency feature, persisted schema or public API changed.
 - PR1014 review: an approval relay no longer prevents a valid accepted-evidence anchor or creates duplicate anchor identities; a reopening's own unknown `relayed_by` field remains significant, and correction reads refuse either embedded approval's relay when its decider differs from that approval's actor. Definition, correction and review digest formats and public APIs are unchanged.
 - The git merge driver no longer reports a clean merge that changes what a side wrote (#870, #872, #875, #876). Four cases changed:
   - A quoted list item YAML would read as a number, boolean or null (`"123"`, `"true"`, `"null"`) stays quoted after a `files`, `db_tables` or `depends_on` union.

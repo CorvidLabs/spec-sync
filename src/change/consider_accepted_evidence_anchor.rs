@@ -2655,18 +2655,155 @@ fn relay_blind_ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<se
     entries
 }
 
-/// Canonicalizes the ledger without approval relays, retaining unknown keys and the shape of
-/// every other field. Typed ledger serialization would discard those unknown fields.
-fn relay_blind_approval_ledger_bytes(bytes: &[u8]) -> Option<Vec<u8>> {
-    let mut ledger: serde_json::Value = serde_json::from_slice(bytes).ok()?;
-    ledger.as_object()?;
-    for field in ["approvals", "reopenings"] {
-        if ledger.get(field).is_some_and(serde_json::Value::is_array) {
-            let entries = relay_blind_ledger_entries(&ledger, field);
-            ledger[field] = serde_json::Value::Array(entries);
-        }
+#[derive(Clone, Copy)]
+enum LedgerRelayLocation {
+    Ledger,
+    Approvals,
+    Reopenings,
+    Approval,
+    Reopening,
+    Other,
+}
+
+/// Reads one fully validated JSON value without converting its numeric tokens to floats.
+fn ledger_json_span<'a>(bytes: &'a [u8], offset: &mut usize) -> Option<&'a [u8]> {
+    while bytes.get(*offset).is_some_and(u8::is_ascii_whitespace) {
+        *offset += 1;
     }
-    serde_json::to_vec(&ledger).ok()
+    let start = *offset;
+    let mut values = serde_json::Deserializer::from_slice(bytes.get(start..)?)
+        .into_iter::<serde::de::IgnoredAny>();
+    values.next()?.ok()?;
+    *offset = start.checked_add(values.byte_offset())?;
+    bytes.get(start..*offset)
+}
+
+/// Canonicalizes object order and string escapes while retaining exact numeric tokens and
+/// duplicate unknown members. Only the fixed ledger approval positions may lose relay members.
+fn project_ledger_json(
+    bytes: &[u8],
+    location: LedgerRelayLocation,
+    remaining_depth: u8,
+) -> Option<Vec<u8>> {
+    let bytes = bytes.trim_ascii();
+    match bytes.first()? {
+        b'{' => {
+            if remaining_depth <= 1 {
+                return None;
+            }
+            let mut offset = 1;
+            let mut members = Vec::new();
+            loop {
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                if bytes.get(offset) == Some(&b'}') {
+                    break;
+                }
+                let key: String =
+                    serde_json::from_slice(ledger_json_span(bytes, &mut offset)?).ok()?;
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                if bytes.get(offset) != Some(&b':') {
+                    return None;
+                }
+                offset += 1;
+                let child = match (location, key.as_str()) {
+                    (LedgerRelayLocation::Ledger, "approvals") => LedgerRelayLocation::Approvals,
+                    (LedgerRelayLocation::Ledger, "reopenings") => LedgerRelayLocation::Reopenings,
+                    (LedgerRelayLocation::Reopening, "superseded_approval") => {
+                        LedgerRelayLocation::Approval
+                    }
+                    _ => LedgerRelayLocation::Other,
+                };
+                let projected = project_ledger_json(
+                    ledger_json_span(bytes, &mut offset)?,
+                    child,
+                    remaining_depth - 1,
+                )?;
+                if !(matches!(location, LedgerRelayLocation::Approval) && key == "relayed_by") {
+                    members.push((key, projected));
+                }
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                match bytes.get(offset)? {
+                    b',' => offset += 1,
+                    b'}' => break,
+                    _ => return None,
+                }
+            }
+            // Stable sorting keeps the order of duplicate keys, so an earlier unknown member
+            // cannot disappear through a map's last-value-wins behavior.
+            members.sort_by(|(left, _), (right, _)| left.cmp(right));
+            let mut output = vec![b'{'];
+            for (index, (key, value)) in members.iter().enumerate() {
+                if index != 0 {
+                    output.push(b',');
+                }
+                output.extend(serde_json::to_vec(key).ok()?);
+                output.push(b':');
+                output.extend(value);
+            }
+            output.push(b'}');
+            Some(output)
+        }
+        b'[' => {
+            if remaining_depth <= 1 {
+                return None;
+            }
+            let child = match location {
+                LedgerRelayLocation::Approvals => LedgerRelayLocation::Approval,
+                LedgerRelayLocation::Reopenings => LedgerRelayLocation::Reopening,
+                _ => LedgerRelayLocation::Other,
+            };
+            let mut offset = 1;
+            let mut output = vec![b'['];
+            let mut first = true;
+            loop {
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                if bytes.get(offset) == Some(&b']') {
+                    break;
+                }
+                let projected = project_ledger_json(
+                    ledger_json_span(bytes, &mut offset)?,
+                    child,
+                    remaining_depth - 1,
+                )?;
+                if !first {
+                    output.push(b',');
+                }
+                first = false;
+                output.extend(projected);
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                match bytes.get(offset)? {
+                    b',' => offset += 1,
+                    b']' => break,
+                    _ => return None,
+                }
+            }
+            output.push(b']');
+            Some(output)
+        }
+        b'"' => serde_json::to_vec(&serde_json::from_slice::<String>(bytes).ok()?).ok(),
+        _ => Some(bytes.to_vec()),
+    }
+}
+
+/// Full-input Serde validation precedes projection. Unknown numbers never pass through `Value`
+/// or f64; scalar types, duplicate members and every non-relay field remain distinguishable.
+fn relay_blind_approval_ledger_bytes(bytes: &[u8]) -> Option<Vec<u8>> {
+    serde_json::from_slice::<serde::de::IgnoredAny>(bytes).ok()?;
+    if bytes.trim_ascii().first() != Some(&b'{') {
+        return None;
+    }
+    // Match the default 128-level Serde recursion budget the previous Value parser enforced.
+    project_ledger_json(bytes, LedgerRelayLocation::Ledger, 128)
 }
 
 /// Decide whether `current` lawfully continues the ledger an earlier introduction committed.

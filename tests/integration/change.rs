@@ -3820,6 +3820,46 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
     ]);
     assert_eq!(fs::read(&verification).unwrap(), original);
     assert_authenticated_and_safe("after the archiving-commit restore is committed");
+
+    // Damage the commit that archived the package (#966, CHANGE-7.a.2): fold the tamper into
+    // that commit, so the commit that added its state.json holds the same corrupt bytes as HEAD.
+    // Neither restore would change anything, so the step names the status JSON field that says
+    // what failed. That field must exist at exactly the path the step prints.
+    assert_eq!(archiving_commit, git(&["rev-parse", "HEAD~2"]));
+    tamper();
+    git(&["reset", "-q", "--soft", &format!("{archiving_commit}~1")]);
+    git(&[
+        "commit",
+        "-q",
+        "-am",
+        "archive with the damage already in it",
+    ]);
+    let json = status_json();
+    assert_eq!(
+        json["summary"]["terminal_evidence"]["validity"], "corrupt-history",
+        "{json}"
+    );
+    let step = json["summary"]["handoff"]["before_clearing"][0]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        step.starts_with(&format!(
+            "run `specsync change status '{id}' --json`, restore what its `"
+        )),
+        "the step reads the status JSON when no package restore would help: {step}"
+    );
+    assert_eq!(json["summary"]["next_action"], step);
+    no_digest(&step);
+    let field = step
+        .split('`')
+        .nth(3)
+        .expect("the step names the JSON field in backticks");
+    let named = field.split('.').fold(&json, |value, key| &value[key]);
+    assert!(
+        named.as_str().is_some_and(|reason| !reason.is_empty()),
+        "`{field}` must name a non-empty string in `change status --json`, got {named}: {json}"
+    );
 }
 
 // Verifies CHANGE-12.e and REQ-change-123 through the built binary (#960, from the Codex review of

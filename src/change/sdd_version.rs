@@ -2157,7 +2157,10 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         roster.records.push(record);
     }
     // And once after the last workspace, so a deadline that passed while reading it still stops.
-    check_read_deadline("active change loading", roster.records.len(), roster.records.len())?;
+    // Progress counts every completed workspace directory, including the unreadable
+    // ones; records alone would under-report them (Codex review of #1005).
+    let completed = roster.records.len() + roster.unreadable.len();
+    check_read_deadline("active change loading", completed, completed)?;
     roster
         .records
         .sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));

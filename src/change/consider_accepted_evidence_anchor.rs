@@ -2602,6 +2602,10 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
             (&left.commit, &left.directory).cmp(&(&right.commit, &right.directory))
         });
     }
+    // And once after the last commit's reads, before the index is cached and
+    // returned: the final commit's per-commit Git reads may themselves cross
+    // the deadline after the last loop-entry check passed (REQ-change-149).
+    check_read_deadline("archive-introduction index", total, total)?;
     let index = Arc::new(index);
     if let Ok(mut cache) = ARCHIVE_INTRODUCTION_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))

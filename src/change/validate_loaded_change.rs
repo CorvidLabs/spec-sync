@@ -3515,6 +3515,9 @@ fn validate_workflow_version_history_uncached(
         }
         break;
     }
+    // The HEAD reads above run after the per-commit boundary; a deadline crossed by
+    // one of them must still stop the read (REQ-change-149).
+    check_read_deadline("workflow-version history", total, total)?;
     Ok(())
 }
 

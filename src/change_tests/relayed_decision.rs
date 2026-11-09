@@ -1127,3 +1127,62 @@ fn pr1014_numeric_edit_cannot_reuse_a_reachable_accepted_anchor() {
         "the original wire evidence remains eligible"
     );
 }
+
+#[test]
+fn pr1014_numeric_wire_rewrites_ignore_only_the_allowed_relay_positions() {
+    let relayed = br#"{
+        "approvals":[{"gate":"definition","actor":"Ada","timestamp":1,"digest":"d","note":null,
+          "relayed_by":{"decided_by":"Ada","words":"yes","where":"TEST","recorded_by":"TEST"}}],
+        "reopenings":[{"superseded_approval":{"actor":"Ada","relayed_by":{"decided_by":"Ada","words":"yes","where":"TEST","recorded_by":"TEST"}},"relayed_by":"reopening data"}],
+        "unknown":{"number":10e-2,"text":"a \"quote\" and }[,\\","relayed_by":{"nested":"must remain"}}
+    }"#;
+    let rewritten = br#"{"unknown":{"relayed_by":{"nested":"must remain"},"text":"\u0061 \"quote\" and }[,\\","number":10e-2},
+      "reopenings":[{"relayed_by":"reopening data","superseded_approval":{"actor":"Ada"}}],
+      "approvals":[{"note":null,"digest":"d","timestamp":1,"actor":"Ada","gate":"definition"}]}"#;
+    let first = relay_blind_approval_ledger_bytes(relayed).expect("valid relayed wire ledger");
+    assert_eq!(first, relay_blind_approval_ledger_bytes(rewritten).unwrap(),
+        "whitespace, key ordering and equivalent string escapes do not change evidence");
+    assert_eq!(accepted_evidence_key(b"s", b"v", relayed), accepted_evidence_key(b"s", b"v", rewritten));
+    let tampered = String::from_utf8(rewritten.to_vec()).unwrap().replace("must remain", "edited nested field");
+    assert_ne!(first, relay_blind_approval_ledger_bytes(tampered.as_bytes()).unwrap(),
+        "an unknown nested relayed_by is not an approval relay");
+    let tampered = String::from_utf8(rewritten.to_vec()).unwrap().replace("reopening data", "edited reopening field");
+    assert_ne!(first, relay_blind_approval_ledger_bytes(tampered.as_bytes()).unwrap());
+}
+
+#[test]
+fn pr1014_numeric_wire_projection_refuses_malformed_or_trailing_input() {
+    for input in [
+        br#"{"approvals":[],"x":"bad\q"}"#.as_slice(),
+        br#"{"approvals":[],"x":[1,2}"#.as_slice(),
+        br#"{"approvals":[],}"#.as_slice(),
+        br#"{"approvals":[]} true"#.as_slice(),
+        br#"{"approvals":[],"x":01}"#.as_slice(),
+        br#"{"approvals":[],"x":1e+}"#.as_slice(),
+        br#"[1,2,3]"#.as_slice(),
+    ] {
+        assert!(relay_blind_approval_ledger_bytes(input).is_none(), "invalid ledger: {input:?}");
+    }
+    assert!(relay_blind_approval_ledger_bytes(br#"{"approvals":[],"x":"quoted }[,\\\" delimiters"}"#).is_some());
+}
+
+#[test]
+fn pr1014_numeric_wire_projection_preserves_exact_scalars_and_duplicate_unknown_fields() {
+    let project = |value: &str| {
+        relay_blind_approval_ledger_bytes(format!("{{\"approvals\":[],\"unknown\":{value}}}").as_bytes())
+            .expect("a valid unknown scalar accepted by the ledger decoder keeps its exact token")
+    };
+    let values = ["1.000000000000000000001", "1.000000000000000000002", "1e400", "2e400",
+        "18446744073709551616", "18446744073709551617", "\"1e400\"", "true", "null"];
+    for (index, left) in values.iter().enumerate() {
+        for right in &values[index + 1..] {
+            assert_ne!(project(left), project(right), "distinct scalar values/types: {left} vs {right}");
+        }
+    }
+    let left = br#"{"approvals":[],"unknown":1.000000000000000000001,"unknown":0}"#;
+    let right = br#"{"approvals":[],"unknown":1.000000000000000000002,"unknown":0}"#;
+    serde_json::from_slice::<ApprovalLedger>(left).unwrap();
+    serde_json::from_slice::<ApprovalLedger>(right).unwrap();
+    assert_ne!(relay_blind_approval_ledger_bytes(left).unwrap(), relay_blind_approval_ledger_bytes(right).unwrap(),
+        "a duplicate unknown member must not erase an earlier non-relay field edit");
+}

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 215
+version: 216
 status: active
 files:
   - src/change.rs
@@ -490,6 +490,8 @@ Acceptance Criteria
 | cmd_init | New-project policy and version initialization |
 
 ## Change Log
+
+| 2026-11-09 | v216: Clippy `--all-targets` cleanup in the attributes reader and batch-output terminator check (`as_chunks::<3>()`, byte-string comparison); no behavior change (CI-8, #608, #1007 merge train). |
 
 | 2026-11-09 | v213: Retirement review fixes (#1018): accept an archived-origin audited reopening (`from_state: archived`, the ordinary finalize-then-reopen path) and require the reopening to prove staleness; pin that a shallow clone cannot launder retirement custody (custody validation fails closed beyond the boundary and a locally deleted retired archive is still found through the boundary commit's receipt); require unchanged bytes when custody owners are reserved `@exact:*` labels; classify Retired records as historical in sequence accounting; a send-back at or after the latest reopening supersedes it in the frozen-conflict test; the default active audit validates pending retired records' custody. |
 

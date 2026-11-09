@@ -1892,7 +1892,8 @@ fn validate_git_attribute_output(
         .collect::<BTreeSet<_>>();
     let mut seen = BTreeSet::new();
     let mut lfs_paths = BTreeSet::new();
-    for record in fields.chunks_exact(3) {
+    let (records, _) = fields.as_chunks::<3>();
+    for record in records {
         let path = record[0];
         let attribute = record[1];
         let value = record[2];
@@ -4942,7 +4943,7 @@ impl DeliveryBlobStream {
         if let Err(error) = self.stdout.read_exact(&mut terminator) {
             return Err(failed(self, error));
         }
-        if terminator != [b'\n'] {
+        if terminator != *b"\n" {
             return Err(format!(
                 "Git batch output for delivery input `{relative}` has no terminator"
             ));

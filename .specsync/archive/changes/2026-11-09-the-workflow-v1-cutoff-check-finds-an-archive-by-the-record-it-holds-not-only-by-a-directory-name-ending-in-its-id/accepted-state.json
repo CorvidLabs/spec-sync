@@ -7,11 +7,11 @@
   "title": "The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id",
   "description": "The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "14903d0bb499e0ab6f2d3a83b539cacf026a1ed2",
   "created_at": 1793994445,
-  "updated_at": 1794256970,
+  "updated_at": 1794257000,
   "affected_specs": [
     "change"
   ],

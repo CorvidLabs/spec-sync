@@ -190,6 +190,25 @@
         "REQ-agents-009",
         "REQ-github-027"
       ]
+    },
+    {
+      "timestamp": 1794234742,
+      "commit": "0ad7ccf49a2fae5ba92a6d34eaafb9317c425641",
+      "contract_digest": "c43a23f81c1cad75ad60a0464954a4e6f8b6b0e1221432c3fc770bf0ce35017f",
+      "execution_digest": "1b0364592eb27223193b36ff8df1d729d7e8343964c808b636478c8067bcb0bb",
+      "workspace_digest": "8756b36f036a597c583f7a803f02a89379921e18153ace3810a082171b60cda6",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec cmd_change --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-009",
+        "REQ-github-027"
+      ]
     }
   ]
 }

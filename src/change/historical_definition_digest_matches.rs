@@ -1,4 +1,3 @@
-
 /// Whether `module` owns `relative` today by the rule that signs acceptance entries for
 /// `record`: its spec's `files:`, its canonical companions, or a configured `owns` path.
 /// Production source that no declared module owns is not owned, not an error.
@@ -126,6 +125,19 @@ fn corrected_view_digest(previous: &str, record: &CorrectionRecord) -> Result<St
     Ok(digest.finish())
 }
 
+fn validate_correction_approval_relays(corrections: &[CorrectionRecord]) -> Result<(), String> {
+    ensure_read_relays_name_their_deciders(
+        corrections.iter().flat_map(|correction| {
+            [
+                &correction.superseded_definition_approval,
+                &correction.superseded_closing_approval,
+            ]
+            .map(|approval| (approval.actor.as_str(), approval.relayed_by.as_ref()))
+        }),
+        "the approval's actor",
+    )
+}
+
 fn validate_correction_records(
     record: &ChangeRecord,
     corrections: &[CorrectionRecord],
@@ -137,6 +149,7 @@ fn validate_correction_records(
             record.correction_count
         ));
     }
+    validate_correction_approval_relays(corrections)?;
     let mut answers = record.answers.clone();
     let mut selected_artifacts = record.selected_artifacts.clone();
     let mut view_digest = initial_correction_view_digest(record)?;
@@ -290,6 +303,8 @@ fn load_correction_ledger(root: &Path, record: &ChangeRecord) -> Result<Correcti
             ledger.schema_version
         ));
     }
+    // Validate claims before the trusted-history comparison projects their relays away.
+    validate_correction_approval_relays(&ledger.corrections)?;
     validate_trusted_correction_history(root, record, &ledger)?;
     Ok(ledger)
 }
@@ -1399,14 +1414,20 @@ fn definition_approver_bound_from<'a>(
     review: &ScopedReviewRecord,
     first: usize,
 ) -> Result<&'a str, String> {
-    if let Some(approval) = approvals.approvals.iter().skip(first).rev().find(|approval| {
-        approval.gate == "definition"
-            && (approval.digest == review.contract_digest
-                || approval.definition_pair.as_ref().is_some_and(|pair| {
-                    pair.current_digest == review.contract_digest
-                        || pair.legacy_digest == review.contract_digest
-                }))
-    }) {
+    if let Some(approval) = approvals
+        .approvals
+        .iter()
+        .skip(first)
+        .rev()
+        .find(|approval| {
+            approval.gate == "definition"
+                && (approval.digest == review.contract_digest
+                    || approval.definition_pair.as_ref().is_some_and(|pair| {
+                        pair.current_digest == review.contract_digest
+                            || pair.legacy_digest == review.contract_digest
+                    }))
+        })
+    {
         return Ok(approval.actor.trim());
     }
     for adoption in approvals.scope_adoptions.iter().rev() {
@@ -1806,7 +1827,8 @@ fn validate_finalization_evidence_with_review_binding(
         || review.verdict != ScopedReviewVerdict::Pass
         || review.contract_digest != verification.contract_digest
         || review.execution_digest != verification.execution_digest
-        || (!recorded_workspace_mismatch && review.workspace_digest != verification.workspace_digest)
+        || (!recorded_workspace_mismatch
+            && review.workspace_digest != verification.workspace_digest)
     {
         return Err("finalization scoped review does not bind the accepted verification".into());
     }
@@ -1834,7 +1856,8 @@ fn validate_finalization_evidence_with_review_binding(
     // The reopen-only mode retains the whole mismatched historical review as
     // untrusted, including its claimed hash. It grants no acceptance authority.
     // Finalization's own digest and every non-review integrity check stay strict.
-    if !recorded_workspace_mismatch && scoped_review_digest(&review)? != finalization.review_digest {
+    if !recorded_workspace_mismatch && scoped_review_digest(&review)? != finalization.review_digest
+    {
         return Err("finalization scoped-review digest does not match review.json".into());
     }
     if finalization_digest(&finalization) != finalization.finalization_digest {
@@ -1851,12 +1874,20 @@ fn recorded_review_workspace_mismatch_anchor(
     verification: &VerificationRecord,
 ) -> Result<String, String> {
     if record.state != ChangeState::Accepted || record.workflow_version < 2 {
-        return Err("recorded review recovery requires an active workflow-v2 accepted record".into());
+        return Err(
+            "recorded review recovery requires an active workflow-v2 accepted record".into(),
+        );
     }
-    let reference = remote_default_ref(root)
-        .ok_or_else(|| "recorded review recovery requires remote-default Git evidence".to_string())?;
-    let anchor = git_output(root, &["rev-parse", "--verify", &format!("{reference}^{{commit}}")])
-        .ok_or_else(|| "recorded review recovery cannot resolve the remote-default commit".to_string())?;
+    let reference = remote_default_ref(root).ok_or_else(|| {
+        "recorded review recovery requires remote-default Git evidence".to_string()
+    })?;
+    let anchor = git_output(
+        root,
+        &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
+    )
+    .ok_or_else(|| {
+        "recorded review recovery cannot resolve the remote-default commit".to_string()
+    })?;
     ensure_git_ancestor(root, &anchor, "HEAD", "recorded review recovery")?;
     let workspace = find_change_dir(root, &record.id)?;
     if workspace != change_dir(root, &record.id) {
@@ -1874,7 +1905,9 @@ fn recorded_review_workspace_mismatch_anchor(
     }
     let recorded = git_tree_snapshot(root, &anchor, &repository_subtree)?;
     if current != recorded {
-        return Err("recorded review recovery requires the entire unchanged remote-default package".into());
+        return Err(
+            "recorded review recovery requires the entire unchanged remote-default package".into(),
+        );
     }
     // Only the exactly recorded historical review is downgraded as untrusted.
     // Identity, schema, definition/execution, closing and finalization hashes stay strict.
@@ -2108,15 +2141,21 @@ fn review_commit_is_current(
 
 fn run_scoped_review_git(root: &Path, args: &[&str]) -> Result<BoundedCommandOutput, String> {
     let limits = lifecycle_validation_limits();
-    memoized_configured_git(root, args, None, limits.git_max_output_bytes, |command, input| {
-        run_git_command_bounded_with_deadline(
-            command,
-            args,
-            input,
-            limits.git_max_output_bytes,
-            Duration::from_secs(limits.git_timeout_seconds),
-        )
-    })
+    memoized_configured_git(
+        root,
+        args,
+        None,
+        limits.git_max_output_bytes,
+        |command, input| {
+            run_git_command_bounded_with_deadline(
+                command,
+                args,
+                input,
+                limits.git_max_output_bytes,
+                Duration::from_secs(limits.git_timeout_seconds),
+            )
+        },
+    )
 }
 
 fn scoped_review_file_at_commit(
@@ -2125,7 +2164,9 @@ fn scoped_review_file_at_commit(
     path: &str,
 ) -> Result<Option<Vec<u8>>, String> {
     let key = (commit.to_string(), path.to_string());
-    if let Some(cached) = read_scope_value(root, |scope| scope.scoped_review_files.get(&key).cloned()) {
+    if let Some(cached) =
+        read_scope_value(root, |scope| scope.scoped_review_files.get(&key).cloned())
+    {
         return Ok(cached);
     }
     if let Some(cached) = memoized_immutable_file(root, commit, path) {
@@ -2154,8 +2195,13 @@ fn scoped_review_file_at_commit(
 }
 
 fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> {
-    let key: Vec<String> = args.iter().map(|argument| (*argument).to_string()).collect();
-    if let Some(cached) = read_scope_value(root, |scope| scope.scoped_review_texts.get(&key).cloned()) {
+    let key: Vec<String> = args
+        .iter()
+        .map(|argument| (*argument).to_string())
+        .collect();
+    if let Some(cached) =
+        read_scope_value(root, |scope| scope.scoped_review_texts.get(&key).cloned())
+    {
         return cached;
     }
     if let Some(cached) = memoized_immutable_text(root, args) {
@@ -2777,7 +2823,11 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // retried while its workspace is still active: a task can be reopened in between. A
     // workspace already moved into the archive resumes; it passed this gate when it was accepted.
     if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
-        ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
+        ensure_tasks_complete(
+            root,
+            &record,
+            &format!("specsync change finalize {}", record.id),
+        )?;
     }
     if record.state == ChangeState::Verifying {
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
@@ -3580,8 +3630,11 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     }
     match record.state {
         ChangeState::Archived => {
-            signals.corrupt_archive =
-                corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)));
+            signals.corrupt_archive = corrupt_archive_signal(
+                root,
+                record,
+                Some(&terminal_evidence_summary(root, record)),
+            );
         }
         ChangeState::Draft => {
             signals.open_questions = !next_questions_for(root, record).is_empty();
@@ -3884,9 +3937,10 @@ fn scoped_edits_uncommitted(root: &Path, record: &ChangeRecord) -> Option<bool> 
     }
     let mut args = vec!["status", "--porcelain", "--"];
     args.extend(paths);
-    let output =
-        crate::git_utils::output_after_child_exits(Command::new("git").args(&args).current_dir(root))
-            .ok()?;
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git").args(&args).current_dir(root),
+    )
+    .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -4137,7 +4191,8 @@ fn summarize_change_with_effective(
                 && sequence_freeze.is_none()
                 && !matches!(verification_ignored, Some(Err(_)))
                 && upstream_archive.is_none()
-                && (record.state == ChangeState::Accepted || (approval_valid && artifacts_complete)) =>
+                && (record.state == ChangeState::Accepted
+                    || (approval_valid && artifacts_complete)) =>
         {
             match open_tasks_selected(root, &record.id, &definition.selected_artifacts) {
                 Ok(open) if !open.is_empty() => format!(
@@ -4153,31 +4208,31 @@ fn summarize_change_with_effective(
         upstream_archive_handoff(&record.id, upstream)
     } else {
         classify_handoff(
-        &record.id,
-        &HandoffSignals {
-            state: record.state,
-            workflow_version: record.workflow_version,
-            sequence_frozen: sequence_freeze.is_some(),
-            open_questions: !next_questions_for(root, record).is_empty(),
-            artifacts_complete,
-            approval_valid,
-            correction_valid,
-            scoped_edits_uncommitted: matches!(
-                record.state,
-                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-            )
-            .then(|| scoped_edits_uncommitted(root, record))
-            .flatten(),
-            verification_current,
-            scoped_review_current,
-            terminal_evidence_stale: terminal_evidence
-                .as_ref()
-                .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale)
-                || (record.state == ChangeState::Accepted
-                    && record.workflow_version < 2
-                    && ensure_closing_approval_valid(root, record).is_err()),
-            corrupt_archive,
-        },
+            &record.id,
+            &HandoffSignals {
+                state: record.state,
+                workflow_version: record.workflow_version,
+                sequence_frozen: sequence_freeze.is_some(),
+                open_questions: !next_questions_for(root, record).is_empty(),
+                artifacts_complete,
+                approval_valid,
+                correction_valid,
+                scoped_edits_uncommitted: matches!(
+                    record.state,
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                )
+                .then(|| scoped_edits_uncommitted(root, record))
+                .flatten(),
+                verification_current,
+                scoped_review_current,
+                terminal_evidence_stale: terminal_evidence
+                    .as_ref()
+                    .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale)
+                    || (record.state == ChangeState::Accepted
+                        && record.workflow_version < 2
+                        && ensure_closing_approval_valid(root, record).is_err()),
+                corrupt_archive,
+            },
         )
     };
     ChangeSummary {
@@ -4323,12 +4378,14 @@ fn archived_workflow_history_errors(root: &Path) -> Vec<String> {
         .values()
         .filter(|record| !active.contains(&record.id))
         .filter_map(|record| {
-            validate_workflow_version_history(root, record).err().map(|error| {
-                format!(
-                    "archived change `{}` failed workflow-version history validation: {error}",
-                    record.id
-                )
-            })
+            validate_workflow_version_history(root, record)
+                .err()
+                .map(|error| {
+                    format!(
+                        "archived change `{}` failed workflow-version history validation: {error}",
+                        record.id
+                    )
+                })
         })
         .collect()
 }
@@ -4340,17 +4397,21 @@ fn delivery_policy_is_covered(
     records: &[ChangeRecord],
     cache: &mut ArchivedIntegrityCache,
 ) -> Result<bool, String> {
-    if records.iter().any(|record| record_covers_path(record, POLICY_PATH)) {
+    if records
+        .iter()
+        .any(|record| record_covers_path(record, POLICY_PATH))
+    {
         return Ok(true);
     }
     let base = pull_request_diff_base(root, records);
     let base_commit = comparison_base_commit(root, &base)
         .ok_or_else(|| "unable to resolve policy delivery base".to_string())?;
-    let mut changed: BTreeSet<String> = git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
-        .ok_or_else(|| "unable to inspect policy delivery paths".to_string())?
-        .lines()
-        .map(str::to_string)
-        .collect();
+    let mut changed: BTreeSet<String> =
+        git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
+            .ok_or_else(|| "unable to inspect policy delivery paths".to_string())?
+            .lines()
+            .map(str::to_string)
+            .collect();
     if !is_ci_project(root) {
         for command in [
             vec!["diff", "--name-only", "--relative"],
@@ -4373,17 +4434,32 @@ fn delivery_policy_is_covered(
     // moving a historical package must never create new policy authority.
     // Only state identities are read here; unrelated closing evidence is not audited.
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
-    let paths = git_output_allow_empty(root, &[
-        "ls-tree", "--full-tree", "-r", "--name-only", "-z", &base_commit,
-        "--", &format!(":(literal){archive_root}/"),
-    ]).ok_or_else(|| "unable to inspect base policy archive roster".to_string())?;
+    let paths = git_output_allow_empty(
+        root,
+        &[
+            "ls-tree",
+            "--full-tree",
+            "-r",
+            "--name-only",
+            "-z",
+            &base_commit,
+            "--",
+            &format!(":(literal){archive_root}/"),
+        ],
+    )
+    .ok_or_else(|| "unable to inspect base policy archive roster".to_string())?;
     let mut historical_ids = BTreeSet::new();
-    for path in paths.split('\0').filter(|path| path.ends_with("/state.json")) {
+    for path in paths
+        .split('\0')
+        .filter(|path| path.ends_with("/state.json"))
+    {
         let content = git_output_allow_empty(root, &["show", &format!("{base_commit}:{path}")])
             .ok_or_else(|| format!("unable to read base policy archive state {path}"))?;
         let record: serde_json::Value = serde_json::from_str(&content)
             .map_err(|error| format!("invalid base policy archive state {path}: {error}"))?;
-        let id = record.get("id").and_then(serde_json::Value::as_str)
+        let id = record
+            .get("id")
+            .and_then(serde_json::Value::as_str)
             .ok_or_else(|| format!("missing base policy archive identity {path}"))?;
         historical_ids.insert(id.to_string());
     }
@@ -4395,8 +4471,15 @@ fn delivery_policy_is_covered(
         validate_archived_integrity_with_cache(root, &archived, cache)
             .map_err(|error| format!("{}: {error}", archived.id))?;
         let signed = resolved_acceptance_manifest(root, &archived)?;
-        let Some(accepted) = signed.entries.iter().find(|entry| entry.path == POLICY_PATH) else {
-            return Err(format!("{}: signed policy acceptance entry is missing", archived.id));
+        let Some(accepted) = signed
+            .entries
+            .iter()
+            .find(|entry| entry.path == POLICY_PATH)
+        else {
+            return Err(format!(
+                "{}: signed policy acceptance entry is missing",
+                archived.id
+            ));
         };
         let mut projection = archived.clone();
         projection.affected_specs.clear();
@@ -4405,7 +4488,10 @@ fn delivery_policy_is_covered(
         if current.entries.iter().any(|entry| entry == accepted) {
             return Ok(true);
         }
-        mismatches.push(format!("{}: current policy differs from its authenticated acceptance entry", archived.id));
+        mismatches.push(format!(
+            "{}: current policy differs from its authenticated acceptance entry",
+            archived.id
+        ));
     }
     if !mismatches.is_empty() {
         return Err(mismatches.join("; "));

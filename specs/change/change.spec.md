@@ -1,6 +1,6 @@
 ---
 module: change
-version: 213
+version: 214
 status: active
 files:
   - src/change.rs
@@ -737,3 +737,4 @@ Acceptance Criteria
 | 2026-11-08 | v199 / PR1014 review: preserve a reopening's own unknown fields, compare and deduplicate accepted approval ledgers without approval relays, and validate both embedded correction deciders before relay projection; existing relay requirements and public API unchanged |
 | 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
+| 2026-11-09 | the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints: The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966) |

@@ -7,10 +7,11 @@
   "title": "The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966)",
   "description": "The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966)",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "75df08756cafeb096dbf03a6208db17c8c8a31fa",
   "created_at": 1794234965,
-  "updated_at": 1794234977,
+  "updated_at": 1794247394,
   "affected_specs": [
     "change"
   ],

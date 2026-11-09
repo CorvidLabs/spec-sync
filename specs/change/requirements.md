@@ -1270,7 +1270,7 @@ Acceptance Criteria
   `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
   package matches `HEAD` but not that commit; and, when the package still matches the commit
   that archived it or no package or repository can answer, `specsync change status <id> --json`
-  to read what `terminal_evidence.reason` names and restore that from trusted Git history, since
+  to read what `summary.terminal_evidence.reason` names and restore that from trusted Git history, since
   a package restore would change nothing. Running the named step through a shell on a tampered
   archive returns `authenticated-history` and `safe`.
 - Every change ID and path interpolated into a printed command is single-quoted as one shell

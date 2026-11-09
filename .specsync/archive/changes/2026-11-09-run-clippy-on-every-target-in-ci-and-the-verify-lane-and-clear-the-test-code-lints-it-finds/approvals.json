@@ -172,6 +172,13 @@
         "merge: SPEC SECTION Purpose": "90d6e2b0cdf8c02e79fa970a28048e2b2de23b3445aca130b6ec28adfd3c99d5",
         "validator: SPEC SECTION Purpose": "f3be53f188f163d8a00873c539e84964113123ae50dab7ea05bcfc092ce4b76e"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794250707,
+      "digest": "cebe8da8892702406f4ad83fd5e8f0364574758a0b701b68a7de63731bd465a5",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

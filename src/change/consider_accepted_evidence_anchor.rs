@@ -1,3 +1,4 @@
+
 fn semantic_acceptance_item_exists_for_module(
     root: &Path,
     record: &ChangeRecord,
@@ -99,32 +100,14 @@ fn semantic_tuple_transition_is_valid(
     };
     let historical = historical_reconciliation_anchor(successor)?.is_some();
     let base_old = if historical {
-        let evidence = succession
-            .ok_or_else(|| "historical reconciliation has no closing evidence".to_string())?;
+        let evidence = succession.ok_or_else(|| "historical reconciliation has no closing evidence".to_string())?;
         validate_historical_reconciliation_evidence(successor, evidence)?;
         let (manifest, witness) = memo.historical_receipt(root, base, &tuple.predecessor_id)?;
-        let recorded = evidence
-            .historical_reconciliation
-            .as_ref()
-            .and_then(|value| {
-                value
-                    .predecessors
-                    .iter()
-                    .find(|item| item.predecessor_id == tuple.predecessor_id)
-            })
-            .ok_or_else(|| {
-                "historical reconciliation is missing its predecessor witness".to_string()
-            })?;
-        if recorded != &witness {
-            return Err(
-                "historical predecessor witness does not match the immutable receipt".into(),
-            );
-        }
+        let recorded = evidence.historical_reconciliation.as_ref().and_then(|value| value.predecessors.iter().find(|item| item.predecessor_id == tuple.predecessor_id))
+            .ok_or_else(|| "historical reconciliation is missing its predecessor witness".to_string())?;
+        if recorded != &witness { return Err("historical predecessor witness does not match the immutable receipt".into()); }
         historical_supported_path(root, &tuple.path)?;
-        let entry = manifest
-            .entries
-            .iter()
-            .find(|entry| entry.path == tuple.path)
+        let entry = manifest.entries.iter().find(|entry| entry.path == tuple.path)
             .ok_or_else(|| "historical receipt does not contain the adopted input".to_string())?;
         historical_supported_entry(entry)?;
         entry.entry_digest.clone()
@@ -435,9 +418,7 @@ where
         match windows_queued(&reader) {
             Ok(0) => std::thread::sleep(Duration::from_millis(2)),
             Ok(queued) => {
-                let want = usize::try_from(queued)
-                    .unwrap_or(buffer.len())
-                    .min(buffer.len());
+                let want = usize::try_from(queued).unwrap_or(buffer.len()).min(buffer.len());
                 match reader.read(&mut buffer[..want]) {
                     Ok(0) => return Ok(retained),
                     Ok(read) => {
@@ -569,7 +550,8 @@ fn memoized_configured_git(
     run: impl FnOnce(&mut Command, Option<Vec<u8>>) -> Result<BoundedCommandOutput, String>,
 ) -> Result<BoundedCommandOutput, String> {
     if input.is_none()
-        && let Some(memoized) = crate::git_utils::memoized_repository_fact(root, "configured", args)
+        && let Some(memoized) =
+            crate::git_utils::memoized_repository_fact(root, "configured", args)
         && memoized.stdout.len() < stdout_cap
     {
         return Ok(BoundedCommandOutput {
@@ -719,12 +701,7 @@ fn run_git_command_bounded_with_deadline(
         }
         #[cfg(not(unix))]
         {
-            read_bounded_pipe(
-                stderr,
-                MAX_GIT_DIAGNOSTIC_BYTES,
-                stderr_overflow,
-                stderr_stop,
-            )
+            read_bounded_pipe(stderr, MAX_GIT_DIAGNOSTIC_BYTES, stderr_overflow, stderr_stop)
         }
     });
     let writer = input.map(|input| {
@@ -3654,10 +3631,7 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
 /// records (see `terminal_evidence_summary_with_validation_state`), so a read of one archive no
 /// longer authenticates every archive in the repository. The verdict is memoized per scope, and
 /// the shared legacy-baseline context is reused across archives exactly as the batch walk did.
-fn archived_terminal_evidence_in_scope(
-    root: &Path,
-    record: &ChangeRecord,
-) -> TerminalEvidenceSummary {
+fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
     if let Some(cached) = read_scope_value(root, |scope| {
         scope.archived_terminal_evidence.get(&record.id).cloned()
     }) {
@@ -3784,19 +3758,12 @@ fn terminal_evidence_summary_with_validation_state(
     if record.state == ChangeState::Archived {
         return match validate_archived_integrity_with_cache(root, record, archived_cache) {
             Ok(()) => {
-                if record
-                    .answers
-                    .get(HISTORICAL_RECONCILIATION)
-                    .is_some_and(|value| value == "unproven")
-                {
+                if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
                     historical_terminal_summary()
                 } else {
-                    TerminalEvidenceSummary {
-                        validity: TerminalEvidenceValidity::AuthenticatedHistory,
-                        reason: None,
-                    }
+                    TerminalEvidenceSummary { validity: TerminalEvidenceValidity::AuthenticatedHistory, reason: None }
                 }
-            }
+            },
             Err(reason) => TerminalEvidenceSummary {
                 validity: TerminalEvidenceValidity::CorruptHistory,
                 reason: Some(reason),
@@ -3805,33 +3772,19 @@ fn terminal_evidence_summary_with_validation_state(
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
         Ok(AcceptedInputValidity::Exact) => {
-            if record
-                .answers
-                .get(HISTORICAL_RECONCILIATION)
-                .is_some_and(|value| value == "unproven")
-            {
+            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
                 historical_terminal_summary()
             } else {
-                TerminalEvidenceSummary {
-                    validity: TerminalEvidenceValidity::Exact,
-                    reason: None,
-                }
+                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::Exact, reason: None }
             }
-        }
+        },
         Ok(AcceptedInputValidity::SuccessorCovered) => {
-            if record
-                .answers
-                .get(HISTORICAL_RECONCILIATION)
-                .is_some_and(|value| value == "unproven")
-            {
+            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
                 historical_terminal_summary()
             } else {
-                TerminalEvidenceSummary {
-                    validity: TerminalEvidenceValidity::SuccessorCovered,
-                    reason: None,
-                }
+                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
             }
-        }
+        },
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
         Err(reason) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
@@ -4634,15 +4587,7 @@ fn git_tree_snapshot(
     let pathspec = format!(":(top,literal){repo_subtree}");
     let output = run_git_bounded(
         root,
-        &[
-            "ls-tree",
-            "-r",
-            "-z",
-            "--full-name",
-            commit,
-            "--",
-            &pathspec,
-        ],
+        &["ls-tree", "-r", "-z", "--full-name", commit, "--", &pathspec],
         None,
         MAX_GIT_EVIDENCE_PATH_BYTES + MAX_GIT_EVIDENCE_PATHS,
     )?;
@@ -4802,9 +4747,8 @@ impl DeliveryBlobStream {
                 std::io::Error::other("the batch header is truncated"),
             ));
         }
-        let header = String::from_utf8(header).map_err(|_| {
-            format!("Git batch header for delivery input `{relative}` is not UTF-8")
-        })?;
+        let header = String::from_utf8(header)
+            .map_err(|_| format!("Git batch header for delivery input `{relative}` is not UTF-8"))?;
         let mut fields = header.split(' ');
         let (Some(oid), Some(kind), Some(size), None) =
             (fields.next(), fields.next(), fields.next(), fields.next())
@@ -4818,9 +4762,9 @@ impl DeliveryBlobStream {
                 "unexpected Git batch header `{header}` for delivery input `{relative}`"
             ));
         }
-        let size: usize = size.parse().map_err(|_| {
-            format!("Git batch header for delivery input `{relative}` has an invalid size")
-        })?;
+        let size: usize = size
+            .parse()
+            .map_err(|_| format!("Git batch header for delivery input `{relative}` has an invalid size"))?;
         let cap = git_evidence_object_cap();
         if size > cap {
             return Err(format!(
@@ -5284,9 +5228,7 @@ fn archived_state_paths_for(
             continue;
         }
         let mut fields = meta.split(' ');
-        if let (Some(_mode), Some("blob"), Some(object)) =
-            (fields.next(), fields.next(), fields.next())
-        {
+        if let (Some(_mode), Some("blob"), Some(object)) = (fields.next(), fields.next(), fields.next()) {
             candidates.push((object.to_string(), path.to_string()));
         }
     }
@@ -5335,14 +5277,10 @@ pub(crate) fn upstream_archive_message(id: &str, upstream: &UpstreamArchive) -> 
 /// `Some(true)` when `ancestor` is an ancestor of `descendant`, `Some(false)` when it is not,
 /// `None` when Git could not say.
 fn commit_is_ancestor(root: &Path, ancestor: &str, descendant: &str) -> Option<bool> {
-    let status =
-        crate::git_utils::status_without_inherited_output(crate::git_utils::git_cmd(root).args([
-            "merge-base",
-            "--is-ancestor",
-            ancestor,
-            descendant,
-        ]))
-        .ok()?;
+    let status = crate::git_utils::status_without_inherited_output(
+        crate::git_utils::git_cmd(root).args(["merge-base", "--is-ancestor", ancestor, descendant]),
+    )
+    .ok()?;
     match status.code() {
         Some(0) => Some(true),
         Some(1) => Some(false),

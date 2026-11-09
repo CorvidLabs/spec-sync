@@ -59,3 +59,36 @@ event bytes and current custody before any write, publish state through the tran
 then finish the move. This view is private to retry, never a dependency or succession credit.
 Default audit remains active-project only and reports archived custody not inspected;
 explicit status, audit --archives and finalize retain fail-closed custody validation.
+
+## Final authorized real-parent refinements
+
+Authority remains Leif's bounded two-failure recovery approval, with root's explicit engineering
+direction in this conversation and the existing reviewer's guard analysis. These are not human
+implementation acceptance.
+
+New receipts use schema/domain v2. Optional skipped source-kind/directory and custody-classification
+fields preserve the v1 canonical preimage when absent; v1 receipts retain accepted-source and
+equal-owner semantics and are never rewritten. v2 readers must validate both formats explicitly.
+
+Owner classification v2 is same-signed-owners normally. A mismatch may be classified
+unchanged-exact-file-current-owner ONLY when old owners are exactly [@exact:delivery], both
+entries are ordinary File, path/kind/mode/payload/entry digests are identical, and new owners
+are a nonempty vector of valid named modules with no reserved/mixed labels. Retain BOTH owner
+vectors and both independently authenticated manifests. No canonical owner change, named-owner
+remap or File-to-Missing exception. Recompute classification on every reliance/retry.
+
+Source kind defaults to accepted-receipt. An explicit --source-kind
+committed-audited-reopening-unproven requests only retained-record custody. Never auto-fall-through
+from failed accepted authentication, and refuse this mode when accepted-state/mismatch-anchor
+history exists. Require a full nonshallow bounded history, exact pre-existing ancestor package
+at its real project-relative directory, Verifying/canonical-applied state and unchanged frozen
+definition. Bind the full ledger, last opening, prior verification/manifest aggregate, closing
+approval and finalization/review bytes. Require the prior verification commit ancestor. The
+packet must reproduce the complete original pre-retirement path/mode/bytes snapshot. A stored
+source anchor/directory is revalidated as such, not inferred from timestamps. No Accepted state
+or recorded_review_mismatch_anchor is synthesized, and no stale-evidence cause is changed.
+
+The explicit source proves recorded bytes and claims only; transition history stays unproven.
+All current replacement, complete custody, immutable committed event, retry, dependency,
+ordinary succession and legacy-baseline exclusions remain. Actual parent candidate replay
+is root-owned and required before the one final full qualification lane.

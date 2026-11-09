@@ -641,3 +641,40 @@ fn finish_retirement_move(
     moved.map_err(|error| format!(
         "retirement custody is recorded but archive move is pending: {error}; rerun the identical change retire command to finish; no implementation acceptance was recorded"))
 }
+
+/// Explicit retained-record source; never implies implementation acceptance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RetirementSourceKind {
+    AcceptedReceipt,
+    CommittedAuditedReopeningUnproven,
+}
+
+/// How a retained input is bound to the independently accepted custodian.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RetirementCustodyClassification {
+    SameSignedOwners,
+    UnchangedExactFileCurrentOwner,
+}
+
+fn retirement_entry_classification(
+    prior: &AcceptanceInputEntryV1, next: &AcceptanceInputEntryV1,
+) -> Result<RetirementCustodyClassification, String> {
+    if prior.owners == next.owners {
+        Ok(RetirementCustodyClassification::SameSignedOwners)
+    } else {
+        Err("retirement cannot transfer signed owners".into())
+    }
+}
+
+/// Explicit alternative source request. The default API remains accepted-receipt.
+pub fn retire_change_with_source(
+    root: &Path, id: &str, actor: String, reason: String, replacement: String,
+    authority_source: String, source_kind: RetirementSourceKind,
+) -> Result<ChangeRecord, String> {
+    match source_kind {
+        RetirementSourceKind::AcceptedReceipt => retire_change(root, id, actor, reason, replacement, authority_source),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven => Err("Not implemented: committed audited-reopening custody".into()),
+    }
+}

@@ -11,3 +11,6 @@ pre-push, configured Trust, provenance and final reader consumer checks.
 These are verification gates, not completed implementation tasks.
 Human implementation review and archival remain separate unperformed gates.
 The actual parent owner mismatch remains HOLD pending root design feedback.
+
+- [ ] Implement the authorized explicit committed-audited-reopening source and schema-v2 compatibility.
+- [ ] Implement and qualify the authorized unchanged exact-file owner classification.

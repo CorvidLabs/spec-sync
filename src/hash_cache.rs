@@ -952,7 +952,7 @@ mod tests {
 
         // Warm the cache, then make a real edit: the warning must come back.
         let mut warm = HashCache::default();
-        update_cache(root, &[spec_path.clone()], &mut warm);
+        update_cache(root, std::slice::from_ref(&spec_path), &mut warm);
         fs::write(specs.join("requirements.md"), "# Req\n\nNew criterion.\n").unwrap();
         let edited = classify_changes(root, &spec_path, &warm);
         assert!(edited.baseline_known);

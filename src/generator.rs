@@ -2355,8 +2355,10 @@ mod tests {
         ] {
             fs::write(root.join(file), "pub fn example() {}\n").unwrap();
         }
-        let mut config = SpecSyncConfig::default();
-        config.source_dirs = vec!["./src".into()];
+        let mut config = SpecSyncConfig {
+            source_dirs: vec!["./src".into()],
+            ..SpecSyncConfig::default()
+        };
         let mut report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
         // Batch selection narrows modules, but must retain named-file boundaries.
         report.unspecced_modules = vec!["demo".into()];

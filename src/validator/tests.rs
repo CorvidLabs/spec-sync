@@ -2688,8 +2688,10 @@ Test
         // directory would prove nothing here.
         fs::create_dir_all(root.join("schema")).unwrap();
         fs::write(root.join("schema/001.sql"), "CREATE TABLE other (id TEXT);").unwrap();
-        let mut config = SpecSyncConfig::default();
-        config.schema_dir = Some("schema".to_string());
+        let config = SpecSyncConfig {
+            schema_dir: Some("schema".to_string()),
+            ..SpecSyncConfig::default()
+        };
         let mut tables = HashSet::new();
         tables.insert("other".to_string());
 

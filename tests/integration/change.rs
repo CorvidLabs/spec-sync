@@ -16,15 +16,14 @@ fn path_for_bash(path: &Path) -> String {
         .or_else(|| displayed.strip_prefix("//?/"))
         .unwrap_or(&displayed);
     let forward = stripped.replace('\\', "/");
-    if let Some((drive, rest)) = forward.split_once(':') {
-        if drive.len() == 1
-            && drive
-                .chars()
-                .next()
-                .is_some_and(|character| character.is_ascii_alphabetic())
-        {
-            return format!("/{}{}", drive.to_ascii_lowercase(), rest);
-        }
+    if let Some((drive, rest)) = forward.split_once(':')
+        && drive.len() == 1
+        && drive
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_alphabetic())
+    {
+        return format!("/{}{}", drive.to_ascii_lowercase(), rest);
     }
     forward
 }
@@ -2772,7 +2771,7 @@ fn change_check_notes_the_configured_commands_it_did_not_run() {
     let reporter = reporter.display().to_string();
     let id = change_ready_to_verify_with(
         root,
-        &[reporter.clone()],
+        std::slice::from_ref(&reporter),
         serde_json::json!({
             "component_verification_commands": { "lib": ["cargo test lib::"] },
             "strict_verification_commands": ["cargo test lib::", "cargo test"],

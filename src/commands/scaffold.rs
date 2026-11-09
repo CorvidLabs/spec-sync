@@ -94,69 +94,6 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn creation_source_selection_explicit_empty_mapping_blocks_command_fallback() {
-        for scaffold in [false, true] {
-            let temp = tempfile::tempdir().unwrap();
-            let root = temp.path();
-            fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
-            fs::create_dir(root.join(".specsync")).unwrap();
-            let mut config = crate::types::SpecSyncConfig {
-                source_dirs: vec!["lib.rs".into()],
-                ..crate::types::SpecSyncConfig::default()
-            };
-            config.modules.insert(
-                "demo".into(),
-                crate::types::ModuleDefinition {
-                    files: vec!["missing.rs".into()],
-                    depends_on: vec![],
-                    owns: vec![],
-                },
-            );
-            fs::write(
-                root.join(".specsync/config.toml"),
-                crate::config::config_to_toml(&config),
-            )
-            .unwrap();
-            if scaffold {
-                cmd_scaffold(root, "demo", None, None);
-            } else {
-                cmd_add_spec(root, "demo");
-            }
-            let spec = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
-            assert!(spec.contains("files: []"), "{spec}");
-            assert!(!spec.contains("  - lib.rs"), "{spec}");
-        }
-    }
-
-    #[test]
-    fn add_spec_omits_module_javascript_test_sources() {
-        let temp = tempfile::tempdir().unwrap();
-        let root = temp.path();
-        let module = root.join("src/widget");
-        fs::create_dir_all(&module).unwrap();
-        fs::write(module.join("index.mjs"), "export const value = true;\n").unwrap();
-        fs::write(module.join("index.test.cjs"), "exports.helper = true;\n").unwrap();
-        fs::write(
-            module.join("index.spec.mjs"),
-            "export const fixture = true;\n",
-        )
-        .unwrap();
-
-        cmd_add_spec(root, "widget");
-
-        let spec = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
-        assert!(spec.contains("src/widget/index.mjs"), "{spec}");
-        assert!(spec.contains("| `value` |"), "{spec}");
-        assert!(!spec.contains("index.test.cjs"), "{spec}");
-        assert!(!spec.contains("index.spec.mjs"), "{spec}");
-    }
-}
-
 pub fn cmd_scaffold(
     root: &Path,
     module_name: &str,
@@ -307,5 +244,68 @@ pub fn cmd_scaffold(
         if registry::register_module(root, module_name, &spec_rel) {
             println!("    {} Registered in specsync-registry.toml", "✓".green());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creation_source_selection_explicit_empty_mapping_blocks_command_fallback() {
+        for scaffold in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let root = temp.path();
+            fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+            fs::create_dir(root.join(".specsync")).unwrap();
+            let mut config = crate::types::SpecSyncConfig {
+                source_dirs: vec!["lib.rs".into()],
+                ..crate::types::SpecSyncConfig::default()
+            };
+            config.modules.insert(
+                "demo".into(),
+                crate::types::ModuleDefinition {
+                    files: vec!["missing.rs".into()],
+                    depends_on: vec![],
+                    owns: vec![],
+                },
+            );
+            fs::write(
+                root.join(".specsync/config.toml"),
+                crate::config::config_to_toml(&config),
+            )
+            .unwrap();
+            if scaffold {
+                cmd_scaffold(root, "demo", None, None);
+            } else {
+                cmd_add_spec(root, "demo");
+            }
+            let spec = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
+            assert!(spec.contains("files: []"), "{spec}");
+            assert!(!spec.contains("  - lib.rs"), "{spec}");
+        }
+    }
+
+    #[test]
+    fn add_spec_omits_module_javascript_test_sources() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let module = root.join("src/widget");
+        fs::create_dir_all(&module).unwrap();
+        fs::write(module.join("index.mjs"), "export const value = true;\n").unwrap();
+        fs::write(module.join("index.test.cjs"), "exports.helper = true;\n").unwrap();
+        fs::write(
+            module.join("index.spec.mjs"),
+            "export const fixture = true;\n",
+        )
+        .unwrap();
+
+        cmd_add_spec(root, "widget");
+
+        let spec = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
+        assert!(spec.contains("src/widget/index.mjs"), "{spec}");
+        assert!(spec.contains("| `value` |"), "{spec}");
+        assert!(!spec.contains("index.test.cjs"), "{spec}");
+        assert!(!spec.contains("index.spec.mjs"), "{spec}");
     }
 }

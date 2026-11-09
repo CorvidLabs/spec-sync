@@ -758,6 +758,39 @@ fn trim_ascii_whitespace(bytes: &[u8]) -> &[u8] {
     &bytes[start..end]
 }
 
+/// Say so when re-running `init` on a project that is still on the legacy lifecycle.
+///
+/// `init` short-circuits on an existing project, and "already exists" reads as "nothing to do
+/// here". For a repository upgraded from 5.x it is not: the policy still carries `version: 1`, so
+/// every change created is workflow-v1, and nothing reports that until `ship` refuses. This is the
+/// one moment `init` has the reader's attention with the fact in hand.
+fn print_legacy_policy_notice(root: &Path) {
+    if root.join(".specsync/workflow-v2-baseline.json").is_file() {
+        return;
+    }
+    let Ok(text) = fs::read_to_string(root.join(".specsync/sdd.json")) else {
+        return;
+    };
+    let Ok(policy) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return;
+    };
+    if policy
+        .get("version")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(2)
+        >= 2
+    {
+        return;
+    }
+    println!(
+        "  {} this project is on workflow v1 (legacy) — new changes will use `change accept`/`change archive`, not `change finalize`",
+        "!".yellow()
+    );
+    println!(
+        "  Run `specsync change adopt` to adopt the current lifecycle for new changes (existing v1 evidence is preserved)."
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -868,7 +901,7 @@ mod tests {
 
         let version = fs::read_to_string(tmp.path().join(".specsync/version")).unwrap();
         assert_eq!(version.trim(), PROJECT_VERSION);
-        assert!(tmp.path().join(".specsync/sdd.json").exists() == false);
+        assert!(!tmp.path().join(".specsync/sdd.json").exists());
 
         let config = fs::read_to_string(tmp.path().join(".specsync/config.toml")).unwrap();
         assert!(config.contains("specs_dir = \"specs\""));
@@ -1012,37 +1045,4 @@ mod tests {
             assert!(content.lines().any(|line| line == entry), "{entry}");
         }
     }
-}
-
-/// Say so when re-running `init` on a project that is still on the legacy lifecycle.
-///
-/// `init` short-circuits on an existing project, and "already exists" reads as "nothing to do
-/// here". For a repository upgraded from 5.x it is not: the policy still carries `version: 1`, so
-/// every change created is workflow-v1, and nothing reports that until `ship` refuses. This is the
-/// one moment `init` has the reader's attention with the fact in hand.
-fn print_legacy_policy_notice(root: &Path) {
-    if root.join(".specsync/workflow-v2-baseline.json").is_file() {
-        return;
-    }
-    let Ok(text) = fs::read_to_string(root.join(".specsync/sdd.json")) else {
-        return;
-    };
-    let Ok(policy) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return;
-    };
-    if policy
-        .get("version")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(2)
-        >= 2
-    {
-        return;
-    }
-    println!(
-        "  {} this project is on workflow v1 (legacy) — new changes will use `change accept`/`change archive`, not `change finalize`",
-        "!".yellow()
-    );
-    println!(
-        "  Run `specsync change adopt` to adopt the current lifecycle for new changes (existing v1 evidence is preserved)."
-    );
 }

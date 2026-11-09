@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds",
+  "implementation_commit": "0cfc360996b13412ac3f536802a9ff9f9149cc50",
+  "implementation_tree": "37e26313b8ec4a21d0cab481836bdc7422fa0781",
+  "contract_digest": "f595037be3bf6716aa521ee6f4107f1d95ef150104102c9dc1abeef7d4dcdc4c",
+  "workspace_digest": "2fdbe2dfd4f7d785701f66339958390e19e074d9fb8d8d632b8af0f79e560f68",
+  "closing_digest": "cebe8da8892702406f4ad83fd5e8f0364574758a0b701b68a7de63731bd465a5",
+  "review_digest": "e62deb5f9515185c0f3b94beb71a8947f3ebbdd353660b5cdc0ca0a9b7a77280",
+  "finalization_digest": "0edc0b72f9b1ca48b418034c1122721cd69fe89ad8048958cc7c65616329bd09",
+  "timestamp": 1794250707
+}

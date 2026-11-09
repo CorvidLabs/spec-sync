@@ -1,0 +1,44 @@
+profile = "chough-testing/1"
+module = "change"
+
+[[case]]
+id = "TC-change-single-choice-answer-runs-as-printed"
+title = "A single-choice refusal names a literal runnable answer"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["DOCS-3.b"]
+requirements = ["REQ-change-133"]
+paths = ["src/change/collect_requirement_ids.rs", "src/change_tests/approve_refusal_hints.rs"]
+environments = ["local-macos-arm64"]
+artifacts = ["test-log"]
+setup = ["The change interview offers one choice for constraints"]
+steps = ["Run the focused refusal-hint unit test"]
+expected = ["The refusal names constraints none, retains the lessons alternative, and preserves multi-choice and scope placeholders"]
+
+[case.bind]
+adapter = "command"
+argv = ["cargo", "test", "--locked", "--bin", "specsync", "--", "--exact", "change::tests::a_single_choice_question_names_its_choice_literally"]
+expect_output = ["running 1 test", "test result: ok"]
+timeout_seconds = 300
+
+[[case]]
+id = "TC-change-specs-refusal-matches-interview-order"
+title = "A draft missing specs and paths is refused for specs first"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["DOCS-3.c"]
+requirements = ["REQ-change-133"]
+paths = ["src/change/collect_requirement_ids.rs", "src/change_tests/approve_refusal_hints.rs"]
+environments = ["local-macos-arm64"]
+artifacts = ["test-log"]
+setup = ["A draft has neither affected specs nor affected paths"]
+steps = ["Run the focused refusal-order unit test"]
+expected = ["Approval refuses for affected specs first, the same question status asks first"]
+
+[case.bind]
+adapter = "command"
+argv = ["cargo", "test", "--locked", "--bin", "specsync", "--", "--exact", "change::tests::a_draft_without_specs_or_paths_is_refused_for_the_question_status_asks_first"]
+expect_output = ["running 1 test", "test result: ok"]
+timeout_seconds = 300

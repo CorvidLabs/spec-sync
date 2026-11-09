@@ -3560,7 +3560,15 @@ pub fn summarize_change_with_strict(
 fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
     HandoffSummary {
         readiness: HandoffReadiness::NotYet,
-        reason: "this change is already archived on the remote default, so review and finalize refuse it here".into(),
+        reason: match upstream {
+            UpstreamArchive::Archived { .. } => {
+                "this change is already archived on the remote default, so review and finalize refuse it here"
+            }
+            UpstreamArchive::CannotTell { .. } => {
+                "the remote default's archive cannot be read, so review and finalize cannot tell whether this change is already archived there and refuse it here"
+            }
+        }
+        .into(),
         resume: format!("specsync change status {id}"),
         before_clearing: vec![upstream_archive_message(id, upstream)],
     }
@@ -4035,15 +4043,18 @@ fn summarize_change_with_effective(
     } else {
         match record.state {
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
-                let question = next_questions_for(root, record)
-                    .into_iter()
-                    .next()
-                    .map(|question| question.id)
-                    .unwrap_or_else(|| "<question>".into());
-                format!(
-                    "run `specsync change answer {} {} <answer>`",
-                    record.id, question
-                )
+                // The command approve's refusal names for the same question
+                // (REQ-cmd-change-answer-hint-001).
+                match next_questions_for(root, record).first() {
+                    Some(question) => format!(
+                        "run {}",
+                        answer_command_hint(&record.id, &question.id, &question.choices)
+                    ),
+                    None => format!(
+                        "run `specsync change answer {} <question> \"<answer>\"`",
+                        record.id
+                    ),
+                }
             }
             // Prefer completing selected artifacts over approve when interview is done
             // but TODO/empty stubs remain (sandbox #16).

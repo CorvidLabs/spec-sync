@@ -277,6 +277,26 @@ slug-based changes, use the supported `change supersede` workflow to record pred
 path, and module obligations before approval; do not infer succession from numeric ordering.
 A partial, draft, failed, or stale record is not proof that predecessor obligations were met.
 
+### Close a change that merged long ago
+
+A change that merged without being archived blocks every later finalize, and its evidence may no
+longer be checkable. `specsync doctor` lists it with its fix. When re-checking is not possible or not
+worth it, a person can close it late:
+
+```bash
+specsync doctor --fix --dry-run --close-late <id> --actor <name> --reason "<why>"
+specsync doctor --fix --close-late <id> --actor <name> --reason "<why>"
+```
+
+The package moves byte for byte into `.specsync/archive/closed-late/`, with a `late-close.json` that
+records who, when and why, the commit that merged it, and `verified: false`. It never counts as
+checked: `change status` says it was closed late, and every lifecycle verb refuses it. Only a change
+whose package is on the remote default branch can be closed late. SpecSync 6.0 to 6.2 never read
+that folder. If the change belonged to an acknowledged sequence collision, doctor takes it out of that
+acknowledgement in `.specsync/change-sequence.json` (the whole acknowledgement once fewer than two
+members remain) and keeps the acknowledgement as it stood in the record; where meaningful
+files need an open change, the pull request's change must declare that file.
+
 ## 5. Legacy workflow-v1 recovery: correct accepted classification
 
 Use `change correct` when the accepted delivery evidence is current but review proves that the original `public_contract` or `architecture_risk` answer was wrong:

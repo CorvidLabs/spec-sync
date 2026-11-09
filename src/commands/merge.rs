@@ -164,14 +164,17 @@ fn attribute_lines(specs_dir: &str) -> Vec<String> {
         specs_dir = rest.trim_start_matches('/').to_string();
     }
     let specs_dir = specs_dir.trim_matches('/');
+    let specs_dir = if specs_dir == "." { "" } else { specs_dir };
     let literal = escape_wildmatch(specs_dir);
     ["**/*.spec.md", "**/requirements.md"]
         .iter()
         .map(|tail| {
-            format!(
-                "{} merge=specsync",
-                attribute_pattern(&format!("{literal}/{tail}"))
-            )
+            let pattern = if specs_dir.is_empty() {
+                tail.to_string()
+            } else {
+                format!("{literal}/{tail}")
+            };
+            format!("{} merge=specsync", attribute_pattern(&pattern))
         })
         .collect()
 }
@@ -383,6 +386,40 @@ mod install_tests {
         .unwrap();
         let output = run(&["check-attr", "merge", "--", "specs/x/x.spec.md"]);
         assert!(String::from_utf8_lossy(&output.stdout).ends_with("merge: specsync\n"));
+    }
+
+    #[test]
+    fn root_specs_dir_matches_contracts() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        let run = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .unwrap()
+        };
+        assert!(run(&["init", "-q"]).status.success());
+        for specs_dir in [".", "./"] {
+            fs::write(
+                root.join(".gitattributes"),
+                attribute_lines(specs_dir).join("\n") + "\n",
+            )
+            .unwrap();
+            for path in [
+                "root.spec.md",
+                "nested/root.spec.md",
+                "requirements.md",
+                "nested/requirements.md",
+            ] {
+                let output = run(&["check-attr", "merge", "--", path]);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                assert!(
+                    stdout.ends_with("merge: specsync\n"),
+                    "specs_dir={specs_dir} path={path}: {stdout}"
+                );
+            }
+        }
     }
 
     #[test]

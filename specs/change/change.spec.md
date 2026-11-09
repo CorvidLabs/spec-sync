@@ -1,11 +1,12 @@
 ---
 module: change
-version: 201
+version: 207
 status: active
 files:
   - src/change.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
+  - src/change/doctor.rs
   - src/change/historical_definition_digest_matches.rs
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
@@ -22,6 +23,7 @@ files:
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
+  - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs
   - src/change_tests/historical_reconciliation.rs
@@ -95,7 +97,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
-| `UpstreamArchive` | The remote default reference and the commit on it that archived a change this branch holds unarchived (#694) |
+| `UpstreamArchive` | What the remote default says about an archive of a change this branch holds unarchived: `Archived` with the reference and the commit on it that archived the change (#694), or `CannotTell` with the reference and selected project root when its archived state records could not be read (REQ-change-142, #946) |
 | `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration, plus the opt-in `verification_ignored_paths` directory prefixes left out of the verification project-input digest (empty by default and omitted when empty) |
 | `SuccessionObligation` | Definition-bound predecessor path, canonical owner module, and full predecessor entry digest |
 | `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
@@ -168,11 +170,23 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
 | `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
 | `LifecycleCommitScope` | Crate-private answer to what one change's lifecycle commit may stage: the untracked paths the lifecycle wrote or the change owns, and the runtime files (lock, transaction journal) it must neither stage nor report |
+| `LateCloseRecord` | What a late close writes beside the package it moved: actor, reason, timestamp, the state the package still holds, workflow version, the path it came from, the remote default reference and commit, the commit that merged it and its date, `verified: false`, and any dropped collision acknowledgement (REQ-change-143) |
+| `LateCloseCollision` | The acknowledged sequence collision a late close removed from `.specsync/change-sequence.json` because its member left the enumerated directories (REQ-change-143) |
+| `DoctorRequest` | What `specsync doctor` was asked to do: `fix`, `dry_run`, the IDs (or `all`) to close late, and the actor and reason a late close needs (REQ-cmd-change-035) |
+| `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
+| `DoctorFinding` | One problem doctor found: its kind, change (or none for the project), location, reason and fix |
+| `DoctorFix` | A finding's fix: its class, the exact command or what to edit, and an optional alternative a person may choose |
+| `DoctorFixClass` | `safe` (`doctor --fix` applies it), `decision` (`--close-late` with `--actor` and `--reason`) or `report-only` |
+| `DoctorAction` | One thing `doctor --fix` did, or with `--dry-run` would do: kind, change, outcome and detail |
 
 **Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
+| `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
+| `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
+| `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
 | `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
 | `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
 | `check_read_deadline` | `phase, done, total` | `Result<(), String>` | Call between items of a long read phase; past the deadline the command's thread flushes its read caches, reports and exits 124, and a worker gets `Err` |
@@ -227,6 +241,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
 | `configured_principles_file` | `root` | `Result<Option<String>, String>` | The configured principles file, or the error when `.specsync/sdd.json` cannot be read |
 | `principles_file_is_present` | `root`, `path` | `Result<bool, String>` | Whether that path is a file inside the project. An absolute path or `..` is an error |
+| `answer_command_hint` | `id: &str, question_id: &str, choices: &[String]` | `String` | The backticked `change answer` command shared by draft refusals and text/JSON status: multiple choices form a placeholder, one choice is literal, and scope questions retain their specific free-text placeholders (REQ-change-133) |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
@@ -242,6 +257,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `repair_relayed_decisions` | `root, id` | `Result<RelayRepairReport, String>` | Repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`: put each back from the same record at `HEAD`, then from its twin (`review.json` and the last attempt), and otherwise remove only that relay; never removes an approval or attempt or changes a verdict, writes every file in one step, and writes nothing when nothing is damaged; refuses an archived change or a file that is not JSON, naming the `git checkout HEAD` recovery when one exists |
 | `recorded_scoped_review_currency` | `root, record` | `Option<ScopedReviewCurrency>` | Classify a change's recorded scoped review against the tree on disk; `None` means no usable review record exists, which is a different question from currency |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
+| `ownership_preflight_blocker` | `root, record` | `Result<Option<(String, String)>, String>` | The ship-preflight blocker, and the recovery to name next, for production source in the change's delivery that no declared module owns; builds finalize's acceptance manifest read-only, so it names every input finalize would refuse (REQ-cmd-change-008, #986, #956) |
 | `send_back_change` | `root, id, actor, reason` | `Result<SendBackResult, String>` | Move an approved, implementing or verifying change back to draft for re-scoping, append an audited send-back, and cancel the earlier definition approval without removing it |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
@@ -250,8 +266,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
 | `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |
 | `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
-| `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` for an archive already in `HEAD` (reopen) or when Git cannot answer |
-| `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy |
+| `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` with no remote default, or for an archive already in `HEAD` (reopen); once a remote default resolves, a failed or truncated listing or batched read, an archived `state.json` with no readable `id`, or a failed addition or ancestry lookup for a matching package, is `CannotTell`, never `None` (REQ-change-142). The archive root is passed as `:(top,literal)` (#962) |
+| `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print. `Archived`: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy. `CannotTell`: the reference, that the tool cannot tell, and how to find out: `git fetch --refetch origin` (which repairs a missing object even when the reference has not moved), `git remote set-head origin --auto` (which repairs a dangling remote default), then `specsync --root '<project-root>' change status -- '<id>'`, which retains the selected project and reruns this lookup and either clears the refusal or names the archive and the rebase; the root and id are separate shell-quoted words |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 
 **Exported Methods**
@@ -330,6 +346,7 @@ Acceptance Criteria
 48. A scoped review recorded before a send-back stays valid review history. It validates against the definition approval it bound, including one the send-back cancelled, so it never blocks a fresh `change review` after re-approval, and it is never removed or rewritten. Whether a review counts is a separate question, answered as before: it must match the current contract and evidence and bind a definition approval the latest send-back did not cancel. A review bound only to a cancelled approval is reported stale, never unreadable, and never lets `change ship` or `change finalize` through (#914, REQ-change-123, CHANGE-12.b, CHANGE-12.d).
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
+51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
 
 ## Behavioral Examples
 
@@ -414,7 +431,7 @@ Acceptance Criteria
 | Condition | Behavior |
 |-----------|----------|
 | Missing acceptance criteria or affected scope | Definition approval fails. A draft is told which answer finishes it: `specsync change answer <id> acceptance_criteria "<observable outcome>"`, `affected_paths "<path>"` or `affected_specs "<module>"`. A record past draft keeps the bare condition, because `change answer` refuses outside draft (REQ-change-133) |
-| Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first, with the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none; a record past draft keeps the bare condition (REQ-change-133) |
+| Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first. Two or more choices are the placeholder (`<yes|no>`), one choice is the answer itself (`constraints none`, with the option to name constraining lessons or principles instead), and no choice takes `"<answer>"`; a record past draft keeps the bare condition (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |
@@ -466,10 +483,16 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-06 | v195: approve refuses a no-spec-change draft over owned production source and names the `change answer` command; ship preflight and ship-status run finalize's ownership check (#986, #956). |
+| 2026-11-07 | v200: carry the selected root in `CannotTell` so command adapters remain unchanged within the original change-only scope. v199: keep the selected project root as a quoted `--root` argument in cannot-tell recovery; execute the printed status command from the repository parent (#967, REQ-change-142). |
+
 | 2026-11-08 | v201: PR1014 succession compares lossless normalized approval/reopening prefixes and the first newly superseded approval; three committed decimal-edit regressions fail on the previous source and pass unchanged after the private-helper fix, with prior numeric and relay controls preserved (REQ-change-relay-compare-001). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
+| 2026-11-06 | v200: Reject symlink components in late-close destinations during planning/dry-run, before any batch write under the lifecycle lock, and again after directory creation before each rename; include dangling links and name how to retry safely (REQ-change-143, #994 P1) |
+| 2026-11-06 | v187: `specsync doctor`'s late close moves a merged but never-archived package byte for byte into `.specsync/archive/closed-late/<date>-<id>/` with `late-close.json` (`verified: false`); it reads no delivery evidence and adds no change state, so SpecSync 6.0 to 6.2 never read it. A collision member's acknowledgement is dropped and recorded. 6.3 reports a closed-late change in status and ship-status, refuses it in every lifecycle verb, and reserves its ID in `change new` (REQ-change-143, #833) |
 | 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | v190: the acceptance manifest and the acceptance input digest name clean delivery files by object id and hash each blob from one `git cat-file --batch` child, one blob at a time, under the per-object bound, so reopen, finalize and accepted-input validation no longer refuse a change whose clean affected files exceed one whole-scope read; recorded manifests and digests are byte-identical (REQ-change-144, #976). |
+| 2026-11-06 | v198: the upstream-archive lookup reports `CannotTell` instead of no archive when the remote default's archived state records cannot be read, so review and finalize refuse and status and ship-status say how to find out (REQ-change-142, #946); the archive root is read as a literal pathspec from the top (#962). Codex review of #967: a record with no readable `id` is `CannotTell`; the recovery refetches, repairs `origin/HEAD`, and reruns `change status` with the id shell-quoted instead of grepping from the caller's directory. |
 | 2026-11-06 | Codex review of #903: a workflow-v2 finalization stopped after acceptance, with its workspace still active, is gated too; status, ship-status and ship name its open task (`open_tasks_block`), and a review refusal names `--reviewer=<claim>` (REQ-change-131, REQ-cmd-change-031, #892). |
 | 2026-11-05 | v174: check, verify, a passing review and finalize refuse a change with an open task directly, even one reopened after a passing check, and name each open task and the command to re-run; status names the open tasks before the next step (REQ-change-131, REQ-change-132, #892). |
 | 2026-11-06 | v175: a passing legacy-baseline introduction proof is kept in the persistent read cache, so an archived read of one legacy archive no longer re-walks every introduction commit and legacy archive tree; a refusal is always re-derived (#901). |
@@ -683,9 +706,14 @@ Acceptance Criteria
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
 | 2026-11-06 | hash-a-change-s-clean-delivery-files-one-blob-at-a-time-so-reopen-does-not-overflow-a-single-git-read-on-large-affected: Hash a change's clean delivery files one blob at a time so reopen does not overflow a single Git read on large affected paths |
 | 2026-11-06 | the-workflow-v1-cutoff-check-reports-an-unreadable-archive-tree-as-a-read-failure-not-as-an-absent-change: The workflow-v1 cutoff check reports an unreadable archive tree as a read failure, not as an absent change |
+| 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
 | 2026-11-06 | specsync-s-own-git-history-reads-ignore-git-replace-ref-base-and-git-no-replace-objects-as-they-already-ignore-git: SpecSync's own Git history reads ignore GIT_REPLACE_REF_BASE and GIT_NO_REPLACE_OBJECTS as they already ignore GIT_GRAFT_FILE |
 | 2026-11-06 | a-warm-status-of-an-archived-change-does-not-digest-the-whole-working-tree-to-report-its-review-currency: A warm status of an archived change does not digest the whole working tree to report its review currency |
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
+| 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
+| 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
+
 | 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
 | 2026-11-08 | v199 / PR1014 review: preserve a reopening's own unknown fields, compare and deduplicate accepted approval ledgers without approval relays, and validate both embedded correction deciders before relay projection; existing relay requirements and public API unchanged |
 | 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |

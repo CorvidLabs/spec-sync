@@ -657,54 +657,128 @@ fn retirement_dirty_accepted_reopening_fixture() -> (TempDir, ChangeRecord, Stri
     approve_definition(root, &record.id, Some("Synthetic scope actor".into()), None).unwrap();
     check_change(root, Some(&record.id)).unwrap();
     recorded_review_recovery_git(root, &["add", "."]);
-    recorded_review_recovery_git(root, &["commit", "-m", "synthetic implementation, still verifying"]);
+    recorded_review_recovery_git(
+        root,
+        &["commit", "-m", "synthetic implementation, still verifying"],
+    );
     check_change(root, Some(&record.id)).unwrap();
     record_scoped_review(root, &record.id, "Synthetic reviewer".into()).unwrap();
     accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
     let failed = archive_change_with_same_pr_finalize_failure(root, &record.id).unwrap_err();
-    assert!(failed.contains("forced") || failed.contains("failure"), "{failed}");
-    assert_eq!(load_change(root, &record.id).unwrap().state, ChangeState::Accepted);
-    assert!(accepted_recording_anchors(root, &record).unwrap().is_empty());
-    fs::write(root.join("src/lib.rs"), "// later current delivery\npub fn ready() -> bool { true }\n").unwrap();
-    let reopened = reopen_change(root, &record.id, "Synthetic operator".into(),
-        "Retain a real dirty-Accepted failed archive as explicitly unproven history".into()).unwrap().change;
-    let opening = load_approvals(root, &reopened).unwrap().reopenings.last().unwrap().clone();
+    assert!(
+        failed.contains("forced") || failed.contains("failure"),
+        "{failed}"
+    );
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Accepted
+    );
+    assert!(
+        accepted_recording_anchors(root, &record)
+            .unwrap()
+            .is_empty()
+    );
+    fs::write(
+        root.join("src/lib.rs"),
+        "// later current delivery\npub fn ready() -> bool { true }\n",
+    )
+    .unwrap();
+    let reopened = reopen_change(
+        root,
+        &record.id,
+        "Synthetic operator".into(),
+        "Retain a real dirty-Accepted failed archive as explicitly unproven history".into(),
+    )
+    .unwrap()
+    .change;
+    let opening = load_approvals(root, &reopened)
+        .unwrap()
+        .reopenings
+        .last()
+        .unwrap()
+        .clone();
     assert!(opening.recorded_review_mismatch_anchor.is_none());
     recorded_review_recovery_git(root, &["add", "."]);
-    recorded_review_recovery_git(root, &["commit", "-m", "commit actual audited reopening, never Accepted"]);
+    recorded_review_recovery_git(
+        root,
+        &[
+            "commit",
+            "-m",
+            "commit actual audited reopening, never Accepted",
+        ],
+    );
     let anchor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
-    assert!(accepted_recording_anchors(root, &reopened).unwrap().is_empty());
+    assert!(
+        accepted_recording_anchors(root, &reopened)
+            .unwrap()
+            .is_empty()
+    );
     (temp, reopened, anchor)
 }
 
 #[test]
-fn recovery_refinement_explicit_committed_reopening_retains_unproven_source_without_accepted_snapshot() {
+fn recovery_refinement_explicit_committed_reopening_retains_unproven_source_without_accepted_snapshot()
+ {
     let (temp, original, anchor) = retirement_dirty_accepted_reopening_fixture();
     let root = temp.path();
     let replacement = retirement_current_replacement(root);
     let source = find_change_dir(root, &original.id).unwrap();
-    let before = archive_workspace_snapshot(root, &source, &portable_project_path(root, &source)).unwrap();
-    let retired = retire_change_with_source(root, &original.id, "Synthetic operator".into(),
-        "Obsolete intent".into(), replacement.id.clone(), "Synthetic authority".into(),
-        RetirementSourceKind::CommittedAuditedReopeningUnproven).unwrap();
+    let before =
+        archive_workspace_snapshot(root, &source, &portable_project_path(root, &source)).unwrap();
+    let retired = retire_change_with_source(
+        root,
+        &original.id,
+        "Synthetic operator".into(),
+        "Obsolete intent".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven,
+    )
+    .unwrap();
     let directory = find_change_dir(root, &original.id).unwrap();
-    let receipt: serde_json::Value = serde_json::from_slice(&fs::read(directory.join(RETIREMENT_FILE)).unwrap()).unwrap();
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(directory.join(RETIREMENT_FILE)).unwrap()).unwrap();
     assert_eq!(receipt["schema_version"], 2);
-    assert_eq!(receipt["source_kind"], "committed-audited-reopening-unproven");
+    assert_eq!(
+        receipt["source_kind"],
+        "committed-audited-reopening-unproven"
+    );
     assert_eq!(receipt["source_anchor"], anchor);
-    assert_eq!(receipt["source_directory"], format!("{CHANGES_PATH}/{}", original.id));
+    assert_eq!(
+        receipt["source_directory"],
+        format!("{CHANGES_PATH}/{}", original.id)
+    );
     assert_eq!(receipt["implementation_accepted"], false);
     assert_eq!(receipt["historical_transition_status"], "unproven");
-    let after = archive_workspace_snapshot(root, &directory, &portable_project_path(root, &directory)).unwrap();
-    for (path, entry) in before.iter().filter(|(path, _)| path.as_str() != "state.json") {
+    let after =
+        archive_workspace_snapshot(root, &directory, &portable_project_path(root, &directory))
+            .unwrap();
+    for (path, entry) in before
+        .iter()
+        .filter(|(path, _)| path.as_str() != "state.json")
+    {
         assert_eq!(after.get(path), Some(entry), "{path} was rewritten");
     }
     assert!(validate_retirement(root, &retired).is_ok());
-    assert!(load_approvals(root, &retired).unwrap().reopenings.last().unwrap()
-        .recorded_review_mismatch_anchor.is_none());
-    retire_change_with_source(root, &original.id, "Synthetic operator".into(),
-        "Obsolete intent".into(), replacement.id, "Synthetic authority".into(),
-        RetirementSourceKind::CommittedAuditedReopeningUnproven).unwrap();
+    assert!(
+        load_approvals(root, &retired)
+            .unwrap()
+            .reopenings
+            .last()
+            .unwrap()
+            .recorded_review_mismatch_anchor
+            .is_none()
+    );
+    retire_change_with_source(
+        root,
+        &original.id,
+        "Synthetic operator".into(),
+        "Obsolete intent".into(),
+        replacement.id,
+        "Synthetic authority".into(),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -713,32 +787,75 @@ fn recovery_refinement_committed_mode_never_downgrades_an_existing_accepted_anch
     let root = temp.path();
     let replacement = retirement_current_replacement(root);
     let directory = find_change_dir(root, &original.id).unwrap();
-    let before = archive_workspace_snapshot(root, &directory, &portable_project_path(root, &directory)).unwrap();
-    let error = retire_change_with_source(root, &original.id, "Synthetic operator".into(),
-        "Must not downgrade corrupt accepted history".into(), replacement.id,
-        "Synthetic authority".into(), RetirementSourceKind::CommittedAuditedReopeningUnproven).unwrap_err();
-    assert!(error.contains("accepted") || error.contains("mismatch"), "{error}");
-    assert_eq!(archive_workspace_snapshot(root, &directory,
-        &portable_project_path(root, &directory)).unwrap(), before);
+    let before =
+        archive_workspace_snapshot(root, &directory, &portable_project_path(root, &directory))
+            .unwrap();
+    let error = retire_change_with_source(
+        root,
+        &original.id,
+        "Synthetic operator".into(),
+        "Must not downgrade corrupt accepted history".into(),
+        replacement.id,
+        "Synthetic authority".into(),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("accepted") || error.contains("mismatch"),
+        "{error}"
+    );
+    assert_eq!(
+        archive_workspace_snapshot(root, &directory, &portable_project_path(root, &directory))
+            .unwrap(),
+        before
+    );
 }
 
-fn retirement_policy_entry(path: &str, kind: AcceptanceInputKind, mode: u32, payload: &[u8],
-    owners: &[&str]) -> AcceptanceInputEntryV1 {
+fn retirement_policy_entry(
+    path: &str,
+    kind: AcceptanceInputKind,
+    mode: u32,
+    payload: &[u8],
+    owners: &[&str],
+) -> AcceptanceInputEntryV1 {
     let payload_digest = sha256_hex(payload);
     AcceptanceInputEntryV1 {
-        path: path.into(), entry_digest: acceptance_entry_digest(path, &kind, mode, &payload_digest),
-        kind, mode, payload_digest, owners: owners.iter().map(|s| (*s).into()).collect(),
+        path: path.into(),
+        entry_digest: acceptance_entry_digest(path, &kind, mode, &payload_digest),
+        kind,
+        mode,
+        payload_digest,
+        owners: owners.iter().map(|s| (*s).into()).collect(),
     }
 }
 
 #[test]
 fn recovery_refinement_owner_variant_is_unchanged_exact_ordinary_file_only() {
     for path in ["README.md", "src/pages/docs.astro"] {
-        let old = retirement_policy_entry(path, AcceptanceInputKind::File, 0o100644, b"unchanged", &["@exact:delivery"]);
-        let mut current = old.clone(); current.owners = vec!["studio".into()];
-        assert_eq!(retirement_entry_classification(&old, &current).unwrap(),
-            RetirementCustodyClassification::UnchangedExactFileCurrentOwner);
-        for attack in ["kind", "mode", "payload", "entry", "reserved", "mixed", "empty", "named-prior", "test-prior"] {
+        let old = retirement_policy_entry(
+            path,
+            AcceptanceInputKind::File,
+            0o100644,
+            b"unchanged",
+            &["@exact:delivery"],
+        );
+        let mut current = old.clone();
+        current.owners = vec!["studio".into()];
+        assert_eq!(
+            retirement_entry_classification(&old, &current).unwrap(),
+            RetirementCustodyClassification::UnchangedExactFileCurrentOwner
+        );
+        for attack in [
+            "kind",
+            "mode",
+            "payload",
+            "entry",
+            "reserved",
+            "mixed",
+            "empty",
+            "named-prior",
+            "test-prior",
+        ] {
             let mut old = old.clone();
             let mut next = current.clone();
             match attack {
@@ -753,10 +870,156 @@ fn recovery_refinement_owner_variant_is_unchanged_exact_ordinary_file_only() {
                 "test-prior" => old.owners = vec!["@exact:test".into()],
                 _ => unreachable!(),
             }
-            assert!(retirement_entry_classification(&old, &next).is_err(), "{path}: {attack}");
+            assert!(
+                retirement_entry_classification(&old, &next).is_err(),
+                "{path}: {attack}"
+            );
         }
     }
-    let old = retirement_policy_entry(".chough/session.json", AcceptanceInputKind::File, 0o100644, b"old", &["@exact:delivery"]);
-    let next = retirement_policy_entry(".chough/session.json", AcceptanceInputKind::Missing, 0, b"", &["studio"]);
-    assert!(retirement_entry_classification(&old, &next).is_err(), "File->Missing must not use owner exception");
+    let old = retirement_policy_entry(
+        ".chough/session.json",
+        AcceptanceInputKind::File,
+        0o100644,
+        b"old",
+        &["@exact:delivery"],
+    );
+    let next = retirement_policy_entry(
+        ".chough/session.json",
+        AcceptanceInputKind::Missing,
+        0,
+        b"",
+        &["studio"],
+    );
+    assert!(
+        retirement_entry_classification(&old, &next).is_err(),
+        "File->Missing must not use owner exception"
+    );
+}
+
+#[test]
+fn recovery_refinement_committed_source_rejects_incomplete_or_changed_packets_without_writes() {
+    let (temp, original, _) = retirement_dirty_accepted_reopening_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let directory = find_change_dir(root, &original.id).unwrap();
+    let relative = portable_project_path(root, &directory);
+    let pristine = archive_workspace_snapshot(root, &directory, &relative).unwrap();
+    for attack in [
+        "missing-ledger",
+        "missing-finalization",
+        "missing-review",
+        "missing-manifest",
+        "missing-closing",
+        "extra-uncommitted-file",
+    ] {
+        match attack {
+            "missing-ledger" => fs::remove_file(directory.join("approvals.json")).unwrap(),
+            "missing-finalization" => fs::remove_file(directory.join("finalization.json")).unwrap(),
+            "missing-review" => fs::remove_file(directory.join("review.json")).unwrap(),
+            "missing-manifest" | "missing-closing" => {
+                let mut ledger: serde_json::Value =
+                    serde_json::from_slice(&pristine["approvals.json"].1).unwrap();
+                if attack == "missing-manifest" {
+                    ledger["reopenings"][0]["prior_verification"]["acceptance_manifest"] =
+                        serde_json::Value::Null;
+                } else {
+                    ledger["approvals"]
+                        .as_array_mut()
+                        .unwrap()
+                        .retain(|a| a["gate"] != "finalization" && a["gate"] != "acceptance");
+                }
+                fs::write(
+                    directory.join("approvals.json"),
+                    serde_json::to_vec_pretty(&ledger).unwrap(),
+                )
+                .unwrap();
+            }
+            "extra-uncommitted-file" => {
+                fs::write(directory.join("never-committed.md"), "Not an anchor").unwrap()
+            }
+            _ => unreachable!(),
+        }
+        let before = archive_workspace_snapshot(root, &directory, &relative).unwrap();
+        assert!(
+            retire_change_with_source(
+                root,
+                &original.id,
+                "Synthetic operator".into(),
+                "Obsolete".into(),
+                replacement.id.clone(),
+                "Synthetic authority".into(),
+                RetirementSourceKind::CommittedAuditedReopeningUnproven
+            )
+            .is_err(),
+            "{attack}"
+        );
+        assert_eq!(
+            archive_workspace_snapshot(root, &directory, &relative).unwrap(),
+            before,
+            "{attack}"
+        );
+        if directory.join("never-committed.md").exists() {
+            fs::remove_file(directory.join("never-committed.md")).unwrap();
+        }
+        for (path, (_, bytes)) in &pristine {
+            fs::write(directory.join(path), bytes).unwrap();
+        }
+    }
+}
+
+#[test]
+fn recovery_refinement_recomputed_unproven_receipt_cannot_use_missing_or_nonancestor_anchor() {
+    let (temp, original, _) = retirement_dirty_accepted_reopening_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let retired = retire_change_with_source(
+        root,
+        &original.id,
+        "Synthetic operator".into(),
+        "Obsolete".into(),
+        replacement.id,
+        "Synthetic authority".into(),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven,
+    )
+    .unwrap();
+    let path = find_change_dir(root, &original.id)
+        .unwrap()
+        .join(RETIREMENT_FILE);
+    let original_bytes = fs::read(&path).unwrap();
+    let tree = git_output(root, &["rev-parse", "HEAD^{tree}"]).unwrap();
+    let unrelated = git_output(
+        root,
+        &["commit-tree", &tree, "-m", "synthetic unrelated root"],
+    )
+    .unwrap();
+    for anchor in ["0".repeat(40), unrelated] {
+        let mut receipt: RetirementRecord = serde_json::from_slice(&original_bytes).unwrap();
+        receipt.source_anchor = anchor;
+        receipt.digest = retirement_digest(&receipt).unwrap();
+        fs::write(&path, json_content(&receipt).unwrap()).unwrap();
+        let before = fs::read(&path).unwrap();
+        assert!(validate_retirement(root, &retired).is_err());
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+    fs::write(&path, original_bytes).unwrap();
+    assert!(validate_retirement(root, &retired).is_ok());
+}
+
+#[test]
+fn recovery_refinement_legacy_receipt_keeps_its_original_canonical_digest() {
+    let raw = include_bytes!("fixtures/retirement-v1.json");
+    let receipt: RetirementRecord = serde_json::from_slice(raw).unwrap();
+    assert_eq!(receipt.schema_version, 1);
+    assert!(receipt.source_kind.is_none() && receipt.source_directory.is_none());
+    assert!(
+        receipt
+            .custody
+            .iter()
+            .all(|entry| entry.classification.is_none())
+    );
+    assert_eq!(
+        retirement_digest(&receipt).unwrap(),
+        receipt.digest,
+        "new optional fields must not reinterpret the original v1 preimage"
+    );
 }

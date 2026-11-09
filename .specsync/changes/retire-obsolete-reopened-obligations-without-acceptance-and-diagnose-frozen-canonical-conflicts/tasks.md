@@ -10,7 +10,7 @@ Required verification remains pending: exact-source full Fledge verify, strict c
 pre-push, configured Trust, provenance and final reader consumer checks.
 These are verification gates, not completed implementation tasks.
 Human implementation review and archival remain separate unperformed gates.
-The actual parent owner mismatch remains HOLD pending root design feedback.
+Actual parent replay of both authorized refinements remains a root-owned qualification gate.
 
-- [ ] Implement the authorized explicit committed-audited-reopening source and schema-v2 compatibility.
-- [ ] Implement and qualify the authorized unchanged exact-file owner classification.
+- [x] Implement the authorized explicit committed-audited-reopening source and schema-v2 compatibility.
+- [x] Implement and qualify the authorized unchanged exact-file owner classification.

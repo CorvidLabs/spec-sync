@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 78
+version: 79
 status: active
 files:
   - src/commands/change.rs
@@ -211,7 +211,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is: Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893) |
-
+| 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
 
 ## Audited nonacceptance retirement
 

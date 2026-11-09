@@ -726,3 +726,24 @@ also refuse invalid custody when relying on it.
 Published 6.2 readers do not understand the new retired state. Every required lifecycle
 consumer needs an explicitly qualified updated reader. Structural checks or existing site Trust
 do not establish this compatibility. This candidate is unreleased; no merge/release/global install.
+
+
+### Explicit schema-v2 retirement custody
+
+New receipts use specsync.retirement.v2. Existing v1 receipts retain their original digest
+preimage and accepted-source/equal-owner semantics; they are not rewritten.
+The default source is accepted-receipt. Only when no Accepted-state or mismatch-anchor
+history exists may an operator explicitly request --source-kind
+committed-audited-reopening-unproven. It authenticates the complete pre-existing committed
+audited-reopening package, ancestor and directory, frozen definition, ledger, prior
+verification/manifest and retained closing/finalization/review bytes. It proves retained
+claims, never a standalone Accepted snapshot or human provenance. Missing, changed,
+nonancestor or unavailable history remains blocked.
+
+Both authenticated owner vectors remain in custody. The exceptional
+unchanged-exact-file-current-owner classification requires old owners exactly
+[@exact:delivery], ordinary File on both sides, identical path/kind/mode/payload/entry
+digests and nonempty named replacement owners. It supplies no ordinary succession,
+dependency or accepted implementation credit. Missing, symlink, directory and named-owner
+remapping cannot use this exception. All other complete-custody and current replacement
+authentication checks still apply.

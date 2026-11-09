@@ -1,6 +1,6 @@
 ---
 module: change
-version: 207
+version: 209
 status: active
 files:
   - src/change.rs
@@ -182,12 +182,15 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | `RetirementRecord` | Explicit unproven nonacceptance event binding original raw state/package, historical receipt anchor, actor/source claims and complete current replacement custody |
 | `RetirementCustodyEntry` | Exact historical path/digest/owners and current replacement signed path/digest/owners, preserving every prior input obligation |
+| `RetirementSourceKind` | Explicit accepted-receipt or committed-audited-reopening-unproven source; neither authenticates human authority |
+| `RetirementCustodyClassification` | Same signed owners or the retirement-only unchanged exact ordinary-file/current named-owner classification |
 
 **Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
 | `retire_change` | root, id, actor, reason, replacement, authority_source | Result<ChangeRecord, String> | Retire only intact audited-reopened intent under explicit nonacceptance with a genuinely accepted fresh custodian for every prior input; atomic/recoverable package move, idempotent same disposition, committed-history tamper refusal |
+| `retire_change_with_source` | root, id, actor, reason, replacement, authority_source, source_kind | Result<ChangeRecord, String> | Explicit schema-v2 source selection; committed reopening proves only retained ancestor package custody, never Accepted transition validity |
 | `validate_retirement` | root, record | Result<(), String> | Authenticate retained original package, committed disposition, complete custody and current recursive replacement freshness; supplies no acceptance credit |
 | `retirement_record` | root, record | Result<RetirementRecord, String> | Read disposition details after caller validates retirement custody |
 | `retirement_next_action` | root, record | String | Explain explicitly unproven nonacceptance and any invalid custody hold |
@@ -487,6 +490,8 @@ Acceptance Criteria
 
 ## Change Log
 
+| 2026-11-08 | v208: Explicit committed audited-reopening custody source and unchanged exact ordinary-file owner classification in schema v2, retaining v1 digest compatibility and all nonacceptance guards. |
+
 | 2026-11-09 | v207: Explicit audited-reopened retirement with complete retained custody, committed-event immutability and old-reader fail-closed state; preserve frozen conflict refusal and allow fresh draft dependency answers. |
 
 | 2026-07-30 | Add `audit_project`; scope CLI `change check` to one change; archives are history |
@@ -721,3 +726,4 @@ Acceptance Criteria
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
+| 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |

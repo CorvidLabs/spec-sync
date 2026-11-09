@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 39
+version: 40
 status: stable
 files:
   - src/cli.rs
@@ -168,7 +168,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | v35: the `doctor` subcommand: `--fix`, `--dry-run` (needs `--fix`), repeatable `--close-late <id|all>` (needs `--fix`, `--actor` and `--reason`), `--actor`, `--reason` (REQ-cli-args-025, #833) |
-
+| 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
 
 ## Audited nonacceptance retirement
 

@@ -564,6 +564,10 @@ pub enum ChangeAction {
         /// Source of the genuine retirement decision, recorded as a claim
         #[arg(long)]
         authority_source: String,
+        /// Retained source proof, never authentication of a historical Accepted transition
+        #[arg(long, default_value = "accepted-receipt",
+            value_parser = ["accepted-receipt", "committed-audited-reopening-unproven"])]
+        source_kind: String,
     },
     /// Send an approved, implementing or verifying change back to draft for re-scoping
     SendBack {

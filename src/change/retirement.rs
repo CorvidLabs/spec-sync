@@ -10,6 +10,8 @@ pub struct RetirementCustodyEntry {
     pub predecessor_owners: Vec<String>,
     pub replacement_entry_digest: String,
     pub replacement_owners: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classification: Option<RetirementCustodyClassification>,
 }
 
 /// Nonacceptance disposition. Actor/source are recorded claims, not human authentication.
@@ -27,6 +29,10 @@ pub struct RetirementRecord {
     pub original_state_mode: u32,
     pub original_package_digest: String,
     pub source_anchor: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_kind: Option<RetirementSourceKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_directory: Option<String>,
     pub source_package_digest: String,
     pub source_review_untrusted: bool,
     pub prior_manifest_digest: String,
@@ -42,7 +48,12 @@ pub struct RetirementRecord {
 fn retirement_digest(record: &RetirementRecord) -> Result<String, String> {
     let mut preimage = record.clone();
     preimage.digest.clear();
-    let mut digest = FramedDigest::new(b"specsync.retirement.v1");
+    let domain: &[u8] = match record.schema_version {
+        1 => b"specsync.retirement.v1",
+        2 => b"specsync.retirement.v2",
+        _ => return Err("unknown retirement digest schema; upgrade reader".into()),
+    };
+    let mut digest = FramedDigest::new(domain);
     digest.frame(
         b"record",
         &serde_json::to_vec(&preimage).map_err(|e| e.to_string())?,
@@ -58,10 +69,10 @@ fn retirement_text(value: &str, flag: &str, max: usize) -> Result<(), String> {
 }
 
 // Authenticate receipt custody, without rehabilitating the original inconsistent review.
-fn retirement_source(
+fn retirement_source_header(
     root: &Path,
     original: &ChangeRecord,
-) -> Result<(AcceptanceManifestV1, String, String, bool), String> {
+) -> Result<(AcceptanceManifestV1, ReopenRecord), String> {
     if original.state != ChangeState::Verifying || !original.canonical_applied {
         return Err("retirement requires an audited-reopened verifying change".into());
     }
@@ -102,6 +113,28 @@ fn retirement_source(
                 .to_string()
         })?;
     validate_acceptance_manifest(&manifest)?;
+    if acceptance_manifest_digest(&manifest)? != reopening.stale_acceptance_input_digest {
+        return Err(
+            "reopening prior manifest does not reproduce its recorded acceptance-input digest"
+                .into(),
+        );
+    }
+    let closing = serde_json::to_vec(&reopening.superseded_approval).map_err(|e| e.to_string())?;
+    if !ledger
+        .approvals
+        .iter()
+        .any(|approval| serde_json::to_vec(approval).is_ok_and(|bytes| bytes == closing))
+    {
+        return Err("reopening no longer retains its superseded closing approval".into());
+    }
+    Ok((manifest, reopening.clone()))
+}
+
+fn retirement_source(
+    root: &Path,
+    original: &ChangeRecord,
+) -> Result<(AcceptanceManifestV1, String, String, bool, String), String> {
+    let (manifest, reopening) = retirement_source_header(root, original)?;
     let expected = serde_json::to_vec(&reopening.prior_verification).map_err(|e| e.to_string())?;
     let anchors = if let Some(anchor) = &reopening.recorded_review_mismatch_anchor {
         let default = remote_default_ref(root).ok_or_else(|| {
@@ -162,6 +195,12 @@ fn retirement_source(
                 anchor,
                 historical_package_digest(&snapshot)?,
                 reopening.recorded_review_mismatch_anchor.is_some(),
+                directory
+                    .strip_prefix(&git_repo_prefix(root)?)
+                    .ok_or_else(|| {
+                        "accepted source directory escaped selected project".to_string()
+                    })?
+                    .to_string(),
             ));
         }
     }
@@ -177,6 +216,7 @@ fn retirement_custody(
     replacement_id: &str,
     manifest: &AcceptanceManifestV1,
     records: &BTreeMap<String, ChangeRecord>,
+    schema_version: u32,
 ) -> Result<(Vec<RetirementCustodyEntry>, String, String), String> {
     let replacement = records
         .get(replacement_id)
@@ -214,18 +254,24 @@ fn retirement_custody(
             .iter()
             .find(|entry| entry.path == prior.path)
             .ok_or_else(|| format!("retirement replacement has no custody for {}", prior.path))?;
-        if next.owners != prior.owners {
-            return Err(format!(
-                "retirement cannot transfer signed owners of {}",
-                prior.path
-            ));
-        }
+        let classification = if schema_version == 1 {
+            if next.owners != prior.owners {
+                return Err(format!(
+                    "legacy retirement cannot transfer signed owners of {}",
+                    prior.path
+                ));
+            }
+            None
+        } else {
+            Some(retirement_entry_classification(prior, next)?)
+        };
         custody.push(RetirementCustodyEntry {
             path: prior.path.clone(),
             predecessor_entry_digest: prior.entry_digest.clone(),
             predecessor_owners: prior.owners.clone(),
             replacement_entry_digest: next.entry_digest.clone(),
             replacement_owners: next.owners.clone(),
+            classification,
         });
     }
     Ok((
@@ -260,8 +306,28 @@ fn validate_retirement_with_records(
     ] {
         retirement_text(text, flag, limit)?;
     }
-    if receipt.schema_version != 1
-        || receipt.domain != "specsync.retirement.v1"
+    let format_valid = match receipt.schema_version {
+        1 => {
+            receipt.domain == "specsync.retirement.v1"
+                && receipt.source_kind.is_none()
+                && receipt.source_directory.is_none()
+                && receipt
+                    .custody
+                    .iter()
+                    .all(|entry| entry.classification.is_none())
+        }
+        2 => {
+            receipt.domain == "specsync.retirement.v2"
+                && receipt.source_kind.is_some()
+                && receipt.source_directory.is_some()
+                && receipt
+                    .custody
+                    .iter()
+                    .all(|entry| entry.classification.is_some())
+        }
+        _ => false,
+    };
+    if !format_valid
         || receipt.change_id != record.id
         || receipt.implementation_accepted
         || receipt.historical_transition_status != "unproven"
@@ -308,16 +374,29 @@ fn validate_retirement_with_records(
     if historical_package_digest(&snapshot)? != receipt.original_package_digest {
         return Err("retirement no longer preserves the exact original reopened package".into());
     }
-    let (manifest, anchor, source_digest, untrusted) = retirement_source(root, &original)?;
-    if receipt.source_anchor != anchor
-        || receipt.source_package_digest != source_digest
-        || receipt.source_review_untrusted != untrusted
-        || receipt.prior_manifest_digest != acceptance_manifest_digest(&manifest)?
+    let source_kind = receipt
+        .source_kind
+        .unwrap_or(RetirementSourceKind::AcceptedReceipt);
+    let expected = receipt
+        .source_directory
+        .as_deref()
+        .map(|directory| (receipt.source_anchor.as_str(), directory));
+    let proof = retirement_source_proof(root, &original, &snapshot, source_kind, expected)?;
+    if receipt.source_anchor != proof.anchor
+        || receipt.source_package_digest != proof.package_digest
+        || receipt.source_review_untrusted != proof.review_untrusted
+        || receipt.prior_manifest_digest != acceptance_manifest_digest(&proof.manifest)?
     {
         return Err("retirement historical receipt custody does not authenticate".into());
     }
-    let (custody, closing, digest) =
-        retirement_custody(root, &original, &receipt.replacement_id, &manifest, records)?;
+    let (custody, closing, digest) = retirement_custody(
+        root,
+        &original,
+        &receipt.replacement_id,
+        &proof.manifest,
+        records,
+        receipt.schema_version,
+    )?;
     if custody != receipt.custody
         || closing != receipt.replacement_closing_digest
         || digest != receipt.replacement_manifest_digest
@@ -338,13 +417,14 @@ pub fn validate_retirement(root: &Path, record: &ChangeRecord) -> Result<(), Str
 
 /// Terminal nonacceptance. Prior artifacts and failures remain unchanged, with original state
 /// bytes retained verbatim. A retirement is never an ordinary accepted successor.
-pub fn retire_change(
+pub fn retire_change_with_source(
     root: &Path,
     id: &str,
     actor: String,
     reason: String,
     replacement: String,
     authority_source: String,
+    source_kind: RetirementSourceKind,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     for (text, flag, limit) in [
@@ -359,6 +439,13 @@ pub fn retire_change(
     let has_receipt = fs::symlink_metadata(current.join(RETIREMENT_FILE)).is_ok();
     if record.state == ChangeState::Retired || has_receipt {
         let receipt = retirement_record(root, &record)?;
+        if receipt
+            .source_kind
+            .unwrap_or(RetirementSourceKind::AcceptedReceipt)
+            != source_kind
+        {
+            return Err("retirement already records a different immutable source kind".into());
+        }
         if receipt.actor != actor
             || receipt.reason != reason
             || receipt.authority_source != authority_source
@@ -397,13 +484,12 @@ pub fn retire_change(
     if find_change_dir(root, id)? != source {
         return Err("retirement requires an active audited-reopened workspace".into());
     }
-    let (manifest, source_anchor, source_package_digest, source_review_untrusted) =
-        retirement_source(root, &record)?;
-    let records = list_all_changes_structural(root)?;
-    let (custody, replacement_closing_digest, replacement_manifest_digest) =
-        retirement_custody(root, &record, &replacement, &manifest, &records)?;
     let snapshot =
         archive_workspace_snapshot(root, &source, &portable_project_path(root, &source))?;
+    let proof = retirement_source_proof(root, &record, &snapshot, source_kind, None)?;
+    let records = list_all_changes_structural(root)?;
+    let (custody, replacement_closing_digest, replacement_manifest_digest) =
+        retirement_custody(root, &record, &replacement, &proof.manifest, &records, 2)?;
     if snapshot.contains_key(RETIREMENT_FILE) {
         return Err("active workspace already contains a retirement receipt".into());
     }
@@ -411,8 +497,8 @@ pub fn retire_change(
         .get("state.json")
         .ok_or_else(|| "retirement original state is missing".to_string())?;
     let mut receipt = RetirementRecord {
-        schema_version: 1,
-        domain: "specsync.retirement.v1".into(),
+        schema_version: 2,
+        domain: "specsync.retirement.v2".into(),
         change_id: id.into(),
         actor,
         reason,
@@ -422,10 +508,12 @@ pub fn retire_change(
             .map_err(|e| e.to_string())?,
         original_state_mode: *original_state_mode,
         original_package_digest: historical_package_digest(&snapshot)?,
-        source_anchor,
-        source_package_digest,
-        source_review_untrusted,
-        prior_manifest_digest: acceptance_manifest_digest(&manifest)?,
+        source_anchor: proof.anchor,
+        source_kind: Some(source_kind),
+        source_directory: Some(proof.directory),
+        source_package_digest: proof.package_digest,
+        source_review_untrusted: proof.review_untrusted,
+        prior_manifest_digest: acceptance_manifest_digest(&proof.manifest)?,
         replacement_id: replacement,
         replacement_closing_digest,
         replacement_manifest_digest,
@@ -509,7 +597,7 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
             "--format=%H",
             &limit,
             "-G",
-            "specsync.retirement.v1",
+            "specsync[.]retirement[.]v",
             "HEAD",
             "--",
             &active,
@@ -558,7 +646,10 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
             let receipt: RetirementRecord = serde_json::from_slice(&bytes)
                 .map_err(|e| format!("invalid committed retirement receipt: {e}"))?;
             validate_change_id(&receipt.change_id)?;
-            if receipt.domain != "specsync.retirement.v1" || receipt.schema_version != 1 {
+            if !matches!(
+                (receipt.schema_version, receipt.domain.as_str()),
+                (1, "specsync.retirement.v1") | (2, "specsync.retirement.v2")
+            ) {
                 return Err("unknown committed retirement format; upgrade the reader".into());
             }
             if let Some(prior) = receipts.insert(receipt.change_id.clone(), bytes.clone())
@@ -659,22 +750,187 @@ pub enum RetirementCustodyClassification {
 }
 
 fn retirement_entry_classification(
-    prior: &AcceptanceInputEntryV1, next: &AcceptanceInputEntryV1,
+    prior: &AcceptanceInputEntryV1,
+    next: &AcceptanceInputEntryV1,
 ) -> Result<RetirementCustodyClassification, String> {
     if prior.owners == next.owners {
-        Ok(RetirementCustodyClassification::SameSignedOwners)
+        return Ok(RetirementCustodyClassification::SameSignedOwners);
+    }
+    let unchanged_exact_file = prior.owners == vec!["@exact:delivery".to_string()]
+        && prior.kind == AcceptanceInputKind::File
+        && next.kind == AcceptanceInputKind::File
+        && matches!(prior.mode, 0o100644 | 0o100755)
+        && prior.path == next.path
+        && prior.mode == next.mode
+        && prior.payload_digest == next.payload_digest
+        && prior.entry_digest == next.entry_digest
+        && !next.owners.is_empty()
+        && next.owners.iter().all(|owner| {
+            !owner.starts_with("@exact:") && crate::commands::validate_module_name(owner).is_ok()
+        });
+    if unchanged_exact_file {
+        Ok(RetirementCustodyClassification::UnchangedExactFileCurrentOwner)
     } else {
-        Err("retirement cannot transfer signed owners".into())
+        Err(format!(
+            "retirement cannot transfer signed owners of {}",
+            prior.path
+        ))
     }
 }
 
-/// Explicit alternative source request. The default API remains accepted-receipt.
-pub fn retire_change_with_source(
-    root: &Path, id: &str, actor: String, reason: String, replacement: String,
-    authority_source: String, source_kind: RetirementSourceKind,
+/// Default retirement uses the unchanged accepted-receipt authentication branch.
+pub fn retire_change(
+    root: &Path,
+    id: &str,
+    actor: String,
+    reason: String,
+    replacement: String,
+    authority_source: String,
 ) -> Result<ChangeRecord, String> {
-    match source_kind {
-        RetirementSourceKind::AcceptedReceipt => retire_change(root, id, actor, reason, replacement, authority_source),
-        RetirementSourceKind::CommittedAuditedReopeningUnproven => Err("Not implemented: committed audited-reopening custody".into()),
+    retire_change_with_source(
+        root,
+        id,
+        actor,
+        reason,
+        replacement,
+        authority_source,
+        RetirementSourceKind::AcceptedReceipt,
+    )
+}
+
+type RetirementPackageSnapshot = BTreeMap<String, (u32, Vec<u8>)>;
+
+struct RetirementSourceProof {
+    manifest: AcceptanceManifestV1,
+    anchor: String,
+    directory: String,
+    package_digest: String,
+    review_untrusted: bool,
+}
+
+fn retirement_source_proof(
+    root: &Path,
+    original: &ChangeRecord,
+    snapshot: &RetirementPackageSnapshot,
+    kind: RetirementSourceKind,
+    expected: Option<(&str, &str)>,
+) -> Result<RetirementSourceProof, String> {
+    if kind == RetirementSourceKind::AcceptedReceipt {
+        let (manifest, anchor, package_digest, review_untrusted, directory) =
+            retirement_source(root, original)?;
+        if let Some((expected_anchor, expected_directory)) = expected
+            && (anchor != expected_anchor || directory != expected_directory)
+        {
+            return Err(
+                "accepted retirement source anchor/directory differs from its immutable receipt"
+                    .into(),
+            );
+        }
+        return Ok(RetirementSourceProof {
+            manifest,
+            anchor,
+            directory,
+            package_digest,
+            review_untrusted,
+        });
     }
+    let (manifest, opening) = retirement_source_header(root, original)?;
+    // This is not a recovery from an accepted receipt that failed authentication.
+    if opening.recorded_review_mismatch_anchor.is_some()
+        || !accepted_recording_anchors(root, original)?.is_empty()
+    {
+        return Err("accepted-state or recorded mismatch-anchor history exists; do not downgrade it to committed-reopening custody".into());
+    }
+    if git_output(root, &["rev-parse", "--is-shallow-repository"]).as_deref() != Some("false") {
+        return Err(
+            "committed-reopening custody requires complete available nonshallow history".into(),
+        );
+    }
+    let directory = format!("{CHANGES_PATH}/{}", original.id);
+    let git_directory = git_repo_relative_path(root, &directory)?;
+    let candidates = if let Some((anchor, source_directory)) = expected {
+        if source_directory != directory || !is_canonical_commit_id(anchor) {
+            return Err("committed-reopening source anchor/directory is invalid".into());
+        }
+        vec![anchor.to_string()]
+    } else {
+        let pathspec = format!(":(top,literal){git_directory}");
+        let limit = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+        let output = run_git_bounded(
+            root,
+            &["log", "--format=%H", &limit, "HEAD", "--", &pathspec],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )?;
+        if !output.status.success() {
+            return Err("cannot read committed reopening package history".into());
+        }
+        let text = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
+        let commits = text
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+            return Err(
+                "committed reopening package history exceeds its deterministic bound".into(),
+            );
+        }
+        commits
+    };
+    for anchor in candidates {
+        ensure_git_ancestor(root, &anchor, "HEAD", "committed audited-reopening custody")?;
+        let committed = git_tree_snapshot(root, &anchor, &git_directory)?;
+        if &committed != snapshot {
+            continue;
+        }
+        let (_, state_bytes) = committed
+            .get("state.json")
+            .ok_or_else(|| "committed reopening state is missing".to_string())?;
+        let state: ChangeRecord = serde_json::from_slice(state_bytes).map_err(|e| e.to_string())?;
+        validate_loaded_change(&state, &original.id, Path::new(&directory))?;
+        if state.state != ChangeState::Verifying || !state.canonical_applied {
+            return Err(
+                "committed custody source is not Verifying with canonical application recorded"
+                    .into(),
+            );
+        }
+        let implementation = opening
+            .prior_verification
+            .commit
+            .as_deref()
+            .ok_or_else(|| {
+                "committed reopening has no available prior verification commit".to_string()
+            })?;
+        if !is_canonical_commit_id(implementation) {
+            return Err("committed reopening prior verification commit is invalid".into());
+        }
+        ensure_git_ancestor(
+            root,
+            implementation,
+            &anchor,
+            "reopening prior verification",
+        )?;
+        // These are internal content-consistency checks, NOT authentication of an Accepted
+        // state transition or a human. The exact full ledger/review/finalization bytes are kept.
+        for file in [
+            "approvals.json",
+            "verification.json",
+            "finalization.json",
+            "review.json",
+        ] {
+            if !committed.contains_key(file) {
+                return Err(format!("committed reopening source is missing {file}"));
+            }
+        }
+        validate_finalization_evidence(root, original, &opening.prior_verification)?;
+        return Ok(RetirementSourceProof {
+            manifest,
+            anchor,
+            directory,
+            package_digest: historical_package_digest(&committed)?,
+            review_untrusted: false,
+        });
+    }
+    Err("no exact pre-existing committed audited-reopening package authenticates this source; retain HOLD".into())
 }

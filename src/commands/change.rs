@@ -343,8 +343,13 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 ),
             })
         }
-        ChangeAction::Retire { id, actor, reason, replacement, authority_source } => {
-            change::retire_change(root, &id, actor, reason, replacement, authority_source)
+        ChangeAction::Retire { id, actor, reason, replacement, authority_source, source_kind } => {
+            let kind = if source_kind == "accepted-receipt" {
+                change::RetirementSourceKind::AcceptedReceipt
+            } else {
+                change::RetirementSourceKind::CommittedAuditedReopeningUnproven
+            };
+            change::retire_change_with_source(root, &id, actor, reason, replacement, authority_source, kind)
                 .and_then(|record| print_record(root, &record, format, false, strict))
         }
         ChangeAction::SendBack { id, actor, reason } => {

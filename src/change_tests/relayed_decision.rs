@@ -1228,7 +1228,15 @@ fn pr1014_succession_precision_generations(
         "TEST first changed delivery inputs".into(),
     )
     .expect("a real stale-input reopen creates the first audit");
-    let accepted = accept_completed_record(root, reopened.change);
+    verify_change(root, &reopened.change.id)
+        .expect("verify the reopened TEST generation without restarting implementation");
+    let accepted = accept_change(
+        root,
+        &reopened.change.id,
+        Some("TEST closing actor".into()),
+        None,
+    )
+    .expect("accept the verified reopened TEST generation");
     git(&["add", "."]);
     git(&[
         "commit",

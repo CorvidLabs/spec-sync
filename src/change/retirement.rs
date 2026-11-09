@@ -87,9 +87,30 @@ fn retirement_source_header(
         || reopening.change_id != original.id
         || reopening.actor.trim().is_empty()
         || reopening.reason.trim().is_empty()
-        || reopening.from_state != ChangeState::Accepted
+        // `finalize` accepts and archives in one command, so a change needing
+        // owner correction is Archived by the time anyone reopens it, and its
+        // reopen legitimately records `from_state: archived` — the same
+        // rationale the owner-correction read path in sdd_version.rs gives.
+        || !matches!(
+            reopening.from_state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
         || reopening.to_state != ChangeState::Verifying
         || !reopening.prior_verification.passed
+        // A reopening `reopen_change` wrote proves the accepted evidence went
+        // stale: the acceptance-input digest moved, or the verification commit
+        // left current history, or an authenticated committed review-mismatch
+        // anchor drives the recovery (that anchor is itself verified against
+        // the remote default and the committed package downstream). Without
+        // this check a hand-edited workspace could append a syntactically
+        // plausible reopening over still-current accepted evidence and retire
+        // it into terminal nonacceptance. The manifest requirement below
+        // already excludes the legacy unreconstructible cause (it is defined
+        // by the manifest being absent), so the unanchored cause is the only
+        // equal-digest reopening admissible here without a mismatch anchor.
+        || (reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
+            && reopening.recorded_review_mismatch_anchor.is_none()
+            && reopening.stale_evidence_cause != Some(ReopenCauseV1::VerificationCommitUnanchored))
         || reopening.superseded_approval.digest
             != closing_digest(original, &reopening.prior_verification)
         || !is_terminal_approval(&reopening.superseded_approval)
@@ -616,6 +637,19 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
     }
     let text = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
     let commits = text.lines().filter(|s| !s.is_empty()).collect::<Vec<_>>();
+    if commits.is_empty()
+        && git_output(root, &["rev-parse", "--is-shallow-repository"]).as_deref()
+            != Some("false")
+    {
+        // An empty walk in a depth-limited clone means the boundary hid the
+        // retirement commits, not that none exist: with the retired archive
+        // also deleted locally, treating this as "no committed retirements"
+        // would let tampering pass audit. Fail closed like the
+        // committed-reopening custody branch does.
+        return Err(
+            "committed retirement history is unreadable in a shallow clone; fetch the full history (`git fetch --unshallow`) before trusting an empty retirement walk".into(),
+        );
+    }
     if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
         return Err("committed retirement history exceeds its deterministic bound".into());
     }
@@ -759,6 +793,27 @@ fn retirement_entry_classification(
     next: &AcceptanceInputEntryV1,
 ) -> Result<RetirementCustodyClassification, String> {
     if prior.owners == next.owners {
+        // A reserved `@exact:*` label means no module owns the input, so "same
+        // owners" alone is not custody: an independently accepted but unrelated
+        // replacement could rewrite the bytes and still retire the predecessor
+        // as fully held. Exact-labelled custody transfers only when every
+        // byte-level attribute is unchanged.
+        if prior.owners.iter().any(|owner| owner.starts_with("@exact:")) {
+            let unchanged = prior.kind == AcceptanceInputKind::File
+                && next.kind == AcceptanceInputKind::File
+                && matches!(prior.mode, 0o100644 | 0o100755)
+                && prior.mode == next.mode
+                && prior.payload_digest == next.payload_digest
+                && prior.entry_digest == next.entry_digest;
+            return if unchanged {
+                Ok(RetirementCustodyClassification::SameSignedOwners)
+            } else {
+                Err(format!(
+                    "retirement cannot transfer signed owners of {}",
+                    prior.path
+                ))
+            };
+        }
         return Ok(RetirementCustodyClassification::SameSignedOwners);
     }
     let unchanged_exact_file = prior.owners == vec!["@exact:delivery".to_string()]

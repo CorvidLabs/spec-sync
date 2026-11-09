@@ -4313,6 +4313,28 @@ fn finish_audit(root: &Path, mut report: SddCheckReport) -> SddCheckReport {
             report.errors.push(error);
         }
     }
+    // A retirement whose archive move is still pending keeps its record and
+    // receipt under `.specsync/changes/`, and the combined active-and-archive
+    // loader is the only other place retired custody is validated — so without
+    // this pass the default active-only audit would green-light a tampered
+    // pending receipt. Completed archive custody stays behind `--archives`.
+    if let Ok(records) = list_changes_checked(root) {
+        for record in records
+            .iter()
+            .filter(|record| record.state == ChangeState::Retired)
+        {
+            if let Err(error) = validate_retirement(root, record) {
+                let error = format!(
+                    "active retired change `{}` failed retirement custody validation: {error}",
+                    record.id
+                );
+                if !report.errors.contains(&error) {
+                    report.enabled = true;
+                    report.errors.push(error);
+                }
+            }
+        }
+    }
     report
 }
 

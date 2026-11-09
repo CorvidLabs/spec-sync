@@ -1061,3 +1061,294 @@ fn recovery_retirement_history_distinguishes_unborn_from_unreadable_head() {
         "a missing committed object must never be treated as unborn or empty history"
     );
 }
+
+/// The ordinary happy path: `finalize` accepts and archives in one command, so a change
+/// reopened afterwards legitimately records `from_state: archived` (PR #1018 review).
+fn retirement_archived_origin_reopening_fixture() -> (TempDir, ChangeRecord, String) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    recorded_review_recovery_git(root, &["init", "-b", "main"]);
+    recorded_review_recovery_git(root, &["config", "user.email", "synthetic@example.com"]);
+    recorded_review_recovery_git(root, &["config", "user.name", "Synthetic fixture"]);
+    fs::write(root.join("README.md"), "Synthetic base\n").unwrap();
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "synthetic base"]);
+    recorded_review_recovery_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let record = completed_no_spec_current_record(root);
+    approve_definition(root, &record.id, Some("Synthetic scope actor".into()), None).unwrap();
+    check_change(root, Some(&record.id)).unwrap();
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "synthetic implementation"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Synthetic reviewer".into()).unwrap();
+    finalize_change(root, &record.id).unwrap();
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Archived
+    );
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "archive the finalized change"]);
+    // The accepted evidence goes stale: an accepted input moves after archival.
+    fs::write(
+        root.join("src/lib.rs"),
+        "// later current delivery\npub fn ready() -> bool { true }\n",
+    )
+    .unwrap();
+    let reopened = reopen_change(
+        root,
+        &record.id,
+        "Synthetic operator".into(),
+        "Recover the archived obsolete intent for retirement".into(),
+    )
+    .unwrap()
+    .change;
+    assert_eq!(reopened.state, ChangeState::Verifying);
+    let opening = load_approvals(root, &reopened)
+        .unwrap()
+        .reopenings
+        .last()
+        .unwrap()
+        .clone();
+    assert_eq!(opening.from_state, ChangeState::Archived);
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(
+        root,
+        &["commit", "-m", "commit archived-origin audited reopening"],
+    );
+    let anchor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+    (temp, reopened, anchor)
+}
+
+#[test]
+fn recovery_retirement_reopening_from_the_archive_retires_through_committed_custody() {
+    let (temp, original, anchor) = retirement_archived_origin_reopening_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let retired = retire_change_with_source(
+        root,
+        &original.id,
+        "Synthetic operator".into(),
+        "Obsolete intent".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven,
+    )
+    .unwrap();
+    assert_eq!(retired.state, ChangeState::Retired);
+    let directory = find_change_dir(root, &original.id).unwrap();
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(directory.join(RETIREMENT_FILE)).unwrap()).unwrap();
+    assert_eq!(receipt["source_anchor"], anchor);
+    assert_eq!(receipt["implementation_accepted"], false);
+    assert!(validate_retirement(root, &retired).is_ok());
+}
+
+#[test]
+fn recovery_retirement_refuses_a_reopening_that_proves_no_staleness() {
+    // The dirty fixture's reopening is drift-driven (digests differ) with no
+    // review-mismatch anchor, so equalizing the digests leaves a record no
+    // `reopen_change` run could have produced.
+    let (temp, original, _anchor) = retirement_dirty_accepted_reopening_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    // Hand-edit the recorded reopening so the stale and current digests agree with no
+    // stale-evidence cause: no `reopen_change` run produces that, so the record cannot
+    // be audited reopening evidence and retirement must refuse before building custody.
+    let path = find_change_dir(root, &original.id)
+        .unwrap()
+        .join("approvals.json");
+    let mut ledger: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let reopening = ledger["reopenings"]
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
+        .unwrap();
+    let stale = reopening["stale_acceptance_input_digest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    reopening["current_acceptance_input_digest"] = serde_json::Value::String(stale);
+    reopening["stale_evidence_cause"] = serde_json::Value::Null;
+    fs::write(&path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+    let error = retire_change_with_source(
+        root,
+        &original.id,
+        "Synthetic operator".into(),
+        "Obsolete intent".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+        RetirementSourceKind::CommittedAuditedReopeningUnproven,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("intact audited reopening evidence"),
+        "{error}"
+    );
+}
+
+#[test]
+fn recovery_retirement_history_refuses_a_shallow_clone_boundary() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    recorded_review_recovery_git(root, &["init", "-b", "main"]);
+    recorded_review_recovery_git(root, &["config", "user.email", "synthetic@example.com"]);
+    recorded_review_recovery_git(root, &["config", "user.name", "Synthetic fixture"]);
+    fs::write(root.join("README.md"), "Synthetic base\n").unwrap();
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "synthetic base"]);
+    assert!(
+        retirement_history(root).unwrap().is_empty(),
+        "a complete clone with no retirement commits reads as empty"
+    );
+    let clone_dir = temp.path().join("shallow");
+    let output = Command::new("git")
+        .args([
+            "clone",
+            "--depth",
+            "1",
+            &format!("file://{}", root.display()),
+            clone_dir.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "clone: {output:?}");
+    let error = retirement_history(&clone_dir).unwrap_err();
+    assert!(
+        error.contains("shallow"),
+        "an empty walk in a shallow clone is unreadable history, not no retirements: {error}"
+    );
+    let full_dir = temp.path().join("full");
+    let output = Command::new("git")
+        .args([
+            "clone",
+            &format!("file://{}", root.display()),
+            full_dir.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "clone: {output:?}");
+    assert!(
+        retirement_history(&full_dir).unwrap().is_empty(),
+        "a complete clone still reads an empty retirement history as empty"
+    );
+}
+
+#[test]
+fn recovery_refinement_same_exact_owner_requires_unchanged_bytes() {
+    let prior = retirement_policy_entry(
+        "src/pages/docs.astro",
+        AcceptanceInputKind::File,
+        0o100644,
+        b"exact bytes",
+        &["@exact:delivery"],
+    );
+    assert_eq!(
+        retirement_entry_classification(&prior, &prior.clone()).unwrap(),
+        RetirementCustodyClassification::SameSignedOwners,
+        "identical reserved exact custody of unchanged bytes still transfers"
+    );
+    for attack in ["kind", "mode", "payload", "entry"] {
+        let mut next = prior.clone();
+        match attack {
+            "kind" => next.kind = AcceptanceInputKind::Missing,
+            "mode" => next.mode = 0o100755,
+            "payload" => next.payload_digest = sha256_hex(b"rewritten"),
+            "entry" => next.entry_digest = "0".repeat(64),
+            _ => unreachable!(),
+        }
+        assert!(
+            retirement_entry_classification(&prior, &next).is_err(),
+            "reserved exact owners cannot adopt changed bytes: {attack}"
+        );
+    }
+    // Named same-owner custody keeps the ordinary successor rule.
+    let named = retirement_policy_entry(
+        "src/lib.rs",
+        AcceptanceInputKind::File,
+        0o100644,
+        b"a",
+        &["studio"],
+    );
+    let mut renamed = named.clone();
+    renamed.payload_digest = sha256_hex(b"b");
+    renamed.entry_digest = "1".repeat(64);
+    assert_eq!(
+        retirement_entry_classification(&named, &renamed).unwrap(),
+        RetirementCustodyClassification::SameSignedOwners
+    );
+}
+
+#[test]
+fn recovery_send_back_supersedes_a_historical_reopening_in_the_frozen_test() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_requirement_delta(root);
+    materialize_change_deltas(root, &record.id).unwrap();
+    let mut ledger = load_approvals(root, &record).unwrap();
+    let reopened_at = now();
+    ledger.reopenings.push(ReopenRecord {
+        schema_version: 1,
+        change_id: record.id.clone(),
+        actor: "Synthetic actor".into(),
+        reason: "Synthetic reopen-supersession diagnostic only".into(),
+        timestamp: reopened_at,
+        from_state: ChangeState::Accepted,
+        to_state: ChangeState::Verifying,
+        superseded_approval: ledger.approvals.last().unwrap().clone(),
+        prior_verification: VerificationRecord {
+            ..verify_change(root, &record.id).unwrap()
+        },
+        stale_acceptance_input_digest: "0".repeat(64),
+        current_acceptance_input_digest: "1".repeat(64),
+        stale_evidence_cause: None,
+        recorded_review_mismatch_anchor: None,
+    });
+    assert!(latest_reopening_still_freezes_canonical(&ledger));
+    let send_back = |timestamp: u64| SendBackRecord {
+        schema_version: 1,
+        change_id: record.id.clone(),
+        actor: "Synthetic actor".into(),
+        reason: "Synthetic re-scope".into(),
+        timestamp,
+        from_state: ChangeState::Verifying,
+        to_state: ChangeState::Draft,
+        cancelled_approvals: ledger.approvals.len(),
+        cancelled_review_attempts: Some(0),
+        canonical_applied: true,
+        applied_items: Vec::new(),
+        applied_modules: Vec::new(),
+    };
+    // An earlier send-back does not supersede the reopening.
+    ledger.send_backs.push(send_back(reopened_at - 1));
+    assert!(latest_reopening_still_freezes_canonical(&ledger));
+    // One recorded at the reopening's own second does: the change was re-scoped
+    // and re-approved, so the historical reopening freezes nothing any more.
+    ledger.send_backs.push(send_back(reopened_at));
+    assert!(!latest_reopening_still_freezes_canonical(&ledger));
+}
+
+#[test]
+fn recovery_retired_record_keeps_its_historical_sequence_classification() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let retired = retire_change(
+        root,
+        &old.id,
+        "Synthetic operator".into(),
+        "Obsolete intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+    )
+    .unwrap();
+    let sequences = located_change_sequences(root).unwrap();
+    let entry = sequences
+        .iter()
+        .find(|entry| entry.id == retired.id)
+        .unwrap();
+    assert!(
+        entry.historical,
+        "retirement is immutable terminal nonacceptance; the sequence stays historical"
+    );
+}

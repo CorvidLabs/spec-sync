@@ -1,6 +1,6 @@
 ---
 id: a-timed-out-read-prints-a-resume-command-that-runs-exactly-as-printed-and-does-not-time-out-again
-state: implementing
+state: archived
 type: bug_fix
 base_commit: db16db8af6a16f7ab2dd61deb2a9f2de0584dbe1
 ---

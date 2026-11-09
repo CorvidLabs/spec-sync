@@ -1792,3 +1792,88 @@ fn an_ignored_just_finalized_archive_reports_the_full_review_currency() {
         "an ignored, uncommitted archive must still be judged by the full check"
     );
 }
+
+// G-deadline (#954, REQ-change-149): the archive-introduction index checks its deadline before
+// its bulk `diff-tree --stdin`, so a deadline that has passed stops it even when there is no
+// archive-introducing commit to loop over. (On a worker-style deadline the check returns an
+// error instead of exiting, which lets the test observe it.)
+#[test]
+fn an_expired_deadline_stops_the_archive_index_before_it_lists_anything() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let _scope = begin_change_read_scope(root);
+    let _deadline = begin_worker_read_deadline(Some(ReadDeadline {
+        until: Instant::now(),
+        limit_secs: 0,
+    }));
+    let result = archive_introduction_index(root);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("archive-introduction index")),
+        "an expired deadline let the archive-introduction index answer {:?}",
+        result.map(|index| index.len())
+    );
+}
+
+fn expired_worker_deadline() -> ReadDeadlineGuard {
+    begin_worker_read_deadline(Some(ReadDeadline {
+        until: Instant::now(),
+        limit_secs: 0,
+    }))
+}
+
+// REQ-change-149 (#1005 review): active-change loading checks its deadline after its last
+// workspace too, so a deadline that passed during (or before) the final entry still stops it.
+// With no workspace to loop over, only that final check can see it.
+#[test]
+fn active_change_loading_checks_its_deadline_after_the_last_workspace() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    fs::create_dir_all(root.join(CHANGES_PATH)).unwrap();
+    let _deadline = expired_worker_deadline();
+    let result = list_changes_uncached(root);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("active change loading")),
+        "an expired deadline let active-change loading finish: {:?}",
+        result.map(|roster| roster.records.len())
+    );
+}
+
+// REQ-change-149 (#1005 review): the workflow-version history walk checks its deadline after
+// its last commit too. A change whose state paths no commit has touched yet has an empty walk.
+#[test]
+fn the_history_walk_checks_its_deadline_after_the_last_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let _deadline = expired_worker_deadline();
+    let result = validate_workflow_version_history_uncached(root, &record);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("workflow-version history")),
+        "an expired deadline let the history walk finish: {result:?}"
+    );
+}
+
+// REQ-change-149 (#1005 review): a limit too large for the clock means no deadline even inside
+// an outer one; the guard restores the outer deadline when it drops.
+#[test]
+fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
+    let _outer = expired_worker_deadline();
+    assert!(read_deadline_passed());
+    {
+        let _inner = begin_read_deadline(u64::MAX, "change status", "specsync change status", true);
+        assert!(
+            !read_deadline_passed(),
+            "an overflowing limit kept the outer, expired deadline in force"
+        );
+    }
+    assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
+}

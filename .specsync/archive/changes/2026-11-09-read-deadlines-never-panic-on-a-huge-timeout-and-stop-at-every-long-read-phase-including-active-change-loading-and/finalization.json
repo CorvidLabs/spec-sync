@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "read-deadlines-never-panic-on-a-huge-timeout-and-stop-at-every-long-read-phase-including-active-change-loading-and",
+  "implementation_commit": "76d40398e11d6bd333caec031970ddd92bd21fba",
+  "implementation_tree": "e359bbc9e370a5bc4ad345f189fd9fd948635400",
+  "contract_digest": "bcd394782e54f99af8217745df9f0f41d66a8bf10693ff3714ad64c53c59711b",
+  "workspace_digest": "7ff40d2bf314ce3b79ffba1fdbb0a6603d24f03bfedb97e29c22d080bdbcbe4e",
+  "closing_digest": "1436330f94d3c4977b45d3ce43e5d1908c81baee0d6be13eb0b184d92c0970d0",
+  "review_digest": "1073730fc12a11b52bf481f8d9c46628f9a855b01a54a6fae4eba7c6946d2cf4",
+  "finalization_digest": "09fff90020d2d3a105245a39517057d83fd1ed7fd4cc2b73c1156637e92262d7",
+  "timestamp": 1794253912
+}

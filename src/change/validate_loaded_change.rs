@@ -3454,7 +3454,11 @@ fn validate_workflow_version_history_uncached(
             limits.scoped_review_max_descendants
         ));
     }
-    for commit in commits {
+    let total = commits.len();
+    for (done, commit) in commits.into_iter().enumerate() {
+        // Each commit of the walk is a deadline boundary; on a worker the check is an error the
+        // worker stops on, and the command thread reports (REQ-change-149).
+        check_read_deadline("workflow-version history", done, total)?;
         let current = workflow_version_at_commit(root, commit, &state_paths)?;
         let fields: Vec<String> = match history.as_ref().and_then(|history| history.parents(commit)) {
             Some(parents) => std::iter::once(commit.to_string())
@@ -3486,6 +3490,8 @@ fn validate_workflow_version_history_uncached(
         }
     }
 
+    // And once after the last commit, so its Git reads are bounded too (REQ-change-149).
+    check_read_deadline("workflow-version history", total, total)?;
     for path in &state_paths {
         let Some(bytes) = scoped_review_file_at_commit(root, "HEAD", path)? else {
             continue;
@@ -3509,6 +3515,9 @@ fn validate_workflow_version_history_uncached(
         }
         break;
     }
+    // The HEAD reads above run after the per-commit boundary; a deadline crossed by
+    // one of them must still stop the read (REQ-change-149).
+    check_read_deadline("workflow-version history", total, total)?;
     Ok(())
 }
 

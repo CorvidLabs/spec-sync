@@ -1,6 +1,6 @@
 ---
 module: change
-version: 216
+version: 217
 status: active
 files:
   - src/change.rs
@@ -491,6 +491,8 @@ Acceptance Criteria
 
 ## Change Log
 
+| 2026-11-09 | v217: Deadline-boundary review fixes (#1005): recheck the deadline after the final archive-introduction commit before caching, after the post-history HEAD reads, and count completed workspaces (including unreadable ones) in the final active-loading boundary (REQ-change-149). |
+
 | 2026-11-09 | v216: Clippy `--all-targets` cleanup in the attributes reader and batch-output terminator check (`as_chunks::<3>()`, byte-string comparison); no behavior change (CI-8, #608, #1007 merge train). |
 
 | 2026-11-09 | v213: Retirement review fixes (#1018): accept an archived-origin audited reopening (`from_state: archived`, the ordinary finalize-then-reopen path) and require the reopening to prove staleness; pin that a shallow clone cannot launder retirement custody (custody validation fails closed beyond the boundary and a locally deleted retired archive is still found through the boundary commit's receipt); require unchanged bytes when custody owners are reserved `@exact:*` labels; classify Retired records as historical in sequence accounting; a send-back at or after the latest reopening supersedes it in the frozen-conflict test; the default active audit validates pending retired records' custody. |
@@ -737,6 +739,7 @@ Acceptance Criteria
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-07 | read-deadlines-never-panic-on-a-huge-timeout-and-stop-at-every-long-read-phase-including-active-change-loading-and: Read deadlines never panic on a huge timeout and stop at every long read phase, including active-change loading and before the bulk archive listing |
 | 2026-11-08 | v199 / PR1014 review: preserve a reopening's own unknown fields, compare and deduplicate accepted approval ledgers without approval relays, and validate both embedded correction deciders before relay projection; existing relay requirements and public API unchanged |
 | 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |

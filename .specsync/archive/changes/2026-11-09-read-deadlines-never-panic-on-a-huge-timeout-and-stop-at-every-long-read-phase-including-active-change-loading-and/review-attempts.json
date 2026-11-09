@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "read-deadlines-never-panic-on-a-huge-timeout-and-stop-at-every-long-read-phase-including-active-change-loading-and",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "76d40398e11d6bd333caec031970ddd92bd21fba",
+      "contract_digest": "bcd394782e54f99af8217745df9f0f41d66a8bf10693ff3714ad64c53c59711b",
+      "execution_digest": "42263a8ce60f9c747983ff74feb61662faa3e007934ecb89c445ce5d37d461a9",
+      "workspace_digest": "7ff40d2bf314ce3b79ffba1fdbb0a6603d24f03bfedb97e29c22d080bdbcbe4e",
+      "timestamp": 1794253887
+    }
+  ]
+}

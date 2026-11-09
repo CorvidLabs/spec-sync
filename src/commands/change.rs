@@ -1268,6 +1268,11 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
     }
+    // A project-wide sequence-ledger freeze blocks every verb, so it outranks the upstream
+    // archive, in the same order as JSON status (#908, REQ-cmd-change-034).
+    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
+        return remediation;
+    }
     // After the project-wide refusals above, in the same order as JSON status: an archive of
     // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).
     if let Some(upstream) = change::upstream_archive_of(root, record) {
@@ -1416,6 +1421,12 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         blockers.push(format!(
             "{refusal}; fix `.specsync/sdd.json` before check, review or finalize"
         ));
+    }
+    // A project-wide sequence-ledger freeze outranks the upstream archive: rebasing does not
+    // clear it, so it is the first blocker and the next step, as in `change status` (#908).
+    let sequence_freeze = change::sequence_ledger_freeze_next_action(root);
+    if let Some(remediation) = &sequence_freeze {
+        blockers.push(remediation.clone());
     }
     let upstream_archive = change::upstream_archive_of(root, record);
     if let Some(upstream) = &upstream_archive {
@@ -1573,7 +1584,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             })
         });
 
-    let ship_next = if let Some(upstream) = &upstream_archive {
+    let ship_next = if let Some(remediation) = &sequence_freeze {
+        remediation.clone()
+    } else if let Some(upstream) = &upstream_archive {
         change::upstream_archive_message(&record.id, upstream)
     } else if let Some(recovery) = &ownership_recovery {
         recovery.clone()

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 218
+version: 219
 status: active
 files:
   - src/change.rs
@@ -244,6 +244,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `finalize_change` | `root, id` | `Result<PathBuf, String>` | Validate current verification/review evidence and transactionally produce the dated same-PR archive |
 | `find_change_dir` | Resolves a change's workspace wherever it lives, active or archived — the single answer to where a change's artifacts are |
 | `floor_sequence_ledger_to_committed` | `root: &Path` | `Result<Option<(u64, u64)>, String>` | Raise a working-tree sequence ledger to the committed high-water mark before staging, returning the previous and adopted values so the caller can disclose the raise, or `None` when the ledger is already at or above it |
+| `sequence_ledger_freeze_next_action` | `root: &Path` | `Option<String>` | The remediation for a frozen change-sequence ledger, or `None`. Every status surface names it before any other next step, the upstream archive included (#908) |
 | `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs and classify them; an Archived record reads the same terminal-evidence verdict `ChangeSummary` carries, so text cannot call `safe` an archive JSON reports as `corrupt-history` (#880); the same verdict `ChangeSummary.handoff` carries |
 | `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
 | `lifecycle_commit_scope` | `root, id` | `Result<LifecycleCommitScope, String>` | The one answer to which untracked paths a lifecycle commit for this change may stage: its workspace, its archive package, each affected spec's canonical file and companions, and the lifecycle ledgers — never its `affected_paths` prefixes; `Err` when the change cannot be loaded |
@@ -736,6 +737,7 @@ Acceptance Criteria
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-06 | keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze: Keep the upstream-archive status guidance behind a sequence-ledger freeze |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

@@ -498,3 +498,148 @@ fn the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root() {
     assert_eq!(state(&root), "verifying");
     assert!(!root.join(".specsync/archive").exists());
 }
+
+// #908. A project-wide sequence-ledger freeze outranks the upstream-archive guidance: rebasing
+// does not clear a freeze, so text status, JSON `next_action` and the JSON handoff must all name
+// the freeze first, and agree.
+#[test]
+fn a_sequence_ledger_freeze_outranks_the_upstream_archive_guidance() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let archived = git(&root, &["rev-parse", "HEAD"]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(
+        &root,
+        &[
+            "push",
+            "-q",
+            "origin",
+            &format!("{archived}:refs/heads/main"),
+        ],
+    );
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    squash_onto_base(&root, &base, &verified);
+
+    // An acknowledgement naming ids that never existed freezes the ledger project-wide.
+    let ledger_path = root.join(".specsync/change-sequence.json");
+    let mut ledger: Value = fs::read_to_string(&ledger_path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_else(|| serde_json::json!({"schema_version": 1, "sequence": 0, "id": ID}));
+    ledger["acknowledged_collisions"] =
+        serde_json::json!([{"sequence": 1, "ids": ["CHG-0001-first", "CHG-0001-second"]}]);
+    fs::write(&ledger_path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(next.contains("sequence ledger"), "next_action: {next}");
+    let handoff = &status["summary"]["handoff"];
+    let first = handoff["before_clearing"][0].as_str().unwrap_or_default();
+    assert!(
+        !first.contains("already archived"),
+        "handoff names the upstream archive before the freeze: {handoff}"
+    );
+
+    let text = run_ok(&root, &["change", "status", ID]);
+    let next_line = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("Next:"))
+        .unwrap_or_default();
+    assert!(
+        next_line.contains("sequence ledger"),
+        "text status Next names something else: {next_line}\n{text}"
+    );
+
+    let ship = run(&root, &["change", "ship-status", ID]);
+    let ship_text = String::from_utf8_lossy(&ship.stdout).into_owned();
+    let freeze = ship_text.find("sequence ledger");
+    let upstream = ship_text.find("already archived");
+    assert!(
+        freeze.is_some() && upstream.is_none_or(|at| freeze < Some(at)),
+        "ship-status does not lead with the freeze:\n{ship_text}"
+    );
+}
+
+// #937 part 2, fixed in #934. A `verification_ignored_paths` refusal outranks the upstream
+// archive in `next_action`, so the JSON handoff must carry the same refusal instead of falling
+// back to a lifecycle-only verdict that never names it (and reads `safe` for some states).
+#[test]
+fn a_verification_ignored_paths_refusal_reaches_the_handoff_of_an_upstream_archived_change() {
+    let temp = TempDir::new().unwrap();
+    let (root, base, verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    run_ok(&root, &["change", "finalize", ID]);
+    let archived = git(&root, &["rev-parse", "HEAD"]);
+    let origin = temp.path().join("origin.git");
+    git(
+        temp.path(),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ],
+    );
+    git(
+        &root,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git(
+        &root,
+        &[
+            "push",
+            "-q",
+            "origin",
+            &format!("{archived}:refs/heads/main"),
+        ],
+    );
+    git(&root, &["fetch", "-q", "origin"]);
+    git(&root, &["remote", "set-head", "origin", "main"]);
+    squash_onto_base(&root, &base, &verified);
+
+    // An entry that hides the change's own affected path refuses check, review and finalize.
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value = serde_json::from_slice(&fs::read(&policy_path).unwrap()).unwrap();
+    policy["verification_ignored_paths"] = serde_json::json!(["src/auth.rs"]);
+    fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        next.contains("verification_ignored_paths"),
+        "next_action: {next}"
+    );
+    let handoff = &status["summary"]["handoff"];
+    assert_eq!(handoff["readiness"], "not-yet", "{handoff}");
+    let first = handoff["before_clearing"][0].as_str().unwrap_or_default();
+    assert!(
+        first.contains("verification_ignored_paths"),
+        "handoff does not carry the ignored-path refusal: {handoff}"
+    );
+}

@@ -2499,7 +2499,7 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
 
 /// Project-wide next_action when the sequence ledger is frozen (invalid acknowledgements,
 /// mutable multi-id acks, or unacknowledged duplicates). Returns `None` when the ledger is healthy.
-fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
+pub(crate) fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
     match validate_change_sequences(root) {
         Ok(()) => None,
         Err(reason)

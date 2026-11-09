@@ -500,6 +500,13 @@ Acceptance Criteria
 - Text output escapes control characters in recorded names and relayed fields, so recorded words cannot move the cursor or recolour the terminal.
 - A change with no approval and no review prints neither line, and its JSON omits `recorded_claims`.
 
+### REQ-cmd-change-034
+
+Text `change status` and the `change ship-status` lifecycle next action SHALL name a sequence-ledger freeze before the upstream-archive step, matching JSON status.
+
+Acceptance Criteria
+- With an upstream archive and a frozen ledger, the text `Next:` line names the freeze.
+
 ### REQ-cmd-change-035
 
 `specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.

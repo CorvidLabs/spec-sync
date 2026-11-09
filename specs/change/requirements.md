@@ -1778,6 +1778,14 @@ The persistent read cache SHALL be reused only by the build that wrote it. Its b
 - A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
 - Removing the fingerprint from the read-cache identity fails that test.
 
+### REQ-change-138
+
+The `change status` summary SHALL derive the handoff for a change archived upstream in the same priority order as `next_action`: a sequence-ledger freeze, then a `verification_ignored_paths` refusal, then the upstream archive. A freeze SHALL never be reported behind the upstream-archive rebase step.
+
+Acceptance Criteria
+- With an upstream archive and a frozen ledger, `next_action` and `handoff.before_clearing` both name the freeze.
+- Without a freeze, both name the upstream archive.
+
 ### REQ-change-139
 
 The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.

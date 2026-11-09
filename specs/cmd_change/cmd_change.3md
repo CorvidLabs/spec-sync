@@ -149,3 +149,6 @@ A command SpecSync prints for someone to paste is a contract, not a hint. #918's
 
 @plane z=14 label="Bounded nonacceptance recovery"
 Retirement is not implementation acceptance or successor/dependency credit. Keep the original signed obligations and exact package under authenticated current custody. A self-digest is not committed-event immutability. Keep durable prepared state and receipt together after a failed move, with validated identical-argument retry; recover the prior mixed rollback layout only from the exact original state. Default audit is active-project only; explicit archive audit/status/finalize validate custody when relied upon. Actual parent integration remains held on two unchanged exact-owner/current-studio differences; do not invent coverage.
+
+@plane z=15 label="Text and ship-status follow the domain's order (#908)"
+Text `Next:` and `change ship-status` are command-layer projections of the domain's next step, and #889 left them ranking the upstream archive above a sequence-ledger freeze. They now ask `change::sequence_ledger_freeze_next_action` first, and ship-status lists the freeze as its first blocker. The test that proved the JSON order did not look at ship-status, which is how it fell behind. An approved criterion that names a projection needs an assertion on that projection.

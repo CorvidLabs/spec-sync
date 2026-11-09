@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "0373671e6638ad8d0e7e30f274b459df14d4d4fa",
+  "contract_digest": "e240409345999079b79421d5647963fa85bcca33c695be0c9b5634cc00fdf6eb",
+  "execution_digest": "5e41d5e93d7753ce66472a5e62a9af27ea5ba14286d1328dee0b834d45ac67a5",
+  "workspace_digest": "6aafb757bbf2dec1355bccf62950cf9691a88f165335ee519fa2b40c10ae2e1a",
+  "timestamp": 1794259486
+}

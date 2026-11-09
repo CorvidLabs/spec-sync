@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-merge-driver-installation-match-contracts-when-the-specs-directory-is-the-repository-root",
+  "implementation_commit": "78f28ec4f4478eebb8fc6033f9a82c8c504ba0e3",
+  "implementation_tree": "31c62576c4cbbe342687ebf26255b350e8e700dc",
+  "contract_digest": "8aea5aced720053f5b84f091a0613f4cbbccca751b7e5329e0a7bf63b69d48b9",
+  "workspace_digest": "c9bba2ce0eb2738c7d582b980acb2de7e14a2746413e10707018aa613494a1bf",
+  "closing_digest": "bb85999955e8e6da7dd2f64821a42f17dc24eb8cf855e5a56edc655977ae0ebe",
+  "review_digest": "e919e3b7350f65fd1643d4fd56f4299d296ce70772a3939a6e0c146f6927027d",
+  "finalization_digest": "e1ba54b25d5292a00e1880d05a6671fd484a136ccb897cccefdcf9c0cb1e03d6",
+  "timestamp": 1794103715
+}

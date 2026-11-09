@@ -824,7 +824,7 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
         {
             format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
         } else {
-            with_relayed_read_recovery(root, &path, message)
+            with_relayed_read_recovery(root, record, &path, message)
         }
     })?;
     ensure_read_relays_name_their_deciders(
@@ -834,7 +834,7 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
             .map(|approval| (approval.actor.as_str(), approval.relayed_by.as_ref())),
         "the approval's actor",
     )
-    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    .map_err(|message| with_relayed_read_recovery(root, record, &path, message))?;
     Ok(ledger)
 }
 
@@ -2690,7 +2690,8 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
         }
     }
     match matches.len() {
-        0 => Err(format!("change `{id}` was not found")),
+        0 => Err(closed_late_sentence(root, id)
+            .unwrap_or_else(|| format!("change `{id}` was not found"))),
         1 => Ok(matches.remove(0)),
         _ => Err(format!(
             "change `{id}` has ambiguous active/archive workspace locations: {}",
@@ -4170,6 +4171,11 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
     })?;
     let id = slug.to_string();
     validate_change_id(&id)?;
+    if let Some(sentence) = closed_late_sentence(root, &id) {
+        return Err(format!(
+            "{sentence}; its ID stays reserved, so describe the new change differently"
+        ));
+    }
     if find_change_dir(root, &id).is_ok() {
         return Err(change_name_taken_error(root, &id));
     }
@@ -4476,7 +4482,12 @@ impl Drop for PinnedTestClock {
 }
 
 fn today() -> String {
-    let days = (now() / 86_400) as i64;
+    utc_date(now())
+}
+
+/// The UTC calendar date, `YYYY-MM-DD`, of a Unix timestamp in seconds.
+fn utc_date(seconds: u64) -> String {
+    let days = (seconds / 86_400) as i64;
     let z = days + 719_468;
     let era = (if z >= 0 { z } else { z - 146_096 }) / 146_097;
     let doe = (z - era * 146_097) as u64;

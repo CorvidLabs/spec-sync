@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "59dfd67b98f7d65ac4a20f15937ff4d9b4a3dea9",
+      "contract_digest": "0cbb7c805a6b9fb181cf8f66d94311a2bf5b5f79a30a894f14dd12b58884ef5d",
+      "execution_digest": "81a85a748baa266eae65f37c862d334734cfbf1fb5c615c3afadf6b6cf9e1ced",
+      "workspace_digest": "bfa3f0adc9aeddaf36314e3854efcb8ba6eae2c5a35e80123bf96eb5b0a8b235",
+      "timestamp": 1794082684,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "yes",
+        "where": "Direct Leif reply to orc t19f one-item #958 implementation acceptance question on 2026-11-07, exact head 59dfd67b98f7d65ac4a20f15937ff4d9b4a3dea9, draft PR #1015 https://github.com/CorvidLabs/spec-sync/pull/1015/files. Native implementation acceptance only; Trust soft/degraded and standalone Attest failure remain separately reported. No release/deploy authorization.",
+        "recorded_by": "orc-t19f"
+      }
+    }
+  ]
+}

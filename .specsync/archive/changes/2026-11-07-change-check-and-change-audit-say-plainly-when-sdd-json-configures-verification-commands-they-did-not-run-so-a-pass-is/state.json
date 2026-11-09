@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is",
+  "slug": "change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is",
+  "title": "Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893)",
+  "description": "change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893)",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "22a2dcaca598949dfb3a34907ea2fb0cfd18a820",
+  "created_at": 1794021684,
+  "updated_at": 1794088992,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    ".specsync/sdd.json",
+    "site/src/content/docs/configuration.md",
+    "docs/ADOPTING.md",
+    "specs/cmd_change/",
+    "CHANGELOG.md",
+    "hi/ship.md",
+    "INTENT.md",
+    ".chough/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Text change check (plain and --commit) and change audit print one stderr note beginning `note: .specsync/sdd.json configures N verification command(s) that SpecSync did not run`, with singular `command` for N=1 and the words `to stop this note`.",
+    "JSON check and audit output carries a top-level configured_commands_not_run list beside verification or report: verification commands first, component commands by module, then strict commands, each command once, and [] when none is configured.",
+    "The disclosure never changes exit status and never spawns a configured command; change check --commit --json gains no field because that path has no JSON success output (#839).",
+    "This repository empties only verification_commands while retaining all 13 component_verification_commands modules and all 3 strict_verification_commands, so its own note remains visible.",
+    "The committed text, JSON, singular, empty-policy, no-spawn, and repository-policy tests fail before implementation and pass afterward, with the full integration suite updated for the additive stderr note where needed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "specs/cmd_change/cmd_change.3md z=4: disclose on plain check and the --commit path's own summary, with JSON carrying the same fact and no digest; z=1: the command adapter stays thin and does not invent lifecycle policy. specs/change/change.3md z=15: configured commands are never executed, so this change is disclosure-only and must not spawn one. No principles file is configured.",
+    "public_contract": "yes"
+  }
+}

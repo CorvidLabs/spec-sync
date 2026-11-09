@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "cbfb99d0c68914ac12bf99c4f6417b9a2df6e602",
+      "contract_digest": "2b8e766f52f4488895468f8ffb17d2fad3eb92772c8c1b6c411294d785b2866d",
+      "execution_digest": "eee6e729d3be00dd367bdf1e8925d93675a6af9c04ee952e9cf70478fbd29e53",
+      "workspace_digest": "5487260a5b7ebba41f57f8ac84f16e1dd5acb6dbcf83cdc59e4486cd9bf08994",
+      "timestamp": 1794088794,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "approve",
+        "where": "Direct Leif reply to orc t19f one-item #893 implementation acceptance question on 2026-11-07, exact head cbfb99d0c68914ac12bf99c4f6417b9a2df6e602, draft PR #1016 https://github.com/CorvidLabs/spec-sync/pull/1016/files. Accepts unrun-command disclosure with component/strict settings preserved and only plain verification_commands cleared. Native implementation review only; progressive/soft provenance and standalone Attest failure remain separate. No release/deploy authority.",
+        "recorded_by": "orc-t19f"
+      }
+    }
+  ]
+}

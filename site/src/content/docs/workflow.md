@@ -85,7 +85,7 @@ specsync change approve add-passkeys --actor "Ada" \
     Relayed: Ada said "Approve the passkey scope" (team chat, 2026-11-05 21:40 MST, relayed by the release agent); recorded by release agent; a relayed claim, not authenticated: it records who is said to have decided, not proof that they did.
 ```
 
-A relayed decision is a claim too. It satisfies no gate, and no digest covers it; the finalization review digest leaves it out, so older 6.x binaries read archives that carry one. If a hand-edited `relayed_by` cannot be read, the command names `git checkout HEAD -- <file>` to restore the recorded file.
+A relayed decision is a claim too. It satisfies no gate, and no digest covers it; the finalization review digest leaves it out, so older 6.x binaries read archives that carry one. If a hand-edited `relayed_by` cannot be read in an active change, the command names `specsync change repair-relays <id>`. It works whether or not the file is committed, which matters between `change review` and `change ship`, when neither review file is: it puts each damaged relay back from the last commit, or from its twin (`review.json` and the last review attempt are copies of each other), and otherwise removes only that `relayed_by`, never the approval or review attempt it belongs to, and says what it did. No digest reads a relay, so a repair stales nothing. An archived package is committed by finalize, so there the command names `git checkout HEAD -- <file>`.
 
 ## 3. Check, Review, and Finalize
 
@@ -276,6 +276,26 @@ Historical succession checks preserve exact coverage and approval requirements. 
 slug-based changes, use the supported `change supersede` workflow to record predecessor,
 path, and module obligations before approval; do not infer succession from numeric ordering.
 A partial, draft, failed, or stale record is not proof that predecessor obligations were met.
+
+### Close a change that merged long ago
+
+A change that merged without being archived blocks every later finalize, and its evidence may no
+longer be checkable. `specsync doctor` lists it with its fix. When re-checking is not possible or not
+worth it, a person can close it late:
+
+```bash
+specsync doctor --fix --dry-run --close-late <id> --actor <name> --reason "<why>"
+specsync doctor --fix --close-late <id> --actor <name> --reason "<why>"
+```
+
+The package moves byte for byte into `.specsync/archive/closed-late/`, with a `late-close.json` that
+records who, when and why, the commit that merged it, and `verified: false`. It never counts as
+checked: `change status` says it was closed late, and every lifecycle verb refuses it. Only a change
+whose package is on the remote default branch can be closed late. SpecSync 6.0 to 6.2 never read
+that folder. If the change belonged to an acknowledged sequence collision, doctor takes it out of that
+acknowledgement in `.specsync/change-sequence.json` (the whole acknowledgement once fewer than two
+members remain) and keeps the acknowledgement as it stood in the record; where meaningful
+files need an open change, the pull request's change must declare that file.
 
 ## 5. Legacy workflow-v1 recovery: correct accepted classification
 

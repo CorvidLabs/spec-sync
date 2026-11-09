@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to",
+  "slug": "report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to",
+  "title": "Report production source no declared module owns before approval and review, and never call such a change ready to finalize",
+  "description": "Report production source no declared module owns before approval and review, and never call such a change ready to finalize",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "9dd2affdca4628156835a6a0488e32a2f4702e45",
+  "created_at": 1794009078,
+  "updated_at": 1794014888,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "CHANGELOG.md",
+    "src/change/",
+    "src/commands/change.rs",
+    "src/change_tests/",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change approve refuses a no-spec-change draft whose existing affected production-source path a module owns, naming the path, the owning spec and module, and specsync change answer <id> affected_specs <modules>; running that command lets the draft approve.\nchange ship-status and change ship --dry-run run the canonical-ownership check finalize runs over the delivery inputs: a production-source input no declared module owns is a blocker naming the path, the owning module, and the recovery (specsync change send-back <id>, then specsync change answer <id> affected_specs <modules>); neither says ready to finalize, and the dry run exits non-zero.\nThe integration test with a directory-scoped no-spec-change change runs that recovery and ships; it and the approve unit test fail on main 9dd2affd and pass with the fix.\nOwnership is decided exactly as before (REQ-change-053): a path that does not exist yet is still enforced at finalize, an owned change ships unchanged, and no gate, bound or timeout is relaxed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "REQ-change-053 decides ownership; only when it is checked moves earlier, never who owns what. The #901/#880 lesson: a named recovery is only right once a test runs it, so the integration test runs send-back, answer, approve, check, review and ship. REQ-cmd-change-031 is the pattern: ship-status reports the same blocker ship refuses on, and the dry run refuses too. SPEED-2.b.2: no test is weakened.",
+    "public_contract": "yes"
+  }
+}

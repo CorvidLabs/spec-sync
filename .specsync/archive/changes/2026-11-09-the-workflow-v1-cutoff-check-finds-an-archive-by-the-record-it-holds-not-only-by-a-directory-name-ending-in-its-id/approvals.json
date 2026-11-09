@@ -1,0 +1,56 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1793995115,
+      "digest": "a51a8459222d1b7251976eacbb3575e3a599b548ebb6aa7c678e01c608f386b4",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id",
+        "title": "The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id",
+        "description": "The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/speed.md",
+          "specs/change",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The cutoff-tree candidates include the archived record's own resolved package path (find_change_dir), as workflow_version_state_paths does, alongside the active path and the cutoff-tree entries ending in -<id>",
+          "The persistent cutoff cache and the warm Git-process guards are unchanged; no gate or bound is weakened",
+          "cutoff_tree_finds_a_workflow_v1_archive_renamed_before_the_cutoff passes: a workflow-v1 archive moved before the cutoff to a directory not ending in -<id> is accepted by the cutoff-tree check exactly as the history walk accepts it (committed failing first in 14903d0b), and the change loads",
+          "cutoff_tree_verdict_equals_the_history_walk_verdict and every existing refusal stay unchanged: a record absent at the cutoff, added after it, or present only under another id is still refused, and a non-canonical -<id> entry still refuses"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "SPEED-1.a.2 (a faster read never turns an archived change with intact history into a refusal); REQ-change-136 (cutoff verdict from the cutoff tree, cached by the cutoff) stays; find_change_dir identifies an archive by the id its state declares (cached_archived_history_refuses_a_hidden_downgrade_in_a_renamed_archive); change.3md 'Finalize judges only what it archives' (read paths keep live-identical refusals)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "65ef9cf36bebdbd056d02227fefa1b08eebdad9a06ddccb15c7689cc06634fe0"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794257000,
+      "digest": "e6bff3c464d780b452223395090cecbde23e74f65481d6e012f6a20c22843740",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

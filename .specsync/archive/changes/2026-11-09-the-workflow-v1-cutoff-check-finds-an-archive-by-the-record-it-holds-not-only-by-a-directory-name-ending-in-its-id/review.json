@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a309e0d4b1758e75d98010e9d864ffee39c5a1ab",
+  "contract_digest": "a51a8459222d1b7251976eacbb3575e3a599b548ebb6aa7c678e01c608f386b4",
+  "execution_digest": "6d93008d61511bff3bd9cc23efc7d37d426fec661db64279bd257d053d533a13",
+  "workspace_digest": "d6276192f7ef43e21b5bd08db3f179c280413aac285b705255bda68f74c4b9e8",
+  "timestamp": 1794256975
+}

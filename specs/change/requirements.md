@@ -1834,6 +1834,14 @@ Acceptance Criteria
 - In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
 - A cutoff with no archive root gives the same verdict as before.
 
+### REQ-change-146
+
+The trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) SHALL consider the change's own resolved package path, the archive directory `find_change_dir` finds by the id its state declares, alongside the active state path and the cutoff archive entries ending in `-<id>`. A workflow-v1 archive the history walk accepted SHALL NOT be refused because its directory name does not end in its id (SPEED-1.a.2). The record found at the cutoff SHALL still carry the same id and a workflow-v1 identity.
+
+Acceptance Criteria
+- A workflow-v1 archive moved before the cutoff to a directory not ending in `-<id>` is accepted by the cutoff-tree check exactly as the history walk accepts it, and the change loads.
+- A record absent at the cutoff, added after it, or present at it only under another id is still refused with the existing message.
+
 ### REQ-change-147
 
 A change summary of an archived change SHALL NOT take the whole-tree project-input digest to report `scoped_review_current` once its archived package is committed; it SHALL report `false`, which is what the full check gives for a committed archive. While the archived package has uncommitted changes, the summary SHALL compute it as before. A warm `change status` of an archived change SHALL NOT spawn more Git processes as the project tracks more files (SPEED-1.a). Summaries of changes before archive are unchanged.

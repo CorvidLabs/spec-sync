@@ -3149,6 +3149,18 @@ fn workflow_v1_record_present_in_cutoff_tree(
         root,
         &format!("{CHANGES_PATH}/{}/state.json", record.id),
     )?];
+    // `find_change_dir` finds an archive by the id its state declares, so a package moved to a
+    // directory that does not end in `-<id>` is still this change's. The history walk always
+    // considered it (`workflow_version_state_paths`); so does the cutoff tree (REQ-change-146).
+    if record.state == ChangeState::Archived {
+        let resolved = git_repo_relative_path(
+            root,
+            &portable_project_path(root, &find_change_dir(root, &record.id)?.join("state.json")),
+        )?;
+        if !candidates.contains(&resolved) {
+            candidates.push(resolved);
+        }
+    }
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
     let listing = run_git_bounded(
         root,
@@ -3190,7 +3202,9 @@ fn workflow_v1_record_present_in_cutoff_tree(
                     path.escape_default()
                 ));
             }
-            candidates.push(path);
+            if !candidates.contains(&path) {
+                candidates.push(path);
+            }
         }
     }
     let present = candidates.iter().any(|path| {

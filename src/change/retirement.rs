@@ -580,11 +580,6 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
     if !git_repository_present(root)? {
         return Ok(BTreeMap::new());
     }
-    // Reuse the existing strict distinction: an absent unborn branch is not
-    // unreadable or corrupt committed history. All other Git failures still refuse.
-    if head_is_unborn(root)? {
-        return Ok(BTreeMap::new());
-    }
     let prefix = git_repo_prefix(root)?;
     let active = format!(
         ":(top,glob){}/*/retirement.json",
@@ -612,6 +607,11 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
         MAX_GIT_COMMAND_OUTPUT_BYTES,
     )?;
     if !output.status.success() {
+        // A valid unborn branch has no committed history. Probe only after the
+        // failed log, preserving all bounded-command errors and corrupt-HEAD refusals.
+        if head_is_unborn(root)? {
+            return Ok(BTreeMap::new());
+        }
         return Err("cannot read committed retirement history".into());
     }
     let text = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;

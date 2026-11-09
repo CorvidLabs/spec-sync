@@ -3580,6 +3580,11 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         return upstream_archive_handoff(&record.id, &upstream);
     }
     match record.state {
+        ChangeState::Retired => {
+            return HandoffSummary { readiness: HandoffReadiness::Conditional,
+                reason: retirement_next_action(root, record),
+                resume: format!("specsync change status {}", record.id), before_clearing: Vec::new() };
+        }
         ChangeState::Archived => {
             signals.corrupt_archive =
                 corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)));
@@ -3643,6 +3648,8 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
         )
     } else {
         match signals.state {
+            ChangeState::Retired => (HandoffReadiness::Conditional,
+                "retired without implementation acceptance; validate retained custody before relying on this disposition", Vec::new()),
             ChangeState::Archived => match &signals.corrupt_archive {
                 Some(corrupt) => (
                     HandoffReadiness::NotYet,
@@ -4019,6 +4026,7 @@ fn summarize_change_with_effective(
         upstream_archive_message(&record.id, upstream)
     } else {
         match record.state {
+            ChangeState::Retired => retirement_next_action(root, record),
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
                 // The command approve's refusal names for the same question
                 // (REQ-cmd-change-answer-hint-001).

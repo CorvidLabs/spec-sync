@@ -728,6 +728,7 @@ pub enum ChangeState {
     Verifying,
     Accepted,
     Archived,
+    Retired,
 }
 
 impl ChangeState {
@@ -739,6 +740,7 @@ impl ChangeState {
             Self::Verifying => "verifying",
             Self::Accepted => "accepted",
             Self::Archived => "archived",
+            Self::Retired => "retired",
         }
     }
 }
@@ -2787,6 +2789,18 @@ pub(crate) fn answer_question_with_snapshot(
                 .collect::<Result<_, _>>()?;
             record.affected_paths = affected_paths;
         }
+        "dependencies" => {
+            let dependencies = split_values(answer);
+            for dependency in &dependencies {
+                if dependency == id || dependency_reaches(root, dependency, id, &mut BTreeSet::new()) {
+                    return Err("dependency rescope would create a change cycle".into());
+                }
+                load_change(root, dependency)?;
+            }
+            record.dependencies = dependencies;
+            record.dependencies.sort();
+            record.dependencies.dedup();
+        }
         "public_contract" => {
             record.answers.insert(question.into(), answer.into());
             if is_yes(answer) {
@@ -3128,6 +3142,7 @@ pub fn approve_definition_with_relay(
         ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
         ChangeState::Implementing | ChangeState::Verifying => ChangeState::Implementing,
         ChangeState::Accepted | ChangeState::Archived => prior_state,
+        ChangeState::Retired => return Err("retirement is immutable nonacceptance".into()),
     };
     record.updated_at = now();
     save_change(root, &record)?;
@@ -3237,6 +3252,22 @@ fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, Stri
 /// [`materialize_change_deltas`], naming `rerun` as the command to re-run when open tasks
 /// refuse it (REQ-change-131).
 fn materialize_change_deltas_rerunning(
+    root: &Path,
+    id: &str,
+    rerun: &str,
+) -> Result<ChangeRecord, String> {
+    materialize_change_deltas_inner(root, id, rerun).map_err(|error| {
+        let frozen = load_change(root, id).is_ok_and(|record|
+            record.canonical_applied && load_approvals(root, &record)
+                .is_ok_and(|ledger| !ledger.reopenings.is_empty()));
+        if frozen && !error.contains("frozen audited-reopened") {
+            let detail = error.split("; use ").next().unwrap_or(&error);
+            format!("frozen audited-reopened change {id}: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable")
+        } else { error }
+    })
+}
+
+fn materialize_change_deltas_inner(
     root: &Path,
     id: &str,
     rerun: &str,

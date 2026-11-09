@@ -155,3 +155,46 @@ fn recovery_frozen_added_conflict_preserves_newer_canonical_bytes_and_names_hold
     assert!(!err.contains("use MODIFIED"), "{err}");
     assert_eq!(fs::read_to_string(&p).unwrap(), newer);
 }
+
+#[test]
+fn recovery_retirement_committed_disposition_cannot_be_resigned_by_editing_current_json() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let retired = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete intent".into(),
+        replacement.id, "Synthetic authority".into()).unwrap();
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "anchor immutable nonacceptance disposition"]);
+    let path = find_change_dir(root, &old.id).unwrap().join(RETIREMENT_FILE);
+    let original = fs::read(&path).unwrap();
+    let mut receipt: RetirementRecord = serde_json::from_slice(&original).unwrap();
+    receipt.actor = "Forged replacement actor".into();
+    receipt.reason = "Forged replacement reason".into();
+    receipt.digest = retirement_digest(&receipt).unwrap();
+    fs::write(&path, json_content(&receipt).unwrap()).unwrap();
+    let error = validate_retirement(root, &retired).unwrap_err();
+    assert!(error.contains("committed") || error.contains("history"), "{error}");
+    fs::write(&path, original).unwrap();
+    assert!(validate_retirement(root, &retired).is_ok());
+}
+
+#[test]
+fn recovery_retirement_retries_an_interrupted_archive_move_without_reacceptance() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let retired = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete intent".into(),
+        replacement.id.clone(), "Synthetic authority".into()).unwrap();
+    let destination = find_change_dir(root, &old.id).unwrap();
+    let active = change_dir(root, &old.id);
+    // Exact crash boundary: state and receipt persisted, native package move not completed.
+    fs::rename(&destination, &active).unwrap();
+    let before = archive_workspace_snapshot(root, &active, &portable_project_path(root, &active)).unwrap();
+    let retried = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete intent".into(),
+        replacement.id, "Synthetic authority".into()).unwrap();
+    assert_eq!(retried.state, retired.state);
+    assert!(!active.exists(), "retry must finish the interrupted move");
+    assert_eq!(find_change_dir(root, &old.id).unwrap(), destination);
+    assert_eq!(archive_workspace_snapshot(root, &destination,
+        &portable_project_path(root, &destination)).unwrap(), before);
+}

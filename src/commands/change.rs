@@ -1183,6 +1183,7 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
         return change::upstream_archive_message(id, &upstream);
     }
     match record.state {
+        ChangeState::Retired => change::retirement_next_action(root, record),
         // The command approve's refusal names for the same question
         // (REQ-cmd-change-answer-hint-001).
         ChangeState::Draft if !change::next_questions_for(root, record).is_empty() => {
@@ -2040,6 +2041,10 @@ impl ShipReviewStatus {
 fn product_stage_action(record: &ChangeRecord) -> String {
     let id = record.id.as_str();
     match record.state {
+        ChangeState::Retired => {
+            "retired without implementation acceptance; use the independent current replacement"
+                .into()
+        }
         ChangeState::Draft => format!(
             "run `specsync change approve {id} --actor <name>` once the definition is complete; `change check` refuses a draft"
         ),

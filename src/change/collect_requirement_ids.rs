@@ -2492,7 +2492,15 @@ fn prepare_pending_delta_application(
     for module in &record.affected_specs {
         let delta =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
-        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)?;
+        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)
+            .map_err(|error| {
+                let frozen = record.canonical_applied && load_approvals(root, record)
+                    .is_ok_and(|ledger| !ledger.reopenings.is_empty());
+                if frozen {
+                    let detail = error.split("; use ").next().unwrap_or(&error);
+                    format!("frozen audited-reopened change {} cannot replay its {module} delta: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable", record.id)
+                } else { error }
+            })?;
     }
     Ok(prepared)
 }

@@ -11,8 +11,9 @@ These tests hold every place the project runs clippy to three rules:
 1. Every `cargo clippy` command runs with `--all-targets`.
 2. Every one denies warnings (`-- -D warnings`) and none passes an allow or cap that would let a
    lint through (`-A`, `--allow`, `--cap-lints`).
-3. CI's lint step and the fledge `lint` task in the `verify` and `ci` lanes both exist, so the
-   gate cannot disappear and leave these checks with nothing to read.
+3. CI's lint step and the fledge `lint` task exist, and the `check`, `pre-commit`, `verify`, `ci`
+   and `repo` lanes all run that task, so the gate cannot disappear and leave these checks with
+   nothing to read.
 
 The workflow is read through the required-gate tests' own loader (`test-required-ci-gate.py`),
 which parses ci.yml with Ruby's standard Psych parser, as the other workflow tests do.
@@ -55,19 +56,24 @@ GATE = load_gate_model()
 
 
 def clippy_commands(text: str) -> list[list[str]]:
-    """Every `cargo clippy` invocation in a shell snippet, split into words."""
+    """Every `cargo clippy` invocation in a shell snippet, split into words.
+
+    Shell control operators end a command: tokens after `&&`, `||`, `;` or `|` belong to
+    the next command and must never count toward this invocation's flags.
+    """
     commands = []
     for line in text.replace("\\\n", " ").splitlines():
-        if not re.search(r"\bcargo\s+clippy\b", line):
-            continue
-        try:
-            words = shlex.split(line, comments=True)
-        except ValueError:
-            # A quote opened on an earlier line of a multi-line script; plain words are enough here.
-            words = line.split()
-        for index in range(len(words) - 1):
-            if words[index] == "cargo" and words[index + 1] == "clippy":
-                commands.append(words[index:])
+        for segment in re.split(r"&&|\|\||[;|]", line):
+            if not re.search(r"\bcargo\s+clippy\b", segment):
+                continue
+            try:
+                words = shlex.split(segment, comments=True)
+            except ValueError:
+                # A quote opened on an earlier line of a multi-line script; plain words are enough here.
+                words = segment.split()
+            for index in range(len(words) - 1):
+                if words[index] == "cargo" and words[index + 1] == "clippy":
+                    commands.append(words[index:])
     return commands
 
 
@@ -78,7 +84,7 @@ def fledge_tasks() -> dict[str, str]:
 
 def fledge_lane(name: str) -> str:
     text = FLEDGE.read_text(encoding="utf-8")
-    body = re.search(rf"(?ms)^\[lanes\.{re.escape(name)}\]\n(.*?)^\]", text)
+    body = re.search(rf"(?ms)^\[lanes\.{re.escape(name)}\]\n(.*?)(?=^\[|\Z)", text)
     return body.group(1) if body else ""
 
 
@@ -126,8 +132,8 @@ class ClippyAllTargetsTests(unittest.TestCase):
                 with self.subTest(task=name, command=cmd):
                     self.assertEqual(problems(command), [], f"fledge task `{name}` runs `{cmd}`; {RECOVERY}")
 
-    def test_the_verify_and_ci_lanes_run_the_lint_task(self) -> None:
-        for lane in ("verify", "ci"):
+    def test_every_lane_that_must_lint_runs_the_lint_task(self) -> None:
+        for lane in ("check", "pre-commit", "verify", "ci", "repo"):
             with self.subTest(lane=lane):
                 self.assertIn('"lint"', fledge_lane(lane), f"the fledge `{lane}` lane must run the `lint` task")
 
@@ -143,6 +149,17 @@ class ClippyAllTargetsTests(unittest.TestCase):
         ):
             with self.subTest(command=bad):
                 self.assertNotEqual(problems(shlex.split(bad)), [])
+        # A later command's flags never count toward the clippy invocation.
+        for chained in (
+            "cargo clippy -- -D warnings && cargo test --all-targets",
+            "cargo test --all-targets; cargo clippy --all-targets",
+        ):
+            for command in clippy_commands(chained):
+                with self.subTest(command=" ".join(command)):
+                    self.assertNotEqual(problems(command), [], chained)
+        good_chained = clippy_commands("cargo clippy --all-targets -- -D warnings && cargo test")
+        self.assertEqual(len(good_chained), 1)
+        self.assertEqual(problems(good_chained[0]), [])
 
     def test_this_test_runs_through_fledge_and_ci(self) -> None:
         tasks = fledge_tasks()

@@ -4326,6 +4326,7 @@ fn load_legacy_archive_baseline_context(
     validate_legacy_baseline_authority_cutoff(root, authority, &baseline.cutoff_commit)?;
     let cutoff = baseline.cutoff_commit.clone();
     match authority.state {
+        ChangeState::Retired => return Err("retired nonacceptance cannot supply legacy baseline authority".into()),
         ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {}
         ChangeState::Accepted | ChangeState::Archived => {
             let authority_verification = authenticate_accepted_evidence(root, authority, None)

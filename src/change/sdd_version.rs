@@ -728,6 +728,7 @@ pub enum ChangeState {
     Verifying,
     Accepted,
     Archived,
+    Retired,
 }
 
 impl ChangeState {
@@ -739,6 +740,7 @@ impl ChangeState {
             Self::Verifying => "verifying",
             Self::Accepted => "accepted",
             Self::Archived => "archived",
+            Self::Retired => "retired",
         }
     }
 }
@@ -2405,8 +2407,14 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             };
             validate_loaded_change(&record, &expected_id, &state_path)?;
             let sequence = located_change_ordinal(&record.id)?;
-            let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
-                || reopened_change_preserves_sequence_history(root, &record);
+            // Retired is immutable terminal nonacceptance: like Accepted and
+            // Archived it freezes the sequence its ledger recorded, so an
+            // acknowledged collision stays acknowledged after a member is
+            // retired.
+            let historical = matches!(
+                record.state,
+                ChangeState::Accepted | ChangeState::Archived | ChangeState::Retired
+            ) || reopened_change_preserves_sequence_history(root, &record);
             located.push(LocatedChangeSequence {
                 sequence,
                 id: record.id,
@@ -2432,7 +2440,12 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
         || reopening.change_id != record.id
         || reopening.actor.trim().is_empty()
         || reopening.reason.trim().is_empty()
-        || reopening.from_state != ChangeState::Accepted
+        // `reopen_change` reopens out of the archive as well as out of Accepted,
+        // so a preserved-sequence reopening may carry either origin.
+        || !matches!(
+            reopening.from_state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
         || reopening.to_state != ChangeState::Verifying
         || !reopening.prior_verification.passed
         || (reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
@@ -2787,6 +2800,18 @@ pub(crate) fn answer_question_with_snapshot(
                 .collect::<Result<_, _>>()?;
             record.affected_paths = affected_paths;
         }
+        "dependencies" => {
+            let dependencies = split_values(answer);
+            for dependency in &dependencies {
+                if dependency == id || dependency_reaches(root, dependency, id, &mut BTreeSet::new()) {
+                    return Err("dependency rescope would create a change cycle".into());
+                }
+                load_change(root, dependency)?;
+            }
+            record.dependencies = dependencies;
+            record.dependencies.sort();
+            record.dependencies.dedup();
+        }
         "public_contract" => {
             record.answers.insert(question.into(), answer.into());
             if is_yes(answer) {
@@ -3128,6 +3153,7 @@ pub fn approve_definition_with_relay(
         ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
         ChangeState::Implementing | ChangeState::Verifying => ChangeState::Implementing,
         ChangeState::Accepted | ChangeState::Archived => prior_state,
+        ChangeState::Retired => return Err("retirement is immutable nonacceptance".into()),
     };
     record.updated_at = now();
     save_change(root, &record)?;
@@ -3234,9 +3260,38 @@ fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, Stri
     materialize_change_deltas_rerunning(root, id, &CheckInvocation::default().command(id))
 }
 
+/// Whether the latest audited reopening still freezes canonical content: a send-back at or
+/// after it superseded the reopening by re-scoping the change (Codex review of #1018).
+fn latest_reopening_still_freezes_canonical(ledger: &ApprovalLedger) -> bool {
+    ledger.reopenings.last().is_some_and(|reopening| {
+        !ledger
+            .send_backs
+            .iter()
+            .any(|sent| sent.timestamp >= reopening.timestamp)
+    })
+}
+
 /// [`materialize_change_deltas`], naming `rerun` as the command to re-run when open tasks
 /// refuse it (REQ-change-131).
 fn materialize_change_deltas_rerunning(
+    root: &Path,
+    id: &str,
+    rerun: &str,
+) -> Result<ChangeRecord, String> {
+    materialize_change_deltas_inner(root, id, rerun).map_err(|error| {
+        let frozen = load_change(root, id).is_ok_and(|record| {
+            record.canonical_applied
+                && load_approvals(root, &record)
+                    .is_ok_and(|ledger| latest_reopening_still_freezes_canonical(&ledger))
+        });
+        if frozen && !error.contains("frozen audited-reopened") {
+            let detail = error.split(';').next().unwrap_or(&error);
+            format!("frozen audited-reopened change {id}: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable")
+        } else { error }
+    })
+}
+
+fn materialize_change_deltas_inner(
     root: &Path,
     id: &str,
     rerun: &str,

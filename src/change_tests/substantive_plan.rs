@@ -3860,7 +3860,7 @@ fn invalid_supersedes_mutation_is_transactional() {
             "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
         ),
     );
-    let mut successor = create_change(
+    let successor = create_change(
         root,
         CreateChangeRequest {
             description: "Successor".into(),

@@ -343,6 +343,17 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 ),
             })
         }
+        ChangeAction::Retire { id, actor, reason, replacement, authority_source, source_kind } => {
+            let result = if source_kind == "accepted-receipt" {
+                change::retire_change(root, &id, actor, reason, replacement, authority_source)
+            } else {
+                change::retire_change_with_source(
+                    root, &id, actor, reason, replacement, authority_source,
+                    change::RetirementSourceKind::CommittedAuditedReopeningUnproven,
+                )
+            };
+            result.and_then(|record| print_record(root, &record, format, false, strict))
+        }
         ChangeAction::SendBack { id, actor, reason } => {
             change::send_back_change(root, &id, actor, reason).map(|result| match format {
                 OutputFormat::Json => print_json(&result),
@@ -704,15 +715,24 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     if passed {
                         print_json(&serde_json::json!({
                             "report": report,
+                            "audit_scope": if archives { "active-project-and-archives" } else { "active-project" },
+                            "archived_retirement_custody": if archives { "validated" } else { "not-inspected" },
                             "configured_commands_not_run": configured_commands_not_run(root)?,
                         }));
                     } else {
-                        print_json(&serde_json::json!({ "report": report }));
+                        print_json(&serde_json::json!({
+                            "report": report,
+                            "audit_scope": if archives { "active-project-and-archives" } else { "active-project" },
+                            "archived_retirement_custody": if archives { "failed-or-incomplete" } else { "not-inspected" },
+                        }));
                     }
                 }
                 _ => {
                     if passed {
                         print_configured_commands_not_run(root)?;
+                    }
+                    if !archives {
+                        println!("Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.");
                     }
                     if report.enabled {
                         println!(
@@ -826,6 +846,12 @@ fn print_record(
     include_questions: bool,
     strict: bool,
 ) -> Result<(), String> {
+    let retirement = if record.state == ChangeState::Retired {
+        change::validate_retirement(root, record)?;
+        Some(change::retirement_record(root, record)?)
+    } else {
+        None
+    };
     let questions = if include_questions {
         change::next_questions_for(root, record)
     } else {
@@ -871,6 +897,9 @@ fn print_record(
                             serde_json::json!(false),
                         );
                     }
+                    if let Some(retirement) = &retirement {
+                        object.insert("retirement".into(), serde_json::json!(retirement));
+                    }
                     if !claims.is_empty() {
                         object.insert("recorded_claims".into(), serde_json::json!(claims));
                     }
@@ -891,6 +920,32 @@ fn print_record(
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
+            if let Some(retirement) = &retirement {
+                println!(
+                    "Retired without implementation acceptance; historical transitions unproven."
+                );
+                println!("  Recorded actor/source are claims, not authenticated human identity.");
+                println!("  Replacement: {}", retirement.replacement_id);
+                // Provenance the disposition was recorded with; text stays free of
+                // digests (CodeQL rust/cleartext-logging), so only the sanitized
+                // claim, the source kind, and per-input custody classes print.
+                println!(
+                    "  Authority: {}",
+                    printable_claim_text(&retirement.authority_source)
+                );
+                if let Some(kind) = &retirement.source_kind {
+                    println!("  Source: {}", retirement_source_kind_label(kind));
+                }
+                for entry in &retirement.custody {
+                    if let Some(classification) = &entry.classification {
+                        println!(
+                            "  Custody: {} ({})",
+                            printable_claim_text(&entry.path),
+                            retirement_custody_classification_label(classification)
+                        );
+                    }
+                }
+            }
             print_recorded_claims(&claims);
             print_verification_ignored_lines(root);
             print_change_text_answers(record);
@@ -992,6 +1047,28 @@ fn printable_claim_text(text: &str) -> String {
         }
     }
     printable
+}
+
+/// Human label for a retirement receipt's recorded source kind (text status only).
+fn retirement_source_kind_label(kind: &change::RetirementSourceKind) -> &'static str {
+    match kind {
+        change::RetirementSourceKind::AcceptedReceipt => "accepted receipt",
+        change::RetirementSourceKind::CommittedAuditedReopeningUnproven => {
+            "committed audited reopening (unproven)"
+        }
+    }
+}
+
+/// Human label for one custody entry's classification (text status only).
+fn retirement_custody_classification_label(
+    classification: &change::RetirementCustodyClassification,
+) -> &'static str {
+    match classification {
+        change::RetirementCustodyClassification::SameSignedOwners => "same signed owners",
+        change::RetirementCustodyClassification::UnchangedExactFileCurrentOwner => {
+            "unchanged exact file under a current owner"
+        }
+    }
 }
 
 fn print_mutation_record(
@@ -1197,6 +1274,7 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
         return change::upstream_archive_message(id, &upstream);
     }
     match record.state {
+        ChangeState::Retired => change::retirement_next_action(root, record),
         // The command approve's refusal names for the same question
         // (REQ-cmd-change-answer-hint-001).
         ChangeState::Draft if !change::next_questions_for(root, record).is_empty() => {
@@ -1423,7 +1501,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             }
             warnings.push(merge_before_finalize_warning(false));
         }
-        if tip.tip_class == "archive_only" && record.state != ChangeState::Archived {
+        if tip.tip_class == "archive_only"
+            && !matches!(record.state, ChangeState::Archived | ChangeState::Retired)
+        {
             warnings.push(
                 "HEAD looks like an archive-only tip while this change is still active — push product/review tips first, then finalize"
                     .to_string(),
@@ -1438,7 +1518,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     }
 
     // Ordering rules from multi-change dogfood (#487): always surface while active.
-    if record.state != ChangeState::Archived {
+    // Retired is terminal, so these gates no longer apply to it either.
+    if !matches!(record.state, ChangeState::Archived | ChangeState::Retired) {
         if !warnings
             .iter()
             .any(|warning| warning.contains("merge the PR before finalize"))
@@ -1500,7 +1581,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(
         record.state,
-        ChangeState::Draft | ChangeState::Accepted | ChangeState::Archived
+        ChangeState::Draft | ChangeState::Accepted | ChangeState::Archived | ChangeState::Retired
     ) {
         // The ship lane may narrow the next action; it may never contradict the
         // lifecycle state. Outside the shipping window the lane's own advice is
@@ -1569,7 +1650,9 @@ fn sibling_active_change_ids(root: &Path, id: &str) -> Vec<String> {
     let mut ids: Vec<String> = roster
         .records
         .into_iter()
-        .filter(|record| record.id != id && record.state != ChangeState::Archived)
+        .filter(|record| {
+            record.id != id && !matches!(record.state, ChangeState::Archived | ChangeState::Retired)
+        })
         .map(|record| record.id)
         .collect();
     ids.extend(
@@ -2054,6 +2137,10 @@ impl ShipReviewStatus {
 fn product_stage_action(record: &ChangeRecord) -> String {
     let id = record.id.as_str();
     match record.state {
+        ChangeState::Retired => {
+            "retired without implementation acceptance; use the independent current replacement"
+                .into()
+        }
         ChangeState::Draft => format!(
             "run `specsync change approve {id} --actor <name>` once the definition is complete; `change check` refuses a draft"
         ),
@@ -2079,17 +2166,24 @@ fn ship_stages(
     let verified = verification_present && verification_current && verification_commit.is_some();
     let mut stages = Vec::new();
 
-    let product_done = verified
-        && matches!(
-            record.state,
-            ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
-        );
+    // Retired is a completed terminal disposition in every stage: no product tip,
+    // review, finalize, or merge gate applies to a record that was retired
+    // without implementation acceptance.
+    let retired = record.state == ChangeState::Retired;
+    let product_done = retired
+        || (verified
+            && matches!(
+                record.state,
+                ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
+            ));
     stages.push(serde_json::json!({
         "id": "product_tip",
         "title": "Product tip (local verification)",
         "status": if product_done { "done" } else { "current" },
         "sha": verification_commit,
-        "action": if product_done {
+        "action": if retired {
+            product_stage_action(record)
+        } else if product_done {
             "product verification evidence is current for this content".to_string()
         } else {
             product_stage_action(record)
@@ -2100,7 +2194,7 @@ fn ship_stages(
     // `ready_to_finalize: false` is the same recommend-then-refuse contradiction one line
     // lower, and it is also what leaves `current_stage` empty — which drops `ship_next` back
     // to the generic lifecycle line instead of naming the recovery.
-    let review_status = if review.current() {
+    let review_status = if retired || review.current() {
         "done"
     } else if product_done {
         "current"
@@ -2111,7 +2205,9 @@ fn ship_stages(
         "id": "review_tip",
         "title": "Scoped review (local, no CI wait)",
         "status": review_status,
-        "action": if review.current() {
+        "action": if retired {
+            "no scoped review applies; the change was retired without implementation acceptance".to_string()
+        } else if review.current() {
             "scoped review is recorded and current".to_string()
         } else if product_done && review.present() {
             format!(
@@ -2127,7 +2223,7 @@ fn ship_stages(
         },
     }));
 
-    let archive_status = if record.state == ChangeState::Archived {
+    let archive_status = if record.state == ChangeState::Archived || retired {
         "done"
     } else if ready_to_finalize {
         "current"
@@ -2138,7 +2234,9 @@ fn ship_stages(
         "id": "archive_tip",
         "title": "Archive tip (finalize on the same PR)",
         "status": archive_status,
-        "action": if record.state == ChangeState::Archived {
+        "action": if retired {
+            "retirement custody is recorded as terminal nonacceptance; no finalize applies".to_string()
+        } else if record.state == ChangeState::Archived {
             "change is archived; commit and push the archive tip, wait for CI (Archive, then the full lane), then merge when it is green"
                 .to_string()
         } else if ready_to_finalize {
@@ -2151,8 +2249,18 @@ fn ship_stages(
     stages.push(serde_json::json!({
         "id": "merge",
         "title": "Merge the PR",
-        "status": if record.state == ChangeState::Archived { "current" } else { "pending" },
-        "action": "merge only after finalize — merging an unfinalized change orphans verification evidence",
+        "status": if retired {
+            "done"
+        } else if record.state == ChangeState::Archived {
+            "current"
+        } else {
+            "pending"
+        },
+        "action": if retired {
+            "retired without implementation acceptance; this record has no finalize or merge gate".to_string()
+        } else {
+            "merge only after finalize — merging an unfinalized change orphans verification evidence".to_string()
+        },
         "head_tip_class": tip.tip_class,
     }));
 
@@ -4917,6 +5025,66 @@ if the floor call is removed from this function"
         let report = ship_status_report(root, &record).expect("ship status");
         assert_eq!(report["ready_to_finalize"], false);
         assert_eq!(report["stages"][0]["status"], "current", "{report}");
+    }
+
+    #[test]
+    fn ship_status_treats_retired_as_terminal_in_every_stage() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Retire a terminal record's ship status".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        // A retired record without its receipt is the invalid-custody shape; the stage
+        // semantics under test (terminal, no lane guidance) hold either way.
+        let mut retired = change::load_change(root, &id).expect("load");
+        retired.state = ChangeState::Retired;
+        let state_path = root.join(".specsync/changes").join(&id).join("state.json");
+        fs::write(
+            &state_path,
+            serde_json::to_string_pretty(&retired).expect("serialize"),
+        )
+        .expect("write retired state");
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        let stages = report["stages"].as_array().expect("stages");
+        assert!(
+            stages.iter().all(|stage| stage["status"] == "done"),
+            "every stage is terminal for a retired record: {stages:?}"
+        );
+        assert_eq!(report["ready_to_finalize"], false);
+        let mut rendered = String::new();
+        for stage in stages {
+            rendered.push_str(stage["action"].as_str().unwrap_or_default());
+        }
+        for warning in report["warnings"].as_array().expect("warnings") {
+            rendered.push_str(warning.as_str().unwrap_or_default());
+        }
+        rendered.push_str(report["ship_next"].as_str().unwrap_or_default());
+        for guidance in [
+            "change review",
+            "change ship",
+            "change check",
+            "merge only after finalize",
+            "still active",
+        ] {
+            assert!(
+                !rendered.contains(guidance),
+                "a retired record must not be guided through the shipping lane: `{guidance}` in {rendered}"
+            );
+        }
     }
 
     /// DISCRIMINATOR (issue #825). An invalid `verification_ignored_paths` entry is a blocker

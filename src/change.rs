@@ -10,3 +10,5 @@ include!("change/read_deadline.rs");
 include!("change/send_back.rs");
 include!("change/relayed_decision.rs");
 include!("change/doctor.rs");
+
+include!("change/retirement.rs");

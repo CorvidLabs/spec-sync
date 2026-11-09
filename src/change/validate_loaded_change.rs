@@ -430,7 +430,15 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
 
 /// Loads the active and archived roster. `walk_archived_history` decides whether each archived
 /// record's Git workflow-version history is validated as well.
-fn list_all_changes_loaded(
+fn list_all_changes_loaded(root: &Path, walk_archived_history: bool)
+    -> Result<BTreeMap<String, ChangeRecord>, String>
+{
+    let records = list_all_change_metadata(root, walk_archived_history)?;
+    validate_retired_records(root, &records)?;
+    Ok(records)
+}
+
+fn list_all_change_metadata(
     root: &Path,
     walk_archived_history: bool,
 ) -> Result<BTreeMap<String, ChangeRecord>, String> {
@@ -441,7 +449,9 @@ fn list_all_changes_loaded(
     let archive = root.join(ARCHIVE_PATH);
     let entries = match fs::read_dir(&archive) {
         Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(records);
+        },
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
     let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();

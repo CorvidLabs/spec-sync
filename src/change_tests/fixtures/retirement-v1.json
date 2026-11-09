@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "domain": "specsync.retirement.v1",
+  "change_id": "harden-verification",
+  "actor": "Synthetic operator",
+  "reason": "Obsolete Hatch intent replaced by current intent",
+  "authority_source": "Synthetic test authority, not a real human decision",
+  "timestamp": 1794199957,
+  "original_state": "{\n  \"schema_version\": 1,\n  \"workflow_version\": 2,\n  \"workflow_origin_version\": 2,\n  \"id\": \"harden-verification\",\n  \"slug\": \"harden-verification\",\n  \"title\": \"Harden verification\",\n  \"description\": \"harden verification\",\n  \"kind\": \"bug_fix\",\n  \"state\": \"verifying\",\n  \"canonical_applied\": true,\n  \"base_commit\": \"a60adeeeaeb406ab2f672259ad290bb8d7b69a46\",\n  \"created_at\": 1794199930,\n  \"updated_at\": 1794199942,\n  \"affected_specs\": [\n    \"change\"\n  ],\n  \"affected_paths\": [\n    \"src/\"\n  ],\n  \"no_spec_change\": true,\n  \"no_spec_change_rationale\": \"No public contract change\",\n  \"acceptance_criteria\": [\n    \"Verification is fresh\"\n  ],\n  \"selected_artifacts\": [\n    \"context\",\n    \"testing\",\n    \"tasks\"\n  ],\n  \"dependencies\": [],\n  \"answers\": {\n    \"architecture_risk\": \"no\",\n    \"public_contract\": \"no\"\n  }\n}\n",
+  "original_state_mode": 33188,
+  "original_package_digest": "9a8ed9118040b69f63c70e9f2c4b5e7a06ae4e505181e4cc964880def48accb9",
+  "source_anchor": "015dc4796fdca5f96d7e6749db2f4c3f8e5af5da",
+  "source_package_digest": "7734c7e1c4238499d330c8e6210f490406c5195f392890c2e2270181f643222a",
+  "source_review_untrusted": true,
+  "prior_manifest_digest": "8b9630ecf1df4b9bb7f5f056c67c0b47c633aaea509caea93ca7d8d31bdc4a58",
+  "replacement_id": "harden-verification-2",
+  "replacement_closing_digest": "19c2d2c0393d995bdf52ebdff9ae5de4e489c29d096153ceff21e6082efad49e",
+  "replacement_manifest_digest": "4a555fe9c342b21d8b989e8d0ab83216539175683e1f81258e2a27c0e15890f3",
+  "custody": [
+    {
+      "path": "specs/change/change.spec.md",
+      "predecessor_entry_digest": "0d99306c09a23ceae9a987d78dc1baa5e192ee51d166f8b9ed5913e1aab83f4f",
+      "predecessor_owners": [
+        "change"
+      ],
+      "replacement_entry_digest": "0d99306c09a23ceae9a987d78dc1baa5e192ee51d166f8b9ed5913e1aab83f4f",
+      "replacement_owners": [
+        "change"
+      ]
+    },
+    {
+      "path": "src/lib.rs",
+      "predecessor_entry_digest": "e3c80ba3db102bc5fa40215bd9604596053af1843bb8fc2ebd426916f57b5c12",
+      "predecessor_owners": [
+        "change"
+      ],
+      "replacement_entry_digest": "ea6a95f7263ade9ff5edfab9609dd2dd9d1d49c03ed54f569fd1555c3a4f9c47",
+      "replacement_owners": [
+        "change"
+      ]
+    }
+  ],
+  "implementation_accepted": false,
+  "historical_transition_status": "unproven",
+  "digest": "3700ccef1273c613b35ae3653b74bf45785d8422158ede7a9363b4f9f858abec"
+}

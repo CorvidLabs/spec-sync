@@ -3603,6 +3603,11 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
         return upstream_archive_handoff(&record.id, &upstream);
     }
     match record.state {
+        ChangeState::Retired => {
+            return HandoffSummary { readiness: HandoffReadiness::Conditional,
+                reason: retirement_next_action(root, record),
+                resume: format!("specsync change status {}", record.id), before_clearing: Vec::new() };
+        }
         ChangeState::Archived => {
             signals.corrupt_archive =
                 corrupt_archive_signal(root, record, Some(&terminal_evidence_summary(root, record)));
@@ -3666,6 +3671,8 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
         )
     } else {
         match signals.state {
+            ChangeState::Retired => (HandoffReadiness::Conditional,
+                "retired without implementation acceptance; validate retained custody before relying on this disposition", Vec::new()),
             ChangeState::Archived => match &signals.corrupt_archive {
                 Some(corrupt) => (
                     HandoffReadiness::NotYet,
@@ -4042,6 +4049,7 @@ fn summarize_change_with_effective(
         upstream_archive_message(&record.id, upstream)
     } else {
         match record.state {
+            ChangeState::Retired => retirement_next_action(root, record),
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
                 // The command approve's refusal names for the same question
                 // (REQ-cmd-change-answer-hint-001).
@@ -4326,6 +4334,28 @@ fn finish_audit(root: &Path, mut report: SddCheckReport) -> SddCheckReport {
         if !report.errors.contains(&error) {
             report.enabled = true;
             report.errors.push(error);
+        }
+    }
+    // A retirement whose archive move is still pending keeps its record and
+    // receipt under `.specsync/changes/`, and the combined active-and-archive
+    // loader is the only other place retired custody is validated — so without
+    // this pass the default active-only audit would green-light a tampered
+    // pending receipt. Completed archive custody stays behind `--archives`.
+    if let Ok(records) = list_changes_checked(root) {
+        for record in records
+            .iter()
+            .filter(|record| record.state == ChangeState::Retired)
+        {
+            if let Err(error) = validate_retirement(root, record) {
+                let error = format!(
+                    "active retired change `{}` failed retirement custody validation: {error}",
+                    record.id
+                );
+                if !report.errors.contains(&error) {
+                    report.enabled = true;
+                    report.errors.push(error);
+                }
+            }
         }
     }
     report

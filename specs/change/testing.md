@@ -199,6 +199,16 @@ REQ-change-142: `an_unreadable_upstream_archive_listing_is_reported_not_read_as_
 
 #967 executable recovery: `the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root` (tests/integration/archived_upstream.rs) failed first at 23fffcedee001dac6ede47e89ffe912b819b4552 because the printed status command lost `--root`. It executes all three printed commands from the repository parent with a project directory containing spaces and quotes, then requires status to name the upstream archive and rebase, the active change to stay verifying and no second archive to exist. The final status command retains the selected project root as one quoted argument.
 
+Recovery: src/change_tests/recovery_retirement.rs and CLI retirement grammar cover custody, committed history, stale/unreviewed/circular/unknown-input refusals and interrupted move retry. Actual old-reader incompatibility and unchanged antecedent archive controls are retained externally. Final-head full qualification remains separate.
+
+Schema-v2 refinement controls: the six recovery_refinement_ tests exercise production dirty-Accepted/failed-archive -> audited reopen -> committed packet custody, refusal to downgrade existing Accepted anchors, missing/edited packet refusal, missing/nonancestor anchors even with recomputed receipt digest, exact ordinary-file owner classification and original v1 digest compatibility. refinement-red was 0 passed/3 failed; refinement-combined was 6 passed/0 failed. Whole-candidate recovery/full lanes remain separate receipts.
+
+History bootstrap regression: recovery_retirement_history_distinguishes_unborn_from_unreadable_head was red0/1 before the narrow guard, then green1/1 including a real deleted commit object. All six failures observed in the interrupted904cb152 full run passed individually in unborn-existing-results.json. This does not establish a full suite pass.
+
+Git-spawn backstop: full00a23dfe and exact diagnostic failed unchanged ceilings(new36>32,finalize332>316). Narrow history fallback ordering has its own discriminator/count/full receipts; prior real creation observations remain00a-specific and final reader replay must identify its exact source/hash.
+
+Coverage mapping: src/change_tests/recovery_retirement.rs belongs to the existing change module alongside the other included change_tests files. Warm pre-push69 exposed its omitted files declaration(154/155,99%); retain that failure. The mapping/version/changelog correction and this companion note alter no Rust source, fixture, assertion, dependency, workflow or policy configuration. Preserve the running lane edit boundary and use explicit equivalence; do not relabel it a clean-final-head run. Run strict100%, pre-push and native checks on the committed mapping.
+
 ## PR1014 review regression evidence
 
 `src/change_tests/relayed_decision.rs` adds four private TEST-fixture discriminators:

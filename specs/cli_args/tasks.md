@@ -23,3 +23,5 @@ spec: cli_args.spec.md
 - [x] Clarify scoped-review claims versus separately enforced authentication without changing runtime review rules.
 - [x] Parse the relayed-decision flags on `change approve` and `change review` and say the actor and reviewer are recorded claims (REQ-cli-args-relayed-decision-001, #633).
 - [x] Parse `change repair-relays <id>`, taking only the change id (#904, REQ-cli-args-relay-repair-001).
+
+- [x] Implement bounded audited nonacceptance and retry with frozen-scope guidance; full qualification and human review remain separate.

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 217
+version: 218
 status: active
 files:
   - src/change.rs
@@ -744,3 +744,4 @@ Acceptance Criteria
 | 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
 | 2026-11-09 | the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints: The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966) |
+| 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |

@@ -39,6 +39,11 @@ cmd = "python3 .github/scripts/test-linux-baseline.py"
 [tasks.ci-trigger-paths-test]
 cmd = "python3 .github/scripts/test-ci-trigger-paths.py"
 
+# attest runs on every green push to main, and the scoped-review summary cannot read green
+# over a failed or blocked gate (CI-9, CI-10, #798, #799).
+[tasks.ci-attest-and-summary-test]
+cmd = "python3 .github/scripts/test-ci-attest-and-summary.py"
+
 # Real SpecSync 6.0.0 and 6.2.0 releases, pinned by sha256, read what `specsync doctor` writes and
 # never count a closed-late change as checked (REQ-change-143, SHIP-12.g). Downloads the releases;
 # CI runs it on every full pull request.
@@ -91,6 +96,7 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "ci-attest-and-summary-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
 
@@ -120,6 +126,7 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "ci-attest-and-summary-test",
 ]
 
 # Used by .trust.toml [lifecycle] for the GitHub Trust action only.
@@ -148,5 +155,6 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "ci-attest-and-summary-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

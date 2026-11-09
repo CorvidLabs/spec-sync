@@ -101,3 +101,4 @@ spec: change.spec.md
 - [x] Record an optional relayed decision on definition approvals (portable pair included) and scoped reviews, leave it out of the review digest, and project recorded claims for status (REQ-change-relayed-decision-001, #633).
 - [x] Name `specsync change repair-relays <id>` in an active change's relay refusals and repair a damaged relay from `HEAD` or its twin, otherwise removing only that `relayed_by` (#904, REQ-change-relay-repair-001).
 - [x] Read a relayed decision as absent in the approval-succession check, the definition digest over the correction ledger and the trusted correction-history comparison (#926, #927, #971, REQ-change-relay-compare-001).
+- [x] Correct PR1014 review findings within the existing relay contract: retain reopening fields, normalize accepted-anchor comparison and deduplication, and refuse embedded correction decider mismatches; four committed regressions fail on the old source and pass unchanged after the fix.

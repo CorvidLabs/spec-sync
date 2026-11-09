@@ -186,3 +186,26 @@ REQ-change-relay-compare-001 (#926, #927, #971; CHANGE-13.h): approval_successio
 REQ-change-relay-repair-001 (#904): binary-driven, each running the command its refusal names: a_damaged_review_relay_in_the_review_to_ship_window_is_repaired_by_the_named_command (review.json put back from the last attempt byte for byte, nothing committed, then finalize), a_damaged_relay_on_the_last_review_attempt_is_put_back_from_review_json, a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_commit_back (committed approvals.json put back from HEAD; bytes equal the commit), a_damaged_relay_with_no_surviving_copy_is_removed_and_every_attempt_and_verdict_stays (REQ-change-046: the block attempt and its verdict stay), a_damaged_approval_relay_before_its_first_commit_is_removed_and_the_approval_stays, repair_relays_with_nothing_damaged_says_so_and_writes_nothing, repair_relays_on_an_archived_change_names_git_checkout_and_that_command_recovers, an_archived_damaged_relay_still_names_git_checkout_and_that_command_recovers and repair_relays_on_a_committed_file_that_is_not_json_names_git_checkout_and_it_recovers and, from the #995 review, repair_relays_refuses_when_git_cannot_read_the_head_copy_and_its_rerun_puts_it_back (a relay is removed only once Git has answered that HEAD holds no copy; it failed first with the relay removed), and from the second #995 review send_back_refuses_a_damaged_review_attempt_relay_naming_repair_relays_and_then_proceeds and repair_relays_refuses_while_another_ledger_does_not_read_and_writes_nothing (both failed first) (tests/integration/relayed_decision.rs). They failed first on #900's head 83db636b: five because the refusal named `git checkout HEAD`, three because `repair-relays` did not exist; the archived guard passed. Unit: only_git_saying_so_counts_as_no_committed_copy (no work tree, unborn HEAD and a path HEAD lacks are no copy; a HEAD that does not resolve is an error; it failed first on the previous code), relay_recoveries_quote_the_change_id_and_path_after_double_dash (#995 review: the id and path are single shell words after `--`; it failed first with the id unquoted), a_relay_is_put_back_only_from_a_clean_copy_of_the_same_record (matching, and a clean record is never damaged) and a_read_relay_must_name_its_own_record_decider, which now runs the repair (src/change_tests/relayed_decision.rs).
 
 REQ-change-001 (narrowed, CHANGE-6.d): status_shows_the_approval_and_review_claims_with_the_relay_and_its_boundary asserts the approval's actor prints as "a recorded claim, not authenticated".
+
+## PR1014 review regression evidence
+
+`src/change_tests/relayed_decision.rs` adds four private TEST-fixture discriminators:
+`pr1014_succession_preserves_a_reopenings_top_level_relay_key`,
+`pr1014_accepted_evidence_keys_ignore_only_approval_relays`,
+`pr1014_accepted_anchor_ignores_a_dropped_approval_relay_but_keeps_other_fields`, and
+`pr1014_correction_read_refuses_each_embedded_relay_decider_mismatch`.
+They cover REQ-change-relay-compare-001 and the existing relayed-decision read contract.
+The valid committed anchor and unchanged ledger prefix pass before the discriminators;
+non-relay actor/unknown-field edits and invalid JSON remain distinct or refused.
+Both embedded approval positions are checked, with valid-relay restoration as control.
+
+All four fail on committed old production `c73e6e40b08439892225af33d98d9b3523a2bcec`.
+The identical test file passes on narrowed production
+`18f3505b3e7dd0feecaa69f7774d5a680989cc88`; SHA256 is
+`e3c1c70f17f07686b1bbbba22f5d27d1e6fb077cc099d6d7655eada3ce220be9`.
+The related `relay` filter passes 21 tests, including those four, with 0 failures/ignored.
+Repository formatting and production Clippy pass under pinned Rust 1.89.0.
+An earlier test-only undefined-constant compile failure is retained separately and
+does not count as RED. Formatting cleanup has a canonical-rustfmt equivalence receipt.
+These are focused author checks; full verification, Trust, site and independent/human
+review are separate and were not run by this repair phase. The old archive is unchanged.

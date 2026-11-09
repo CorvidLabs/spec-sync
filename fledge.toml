@@ -44,6 +44,12 @@ cmd = "python3 .github/scripts/test-ci-trigger-paths.py"
 [tasks.ci-attest-and-summary-test]
 cmd = "python3 .github/scripts/test-ci-attest-and-summary.py"
 
+# Real SpecSync 6.0.0 and 6.2.0 releases, pinned by sha256, read what `specsync doctor` writes and
+# never count a closed-late change as checked (REQ-change-143, SHIP-12.g). Downloads the releases;
+# CI runs it on every full pull request.
+[tasks.closed-late-compat]
+cmd = "bash .github/scripts/test-closed-late-compat.sh target/release/specsync"
+
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
 
@@ -93,6 +99,10 @@ steps = [
   "ci-attest-and-summary-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
+
+[lanes.closed-late-compat]
+description = "Old SpecSync releases read what doctor writes (downloads 5.2.0, 6.0.0 and 6.2.0)"
+steps = ["build", "closed-late-compat"]
 
 [lanes.pre-commit]
 description = "Fast gate before committing"

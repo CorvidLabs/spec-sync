@@ -1,6 +1,6 @@
 ---
 module: cmd_merge
-version: 5
+version: 7
 status: stable
 files:
   - src/commands/merge.rs
@@ -33,7 +33,7 @@ Implements the `specsync merge` command. Auto-resolves git merge conflicts in sp
 1. Delegates to `merge::merge_specs()`
 2. `--all` scans all spec files for conflict markers
 3. Exits 1 if any merge needs manual resolution
-4. `specsync merge --install` writes the attribute rules into `.gitattributes` and sets `merge.specsync.driver` to this executable's `merge-file` command. A symlinked `.gitattributes` is refused
+4. `specsync merge --install` writes the attribute rules into `.gitattributes` and sets `merge.specsync.driver` to this executable's `merge-file` command. A symlinked `.gitattributes` is refused. When the configured specs directory is `.` or `./`, the unprefixed `**/*.spec.md` and `**/requirements.md` rules match root and nested contracts (REQ-cmd-merge-004)
 5. `specsync merge-file` is the driver git runs as `%O %A %B %P`. It exits 1 when the contract still contains a conflict, and it does not loosen `cmd_merge`'s marker scan
 
 ## Behavioral Examples
@@ -83,3 +83,5 @@ Implements the `specsync merge` command. Auto-resolves git merge conflicts in sp
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 | 2026-11-05 | v5 / #862: `merge --install` registers the git driver and `merge-file` merges one contract for it |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
+| 2026-11-06 | v6 / #871: `merge --install` matches root and nested contracts when the configured specs directory is `.` or `./` (REQ-cmd-merge-004) |
+| 2026-11-07 | make-merge-driver-installation-match-contracts-when-the-specs-directory-is-the-repository-root: Make merge driver installation match contracts when the specs directory is the repository root |

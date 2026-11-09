@@ -1,0 +1,58 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794010244,
+      "digest": "428b6453af565b01c023e3919c6339bc29c3a0e8e4ec75435cf1bfa84afddecb",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to",
+        "title": "Report production source no declared module owns before approval and review, and never call such a change ready to finalize",
+        "description": "Report production source no declared module owns before approval and review, and never call such a change ready to finalize",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "src/change/",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change approve refuses a no-spec-change draft whose existing affected production-source path a module owns, naming the path, the owning spec and module, and specsync change answer <id> affected_specs <modules>; running that command lets the draft approve.\nchange ship-status and change ship --dry-run run the canonical-ownership check finalize runs over the delivery inputs: a production-source input no declared module owns is a blocker naming the path, the owning module, and the recovery (specsync change send-back <id>, then specsync change answer <id> affected_specs <modules>); neither says ready to finalize, and the dry run exits non-zero.\nThe integration test with a directory-scoped no-spec-change change runs that recovery and ships; it and the approve unit test fail on main 9dd2affd and pass with the fix.\nOwnership is decided exactly as before (REQ-change-053): a path that does not exist yet is still enforced at finalize, an owned change ships unchanged, and no gate, bound or timeout is relaxed."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-053 decides ownership; only when it is checked moves earlier, never who owns what. The #901/#880 lesson: a named recovery is only right once a test runs it, so the integration test runs send-back, answer, approve, check, review and ship. REQ-cmd-change-031 is the pattern: ship-status reports the same blocker ship refuses on, and the dry run refuses too. SPEED-2.b.2: no test is weakened.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c424a2a74b967b3af041abd5379446dfdee48ccaedd79c8c47df78f2aa382f8f",
+        "cmd_change": "6682ad66daf83751a36fb554b93845df05ae6987a6d62c23bfc58f2d623f0449"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "d28055fc7110e7b7ca30cda51699029ee7ebb46b8cdda6932e7a8fecb51998ac",
+        "change: REQUIREMENT REQ-change-120": "e060642be98fc845e17473d5039810d5f43f95b86e7166db3926c6f2f739cc3f",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "04bc31d1206b2f366c537ca8b8d2e681555ddfe8f1c39fc21a9d5c9fd3c1833f"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794014886,
+      "digest": "bb8ed45e5a446b11fbc6e3cdcc1c1032c5c85019df8f1ba7d835a00b45a16181",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

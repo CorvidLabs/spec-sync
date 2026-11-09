@@ -221,6 +221,25 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
+    /// Report every problem in the change records with its fix; `--fix` applies the safe ones
+    Doctor {
+        /// Apply the safe fixes, and every late close named with --close-late
+        #[arg(long)]
+        fix: bool,
+        /// With --fix, report what would be done and write nothing
+        #[arg(long, requires = "fix")]
+        dry_run: bool,
+        /// Close this merged but never archived change late (repeatable), or `all` for every
+        /// eligible one; needs --fix, --actor and --reason
+        #[arg(long = "close-late", value_name = "ID|all", requires_all = ["fix", "actor", "reason"])]
+        close_late: Vec<String>,
+        /// The person deciding the late close; recorded as a claim, not proof
+        #[arg(long)]
+        actor: Option<String>,
+        /// Why the change is closed late; kept in its late-close record
+        #[arg(long)]
+        reason: Option<String>,
+    },
     /// Three-way merge one contract. Git's merge driver calls this as
     /// `specsync merge-file %O %A %B %P` and reads the exit status.
     MergeFile {
@@ -816,6 +835,87 @@ pub enum AgentsAction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // REQ-cli-args-025: the doctor grammar.
+    #[test]
+    fn doctor_parses_its_scan_fix_dry_run_and_named_late_closes() {
+        for args in [
+            vec!["specsync", "doctor"],
+            vec!["specsync", "doctor", "--fix"],
+            vec!["specsync", "doctor", "--fix", "--dry-run"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--close-late",
+                "b",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--dry-run",
+                "--close-late",
+                "all",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "--json", "doctor"],
+        ] {
+            assert!(Cli::try_parse_from(&args).is_ok(), "{args:?} must parse");
+        }
+    }
+
+    // REQ-cli-args-025: a late close needs --fix, an actor and a reason; a dry run needs --fix.
+    #[test]
+    fn doctor_refuses_a_late_close_or_dry_run_without_its_required_flags() {
+        for args in [
+            vec![
+                "specsync",
+                "doctor",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--fix", "--close-late", "a"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--dry-run"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&args).is_err(),
+                "{args:?} must be refused"
+            );
+        }
+        assert!(Cli::try_parse_from(["specsync", "doctor"]).is_ok());
+    }
 
     #[test]
     fn no_subcommand_yields_none_and_text_default() {

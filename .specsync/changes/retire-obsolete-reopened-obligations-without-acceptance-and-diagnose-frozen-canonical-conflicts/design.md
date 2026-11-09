@@ -44,3 +44,18 @@ Write order: lock -> validate unchanged audited reopen and historical source cus
 Initial production-path slice will test preparation/custody and one actual retirement->eligible child rescope->finalize before broad CLI/rendering changes. Exact event schema and replay validation will be pinned by those tests. Any missing earlier accepted anchor or exact successor proof stays a concrete blocker, not a waived check.
 
 ADMIN/catalog is separate: current reconcile-history deliberately refuses a predecessor that is itself historical reconciliation, and assumes an active accepted receipt at its new definition base. Do not presume it already covers ADMIN. A minimal extension, if required, must admit an authenticated archived reconciliation receipt at the new base, preserve both complete receipt witnesses and unproven classifications, and recursively validate the earlier witness. Ordinary exact-base succession remains unchanged. First preserve the failing nested-chain test; only then qualify any implementation of this extension. No invented source behavior or padded fake delta.
+
+## Current root decision after first positive slice
+
+Retain COMPLETE custody until actual native qualification proves a gap. No per-entry historical-retention variant, manifest-generation relaxation or catalog reconciliation exception is being implemented. Reader archive covers BABY 4/4 by coordinator evidence, but not PARENT 151/151. Actual parent replacement manifest/path/owner coverage is still pending. Root reports a fresh properly ordered catalog successor is the ordinary site route. Source retirement custody currently requires exact owner lists, so reserved-exact/current-module owner differences will be reported as a hold rather than silently reassigned.
+
+## Failure recovery revision after confirmed P2 red controls
+Initial publication uses the existing durable two-target transaction for state plus receipt.
+A failed package rename leaves both together, explicitly reports a pending archive move and
+requires identical-argument retry. No unjournaled restore/delete rollback pair remains.
+The old ee5e mixed layout (exact original Verifying state plus unchanged receipt) is also
+resumable: construct only the intended Retired validation view, validate all committed
+event bytes and current custody before any write, publish state through the transaction,
+then finish the move. This view is private to retry, never a dependency or succession credit.
+Default audit remains active-project only and reports archived custody not inspected;
+explicit status, audit --archives and finalize retain fail-closed custody validation.

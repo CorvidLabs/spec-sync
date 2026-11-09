@@ -32,3 +32,5 @@ spec: cmd_change.spec.md
 - [x] Name only a state-admitted verb in the ship-status product stage: approve for a draft, reopen for stale accepted or archived evidence, check otherwise (#690, REQ-cmd-change-033).
 - [x] Take `--words`, `--where` and `--recorded-by` on approve and review, and print recorded claims and relays in status text and JSON (REQ-cmd-change-relayed-decision-001, #633).
 - [x] Add `change repair-relays <id>`: one line per repaired relayed decision (put back from `HEAD` or its twin, or removed with the removed value shown), `No relayed decision in <id> needs repair.` when nothing is damaged, and `--json` printing the repair report (#904, REQ-cmd-change-relay-repair-001).
+
+- [x] Implement bounded audited nonacceptance and retry with frozen-scope guidance; full qualification and human review remain separate.

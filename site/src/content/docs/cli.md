@@ -715,3 +715,27 @@ SpecSync 6.2.0 adds `specsync change reconcile-history ID --actor ACTOR --reason
 The resulting schema-2 evidence explicitly marks historical file transitions **unproven**. It authenticates the complete original accepted package and frozen manifest at the anchor, preserves those bytes, and still verifies the current successor inputs at its actual acceptance commit. It does not claim retrospective product acceptance or historical before/after proof. Normal schema-1 succession retains its actual base-file check. Protected tool/policy inputs, symlinks and gitlinks are excluded from this bounded migration mode. Older releases must not be used to operate or qualify this new evidence mode.
 
 Original receipt bytes remain anchored in Git after native archival. The authenticated accepted-state preimage and exact generated archived change markdown are the only metadata projections normalized for witness comparison; altered markdown and all other changed original package files remain refused.
+
+## Obsolete reopened intent
+
+A qualified recovery reader exposes:
+
+    specsync change retire <id> --actor <agent> --reason <reason> --replacement <id> --authority-source <source>
+
+The replacement must be independently accepted, fresh and retain complete signed path/owner
+custody. Retirement does not pass the old criterion, satisfy dependencies or provide ordinary
+semantic succession. Original scope, failures and receipts remain intact. Actor/source fields
+are recorded claims, not authenticated human identity.
+
+If the package move fails, durable state and receipt remain together and the command reports
+a pending move. Identical retry validates custody and finishes it without a second disposition.
+An eligible ordinary child may use send-back, answer dependencies with the accepted replacement,
+then obtain fresh scope/check/review. A frozen dependent cannot be silently rebound.
+
+Default audit reports that archived retirement custody was not inspected. Use change audit
+--archives for archive-history/custody validation. Explicit retired status and finalization
+also refuse invalid custody when relying on it.
+
+Published 6.2 readers do not understand the new retired state. Every required lifecycle
+consumer needs an explicitly qualified updated reader. Structural checks or existing site Trust
+do not establish this compatibility. This candidate is unreleased; no merge/release/global install.

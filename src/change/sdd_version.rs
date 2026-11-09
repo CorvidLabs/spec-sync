@@ -3261,7 +3261,7 @@ fn materialize_change_deltas_rerunning(
             record.canonical_applied && load_approvals(root, &record)
                 .is_ok_and(|ledger| !ledger.reopenings.is_empty()));
         if frozen && !error.contains("frozen audited-reopened") {
-            let detail = error.split("; use ").next().unwrap_or(&error);
+            let detail = error.split(';').next().unwrap_or(&error);
             format!("frozen audited-reopened change {id}: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable")
         } else { error }
     })

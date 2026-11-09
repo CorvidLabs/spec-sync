@@ -43,7 +43,10 @@ fn retirement_digest(record: &RetirementRecord) -> Result<String, String> {
     let mut preimage = record.clone();
     preimage.digest.clear();
     let mut digest = FramedDigest::new(b"specsync.retirement.v1");
-    digest.frame(b"record", &serde_json::to_vec(&preimage).map_err(|e| e.to_string())?);
+    digest.frame(
+        b"record",
+        &serde_json::to_vec(&preimage).map_err(|e| e.to_string())?,
+    );
     Ok(digest.finish())
 }
 
@@ -55,34 +58,55 @@ fn retirement_text(value: &str, flag: &str, max: usize) -> Result<(), String> {
 }
 
 // Authenticate receipt custody, without rehabilitating the original inconsistent review.
-fn retirement_source(root: &Path, original: &ChangeRecord)
-    -> Result<(AcceptanceManifestV1, String, String, bool), String>
-{
+fn retirement_source(
+    root: &Path,
+    original: &ChangeRecord,
+) -> Result<(AcceptanceManifestV1, String, String, bool), String> {
     if original.state != ChangeState::Verifying || !original.canonical_applied {
         return Err("retirement requires an audited-reopened verifying change".into());
     }
     ensure_definition_approval_valid(root, original)?;
     ensure_reopened_definition_unchanged(root, original)?;
     let ledger = load_approvals(root, original)?;
-    let reopening = ledger.reopenings.last()
+    let reopening = ledger
+        .reopenings
+        .last()
         .ok_or_else(|| "retirement requires an audited reopening".to_string())?;
-    if reopening.schema_version != 1 || reopening.change_id != original.id ||
-        reopening.actor.trim().is_empty() || reopening.reason.trim().is_empty() ||
-        reopening.from_state != ChangeState::Accepted || reopening.to_state != ChangeState::Verifying ||
-        !reopening.prior_verification.passed ||
-        reopening.superseded_approval.digest != closing_digest(original, &reopening.prior_verification) ||
-        !is_terminal_approval(&reopening.superseded_approval) ||
-        reopening.prior_verification.acceptance_input_digest.as_deref() != Some(reopening.stale_acceptance_input_digest.as_str()) {
-        return Err("retirement requires intact audited reopening evidence and prior definition".into());
+    if reopening.schema_version != 1
+        || reopening.change_id != original.id
+        || reopening.actor.trim().is_empty()
+        || reopening.reason.trim().is_empty()
+        || reopening.from_state != ChangeState::Accepted
+        || reopening.to_state != ChangeState::Verifying
+        || !reopening.prior_verification.passed
+        || reopening.superseded_approval.digest
+            != closing_digest(original, &reopening.prior_verification)
+        || !is_terminal_approval(&reopening.superseded_approval)
+        || reopening
+            .prior_verification
+            .acceptance_input_digest
+            .as_deref()
+            != Some(reopening.stale_acceptance_input_digest.as_str())
+    {
+        return Err(
+            "retirement requires intact audited reopening evidence and prior definition".into(),
+        );
     }
     validate_verification_execution_digest(root, original, &reopening.prior_verification)?;
-    let manifest = reopening.prior_verification.acceptance_manifest.clone()
-        .ok_or_else(|| "retirement requires a frozen prior manifest; unknown history remains blocked".to_string())?;
+    let manifest = reopening
+        .prior_verification
+        .acceptance_manifest
+        .clone()
+        .ok_or_else(|| {
+            "retirement requires a frozen prior manifest; unknown history remains blocked"
+                .to_string()
+        })?;
     validate_acceptance_manifest(&manifest)?;
     let expected = serde_json::to_vec(&reopening.prior_verification).map_err(|e| e.to_string())?;
     let anchors = if let Some(anchor) = &reopening.recorded_review_mismatch_anchor {
-        let default = remote_default_ref(root)
-            .ok_or_else(|| "cannot authenticate inconsistent review without remote default".to_string())?;
+        let default = remote_default_ref(root).ok_or_else(|| {
+            "cannot authenticate inconsistent review without remote default".to_string()
+        })?;
         ensure_git_ancestor(root, anchor, &default, "retirement inconsistent review")?;
         vec![anchor.clone()]
     } else {
@@ -92,113 +116,216 @@ fn retirement_source(root: &Path, original: &ChangeRecord)
         ensure_git_ancestor(root, &anchor, "HEAD", "retirement source receipt")?;
         for directory in historical_change_directories(root, &anchor, &original.id)? {
             let snapshot = git_tree_snapshot(root, &anchor, &directory)?;
-            let Some((_, state_bytes)) = snapshot.get("state.json") else { continue };
-            let Ok(state) = serde_json::from_slice::<ChangeRecord>(state_bytes) else { continue };
-            if state.id != original.id || state.state != ChangeState::Accepted { continue; }
-            validate_loaded_change(&state, &original.id, Path::new(&directory))?;
-            if !definition_digest_matches(root, &state, &reopening.prior_verification.contract_digest)? {
+            let Some((_, state_bytes)) = snapshot.get("state.json") else {
+                continue;
+            };
+            let Ok(state) = serde_json::from_slice::<ChangeRecord>(state_bytes) else {
+                continue;
+            };
+            if state.id != original.id || state.state != ChangeState::Accepted {
                 continue;
             }
-            let Some((_, verification_bytes)) = snapshot.get("verification.json") else { continue };
-            let Ok(verification) = serde_json::from_slice::<VerificationRecord>(verification_bytes) else { continue };
-            if serde_json::to_vec(&verification).map_err(|e| e.to_string())? != expected { continue; }
-            let Some((_, approval_bytes)) = snapshot.get("approvals.json") else { continue };
-            let approvals: ApprovalLedger = serde_json::from_slice(approval_bytes).map_err(|e| e.to_string())?;
-            if !approvals.approvals.iter().any(|a|
-                a.gate == reopening.superseded_approval.gate &&
-                a.actor == reopening.superseded_approval.actor &&
-                a.timestamp == reopening.superseded_approval.timestamp &&
-                a.digest == reopening.superseded_approval.digest &&
-                a.note == reopening.superseded_approval.note) { continue; }
-            return Ok((manifest, anchor, historical_package_digest(&snapshot)?,
-                reopening.recorded_review_mismatch_anchor.is_some()));
+            validate_loaded_change(&state, &original.id, Path::new(&directory))?;
+            if !definition_digest_matches(
+                root,
+                &state,
+                &reopening.prior_verification.contract_digest,
+            )? {
+                continue;
+            }
+            let Some((_, verification_bytes)) = snapshot.get("verification.json") else {
+                continue;
+            };
+            let Ok(verification) = serde_json::from_slice::<VerificationRecord>(verification_bytes)
+            else {
+                continue;
+            };
+            if serde_json::to_vec(&verification).map_err(|e| e.to_string())? != expected {
+                continue;
+            }
+            let Some((_, approval_bytes)) = snapshot.get("approvals.json") else {
+                continue;
+            };
+            let approvals: ApprovalLedger =
+                serde_json::from_slice(approval_bytes).map_err(|e| e.to_string())?;
+            if !approvals.approvals.iter().any(|a| {
+                a.gate == reopening.superseded_approval.gate
+                    && a.actor == reopening.superseded_approval.actor
+                    && a.timestamp == reopening.superseded_approval.timestamp
+                    && a.digest == reopening.superseded_approval.digest
+                    && a.note == reopening.superseded_approval.note
+            }) {
+                continue;
+            }
+            return Ok((
+                manifest,
+                anchor,
+                historical_package_digest(&snapshot)?,
+                reopening.recorded_review_mismatch_anchor.is_some(),
+            ));
         }
     }
-    Err("retirement cannot authenticate the original accepted receipt at an intact ancestor anchor".into())
+    Err(
+        "retirement cannot authenticate the original accepted receipt at an intact ancestor anchor"
+            .into(),
+    )
 }
 
 fn retirement_custody(
-    root: &Path, original: &ChangeRecord, replacement_id: &str,
-    manifest: &AcceptanceManifestV1, records: &BTreeMap<String, ChangeRecord>,
+    root: &Path,
+    original: &ChangeRecord,
+    replacement_id: &str,
+    manifest: &AcceptanceManifestV1,
+    records: &BTreeMap<String, ChangeRecord>,
 ) -> Result<(Vec<RetirementCustodyEntry>, String, String), String> {
-    let replacement = records.get(replacement_id)
+    let replacement = records
+        .get(replacement_id)
         .ok_or_else(|| format!("replacement change {replacement_id} not found"))?;
-    if replacement.id == original.id ||
-        !matches!(replacement.state, ChangeState::Accepted | ChangeState::Archived) {
+    if replacement.id == original.id
+        || !matches!(
+            replacement.state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
+    {
         return Err("retirement replacement must be independently accepted or archived".into());
     }
     if dependency_reaches(root, &replacement.id, &original.id, &mut BTreeSet::new()) {
         return Err("retirement replacement cannot depend on the obligation it retires".into());
     }
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(root, replacement, records, &mut BTreeSet::new(), &mut memo, None)
-        .map_err(|e| format!("retirement replacement has stale or unauthenticated evidence: {e}"))?;
+    validate_accepted_inputs_recursive(
+        root,
+        replacement,
+        records,
+        &mut BTreeSet::new(),
+        &mut memo,
+        None,
+    )
+    .map_err(|e| format!("retirement replacement has stale or unauthenticated evidence: {e}"))?;
     let verification = memo.authenticate(root, replacement, None)?;
-    let current = verification.acceptance_manifest.as_ref()
+    let current = verification
+        .acceptance_manifest
+        .as_ref()
         .ok_or_else(|| "retirement replacement requires a signed current manifest".to_string())?;
     let mut custody = Vec::new();
     for prior in &manifest.entries {
-        let next = current.entries.iter().find(|entry| entry.path == prior.path)
+        let next = current
+            .entries
+            .iter()
+            .find(|entry| entry.path == prior.path)
             .ok_or_else(|| format!("retirement replacement has no custody for {}", prior.path))?;
         if next.owners != prior.owners {
-            return Err(format!("retirement cannot transfer signed owners of {}", prior.path));
+            return Err(format!(
+                "retirement cannot transfer signed owners of {}",
+                prior.path
+            ));
         }
         custody.push(RetirementCustodyEntry {
-            path: prior.path.clone(), predecessor_entry_digest: prior.entry_digest.clone(),
-            predecessor_owners: prior.owners.clone(), replacement_entry_digest: next.entry_digest.clone(),
+            path: prior.path.clone(),
+            predecessor_entry_digest: prior.entry_digest.clone(),
+            predecessor_owners: prior.owners.clone(),
+            replacement_entry_digest: next.entry_digest.clone(),
             replacement_owners: next.owners.clone(),
         });
     }
-    Ok((custody, closing_digest(replacement, &verification), acceptance_manifest_digest(current)?))
+    Ok((
+        custody,
+        closing_digest(replacement, &verification),
+        acceptance_manifest_digest(current)?,
+    ))
 }
 
 fn validate_retirement_with_records(
-    root: &Path, record: &ChangeRecord, records: &BTreeMap<String, ChangeRecord>,
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
 ) -> Result<(), String> {
-    if record.state != ChangeState::Retired { return Err("change is not retired".into()); }
+    if record.state != ChangeState::Retired {
+        return Err("change is not retired".into());
+    }
     let directory = find_change_dir(root, &record.id)?;
     let receipt: RetirementRecord = serde_json::from_str(&read_bounded_change_text(
-        &directory.join(RETIREMENT_FILE), "retirement receipt")?)
-        .map_err(|e| format!("invalid retirement receipt: {e}"))?;
+        &directory.join(RETIREMENT_FILE),
+        "retirement receipt",
+    )?)
+    .map_err(|e| format!("invalid retirement receipt: {e}"))?;
     for (text, flag, limit) in [
-        (receipt.actor.as_str(), "--actor", 256), (receipt.reason.as_str(), "--reason", 4096),
-        (receipt.authority_source.as_str(), "--authority-source", 4096),
-    ] { retirement_text(text, flag, limit)?; }
-    if receipt.schema_version != 1 || receipt.domain != "specsync.retirement.v1" ||
-        receipt.change_id != record.id || receipt.implementation_accepted ||
-        receipt.historical_transition_status != "unproven" || receipt.digest != retirement_digest(&receipt)? {
+        (receipt.actor.as_str(), "--actor", 256),
+        (receipt.reason.as_str(), "--reason", 4096),
+        (
+            receipt.authority_source.as_str(),
+            "--authority-source",
+            4096,
+        ),
+    ] {
+        retirement_text(text, flag, limit)?;
+    }
+    if receipt.schema_version != 1
+        || receipt.domain != "specsync.retirement.v1"
+        || receipt.change_id != record.id
+        || receipt.implementation_accepted
+        || receipt.historical_transition_status != "unproven"
+        || receipt.digest != retirement_digest(&receipt)?
+    {
         return Err("retirement receipt identity, classification or digest is invalid".into());
+    }
+    let expected_location = root.join(ARCHIVE_PATH).join(format!(
+        "{}-{}",
+        utc_date(receipt.timestamp),
+        receipt.change_id
+    ));
+    if directory != change_dir(root, &record.id) && directory != expected_location {
+        return Err(
+            "retirement package location differs from its immutable disposition date".into(),
+        );
     }
     let original: ChangeRecord = serde_json::from_str(&receipt.original_state)
         .map_err(|e| format!("invalid retirement original state: {e}"))?;
     let mut expected = original.clone();
     expected.state = ChangeState::Retired;
     expected.updated_at = receipt.timestamp;
-    if serde_json::to_value(&expected).map_err(|e| e.to_string())? !=
-        serde_json::to_value(record).map_err(|e| e.to_string())? {
+    if serde_json::to_value(&expected).map_err(|e| e.to_string())?
+        != serde_json::to_value(record).map_err(|e| e.to_string())?
+    {
         return Err("retired state differs from its preserved original definition".into());
     }
     let relative = portable_project_path(root, &directory);
     let mut snapshot = archive_workspace_snapshot(root, &directory, &relative)?;
     snapshot.remove(RETIREMENT_FILE);
-    if snapshot.get("state.json").is_none_or(|entry| entry.0 != receipt.original_state_mode) {
+    if snapshot
+        .get("state.json")
+        .is_none_or(|entry| entry.0 != receipt.original_state_mode)
+    {
         return Err("retirement state mode differs from its preserved original".into());
     }
-    snapshot.insert("state.json".into(), (receipt.original_state_mode, receipt.original_state.as_bytes().to_vec()));
+    snapshot.insert(
+        "state.json".into(),
+        (
+            receipt.original_state_mode,
+            receipt.original_state.as_bytes().to_vec(),
+        ),
+    );
     if historical_package_digest(&snapshot)? != receipt.original_package_digest {
         return Err("retirement no longer preserves the exact original reopened package".into());
     }
     let (manifest, anchor, source_digest, untrusted) = retirement_source(root, &original)?;
-    if receipt.source_anchor != anchor || receipt.source_package_digest != source_digest ||
-        receipt.source_review_untrusted != untrusted ||
-        receipt.prior_manifest_digest != acceptance_manifest_digest(&manifest)? {
+    if receipt.source_anchor != anchor
+        || receipt.source_package_digest != source_digest
+        || receipt.source_review_untrusted != untrusted
+        || receipt.prior_manifest_digest != acceptance_manifest_digest(&manifest)?
+    {
         return Err("retirement historical receipt custody does not authenticate".into());
     }
     let (custody, closing, digest) =
         retirement_custody(root, &original, &receipt.replacement_id, &manifest, records)?;
-    if custody != receipt.custody || closing != receipt.replacement_closing_digest ||
-        digest != receipt.replacement_manifest_digest {
-        return Err("retirement replacement custody no longer matches authenticated closing evidence".into());
+    if custody != receipt.custody
+        || closing != receipt.replacement_closing_digest
+        || digest != receipt.replacement_manifest_digest
+    {
+        return Err(
+            "retirement replacement custody no longer matches authenticated closing evidence"
+                .into(),
+        );
     }
     Ok(())
 }
@@ -212,94 +339,137 @@ pub fn validate_retirement(root: &Path, record: &ChangeRecord) -> Result<(), Str
 /// Terminal nonacceptance. Prior artifacts and failures remain unchanged, with original state
 /// bytes retained verbatim. A retirement is never an ordinary accepted successor.
 pub fn retire_change(
-    root: &Path, id: &str, actor: String, reason: String,
-    replacement: String, authority_source: String,
+    root: &Path,
+    id: &str,
+    actor: String,
+    reason: String,
+    replacement: String,
+    authority_source: String,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     for (text, flag, limit) in [
-        (actor.as_str(), "--actor", 256), (reason.as_str(), "--reason", 4096),
+        (actor.as_str(), "--actor", 256),
+        (reason.as_str(), "--reason", 4096),
         (authority_source.as_str(), "--authority-source", 4096),
-    ] { retirement_text(text, flag, limit)?; }
+    ] {
+        retirement_text(text, flag, limit)?;
+    }
     let mut record = load_change(root, id)?;
-    if record.state == ChangeState::Retired {
-        validate_retirement(root, &record)?;
-        let receipt: RetirementRecord = serde_json::from_str(&read_bounded_change_text(
-            &find_change_dir(root, id)?.join(RETIREMENT_FILE), "retirement receipt")?)
-            .map_err(|e| e.to_string())?;
-        if receipt.actor == actor && receipt.reason == reason &&
-            receipt.authority_source == authority_source && receipt.replacement_id == replacement {
-            let current = find_change_dir(root, id)?;
-            if current == change_dir(root, id) {
-                let destination = root.join(ARCHIVE_PATH)
-                    .join(format!("{}-{id}", utc_date(receipt.timestamp)));
-                validate_late_close_destination(root, &destination)?;
-                if let Some(parent) = destination.parent() {
-                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-                }
-                validate_late_close_destination(root, &destination)?;
-                rename_durable(&current, &destination)
-                    .map_err(|e| format!("retirement archive move remains incomplete: {e}"))?;
-            }
-            return Ok(record);
+    let current = find_change_dir(root, id)?;
+    let has_receipt = fs::symlink_metadata(current.join(RETIREMENT_FILE)).is_ok();
+    if record.state == ChangeState::Retired || has_receipt {
+        let receipt = retirement_record(root, &record)?;
+        if receipt.actor != actor
+            || receipt.reason != reason
+            || receipt.authority_source != authority_source
+            || receipt.replacement_id != replacement
+        {
+            return Err("retirement already records a different immutable disposition".into());
         }
-        return Err("retirement already records a different immutable disposition".into());
+        // Recover the old failed-rollback layout only when its state is EXACTLY the preserved
+        // original. All immutable receipt/history and replacement checks still run before writes.
+        if record.state != ChangeState::Retired {
+            if current != change_dir(root, id)
+                || fs::read(current.join("state.json")).map_err(|e| e.to_string())?
+                    != receipt.original_state.as_bytes()
+            {
+                return Err(
+                    "incomplete retirement does not retain its exact original state".into(),
+                );
+            }
+            record.state = ChangeState::Retired;
+            record.updated_at = receipt.timestamp;
+        }
+        let mut proposed = list_all_change_metadata(root, false)?;
+        proposed.insert(id.into(), record.clone());
+        validate_retired_records(root, &proposed)?;
+        if current == change_dir(root, id) {
+            write_prepared_files(
+                root,
+                &[(current.join("state.json"), json_content(&record)?)],
+            )?;
+            finish_retirement_move(root, &current, &receipt)?;
+        }
+        return Ok(record);
     }
     let source = change_dir(root, id);
     reject_symlink_components_for(root, &source, "retirement source")?;
     if find_change_dir(root, id)? != source {
         return Err("retirement requires an active audited-reopened workspace".into());
     }
-    let (manifest, source_anchor, source_package_digest, source_review_untrusted) = retirement_source(root, &record)?;
+    let (manifest, source_anchor, source_package_digest, source_review_untrusted) =
+        retirement_source(root, &record)?;
     let records = list_all_changes_structural(root)?;
     let (custody, replacement_closing_digest, replacement_manifest_digest) =
         retirement_custody(root, &record, &replacement, &manifest, &records)?;
-    let snapshot = archive_workspace_snapshot(root, &source, &portable_project_path(root, &source))?;
+    let snapshot =
+        archive_workspace_snapshot(root, &source, &portable_project_path(root, &source))?;
     if snapshot.contains_key(RETIREMENT_FILE) {
         return Err("active workspace already contains a retirement receipt".into());
     }
-    let (original_state_mode, original_state_bytes) = snapshot.get("state.json")
+    let (original_state_mode, original_state_bytes) = snapshot
+        .get("state.json")
         .ok_or_else(|| "retirement original state is missing".to_string())?;
     let mut receipt = RetirementRecord {
-        schema_version: 1, domain: "specsync.retirement.v1".into(), change_id: id.into(),
-        actor, reason, authority_source, timestamp: now(),
-        original_state: String::from_utf8(original_state_bytes.clone()).map_err(|e| e.to_string())?,
-        original_state_mode: *original_state_mode, original_package_digest: historical_package_digest(&snapshot)?,
-        source_anchor, source_package_digest, source_review_untrusted,
+        schema_version: 1,
+        domain: "specsync.retirement.v1".into(),
+        change_id: id.into(),
+        actor,
+        reason,
+        authority_source,
+        timestamp: now(),
+        original_state: String::from_utf8(original_state_bytes.clone())
+            .map_err(|e| e.to_string())?,
+        original_state_mode: *original_state_mode,
+        original_package_digest: historical_package_digest(&snapshot)?,
+        source_anchor,
+        source_package_digest,
+        source_review_untrusted,
         prior_manifest_digest: acceptance_manifest_digest(&manifest)?,
-        replacement_id: replacement, replacement_closing_digest, replacement_manifest_digest,
-        custody, implementation_accepted: false, historical_transition_status: "unproven".into(),
+        replacement_id: replacement,
+        replacement_closing_digest,
+        replacement_manifest_digest,
+        custody,
+        implementation_accepted: false,
+        historical_transition_status: "unproven".into(),
         digest: String::new(),
     };
     receipt.digest = retirement_digest(&receipt)?;
     let encoded_receipt = json_content(&receipt)?;
     if encoded_receipt.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES {
-        return Err("retirement receipt exceeds the bounded readable artifact size; nothing was changed".into());
+        return Err(
+            "retirement receipt exceeds the bounded readable artifact size; nothing was changed"
+                .into(),
+        );
     }
-    let destination = root.join(ARCHIVE_PATH).join(format!("{}-{id}", today()));
+    let destination = root
+        .join(ARCHIVE_PATH)
+        .join(format!("{}-{id}", utc_date(receipt.timestamp)));
     validate_late_close_destination(root, &destination)?;
-    if let Some(parent) = destination.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
     validate_late_close_destination(root, &destination)?;
     record.state = ChangeState::Retired;
     record.updated_at = receipt.timestamp;
-    write_prepared_files(root, &[
-        (source.join("state.json"), json_content(&record)?),
-        (source.join(RETIREMENT_FILE), encoded_receipt),
-    ])?;
-    if let Err(error) = rename_durable(&source, &destination) {
-        let restore = fs::write(source.join("state.json"), original_state_bytes);
-        let remove = fs::remove_file(source.join(RETIREMENT_FILE));
-        if restore.is_err() || remove.is_err() {
-            return Err(format!("retirement move failed: {error}; original package rollback failed"));
-        }
-        return Err(format!("retirement move failed; original package restored: {error}"));
-    }
+    write_prepared_files(
+        root,
+        &[
+            (source.join("state.json"), json_content(&record)?),
+            (source.join(RETIREMENT_FILE), encoded_receipt),
+        ],
+    )?;
+    // Keep the journaled state and receipt together if rename fails. This is a recorded
+    // nonacceptance whose archive move is pending, never a claim that nothing changed.
+    finish_retirement_move(root, &source, &receipt)?;
     Ok(record)
 }
-
 
 /// Explain terminal nonacceptance and any broken retained-custody obligation.
 pub fn retirement_next_action(root: &Path, record: &ChangeRecord) -> String {
     match validate_retirement(root, record) {
+        Ok(()) if change_dir(root, &record.id).is_dir() =>
+            "retirement custody is recorded but its archive move is pending; rerun the identical change retire command; no implementation acceptance".into(),
         Ok(()) => "retired without implementation acceptance; historical transitions remain unproven; the independent replacement owns current delivery".into(),
         Err(error) => format!("retirement custody is invalid: {error}; restore the retained receipt from trusted history, then run specsync change status {}", record.id),
     }
@@ -307,18 +477,50 @@ pub fn retirement_next_action(root: &Path, record: &ChangeRecord) -> String {
 
 fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
     // Literal glob components prevent a project subdirectory from changing the pathspec.
-    let literal = |value: &str| value.chars().flat_map(|c| {
-        if matches!(c, '*' | '?' | '[' | '\\') { vec!['\\', c] } else { vec![c] }
-    }).collect::<String>();
-    if !git_repository_present(root)? { return Ok(BTreeMap::new()); }
+    let literal = |value: &str| {
+        value
+            .chars()
+            .flat_map(|c| {
+                if matches!(c, '*' | '?' | '[' | '\\') {
+                    vec!['\\', c]
+                } else {
+                    vec![c]
+                }
+            })
+            .collect::<String>()
+    };
+    if !git_repository_present(root)? {
+        return Ok(BTreeMap::new());
+    }
     let prefix = git_repo_prefix(root)?;
-    let active = format!(":(top,glob){}/*/retirement.json", literal(&format!("{prefix}{CHANGES_PATH}")));
-    let archived = format!(":(top,glob){}/*/retirement.json", literal(&format!("{prefix}{ARCHIVE_PATH}")));
+    let active = format!(
+        ":(top,glob){}/*/retirement.json",
+        literal(&format!("{prefix}{CHANGES_PATH}"))
+    );
+    let archived = format!(
+        ":(top,glob){}/*/retirement.json",
+        literal(&format!("{prefix}{ARCHIVE_PATH}"))
+    );
     let limit = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
-    let output = run_git_bounded(root, &["log", "--format=%H", &limit, "-G",
-        "specsync.retirement.v1", "HEAD", "--", &active, &archived],
-        None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
-    if !output.status.success() { return Err("cannot read committed retirement history".into()); }
+    let output = run_git_bounded(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            &limit,
+            "-G",
+            "specsync.retirement.v1",
+            "HEAD",
+            "--",
+            &active,
+            &archived,
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )?;
+    if !output.status.success() {
+        return Err("cannot read committed retirement history".into());
+    }
     let text = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
     let commits = text.lines().filter(|s| !s.is_empty()).collect::<Vec<_>>();
     if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
@@ -328,11 +530,29 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
     for commit in commits {
         let active_root = format!(":(top,literal){prefix}{CHANGES_PATH}");
         let archive_root = format!(":(top,literal){prefix}{ARCHIVE_PATH}");
-        let tree = run_git_bounded(root, &["ls-tree", "-r", "-z", "--full-name", "--name-only",
-            commit, "--", &active_root, &archive_root], None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
-        if !tree.status.success() { return Err("cannot enumerate committed retirement receipts".into()); }
+        let tree = run_git_bounded(
+            root,
+            &[
+                "ls-tree",
+                "-r",
+                "-z",
+                "--full-name",
+                "--name-only",
+                commit,
+                "--",
+                &active_root,
+                &archive_root,
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )?;
+        if !tree.status.success() {
+            return Err("cannot enumerate committed retirement receipts".into());
+        }
         for path in nul_terminated_git_paths(&tree.stdout, "retirement history")? {
-            if !path.ends_with("/retirement.json") { continue; }
+            if !path.ends_with("/retirement.json") {
+                continue;
+            }
             let bytes = git_file_at_commit(root, commit, &path)?
                 .ok_or_else(|| "committed retirement receipt is unavailable".to_string())?;
             let receipt: RetirementRecord = serde_json::from_slice(&bytes)
@@ -342,25 +562,37 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
                 return Err("unknown committed retirement format; upgrade the reader".into());
             }
             if let Some(prior) = receipts.insert(receipt.change_id.clone(), bytes.clone())
-                && prior != bytes {
-                return Err(format!("committed retirement history diverges for {}", receipt.change_id));
+                && prior != bytes
+            {
+                return Err(format!(
+                    "committed retirement history diverges for {}",
+                    receipt.change_id
+                ));
             }
         }
     }
     Ok(receipts)
 }
 
-fn validate_retired_records(root: &Path, records: &BTreeMap<String, ChangeRecord>) -> Result<(), String> {
+fn validate_retired_records(
+    root: &Path,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> Result<(), String> {
     for (id, committed) in retirement_history(root)? {
-        let record = records.get(&id)
+        let record = records
+            .get(&id)
             .ok_or_else(|| format!("committed retirement history for {id} was removed"))?;
         if record.state != ChangeState::Retired {
-            return Err(format!("committed retirement history for {id} was rolled back"));
+            return Err(format!(
+                "committed retirement history for {id} was rolled back"
+            ));
         }
         let bytes = fs::read(find_change_dir(root, &id)?.join(RETIREMENT_FILE))
             .map_err(|e| format!("committed retirement receipt is missing: {e}"))?;
         if bytes != committed {
-            return Err(format!("committed retirement history for {id} was edited; restore its exact anchored bytes"));
+            return Err(format!(
+                "committed retirement history for {id} was edited; restore its exact anchored bytes"
+            ));
         }
     }
     for record in records.values().filter(|r| r.state == ChangeState::Retired) {
@@ -372,11 +604,40 @@ fn validate_retired_records(root: &Path, records: &BTreeMap<String, ChangeRecord
 /// Read disposition details after the caller validates retirement custody.
 pub fn retirement_record(root: &Path, record: &ChangeRecord) -> Result<RetirementRecord, String> {
     serde_json::from_str(&read_bounded_change_text(
-        &find_change_dir(root, &record.id)?.join(RETIREMENT_FILE), "retirement receipt")?)
-        .map_err(|error| format!("invalid retirement record: {error}"))
+        &find_change_dir(root, &record.id)?.join(RETIREMENT_FILE),
+        "retirement receipt",
+    )?)
+    .map_err(|error| format!("invalid retirement record: {error}"))
 }
 
 #[cfg(test)]
 std::thread_local! {
     static RETIREMENT_TEST_FAIL_MOVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn finish_retirement_move(
+    root: &Path,
+    source: &Path,
+    receipt: &RetirementRecord,
+) -> Result<(), String> {
+    let destination = root.join(ARCHIVE_PATH).join(format!(
+        "{}-{}",
+        utc_date(receipt.timestamp),
+        receipt.change_id
+    ));
+    let moved = (|| {
+        reject_symlink_components_for(root, source, "retirement source")?;
+        validate_late_close_destination(root, &destination)?;
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        validate_late_close_destination(root, &destination)?;
+        #[cfg(test)]
+        if RETIREMENT_TEST_FAIL_MOVE.with(|value| value.get()) {
+            return Err("injected retirement move failure".to_string());
+        }
+        rename_durable(source, &destination).map_err(|e| e.to_string())
+    })();
+    moved.map_err(|error| format!(
+        "retirement custody is recorded but archive move is pending: {error}; rerun the identical change retire command to finish; no implementation acceptance was recorded"))
 }

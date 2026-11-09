@@ -1,5 +1,17 @@
-# Testing
+# Verification
 
-Fledge test task forwards filters. Run in named HC helpers with absolute tool identity, Rust 1.89, two build jobs and four test threads. Cases: positive current replacement/custody/retirement/eligible child rescope and closure; retired-only dependency refusal; unchanged obsolete criterion failure/canonical bytes; malformed or tampered anchors/packages; missing/stale/unreviewed replacement; exact owner/base and cycle refusals; repeated operation safety; legacy archives unchanged; old published 6.2 lifecycle consumers fail closed. Native check is not a product test. Full lane and trust results must remain distinct from human acceptance.
+All simulated human decisions in test fixtures are explicitly synthetic.
+Native structural checks do not run the repository product suite.
 
-Requirement evidence: REQ-change-recovery-retirement-001, REQ-change-frozen-recovery-001, REQ-cmd-change-recovery-retirement-001, REQ-cli-args-recovery-retirement-001 are covered by src/change_tests/recovery_retirement.rs and CLI/integration tests.
+| Requirement | Evidence |
+| --- | --- |
+| REQ-change-recovery-retirement-001 | src/change_tests/recovery_retirement.rs: production replacement/custody/retirement/child finalization; dependency refusal; committed/current evidence tamper; missing/stale/unreviewed/circular/unknown input; owner mismatch; injected/interrupted move recovery |
+| REQ-change-frozen-recovery-001 | recovery_frozen_added_conflict_preserves_newer_canonical_bytes_and_names_hold; existing stale MODIFIED and materialization controls remain in the full suite |
+| REQ-cmd-change-recovery-retirement-001 | Actual published and source-built reader status/audit receipts, explicit nonacceptance and inspected audit scope |
+| REQ-cli-args-recovery-retirement-001 | cli::recovery_retire_grammar::recovery_retire_grammar_requires_explicit_authority_and_replacement |
+
+Historical red/green receipts remain in ../product-evidence/.
+The latest focused safety run passed 10 tests. The old ee5e reader consumer results
+are not final-head qualification. Full verify/strict/pre-push/Trust remain required.
+Root owns actual BABY and parent integration qualification. Parent path coverage is complete,
+but two unchanged old-exact/current-studio owner differences remain held; no exception added.

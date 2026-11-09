@@ -708,15 +708,24 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     if passed {
                         print_json(&serde_json::json!({
                             "report": report,
+                            "audit_scope": if archives { "active-project-and-archives" } else { "active-project" },
+                            "archived_retirement_custody": if archives { "validated" } else { "not-inspected" },
                             "configured_commands_not_run": configured_commands_not_run(root)?,
                         }));
                     } else {
-                        print_json(&serde_json::json!({ "report": report }));
+                        print_json(&serde_json::json!({
+                            "report": report,
+                            "audit_scope": if archives { "active-project-and-archives" } else { "active-project" },
+                            "archived_retirement_custody": if archives { "failed-or-incomplete" } else { "not-inspected" },
+                        }));
                     }
                 }
                 _ => {
                     if passed {
                         print_configured_commands_not_run(root)?;
+                    }
+                    if !archives {
+                        println!("Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.");
                     }
                     if report.enabled {
                         println!(

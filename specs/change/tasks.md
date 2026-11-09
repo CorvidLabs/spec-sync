@@ -105,3 +105,5 @@ spec: change.spec.md
 - [x] Make the cannot-tell recovery repair missing objects and `origin/HEAD`, then rerun the upstream lookup through `change status` instead of grepping from the caller's directory (#967).
 
 - [x] Execute the complete cannot-tell recovery from a project parent and retain the quoted selected root in status (#967, REQ-change-142).
+
+- [x] Implement bounded audited nonacceptance and retry with frozen-scope guidance; full qualification and human review remain separate.

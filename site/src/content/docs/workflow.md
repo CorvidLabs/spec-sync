@@ -702,3 +702,27 @@ Point them to:
 ### Historical acknowledgement is a different proof basis
 
 A stored receipt can be authentic even when its original file transition cannot be reconstructed from the definition base. Normal succession continues to refuse that case. The opt-in `change reconcile-history` scope, available from 6.2.0, preserves and authenticates committed accepted packages and explicitly labels the old transitions unproven. It requires new definition approval and fresh current verification and scoped review. It is administrative historical reconciliation, not a claim that old product behavior was accepted again or that missing historical evidence has been recovered. Its versioned evidence and status/finalize disclosure retain that distinction after archival.
+
+## Obsolete reopened intent
+
+A qualified recovery reader exposes:
+
+    specsync change retire <id> --actor <agent> --reason <reason> --replacement <id> --authority-source <source>
+
+The replacement must be independently accepted, fresh and retain complete signed path/owner
+custody. Retirement does not pass the old criterion, satisfy dependencies or provide ordinary
+semantic succession. Original scope, failures and receipts remain intact. Actor/source fields
+are recorded claims, not authenticated human identity.
+
+If the package move fails, durable state and receipt remain together and the command reports
+a pending move. Identical retry validates custody and finishes it without a second disposition.
+An eligible ordinary child may use send-back, answer dependencies with the accepted replacement,
+then obtain fresh scope/check/review. A frozen dependent cannot be silently rebound.
+
+Default audit reports that archived retirement custody was not inspected. Use change audit
+--archives for archive-history/custody validation. Explicit retired status and finalization
+also refuse invalid custody when relying on it.
+
+Published 6.2 readers do not understand the new retired state. Every required lifecycle
+consumer needs an explicitly qualified updated reader. Structural checks or existing site Trust
+do not establish this compatibility. This candidate is unreleased; no merge/release/global install.

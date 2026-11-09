@@ -343,6 +343,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 ),
             })
         }
+        ChangeAction::Retire { id, actor, reason, replacement, authority_source } => {
+            change::retire_change(root, &id, actor, reason, replacement, authority_source)
+                .and_then(|record| print_record(root, &record, format, false, strict))
+        }
         ChangeAction::SendBack { id, actor, reason } => {
             change::send_back_change(root, &id, actor, reason).map(|result| match format {
                 OutputFormat::Json => print_json(&result),
@@ -812,6 +816,12 @@ fn print_record(
     include_questions: bool,
     strict: bool,
 ) -> Result<(), String> {
+    let retirement = if record.state == ChangeState::Retired {
+        change::validate_retirement(root, record)?;
+        Some(change::retirement_record(root, record)?)
+    } else {
+        None
+    };
     let questions = if include_questions {
         change::next_questions_for(root, record)
     } else {
@@ -857,6 +867,9 @@ fn print_record(
                             serde_json::json!(false),
                         );
                     }
+                    if let Some(retirement) = &retirement {
+                        object.insert("retirement".into(), serde_json::json!(retirement));
+                    }
                     if !claims.is_empty() {
                         object.insert("recorded_claims".into(), serde_json::json!(claims));
                     }
@@ -877,6 +890,13 @@ fn print_record(
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
+            if let Some(retirement) = &retirement {
+                println!(
+                    "Retired without implementation acceptance; historical transitions unproven."
+                );
+                println!("  Recorded actor/source are claims, not authenticated human identity.");
+                println!("  Replacement: {}", retirement.replacement_id);
+            }
             print_recorded_claims(&claims);
             print_verification_ignored_lines(root);
             print_change_text_answers(record);

@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9e215ec7a68a1f18da306e71",
-    "head": null,
+    "head": "EVT-8983b1b475c0a9d71acafabd",
     "legacy": null
   },
   "schema_version": 2,
@@ -13,7 +13,7 @@
     "cli_args"
   ],
   "stage": {
-    "current": "intent",
+    "current": "build",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -30,11 +30,13 @@
     "Leif authorized bounded SpecSync fixes via call_b8c2de707d7c4fad940f7c1c90a28849; source ../SPECSYNC-FIX-AUTHORITY.json; agent actor Sol/Codex; no implementation acceptance or delivery authority."
   ],
   "open_questions": [],
-  "completed": [],
+  "completed": [
+    "First production-path slice passed, followed by 17/17 combined controls; raw receipts remain external in product-evidence."
+  ],
   "observations": [],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Complete native artifacts and concrete deltas; apply covered scope authorization and run red tests."
+  "next_action": "Build exact local reader, qualify published 6.2 fail-closed lifecycle consumers and real-data disposable custody feasibility; no site mutation or product acceptance."
 }

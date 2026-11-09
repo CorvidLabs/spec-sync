@@ -82,6 +82,13 @@ fn recovery_retirement_positive_custody_and_child_route() {
     finalize_change(root, &child.id).unwrap();
     assert_eq!(load_change(root, &child.id).unwrap().state, ChangeState::Archived);
     assert!(validate_retirement(root, &load_change(root, &old.id).unwrap()).is_ok());
+    if let Ok(destination) = std::env::var("SPECSYNC_RECOVERY_FIXTURE_OUT") {
+        recorded_review_recovery_git(root, &["add", "."]);
+        recorded_review_recovery_git(root, &["commit", "-m", "synthetic qualification archive"]);
+        let status = Command::new("/bin/cp").args(["-R", root.to_str().unwrap(), &destination])
+            .status().unwrap();
+        assert!(status.success(), "export synthetic fixture for actual reader qualification");
+    }
 }
 
 #[test]

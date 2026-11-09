@@ -1,11 +1,12 @@
 ---
 module: change
-version: 206
+version: 207
 status: active
 files:
   - src/change.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
+  - src/change/retirement.rs
   - src/change/doctor.rs
   - src/change/historical_definition_digest_matches.rs
   - src/change/historical_reconciliation.rs
@@ -94,7 +95,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 |------|-------------|
 | `ReadDeadline` | When a read must stop and the limit it was given; copied to worker threads |
 | `ReadDeadlineGuard` | Clears this thread's read deadline when dropped (REQ-change-137) |
-| `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
+| `ChangeState` | Delivery lifecycle including retired terminal nonacceptance; retired grants no dependency or succession credit |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
 | `UpstreamArchive` | What the remote default says about an archive of a change this branch holds unarchived: `Archived` with the reference and the commit on it that archived the change (#694), or `CannotTell` with the reference and selected project root when its archived state records could not be read (REQ-change-142, #946) |
@@ -179,10 +180,17 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `DoctorFixClass` | `safe` (`doctor --fix` applies it), `decision` (`--close-late` with `--actor` and `--reason`) or `report-only` |
 | `DoctorAction` | One thing `doctor --fix` did, or with `--dry-run` would do: kind, change, outcome and detail |
 
+| `RetirementRecord` | Explicit unproven nonacceptance event binding original raw state/package, historical receipt anchor, actor/source claims and complete current replacement custody |
+| `RetirementCustodyEntry` | Exact historical path/digest/owners and current replacement signed path/digest/owners, preserving every prior input obligation |
+
 **Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `retire_change` | root, id, actor, reason, replacement, authority_source | Result<ChangeRecord, String> | Retire only intact audited-reopened intent under explicit nonacceptance with a genuinely accepted fresh custodian for every prior input; atomic/recoverable package move, idempotent same disposition, committed-history tamper refusal |
+| `validate_retirement` | root, record | Result<(), String> | Authenticate retained original package, committed disposition, complete custody and current recursive replacement freshness; supplies no acceptance credit |
+| `retirement_record` | root, record | Result<RetirementRecord, String> | Read disposition details after caller validates retirement custody |
+| `retirement_next_action` | root, record | String | Explain explicitly unproven nonacceptance and any invalid custody hold |
 | `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
 | `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
@@ -478,6 +486,8 @@ Acceptance Criteria
 | cmd_init | New-project policy and version initialization |
 
 ## Change Log
+
+| 2026-11-09 | v207: Explicit audited-reopened retirement with complete retained custody, committed-event immutability and old-reader fail-closed state; preserve frozen conflict refusal and allow fresh draft dependency answers. |
 
 | 2026-07-30 | Add `audit_project`; scope CLI `change check` to one change; archives are history |
 

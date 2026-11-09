@@ -548,6 +548,23 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Retire obsolete audited-reopened intent without accepting its old implementation
+    Retire {
+        /// Obsolete audited-reopened change ID
+        id: String,
+        /// Acting identity, a recorded claim rather than authenticated human identity
+        #[arg(long)]
+        actor: String,
+        /// Why the old intent is obsolete
+        #[arg(long)]
+        reason: String,
+        /// Independently accepted current replacement
+        #[arg(long)]
+        replacement: String,
+        /// Source of the genuine retirement decision, recorded as a claim
+        #[arg(long)]
+        authority_source: String,
+    },
     /// Send an approved, implementing or verifying change back to draft for re-scoping
     SendBack {
         /// Change ID
@@ -1649,5 +1666,42 @@ mod tests {
             ])
             .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod recovery_retire_grammar {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn recovery_retire_grammar_requires_explicit_authority_and_replacement() {
+        let complete = [
+            "specsync",
+            "change",
+            "retire",
+            "old",
+            "--actor",
+            "Synthetic agent",
+            "--reason",
+            "Obsolete",
+            "--replacement",
+            "current",
+            "--authority-source",
+            "Synthetic authority",
+        ];
+        assert!(
+            Cli::try_parse_from(complete).is_ok(),
+            "retire must expose its nonacceptance inputs"
+        );
+        for flag in ["--actor", "--reason", "--replacement", "--authority-source"] {
+            let index = complete.iter().position(|item| *item == flag).unwrap();
+            let mut missing = complete.to_vec();
+            missing.drain(index..index + 2);
+            assert!(
+                Cli::try_parse_from(missing).is_err(),
+                "missing {flag} must refuse before mutation"
+            );
+        }
     }
 }

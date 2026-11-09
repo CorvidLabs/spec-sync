@@ -441,7 +441,10 @@ fn list_all_changes_loaded(
     let archive = root.join(ARCHIVE_PATH);
     let entries = match fs::read_dir(&archive) {
         Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            validate_retired_records(root, &records)?;
+            return Ok(records);
+        },
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
     let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
@@ -489,6 +492,7 @@ fn list_all_changes_loaded(
             ));
         }
     }
+    validate_retired_records(root, &records)?;
     Ok(records)
 }
 

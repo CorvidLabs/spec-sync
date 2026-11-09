@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-9e215ec7a68a1f18da306e71",
-    "head": "EVT-8983b1b475c0a9d71acafabd",
+    "head": "EVT-6ff9a2b6efa56ef9b2c2af2c",
     "legacy": null
   },
   "schema_version": 2,
@@ -13,30 +13,45 @@
     "cli_args"
   ],
   "stage": {
-    "current": "build",
+    "current": "accept",
     "status": "active",
     "callers": [],
     "iteration": 1
   },
   "native_change": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
   "references": {
-    "criteria": [],
-    "requirements": [],
-    "cases": [],
+    "criteria": [
+      "RECOVER-1"
+    ],
+    "requirements": [
+      "REQ-change-recovery-retirement-001",
+      "REQ-change-frozen-recovery-001"
+    ],
+    "cases": [
+      "TC-change-retirement-custody-and-retry"
+    ],
     "design": [],
     "files": []
   },
   "decisions": [
-    "Leif authorized bounded SpecSync fixes via call_b8c2de707d7c4fad940f7c1c90a28849; source ../SPECSYNC-FIX-AUTHORITY.json; agent actor Sol/Codex; no implementation acceptance or delivery authority."
+    "Leif authorized bounded SpecSync fixes via call_b8c2de707d7c4fad940f7c1c90a28849; source ../SPECSYNC-FIX-AUTHORITY.json; agent actor Sol/Codex; no implementation acceptance or delivery authority.",
+    "Public product PR/push is authorized and root-owned; worker does not publish. Draft1018 atc12 exists; human implementation review/archive and merge/release/install remain pending."
   ],
   "open_questions": [],
   "completed": [
-    "First production-path slice passed, followed by 17/17 combined controls; raw receipts remain external in product-evidence."
+    "First production-path slice passed, followed by 17/17 combined controls; raw receipts remain external in product-evidence.",
+    "Full Fledge verify passed0:2945unit passed2ignored;573integration passed;8steps38m22.236s. Runtime/build69, documented canonical mapping/native overlaysc12, never clean-final-head.",
+    "Meaningful red receipts remain preserved:initial/red/refinement/unborn/spawn and failed mapping pre-push. Earlier native failed observations were refused by old case validation and were not fabricated.",
+    "Focused automated native case passed10tests0failed in144.37s under unchanged600second budget; actual observation linked. Filename discovery correction and refused operator attempts remain external findings; no manual pass imported."
   ],
-  "observations": [],
+  "observations": [
+    "OBS-tc-change-retirement-custody-and-retry-6ddabaf51c60c9b3f5183d0a"
+  ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [],
+  "awaiting_human": [
+    "Human implementation review of the bounded SpecSync recovery, canonical contracts and exact qualified evidence; native scoped review/acceptance/archive remain unperformed. Root owns publishing and later authorized delivery."
+  ],
   "run_consents": [],
-  "next_action": "Build exact local reader, qualify published 6.2 fail-closed lifecycle consumers and real-data disposable custody feasibility; no site mutation or product acceptance."
+  "next_action": "Root/human reviews product PR1018 and final qualification packet. Do not record native implementation review/archive without a genuine decision. Keep published sourcec12 pin: later checkpoint metadata does not alter runtime/build/test/fixture/config inputs; discovery filename correction is separately disclosed."
 }

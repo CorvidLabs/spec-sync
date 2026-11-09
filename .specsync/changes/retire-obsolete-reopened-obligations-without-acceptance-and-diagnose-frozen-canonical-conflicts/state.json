@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
+  "slug": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
+  "title": "Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts",
+  "description": "Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "feef2ad56afd2d6fd8f026667a8e3e701d614c63",
+  "created_at": 1794197909,
+  "updated_at": 1794198259,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change",
+    "src/change.rs",
+    "src/change_tests",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    "tests/integration",
+    "tests/integration.rs",
+    "site/src/content/docs",
+    "specs/change",
+    "specs/cmd_change",
+    "specs/cli_args",
+    ".chough",
+    "hi",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Obsolete reopened obligations have an audited terminal nonacceptance disposition preserving original scope failures history and formerly accepted obligations; frozen conflicts preserve later canonical content and name truthful recovery; dependencies and recursive succession remain strict; old readers fail closed and legacy archives remain valid"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Preserve immutable approvals and accepted history; explicit unproven historical reconciliation is not acceptance of old behavior; retain recursive successor freshness exact owner/base and review gates; old readers must fail closed on retirement; no product acceptance release or site writes",
+    "public_contract": "yes"
+  }
+}

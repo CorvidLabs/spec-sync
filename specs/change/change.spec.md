@@ -1,6 +1,6 @@
 ---
 module: change
-version: 211
+version: 213
 status: active
 files:
   - src/change.rs
@@ -491,7 +491,7 @@ Acceptance Criteria
 
 ## Change Log
 
-| 2026-11-09 | v211: Retirement review fixes (#1018): accept an archived-origin audited reopening (`from_state: archived`, the ordinary finalize-then-reopen path) and require the reopening to prove staleness; refuse an empty committed-retirement walk in a shallow clone; require unchanged bytes when custody owners are reserved `@exact:*` labels; classify Retired records as historical in sequence accounting; a send-back at or after the latest reopening supersedes it in the frozen-conflict test; the default active audit validates pending retired records' custody. |
+| 2026-11-09 | v213: Retirement review fixes (#1018): accept an archived-origin audited reopening (`from_state: archived`, the ordinary finalize-then-reopen path) and require the reopening to prove staleness; refuse an empty committed-retirement walk in a shallow clone; require unchanged bytes when custody owners are reserved `@exact:*` labels; classify Retired records as historical in sequence accounting; a send-back at or after the latest reopening supersedes it in the frozen-conflict test; the default active audit validates pending retired records' custody. |
 
 | 2026-11-09 | v210: Declare the existing recovery_retirement regression file in the change module coverage list; no runtime code, fixture, assertion or configuration change. |
 
@@ -505,6 +505,8 @@ Acceptance Criteria
 |------|--------|
 | 2026-11-06 | v195: approve refuses a no-spec-change draft over owned production source and names the `change answer` command; ship preflight and ship-status run finalize's ownership check (#986, #956). |
 | 2026-11-07 | v200: carry the selected root in `CannotTell` so command adapters remain unchanged within the original change-only scope. v199: keep the selected project root as a quoted `--root` argument in cannot-tell recovery; execute the printed status command from the repository parent (#967, REQ-change-142). |
+
+| 2026-11-08 | v201: PR1014 succession compares lossless normalized approval/reopening prefixes and the first newly superseded approval; three committed decimal-edit regressions fail on the previous source and pass unchanged after the private-helper fix, with prior numeric and relay controls preserved (REQ-change-relay-compare-001). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
 | 2026-11-06 | v200: Reject symlink components in late-close destinations during planning/dry-run, before any batch write under the lifecycle lock, and again after directory creation before each rename; include dangling links and name how to retry safely (REQ-change-143, #994 P1) |
 | 2026-11-06 | v187: `specsync doctor`'s late close moves a merged but never-archived package byte for byte into `.specsync/archive/closed-late/<date>-<id>/` with `late-close.json` (`verified: false`); it reads no delivery evidence and adds no change state, so SpecSync 6.0 to 6.2 never read it. A collision member's acknowledgement is dropped and recorded. 6.3 reports a closed-late change in status and ship-status, refuses it in every lifecycle verb, and reserves its ID in `change new` (REQ-change-143, #833) |
@@ -731,4 +733,7 @@ Acceptance Criteria
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
+| 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
+| 2026-11-08 | v199 / PR1014 review: preserve a reopening's own unknown fields, compare and deduplicate accepted approval ledgers without approval relays, and validate both embedded correction deciders before relay projection; existing relay requirements and public API unchanged |
+| 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |

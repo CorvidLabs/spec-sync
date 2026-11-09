@@ -1028,8 +1028,10 @@ fn pr1014_numeric_projection_keeps_unknown_decimal_values_distinct() {
     let left = br#"{"schema_version":1,"approvals":[],"reopenings":[],"unknown_ledger_field":1.000000000000000000001}"#;
     let right = br#"{"schema_version":1,"approvals":[],"reopenings":[],"unknown_ledger_field":1.000000000000000000002}"#;
     assert_ne!(left, right, "the raw evidence differs");
-    serde_json::from_slice::<ApprovalLedger>(left).expect("the real typed ledger accepts this unknown field");
-    serde_json::from_slice::<ApprovalLedger>(right).expect("the changed unknown field is still decodable");
+    serde_json::from_slice::<ApprovalLedger>(left)
+        .expect("the real typed ledger accepts this unknown field");
+    serde_json::from_slice::<ApprovalLedger>(right)
+        .expect("the changed unknown field is still decodable");
     assert_ne!(
         relay_blind_approval_ledger_bytes(left).unwrap(),
         relay_blind_approval_ledger_bytes(right).unwrap(),
@@ -1047,8 +1049,16 @@ fn pr1014_numeric_edit_cannot_reuse_a_reachable_accepted_anchor() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let git = |args: &[&str]| {
-        let output = Command::new("git").args(args).current_dir(root).output().unwrap();
-        assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     };
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
@@ -1061,27 +1071,59 @@ fn pr1014_numeric_edit_cannot_reuse_a_reachable_accepted_anchor() {
     let verification_path = format!("{directory}/verification.json");
     let approvals_path = format!("{directory}/approvals.json");
     let serialized = fs::read_to_string(root.join(&approvals_path)).unwrap();
-    let with_number = |number: &str| format!("{{\"unknown_ledger_field\":{number},{}", &serialized[1..]);
+    let with_number =
+        |number: &str| format!("{{\"unknown_ledger_field\":{number},{}", &serialized[1..]);
     let original = with_number("1.000000000000000000001");
     let tampered = with_number("1.000000000000000000002");
-    assert!(load_approvals(root, &record.id).is_ok());
+    assert!(load_approvals(root, &record).is_ok());
     serde_json::from_str::<ApprovalLedger>(&original).expect("valid original wire ledger");
-    serde_json::from_str::<ApprovalLedger>(&tampered).expect("the typed decoder does not block the attack");
+    serde_json::from_str::<ApprovalLedger>(&tampered)
+        .expect("the typed decoder does not block the attack");
     fs::write(root.join(&approvals_path), &original).unwrap();
-    assert!(load_approvals(root, &record.id).is_ok(), "actual ledger reader accepts the unknown numeric field");
+    assert!(
+        load_approvals(root, &record).is_ok(),
+        "actual ledger reader accepts the unknown numeric field"
+    );
     git(&["add", "."]);
-    git(&["commit", "-m", "TEST reachable accepted anchor with exact unknown decimal"]);
+    git(&[
+        "commit",
+        "-m",
+        "TEST reachable accepted anchor with exact unknown decimal",
+    ]);
     let anchor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
     let verification = fs::read(root.join(&verification_path)).unwrap();
     let eligible = |wire: &[u8]| {
         let mut eligible = BTreeMap::new();
-        consider_accepted_evidence_anchor(root, &record, &anchor, &state_path,
-            &verification_path, &approvals_path, &verification, wire, &mut eligible);
+        consider_accepted_evidence_anchor(
+            root,
+            &record,
+            &anchor,
+            &state_path,
+            &verification_path,
+            &approvals_path,
+            &verification,
+            wire,
+            &mut eligible,
+        );
         eligible
     };
-    assert_eq!(eligible(original.as_bytes()).len(), 1, "the committed original anchor is eligible");
+    assert_eq!(
+        eligible(original.as_bytes()).len(),
+        1,
+        "the committed original anchor is eligible"
+    );
     fs::write(root.join(&approvals_path), &tampered).unwrap();
-    assert!(load_approvals(root, &record.id).is_ok(), "the changed unknown field reaches anchor comparison");
-    assert!(eligible(tampered.as_bytes()).is_empty(), "a non-relay numeric edit must reject the historical anchor");
-    assert_eq!(eligible(original.as_bytes()).len(), 1, "the original wire evidence remains eligible");
+    assert!(
+        load_approvals(root, &record).is_ok(),
+        "the changed unknown field reaches anchor comparison"
+    );
+    assert!(
+        eligible(tampered.as_bytes()).is_empty(),
+        "a non-relay numeric edit must reject the historical anchor"
+    );
+    assert_eq!(
+        eligible(original.as_bytes()).len(),
+        1,
+        "the original wire evidence remains eligible"
+    );
 }

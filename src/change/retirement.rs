@@ -580,6 +580,11 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
     if !git_repository_present(root)? {
         return Ok(BTreeMap::new());
     }
+    // Reuse the existing strict distinction: an absent unborn branch is not
+    // unreadable or corrupt committed history. All other Git failures still refuse.
+    if head_is_unborn(root)? {
+        return Ok(BTreeMap::new());
+    }
     let prefix = git_repo_prefix(root)?;
     let active = format!(
         ":(top,glob){}/*/retirement.json",

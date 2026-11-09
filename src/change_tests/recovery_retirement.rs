@@ -1023,3 +1023,41 @@ fn recovery_refinement_legacy_receipt_keeps_its_original_canonical_digest() {
         "new optional fields must not reinterpret the original v1 preimage"
     );
 }
+
+#[test]
+fn recovery_retirement_history_distinguishes_unborn_from_unreadable_head() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    recorded_review_recovery_git(root, &["init", "-b", "main"]);
+    assert!(
+        retirement_history(root).unwrap().is_empty(),
+        "a valid new repository cannot have a committed retirement event"
+    );
+    let reference = root.join(".git/refs/heads/main");
+    fs::write(&reference, format!("{}\n", "0".repeat(40))).unwrap();
+    assert!(
+        retirement_history(root).is_err(),
+        "an existing corrupt branch ref is unavailable history, not an unborn repository"
+    );
+    fs::remove_file(&reference).unwrap();
+    recorded_review_recovery_git(root, &["config", "user.name", "Synthetic test"]);
+    recorded_review_recovery_git(root, &["config", "user.email", "test@example.invalid"]);
+    recorded_review_recovery_git(
+        root,
+        &["commit", "--allow-empty", "-m", "committed history"],
+    );
+    let commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+    let object = root
+        .join(".git/objects")
+        .join(&commit[..2])
+        .join(&commit[2..]);
+    assert!(
+        object.is_file(),
+        "fixture must remove a real committed object"
+    );
+    fs::remove_file(object).unwrap();
+    assert!(
+        retirement_history(root).is_err(),
+        "a missing committed object must never be treated as unborn or empty history"
+    );
+}

@@ -3817,7 +3817,7 @@ fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
             shell_quote(&format!("{package}/state.json"))
         ),
         CorruptArchive::OutsidePackage => format!(
-            "run `{status} --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `{status}`"
+            "run `{status} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
         ),
     }
 }

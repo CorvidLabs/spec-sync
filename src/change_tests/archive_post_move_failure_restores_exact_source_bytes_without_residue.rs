@@ -730,7 +730,7 @@ fn strict_check_reports_standalone_unprovable_archived_history() {
     // the status JSON reports, and the dead `specsync change check` tail is gone (#880).
     let summary = summarize_change(root, &record);
     let step = format!(
-        "run `specsync change status '{0}' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status '{0}'`",
+        "run `specsync change status '{0}' --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status '{0}'`",
         record.id
     );
     assert_eq!(summary.next_action, step);

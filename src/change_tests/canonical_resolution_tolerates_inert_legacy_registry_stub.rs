@@ -3124,7 +3124,7 @@ fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
     assert_eq!(
         elsewhere.before_clearing,
         vec![
-            "run `specsync change status 'add-passkeys' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status 'add-passkeys'`"
+            "run `specsync change status 'add-passkeys' --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status 'add-passkeys'`"
                 .to_string()
         ]
     );
@@ -3296,7 +3296,7 @@ fn corrupt_archive_restore_names_the_package_only_when_the_package_changed() {
     assert_eq!(
         step(),
         format!(
-            "run `specsync change status {id} --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status {id}`"
+            "run `specsync change status {id} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status {id}`"
         ),
         "an intact package is not what failed"
     );

@@ -1186,3 +1186,190 @@ fn pr1014_numeric_wire_projection_preserves_exact_scalars_and_duplicate_unknown_
     assert_ne!(relay_blind_approval_ledger_bytes(left).unwrap(), relay_blind_approval_ledger_bytes(right).unwrap(),
         "a duplicate unknown member must not erase an earlier non-relay field edit");
 }
+
+// Succession precision review: these are private TEST generations and unauthenticated TEST actors.
+// Build both generations through native transitions before injecting raw unknown decimal tokens.
+fn pr1014_succession_precision_generations(
+    root: &Path,
+) -> (ChangeRecord, serde_json::Value, serde_json::Value) {
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "TEST succession fixture"]);
+    git(&["config", "core.autocrlf", "false"]);
+    write_lifecycle_test_policy(root);
+    let record = completed_no_spec_record(root);
+    git(&["add", "."]);
+    git(&["commit", "-m", "TEST original succession definition"]);
+    let accepted = accept_completed_record(root, record);
+    git(&["add", "."]);
+    git(&["commit", "-m", "TEST first accepted generation"]);
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    let reopened = reopen_change(
+        root,
+        &accepted.id,
+        "TEST reopening actor".into(),
+        "TEST first changed delivery inputs".into(),
+    )
+    .expect("a real stale-input reopen creates the first audit");
+    let accepted = accept_completed_record(root, reopened.change);
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "TEST accepted generation with one completed reopen",
+    ]);
+    let path = change_dir(root, &accepted.id).join("approvals.json");
+    let earlier_wire = fs::read(&path).unwrap();
+    let earlier_typed = load_approvals(root, &accepted).expect("the earlier native ledger reads");
+    assert_eq!(earlier_typed.reopenings.len(), 1);
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { true } // next TEST generation\n",
+    )
+    .unwrap();
+    let reopened = reopen_change(
+        root,
+        &accepted.id,
+        "TEST reopening actor".into(),
+        "TEST second changed delivery inputs".into(),
+    )
+    .expect("a second real reopen extends that accepted generation");
+    let current_wire = fs::read(&path).unwrap();
+    let current_typed =
+        load_approvals(root, &reopened.change).expect("the actual successor ledger reads");
+    assert_eq!(
+        current_typed.reopenings.len(),
+        earlier_typed.reopenings.len() + 1
+    );
+    assert_eq!(
+        ledger_succession(Some(&earlier_wire), &current_wire),
+        LedgerSuccession::LawfulSuccessor,
+        "the unmodified native generations must be a lawful control before any unknown-field injection"
+    );
+    (
+        reopened.change,
+        serde_json::from_slice(&earlier_wire).unwrap(),
+        serde_json::from_slice(&current_wire).unwrap(),
+    )
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Pr1014SuccessionPrecisionField {
+    ApprovalPrefix,
+    ReopeningPrefix,
+    SupersededApproval,
+}
+
+fn pr1014_succession_precision_discriminator(field: Pr1014SuccessionPrecisionField) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (record, mut earlier, mut current) = pr1014_succession_precision_generations(root);
+    let terminal = earlier["approvals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .rposition(|entry| matches!(entry["gate"].as_str(), Some("acceptance" | "finalization")))
+        .expect("the genuinely accepted earlier generation has a closing approval");
+    let first_new_reopen = earlier["reopenings"].as_array().unwrap().len();
+    let one = serde_json::json!("__PR1014_EXACT_ONE__");
+    match field {
+        Pr1014SuccessionPrecisionField::ApprovalPrefix => {
+            earlier["approvals"][0]["unknown_precision"] = one.clone();
+            current["approvals"][0]["unknown_precision"] = one.clone();
+        }
+        Pr1014SuccessionPrecisionField::ReopeningPrefix => {
+            earlier["reopenings"][0]["unknown_precision"] = one.clone();
+            current["reopenings"][0]["unknown_precision"] = one.clone();
+        }
+        Pr1014SuccessionPrecisionField::SupersededApproval => {
+            earlier["approvals"][terminal]["unknown_precision"] = one.clone();
+            current["approvals"][terminal]["unknown_precision"] = one.clone();
+            current["reopenings"][first_new_reopen]["superseded_approval"]["unknown_precision"] =
+                one;
+        }
+    }
+    // Substitute numeric tokens after JSON serialization, never through a Value/f64 conversion.
+    let wire = |value: &serde_json::Value| {
+        serde_json::to_string(value)
+            .unwrap()
+            .replace("\"__PR1014_EXACT_ONE__\"", "1.000000000000000000001")
+            .replace("\"__PR1014_EXACT_TWO__\"", "1.000000000000000000002")
+            .into_bytes()
+    };
+    let earlier_wire = wire(&earlier);
+    let control_wire = wire(&current);
+    let path = change_dir(root, &record.id).join("approvals.json");
+    for (label, bytes) in [
+        ("earlier", &earlier_wire),
+        ("unchanged successor", &control_wire),
+    ] {
+        fs::write(&path, bytes).unwrap();
+        load_approvals(root, &record).unwrap_or_else(|error| {
+            panic!("{label} raw numeric ledger must reach comparison: {error}")
+        });
+    }
+    assert_eq!(
+        ledger_succession(Some(&earlier_wire), &control_wire),
+        LedgerSuccession::LawfulSuccessor,
+        "the same exact unknown token is a lawful successor before the {field:?} edit"
+    );
+    let two = serde_json::json!("__PR1014_EXACT_TWO__");
+    match field {
+        Pr1014SuccessionPrecisionField::ApprovalPrefix => {
+            current["approvals"][0]["unknown_precision"] = two
+        }
+        Pr1014SuccessionPrecisionField::ReopeningPrefix => {
+            current["reopenings"][0]["unknown_precision"] = two
+        }
+        Pr1014SuccessionPrecisionField::SupersededApproval => {
+            current["reopenings"][first_new_reopen]["superseded_approval"]["unknown_precision"] =
+                two
+        }
+    }
+    let altered_wire = wire(&current);
+    assert_ne!(
+        altered_wire, control_wire,
+        "the exact non-relay decimal token changed"
+    );
+    fs::write(&path, &altered_wire).unwrap();
+    load_approvals(root, &record)
+        .expect("the altered unknown token is valid for the actual typed reader");
+    assert_eq!(
+        ledger_succession(Some(&earlier_wire), &altered_wire),
+        LedgerSuccession::NotASuccessor,
+        "an exact unknown decimal edit at {field:?} must not be erased by f64 rounding"
+    );
+}
+
+#[test]
+fn pr1014_succession_precision_rejects_an_approval_prefix_edit() {
+    pr1014_succession_precision_discriminator(Pr1014SuccessionPrecisionField::ApprovalPrefix);
+}
+
+#[test]
+fn pr1014_succession_precision_rejects_a_reopening_prefix_edit() {
+    pr1014_succession_precision_discriminator(Pr1014SuccessionPrecisionField::ReopeningPrefix);
+}
+
+#[test]
+fn pr1014_succession_precision_rejects_a_superseded_approval_edit() {
+    pr1014_succession_precision_discriminator(Pr1014SuccessionPrecisionField::SupersededApproval);
+}

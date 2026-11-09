@@ -375,3 +375,8 @@ pub fn retirement_record(root: &Path, record: &ChangeRecord) -> Result<Retiremen
         &find_change_dir(root, &record.id)?.join(RETIREMENT_FILE), "retirement receipt")?)
         .map_err(|error| format!("invalid retirement record: {error}"))
 }
+
+#[cfg(test)]
+std::thread_local! {
+    static RETIREMENT_TEST_FAIL_MOVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}

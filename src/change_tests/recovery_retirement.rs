@@ -12,7 +12,22 @@ fn retirement_reopened_fixture() -> (TempDir, ChangeRecord) {
 }
 
 fn retirement_current_replacement(root: &Path) -> ChangeRecord {
-    let replacement = completed_no_spec_current_record(root);
+    retirement_current_replacement_scoped(root, None, false)
+}
+
+fn retirement_current_replacement_scoped(root: &Path, paths: Option<&str>, other_owner: bool) -> ChangeRecord {
+    let mut replacement = completed_no_spec_current_record(root);
+    if other_owner {
+        let target = root.join("specs/other");
+        fs::create_dir_all(&target).unwrap();
+        let content = fs::read_to_string(root.join("specs/change/change.spec.md")).unwrap()
+            .replace("module: change", "module: other");
+        fs::write(target.join("other.spec.md"), content).unwrap();
+        replacement = answer_question(root, &replacement.id, "affected_specs", "other").unwrap();
+    }
+    if let Some(paths) = paths {
+        replacement = answer_question(root, &replacement.id, "affected_paths", paths).unwrap();
+    }
     approve_definition(root, &replacement.id, Some("Synthetic scope actor".into()), None).unwrap();
     check_change(root, Some(&replacement.id)).unwrap();
     recorded_review_recovery_git(root, &["add", "."]);
@@ -79,6 +94,13 @@ fn recovery_retirement_positive_custody_and_child_route() {
     recorded_review_recovery_git(root, &["commit", "-m", "re-scope child to accepted current replacement"]);
     check_change(root, Some(&child.id)).unwrap();
     record_scoped_review(root, &child.id, "Synthetic implementation reviewer".into()).unwrap();
+    let retained = find_change_dir(root, &old.id).unwrap().join("obsolete-criterion-result.json");
+    let retained_bytes = fs::read(&retained).unwrap();
+    fs::write(&retained, "tampered retained failure").unwrap();
+    assert!(!audit_project_with_archives(root, true).errors.is_empty(), "explicit archive audit must refuse corrupted custody");
+    let refused = finalize_change(root, &child.id).unwrap_err();
+    assert!(refused.contains("retirement") || refused.contains("original"), "{refused}");
+    fs::write(&retained, retained_bytes).unwrap();
     finalize_change(root, &child.id).unwrap();
     assert_eq!(load_change(root, &child.id).unwrap().state, ChangeState::Archived);
     assert!(validate_retirement(root, &load_change(root, &old.id).unwrap()).is_ok());
@@ -204,4 +226,123 @@ fn recovery_retirement_retries_an_interrupted_archive_move_without_reacceptance(
     assert_eq!(find_change_dir(root, &old.id).unwrap(), destination);
     assert_eq!(archive_workspace_snapshot(root, &destination,
         &portable_project_path(root, &destination)).unwrap(), before);
+}
+
+#[test]
+fn recovery_retirement_rename_failure_keeps_a_complete_resumable_receipt() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let dir = find_change_dir(root, &old.id).unwrap();
+    let before = archive_workspace_snapshot(root, &dir, &portable_project_path(root, &dir)).unwrap();
+    RETIREMENT_TEST_FAIL_MOVE.with(|value| value.set(true));
+    let attempted = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete".into(),
+        replacement.id.clone(), "Synthetic authority".into());
+    RETIREMENT_TEST_FAIL_MOVE.with(|value| value.set(false));
+    let error = attempted.unwrap_err();
+    assert!(error.contains("pending") || error.contains("incomplete"), "{error}");
+    assert!(dir.join(RETIREMENT_FILE).is_file(), "a complete receipt must survive the interrupted move");
+    let receipt: RetirementRecord = serde_json::from_slice(&fs::read(dir.join(RETIREMENT_FILE)).unwrap()).unwrap();
+    assert_eq!(receipt.original_state.as_bytes(), before["state.json"].1.as_slice());
+    let retired = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete".into(),
+        replacement.id, "Synthetic authority".into()).unwrap();
+    let archived = find_change_dir(root, &old.id).unwrap();
+    assert!(!dir.exists());
+    let after = archive_workspace_snapshot(root, &archived, &portable_project_path(root, &archived)).unwrap();
+    for (path, entry) in before.iter().filter(|(path, _)| path.as_str() != "state.json") {
+        assert_eq!(after.get(path), Some(entry), "{path} bytes/mode changed");
+    }
+    assert!(validate_retirement(root, &retired).is_ok());
+}
+
+#[test]
+fn recovery_retirement_resumes_the_prior_failed_rollback_crash_boundary() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete".into(),
+        replacement.id.clone(), "Synthetic authority".into()).unwrap();
+    let archived = find_change_dir(root, &old.id).unwrap();
+    let complete = archive_workspace_snapshot(root, &archived, &portable_project_path(root, &archived)).unwrap();
+    let receipt: RetirementRecord = serde_json::from_slice(&fs::read(archived.join(RETIREMENT_FILE)).unwrap()).unwrap();
+    let active = change_dir(root, &old.id);
+    fs::rename(&archived, &active).unwrap();
+    // Model the reviewed ee5e failure: old state restored, receipt removal interrupted.
+    fs::write(active.join("state.json"), &receipt.original_state).unwrap();
+    retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete".into(),
+        replacement.id, "Synthetic authority".into()).unwrap();
+    assert!(!active.exists(), "the recorded disposition must have a supported retry");
+    assert_eq!(archive_workspace_snapshot(root, &archived,
+        &portable_project_path(root, &archived)).unwrap(), complete);
+}
+
+#[test]
+fn recovery_retirement_rejects_stale_unreviewed_circular_and_unknown_inputs_without_writes() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let old_dir = find_change_dir(root, &old.id).unwrap();
+    let replacement_dir = find_change_dir(root, &replacement.id).unwrap();
+    let ledger_path = old_dir.join("approvals.json");
+    let ledger_bytes = fs::read(&ledger_path).unwrap();
+    let state_path = old_dir.join("state.json");
+    let state_bytes = fs::read(&state_path).unwrap();
+    let replacement_state = replacement_dir.join("state.json");
+    let replacement_state_bytes = fs::read(&replacement_state).unwrap();
+    let review = replacement_dir.join("review.json");
+    let review_bytes = fs::read(&review).unwrap();
+    let source = root.join("src/lib.rs");
+    let source_bytes = fs::read(&source).unwrap();
+    for attack in ["stale", "unreviewed", "cycle", "unknown-format", "unknown-anchor"] {
+        match attack {
+            "stale" => fs::write(&source, "// unaccepted later delivery\n").unwrap(),
+            "unreviewed" => fs::remove_file(&review).unwrap(),
+            "cycle" => {
+                let mut forged = load_change(root, &replacement.id).unwrap();
+                forged.dependencies.push(old.id.clone());
+                fs::write(&replacement_state, json_content(&forged).unwrap()).unwrap();
+            }
+            "unknown-format" => {
+                let mut forged: serde_json::Value = serde_json::from_slice(&state_bytes).unwrap();
+                forged["workflow_version"] = serde_json::json!(99);
+                fs::write(&state_path, serde_json::to_vec_pretty(&forged).unwrap()).unwrap();
+            }
+            "unknown-anchor" => {
+                let mut forged: serde_json::Value = serde_json::from_slice(&ledger_bytes).unwrap();
+                forged["reopenings"][0]["recorded_review_mismatch_anchor"] = serde_json::json!("0".repeat(40));
+                fs::write(&ledger_path, serde_json::to_vec_pretty(&forged).unwrap()).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let before = archive_workspace_snapshot(root, &old_dir, &portable_project_path(root, &old_dir)).unwrap();
+        let error = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete".into(),
+            replacement.id.clone(), "Synthetic authority".into()).unwrap_err();
+        assert!(!error.is_empty(), "{attack} must refuse with an actual reason");
+        if attack == "cycle" { assert!(error.contains("depend"), "{error}"); }
+        assert_eq!(archive_workspace_snapshot(root, &old_dir,
+            &portable_project_path(root, &old_dir)).unwrap(), before, "{attack} mutated old evidence");
+        fs::write(&source, &source_bytes).unwrap();
+        fs::write(&review, &review_bytes).unwrap();
+        fs::write(&replacement_state, &replacement_state_bytes).unwrap();
+        fs::write(&state_path, &state_bytes).unwrap();
+        fs::write(&ledger_path, &ledger_bytes).unwrap();
+    }
+}
+
+#[test]
+fn recovery_retirement_requires_each_real_signed_input_and_compatible_owner() {
+    for different_owner in [false, true] {
+        let (temp, old) = retirement_reopened_fixture();
+        let root = temp.path();
+        let replacement = retirement_current_replacement_scoped(root,
+            if different_owner { Some("src/,specs/change/change.spec.md") } else { Some("README.md") },
+            different_owner);
+        let dir = find_change_dir(root, &old.id).unwrap();
+        let before = archive_workspace_snapshot(root, &dir, &portable_project_path(root, &dir)).unwrap();
+        let error = retire_change(root, &old.id, "Synthetic operator".into(), "Obsolete".into(),
+            replacement.id, "Synthetic authority".into()).unwrap_err();
+        assert!(error.contains(if different_owner { "signed owners" } else { "no custody" }), "{error}");
+        assert_eq!(archive_workspace_snapshot(root, &dir,
+            &portable_project_path(root, &dir)).unwrap(), before);
+    }
 }

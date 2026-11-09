@@ -73,7 +73,10 @@ fn a_relayed_decision_reads_only_the_shared_four_key_shape() {
         cases.push((long, "is 4097 bytes"));
         let mut at_bound = relay_json();
         at_bound[key] = serde_json::json!("x".repeat(4096));
-        assert!(serde_json::from_value::<RelayedDecision>(at_bound).is_ok(), "{key}");
+        assert!(
+            serde_json::from_value::<RelayedDecision>(at_bound).is_ok(),
+            "{key}"
+        );
     }
     for (value, expected) in cases {
         let error = serde_json::from_value::<RelayedDecision>(value.clone())
@@ -97,7 +100,12 @@ fn an_approval_record_without_a_relay_omits_the_key_and_refuses_null() {
     });
     let read: ApprovalRecord = serde_json::from_value(approval.clone()).unwrap();
     assert!(read.relayed_by.is_none());
-    assert!(serde_json::to_value(&read).unwrap().get("relayed_by").is_none());
+    assert!(
+        serde_json::to_value(&read)
+            .unwrap()
+            .get("relayed_by")
+            .is_none()
+    );
 
     approval["relayed_by"] = serde_json::Value::Null;
     let error = serde_json::from_value::<ApprovalRecord>(approval)
@@ -143,13 +151,19 @@ fn a_relayed_approval_must_name_its_own_actor_as_the_decider() {
         Some(relay("Bob")),
     )
     .unwrap_err();
-    assert!(other.contains("says `Bob` decided, but --actor records `Ada`"), "{other}");
+    assert!(
+        other.contains("says `Bob` decided, but --actor records `Ada`"),
+        "{other}"
+    );
     let missing =
         approve_definition_with_relay(root, &record.id, None, None, false, Some(relay("Ada")))
             .unwrap_err();
     assert!(missing.contains("--actor <who decided>"), "{missing}");
     assert_eq!(fs::read(&approvals).unwrap(), before);
-    assert_eq!(load_change(root, &record.id).unwrap().state, ChangeState::Draft);
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Draft
+    );
 }
 
 /// DISCRIMINATOR for the portable pair: both records of a `--portable-5-0-1` approval are one
@@ -247,7 +261,9 @@ fn correction_digests_leave_embedded_relays_out() {
     relayed.superseded_definition_approval.relayed_by = Some(relay("Release reviewer"));
     relayed.superseded_closing_approval.relayed_by = Some(relay("Release reviewer"));
     assert!(
-        serde_json::to_string(&relayed).unwrap().contains("relayed_by"),
+        serde_json::to_string(&relayed)
+            .unwrap()
+            .contains("relayed_by"),
         "the relay stays in the stored event"
     );
     assert_eq!(
@@ -303,7 +319,12 @@ fn a_read_relay_must_name_its_own_record_decider() {
         "Mallory"
     );
     let ledger = load_approvals(root, &record).unwrap();
-    assert!(ledger.approvals.iter().all(|approval| approval.relayed_by.is_none()));
+    assert!(
+        ledger
+            .approvals
+            .iter()
+            .all(|approval| approval.relayed_by.is_none())
+    );
     assert_eq!(ledger.approvals.last().unwrap().actor, "Ada");
 }
 
@@ -368,9 +389,15 @@ fn the_write_apis_validate_every_relay_field() {
         (blank, "relayed_by `words` must not be blank"),
         (long, "relayed_by `recorded_by` is 4097 bytes"),
     ] {
-        let error =
-            approve_definition_with_relay(root, &record.id, Some("Ada".into()), None, false, Some(relay))
-                .unwrap_err();
+        let error = approve_definition_with_relay(
+            root,
+            &record.id,
+            Some("Ada".into()),
+            None,
+            false,
+            Some(relay),
+        )
+        .unwrap_err();
         assert!(error.contains(expected), "{error}");
     }
     assert_eq!(fs::read(&approvals).unwrap(), before);
@@ -389,7 +416,11 @@ fn every_review_attempt_relay_must_name_its_reviewer() {
     let mut earlier = latest.clone();
     earlier.verdict = ScopedReviewVerdict::Block;
     earlier.relayed_by = Some(relay("Mallory"));
-    fs::write(workspace.join(SCOPED_REVIEW_FILE), json_content(&latest).unwrap()).unwrap();
+    fs::write(
+        workspace.join(SCOPED_REVIEW_FILE),
+        json_content(&latest).unwrap(),
+    )
+    .unwrap();
     let attempts = ScopedReviewAttemptLedger {
         schema_version: 1,
         reviews: vec![earlier, latest],
@@ -436,7 +467,10 @@ fn review_history_comparisons_ignore_relays_but_not_other_edits() {
         false,
     )
     .unwrap_err();
-    assert!(error.contains("removed or rewrote committed evidence"), "{error}");
+    assert!(
+        error.contains("removed or rewrote committed evidence"),
+        "{error}"
+    );
 }
 
 /// DISCRIMINATOR for the #995 review (P1): a change id is any portable path component, so it can
@@ -565,13 +599,19 @@ fn approval_succession_ignores_a_relay_an_older_binary_dropped() {
         .unwrap()
     };
 
-    let kept = successor(vec![definition.clone(), acceptance.clone()], acceptance.clone());
+    let kept = successor(
+        vec![definition.clone(), acceptance.clone()],
+        acceptance.clone(),
+    );
     assert_eq!(
         ledger_succession(Some(&earlier), &kept),
         LedgerSuccession::LawfulSuccessor
     );
     let dropped = successor(
-        vec![without_relayed_by(&definition), without_relayed_by(&acceptance)],
+        vec![
+            without_relayed_by(&definition),
+            without_relayed_by(&acceptance),
+        ],
         without_relayed_by(&acceptance),
     );
     assert_eq!(
@@ -593,7 +633,10 @@ fn approval_succession_ignores_a_relay_an_older_binary_dropped() {
     let mut superseded = without_relayed_by(&acceptance);
     superseded["digest"] = serde_json::json!("a2");
     let wrong_superseded = successor(
-        vec![without_relayed_by(&definition), without_relayed_by(&acceptance)],
+        vec![
+            without_relayed_by(&definition),
+            without_relayed_by(&acceptance),
+        ],
         superseded,
     );
     assert_eq!(
@@ -630,18 +673,17 @@ fn the_definition_digest_leaves_relays_in_corrections_out() {
         correction_mode: Some(0o100644),
     };
     let digest = |correction: &CorrectionRecord| {
-        definition_digest_from_snapshot(
-            &change,
-            b"{}",
-            std::slice::from_ref(correction),
-            &snapshot,
-        )
-        .unwrap()
+        definition_digest_from_snapshot(&change, b"{}", std::slice::from_ref(correction), &snapshot)
+            .unwrap()
     };
     assert_eq!(digest(&relayed), digest(&plain));
     let mut other = relayed.clone();
     other.superseded_closing_approval.relayed_by = Some(relay("Someone else"));
-    assert_eq!(digest(&other), digest(&plain), "editing a relay changes nothing");
+    assert_eq!(
+        digest(&other),
+        digest(&plain),
+        "editing a relay changes nothing"
+    );
     let mut edited = plain.clone();
     edited.reason = "A different reason".into();
     assert_ne!(digest(&edited), digest(&plain));
@@ -710,14 +752,21 @@ fn trusted_correction_history_ignores_a_relay_an_older_binary_dropped() {
     let corrections_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
     let mut ledger: CorrectionLedger =
         serde_json::from_str(&fs::read_to_string(&corrections_path).unwrap()).unwrap();
-    let decider = ledger.corrections[0].superseded_closing_approval.actor.clone();
+    let decider = ledger.corrections[0]
+        .superseded_closing_approval
+        .actor
+        .clone();
     ledger.corrections[0].superseded_closing_approval.relayed_by = Some(relay(&decider));
     fs::write(&corrections_path, json_content(&ledger).unwrap()).unwrap();
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     verify_change(root, &record.id).unwrap();
     record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
     git(&["add", "."]);
-    git(&["commit", "-m", "accept a correction whose closing approval carries a relay"]);
+    git(&[
+        "commit",
+        "-m",
+        "accept a correction whose closing approval carries a relay",
+    ]);
     let committed = fs::read_to_string(&corrections_path).unwrap();
     assert!(committed.contains("relayed_by"));
     let head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
@@ -744,4 +793,231 @@ fn trusted_correction_history_ignores_a_relay_an_older_binary_dropped() {
         error.contains("correction history divergence detected"),
         "{error}"
     );
+}
+
+// PR #1014 review regressions. All actors and acceptance records below are private TEST fixtures.
+
+#[test]
+fn pr1014_succession_preserves_a_reopenings_top_level_relay_key() {
+    let closing = serde_json::json!({"gate": "acceptance", "actor": "Ada", "digest": "a1"});
+    let reopening = serde_json::json!({
+        "actor": "Ada", "reason": "first reopen", "superseded_approval": closing,
+        "relayed_by": "unknown reopening field, not an approval relay",
+    });
+    let earlier = serde_json::json!({"approvals": [closing], "reopenings": [reopening]});
+    let mut current = earlier.clone();
+    current["reopenings"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "actor": "Ada", "reason": "second reopen", "superseded_approval": closing,
+        }));
+    let bytes = |value: &serde_json::Value| serde_json::to_vec(value).unwrap();
+    assert_eq!(
+        ledger_succession(Some(&bytes(&earlier)), &bytes(&current)),
+        LedgerSuccession::LawfulSuccessor,
+        "the unchanged committed prefix is a valid control"
+    );
+    for remove in [false, true] {
+        let mut tampered = current.clone();
+        let first = tampered["reopenings"][0].as_object_mut().unwrap();
+        if remove {
+            first.remove("relayed_by");
+        } else {
+            first.insert(
+                "relayed_by".into(),
+                serde_json::json!("rewritten unknown field"),
+            );
+        }
+        assert_eq!(
+            ledger_succession(Some(&bytes(&earlier)), &bytes(&tampered)),
+            LedgerSuccession::NotASuccessor,
+            "a reopening's own unknown key is not an approval relay (remove={remove})"
+        );
+    }
+}
+
+#[test]
+fn pr1014_accepted_evidence_keys_ignore_only_approval_relays() {
+    let approval = serde_json::json!({
+        "gate": "acceptance", "actor": "Ada", "timestamp": 1, "digest": "a1",
+        "note": null, "relayed_by": relay_json(), "unknown_approval_field": "keep",
+    });
+    let ledger = serde_json::json!({
+        "approvals": [approval],
+        "reopenings": [{"superseded_approval": approval, "relayed_by": "keep reopening field"}],
+        "unknown_ledger_field": "keep",
+    });
+    let key = |value: &serde_json::Value| {
+        accepted_evidence_key(
+            b"state",
+            b"verification",
+            &serde_json::to_vec(value).unwrap(),
+        )
+    };
+    let mut dropped = ledger.clone();
+    dropped["approvals"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("relayed_by");
+    dropped["reopenings"][0]["superseded_approval"]
+        .as_object_mut()
+        .unwrap()
+        .remove("relayed_by");
+    assert_eq!(
+        key(&ledger),
+        key(&dropped),
+        "an older binary's relay-free ledger is the same evidence"
+    );
+    let mut edited_relay = ledger.clone();
+    edited_relay["approvals"][0]["relayed_by"]["words"] =
+        serde_json::json!("different recorded words");
+    assert_eq!(key(&ledger), key(&edited_relay));
+    for path in ["actor", "unknown_approval_field"] {
+        let mut edited = dropped.clone();
+        edited["approvals"][0][path] = serde_json::json!("changed");
+        assert_ne!(
+            key(&dropped),
+            key(&edited),
+            "approval field {path} remains significant"
+        );
+    }
+    let mut edited = dropped.clone();
+    edited["reopenings"][0]["relayed_by"] = serde_json::json!("changed");
+    assert_ne!(key(&dropped), key(&edited));
+    edited = dropped.clone();
+    edited["unknown_ledger_field"] = serde_json::json!("changed");
+    assert_ne!(key(&dropped), key(&edited));
+    assert_ne!(
+        accepted_evidence_key(b"state", b"verification", b"not json"),
+        accepted_evidence_key(b"state", b"verification", b"also not json"),
+        "invalid ledgers must not collapse to one empty projection"
+    );
+}
+
+#[test]
+fn pr1014_accepted_anchor_ignores_a_dropped_approval_relay_but_keeps_other_fields() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "TEST fixture"]);
+    git(&["config", "core.autocrlf", "false"]);
+    write_lifecycle_test_policy(root);
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    let directory = format!("{CHANGES_PATH}/{}", record.id);
+    let approvals_path = format!("{directory}/{APPROVALS_FILE}");
+    let verification_path = format!("{directory}/{VERIFICATION_FILE}");
+    let state_path = format!("{directory}/state.json");
+    let mut ledger: ApprovalLedger =
+        serde_json::from_slice(&fs::read(root.join(&approvals_path)).unwrap()).unwrap();
+    for approval in &mut ledger.approvals {
+        approval.relayed_by = Some(relay(&approval.actor));
+    }
+    fs::write(root.join(&approvals_path), json_content(&ledger).unwrap()).unwrap();
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "TEST accepted ledger with valid informational relays",
+    ]);
+    let anchor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+    let verification = fs::read(root.join(&verification_path)).unwrap();
+    let original = fs::read(root.join(&approvals_path)).unwrap();
+    let eligible = |approvals: &[u8]| {
+        let mut eligible = BTreeMap::new();
+        consider_accepted_evidence_anchor(
+            root,
+            &record,
+            &anchor,
+            &state_path,
+            &verification_path,
+            &approvals_path,
+            &verification,
+            approvals,
+            &mut eligible,
+        );
+        eligible
+    };
+    assert_eq!(
+        eligible(&original).len(),
+        1,
+        "the committed accepted anchor must be non-vacuously eligible"
+    );
+    for approval in &mut ledger.approvals {
+        approval.relayed_by = None;
+    }
+    let dropped = json_content(&ledger).unwrap();
+    assert_eq!(
+        eligible(dropped.as_bytes()).len(),
+        1,
+        "dropping only approval relays keeps the anchor"
+    );
+    ledger.approvals[0].actor = "different TEST actor".into();
+    assert!(
+        eligible(json_content(&ledger).unwrap().as_bytes()).is_empty(),
+        "a non-relay edit is still refused"
+    );
+    assert!(
+        eligible(b"not JSON").is_empty(),
+        "an invalid ledger is not an eligible anchor"
+    );
+}
+
+#[test]
+fn pr1014_correction_read_refuses_each_embedded_relay_decider_mismatch() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "TEST correction actor".into(),
+        "TEST classification correction".into(),
+    )
+    .unwrap();
+    let record = load_change(root, &record.id).unwrap();
+    let path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+    let mut ledger: CorrectionLedger = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let definition = &mut ledger.corrections[0].superseded_definition_approval;
+    definition.relayed_by = Some(relay(&definition.actor));
+    let closing = &mut ledger.corrections[0].superseded_closing_approval;
+    closing.relayed_by = Some(relay(&closing.actor));
+    fs::write(&path, json_content(&ledger).unwrap()).unwrap();
+    effective_change_definition(root, &record).expect("matching embedded deciders are valid");
+    for definition in [true, false] {
+        let mut damaged = ledger.clone();
+        let correction = &mut damaged.corrections[0];
+        let approval = if definition {
+            &mut correction.superseded_definition_approval
+        } else {
+            &mut correction.superseded_closing_approval
+        };
+        approval.relayed_by.as_mut().unwrap().decided_by = "different TEST decider".into();
+        fs::write(&path, json_content(&damaged).unwrap()).unwrap();
+        let error = effective_change_definition(root, &record)
+            .expect_err("an embedded relay must name its own approval's actor");
+        assert!(
+            error.contains("recorded relayed_by does not match its record"),
+            "{error}"
+        );
+    }
+    fs::write(&path, json_content(&ledger).unwrap()).unwrap();
+    effective_change_definition(root, &record)
+        .expect("restoring valid relays recovers the same record");
 }

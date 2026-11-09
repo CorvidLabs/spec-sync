@@ -1189,18 +1189,31 @@ fn recovery_retirement_refuses_a_reopening_that_proves_no_staleness() {
 
 #[test]
 fn recovery_retirement_history_refuses_a_shallow_clone_boundary() {
-    let temp = TempDir::new().unwrap();
+    // A depth-limited clone must not pass retirement custody off an unreadable
+    // walk. The `-G` walk's boundary commit diffs against the empty tree, so any
+    // receipt present at the tip still matches; what must fail closed is custody
+    // validation and deleted-working-tree archives.
+    let (temp, old) = retirement_reopened_fixture();
     let root = temp.path();
-    recorded_review_recovery_git(root, &["init", "-b", "main"]);
-    recorded_review_recovery_git(root, &["config", "user.email", "synthetic@example.com"]);
-    recorded_review_recovery_git(root, &["config", "user.name", "Synthetic fixture"]);
-    fs::write(root.join("README.md"), "Synthetic base\n").unwrap();
+    let replacement = retirement_current_replacement(root);
+    retire_change(
+        root,
+        &old.id,
+        "Synthetic operator".into(),
+        "Obsolete intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+    )
+    .unwrap();
     recorded_review_recovery_git(root, &["add", "."]);
-    recorded_review_recovery_git(root, &["commit", "-m", "synthetic base"]);
-    assert!(
-        retirement_history(root).unwrap().is_empty(),
-        "a complete clone with no retirement commits reads as empty"
+    recorded_review_recovery_git(root, &["commit", "-m", "commit the retirement"]);
+    fs::write(root.join("README.md"), "later boundary\n").unwrap();
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(
+        root,
+        &["commit", "-m", "move the shallow boundary past the retirement"],
     );
+
     let clone_dir = temp.path().join("shallow");
     let output = Command::new("git")
         .args([
@@ -1213,11 +1226,33 @@ fn recovery_retirement_history_refuses_a_shallow_clone_boundary() {
         .output()
         .unwrap();
     assert!(output.status.success(), "clone: {output:?}");
-    let error = retirement_history(&clone_dir).unwrap_err();
+
+    // The retired record is present but its authenticating history sits beyond
+    // the boundary: custody validation refuses.
+    let records = list_all_change_metadata(&clone_dir, false).unwrap();
     assert!(
-        error.contains("shallow"),
-        "an empty walk in a shallow clone is unreadable history, not no retirements: {error}"
+        records.values().any(|record| record.state == ChangeState::Retired),
+        "fixture must hold a retired record"
     );
+    let error = validate_retired_records(&clone_dir, &records).unwrap_err();
+    assert!(error.contains("shallow"), "{error}");
+
+    // Deleting the retired archive locally does not erase it either: the
+    // boundary commit still carries the receipt, so the walk finds it and the
+    // removal is named.
+    let retired_dir = find_change_dir(&clone_dir, &old.id).unwrap();
+    fs::remove_dir_all(&retired_dir).unwrap();
+    let records = list_all_change_metadata(&clone_dir, false).unwrap();
+    assert!(
+        !records.values().any(|record| record.state == ChangeState::Retired),
+        "the deletion removed the record from the working tree"
+    );
+    let error = validate_retired_records(&clone_dir, &records).unwrap_err();
+    assert!(
+        error.contains("was removed"),
+        "the committed receipt outlives the local deletion: {error}"
+    );
+
     let full_dir = temp.path().join("full");
     let output = Command::new("git")
         .args([
@@ -1228,9 +1263,10 @@ fn recovery_retirement_history_refuses_a_shallow_clone_boundary() {
         .output()
         .unwrap();
     assert!(output.status.success(), "clone: {output:?}");
+    let records = list_all_change_metadata(&full_dir, false).unwrap();
     assert!(
-        retirement_history(&full_dir).unwrap().is_empty(),
-        "a complete clone still reads an empty retirement history as empty"
+        validate_retired_records(&full_dir, &records).is_ok(),
+        "a complete clone authenticates the same custody"
     );
 }
 

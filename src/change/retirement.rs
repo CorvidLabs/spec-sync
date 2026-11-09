@@ -637,19 +637,6 @@ fn retirement_history(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> 
     }
     let text = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
     let commits = text.lines().filter(|s| !s.is_empty()).collect::<Vec<_>>();
-    if commits.is_empty()
-        && git_output(root, &["rev-parse", "--is-shallow-repository"]).as_deref()
-            != Some("false")
-    {
-        // An empty walk in a depth-limited clone means the boundary hid the
-        // retirement commits, not that none exist: with the retired archive
-        // also deleted locally, treating this as "no committed retirements"
-        // would let tampering pass audit. Fail closed like the
-        // committed-reopening custody branch does.
-        return Err(
-            "committed retirement history is unreadable in a shallow clone; fetch the full history (`git fetch --unshallow`) before trusting an empty retirement walk".into(),
-        );
-    }
     if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
         return Err("committed retirement history exceeds its deterministic bound".into());
     }

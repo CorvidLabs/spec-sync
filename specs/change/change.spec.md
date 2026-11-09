@@ -1,6 +1,6 @@
 ---
 module: change
-version: 209
+version: 210
 status: active
 files:
   - src/change.rs
@@ -30,6 +30,7 @@ files:
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests/open_task_gate.rs
   - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/recovery_retirement.rs
   - src/change_tests/relayed_decision.rs
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/send_back_for_rescope.rs
@@ -489,6 +490,8 @@ Acceptance Criteria
 | cmd_init | New-project policy and version initialization |
 
 ## Change Log
+
+| 2026-11-09 | v210: Declare the existing recovery_retirement regression file in the change module coverage list; no runtime code, fixture, assertion or configuration change. |
 
 | 2026-11-08 | v208: Explicit committed audited-reopening custody source and unchanged exact ordinary-file owner classification in schema v2, retaining v1 digest compatibility and all nonacceptance guards. |
 

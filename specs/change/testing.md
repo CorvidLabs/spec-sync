@@ -187,6 +187,8 @@ REQ-change-139: `upstream_archive_is_found_by_its_state_record_not_its_directory
 
 REQ-change-relayed-decision-001: a_relayed_decision_reads_only_the_shared_four_key_shape; an_approval_record_without_a_relay_omits_the_key_and_refuses_null; the_review_digest_leaves_the_relay_out_and_keeps_existing_digests; a_relayed_approval_must_name_its_own_actor_as_the_decider; a_portable_approval_pair_carries_the_relay_on_both_records; recorded_claims_skip_an_approval_a_send_back_cancelled; correction_digests_leave_embedded_relays_out and a_read_relay_must_name_its_own_record_decider (#900 review; both fail with their fix removed); the_write_apis_validate_every_relay_field, every_review_attempt_relay_must_name_its_reviewer and review_history_comparisons_ignore_relays_but_not_other_edits (second #900 review round; all three fail with their fix removed) (src/change_tests/relayed_decision.rs). Binary-driven: a_relayed_approval_records_who_decided_their_words_where_and_the_recording_agent, an_approval_and_a_review_without_a_relay_omit_the_record, a_relayed_review_finalizes_and_its_review_digest_leaves_the_relay_out (it hashes the archived review.json as an older binary would) and a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_commit_back (renamed by #904, which changed the recovery it checks; tests/integration/relayed_decision.rs). The eight binary discriminators failed first on b179a4f2 with `unexpected argument '--words'`.
 
+REQ-change-relay-compare-001 (#926, #927, #971; CHANGE-13.h): approval_succession_ignores_a_relay_an_older_binary_dropped, the_definition_digest_leaves_relays_in_corrections_out and trusted_correction_history_ignores_a_relay_an_older_binary_dropped (src/change_tests/relayed_decision.rs). Each failed first on main b3ca5f97 (NotASuccessor, a moved digest, `correction history divergence detected`) and each also checks that a non-relay edit is still caught.
+
 REQ-change-relay-repair-001 (#904): binary-driven, each running the command its refusal names: a_damaged_review_relay_in_the_review_to_ship_window_is_repaired_by_the_named_command (review.json put back from the last attempt byte for byte, nothing committed, then finalize), a_damaged_relay_on_the_last_review_attempt_is_put_back_from_review_json, a_malformed_relay_record_is_refused_naming_repair_relays_and_it_puts_the_commit_back (committed approvals.json put back from HEAD; bytes equal the commit), a_damaged_relay_with_no_surviving_copy_is_removed_and_every_attempt_and_verdict_stays (REQ-change-046: the block attempt and its verdict stay), a_damaged_approval_relay_before_its_first_commit_is_removed_and_the_approval_stays, repair_relays_with_nothing_damaged_says_so_and_writes_nothing, repair_relays_on_an_archived_change_names_git_checkout_and_that_command_recovers, an_archived_damaged_relay_still_names_git_checkout_and_that_command_recovers and repair_relays_on_a_committed_file_that_is_not_json_names_git_checkout_and_it_recovers and, from the #995 review, repair_relays_refuses_when_git_cannot_read_the_head_copy_and_its_rerun_puts_it_back (a relay is removed only once Git has answered that HEAD holds no copy; it failed first with the relay removed), and from the second #995 review send_back_refuses_a_damaged_review_attempt_relay_naming_repair_relays_and_then_proceeds and repair_relays_refuses_while_another_ledger_does_not_read_and_writes_nothing (both failed first) (tests/integration/relayed_decision.rs). They failed first on #900's head 83db636b: five because the refusal named `git checkout HEAD`, three because `repair-relays` did not exist; the archived guard passed. Unit: only_git_saying_so_counts_as_no_committed_copy (no work tree, unborn HEAD and a path HEAD lacks are no copy; a HEAD that does not resolve is an error; it failed first on the previous code), relay_recoveries_quote_the_change_id_and_path_after_double_dash (#995 review: the id and path are single shell words after `--`; it failed first with the id unquoted), a_relay_is_put_back_only_from_a_clean_copy_of_the_same_record (matching, and a clean record is never damaged) and a_read_relay_must_name_its_own_record_decider, which now runs the repair (src/change_tests/relayed_decision.rs).
 
 REQ-change-001 (narrowed, CHANGE-6.d): status_shows_the_approval_and_review_claims_with_the_relay_and_its_boundary asserts the approval's actor prints as "a recorded claim, not authenticated".
@@ -196,3 +198,109 @@ REQ-change-001 (narrowed, CHANGE-6.d): status_shows_the_approval_and_review_clai
 REQ-change-142: `an_unreadable_upstream_archive_listing_is_reported_not_read_as_absent` in `src/change_tests/upstream_archive.rs` removes the archived `state.json` blob from the clone and requires `UpstreamArchive::CannotTell` naming `origin/main`, with a message that says it cannot tell and names `git fetch`. `review_and_finalize_stop_when_the_upstream_archive_cannot_be_read` in `tests/integration/archived_upstream.rs` does the same to a real change: review and finalize refuse naming `origin/main`, the change stays `verifying`, no archive is written, status is not `safe` and its next action and ship-status carry the refusal. Both failed first at a6116e0c (the lookup returned `None`). `upstream_archive_is_found_in_a_project_directory_named_like_pathspec_magic` failed first at a6074bf9 (the `:!app` listing failed, #962) and passes with the `:(top,literal)` pathspec. The REQ-change-129 and REQ-change-139 tests stay green. Codex review of #967: `an_undecodable_upstream_state_record_is_reported_as_cannot_tell` (the change's only upstream archive no longer decodes) failed first at e1e0ea58. Round 2: `the_cannot_tell_recovery_repairs_the_clone_and_reruns_the_lookup`, `the_cannot_tell_recovery_supports_a_project_root_below_the_shell_directory`, and `the_cannot_tell_recovery_repairs_a_dangling_remote_default` failed first at 3d379d77; each runs the printed refetch and `origin/HEAD` repair before requiring the lookup to report the archive. `the_cannot_tell_recovery_quotes_the_change_id_for_the_status_rerun` failed first there too and pins the id as one shell word in the status command.
 
 #967 executable recovery: `the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root` (tests/integration/archived_upstream.rs) failed first at 23fffcedee001dac6ede47e89ffe912b819b4552 because the printed status command lost `--root`. It executes all three printed commands from the repository parent with a project directory containing spaces and quotes, then requires status to name the upstream archive and rebase, the active change to stay verifying and no second archive to exist. The final status command retains the selected project root as one quoted argument.
+
+## PR1014 review regression evidence
+
+`src/change_tests/relayed_decision.rs` adds four private TEST-fixture discriminators:
+`pr1014_succession_preserves_a_reopenings_top_level_relay_key`,
+`pr1014_accepted_evidence_keys_ignore_only_approval_relays`,
+`pr1014_accepted_anchor_ignores_a_dropped_approval_relay_but_keeps_other_fields`, and
+`pr1014_correction_read_refuses_each_embedded_relay_decider_mismatch`.
+They cover REQ-change-relay-compare-001 and the existing relayed-decision read contract.
+The valid committed anchor and unchanged ledger prefix pass before the discriminators;
+non-relay actor/unknown-field edits and invalid JSON remain distinct or refused.
+Both embedded approval positions are checked, with valid-relay restoration as control.
+
+All four fail on committed old production `c73e6e40b08439892225af33d98d9b3523a2bcec`.
+The identical test file passes on narrowed production
+`18f3505b3e7dd0feecaa69f7774d5a680989cc88`; SHA256 is
+`e3c1c70f17f07686b1bbbba22f5d27d1e6fb077cc099d6d7655eada3ce220be9`.
+The related `relay` filter passes 21 tests, including those four, with 0 failures/ignored.
+Repository formatting and production Clippy pass under pinned Rust 1.89.0.
+An earlier test-only undefined-constant compile failure is retained separately and
+does not count as RED. Formatting cleanup has a canonical-rustfmt equivalence receipt.
+These are focused author checks; full verification, Trust, site and independent/human
+review are separate and were not run by this repair phase. The old archive is unchanged.
+
+## PR1014 numeric independent-review repair
+
+The independent finding against `43a402bc1375df65c7793e1be9030f8ec1c3e7d1` began
+as a source/number model, not an executed Rust failure. Actual committed RED at
+`5446287f5ec22698bd1ef868c8f0f01503217837` ran two new tests:
+`pr1014_numeric_projection_keeps_unknown_decimal_values_distinct` and
+`pr1014_numeric_edit_cannot_reuse_a_reachable_accepted_anchor`.
+Both fail at their intended assertions after the real approval-ledger decoder
+accepts the exact unknown numbers and the original committed anchor is eligible.
+
+Root then requested wire controls. Three additional tests were appended without
+changing either original test body: `pr1014_numeric_wire_rewrites_ignore_only_the_allowed_relay_positions`,
+`pr1014_numeric_wire_projection_refuses_malformed_or_trailing_input`, and
+`pr1014_numeric_wire_projection_preserves_exact_scalars_and_duplicate_unknown_fields`.
+Before the production fix, committed `8eabeb9668445ee2dece73b9205960817b4e77ef`
+reports 2 passed / 3 failed: the first two new controls pass, the original two
+regressions and the exact-scalar control fail. The identical five-test file passes
+on `1dd04380572bf316b5d29ee7c5ed2361f2b421fe`, SHA256
+`11182367434a43160ddfcab1ec672e3acad6a7cf8e734240177d0b67380c73bd`.
+
+Coverage includes relay-only removal at the two allowed positions, whitespace,
+key order, equivalent escaped strings, nested quoted delimiters, exact decimals,
+large exponents/integers, scalar types and duplicate unknown fields. Malformed,
+trailing and invalid-escape inputs refuse. Unknown nested `relayed_by` fields and
+a reopening's own field remain significant. Full-input Serde validation and the
+previous default recursion budget remain; no Cargo feature, public API or schema
+changed. The related relay filter now reports 22 passed / 0 failed / 0 ignored,
+including all 21 prior named tests and one of the five new controls; do not sum
+the overlapping filters as unique tests. Formatting and production Clippy pass.
+
+The initial fixture type-error compile and a later wrapper-only count mismatch
+(expected 21, actual 22 passing tests) are retained separately. Neither is a
+behavioral RED or a product regression. These remain author-focused checks;
+full qualification, independent re-review, human acceptance and delivery are open.
+
+## PR1014 succession precision follow-up
+
+The succession comparator still used `Value` after accepted-anchor normalization
+became lossless. Three raw-wire tests in `src/change_tests/relayed_decision.rs`
+cover `REQ-change-relay-compare-001`:
+
+- `pr1014_succession_precision_rejects_an_approval_prefix_edit`
+- `pr1014_succession_precision_rejects_a_reopening_prefix_edit`
+- `pr1014_succession_precision_rejects_a_superseded_approval_edit`
+
+Each builds real private TEST accepted/reopened generations, reads the exact
+unknown decimal through `load_approvals`, and checks an unchanged lawful successor
+before altering only that decimal. On committed
+`ff59db8acf2a4481118226f762552d5233dbda9d`, all three reach the intended assertion:
+actual `LawfulSuccessor`, expected `NotASuccessor`. The earlier tests-only
+`ae7a03035ad29e0aad3fafb675b1355f5df885cf` run failed all three during fixture
+setup, when restarting implementation from Verifying. It reached no decimal
+assertion and is not behavioral RED. The correction only verifies and accepts
+the reopened record; all original decimal assertions and valid controls remain
+byte-identical.
+
+The SAME3 pass on committed
+`603242a072b3469c951b7de6664960d08aca270f`. The entire test file is unchanged
+between corrected RED and GREEN, SHA256
+`49e4f292ee7bbca1dac564d8bcac509d2a9e28c5eac4d2ae711f9953f8ac4f30`.
+Only private succession helpers changed: full-input validation, exact raw values,
+duplicate members and whitespace/key-order/string normalization use the existing
+normalizer; relay removal stays at fixed approval positions. Ordered prefixes
+and the newly superseded approval compare normalized entry bytes. Historical
+optional empty-list behavior, terminal gate selection, bounds and
+`scope_adoptions` exclusion remain unchanged. No Cargo feature, API, schema,
+requirement wording or original archive changed.
+
+The unchanged numeric filter passes five tests and the related relay filter
+passes the same 22 named controls, all with zero failures or ignored tests.
+One numeric wire-rewrite test also runs in the relay filter: together with
+SAME3, these are 30 passing executions covering 29 distinct tests. Declared
+Fledge formatting and production Clippy pass last under pinned Rust 1.89.0.
+The complete compiler-input hashes and frozen passing harness support a later
+bounded no-build review; documentation-only descendants require input equality,
+not a claim of fresh final-tip compilation. Runtime fixture captures remain
+partial, with one transient file-deletion race retained in the GREEN receipt.
+
+These are author-focused results. Full verification, Trust, independent final
+review, human acceptance, current-main integration and hosted delivery remain
+pending. The old native archive and its historical review claims are unchanged
+and do not review this repair.

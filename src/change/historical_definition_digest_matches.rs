@@ -126,6 +126,19 @@ fn corrected_view_digest(previous: &str, record: &CorrectionRecord) -> Result<St
     Ok(digest.finish())
 }
 
+fn validate_correction_approval_relays(corrections: &[CorrectionRecord]) -> Result<(), String> {
+    ensure_read_relays_name_their_deciders(
+        corrections.iter().flat_map(|correction| {
+            [
+                &correction.superseded_definition_approval,
+                &correction.superseded_closing_approval,
+            ]
+            .map(|approval| (approval.actor.as_str(), approval.relayed_by.as_ref()))
+        }),
+        "the approval's actor",
+    )
+}
+
 fn validate_correction_records(
     record: &ChangeRecord,
     corrections: &[CorrectionRecord],
@@ -137,6 +150,7 @@ fn validate_correction_records(
             record.correction_count
         ));
     }
+    validate_correction_approval_relays(corrections)?;
     let mut answers = record.answers.clone();
     let mut selected_artifacts = record.selected_artifacts.clone();
     let mut view_digest = initial_correction_view_digest(record)?;
@@ -290,6 +304,8 @@ fn load_correction_ledger(root: &Path, record: &ChangeRecord) -> Result<Correcti
             ledger.schema_version
         ));
     }
+    // Validate claims before the trusted-history comparison projects their relays away.
+    validate_correction_approval_relays(&ledger.corrections)?;
     validate_trusted_correction_history(root, record, &ledger)?;
     Ok(ledger)
 }
@@ -448,13 +464,18 @@ fn validate_trusted_correction_history(
                 ));
             }
             for (index, historical) in anchor.corrections.iter().enumerate() {
-                let historical = serde_json::to_vec(historical).map_err(|error| {
-                    format!("failed to canonicalize trusted correction history: {error}")
-                })?;
-                let candidate =
-                    serde_json::to_vec(&current.corrections[index]).map_err(|error| {
-                        format!("failed to canonicalize current correction history: {error}")
+                // Compared as the correction digests read them, without embedded relays, so an
+                // older 6.x binary that drops the key is not divergence (#971,
+                // REQ-change-relay-compare-001). Every other field is compared exactly.
+                let historical = serde_json::to_vec(&correction_digest_projection(historical))
+                    .map_err(|error| {
+                        format!("failed to canonicalize trusted correction history: {error}")
                     })?;
+                let candidate =
+                    serde_json::to_vec(&correction_digest_projection(&current.corrections[index]))
+                        .map_err(|error| {
+                            format!("failed to canonicalize current correction history: {error}")
+                        })?;
                 if candidate != historical {
                     return Err(format!(
                         "correction history divergence detected for {} at sequence {} from trusted commit {}",
@@ -783,18 +804,20 @@ fn historical_definition_digest_matches(
             let Some((mode, _)) = git_entry_at_commit(root, commit, &repo_path)? else {
                 continue;
             };
-            current_digest.entry(
-                &local_path,
-                b"file",
-                mode,
-                json_content(corrections)?.as_bytes(),
-            );
-            legacy_digest.entry(
-                &local_path,
-                b"file",
-                mode,
-                json_content(corrections)?.as_bytes(),
-            );
+            // The same projection the live definition digest hashes: the correction ledger
+            // without its embedded relays (#927, REQ-change-relay-compare-001). No binary that
+            // predates relayed decisions wrote one, so the legacy digest reads it the same way.
+            let projected = CorrectionLedger {
+                schema_version: corrections.schema_version,
+                corrections: corrections
+                    .corrections
+                    .iter()
+                    .map(correction_digest_projection)
+                    .collect(),
+            };
+            let projected = json_content(&projected)?;
+            current_digest.entry(&local_path, b"file", mode, projected.as_bytes());
+            legacy_digest.entry(&local_path, b"file", mode, projected.as_bytes());
         }
         if current_digest.finish() == expected || legacy_digest.finish() == expected {
             return Ok(true);

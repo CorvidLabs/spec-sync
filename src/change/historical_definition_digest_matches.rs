@@ -1206,6 +1206,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
         with_relayed_read_recovery(
             root,
+            record,
             &path,
             format!("invalid independent scoped review evidence: {error}"),
         )
@@ -1218,6 +1219,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     .map_err(|error| {
         with_relayed_read_recovery(
             root,
+            record,
             &attempts_path,
             format!("invalid scoped review attempt history: {error}"),
         )
@@ -1226,7 +1228,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
         [(review.reviewer.as_str(), review.relayed_by.as_ref())],
         "the review's reviewer",
     )
-    .map_err(|message| with_relayed_read_recovery(root, &path, message))?;
+    .map_err(|message| with_relayed_read_recovery(root, record, &path, message))?;
     // Every attempt, not only the latest projection: earlier attempts stay uncommitted until ship
     // too, so no Git prefix check would notice an edited one (#900 review).
     ensure_read_relays_name_their_deciders(
@@ -1236,7 +1238,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
             .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
         "the review's reviewer",
     )
-    .map_err(|message| with_relayed_read_recovery(root, &attempts_path, message))?;
+    .map_err(|message| with_relayed_read_recovery(root, record, &attempts_path, message))?;
     validate_scoped_review_attempts(root, record, &attempts, &review)?;
     Ok(review)
 }
@@ -1256,9 +1258,25 @@ fn load_scoped_review_attempt_ledger(
     }
     let content = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read scoped review history: {error}"))?;
-    serde_json::from_str(&content)
-        .map(Some)
-        .map_err(|error| format!("invalid scoped review attempt history: {error}"))
+    // The same relay checks and recovery `load_scoped_review` applies: send-back and the review
+    // ordering read the attempts through here (#995 review).
+    let ledger: ScopedReviewAttemptLedger = serde_json::from_str(&content).map_err(|error| {
+        with_relayed_read_recovery(
+            root,
+            record,
+            &path,
+            format!("invalid scoped review attempt history: {error}"),
+        )
+    })?;
+    ensure_read_relays_name_their_deciders(
+        ledger
+            .reviews
+            .iter()
+            .map(|attempt| (attempt.reviewer.as_str(), attempt.relayed_by.as_ref())),
+        "the review's reviewer",
+    )
+    .map_err(|message| with_relayed_read_recovery(root, record, &path, message))?;
+    Ok(Some(ledger))
 }
 
 /// Whether `review`, at `review_index` in the attempt history, was recorded after `send_back`
@@ -3519,7 +3537,15 @@ pub fn summarize_change_with_strict(
 fn upstream_archive_handoff(id: &str, upstream: &UpstreamArchive) -> HandoffSummary {
     HandoffSummary {
         readiness: HandoffReadiness::NotYet,
-        reason: "this change is already archived on the remote default, so review and finalize refuse it here".into(),
+        reason: match upstream {
+            UpstreamArchive::Archived { .. } => {
+                "this change is already archived on the remote default, so review and finalize refuse it here"
+            }
+            UpstreamArchive::CannotTell { .. } => {
+                "the remote default's archive cannot be read, so review and finalize cannot tell whether this change is already archived there and refuse it here"
+            }
+        }
+        .into(),
         resume: format!("specsync change status {id}"),
         before_clearing: vec![upstream_archive_message(id, upstream)],
     }
@@ -3994,15 +4020,18 @@ fn summarize_change_with_effective(
     } else {
         match record.state {
             ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
-                let question = next_questions_for(root, record)
-                    .into_iter()
-                    .next()
-                    .map(|question| question.id)
-                    .unwrap_or_else(|| "<question>".into());
-                format!(
-                    "run `specsync change answer {} {} <answer>`",
-                    record.id, question
-                )
+                // The command approve's refusal names for the same question
+                // (REQ-cmd-change-answer-hint-001).
+                match next_questions_for(root, record).first() {
+                    Some(question) => format!(
+                        "run {}",
+                        answer_command_hint(&record.id, &question.id, &question.choices)
+                    ),
+                    None => format!(
+                        "run `specsync change answer {} <question> \"<answer>\"`",
+                        record.id
+                    ),
+                }
             }
             // Prefer completing selected artifacts over approve when interview is done
             // but TODO/empty stubs remain (sandbox #16).

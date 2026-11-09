@@ -10,6 +10,7 @@ spec: cmd_merge.spec.md
 
 - [x] Initial spec creation with all required sections
 - [x] Requirements and acceptance criteria documented
+- [x] Root-level specs directories (#871, REQ-cmd-merge-004): `merge --install` emits Git attributes that match root and nested contracts for `.` and `./`
 
 ## Gaps
 

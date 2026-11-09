@@ -1,9 +1,10 @@
 ---
 module: cmd_change
-version: 69
+version: 78
 status: active
 files:
   - src/commands/change.rs
+  - src/commands/doctor.rs
   - docs/ADOPTING.md
 db_tables: []
 tracks: []
@@ -36,12 +37,14 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
     integrity after acquiring the persistence lock and render from the returned validated snapshot,
     so neither rendering failure nor a lock-wait race can conceal a mutation that already took effect.
 12. Status and check render a non-empty `verification_ignored_paths` list in text and status JSON with the standing note that SpecSync cannot tell whether project tests or CI read those files, render nothing extra when the list is absent or empty, and ship-status names an invalid entry as a blocker.
+13. Text `change check` (plain and `--commit`) and a passing text `change audit` print one stderr note counting the verification commands configured in `.specsync/sdd.json` that they did not run — `verification_commands` first, then `component_verification_commands` by module, then `strict_verification_commands`, each command once — and JSON check and a passing JSON audit carry the same deduplicated list as top-level `configured_commands_not_run` (`[]` when none is configured). The disclosure never spawns a configured command and never changes a verdict or exit status; `change check --commit --json` gains no field because that path has no JSON success output (REQ-cmd-change-unrun-commands-001).
 
 ## Public API
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
 | `cmd_change` | `root: &Path, action: ChangeAction, format: OutputFormat, strict: bool` | `()` | Dispatch every change lifecycle command, additive strict validators, and equivalent text/JSON output |
+| `cmd_doctor` | `root: &Path, request: DoctorRequest, format: OutputFormat` | `()` | `specsync doctor`: print the findings, the actions `--fix` applied and what `--dry-run` would do, in text or JSON; exit 1 when a late close is refused or a fix failed (REQ-cmd-change-035) |
 
 ## Invariants
 
@@ -123,6 +126,8 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-11-07 | v76: text `change check` (plain and `--commit`) and a passing text `change audit` print one stderr note counting the configured verification commands they did not run, across top-level, component, and strict policy lists; JSON check and a passing JSON audit carry the deduplicated list as `configured_commands_not_run` (`[]` when empty). The disclosure never runs a command or changes a verdict (REQ-cmd-change-unrun-commands-001, #893) |
+| 2026-11-06 | v69: `specsync doctor` (`cmd_doctor`, a submodule of the change commands) prints every finding with its fix class, what `--fix` applied and what `--dry-run` would do, in text or JSON; `change status` and `ship-status` report a closed-late change instead of refusing it (REQ-cmd-change-035, REQ-change-143, #833) |
 | 2026-11-05 | v62: `change ship` refuses an open task and names `specsync change ship <id>` with its flags; `change ship-status` reports it as a blocker and names it before the next step; `change check --commit` refusals name `--commit` (REQ-cmd-change-031, #892). |
 | 2026-11-05 | v57: `specsync change` handlers read repository facts and committed objects through the per-command memo and batch reader, and clear them after their own git writes (REQ-cmd-change-028, #861). |
 | 2026-10-10 | Add `cmd_change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
@@ -200,3 +205,9 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout: Archived change status no longer walks history per archive or per workflow-v1 change, and read commands take a timeout that names the phase and how to resume |
 | 2026-11-06 | stop-the-archive-check-and-change-pr-from-telling-a-copy-already-archived-upstream-to-run-ship: Stop the Archive check and change pr from telling a copy already archived upstream to run ship |
 | 2026-11-06 | record-relayed-human-decisions-on-approvals-and-reviews-as-claims-not-authentication: Record relayed human decisions on approvals and reviews as claims, not authentication |
+| 2026-11-07 | a-timed-out-read-prints-a-resume-command-that-runs-exactly-as-printed-and-does-not-time-out-again: A timed-out read prints a resume command that runs exactly as printed and does not time out again |
+| 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
+| 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
+| 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
+| 2026-11-07 | change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is: Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893) |

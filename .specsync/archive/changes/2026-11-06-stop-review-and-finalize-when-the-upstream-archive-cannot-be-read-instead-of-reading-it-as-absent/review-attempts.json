@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "fd96c9e1a3bfb3d05d3ba0647d91fc3eb2c6cd1f",
+      "contract_digest": "4b0faddaf422cdece06dda6f2c6a49946daf20400e26ab359c4bfdaeb4357bc7",
+      "execution_digest": "752ae6f8517d11d2d8b5b1129742e6601cfe079b8991ad95b8b1fa210787efb1",
+      "workspace_digest": "337452284e43c10f3f3693c558ee305d89567c1a9088a0215cfc85c91bd9ad80",
+      "timestamp": 1793989764
+    }
+  ]
+}

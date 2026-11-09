@@ -221,6 +221,25 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
+    /// Report every problem in the change records with its fix; `--fix` applies the safe ones
+    Doctor {
+        /// Apply the safe fixes, and every late close named with --close-late
+        #[arg(long)]
+        fix: bool,
+        /// With --fix, report what would be done and write nothing
+        #[arg(long, requires = "fix")]
+        dry_run: bool,
+        /// Close this merged but never archived change late (repeatable), or `all` for every
+        /// eligible one; needs --fix, --actor and --reason
+        #[arg(long = "close-late", value_name = "ID|all", requires_all = ["fix", "actor", "reason"])]
+        close_late: Vec<String>,
+        /// The person deciding the late close; recorded as a claim, not proof
+        #[arg(long)]
+        actor: Option<String>,
+        /// Why the change is closed late; kept in its late-close record
+        #[arg(long)]
+        reason: Option<String>,
+    },
     /// Three-way merge one contract. Git's merge driver calls this as
     /// `specsync merge-file %O %A %B %P` and reads the exit status.
     MergeFile {
@@ -540,6 +559,12 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Repair damaged relayed decisions: put each original back from the last commit or its twin
+    /// copy, otherwise remove only the damaged relayed_by (never an approval or review)
+    RepairRelays {
+        /// Change ID
+        id: String,
+    },
     /// Correct supported accepted interview metadata through append-only audit evidence
     Correct {
         /// Accepted change ID
@@ -810,6 +835,87 @@ pub enum AgentsAction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // REQ-cli-args-025: the doctor grammar.
+    #[test]
+    fn doctor_parses_its_scan_fix_dry_run_and_named_late_closes() {
+        for args in [
+            vec!["specsync", "doctor"],
+            vec!["specsync", "doctor", "--fix"],
+            vec!["specsync", "doctor", "--fix", "--dry-run"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--close-late",
+                "b",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--dry-run",
+                "--close-late",
+                "all",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "--json", "doctor"],
+        ] {
+            assert!(Cli::try_parse_from(&args).is_ok(), "{args:?} must parse");
+        }
+    }
+
+    // REQ-cli-args-025: a late close needs --fix, an actor and a reason; a dry run needs --fix.
+    #[test]
+    fn doctor_refuses_a_late_close_or_dry_run_without_its_required_flags() {
+        for args in [
+            vec![
+                "specsync",
+                "doctor",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--fix", "--close-late", "a"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--dry-run"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&args).is_err(),
+                "{args:?} must be refused"
+            );
+        }
+        assert!(Cli::try_parse_from(["specsync", "doctor"]).is_ok());
+    }
 
     #[test]
     fn no_subcommand_yields_none_and_text_default() {
@@ -1252,6 +1358,46 @@ mod tests {
             args.extend(missing);
             assert!(Cli::try_parse_from(args).is_err());
         }
+    }
+
+    /// REQ-cli-args-relay-repair-001: `change repair-relays <id>` takes the change id and nothing
+    /// else, is listed in `change` help, and leaves the rest of the change grammar as it was.
+    #[test]
+    fn change_repair_relays_takes_only_the_change_id() {
+        let cli =
+            Cli::try_parse_from(["specsync", "change", "repair-relays", "add-passkeys"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::RepairRelays { id }
+            }) if id == "add-passkeys"
+        ));
+        assert!(Cli::try_parse_from(["specsync", "change", "repair-relays"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "repair-relays",
+                "add-passkeys",
+                "--actor",
+                "Ada Reviewer",
+            ])
+            .is_err()
+        );
+        assert!(Cli::try_parse_from(["specsync", "change", "repair-relays", "a", "b"]).is_err());
+        let help = match Cli::try_parse_from(["specsync", "change", "--help"]) {
+            Err(error) => error.to_string(),
+            Ok(_) => panic!("`change --help` prints help"),
+        };
+        assert!(help.contains("repair-relays"), "{help}");
+        assert!(matches!(
+            Cli::try_parse_from(["specsync", "change", "status", "add-passkeys"])
+                .unwrap()
+                .command,
+            Some(Command::Change {
+                action: ChangeAction::Status { .. }
+            })
+        ));
     }
 
     #[test]

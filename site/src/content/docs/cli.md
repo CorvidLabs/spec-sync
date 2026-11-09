@@ -364,6 +364,33 @@ Display configured validation rules and their current status (built-in rules, cu
 specsync rules                             # show all rules and their configuration
 ```
 
+### `doctor`
+
+Report every problem in the change records, each with its fix, and apply the safe ones on request.
+
+```bash
+specsync doctor                            # list findings; writes nothing
+specsync doctor --fix --dry-run            # show what --fix would do; writes nothing
+specsync doctor --fix                      # apply the safe fixes
+specsync doctor --fix --close-late <id> --actor <name> --reason <text>   # close a merged change late
+specsync doctor --fix --close-late all --actor <name> --reason <text>    # every eligible change
+```
+
+Findings: a change merged but never archived, an accepted change whose inputs drifted (including an
+`accepted` package left in `.specsync/archive/changes/`), a finalize that stopped halfway, stale
+verification, and records another SpecSync version wrote. A check that cannot run is a finding too.
+
+- **Safe** fixes, applied by `--fix`: resume a stopped finalize (workflow v1: archive an accepted
+  change whose evidence is current) and the `migrate 5.0` ledger backfill.
+- **Decisions**, applied only with `--close-late`, `--actor` and `--reason`: a late close moves a
+  package that is on the remote default branch, byte for byte, into
+  `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` that says it was never
+  re-checked and is not verified. Several IDs are all or nothing.
+- **Report only**: everything else, including stale verification (`change check <id> --commit`).
+
+SpecSync 6.0 to 6.2 never read `.specsync/archive/closed-late/`, so they neither trip on a
+closed-late change nor count it as checked.
+
 ### `change`
 
 Manage the single verified change workflow. Every command supports global `--json` output for agent clients.
@@ -470,6 +497,8 @@ With `--json` the report goes to stdout:
 {"error":"timeout","command":"change status","timeout_secs":30,"phase":"archive-introduction index","progress":"140/214","wrote":false,"resume":"specsync change status add-passkeys --json"}
 ```
 
+The resume command runs exactly as printed: every argument that holds anything but letters, digits and `_@%+=:,./-` is single-quoted, so a path with `$`, `;`, `*` or an apostrophe can't change what it runs. When the deadline came from `SPECSYNC_TIMEOUT`, the resume command begins with `SPECSYNC_TIMEOUT= `, so running it in the same shell doesn't time out again.
+
 A tool that bounds SpecSync with its own timer can pass that limit as `--timeout`, and it gets the phase instead of a bare timeout.
 
 `change status <id> --json` and `change show <id> --json` also carry a top-level
@@ -514,6 +543,15 @@ perform the implementation review.
 made elsewhere: `--words "<their exact words>" --where "<where and when>" --recorded-by "<agent>"`,
 all three together. `change status` shows each approval and review as a recorded claim, with any
 relayed decision on the next line; `--json` carries them under `recorded_claims`.
+
+`change repair-relays <id>` repairs a damaged relayed decision in an active change, committed or not. Each damaged `relayed_by` in `approvals.json`, `review-attempts.json` or `review.json` is put back from the same record at `HEAD`, then from its twin, and with no copy only that `relayed_by` is removed. If `HEAD` lists the file but Git cannot read it, or `HEAD` does not resolve, the command refuses and writes nothing, naming `git fsck` and the rerun. Every ledger must read before anything is written, so a ledger damaged in some other way is refused with its own restore. Recovery commands quote the change id after `--`, for example `specsync change repair-relays -- 'add-passkeys'`. It prints one line per repair and writes nothing when nothing is damaged; `--json` prints `{"change", "repairs"}`. An archived change is refused, naming `git checkout HEAD -- <package>`.
+
+```text
+$ specsync change repair-relays add-passkeys
+✓ Repaired relayed decisions in add-passkeys:
+  review.json: put back from review-attempts.json attempt 1
+  Every approval and review attempt is kept, verdicts included; no digest or gate reads a relayed decision, so nothing went stale.
+```
 
 Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale. A predecessor entry signed under a reserved exact owner (`@exact:test`, `@exact:delivery`) can be adopted by any module that owns the path now through `[modules."<name>"] owns` in `.specsync/config.toml`; no reopen or owner correction is needed.
 

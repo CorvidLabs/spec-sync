@@ -1,0 +1,72 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794020332,
+      "digest": "0cbb7c805a6b9fb181cf8f66d94311a2bf5b5f79a30a894f14dd12b58884ef5d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as",
+        "title": "Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958)",
+        "description": "Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958)",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".chough/",
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/docs.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests/approve_refusal_hints.rs",
+          "src/commands/change.rs",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A question with two or more choices keeps the `<a|b>` placeholder (`<yes|no>`), and one with no choices keeps `\"<answer>\"`.",
+          "The approval guard refuses exactly the definitions it refused before; only the refusal text for a single-choice question changes.",
+          "The changed unit test and the documented-workflow probe fail on main db641967 before the change and pass after it.",
+          "The documented-workflow probe runs the single-choice command exactly as printed: the harness no longer rewrites `<none>`.",
+          "The unfinished-interview refusal for a question with exactly one choice names that choice literally, e.g. `specsync change answer <id> constraints none`, so the command runs as printed (REQ-change-133, DOCS-3.a, proposed DOCS-3.b)."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "specs/cmd_change/cmd_change.3md z=8 (\"Every surface that names a next step asks the same question\", #902): the refusal and both status forms must name one command, so one helper builds it and the probe checks all three. specs/change/change.3md z=19 (#917): a recovery must be runnable in the record state, so change answer stays draft-only; the single-choice placeholder decision there is the one Leif reversed for #958 (DOCS-3.b). z=15 (#883): refusal text changes, the guard refuses exactly what it refused before. No principles file is configured.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "dc0d7a3025b189b618dbdcaf0d82583ee9a40f1f5b185fe31713b56bddd19475",
+        "cmd_change": "d2db2e317417872a484fc8e9380895b3682f56d75d497bcf5bbacf771a9a8203"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-133": "896d447bca021b707a431ffea3902446cc9e76e04cfbb40bd2e6e511fdd210db"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve (Recommended)",
+        "where": "Moshi question from orc t18, 2026-11-06, approving #958 at 9c401605",
+        "recorded_by": "orc t18"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794082849,
+      "digest": "00f79958260ca6f51e097b0e4c1181e8a78245d71801c66cfac53db283b7e288",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

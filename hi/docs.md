@@ -11,6 +11,8 @@ The first thing a new user does is copy what the README and the landing page sho
 
 DOCS-1 through DOCS-3.a were drafted from audit findings D5 (#881) and D11 (#883). Leif approved them as drafted on 2026-11-05 at 20:22 MST in the orc tab ("Approve all"), relayed by orc t18.
 
+DOCS-3.b and DOCS-3.c were drafted by the agent for issue #958. Leif approved them as drafted in the Herdr orc tab on 2026-11-06 at about 19:35 MST ("1A 2yes": option A for the single-choice answer, and one placeholder rule for status as well), relayed by orc t18. Recorded by the ss-triage Claude agent (t15w).
+
 DOCS-4, DOCS-5 and DOCS-5.a were proposed in the documentation accuracy audit.
 Leif approved their exact wording on 2026-11-06: "Capture all three", relayed by
 orc t18 to the docs agent in Herdr. Recorded by Codex; this records the relayed
@@ -25,6 +27,8 @@ acceptance remain separate decisions.
   - **DOCS-2.a**  It says the same thing Chough teaches.
 - **DOCS-3**  The landing page shows what I must do between creating a change and approving it, so approval does not refuse me for a step it never mentioned.
   - **DOCS-3.a**  If I skip one of those steps anyway, approval's refusal names the command that finishes it.
+  - **DOCS-3.b**  When the open question can be answered none, the command approval names already says none, so I can run it as printed, and the refusal still tells me I can name the lessons that apply instead.
+  - **DOCS-3.c**  Status names the same command for the next question that approval's refusal does.
 - **DOCS-4**  I can rely on the reference and contributor documentation for the current SpecSync version: its commands, settings, defaults, paths, platform guidance and links are accurate.
 - **DOCS-5**  The diagrams show the states, transitions and steps that SpecSync actually uses.
   - **DOCS-5.a**  A diagram that no longer parses or disagrees with the lifecycle is caught before it reaches readers.

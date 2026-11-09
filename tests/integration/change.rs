@@ -157,6 +157,10 @@ fn verification_freshness_status_and_check_are_environment_independent() {
             "Harden verification freshness",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -2459,6 +2463,17 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
 /// Policy may still list `verification_commands`; `change check` does not execute them.
 #[cfg(unix)]
 fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> String {
+    change_ready_to_verify_with(root, verification_commands, serde_json::json!({}))
+}
+
+/// [`change_ready_to_verify`] with `extra` merged into `.specsync/sdd.json` before the change is
+/// created, for the component and strict command lists.
+#[cfg(unix)]
+fn change_ready_to_verify_with(
+    root: &Path,
+    verification_commands: &[String],
+    extra: Value,
+) -> String {
     let git = |args: &[&str]| {
         let output = Command::new("git")
             .args(args)
@@ -2487,19 +2502,22 @@ fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> Stri
         "---\nmodule: lib\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Lib\n\n## Purpose\n\nLibrary entry point.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
     )
     .unwrap();
+    let mut policy = serde_json::json!({
+        "version": 1,
+        "enabled": true,
+        "require_change_for_meaningful_files": false,
+        "meaningful_paths": ["src/", ".specsync/sdd.json"],
+        "ignored_paths": [".specsync/"],
+        "verification_commands": verification_commands,
+        "custom_artifacts": {},
+        "principles_file": null
+    });
+    if let (Some(policy), Some(extra)) = (policy.as_object_mut(), extra.as_object()) {
+        policy.extend(extra.clone());
+    }
     fs::write(
         root.join(".specsync/sdd.json"),
-        serde_json::to_vec_pretty(&serde_json::json!({
-            "version": 1,
-            "enabled": true,
-            "require_change_for_meaningful_files": false,
-            "meaningful_paths": ["src/", ".specsync/sdd.json"],
-            "ignored_paths": [".specsync/"],
-            "verification_commands": verification_commands,
-            "custom_artifacts": {},
-            "principles_file": null
-        }))
-        .unwrap(),
+        serde_json::to_vec_pretty(&policy).unwrap(),
     )
     .unwrap();
     let created = specsync()
@@ -2512,6 +2530,10 @@ fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> Stri
             "Reap an interrupted verification child",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -2732,6 +2754,209 @@ fn change_check_does_not_spawn_a_configured_verification_child() {
     );
 }
 
+// Verifies REQ-cmd-change-unrun-commands-001 (#893, SHIP-1.c.3).
+//
+// Honest label: DISCRIMINATOR. The unfixed binary passes this check in silence while the policy
+// configures three commands it never runs. This binary says so on stderr in text, lists them in
+// JSON, and still spawns none of them.
+#[cfg(unix)]
+#[test]
+fn change_check_notes_the_configured_commands_it_did_not_run() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let marker = root.join("ran.txt");
+    let reporter = executable_script(
+        &root.join("stand-in/report"),
+        &format!("#!/bin/sh\ntouch '{}'\n", marker.display()),
+    );
+    let reporter = reporter.display().to_string();
+    let id = change_ready_to_verify_with(
+        root,
+        &[reporter.clone()],
+        serde_json::json!({
+            "component_verification_commands": { "lib": ["cargo test lib::"] },
+            "strict_verification_commands": ["cargo test lib::", "cargo test"],
+        }),
+    );
+    let root_arg = root.to_str().unwrap();
+
+    let text = specsync()
+        .args(["--root", root_arg, "change", "check", &id])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&text.stderr);
+    assert!(
+        stderr.contains(
+            "note: .specsync/sdd.json configures 3 verification commands that SpecSync did not run"
+        ),
+        "a passing check must say it ran none of the configured commands: {stderr}"
+    );
+    assert!(
+        stderr.contains("to stop this note"),
+        "the note says how to silence it: {stderr}"
+    );
+    assert!(
+        !String::from_utf8_lossy(&text.stdout).contains("configures 3 verification commands"),
+        "the note goes to stderr, not stdout"
+    );
+
+    let json = specsync()
+        .args(["--root", root_arg, "--json", "change", "check", &id])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let document: Value =
+        serde_json::from_slice(&json.stdout).expect("JSON check prints one document on stdout");
+    assert_eq!(
+        document["configured_commands_not_run"],
+        serde_json::json!([reporter, "cargo test lib::", "cargo test"]),
+        "the configured commands, each once, in policy order: {document}"
+    );
+    assert!(!marker.exists(), "the note never runs a configured command");
+}
+
+// Verifies REQ-cmd-change-unrun-commands-001 (#893, SHIP-1.c.3).
+//
+// Honest label: DISCRIMINATOR. The committed check path (`change check --commit`) prints the
+// note too; the unfixed binary prints only its own progress lines.
+#[cfg(unix)]
+#[test]
+fn change_check_commit_notes_the_configured_commands_it_did_not_run() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &["cargo test".to_string()]);
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--commit",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "note: .specsync/sdd.json configures 1 verification command that SpecSync did not run"
+        ),
+        "{stderr}"
+    );
+}
+
+// Verifies REQ-cmd-change-unrun-commands-001 (#893, SHIP-1.c.3).
+//
+// Honest label: DISCRIMINATOR. `change audit` passes in silence on the unfixed binary.
+#[cfg(unix)]
+#[test]
+fn change_audit_notes_the_configured_commands_it_did_not_run() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    change_ready_to_verify(
+        root,
+        &["cargo test".to_string(), "cargo clippy".to_string()],
+    );
+    let root_arg = root.to_str().unwrap();
+    let text = specsync()
+        .args(["--root", root_arg, "change", "audit"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&text.stderr);
+    assert!(
+        stderr.contains(
+            "note: .specsync/sdd.json configures 2 verification commands that SpecSync did not run"
+        ),
+        "{stderr}"
+    );
+    let json = specsync()
+        .args(["--root", root_arg, "--json", "change", "audit"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let document: Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(
+        document["configured_commands_not_run"],
+        serde_json::json!(["cargo test", "cargo clippy"]),
+        "{document}"
+    );
+}
+
+// Verifies REQ-cmd-change-unrun-commands-001 (#893). Honest label: CONTROL. With nothing
+// configured there is no note, and the JSON list is empty rather than missing.
+#[cfg(unix)]
+#[test]
+fn an_empty_policy_gets_no_note_about_unrun_commands() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let root_arg = root.to_str().unwrap();
+    for args in [
+        vec!["change", "check", id.as_str()],
+        vec!["change", "audit"],
+    ] {
+        let output = specsync()
+            .args(["--root", root_arg])
+            .args(&args)
+            .assert()
+            .success()
+            .get_output()
+            .clone();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!stderr.contains("did not run"), "{args:?}: {stderr}");
+        let json = specsync()
+            .args(["--root", root_arg, "--json"])
+            .args(&args)
+            .assert()
+            .success()
+            .get_output()
+            .clone();
+        let document: Value = serde_json::from_slice(&json.stdout).unwrap();
+        assert_eq!(
+            document["configured_commands_not_run"],
+            serde_json::json!([]),
+            "{args:?}: {document}"
+        );
+    }
+}
+
+// Verifies SHIP-1.c.3 for this repository (#893, Leif's narrowed 3b decision). Honest label:
+// CONTRACT PIN. Only the top-level list is empty; the component and strict lists stay configured,
+// so the new note still discloses those commands instead of being silenced here.
+#[test]
+fn this_repository_configures_no_verification_command() {
+    let policy: Value = serde_json::from_str(&tracked_text(".specsync/sdd.json")).unwrap();
+    assert!(
+        policy["verification_commands"]
+            .as_array()
+            .is_none_or(|list| list.is_empty()),
+        "`verification_commands` lists commands `change check` does not run: {}",
+        policy["verification_commands"]
+    );
+    assert_eq!(
+        policy["component_verification_commands"]
+            .as_object()
+            .map_or(0, |lists| lists.len()),
+        13,
+        "the component verification commands stay configured"
+    );
+    assert_eq!(
+        policy["strict_verification_commands"]
+            .as_array()
+            .map_or(0, |list| list.len()),
+        3,
+        "the strict verification commands stay configured"
+    );
+}
+
 // Verifies REQ-change-023 at the contract level (#848, SHIP-1.c.1, SHIP-1.c.2).
 //
 // Honest label: CONTRACT PIN. It reads the tracked contracts, not the binary; the behavior is
@@ -2911,6 +3136,10 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
             "Tell agents when to clear",
             "--kind",
             "bug-fix",
+            // `lib` owns src/lib.rs; approve refuses owned production source no declared module
+            // owns, even with no spec change (#986, #956).
+            "--spec",
+            "lib",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -3785,6 +4014,200 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
     );
 }
 
+// Verifies REQ-cmd-change-008 and SHIP-4.a through the built binary (#986, #956). A no-spec-change change scoped to a
+// directory that holds production source a module owns passes approve, check and review: approve
+// cannot see which owned files a directory scope will deliver. ship-status and `ship --dry-run`
+// used to say "ready to finalize", and only finalize refused on canonical ownership. Both now run
+// finalize's ownership check, refuse to call the change ready, and name the recovery; the test
+// runs that recovery and ships.
+#[test]
+fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recovery_ships() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    // `billing` owns src/billing/charge.ts; the change scopes the whole directory.
+    fs::create_dir_all(root.join("specs/billing")).unwrap();
+    fs::write(
+        root.join("specs/billing/billing.spec.md"),
+        "---\nmodule: billing\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/charge.ts\n---\n\n# Billing\n\n## Purpose\n\nCharges.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(root.join("src/billing/charge.ts"), "const rate = 1;\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let invoke = |args: &[&str]| {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        specsync().args(&full).output().unwrap()
+    };
+    let run = |args: &[&str]| -> String {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Tune the charge rate",
+        "--kind",
+        "bug-fix",
+        "--path",
+        "src/billing/",
+        "--no-spec-change",
+        "--rationale",
+        "The rate is internal and no contract describes it",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The charge rate is tuned"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let active_dir = root.join(".specsync/changes").join(&id);
+    let write_artifacts = || {
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap())
+                .unwrap();
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let artifact = artifact.as_str().unwrap();
+            let content = if artifact == "tasks" {
+                "# Tasks\n\n- [x] Tune the rate.\n".to_string()
+            } else {
+                format!("# {artifact}\n\nComplete evidence for the rate.\n")
+            };
+            fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+        }
+    };
+    write_artifacts();
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "tune the rate"]);
+    run(&["change", "check", &id, "--commit"]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+
+    // Readiness tells the truth before finalize does.
+    let ship_status = run(&["change", "ship-status", &id]);
+    assert!(
+        !ship_status.contains("ready to finalize"),
+        "a change finalize refuses on ownership is not ready:\n{ship_status}"
+    );
+    for expected in [
+        "src/billing/charge.ts",
+        "billing",
+        &format!("specsync change send-back '{id}'"),
+        &format!("specsync change answer '{id}' affected_specs 'billing'"),
+    ] {
+        assert!(
+            ship_status.contains(expected),
+            "ship-status names `{expected}`:\n{ship_status}"
+        );
+    }
+    let dry_run = invoke(&["change", "ship", &id, "--dry-run"]);
+    let dry_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&dry_run.stdout),
+        String::from_utf8_lossy(&dry_run.stderr)
+    );
+    assert!(
+        !dry_run.status.success() && !dry_text.contains("ready to finalize"),
+        "the dry run refuses as the real ship would:\n{dry_text}"
+    );
+    assert!(
+        dry_text.contains(&format!(
+            "specsync change answer '{id}' affected_specs 'billing'"
+        )),
+        "the dry run names the recovery:\n{dry_text}"
+    );
+
+    // The named recovery: send back, declare the owner, re-approve, re-check, a fresh review, ship.
+    run(&[
+        "change",
+        "send-back",
+        &id,
+        "--actor",
+        "Scope owner",
+        "--reason",
+        "declare the module that owns the charge",
+    ]);
+    run(&["change", "answer", &id, "affected_specs", "billing"]);
+    run(&["change", "answer", &id, "constraints", "none"]);
+    write_artifacts();
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    run(&["change", "check", &id, "--commit"]);
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    let ready = run(&["change", "ship-status", &id]);
+    assert!(ready.contains("ready to finalize"), "{ready}");
+    run(&["change", "ship", &id]);
+    let archived: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
+    assert_eq!(archived["change"]["state"], "archived", "{archived}");
+}
+
 // Verifies REQ-change-111 and REQ-cmd-change-005 through the built binary. An approved semantic
 // delta edited after approval reads as an invalid approval in JSON and text status, and
 // `change check` and `change audit` both refuse it. Restoring the approved bytes clears all three.
@@ -4353,9 +4776,13 @@ fn an_archived_status_past_its_timeout_exits_124_and_names_how_to_resume() {
         .get_output()
         .stdout
         .clone();
-    assert_eq!(
-        serde_json::from_slice::<Value>(&from_env).unwrap()["error"],
-        "timeout"
+    let from_env: Value = serde_json::from_slice(&from_env).unwrap();
+    assert_eq!(from_env["error"], "timeout");
+    // #953: the resume command must not inherit the deadline it is resuming from.
+    let resume = from_env["resume"].as_str().unwrap();
+    assert!(
+        resume.starts_with("SPECSYNC_TIMEOUT= specsync "),
+        "with SPECSYNC_TIMEOUT set, the resume command must clear it: {resume}"
     );
     // Text `change status` of an archived change is cheap and reaches no long phase, so it
     // completes; `ship-status` reads the archive-introduction index and reports in text.

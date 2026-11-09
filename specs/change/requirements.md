@@ -692,7 +692,6 @@ Acceptance Criteria
 - Selecting zero, one, or many open changes behaves as before (nothing / that id / error listing ids).
 - Archive terminal evidence is not required for a successful scoped check.
 
-
 ### REQ-change-047
 
 The change lifecycle SHALL prefer completing incomplete selected artifacts over definition approval for draft changes once the interview is complete and artifact completeness validation fails.
@@ -800,11 +799,12 @@ Acceptance Criteria
   canonically owns, naming every offending path in one error.
 - Paths that do not yet exist are not rejected at approve, since the owning spec
   may claim them in the same change; they remain enforced at finalize.
-- A change with justified `no_spec_change` (empty declared specs) is not
-  ownership-rejected at approve, because there is no owner set to resolve
-  against; finalize still enforces production ownership. Empty specs without
-  that justification fail closed at definition validation and at ownership
-  validation.
+- A change with justified `no_spec_change` and no declared specs is
+  ownership-checked at approve as well: an existing production-source path in
+  its scope has no declared owner, so it is rejected, naming the module that
+  owns it, before anyone approves or reviews it (#986, #956). Empty specs
+  without that justification still fail closed at definition validation and at
+  ownership validation.
 - A change at verifying that has never closed may correct an acceptance input
   owner under a currently valid definition approval. That substitute is for
   guided-path reachability, not audit-equivalent provenance to an
@@ -1592,7 +1592,8 @@ When `change approve` refuses affected paths that no declared module canonically
 - A refused path that some spec under the specs directory already lists in its `files:` names that spec file and its module, and says to declare it with `--spec`. Every such spec is named, sorted by spec path, whatever order the file system returns them in.
 - A listing spec that cannot own the path says why: it has no `module:`, or it is not the canonical spec of the declared module it names.
 - Otherwise the refused path names the declared spec whose `files:` entries share the longest directory with the path, comparing whole path components, and says to add the path to that spec's `files:` list. When no declared spec shares any directory with the path (depth 0), the refusal gives the generic message instead of naming a spec.
-- The same paths are refused as before; only the wording of the refusal changes.
+- For a draft, the refusal also names `specsync change answer <id> affected_specs <modules>`, listing the declared modules and every undeclared module that owns a refused path, so running it declares them (#986).
+- Which paths are refused is decided by REQ-change-053; this requirement governs only the wording.
 
 ### REQ-change-121
 
@@ -1730,13 +1731,13 @@ A lifecycle command that verifies a change, records a passing scoped review of i
 
 ### REQ-change-133
 
-When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
+When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected spec without a justified no-spec change, no affected path, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer, and that command SHALL run as printed once any placeholder in it is filled. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. A draft missing both its affected specs and its affected paths SHALL be refused for its affected specs first, the question `change status` asks first. The approval guard SHALL refuse exactly the definitions it refused before.
 
 Acceptance Criteria
 - With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
-- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
-- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
-- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- With no affected spec and no justified no-spec change, a draft's refusal names `specsync change answer <id> affected_specs "<module>"`; with no affected path, `specsync change answer <id> affected_paths "<path>"`; with neither, the affected-spec refusal comes first.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first. Two or more choices are the placeholder (`<yes|no>`). A single choice is the answer itself, so `constraints` is named as `specsync change answer <id> constraints none` and runs as printed, and the refusal adds that the lessons or principles that constrain the change can be named instead (DOCS-3.b). A question with no choices takes `"<answer>"`.
+- Running the named command, with any placeholder filled, moves approval on to the next refusal or to the selected-artifact refusal.
 - An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
 - A definition that approval refused before is still refused.
 
@@ -1811,7 +1812,7 @@ A definition approval and a scoped review MAY carry a `relayed_by` record of a h
 - All four fields are required when the record is present, each non-blank and at most 4096 bytes; `words` is stored exactly as given.
 - `decided_by` is the approval's actor or the review's reviewer; a relay naming anyone else is refused before anything is written.
 - An approval or review written without a relay omits the `relayed_by` key, so its bytes match what a binary that predates the record writes.
-- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field, and names restoring the file from Git with `git checkout <commit> -- <path>`.
+- Reading refuses a `relayed_by` that is `null`, carries an unknown key, lacks a field, or holds a blank or over-long field. For an active change the refusal names `specsync change repair-relays <id>` (REQ-change-relay-repair-001); for an archived change it names restoring the file from Git with `git checkout HEAD -- <path>`.
 - The finalization review digest is computed over the review with `relayed_by` left out, so a 6.x binary that drops the unknown key computes the same digest; a later edit to a relay record is therefore not detected, exactly like an edit to an approval's actor.
 - A `--portable-5-0-1` approval carries the relay on both records of the pair.
 - `recorded_claims` projects the effective definition approval, never one a send-back cancelled, and the latest scoped review, each with its relay, and carries no digest.
@@ -1825,7 +1826,6 @@ Acceptance Criteria
 - The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
 - Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
 - The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
-
 ### REQ-change-145
 
 When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
@@ -1849,4 +1849,43 @@ SpecSync's lifecycle reads SHALL walk only the history its read-cache and lifecy
 Acceptance Criteria
 - With a replacement under a custom `GIT_REPLACE_REF_BASE` that swaps HEAD for a copy whose archived record lost its workflow version, `change status` under that variable gives exactly the plain read, fresh and cached.
 - `GIT_NO_REPLACE_OBJECTS=1` gives the plain read too.
+
+### REQ-change-relay-repair-001
+
+`repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.
+
+#### Acceptance Criteria
+
+- Between `change review` and `change ship`, when neither review file is committed, a damaged relay in `review.json` is put back from the last review attempt, and one in the last attempt is put back from `review.json`, byte for byte; the change then ships with nothing committed in between.
+- A damaged relay in a committed `approvals.json` is put back from `HEAD`, and the file's bytes equal the committed file.
+- A damaged relay with no surviving copy, such as an earlier review attempt or an approval that was never committed, is removed; every approval and attempt stays with its verdict, and the change can ship.
+- A record whose relay reads cleanly is never changed, and with nothing damaged nothing is written.
+- Files are written the way SpecSync writes them, all in one step under the project lock. A file that still does not read after its relays are repaired is refused and nothing is written.
+- Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
+- An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
+- A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
+
+### REQ-change-142
+
+When a remote default exists and its archived state records cannot be listed or read, the upstream-archive lookup SHALL report that it cannot tell whether the change is already archived there, rather than reporting no upstream archive. `change review` and `change finalize` SHALL refuse before acceptance and write no archive, and `change status` and `change ship-status` SHALL report the same refusal. The refusal SHALL name the remote default reference and how to find out (SHIP-3.c).
+
+Acceptance Criteria
+- A failed listing, a failed or truncated batched read, or a failed addition or ancestry lookup for a matching package is reported as cannot-tell.
+- No remote default, or a readable archive with no copy of the change, reports nothing.
+
+### REQ-change-143
+
+A late close SHALL move a change package that is committed on the remote default branch but was never archived, byte for byte, into `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` record, without reading the change's delivery evidence and without adding a change state, and SpecSync SHALL never treat a closed-late change as verified.
+
+Acceptance Criteria
+- The package comes from `.specsync/changes/` or `.specsync/archive/changes/`. Its `state.json` keeps its bytes and the state in it, and every other file keeps its bytes.
+- Destination components below the project root, including `.specsync`, `archive`, `closed-late` and the dated package name, must not be symlinks, including dangling links. Planning/dry-run refuses them with the offending path and recovery; the locked writer revalidates every plan before batch writes and each destination after directory creation before renaming. Refusal preserves source package bytes, the sequence ledger and outside targets.
+- The package's `state.json`, at its current path, must be present on the remote default reference (`origin/HEAD`, else `origin/main` or `origin/master`). When no remote default resolves, or the package is not on it, the close is refused and nothing is written.
+- No delivery input, acceptance manifest, acceptance input digest or verification is read or rebuilt.
+- `late-close.json` records the schema version, change ID, actor, reason, timestamp, the state it was closed from, its workflow version, the path it came from, the remote default reference and its commit, the commit that added the package and that commit's date, and `verified: false`.
+- For a member of an acknowledged sequence collision, the change is taken out of that acknowledgement in `.specsync/change-sequence.json`, the acknowledgement goes once fewer than two members remain, and the acknowledgement as it stood is recorded in `late-close.json`; the ledger's sequence and claim are unchanged.
+- A closed-late change is never part of the archive preflight, the successor walk or the sequence accounting, which read only `.specsync/changes/` and `.specsync/archive/changes/`.
+- `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
+- `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.
+- SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`.
 

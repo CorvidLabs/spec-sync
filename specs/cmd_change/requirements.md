@@ -186,6 +186,13 @@ Acceptance Criteria
 `specsync change ship [ID]` SHALL run ship preflight for one change and, when
 `ready_to_finalize` is true, perform finalize. When not ready it SHALL exit
 non-zero and print blockers and the next stage without mutating state.
+Ship preflight, including `--dry-run`, SHALL run the canonical-ownership check
+finalize runs over the change's delivery inputs. A production-source input that
+no declared module owns SHALL be a blocker naming the path, the module that owns
+it, and the recovery (`specsync change send-back <id>`, then
+`specsync change answer <id> affected_specs <modules>`); `change ship-status`
+SHALL report the same blocker and SHALL NOT report the change ready to finalize
+(#986, #956).
 
 Optional orchestration flags after a successful finalize (or for already-archived
 changes):
@@ -209,6 +216,10 @@ Acceptance Criteria
   include `push` and `wait` result objects when those flags are used.
 - When sibling active changes remain after finalize, next guidance names them and
   requires their own check → review → ship cycle before merge.
+- A no-spec-change change whose directory scope delivers production source a
+  module owns is not ready: `change ship-status` names the blocker and the
+  recovery, `change ship --dry-run` exits non-zero, and running the named
+  recovery ships it (#986, #956).
 
 ### REQ-cmd-change-009
 
@@ -488,4 +499,58 @@ Acceptance Criteria
 - A relayed decision prints as `Relayed: <decided_by> said "<words>" (<where>); recorded by <recorded_by>; a relayed claim, not authenticated: it records who is said to have decided, not proof that they did.`
 - Text output escapes control characters in recorded names and relayed fields, so recorded words cannot move the cursor or recolour the terminal.
 - A change with no approval and no review prints neither line, and its JSON omits `recorded_claims`.
+
+### REQ-cmd-change-035
+
+`specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.
+
+Acceptance Criteria
+- Findings cover: a change merged but never archived; an accepted change whose inputs drifted, including an `accepted` package under `.specsync/archive/changes/`; a finalize that stopped halfway, including a workflow-v1 change accepted but not archived; stale verification; and records another SpecSync version wrote (missing 5.0.1-era digest fields, workflow-v1 plans without the 6.2 sections, a newer schema, an ID that a closed-late package already holds).
+- Each finding names its kind, change, reason, fix class and the exact command or doctor flag that applies the fix. Text and JSON carry the same findings.
+- A check that cannot run becomes a finding that names its error, and every other finding is still reported.
+- Plain `doctor` writes nothing. `--fix --dry-run` reports exactly what `--fix` would do with the same arguments and writes nothing.
+- The safe fixes are the `migrate 5.0` backfill, and resuming a stopped finalize (workflow v1: `change archive`) when no other finding blocks it. Stale verification is report-only and names `change check <id> --commit`.
+- `--close-late <id>` (repeatable) or `--close-late all` closes the named or every eligible change late, only with a non-empty `--actor` and `--reason`. A change named more than once is closed once. Every named change is checked before anything is written, and one refusal writes nothing and names the refused change.
+- After every late close or applied fix, each remaining safe fix is revalidated against a fresh scan, and a change closed late in the same call gets no safe fix.
+- A late close of a collision member says that the ledger edit needs an open change declaring `.specsync/change-sequence.json` wherever meaningful files require one.
+
+### REQ-cmd-change-036
+
+The resume command a timed-out read prints (REQ-cmd-change-032) SHALL split back, under a POSIX shell, into exactly the arguments of the original invocation without `--timeout`: every argument not made only of shell-safe characters SHALL be single-quoted. When `SPECSYNC_TIMEOUT` was set, the command SHALL begin with `SPECSYNC_TIMEOUT= ` so the resumed run has no deadline (SPEED-1).
+
+Acceptance Criteria
+- A resume command for arguments holding `$`, `;`, `*`, `'`, spaces and an empty argument splits back into exactly those arguments.
+- With `SPECSYNC_TIMEOUT` set, the resume command starts with `SPECSYNC_TIMEOUT= specsync `; without it, it starts with `specsync `.
+
+### REQ-cmd-change-answer-hint-001
+
+For a draft with an unanswered interview question, text and JSON `change status` SHALL name as the next action the same `specsync change answer` command that `change approve`'s refusal names for that question (REQ-change-133), including `constraints`, which is asked once the rest of the interview is answered (DOCS-3.c).
+
+Acceptance Criteria
+- After each refusal the landing-page draft gets, text `Next:` and JSON `summary.next_action` name the command that refusal named.
+- A yes-or-no question is named with `<yes|no>`, not `<answer>`, and `constraints` as `constraints none`.
+- Text status for a draft whose only open question is `constraints` names that answer, not the artifacts step.
+
+### REQ-cmd-change-relay-repair-001
+
+`change repair-relays <id>` SHALL run `repair_relayed_decisions` and print one line for each record it repaired: the file and the record's position, then where the original was put back from, or that it was removed together with the removed value. `--json` SHALL print the repair report.
+
+#### Acceptance Criteria
+
+- A put-back prints `<place>: put back from <copy>`, where the place is `approvals.json approval <n>`, `review-attempts.json attempt <n>` or `review.json`, and the copy is `HEAD`, `review.json` or `review-attempts.json attempt <n>`.
+- A removal prints `<place>: removed`, says that no copy of the original exists, and shows the removed value with control characters escaped.
+- With nothing damaged it prints `No relayed decision in <id> needs repair.` and exits 0.
+- A refusal exits non-zero and names its recovery command.
+- `--json` prints `{"change": <id>, "repairs": [...]}` with each repair's `file`, `record`, `action`, and `from` or `removed`.
+
+### REQ-cmd-change-unrun-commands-001
+
+Text `change check` (plain and `--commit`) and `change audit` SHALL disclose configured verification commands they did not run, and their successful JSON output SHALL expose the same commands as a top-level `configured_commands_not_run` list beside `verification` or `report`. The disclosure SHALL NOT change a command's verdict or execute a configured command (SHIP-1.c.3).
+
+Acceptance Criteria
+- With one or more configured commands, text prints one stderr line beginning `note: .specsync/sdd.json configures N verification command(s) that SpecSync did not run`, using singular `command` for N=1 and plural `commands` otherwise, and includes the words `to stop this note`; stdout is unchanged.
+- JSON includes every configured command once, in policy order: `verification_commands`, `component_verification_commands` by module, then `strict_verification_commands`. With none configured, the key is present as `[]`, including when `verification` is null.
+- Plain and committed text checks and text audit use the same note. JSON check and audit carry the same ordered list. `change check --commit --json` gains no success document, preserving #839.
+- The disclosure never changes exit status and never spawns a configured command.
+- SpecSync's own `.specsync/sdd.json` empties only `verification_commands`; all 13 component modules and all 3 strict commands remain configured and are disclosed rather than removed to silence the note.
 

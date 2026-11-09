@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed",
+  "implementation_commit": "07f1739eb4b1647c8cfc702557be829fb7ced289",
+  "implementation_tree": "56d849331b2f7a1eef1f673b552d01dc820f4c4e",
+  "contract_digest": "f07fd37c200853e2a5f6a58fecf84cd1e15f63586c4700dd3ad49def9ea39936",
+  "workspace_digest": "d88c224ed4e35540fc7b25215a87fd043cb1579a6d2f9fd78b10311175f9c13f",
+  "closing_digest": "3ddef3c6b7ead7cf2d42371e35a43904527153b32f3528385ca3d52eb4d4cb63",
+  "review_digest": "8577e7887966dea76eb2f11eea162142b46faf94433215451d8b6462228e7ab1",
+  "finalization_digest": "b3b260a56fa00635644233bff082e521c81ccf2021f03463e3d69834e4f0a3c9",
+  "timestamp": 1794010292
+}

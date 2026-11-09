@@ -1,6 +1,6 @@
 ---
 id: retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts
-state: implementing
+state: archived
 type: bug_fix
 base_commit: feef2ad56afd2d6fd8f026667a8e3e701d614c63
 ---

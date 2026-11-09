@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
+  "implementation_commit": "c628805b589b53e4b77daad5d13a692a41f0fab9",
+  "implementation_tree": "1093d379a97d2a66731d8e88513f6b2277d4e2a9",
+  "contract_digest": "f1dc5141bc5dd1073b34daa363b4eb48e1a2aebaeb7c5d690c937b5845700d79",
+  "workspace_digest": "ab3a8c7b95bf50ef668f22de311ad1da5000b87c0354bba68e921e801bc904bc",
+  "closing_digest": "805841c4605935d588efebe7c4cc77baaf7888b7c5a46a25e77124830e30f659",
+  "review_digest": "df3d3e17fc0450cda5efa1a55e93b546ec9415255206929781864f38cd7fee2e",
+  "finalization_digest": "65a6f3152f34220f4bbac5d6637dc16c97ebe73eca2246782448da4506c18b28",
+  "timestamp": 1794233744
+}

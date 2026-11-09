@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
+  "reviewer": "Codex-sol",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "c628805b589b53e4b77daad5d13a692a41f0fab9",
+  "contract_digest": "f1dc5141bc5dd1073b34daa363b4eb48e1a2aebaeb7c5d690c937b5845700d79",
+  "execution_digest": "e960a5c433c483574f40c060f2bfa13c942c219d9178624bb11f8b1d4d52a653",
+  "workspace_digest": "ab3a8c7b95bf50ef668f22de311ad1da5000b87c0354bba68e921e801bc904bc",
+  "timestamp": 1794233715
+}

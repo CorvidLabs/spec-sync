@@ -344,13 +344,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             })
         }
         ChangeAction::Retire { id, actor, reason, replacement, authority_source, source_kind } => {
-            let kind = if source_kind == "accepted-receipt" {
-                change::RetirementSourceKind::AcceptedReceipt
+            let result = if source_kind == "accepted-receipt" {
+                change::retire_change(root, &id, actor, reason, replacement, authority_source)
             } else {
-                change::RetirementSourceKind::CommittedAuditedReopeningUnproven
+                change::retire_change_with_source(
+                    root, &id, actor, reason, replacement, authority_source,
+                    change::RetirementSourceKind::CommittedAuditedReopeningUnproven,
+                )
             };
-            change::retire_change_with_source(root, &id, actor, reason, replacement, authority_source, kind)
-                .and_then(|record| print_record(root, &record, format, false, strict))
+            result.and_then(|record| print_record(root, &record, format, false, strict))
         }
         ChangeAction::SendBack { id, actor, reason } => {
             change::send_back_change(root, &id, actor, reason).map(|result| match format {

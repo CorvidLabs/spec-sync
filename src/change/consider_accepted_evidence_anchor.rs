@@ -2620,39 +2620,53 @@ enum LedgerSuccession {
     LawfulSuccessor,
 }
 
-/// The array named `field` in an approval-ledger JSON document, compared as raw JSON.
-///
-/// Raw values rather than `ApprovalLedger` structs on purpose: round-tripping through the typed
-/// form silently drops fields the struct does not know, which is exactly where an attacker would
-/// hide a difference between the ledger history committed and the one being presented.
-fn ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<serde_json::Value> {
-    ledger
-        .get(field)
-        .and_then(serde_json::Value::as_array)
-        .cloned()
-        .unwrap_or_default()
-}
-
-/// The entries of `field` as SpecSync's digests read them: without `relayed_by` on an approval or
-/// on a reopen event's superseded approval. A relay is covered by no digest, so an older 6.x
-/// binary that drops the key, or an edit to a relay, must not change whether a ledger lawfully
-/// continues another (#926, REQ-change-relay-compare-001). Every other key is kept.
-fn relay_blind_ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<serde_json::Value> {
-    let mut entries = ledger_entries(ledger, field);
-    for entry in &mut entries {
-        if let Some(object) = entry.as_object_mut() {
-            if field == "approvals" {
-                object.remove("relayed_by");
-            } else if field == "reopenings"
-                && let Some(superseded) = object
-                    .get_mut("superseded_approval")
-                    .and_then(serde_json::Value::as_object_mut)
-            {
-                superseded.remove("relayed_by");
-            }
+/// Reads a member from already normalized JSON without decoding its value. `field` is the
+/// canonical quoted key. Keep the previous last-member selection while retaining every member
+/// inside the selected value, including duplicate unknown keys and exact numeric tokens.
+fn ledger_json_member<'a>(object: &'a [u8], field: &[u8]) -> Option<&'a [u8]> {
+    if object.first() != Some(&b'{') {
+        return None;
+    }
+    let mut offset = 1;
+    let mut selected = None;
+    while object.get(offset) != Some(&b'}') {
+        let key = ledger_json_span(object, &mut offset)?;
+        if object.get(offset) != Some(&b':') {
+            return None;
+        }
+        offset += 1;
+        let value = ledger_json_span(object, &mut offset)?;
+        if key == field {
+            selected = Some(value);
+        }
+        match object.get(offset)? {
+            b',' => offset += 1,
+            b'}' => break,
+            _ => return None,
         }
     }
-    entries
+    selected
+}
+
+/// Borrows the ordered entries of a normalized ledger array. Historical absent or non-array
+/// fields still mean an empty list; entries never round-trip through `Value` or typed structs.
+fn ledger_entries<'a>(ledger: &'a [u8], field: &[u8]) -> Option<Vec<&'a [u8]>> {
+    let Some(array) =
+        ledger_json_member(ledger, field).filter(|value| value.first() == Some(&b'['))
+    else {
+        return Some(Vec::new());
+    };
+    let mut offset = 1;
+    let mut entries = Vec::new();
+    while array.get(offset) != Some(&b']') {
+        entries.push(ledger_json_span(array, &mut offset)?);
+        match array.get(offset)? {
+            b',' => offset += 1,
+            b']' => break,
+            _ => return None,
+        }
+    }
+    Some(entries)
 }
 
 #[derive(Clone, Copy)]
@@ -2828,16 +2842,26 @@ fn ledger_succession(earlier: Option<&[u8]>, current: &[u8]) -> LedgerSuccession
     let Some(earlier) = earlier else {
         return LedgerSuccession::NotASuccessor;
     };
-    let (Ok(earlier), Ok(current)) = (
-        serde_json::from_slice::<serde_json::Value>(earlier),
-        serde_json::from_slice::<serde_json::Value>(current),
+    let (Some(earlier), Some(current)) = (
+        relay_blind_approval_ledger_bytes(earlier),
+        relay_blind_approval_ledger_bytes(current),
     ) else {
         return LedgerSuccession::NotASuccessor;
     };
-    let earlier_approvals = relay_blind_ledger_entries(&earlier, "approvals");
-    let current_approvals = relay_blind_ledger_entries(&current, "approvals");
-    let earlier_reopenings = relay_blind_ledger_entries(&earlier, "reopenings");
-    let current_reopenings = relay_blind_ledger_entries(&current, "reopenings");
+    let (
+        Some(earlier_approvals),
+        Some(current_approvals),
+        Some(earlier_reopenings),
+        Some(current_reopenings),
+    ) = (
+        ledger_entries(&earlier, br#""approvals""#),
+        ledger_entries(&current, br#""approvals""#),
+        ledger_entries(&earlier, br#""reopenings""#),
+        ledger_entries(&current, br#""reopenings""#),
+    )
+    else {
+        return LedgerSuccession::NotASuccessor;
+    };
     if current_reopenings.len() <= earlier_reopenings.len()
         || current_approvals.len() < earlier_approvals.len()
         || current_approvals[..earlier_approvals.len()] != earlier_approvals[..]
@@ -2848,17 +2872,18 @@ fn ledger_succession(earlier: Option<&[u8]>, current: &[u8]) -> LedgerSuccession
     // The first reopen event the successor adds must supersede exactly the approval the earlier
     // package closed on, so that a new generation names the package it supersedes instead of
     // merely counting past it.
-    let Some(superseded) = current_reopenings[earlier_reopenings.len()].get("superseded_approval")
-    else {
+    let Some(superseded) = ledger_json_member(
+        current_reopenings[earlier_reopenings.len()],
+        br#""superseded_approval""#,
+    ) else {
         return LedgerSuccession::NotASuccessor;
     };
     let earlier_terminal = earlier_approvals.iter().rev().find(|approval| {
-        approval
-            .get("gate")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|gate| matches!(gate, "acceptance" | "finalization"))
+        ledger_json_member(approval, br#""gate""#)
+            .and_then(|gate| serde_json::from_slice::<String>(gate).ok())
+            .is_some_and(|gate| matches!(gate.as_str(), "acceptance" | "finalization"))
     });
-    if earlier_terminal != Some(superseded) {
+    if earlier_terminal.copied() != Some(superseded) {
         return LedgerSuccession::NotASuccessor;
     }
     LedgerSuccession::LawfulSuccessor

@@ -492,6 +492,8 @@ With `--json` the report goes to stdout:
 {"error":"timeout","command":"change status","timeout_secs":30,"phase":"archive-introduction index","progress":"140/214","wrote":false,"resume":"specsync change status add-passkeys --json"}
 ```
 
+The resume command runs exactly as printed: every argument that holds anything but letters, digits and `_@%+=:,./-` is single-quoted, so a path with `$`, `;`, `*` or an apostrophe can't change what it runs. When the deadline came from `SPECSYNC_TIMEOUT`, the resume command begins with `SPECSYNC_TIMEOUT= `, so running it in the same shell doesn't time out again.
+
 A tool that bounds SpecSync with its own timer can pass that limit as `--timeout`, and it gets the phase instead of a bare timeout.
 
 `change status <id> --json` and `change show <id> --json` also carry a top-level

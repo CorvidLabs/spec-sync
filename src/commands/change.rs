@@ -783,9 +783,21 @@ fn read_deadline_for(
     ))
 }
 
-/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed.
+/// `specsync` followed by `args` with any `--timeout <secs>` or `--timeout=<secs>` removed, quoted
+/// so that a POSIX shell splits it back into exactly those arguments. When `SPECSYNC_TIMEOUT` is
+/// set, the command clears it, so the resumed run has no deadline (REQ-cmd-change-036).
 fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String {
-    let mut kept = vec!["specsync".to_string()];
+    resume_command_for(args, std::env::var_os("SPECSYNC_TIMEOUT").is_some())
+}
+
+/// `resume_command_without_timeout` with whether `SPECSYNC_TIMEOUT` is set passed in, so tests
+/// do not depend on the environment they run in.
+fn resume_command_for(args: impl Iterator<Item = String>, timeout_env: bool) -> String {
+    let mut kept = Vec::new();
+    if timeout_env {
+        kept.push("SPECSYNC_TIMEOUT=".to_string());
+    }
+    kept.push("specsync".to_string());
     let mut args = args.peekable();
     while let Some(argument) = args.next() {
         if argument == "--timeout" {
@@ -795,13 +807,15 @@ fn resume_command_without_timeout(args: impl Iterator<Item = String>) -> String 
         if argument.starts_with("--timeout=") {
             continue;
         }
-        kept.push(
-            if argument.is_empty() || argument.contains(char::is_whitespace) {
-                format!("'{}'", argument.replace('\'', "'\\''"))
-            } else {
-                argument
-            },
-        );
+        let shell_safe = !argument.is_empty()
+            && argument
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&byte));
+        kept.push(if shell_safe {
+            argument
+        } else {
+            format!("'{}'", argument.replace('\'', "'\\''"))
+        });
     }
     kept.join(" ")
 }
@@ -3398,6 +3412,62 @@ fn parse_owner_manifest(path: &Path) -> Result<Vec<(String, String)>, String> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    /// #923 and #953 (REQ-cmd-change-036): the printed resume command must run exactly the
+    /// arguments it names. Splitting it with `sh` gives back every original argument,
+    /// metacharacters and all, with and without `SPECSYNC_TIMEOUT` in the environment (the test
+    /// passes that in, so it does not depend on the environment the suite runs in).
+    #[test]
+    fn the_resume_command_splits_back_into_the_original_arguments() {
+        let original = [
+            "--root",
+            "/tmp/a$HOME;rm -rf x*",
+            "change",
+            "status",
+            "it's",
+            "",
+            "two words",
+            "--json",
+        ];
+        for timeout_env in [false, true] {
+            let resume = resume_command_for(
+                original
+                    .iter()
+                    .map(|argument| (*argument).to_string())
+                    .chain(["--timeout".to_string(), "5".to_string()]),
+                timeout_env,
+            );
+            let (prefix, leading) = if timeout_env {
+                ("SPECSYNC_TIMEOUT= specsync ", 2)
+            } else {
+                ("specsync ", 1)
+            };
+            assert!(resume.starts_with(prefix), "{resume}");
+            assert!(!resume.contains("--timeout"), "{resume}");
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!(
+                    "set -- {resume}; shift {leading}; for a in \"$@\"; do printf '%s\\0' \"$a\"; done"
+                ))
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{resume}");
+            let split: Vec<String> = String::from_utf8(output.stdout)
+                .unwrap()
+                .split('\0')
+                .map(str::to_string)
+                .collect();
+            let mut expected: Vec<String> = original
+                .iter()
+                .map(|argument| (*argument).to_string())
+                .collect();
+            expected.push(String::new());
+            assert_eq!(
+                split, expected,
+                "the resume command {resume} must name exactly the original arguments"
+            );
+        }
+    }
 
     /// The floor must be WIRED, not merely present (#533).
     ///

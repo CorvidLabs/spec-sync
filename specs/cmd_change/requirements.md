@@ -500,18 +500,6 @@ Acceptance Criteria
 - Text output escapes control characters in recorded names and relayed fields, so recorded words cannot move the cursor or recolour the terminal.
 - A change with no approval and no review prints neither line, and its JSON omits `recorded_claims`.
 
-### REQ-cmd-change-relay-repair-001
-
-`change repair-relays <id>` SHALL run `repair_relayed_decisions` and print one line for each record it repaired: the file and the record's position, then where the original was put back from, or that it was removed together with the removed value. `--json` SHALL print the repair report.
-
-#### Acceptance Criteria
-
-- A put-back prints `<place>: put back from <copy>`, where the place is `approvals.json approval <n>`, `review-attempts.json attempt <n>` or `review.json`, and the copy is `HEAD`, `review.json` or `review-attempts.json attempt <n>`.
-- A removal prints `<place>: removed`, says that no copy of the original exists, and shows the removed value with control characters escaped.
-- With nothing damaged it prints `No relayed decision in <id> needs repair.` and exits 0.
-- A refusal exits non-zero and names its recovery command.
-- `--json` prints `{"change": <id>, "repairs": [...]}` with each repair's `file`, `record`, `action`, and `from` or `removed`.
-
 ### REQ-cmd-change-035
 
 `specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.
@@ -526,6 +514,14 @@ Acceptance Criteria
 - After every late close or applied fix, each remaining safe fix is revalidated against a fresh scan, and a change closed late in the same call gets no safe fix.
 - A late close of a collision member says that the ledger edit needs an open change declaring `.specsync/change-sequence.json` wherever meaningful files require one.
 
+### REQ-cmd-change-036
+
+The resume command a timed-out read prints (REQ-cmd-change-032) SHALL split back, under a POSIX shell, into exactly the arguments of the original invocation without `--timeout`: every argument not made only of shell-safe characters SHALL be single-quoted. When `SPECSYNC_TIMEOUT` was set, the command SHALL begin with `SPECSYNC_TIMEOUT= ` so the resumed run has no deadline (SPEED-1).
+
+Acceptance Criteria
+- A resume command for arguments holding `$`, `;`, `*`, `'`, spaces and an empty argument splits back into exactly those arguments.
+- With `SPECSYNC_TIMEOUT` set, the resume command starts with `SPECSYNC_TIMEOUT= specsync `; without it, it starts with `specsync `.
+
 ### REQ-cmd-change-answer-hint-001
 
 For a draft with an unanswered interview question, text and JSON `change status` SHALL name as the next action the same `specsync change answer` command that `change approve`'s refusal names for that question (REQ-change-133), including `constraints`, which is asked once the rest of the interview is answered (DOCS-3.c).
@@ -534,6 +530,18 @@ Acceptance Criteria
 - After each refusal the landing-page draft gets, text `Next:` and JSON `summary.next_action` name the command that refusal named.
 - A yes-or-no question is named with `<yes|no>`, not `<answer>`, and `constraints` as `constraints none`.
 - Text status for a draft whose only open question is `constraints` names that answer, not the artifacts step.
+
+### REQ-cmd-change-relay-repair-001
+
+`change repair-relays <id>` SHALL run `repair_relayed_decisions` and print one line for each record it repaired: the file and the record's position, then where the original was put back from, or that it was removed together with the removed value. `--json` SHALL print the repair report.
+
+#### Acceptance Criteria
+
+- A put-back prints `<place>: put back from <copy>`, where the place is `approvals.json approval <n>`, `review-attempts.json attempt <n>` or `review.json`, and the copy is `HEAD`, `review.json` or `review-attempts.json attempt <n>`.
+- A removal prints `<place>: removed`, says that no copy of the original exists, and shows the removed value with control characters escaped.
+- With nothing damaged it prints `No relayed decision in <id> needs repair.` and exits 0.
+- A refusal exits non-zero and names its recovery command.
+- `--json` prints `{"change": <id>, "repairs": [...]}` with each repair's `file`, `record`, `action`, and `from` or `removed`.
 
 ### REQ-cmd-change-unrun-commands-001
 

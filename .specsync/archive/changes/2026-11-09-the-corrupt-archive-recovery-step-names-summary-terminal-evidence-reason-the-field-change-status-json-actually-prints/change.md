@@ -1,6 +1,6 @@
 ---
 id: the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 75df08756cafeb096dbf03a6208db17c8c8a31fa
 ---

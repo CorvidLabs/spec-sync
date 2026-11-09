@@ -918,8 +918,8 @@ fn pr1014_accepted_anchor_ignores_a_dropped_approval_relay_but_keeps_other_field
     write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
     let directory = format!("{CHANGES_PATH}/{}", record.id);
-    let approvals_path = format!("{directory}/{APPROVALS_FILE}");
-    let verification_path = format!("{directory}/{VERIFICATION_FILE}");
+    let approvals_path = format!("{directory}/approvals.json");
+    let verification_path = format!("{directory}/verification.json");
     let state_path = format!("{directory}/state.json");
     let mut ledger: ApprovalLedger =
         serde_json::from_slice(&fs::read(root.join(&approvals_path)).unwrap()).unwrap();

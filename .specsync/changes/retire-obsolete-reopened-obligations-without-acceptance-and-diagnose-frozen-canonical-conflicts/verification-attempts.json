@@ -168,6 +168,27 @@
         "REQ-cli-args-recovery-retirement-001",
         "REQ-cmd-change-recovery-retirement-001"
       ]
+    },
+    {
+      "timestamp": 1794208640,
+      "commit": "5307d05fa10ff51aad92d155662c897a5ab0ea89",
+      "contract_digest": "f1dc5141bc5dd1073b34daa363b4eb48e1a2aebaeb7c5d690c937b5845700d79",
+      "execution_digest": "7f2257d55ac66ae66f2315efd7fdaa6d55d340b0475e9bacbfc14ac260b9843f",
+      "workspace_digest": "0d6a306b4bd1118a5216cac8f09da4a3f0d6dd9e944a12c2d6243645a82204a7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-frozen-recovery-001",
+        "REQ-change-recovery-retirement-001",
+        "REQ-cli-args-recovery-retirement-001",
+        "REQ-cmd-change-recovery-retirement-001"
+      ]
     }
   ]
 }

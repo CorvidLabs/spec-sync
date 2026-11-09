@@ -320,7 +320,6 @@ fn a_squash_before_finalize_without_an_upstream_archive_still_reviews_and_finali
 // to find out, and write no second archive.
 #[test]
 fn review_and_finalize_stop_when_the_upstream_archive_cannot_be_read() {
-=======
     let temp = TempDir::new().unwrap();
     let (root, base, verified) = verified_feature(&temp);
     run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);

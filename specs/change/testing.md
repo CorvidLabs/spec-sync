@@ -244,3 +244,51 @@ The initial fixture type-error compile and a later wrapper-only count mismatch
 (expected 21, actual 22 passing tests) are retained separately. Neither is a
 behavioral RED or a product regression. These remain author-focused checks;
 full qualification, independent re-review, human acceptance and delivery are open.
+
+## PR1014 succession precision follow-up
+
+The succession comparator still used `Value` after accepted-anchor normalization
+became lossless. Three raw-wire tests in `src/change_tests/relayed_decision.rs`
+cover `REQ-change-relay-compare-001`:
+
+- `pr1014_succession_precision_rejects_an_approval_prefix_edit`
+- `pr1014_succession_precision_rejects_a_reopening_prefix_edit`
+- `pr1014_succession_precision_rejects_a_superseded_approval_edit`
+
+Each builds real private TEST accepted/reopened generations, reads the exact
+unknown decimal through `load_approvals`, and checks an unchanged lawful successor
+before altering only that decimal. On committed
+`ff59db8acf2a4481118226f762552d5233dbda9d`, all three reach the intended assertion:
+actual `LawfulSuccessor`, expected `NotASuccessor`. The earlier tests-only
+`ae7a03035ad29e0aad3fafb675b1355f5df885cf` run failed all three during fixture
+setup, when restarting implementation from Verifying. It reached no decimal
+assertion and is not behavioral RED. The correction only verifies and accepts
+the reopened record; all original decimal assertions and valid controls remain
+byte-identical.
+
+The SAME3 pass on committed
+`603242a072b3469c951b7de6664960d08aca270f`. The entire test file is unchanged
+between corrected RED and GREEN, SHA256
+`49e4f292ee7bbca1dac564d8bcac509d2a9e28c5eac4d2ae711f9953f8ac4f30`.
+Only private succession helpers changed: full-input validation, exact raw values,
+duplicate members and whitespace/key-order/string normalization use the existing
+normalizer; relay removal stays at fixed approval positions. Ordered prefixes
+and the newly superseded approval compare normalized entry bytes. Historical
+optional empty-list behavior, terminal gate selection, bounds and
+`scope_adoptions` exclusion remain unchanged. No Cargo feature, API, schema,
+requirement wording or original archive changed.
+
+The unchanged numeric filter passes five tests and the related relay filter
+passes the same 22 named controls, all with zero failures or ignored tests.
+One numeric wire-rewrite test also runs in the relay filter: together with
+SAME3, these are 30 passing executions covering 29 distinct tests. Declared
+Fledge formatting and production Clippy pass last under pinned Rust 1.89.0.
+The complete compiler-input hashes and frozen passing harness support a later
+bounded no-build review; documentation-only descendants require input equality,
+not a claim of fresh final-tip compilation. Runtime fixture captures remain
+partial, with one transient file-deletion race retained in the GREEN receipt.
+
+These are author-focused results. Full verification, Trust, independent final
+review, human acceptance, current-main integration and hosted delivery remain
+pending. The old native archive and its historical review claims are unchanged
+and do not review this repair.

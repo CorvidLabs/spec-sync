@@ -1,6 +1,6 @@
 ---
 module: change
-version: 200
+version: 201
 status: active
 files:
   - src/change.rs
@@ -466,6 +466,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-11-08 | v201: PR1014 succession compares lossless normalized approval/reopening prefixes and the first newly superseded approval; three committed decimal-edit regressions fail on the previous source and pass unchanged after the private-helper fix, with prior numeric and relay controls preserved (REQ-change-relay-compare-001). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
 | 2026-11-06 | v179: a send-back records how many review attempts preceded it, and a review recorded before the latest send-back never counts, even after an identical re-approval (#960, CHANGE-12.e). |
 | 2026-11-06 | v190: the acceptance manifest and the acceptance input digest name clean delivery files by object id and hash each blob from one `git cat-file --batch` child, one blob at a time, under the per-object bound, so reopen, finalize and accepted-input validation no longer refuse a change whose clean affected files exceed one whole-scope read; recorded manifests and digests are byte-identical (REQ-change-144, #976). |

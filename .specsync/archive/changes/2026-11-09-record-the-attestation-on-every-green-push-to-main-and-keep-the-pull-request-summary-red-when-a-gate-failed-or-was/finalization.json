@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "record-the-attestation-on-every-green-push-to-main-and-keep-the-pull-request-summary-red-when-a-gate-failed-or-was",
+  "implementation_commit": "c6cd589e74875833c38559d7d2cb6a350f60d2ea",
+  "implementation_tree": "3f0b7b9366c6a8247260b18d612dd428561ed85d",
+  "contract_digest": "de764656893221746b9480170eaef40f7de7c375213f54fafb65438947ed7dda",
+  "workspace_digest": "6de23afb772f5d34fffa4420e28371235e8193845bde1d411261787f65982d9f",
+  "closing_digest": "801b19f9feeacb6a909be5f76795e481046a0b77be490a30dbd85188f4a2887a",
+  "review_digest": "edc6409b7c0f7325e530d3fbecb23fd008e6a08da9c87564c17f69474442e7c6",
+  "finalization_digest": "c3de6fea0c2bcbcc320115e7856b302c5d32cf20f8be5de9f0ad3d541fa4e887",
+  "timestamp": 1794236575
+}

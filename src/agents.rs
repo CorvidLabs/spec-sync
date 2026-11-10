@@ -1749,7 +1749,7 @@ mod tests {
     /// REQ-agents-009: generated and tracked agent text teaches archive-first CI.
     #[test]
     fn tracked_agent_files_teach_archive_first_ci() {
-        assert!(AGENT_ARTIFACT_TEMPLATE_VERSION >= 6);
+        const { assert!(AGENT_ARTIFACT_TEMPLATE_VERSION >= 6) };
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         for relative in [
             ".claude/skills/spec-sync/SKILL.md",

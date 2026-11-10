@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 11
+version: 13
 status: stable
 files:
   - src/merge.rs
@@ -77,8 +77,8 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 19. `conflict_hunks` and `document_conflict_hunks` return only complete opener/separator/closer triples, and `document_conflict_hunks` ignores fenced code blocks, so marker-shaped prose (a setext `<h1>` underline, a documented example) is never reported as a conflict
 20. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
 21. `merge_contract` is the git merge driver, not the marker resolver. Invariants 3–6 still govern `merge_specs`: numeric `version` there is `max(ours, theirs)`, and prose hunks stay manual
-22. When both sides change a numeric `version` from the ancestor, `merge_contract` sets it to ancestor plus both deltas and never below either side. Equal values written with different scalar syntax stay a conflict. A one-sided edit is returned byte-for-byte
-23. The driver unions `files`, `db_tables`, and `depends_on`, and unions change-log rows sorted by the first cell then the row text. A `version` column on rows that are new since the ancestor is renumbered only when every such cell is an integer
+22. When both sides change a numeric `version` from the ancestor, `merge_contract` sets it to ancestor plus both deltas and never below either side. Equal values written with different scalar syntax stay a conflict. A one-sided edit is returned byte-for-byte. When both sides bump it, what follows the number (the closing quote's tail or a ` # ` comment) merges three ways: kept when both sides agree, the other side's when one side kept the ancestor's, and a conflict when both changed it differently. A clean result is byte-identical in either merge order; a conflict holds the same two lines in either order, each under its own side's label, as every driver conflict does (#876, REQ-merge-006)
+23. The driver unions `files`, `db_tables`, and `depends_on`, and unions change-log rows sorted by the first cell then the row text. A `version` column on rows that are new since the ancestor is renumbered only when every such cell is an integer, and renumbering that would pass `u64::MAX` leaves the table a conflict (#870). A unioned list item YAML would read as a number, boolean or null is written double-quoted, so it stays a string (#872). The change-log table ends at the first blank line after its rows, and what follows is merged as text, never as rows (#875, REQ-merge-006)
 24. Requirement blocks added on one side are kept. The same new requirement ID with two different bodies is kept twice, so `check` can name it. An existing block edited differently on both sides stays a conflict, and so does any other prose both sides changed differently
 
 ## Behavioral Examples
@@ -169,16 +169,18 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 
 | Date | Change |
 |------|--------|
-| 2026-10-10 | Add `merge.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
-| 2026-08-14 | Issue #578: expose `conflict_hunks`, `document_conflict_hunks`, `conflict_free_side`, `unmerged_paths`, and `cached_unmerged_paths` as the shared conflict detector; add `MergeStatus::Unknown` so a scan git never performed stops reporting as "no conflicts found" |
-| 2026-07-27 | Issue #427 / CHG-0066: parse exact diff3 markers, use numeric max for versions, reject ambiguous rows/scalars and lossy table/YAML shapes, validate reconstructed frontmatter, report both sides accurately, and preserve all-or-nothing writes |
-| 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
+| 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base: Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes |
+| 2026-07-27 | Issue #427 / CHG-0066: parse exact diff3 markers, use numeric max for versions, reject ambiguous rows/scalars and lossy table/YAML shapes, validate reconstructed frontmatter, report both sides accurately, and preserve all-or-nothing writes |
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
+| 2026-08-14 | Issue #578: expose `conflict_hunks`, `document_conflict_hunks`, `conflict_free_side`, `unmerged_paths`, and `cached_unmerged_paths` as the shared conflict detector; add `MergeStatus::Unknown` so a scan git never performed stops reporting as "no conflicts found" |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-10-10 | Add `merge.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | v9 / #862: git merge driver counts both version bumps and unions change-log rows, `files:`, and requirement blocks without loosening the marker resolver |
-| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-06 | retire-the-merge-empty-list-and-init-strict-default-contract-clauses: Retire the merge empty-list and init strict-default contract clauses |
+| 2026-11-07 | keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first: Keep a clean merge-driver result faithful to both sides: quote YAML-typed list items, end the change log at its first blank line, merge version comments three ways, and stop renumbering at u64::MAX (#870 #872 #875 #876) |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

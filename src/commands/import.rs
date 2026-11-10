@@ -76,7 +76,7 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
                 .or_else(|| github::detect_repo(root))
                 .unwrap_or_else(|| {
                     eprintln!(
-                        "{} Cannot determine GitHub repo. Use --repo or set github.repo in specsync.json.",
+                        "{} Cannot determine GitHub repo. Use --repo or set repo under [github] in .specsync/config.toml.",
                         "Error:".red()
                     );
                     process::exit(1);
@@ -158,6 +158,13 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("  {} Created {rel}", "✓".green());
+            if item.preserved.as_ref().is_none_or(|p| p.files.is_empty()) {
+                println!(
+                    "  {} `{}` has an empty `files:` list — `specsync check --strict` will fail until it names at least one source file",
+                    "!".yellow(),
+                    item.module_name
+                );
+            }
             generator::generate_companion_files_for_spec(
                 &spec_dir,
                 &item.module_name,
@@ -307,6 +314,14 @@ fn write_batch_item(
 
     generator::generate_companion_files_for_spec(&spec_dir, &item.module_name, design_enabled);
 
+    if item.preserved.as_ref().is_none_or(|p| p.files.is_empty()) {
+        println!(
+            "  {} `{}` has an empty `files:` list — `specsync check --strict` will fail until it names at least one source file",
+            "!".yellow(),
+            item.module_name
+        );
+    }
+
     let output_path = spec_file
         .strip_prefix(root)
         .map_or_else(|_| spec_file.clone(), Path::to_path_buf);
@@ -444,36 +459,7 @@ fn parse_markdown_as_import_item(
     filename: &str,
     content: &str,
 ) -> Result<importer::ImportedItem, String> {
-    // Extract title from first H1 heading, fall back to filename
-    let title = content
-        .lines()
-        .find(|l| l.starts_with("# "))
-        .map(|l| l.trim_start_matches("# ").trim().to_string())
-        .unwrap_or_else(|| filename.to_string());
-
-    // Purpose: first non-empty paragraph after the title (or the title itself)
-    let purpose = content
-        .lines()
-        .skip_while(|l| l.starts_with("# ") || l.trim().is_empty())
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or(&title)
-        .trim()
-        .to_string();
-
-    let requirements = importer::extract_requirements_pub(content);
-    let module_name = importer::slugify(filename);
-    crate::commands::validate_module_name(&module_name)
-        .map_err(|error| format!("Unsafe module name derived from `{filename}`: {error}"))?;
-
-    Ok(importer::ImportedItem {
-        module_name,
-        purpose,
-        requirements,
-        labels: Vec::new(),
-        source_url: String::new(),
-        issue_number: None,
-        source_type: importer::ImportSource::Confluence, // closest semantic match for "doc"
-    })
+    importer::import_local_markdown(filename, content)
 }
 
 fn finish_batch(operation: &str, stats: &BatchStats) {
@@ -525,6 +511,7 @@ mod tests {
             source_url: format!("https://github.com/org/repo/issues/{issue_number}"),
             issue_number: Some(issue_number),
             source_type: importer::ImportSource::GitHub,
+            preserved: None,
         }
     }
 
@@ -601,7 +588,7 @@ mod tests {
         fs::write(input.join("CON.md"), "# Unsafe\n\nMust not create a spec.").unwrap();
         fs::write(
             input.join("valid-module.md"),
-            "# Valid\n\nMust create a spec.",
+            "---\nmodule: valid-module\nfiles:\n  - src/valid.rs\n---\n\n# Valid\n\nMust create a spec.",
         )
         .unwrap();
 

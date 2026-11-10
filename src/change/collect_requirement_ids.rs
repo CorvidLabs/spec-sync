@@ -183,15 +183,6 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
             record,
             "at least one acceptance criterion is required",
             "acceptance_criteria",
-            "\"<observable outcome>\"",
-        ));
-    }
-    if record.affected_paths.is_empty() {
-        return Err(unfinished_definition_refusal(
-            record,
-            "at least one affected path is required",
-            "affected_paths",
-            "\"<path>\"",
         ));
     }
     if record.affected_specs.is_empty() && !record.no_spec_change {
@@ -199,7 +190,13 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
             record,
             "affected specs are required unless no_spec_change is justified",
             "affected_specs",
-            "\"<module>\"",
+        ));
+    }
+    if record.affected_paths.is_empty() {
+        return Err(unfinished_definition_refusal(
+            record,
+            "at least one affected path is required",
+            "affected_paths",
         ));
     }
     for module in &record.affected_specs {
@@ -263,12 +260,11 @@ fn unfinished_definition_refusal(
     record: &ChangeRecord,
     condition: &str,
     question: &str,
-    placeholder: &str,
 ) -> String {
     if record.state == ChangeState::Draft {
         format!(
-            "{condition}; run `specsync change answer {} {question} {placeholder}`",
-            record.id
+            "{condition}; run {}",
+            answer_command_hint(&record.id, question, &[])
         )
     } else {
         condition.to_string()
@@ -276,8 +272,7 @@ fn unfinished_definition_refusal(
 }
 
 /// A draft's refusal for an unfinished interview: every question still open, and the
-/// `change answer` command for the first one (REQ-change-133). A question with choices shows
-/// them as the placeholder (`<yes|no>`, `<none>`); one without takes free text.
+/// `change answer` command for the first one (REQ-change-133).
 fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
     let open = remaining
         .iter()
@@ -287,16 +282,37 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
     let Some(first) = remaining.first() else {
         return INTERVIEW_INCOMPLETE.into();
     };
-    let placeholder = if first.choices.is_empty() {
-        "\"<answer>\"".to_string()
-    } else {
-        format!("<{}>", first.choices.join("|"))
-    };
     format!(
-        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run \
-         `specsync change answer {id} {} {placeholder}`",
-        first.id
+        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
+        answer_command_hint(id, &first.id, &first.choices)
     )
+}
+
+/// The `change answer` command for one open interview question, shared by approve's refusal
+/// and both forms of status's next action so they name the same command (REQ-change-133,
+/// REQ-cmd-change-answer-hint-001). Two or more choices are the placeholder (`<yes|no>`). A
+/// single choice is the answer itself, so the command runs as printed: `<none>` would be a
+/// Bash input redirection (#958). `constraints` is free text with a `none` shortcut, so its
+/// hint also says the lessons that apply can be named instead. No choice takes free text, with
+/// the scope questions keeping their established placeholders.
+pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String]) -> String {
+    let answer = match choices {
+        [] => match question_id {
+            "acceptance_criteria" => "\"<observable outcome>\"",
+            "affected_specs" => "\"<module>\"",
+            "affected_paths" => "\"<path>\"",
+            _ => "\"<answer>\"",
+        }
+        .to_string(),
+        [only] => only.clone(),
+        choices => format!("<{}>", choices.join("|")),
+    };
+    let command = format!("`specsync change answer {id} {question_id} {answer}`");
+    if question_id == "constraints" && choices.len() == 1 {
+        format!("{command}, or name the lessons or principles that constrain it instead")
+    } else {
+        command
+    }
 }
 
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
@@ -2476,7 +2492,15 @@ fn prepare_pending_delta_application(
     for module in &record.affected_specs {
         let delta =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
-        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)?;
+        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)
+            .map_err(|error| {
+                let frozen = record.canonical_applied && load_approvals(root, record)
+                    .is_ok_and(|ledger| !ledger.reopenings.is_empty());
+                if frozen {
+                    let detail = error.split(';').next().unwrap_or(&error);
+                    format!("frozen audited-reopened change {} cannot replay its {module} delta: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable", record.id)
+                } else { error }
+            })?;
     }
     Ok(prepared)
 }
@@ -3729,9 +3753,11 @@ fn definition_digest_from_snapshot_with_task_mode(
     }
     if !corrections.is_empty() {
         let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
+        // Hashed as both correction digests hash it: without the relays its embedded approvals
+        // carry, so a relay changes no gate (#927, REQ-change-relay-compare-001).
         let ledger = CorrectionLedger {
             schema_version: 1,
-            corrections: corrections.to_vec(),
+            corrections: corrections.iter().map(correction_digest_projection).collect(),
         };
         let content = json_content(&ledger)?;
         let mode = snapshot
@@ -4649,6 +4675,29 @@ fn acceptance_manifest_legacy(
         UnownedProductionSource::AssignExactDelivery,
         AcceptanceDiscovery::Full,
     )
+}
+
+/// The production-source delivery inputs finalize would refuse for want of a declared owner,
+/// read-only: the acceptance manifest finalize builds, over the deltas it would apply, with an
+/// unowned production input falling to the exact delivery owner instead of failing (#986, #956).
+fn unowned_production_delivery_inputs(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<String>, String> {
+    let prepared = prepare_pending_delta_application(root, record)?.files;
+    let manifest = acceptance_manifest_legacy(root, record, &prepared)?;
+    Ok(manifest
+        .entries
+        .iter()
+        .filter(|entry| {
+            // A reserved delivery path is signed with the exact delivery owner by design, and
+            // finalize accepts it; only the fallback assignment marks an unowned input.
+            path_is_production_source(root, &entry.path)
+                && !path_is_recognized_delivery_metadata(&entry.path)
+                && entry.owners.iter().all(|owner| owner == EXACT_DELIVERY_OWNER)
+        })
+        .map(|entry| entry.path.clone())
+        .collect())
 }
 
 fn acceptance_manifest_with_signed_owners(

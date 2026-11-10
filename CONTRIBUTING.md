@@ -25,7 +25,7 @@ cargo build
 cargo test
 
 # Run lints
-cargo clippy -- -D warnings
+cargo clippy --all-targets -- -D warnings
 
 # Format code
 cargo fmt

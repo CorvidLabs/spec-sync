@@ -270,6 +270,14 @@ The `change approve` and `change review` grammar SHALL accept optional `--words`
 - `change approve <id> --actor <name> --words <text> --where <text> --recorded-by <agent>` and the same three flags on `change review <id> --reviewer <name>` parse into the change action.
 - `change approve` and `change review` without the three flags parse exactly as before.
 
+### REQ-cli-args-025
+
+The `doctor` subcommand SHALL accept `--fix`, `--dry-run`, a repeatable `--close-late <id|all>`, `--actor <name>` and `--reason <text>`, together with the global output flags; argument parsing SHALL refuse `--close-late` given without `--fix`, `--actor` and `--reason`, and `--dry-run` given without `--fix`.
+
+Acceptance Criteria
+- `specsync doctor`, `specsync doctor --fix`, `specsync doctor --fix --dry-run` and `specsync doctor --fix --close-late a --close-late b --actor X --reason Y` parse.
+- `specsync doctor --close-late a --actor X --reason Y` (no `--fix`), `specsync doctor --fix --close-late a` (no actor or reason) and `specsync doctor --dry-run` are refused by argument parsing.
+
 ### REQ-cli-args-relay-repair-001
 
 The CLI SHALL parse `change repair-relays <id>` into the change action, taking the change id and no other arguments.
@@ -278,4 +286,14 @@ The CLI SHALL parse `change repair-relays <id>` into the change action, taking t
 
 - Help lists `repair-relays` under `change`.
 - `change repair-relays` without an id fails argument parsing, and existing change grammar parses exactly as before.
+
+### REQ-cli-args-recovery-retirement-001
+
+The CLI SHALL parse change retire with an id and required actor, reason, replacement and authority-source arguments.
+
+Acceptance Criteria
+- Missing required arguments refuse before mutation; existing change command grammar remains unchanged.
+
+
+- Optional --source-kind accepts accepted-receipt (default) or committed-audited-reopening-unproven; unknown values refuse before mutation.
 

@@ -4,6 +4,7 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Reject linked and dangling late-close destinations in planning/dry-run and revalidate all plans at the locked write boundary; prove byte preservation, refusal recovery and normal late close (#994 P1, REQ-change-143).
 - [x] Refuse to open a change when `.specsync/sdd.json` cannot be parsed (REQ-change-108).
 - [x] Return from a bounded Git read when the direct child exits, even if a descendant still holds its output pipe (#854, #855, REQ-change-126, SPEED-1.a).
 - [x] Show an opened change the lessons and principles it should honor, and require a selected plan to say how.
@@ -100,3 +101,16 @@ spec: change.spec.md
 - [x] Find the remote default's archive of a change by the id in each package's `state.json`, with one tree listing and one batched read (#907, REQ-change-139).
 - [x] Record an optional relayed decision on definition approvals (portable pair included) and scoped reviews, leave it out of the review digest, and project recorded claims for status (REQ-change-relayed-decision-001, #633).
 - [x] Name `specsync change repair-relays <id>` in an active change's relay refusals and repair a damaged relay from `HEAD` or its twin, otherwise removing only that `relayed_by` (#904, REQ-change-relay-repair-001).
+- [x] Report cannot-tell, never no archive, when the remote default's archive cannot be read, and read its root as a literal pathspec (#946, #962, REQ-change-142).
+- [x] Make the cannot-tell recovery repair missing objects and `origin/HEAD`, then rerun the upstream lookup through `change status` instead of grepping from the caller's directory (#967).
+
+- [x] Execute the complete cannot-tell recovery from a project parent and retain the quoted selected root in status (#967, REQ-change-142).
+
+- [x] Implement bounded audited nonacceptance and retry with frozen-scope guidance; full qualification and human review remain separate.
+- [x] Read a relayed decision as absent in the approval-succession check, the definition digest over the correction ledger and the trusted correction-history comparison (#926, #927, #971, REQ-change-relay-compare-001).
+- [x] Correct PR1014 review findings within the existing relay contract: retain reopening fields, normalize accepted-anchor comparison and deduplication, and refuse embedded correction decider mismatches; four committed regressions fail on the old source and pass unchanged after the fix.
+- [x] Repair the independently found numeric-field collapse in that new projection: committed actual helper/key and reachable-anchor RED, unchanged numeric assertions GREEN, wire/scalar/tamper controls, and all prior relay tests; preserve the original archive and review candidate separately.
+
+- [x] Preserve exact unknown JSON values in approval/reopening succession prefixes and the first newly superseded approval: three committed intended REDs pass unchanged after the private-helper repair, with the five prior numeric and 22 related relay controls, formatting and production Clippy passing; keep initial fixture failures and prior archives separate.
+
+- [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints",
+  "slug": "the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints",
+  "title": "The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966)",
+  "description": "The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966)",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "75df08756cafeb096dbf03a6208db17c8c8a31fa",
+  "created_at": 1794234965,
+  "updated_at": 1794247458,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change",
+    "src/change_tests",
+    "tests/integration"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "When a corrupt archive's package still matches the commit that archived it, the recovery step change status prints names summary.terminal_evidence.reason, and reading that exact path from change status --json gives a non-empty reason (#966, CHANGE-7.a.2)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "The recovery step stays built from literals, the change ID and the package path only, never a digest, with every interpolated word shell-quoted (REQ-change-093); only the field path in the OutsidePackage step changes",
+    "public_contract": "yes"
+  }
+}

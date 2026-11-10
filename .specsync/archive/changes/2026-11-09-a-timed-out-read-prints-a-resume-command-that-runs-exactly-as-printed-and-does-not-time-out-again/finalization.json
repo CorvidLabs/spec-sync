@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-timed-out-read-prints-a-resume-command-that-runs-exactly-as-printed-and-does-not-time-out-again",
+  "implementation_commit": "41b5d0c35118ab04d0d38c992166b2e542a9acda",
+  "implementation_tree": "c7cd264708f7bd00f6dfe8016f2e8f48801c1dd1",
+  "contract_digest": "e0090ef781d6e86018baa2f33f88e5cdf05990688cd4c8d4923fdb3177728408",
+  "workspace_digest": "0ec452c8b342060a8cc9db1957bfce25a69046402b56b526dae1e3d5d66636d7",
+  "closing_digest": "052ac6a6cc322ccf866bec4d249315b3b528c7909a785d25a1e26d7886fbd82a",
+  "review_digest": "6ebf37fdd5d21c9313fd683bdfd8deba2d20557dafe0d934c33237f42215a112",
+  "finalization_digest": "777e0e5fca44b93a8f83185fa934fadb0938c381e445baff84e1fbfe3468d81a",
+  "timestamp": 1794198502
+}

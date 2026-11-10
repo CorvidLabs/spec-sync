@@ -372,11 +372,12 @@ fn import_from_dir_imports_markdown_files() {
     write_config(&root, "specs", &["src"]);
     fs::create_dir_all(root.join("docs")).unwrap();
     fs::create_dir_all(root.join("specs")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/widget.rs"), "pub fn widget() {}\n").unwrap();
 
-    // Write a simple markdown doc to import
     fs::write(
-        root.join("docs/my-feature.md"),
-        "# My Feature\n\nThis is a great feature.\n\n- [ ] Do something\n- [ ] Do another thing\n",
+        root.join("docs/widget.spec.md"),
+        "---\nmodule: widget\nversion: 3\nstatus: draft\nfiles:\n  - src/widget.rs\n---\n\n# Widget Spec\n\n## Purpose\n\nThis is the original purpose text that must survive import.\n",
     )
     .unwrap();
 
@@ -385,8 +386,82 @@ fn import_from_dir_imports_markdown_files() {
         .arg(&root)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Batch Import"))
-        .stdout(predicate::str::contains("1 imported").or(predicate::str::contains("imported")));
+        .stdout(predicate::str::contains("1 imported"));
+
+    let imported = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
+    assert!(imported.contains("module: widget"));
+    assert!(imported.contains("version: 3"));
+    assert!(imported.contains("  - src/widget.rs"));
+    assert!(imported.contains("This is the original purpose text that must survive import."));
+    assert!(!imported.contains("Confluence"));
+    assert!(imported.contains("Imported from local directory"));
+
+    // A frontmatter-complete import has no frontmatter failure under check.
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Frontmatter missing").not());
+}
+
+#[test]
+fn import_from_dir_preserves_existing_sections() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/widget.rs"), "pub fn widget() {}\n").unwrap();
+
+    fs::write(
+        root.join("docs/widget.md"),
+        "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Purpose\n\nWidget purpose.\n\n## Invariants\n\n1. Widgets are immutable.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Hand-written entry |\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["import", "--from-dir", "docs", "--root"])
+        .arg(&root)
+        .assert()
+        .success();
+
+    let imported = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
+    assert!(imported.contains("1. Widgets are immutable."));
+    // The hand-written Change Log row survives and the import row is appended.
+    assert!(imported.contains("Hand-written entry"));
+    assert!(imported.contains("Imported from local directory"));
+    // Missing sections are still scaffolded.
+    assert!(imported.contains("## Public API"));
+    assert!(imported.contains("## Error Cases"));
+}
+
+#[test]
+fn import_from_dir_warns_for_doc_without_files() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("docs")).unwrap();
+
+    fs::write(
+        root.join("docs/design.md"),
+        "# Design Doc\n\nSome prose about the design.\n",
+    )
+    .unwrap();
+
+    // A parseable doc imports as a draft with a loud empty-files warning (HI SETUP-5).
+    specsync()
+        .args(["import", "--from-dir", "docs", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("1 imported"))
+        .stdout(predicate::str::contains("empty `files:` list"));
+
+    let imported = fs::read_to_string(root.join("specs/design/design.spec.md")).unwrap();
+    assert!(imported.contains("status: draft"));
+    assert!(imported.contains("Some prose about the design."));
 }
 
 #[test]
@@ -408,7 +483,7 @@ fn import_from_dir_skips_existing_specs() {
     // Write the same-named doc
     fs::write(
         root.join("docs/my-feature.md"),
-        "# My Feature\n\nAlready exists.\n",
+        "---\nmodule: my-feature\nfiles:\n  - src/main.rs\n---\n\n# My Feature\n\nAlready exists.\n",
     )
     .unwrap();
 

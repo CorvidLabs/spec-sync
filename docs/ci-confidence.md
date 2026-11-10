@@ -26,7 +26,7 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 ### Tier A: every ordinary product PR
 
 - `cargo fmt --check`
-- Ubuntu `cargo clippy -- -D warnings` and full `cargo test`
+- Ubuntu `cargo clippy --all-targets -- -D warnings` and full `cargo test`
 - `specsync check --strict --require-coverage 100`
 - `cargo audit`
 - line coverage/tarpaulin for full product changes

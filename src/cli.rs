@@ -221,6 +221,25 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
+    /// Report every problem in the change records with its fix; `--fix` applies the safe ones
+    Doctor {
+        /// Apply the safe fixes, and every late close named with --close-late
+        #[arg(long)]
+        fix: bool,
+        /// With --fix, report what would be done and write nothing
+        #[arg(long, requires = "fix")]
+        dry_run: bool,
+        /// Close this merged but never archived change late (repeatable), or `all` for every
+        /// eligible one; needs --fix, --actor and --reason
+        #[arg(long = "close-late", value_name = "ID|all", requires_all = ["fix", "actor", "reason"])]
+        close_late: Vec<String>,
+        /// The person deciding the late close; recorded as a claim, not proof
+        #[arg(long)]
+        actor: Option<String>,
+        /// Why the change is closed late; kept in its late-close record
+        #[arg(long)]
+        reason: Option<String>,
+    },
     /// Three-way merge one contract. Git's merge driver calls this as
     /// `specsync merge-file %O %A %B %P` and reads the exit status.
     MergeFile {
@@ -529,6 +548,27 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Retire obsolete audited-reopened intent without accepting its old implementation
+    Retire {
+        /// Obsolete audited-reopened change ID
+        id: String,
+        /// Acting identity, a recorded claim rather than authenticated human identity
+        #[arg(long)]
+        actor: String,
+        /// Why the old intent is obsolete
+        #[arg(long)]
+        reason: String,
+        /// Independently accepted current replacement
+        #[arg(long)]
+        replacement: String,
+        /// Source of the genuine retirement decision, recorded as a claim
+        #[arg(long)]
+        authority_source: String,
+        /// Retained source proof, never authentication of a historical Accepted transition
+        #[arg(long, default_value = "accepted-receipt",
+            value_parser = ["accepted-receipt", "committed-audited-reopening-unproven"])]
+        source_kind: String,
+    },
     /// Send an approved, implementing or verifying change back to draft for re-scoping
     SendBack {
         /// Change ID
@@ -816,6 +856,87 @@ pub enum AgentsAction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // REQ-cli-args-025: the doctor grammar.
+    #[test]
+    fn doctor_parses_its_scan_fix_dry_run_and_named_late_closes() {
+        for args in [
+            vec!["specsync", "doctor"],
+            vec!["specsync", "doctor", "--fix"],
+            vec!["specsync", "doctor", "--fix", "--dry-run"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--close-late",
+                "b",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--dry-run",
+                "--close-late",
+                "all",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "--json", "doctor"],
+        ] {
+            assert!(Cli::try_parse_from(&args).is_ok(), "{args:?} must parse");
+        }
+    }
+
+    // REQ-cli-args-025: a late close needs --fix, an actor and a reason; a dry run needs --fix.
+    #[test]
+    fn doctor_refuses_a_late_close_or_dry_run_without_its_required_flags() {
+        for args in [
+            vec![
+                "specsync",
+                "doctor",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--fix", "--close-late", "a"],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--actor",
+                "X",
+            ],
+            vec![
+                "specsync",
+                "doctor",
+                "--fix",
+                "--close-late",
+                "a",
+                "--reason",
+                "Y",
+            ],
+            vec!["specsync", "doctor", "--dry-run"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&args).is_err(),
+                "{args:?} must be refused"
+            );
+        }
+        assert!(Cli::try_parse_from(["specsync", "doctor"]).is_ok());
+    }
 
     #[test]
     fn no_subcommand_yields_none_and_text_default() {
@@ -1549,5 +1670,42 @@ mod tests {
             ])
             .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod recovery_retire_grammar {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn recovery_retire_grammar_requires_explicit_authority_and_replacement() {
+        let complete = [
+            "specsync",
+            "change",
+            "retire",
+            "old",
+            "--actor",
+            "Synthetic agent",
+            "--reason",
+            "Obsolete",
+            "--replacement",
+            "current",
+            "--authority-source",
+            "Synthetic authority",
+        ];
+        assert!(
+            Cli::try_parse_from(complete).is_ok(),
+            "retire must expose its nonacceptance inputs"
+        );
+        for flag in ["--actor", "--reason", "--replacement", "--authority-source"] {
+            let index = complete.iter().position(|item| *item == flag).unwrap();
+            let mut missing = complete.to_vec();
+            missing.drain(index..index + 2);
+            assert!(
+                Cli::try_parse_from(missing).is_err(),
+                "missing {flag} must refuse before mutation"
+            );
+        }
     }
 }

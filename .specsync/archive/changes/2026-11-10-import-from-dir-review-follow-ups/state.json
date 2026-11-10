@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "import-from-dir-review-follow-ups",
+  "slug": "import-from-dir-review-follow-ups",
+  "title": "Import --from-dir review follow-ups",
+  "description": "import --from-dir review follow-ups",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "82334a70662b3a74b85a682af9792dcdcc6b4827",
+  "created_at": 1794327492,
+  "updated_at": 1794328307,
+  "affected_specs": [
+    "importer",
+    "cmd_import"
+  ],
+  "affected_paths": [
+    "src/importer.rs",
+    "src/commands/import.rs",
+    "specs/importer/",
+    "specs/cmd_import/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "section splitting ignores ## lines inside fenced code blocks; depends_on, db_tables, implements and any H1 lead-in survive import; imported specs always render status: draft regardless of source status; a frontmatter-less markdown doc imports as a draft with a loud empty-files warning instead of being refused"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Generated specs stay draft status; HI SETUP-5: a folder of documents imports as starting drafts; SETUP-5.a: an imported draft is honestly marked incomplete",
+    "public_contract": "yes"
+  }
+}

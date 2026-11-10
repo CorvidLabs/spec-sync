@@ -306,11 +306,13 @@ specsync import jira PROJ-123              # import from Jira ticket
 specsync import --from-dir ./docs/specs    # import from local directory
 ```
 
-Every import source writes a `status: draft` skeleton: `files: []`, empty Public API tables, and
-placeholder sections. That skeleton does not pass `specsync check` on its own — the frontmatter
-fails with `files (must be a non-empty list)` and the module counts as 0% covered — until you add
-the `files:` mapping and complete the sections. When the source is code rather than prose, use
-`specsync scaffold` or `specsync new` instead; they detect source files for you
+`--from-dir` preserves what the source declares: frontmatter (`module`, `version`, `status`,
+`files`) and existing sections are kept, and only missing sections are scaffolded, so a
+frontmatter-complete source passes `specsync check` immediately. A parseable source with no
+`files:` frontmatter list imports as a draft with a warning that `check --strict` will fail
+until `files` is filled in. GitHub and Jira imports still write
+`status: draft` skeletons with `files: []` and empty Public API tables; the command warns that
+`specsync check --strict` fails until you add the `files:` mapping and complete the sections
 ([#416](https://github.com/CorvidLabs/spec-sync/issues/416)).
 
 ### `wizard`
@@ -358,6 +360,33 @@ Display configured validation rules and their current status (built-in rules, cu
 ```bash
 specsync rules                             # show all rules and their configuration
 ```
+
+### `doctor`
+
+Report every problem in the change records, each with its fix, and apply the safe ones on request.
+
+```bash
+specsync doctor                            # list findings; writes nothing
+specsync doctor --fix --dry-run            # show what --fix would do; writes nothing
+specsync doctor --fix                      # apply the safe fixes
+specsync doctor --fix --close-late <id> --actor <name> --reason <text>   # close a merged change late
+specsync doctor --fix --close-late all --actor <name> --reason <text>    # every eligible change
+```
+
+Findings: a change merged but never archived, an accepted change whose inputs drifted (including an
+`accepted` package left in `.specsync/archive/changes/`), a finalize that stopped halfway, stale
+verification, and records another SpecSync version wrote. A check that cannot run is a finding too.
+
+- **Safe** fixes, applied by `--fix`: resume a stopped finalize (workflow v1: archive an accepted
+  change whose evidence is current) and the `migrate 5.0` ledger backfill.
+- **Decisions**, applied only with `--close-late`, `--actor` and `--reason`: a late close moves a
+  package that is on the remote default branch, byte for byte, into
+  `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` that says it was never
+  re-checked and is not verified. Several IDs are all or nothing.
+- **Report only**: everything else, including stale verification (`change check <id> --commit`).
+
+SpecSync 6.0 to 6.2 never read `.specsync/archive/closed-late/`, so they neither trip on a
+closed-late change nor count it as checked.
 
 ### `change`
 
@@ -464,6 +493,8 @@ With `--json` the report goes to stdout:
 ```json
 {"error":"timeout","command":"change status","timeout_secs":30,"phase":"archive-introduction index","progress":"140/214","wrote":false,"resume":"specsync change status add-passkeys --json"}
 ```
+
+The resume command runs exactly as printed: every argument that holds anything but letters, digits and `_@%+=:,./-` is single-quoted, so a path with `$`, `;`, `*` or an apostrophe can't change what it runs. When the deadline came from `SPECSYNC_TIMEOUT`, the resume command begins with `SPECSYNC_TIMEOUT= `, so running it in the same shell doesn't time out again.
 
 A tool that bounds SpecSync with its own timer can pass that limit as `--timeout`, and it gets the phase instead of a bare timeout.
 
@@ -686,3 +717,48 @@ SpecSync 6.2.0 adds `specsync change reconcile-history ID --actor ACTOR --reason
 The resulting schema-2 evidence explicitly marks historical file transitions **unproven**. It authenticates the complete original accepted package and frozen manifest at the anchor, preserves those bytes, and still verifies the current successor inputs at its actual acceptance commit. It does not claim retrospective product acceptance or historical before/after proof. Normal schema-1 succession retains its actual base-file check. Protected tool/policy inputs, symlinks and gitlinks are excluded from this bounded migration mode. Older releases must not be used to operate or qualify this new evidence mode.
 
 Original receipt bytes remain anchored in Git after native archival. The authenticated accepted-state preimage and exact generated archived change markdown are the only metadata projections normalized for witness comparison; altered markdown and all other changed original package files remain refused.
+
+## Obsolete reopened intent
+
+A qualified recovery reader exposes:
+
+    specsync change retire <id> --actor <agent> --reason <reason> --replacement <id> --authority-source <source>
+
+The replacement must be independently accepted, fresh and retain complete signed path/owner
+custody. Retirement does not pass the old criterion, satisfy dependencies or provide ordinary
+semantic succession. Original scope, failures and receipts remain intact. Actor/source fields
+are recorded claims, not authenticated human identity.
+
+If the package move fails, durable state and receipt remain together and the command reports
+a pending move. Identical retry validates custody and finishes it without a second disposition.
+An eligible ordinary child may use send-back, answer dependencies with the accepted replacement,
+then obtain fresh scope/check/review. A frozen dependent cannot be silently rebound.
+
+Default audit reports that archived retirement custody was not inspected. Use change audit
+--archives for archive-history/custody validation. Explicit retired status and finalization
+also refuse invalid custody when relying on it.
+
+Published 6.2 readers do not understand the new retired state. Every required lifecycle
+consumer needs an explicitly qualified updated reader. Structural checks or existing site Trust
+do not establish this compatibility. This candidate is unreleased; no merge/release/global install.
+
+
+### Explicit schema-v2 retirement custody
+
+New receipts use specsync.retirement.v2. Existing v1 receipts retain their original digest
+preimage and accepted-source/equal-owner semantics; they are not rewritten.
+The default source is accepted-receipt. Only when no Accepted-state or mismatch-anchor
+history exists may an operator explicitly request --source-kind
+committed-audited-reopening-unproven. It authenticates the complete pre-existing committed
+audited-reopening package, ancestor and directory, frozen definition, ledger, prior
+verification/manifest and retained closing/finalization/review bytes. It proves retained
+claims, never a standalone Accepted snapshot or human provenance. Missing, changed,
+nonancestor or unavailable history remains blocked.
+
+Both authenticated owner vectors remain in custody. The exceptional
+unchanged-exact-file-current-owner classification requires old owners exactly
+[@exact:delivery], ordinary File on both sides, identical path/kind/mode/payload/entry
+digests and nonempty named replacement owners. It supplies no ordinary succession,
+dependency or accepted implementation credit. Missing, symlink, directory and named-owner
+remapping cannot use this exception. All other complete-custody and current replacement
+authentication checks still apply.

@@ -1,0 +1,120 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Sol-Codex",
+      "timestamp": 1794198259,
+      "digest": "f1dc5141bc5dd1073b34daa363b4eb48e1a2aebaeb7c5d690c937b5845700d79",
+      "note": "Leif authorized bounded SpecSync fixes via call_b8c2de707d7c4fad940f7c1c90a28849, receipt ../SPECSYNC-FIX-AUTHORITY.json; scoped retirement/custody and frozen conflict diagnostics only. Agent actor Sol-Codex; no implementation acceptance or release.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
+        "title": "Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts",
+        "description": "Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".chough",
+          "INTENT.md",
+          "hi",
+          "site/src/content/docs",
+          "specs/change",
+          "specs/cli_args",
+          "specs/cmd_change",
+          "src/change",
+          "src/change.rs",
+          "src/change_tests",
+          "src/change_tests.rs",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration",
+          "tests/integration.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Obsolete reopened obligations have an audited terminal nonacceptance disposition preserving original scope failures history and formerly accepted obligations; frozen conflicts preserve later canonical content and name truthful recovery; dependencies and recursive succession remain strict; old readers fail closed and legacy archives remain valid"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve immutable approvals and accepted history; explicit unproven historical reconciliation is not acceptance of old behavior; retain recursive successor freshness exact owner/base and review gates; old readers must fail closed on retirement; no product acceptance release or site writes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "f93ba44980ddb52a8e0bfd1c06e0bdd5be3966e1040b1a2be81a375141db17c9",
+        "cli_args": "dd0cb330542ba2a69b6ac0cb65b06bce60dca59d73073bfe064b9a820dc3e43e",
+        "cmd_change": "4ac329719e28c08fc79937d7f7c59525d4c92a8de3ce881d7605200869835f16"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "Sol-Codex",
+      "timestamp": 1794203457,
+      "digest": "f1dc5141bc5dd1073b34daa363b4eb48e1a2aebaeb7c5d690c937b5845700d79",
+      "note": "Leif bounded two-site-failure fixes: call_b8c2de707d7c4fad940f7c1c90a28849 and ../SPECSYNC-FIX-AUTHORITY.json. Root explicitly directed unchanged exact-file custody and committed audited-reopening unproven source within those real cases. Agent actor Sol-Codex; no implementation acceptance, release or site mutations.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts",
+        "title": "Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts",
+        "description": "Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".chough",
+          "INTENT.md",
+          "hi",
+          "site/src/content/docs",
+          "specs/change",
+          "specs/cli_args",
+          "specs/cmd_change",
+          "src/change",
+          "src/change.rs",
+          "src/change_tests",
+          "src/change_tests.rs",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration",
+          "tests/integration.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Obsolete reopened obligations have an audited terminal nonacceptance disposition preserving original scope failures history and formerly accepted obligations; frozen conflicts preserve later canonical content and name truthful recovery; dependencies and recursive succession remain strict; old readers fail closed and legacy archives remain valid"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve immutable approvals and accepted history; explicit unproven historical reconciliation is not acceptance of old behavior; retain recursive successor freshness exact owner/base and review gates; old readers must fail closed on retirement; no product acceptance release or site writes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "e0a07c539db35b6b8f1c14869be05944dc2b411b3bef74b705b7a74453f8d70a",
+        "cli_args": "d34b15e52b8ab7382349c319f681444e6cbed5cb5f21617a41ebad32374b5e83",
+        "cmd_change": "b594a90daa6f2c66888f2a4571712d6148234c2d81dbdd863d223b24e9575098"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794233744,
+      "digest": "805841c4605935d588efebe7c4cc77baaf7888b7c5a46a25e77124830e30f659",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

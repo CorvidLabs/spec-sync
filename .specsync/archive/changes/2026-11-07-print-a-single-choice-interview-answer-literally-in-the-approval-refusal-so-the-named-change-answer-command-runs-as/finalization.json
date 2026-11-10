@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as",
+  "implementation_commit": "59dfd67b98f7d65ac4a20f15937ff4d9b4a3dea9",
+  "implementation_tree": "15a0bcf52668befbcf46f9ab5147047f08fe36c0",
+  "contract_digest": "0cbb7c805a6b9fb181cf8f66d94311a2bf5b5f79a30a894f14dd12b58884ef5d",
+  "workspace_digest": "bfa3f0adc9aeddaf36314e3854efcb8ba6eae2c5a35e80123bf96eb5b0a8b235",
+  "closing_digest": "00f79958260ca6f51e097b0e4c1181e8a78245d71801c66cfac53db283b7e288",
+  "review_digest": "2c93d7121c76cf7ea95d2c407db9cce0991fab0fae6e50aac742bf724efdc094",
+  "finalization_digest": "a6c13b5e63277e45b5d3670434282c219a3cf8e7626d28abbc38374b22bb82e3",
+  "timestamp": 1794082849
+}

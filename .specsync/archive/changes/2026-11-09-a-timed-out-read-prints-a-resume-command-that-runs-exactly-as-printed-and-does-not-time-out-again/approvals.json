@@ -1,0 +1,55 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794014816,
+      "digest": "e0090ef781d6e86018baa2f33f88e5cdf05990688cd4c8d4923fdb3177728408",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-timed-out-read-prints-a-resume-command-that-runs-exactly-as-printed-and-does-not-time-out-again",
+        "title": "A timed-out read prints a resume command that runs exactly as printed and does not time out again",
+        "description": "A timed-out read prints a resume command that runs exactly as printed and does not time out again",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/cli.md",
+          "specs/cmd_change",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The timeout report shape, exit 124 and the cache flush are unchanged",
+          "With SPECSYNC_TIMEOUT set, the printed resume command starts with SPECSYNC_TIMEOUT= so it runs without the deadline it is resuming from (an_archived_status_past_its_timeout_exits_124_and_names_how_to_resume, extended and failing first in db16db8a)",
+          "Without SPECSYNC_TIMEOUT the resume command is unchanged apart from quoting; --timeout and --timeout=<n> are still dropped",
+          "the_resume_command_splits_back_into_the_original_arguments passes: every argument that is not made only of shell-safe characters is single-quoted, so sh splits the printed resume command back into exactly the original arguments, including $, ;, *, an apostrophe, spaces and an empty argument (committed failing first in db16db8a)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "SPEED-1 (no command keeps an agent waiting minutes); REQ-change-137 and REQ-cmd-change-032 (the timeout report and its exact resume command) stay; Codex P2s #923 and #953 deferred from #918",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "8ac7cd87011078817b7e9b536955d2a868abd61945b0f84b6739a39261107232"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794198502,
+      "digest": "052ac6a6cc322ccf866bec4d249315b3b528c7909a785d25a1e26d7886fbd82a",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

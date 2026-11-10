@@ -89,6 +89,12 @@ fn repository_with_legacy_changes(root: &Path, legacy: usize) -> ChangeRecord {
 /// A repository with `legacy` archived workflow-v1 changes committed as the trusted pre-v2
 /// cutoff, then adopted to workflow v2.
 fn legacy_repository(root: &Path, legacy: usize) {
+    legacy_repository_with(root, legacy, |_| {});
+}
+
+/// `legacy_repository`, running `before_cutoff` after the legacy archives and before the trusted
+/// cutoff commit.
+fn legacy_repository_with(root: &Path, legacy: usize, before_cutoff: impl FnOnce(&Path)) {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -113,6 +119,7 @@ fn legacy_repository(root: &Path, legacy: usize) {
         quiet_git(root, &["add", "--all"]);
         quiet_git(root, &["commit", "-m", "archive legacy change"]);
     }
+    before_cutoff(root);
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "--allow-empty", "-m", "trusted workflow-v1 cutoff"]);
     quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -242,6 +249,47 @@ fn an_unreadable_cutoff_archive_tree_is_an_error_not_an_absent_change() {
             .is_err_and(|error| error.contains("could not be read")),
         "an unreadable cutoff archive tree answered {answer:?}"
     );
+}
+
+// #940 (SPEED-1.a.2, REQ-change-146): `find_change_dir` identifies an archive by the id its
+// state declares, not by its directory name. A workflow-v1 archive moved before the cutoff to a
+// directory that does not end in `-<id>` was accepted by the history walk, so the cutoff-tree
+// check must accept it too.
+#[test]
+fn cutoff_tree_finds_a_workflow_v1_archive_renamed_before_the_cutoff() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    legacy_repository_with(root, 1, |root| {
+        let archive = fs::read_dir(root.join(ARCHIVE_PATH))
+            .unwrap()
+            .flatten()
+            .next()
+            .unwrap()
+            .path();
+        fs::rename(&archive, archive.with_file_name("renamed-archive")).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "move the legacy archive"]);
+    });
+    let cutoff = read_workflow_v2_baseline(root)
+        .unwrap()
+        .unwrap()
+        .0
+        .cutoff_commit
+        .unwrap();
+    let renamed = root.join(ARCHIVE_PATH).join("renamed-archive");
+    let record: ChangeRecord =
+        serde_json::from_slice(&fs::read(renamed.join("state.json")).unwrap()).unwrap();
+    assert_eq!(record.workflow_version, 1);
+    assert_eq!(find_change_dir(root, &record.id).unwrap(), renamed);
+    assert!(
+        workflow_v1_record_exists_at_cutoff(root, &record, &cutoff).unwrap(),
+        "the history walk accepts the moved archive"
+    );
+    assert!(
+        workflow_v1_record_present_in_cutoff_tree(root, &record, &cutoff).unwrap(),
+        "the cutoff-tree check must accept what the history walk accepts"
+    );
+    load_change(root, &record.id).expect("the moved workflow-v1 archive loads");
 }
 
 /// Git processes one archived status read spawns with no persistent read cache.
@@ -1424,17 +1472,16 @@ fn lifecycle_history_parse_folds_merge_blocks_and_refuses_other_shapes() {
     assert!(parse_lifecycle_state_history(&split).is_none(), "a commit listed twice apart");
 }
 
+/// Each archive's captured subtree, keyed by archive and then by path, as `(mode, bytes)`.
+type ArchiveSubtreeSnapshots = BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>;
+
 /// A repository whose `count` legacy archives were each introduced by their own commit before
 /// the cutoff, with the baseline that enumerates them, its ledger digest, and their current
 /// subtrees captured the way `load_legacy_archive_baseline_context` captures them.
 fn legacy_archives_introduced_before_cutoff(
     root: &Path,
     count: usize,
-) -> (
-    LegacyArchiveBaselineV1,
-    String,
-    BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
-) {
+) -> (LegacyArchiveBaselineV1, String, ArchiveSubtreeSnapshots) {
     fast_read_repository(root);
     let mut entries = Vec::new();
     for index in 0..count {
@@ -1792,4 +1839,89 @@ fn an_ignored_just_finalized_archive_reports_the_full_review_currency() {
         full,
         "an ignored, uncommitted archive must still be judged by the full check"
     );
+}
+
+// G-deadline (#954, REQ-change-149): the archive-introduction index checks its deadline before
+// its bulk `diff-tree --stdin`, so a deadline that has passed stops it even when there is no
+// archive-introducing commit to loop over. (On a worker-style deadline the check returns an
+// error instead of exiting, which lets the test observe it.)
+#[test]
+fn an_expired_deadline_stops_the_archive_index_before_it_lists_anything() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let _scope = begin_change_read_scope(root);
+    let _deadline = begin_worker_read_deadline(Some(ReadDeadline {
+        until: Instant::now(),
+        limit_secs: 0,
+    }));
+    let result = archive_introduction_index(root);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("archive-introduction index")),
+        "an expired deadline let the archive-introduction index answer {:?}",
+        result.map(|index| index.len())
+    );
+}
+
+fn expired_worker_deadline() -> ReadDeadlineGuard {
+    begin_worker_read_deadline(Some(ReadDeadline {
+        until: Instant::now(),
+        limit_secs: 0,
+    }))
+}
+
+// REQ-change-149 (#1005 review): active-change loading checks its deadline after its last
+// workspace too, so a deadline that passed during (or before) the final entry still stops it.
+// With no workspace to loop over, only that final check can see it.
+#[test]
+fn active_change_loading_checks_its_deadline_after_the_last_workspace() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    fs::create_dir_all(root.join(CHANGES_PATH)).unwrap();
+    let _deadline = expired_worker_deadline();
+    let result = list_changes_uncached(root);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("active change loading")),
+        "an expired deadline let active-change loading finish: {:?}",
+        result.map(|roster| roster.records.len())
+    );
+}
+
+// REQ-change-149 (#1005 review): the workflow-version history walk checks its deadline after
+// its last commit too. A change whose state paths no commit has touched yet has an empty walk.
+#[test]
+fn the_history_walk_checks_its_deadline_after_the_last_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let _deadline = expired_worker_deadline();
+    let result = validate_workflow_version_history_uncached(root, &record);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("workflow-version history")),
+        "an expired deadline let the history walk finish: {result:?}"
+    );
+}
+
+// REQ-change-149 (#1005 review): a limit too large for the clock means no deadline even inside
+// an outer one; the guard restores the outer deadline when it drops.
+#[test]
+fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
+    let _outer = expired_worker_deadline();
+    assert!(read_deadline_passed());
+    {
+        let _inner = begin_read_deadline(u64::MAX, "change status", "specsync change status", true);
+        assert!(
+            !read_deadline_passed(),
+            "an overflowing limit kept the outer, expired deadline in force"
+        );
+    }
+    assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }

@@ -15,6 +15,10 @@ CI-6 is Leif's own sentence, captured as he gave it ("Capture it, fix CI") in th
 
 CI-7 is captured from Leif's answer in the Herdr orc tab on 2026-11-06 ("Broad", relayed by orc t18), choosing the broader of two wordings the agent proposed for issue #977, a unit test from #969 that could fail when two reviews landed in the same second. Recorded by the ss-977 Claude agent.
 
+CI-8 is captured from Leif's answer in the Herdr orc tab on 2026-11-06 ("A", relayed by orc t18). He chose the first of two wordings the agent proposed for issue #608: CI's lint step and the fledge `lint` task ran `cargo clippy` without `--all-targets`, so the test code was never linted. Recorded by the ss-linux-arm64 Claude agent.
+
+CI-9 and CI-10 are captured from Leif's answer in the Herdr orc tab on 2026-11-06 ("Both A", relayed by orc t18). He chose the first of two wordings the agent proposed for each of #798 and #799. In #798, `Record attestation` skipped on every push to main because its implicit `success()` saw the PR-only review job skipped upstream. In #799, that review job's pull-request summary had no row for the preflight or the lifecycle gate, and called every skipped check "Not selected". Recorded by the ss-linux-arm64 Claude agent.
+
 CI-11 is captured as written from Leif's approval in the Herdr orc tab on 2026-11-06 (relayed by orc t18, "Capture as written") for issue #614. Recorded by k-ss-ci.
 
 ## Criteria
@@ -32,4 +36,7 @@ CI-11 is captured as written from Leif's approval in the Herdr orc tab on 2026-1
   - **CI-5.a**  An issue reference already written into a contract can be checked as real.
 - **CI-6**  A pull request that only changes Chough records still gets the checks the branch requires.
 - **CI-7**  A failing test always means something is actually wrong, never that it ran at an unlucky moment.
+- **CI-8**  When the pipeline says the code lints clean, that includes the tests.
+- **CI-9**  Every commit on main that passes its required checks gets its attestation recorded.
+- **CI-10**  The summary on a pull request never looks green when a check that gates it failed or was blocked.
 - **CI-11**  When I run the release tests, the race guards in the shipped profile are tested too.

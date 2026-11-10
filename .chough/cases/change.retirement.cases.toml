@@ -1,0 +1,21 @@
+profile = "chough-testing/1"
+module = "change"
+[[case]]
+id = "TC-change-retirement-custody-and-retry"
+title = "Retirement retains authenticated custody and has usable failure recovery"
+status = "active"
+track = "functional"
+method = "automated"
+criteria = ["RECOVER-1"]
+requirements = ["REQ-change-recovery-retirement-001"]
+paths = ["src/change/retirement.rs", "src/change_tests/recovery_retirement.rs"]
+environments = ["local-macos-arm64"]
+artifacts = ["test-log"]
+setup = ["Use synthetic native histories and label every simulated human decision"]
+steps = ["Run scoped production API retirement controls through Fledge"]
+expected = ["Positive custody and dependency rescope finish; invalid custody refuses; interrupted move retries preserve exact evidence"]
+[case.bind]
+adapter = "command"
+argv = ["fledge", "run", "test", "--", "--bin", "specsync", "recovery_retirement_", "--", "--nocapture"]
+expect_output = ["test result: ok"]
+timeout_seconds = 600

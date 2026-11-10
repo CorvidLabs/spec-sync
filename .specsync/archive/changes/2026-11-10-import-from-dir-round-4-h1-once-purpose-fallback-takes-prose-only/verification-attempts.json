@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794332513,
+      "commit": "a5b942b2083e405ab7a2379f580e3cf70f33a6da",
+      "contract_digest": "b40ed439f3d57f2009599fb18b43d7c6a3b5ce990104cc09d3d4fbbac6331ae9",
+      "execution_digest": "f0ce61db75ddb184286c1188291dffe1604f678efbc1a9ad9b133ab3b920cf50",
+      "workspace_digest": "f37a9e1cb6f827a626c5c8da7d3dd476a69912c10fd57f46236f0c4a3ec21ae4",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec importer",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794332520,
+      "commit": "12f56d00fe14074cdb795b0e59d0536445c23b59",
+      "contract_digest": "b40ed439f3d57f2009599fb18b43d7c6a3b5ce990104cc09d3d4fbbac6331ae9",
+      "execution_digest": "f0ce61db75ddb184286c1188291dffe1604f678efbc1a9ad9b133ab3b920cf50",
+      "workspace_digest": "5565853bc6d42f2efe090ffd7608fb5186b789032f5431a2e8248678cc2e27cb",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec importer",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794332520,
+      "commit": "5d1065bb6149c78115a009a3882c71ad7e520232",
+      "contract_digest": "b40ed439f3d57f2009599fb18b43d7c6a3b5ce990104cc09d3d4fbbac6331ae9",
+      "execution_digest": "f0ce61db75ddb184286c1188291dffe1604f678efbc1a9ad9b133ab3b920cf50",
+      "workspace_digest": "5565853bc6d42f2efe090ffd7608fb5186b789032f5431a2e8248678cc2e27cb",
+      "acceptance_input_digest": "ce46aba0a6375e799c9440e5ccf5704e71dd3b310b6f73d26fddb22e4c8bf63f",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/importer/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "03ba390acc11a2227c4ac4acd6760e454591f1fa9c3b842b43c393f2eadb86d4",
+            "entry_digest": "6f2e391270a392efc608715f79cef578719527e7186d2a738b87bbcbd582765f",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/importer.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d609aaad117840e75dd9872a568e0672270d1b40994d373b2e7870cdcd3dc215",
+            "entry_digest": "cb6e33dbab1ccffd4cae8b7b86587da2c9c1477a4062f9abe33b73006ccd1e77",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/importer.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "08e0c51e53babfa51c6ee198df877bac2e834da5bd657450859f06215ee11681",
+            "entry_digest": "2048181350eb96f972757d98a4aaf0bc9f49b374b1508ab59b3cfff77ad42fc6",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9b748c088e99e9b324e0d83ccbe405c71ce3d9eb4977f84fdd402986fe91aac8",
+            "entry_digest": "a9845dd30397557b089869074dc9f673878749a1f26080ab4282e13238550f61",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "edd1d3054f8ee12dcda2c6a70c5af9b3182fe1cc3f617a9b296e0f1dad9cca76",
+            "entry_digest": "d6a6c6dff381ebdb5ef3c10554372199a67908a6fbfbc7a8bd6e68ed916cf187",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d52e2bd330e8e64fd25ae35fd42a2429b7ac3582f8720a797c68e0b8b76b0c7c",
+            "entry_digest": "2de4e5663f133fa09c8a057deca200fb879a598f50e0778af8dc2d3b8af84f8c",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "src/importer.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bee1d1a91fea1cea00dd0f6fcd66f9105e31ae699906c83b01fbbd0562b1f8f4",
+            "entry_digest": "c7e7590e0932c4fd7b13bce810e659462c48458dc5f1d5b986088dd9a7305845",
+            "owners": [
+              "importer"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec importer",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

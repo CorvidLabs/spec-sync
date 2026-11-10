@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-review-follow-ups",
+  "implementation_commit": "48288c38105e0733f88f4f1e0c9859fab348951e",
+  "implementation_tree": "d9d4d19cc1559b84a9a1a6889a48ea0f1a7d78ce",
+  "contract_digest": "df038cf8a3fc2dd9c5671d357e0142240276ccb42872450ba10dca66536db278",
+  "workspace_digest": "8f858bc5d36fa2385282292fe9bc40490a42d0812e2cc167bd01669bd8ad7de6",
+  "closing_digest": "5387eae24ade7843e07556818f2cf0d31e4f61e088751d84c1c3fbdba5ddb7fa",
+  "review_digest": "96be80c10ee5ee1891614fc2aa19b27852314c1234d60e4e0ab48c5170682993",
+  "finalization_digest": "8abe42a40cd2fdd3b95c774d4bf765139dff5605335f6415896f204a5f0fa026",
+  "timestamp": 1794328300
+}

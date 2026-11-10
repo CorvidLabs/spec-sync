@@ -38,3 +38,6 @@ include!("change_tests/send_back_for_rescope.rs");
 include!("change_tests/relayed_decision.rs");
 include!("change_tests/open_task_gate.rs");
 include!("change_tests/approve_refusal_hints.rs");
+include!("change_tests/doctor_collision.rs");
+
+include!("change_tests/recovery_retirement.rs");

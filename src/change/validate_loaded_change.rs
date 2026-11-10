@@ -430,7 +430,15 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
 
 /// Loads the active and archived roster. `walk_archived_history` decides whether each archived
 /// record's Git workflow-version history is validated as well.
-fn list_all_changes_loaded(
+fn list_all_changes_loaded(root: &Path, walk_archived_history: bool)
+    -> Result<BTreeMap<String, ChangeRecord>, String>
+{
+    let records = list_all_change_metadata(root, walk_archived_history)?;
+    validate_retired_records(root, &records)?;
+    Ok(records)
+}
+
+fn list_all_change_metadata(
     root: &Path,
     walk_archived_history: bool,
 ) -> Result<BTreeMap<String, ChangeRecord>, String> {
@@ -441,7 +449,9 @@ fn list_all_changes_loaded(
     let archive = root.join(ARCHIVE_PATH);
     let entries = match fs::read_dir(&archive) {
         Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(records);
+        },
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
     let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
@@ -2690,7 +2700,8 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
         }
     }
     match matches.len() {
-        0 => Err(format!("change `{id}` was not found")),
+        0 => Err(closed_late_sentence(root, id)
+            .unwrap_or_else(|| format!("change `{id}` was not found"))),
         1 => Ok(matches.remove(0)),
         _ => Err(format!(
             "change `{id}` has ambiguous active/archive workspace locations: {}",
@@ -3138,6 +3149,18 @@ fn workflow_v1_record_present_in_cutoff_tree(
         root,
         &format!("{CHANGES_PATH}/{}/state.json", record.id),
     )?];
+    // `find_change_dir` finds an archive by the id its state declares, so a package moved to a
+    // directory that does not end in `-<id>` is still this change's. The history walk always
+    // considered it (`workflow_version_state_paths`); so does the cutoff tree (REQ-change-146).
+    if record.state == ChangeState::Archived {
+        let resolved = git_repo_relative_path(
+            root,
+            &portable_project_path(root, &find_change_dir(root, &record.id)?.join("state.json")),
+        )?;
+        if !candidates.contains(&resolved) {
+            candidates.push(resolved);
+        }
+    }
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
     let listing = run_git_bounded(
         root,
@@ -3179,7 +3202,9 @@ fn workflow_v1_record_present_in_cutoff_tree(
                     path.escape_default()
                 ));
             }
-            candidates.push(path);
+            if !candidates.contains(&path) {
+                candidates.push(path);
+            }
         }
     }
     let present = candidates.iter().any(|path| {
@@ -3443,7 +3468,11 @@ fn validate_workflow_version_history_uncached(
             limits.scoped_review_max_descendants
         ));
     }
-    for commit in commits {
+    let total = commits.len();
+    for (done, commit) in commits.into_iter().enumerate() {
+        // Each commit of the walk is a deadline boundary; on a worker the check is an error the
+        // worker stops on, and the command thread reports (REQ-change-149).
+        check_read_deadline("workflow-version history", done, total)?;
         let current = workflow_version_at_commit(root, commit, &state_paths)?;
         let fields: Vec<String> = match history.as_ref().and_then(|history| history.parents(commit)) {
             Some(parents) => std::iter::once(commit.to_string())
@@ -3475,6 +3504,8 @@ fn validate_workflow_version_history_uncached(
         }
     }
 
+    // And once after the last commit, so its Git reads are bounded too (REQ-change-149).
+    check_read_deadline("workflow-version history", total, total)?;
     for path in &state_paths {
         let Some(bytes) = scoped_review_file_at_commit(root, "HEAD", path)? else {
             continue;
@@ -3498,6 +3529,9 @@ fn validate_workflow_version_history_uncached(
         }
         break;
     }
+    // The HEAD reads above run after the per-commit boundary; a deadline crossed by
+    // one of them must still stop the read (REQ-change-149).
+    check_read_deadline("workflow-version history", total, total)?;
     Ok(())
 }
 
@@ -4170,6 +4204,11 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
     })?;
     let id = slug.to_string();
     validate_change_id(&id)?;
+    if let Some(sentence) = closed_late_sentence(root, &id) {
+        return Err(format!(
+            "{sentence}; its ID stays reserved, so describe the new change differently"
+        ));
+    }
     if find_change_dir(root, &id).is_ok() {
         return Err(change_name_taken_error(root, &id));
     }
@@ -4476,7 +4515,12 @@ impl Drop for PinnedTestClock {
 }
 
 fn today() -> String {
-    let days = (now() / 86_400) as i64;
+    utc_date(now())
+}
+
+/// The UTC calendar date, `YYYY-MM-DD`, of a Unix timestamp in seconds.
+fn utc_date(seconds: u64) -> String {
+    let days = (seconds / 86_400) as i64;
     let z = days + 719_468;
     let era = (if z >= 0 { z } else { z - 146_096 }) / 146_097;
     let doe = (z - era * 146_097) as u64;

@@ -277,6 +277,26 @@ slug-based changes, use the supported `change supersede` workflow to record pred
 path, and module obligations before approval; do not infer succession from numeric ordering.
 A partial, draft, failed, or stale record is not proof that predecessor obligations were met.
 
+### Close a change that merged long ago
+
+A change that merged without being archived blocks every later finalize, and its evidence may no
+longer be checkable. `specsync doctor` lists it with its fix. When re-checking is not possible or not
+worth it, a person can close it late:
+
+```bash
+specsync doctor --fix --dry-run --close-late <id> --actor <name> --reason "<why>"
+specsync doctor --fix --close-late <id> --actor <name> --reason "<why>"
+```
+
+The package moves byte for byte into `.specsync/archive/closed-late/`, with a `late-close.json` that
+records who, when and why, the commit that merged it, and `verified: false`. It never counts as
+checked: `change status` says it was closed late, and every lifecycle verb refuses it. Only a change
+whose package is on the remote default branch can be closed late. SpecSync 6.0 to 6.2 never read
+that folder. If the change belonged to an acknowledged sequence collision, doctor takes it out of that
+acknowledgement in `.specsync/change-sequence.json` (the whole acknowledgement once fewer than two
+members remain) and keeps the acknowledgement as it stood in the record; where meaningful
+files need an open change, the pull request's change must declare that file.
+
 ## 5. Legacy workflow-v1 recovery: correct accepted classification
 
 Use `change correct` when the accepted delivery evidence is current but review proves that the original `public_contract` or `architecture_risk` answer was wrong:
@@ -682,3 +702,48 @@ Point them to:
 ### Historical acknowledgement is a different proof basis
 
 A stored receipt can be authentic even when its original file transition cannot be reconstructed from the definition base. Normal succession continues to refuse that case. The opt-in `change reconcile-history` scope, available from 6.2.0, preserves and authenticates committed accepted packages and explicitly labels the old transitions unproven. It requires new definition approval and fresh current verification and scoped review. It is administrative historical reconciliation, not a claim that old product behavior was accepted again or that missing historical evidence has been recovered. Its versioned evidence and status/finalize disclosure retain that distinction after archival.
+
+## Obsolete reopened intent
+
+A qualified recovery reader exposes:
+
+    specsync change retire <id> --actor <agent> --reason <reason> --replacement <id> --authority-source <source>
+
+The replacement must be independently accepted, fresh and retain complete signed path/owner
+custody. Retirement does not pass the old criterion, satisfy dependencies or provide ordinary
+semantic succession. Original scope, failures and receipts remain intact. Actor/source fields
+are recorded claims, not authenticated human identity.
+
+If the package move fails, durable state and receipt remain together and the command reports
+a pending move. Identical retry validates custody and finishes it without a second disposition.
+An eligible ordinary child may use send-back, answer dependencies with the accepted replacement,
+then obtain fresh scope/check/review. A frozen dependent cannot be silently rebound.
+
+Default audit reports that archived retirement custody was not inspected. Use change audit
+--archives for archive-history/custody validation. Explicit retired status and finalization
+also refuse invalid custody when relying on it.
+
+Published 6.2 readers do not understand the new retired state. Every required lifecycle
+consumer needs an explicitly qualified updated reader. Structural checks or existing site Trust
+do not establish this compatibility. This candidate is unreleased; no merge/release/global install.
+
+
+### Explicit schema-v2 retirement custody
+
+New receipts use specsync.retirement.v2. Existing v1 receipts retain their original digest
+preimage and accepted-source/equal-owner semantics; they are not rewritten.
+The default source is accepted-receipt. Only when no Accepted-state or mismatch-anchor
+history exists may an operator explicitly request --source-kind
+committed-audited-reopening-unproven. It authenticates the complete pre-existing committed
+audited-reopening package, ancestor and directory, frozen definition, ledger, prior
+verification/manifest and retained closing/finalization/review bytes. It proves retained
+claims, never a standalone Accepted snapshot or human provenance. Missing, changed,
+nonancestor or unavailable history remains blocked.
+
+Both authenticated owner vectors remain in custody. The exceptional
+unchanged-exact-file-current-owner classification requires old owners exactly
+[@exact:delivery], ordinary File on both sides, identical path/kind/mode/payload/entry
+digests and nonempty named replacement owners. It supplies no ordinary succession,
+dependency or accepted implementation credit. Missing, symlink, directory and named-owner
+remapping cannot use this exception. All other complete-custody and current replacement
+authentication checks still apply.

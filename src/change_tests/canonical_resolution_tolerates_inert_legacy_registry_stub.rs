@@ -269,8 +269,10 @@ fn definition_approval_preserves_a_corrupt_ledger() {
 fn verifying_state_requires_recorded_evidence_in_unified_checks() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
+    let mut policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        ..SddPolicy::default()
+    };
     policy.verification_commands.clear();
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_no_spec_record(root);
@@ -323,8 +325,10 @@ fn verification_history_fixture() -> (TempDir, String, VerificationRecord) {
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     quiet_git(root, &["add", "seed.txt"]);
     quiet_git(root, &["commit", "-m", "seed"]);
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
+    let mut policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        ..SddPolicy::default()
+    };
     policy.verification_commands.clear();
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     // Persistence + scoped-review tests assert v2 review/finalize next_action.
@@ -605,8 +609,10 @@ fn subproject_policy_and_diff_paths_are_project_relative() {
         &["update-ref", "refs/remotes/origin/main", "HEAD"],
     );
 
-    let mut weakened = SddPolicy::default();
-    weakened.enabled = false;
+    let weakened = SddPolicy {
+        enabled: false,
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &weakened).unwrap();
     assert!(policy_at_comparison_base(&root).unwrap().unwrap().enabled);
     write_json(&root.join(POLICY_PATH), &SddPolicy::default()).unwrap();
@@ -3124,7 +3130,7 @@ fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
     assert_eq!(
         elsewhere.before_clearing,
         vec![
-            "run `specsync change status 'add-passkeys' --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status 'add-passkeys'`"
+            "run `specsync change status 'add-passkeys' --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status 'add-passkeys'`"
                 .to_string()
         ]
     );
@@ -3296,7 +3302,7 @@ fn corrupt_archive_restore_names_the_package_only_when_the_package_changed() {
     assert_eq!(
         step(),
         format!(
-            "run `specsync change status {id} --json`, restore what its `terminal_evidence.reason` names from trusted Git history, then run `specsync change status {id}`"
+            "run `specsync change status {id} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status {id}`"
         ),
         "an intact package is not what failed"
     );

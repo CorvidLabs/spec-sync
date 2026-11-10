@@ -692,7 +692,6 @@ Acceptance Criteria
 - Selecting zero, one, or many open changes behaves as before (nothing / that id / error listing ids).
 - Archive terminal evidence is not required for a successful scoped check.
 
-
 ### REQ-change-047
 
 The change lifecycle SHALL prefer completing incomplete selected artifacts over definition approval for draft changes once the interview is complete and artifact completeness validation fails.
@@ -800,11 +799,12 @@ Acceptance Criteria
   canonically owns, naming every offending path in one error.
 - Paths that do not yet exist are not rejected at approve, since the owning spec
   may claim them in the same change; they remain enforced at finalize.
-- A change with justified `no_spec_change` (empty declared specs) is not
-  ownership-rejected at approve, because there is no owner set to resolve
-  against; finalize still enforces production ownership. Empty specs without
-  that justification fail closed at definition validation and at ownership
-  validation.
+- A change with justified `no_spec_change` and no declared specs is
+  ownership-checked at approve as well: an existing production-source path in
+  its scope has no declared owner, so it is rejected, naming the module that
+  owns it, before anyone approves or reviews it (#986, #956). Empty specs
+  without that justification still fail closed at definition validation and at
+  ownership validation.
 - A change at verifying that has never closed may correct an acceptance input
   owner under a currently valid definition approval. That substitute is for
   guided-path reachability, not audit-equivalent provenance to an
@@ -1270,7 +1270,7 @@ Acceptance Criteria
   `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
   package matches `HEAD` but not that commit; and, when the package still matches the commit
   that archived it or no package or repository can answer, `specsync change status <id> --json`
-  to read what `terminal_evidence.reason` names and restore that from trusted Git history, since
+  to read what `summary.terminal_evidence.reason` names and restore that from trusted Git history, since
   a package restore would change nothing. Running the named step through a shell on a tampered
   archive returns `authenticated-history` and `safe`.
 - Every change ID and path interpolated into a printed command is single-quoted as one shell
@@ -1592,7 +1592,8 @@ When `change approve` refuses affected paths that no declared module canonically
 - A refused path that some spec under the specs directory already lists in its `files:` names that spec file and its module, and says to declare it with `--spec`. Every such spec is named, sorted by spec path, whatever order the file system returns them in.
 - A listing spec that cannot own the path says why: it has no `module:`, or it is not the canonical spec of the declared module it names.
 - Otherwise the refused path names the declared spec whose `files:` entries share the longest directory with the path, comparing whole path components, and says to add the path to that spec's `files:` list. When no declared spec shares any directory with the path (depth 0), the refusal gives the generic message instead of naming a spec.
-- The same paths are refused as before; only the wording of the refusal changes.
+- For a draft, the refusal also names `specsync change answer <id> affected_specs <modules>`, listing the declared modules and every undeclared module that owns a refused path, so running it declares them (#986).
+- Which paths are refused is decided by REQ-change-053; this requirement governs only the wording.
 
 ### REQ-change-121
 
@@ -1730,13 +1731,13 @@ A lifecycle command that verifies a change, records a passing scoped review of i
 
 ### REQ-change-133
 
-When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected path, no affected spec without a justified no-spec change, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. The approval guard SHALL refuse exactly the definitions it refused before.
+When `change approve` refuses a draft because its definition is unfinished (no acceptance criterion, no affected spec without a justified no-spec change, no affected path, or interview questions still open), the refusal SHALL name the `specsync change answer` command that supplies the missing answer, and that command SHALL run as printed once any placeholder in it is filled. A record past draft SHALL NOT be told to run `change answer`, which refuses outside draft. A draft missing both its affected specs and its affected paths SHALL be refused for its affected specs first, the question `change status` asks first. The approval guard SHALL refuse exactly the definitions it refused before.
 
 Acceptance Criteria
 - With no acceptance criterion, a draft's refusal names `specsync change answer <id> acceptance_criteria "<observable outcome>"`.
-- With no affected path, a draft's refusal names `specsync change answer <id> affected_paths "<path>"`; with no affected spec and no justified no-spec change, `specsync change answer <id> affected_specs "<module>"`.
-- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first, giving the question's choices as the placeholder (`<yes|no>`, `<none>`), or `"<answer>"` when it has none.
-- Running the named command with its placeholder filled moves approval on to the next refusal or to the selected-artifact refusal.
+- With no affected spec and no justified no-spec change, a draft's refusal names `specsync change answer <id> affected_specs "<module>"`; with no affected path, `specsync change answer <id> affected_paths "<path>"`; with neither, the affected-spec refusal comes first.
+- With interview questions still open, the refusal names every remaining question and the `specsync change answer <id> <question> <answer>` command for the first. Two or more choices are the placeholder (`<yes|no>`). A single choice is the answer itself, so `constraints` is named as `specsync change answer <id> constraints none` and runs as printed, and the refusal adds that the lessons or principles that constrain the change can be named instead (DOCS-3.b). A question with no choices takes `"<answer>"`.
+- Running the named command, with any placeholder filled, moves approval on to the next refusal or to the selected-artifact refusal.
 - An approved, implementing or verifying record that fails the same checks is refused with the same condition text and no `change answer` command.
 - A definition that approval refused before is still refused.
 
@@ -1776,6 +1777,14 @@ The persistent read cache SHALL be reused only by the build that wrote it. Its b
 
 - A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
 - Removing the fingerprint from the read-cache identity fails that test.
+
+### REQ-change-138
+
+The `change status` summary SHALL derive the handoff for a change archived upstream in the same priority order as `next_action`: a sequence-ledger freeze, then a `verification_ignored_paths` refusal, then the upstream archive. A freeze SHALL never be reported behind the upstream-archive rebase step.
+
+Acceptance Criteria
+- With an upstream archive and a frozen ledger, `next_action` and `handoff.before_clearing` both name the freeze.
+- Without a freeze, both name the upstream archive.
 
 ### REQ-change-139
 
@@ -1825,7 +1834,6 @@ Acceptance Criteria
 - The acceptance manifest and the acceptance input digest are byte-identical to the ones the whole-scope read produced, for clean, modified, symlinked, deleted and executable files, LFS pointers and the sequence ledger, so every recorded manifest and digest still matches.
 - Each clean blob is still bounded by `MAX_GIT_EVIDENCE_PAYLOAD_BYTES`; a blob over that bound is refused, and the refusal names it. The path-count bound and the Git read deadline are unchanged.
 - The accepted-input validation behind `change status` and the archive preflight builds the same evidence the same way.
-
 ### REQ-change-145
 
 When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) cannot read the archive tree at the cutoff, it SHALL return an error saying that tree could not be read, and SHALL NOT answer that the change was absent at the cutoff (SPEED-1.a.3). Only a cutoff whose own tree has no archive root SHALL count as having no archived candidates. The error SHALL never be cached.
@@ -1833,6 +1841,14 @@ When the trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) ca
 Acceptance Criteria
 - In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
 - A cutoff with no archive root gives the same verdict as before.
+
+### REQ-change-146
+
+The trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) SHALL consider the change's own resolved package path, the archive directory `find_change_dir` finds by the id its state declares, alongside the active state path and the cutoff archive entries ending in `-<id>`. A workflow-v1 archive the history walk accepted SHALL NOT be refused because its directory name does not end in its id (SPEED-1.a.2). The record found at the cutoff SHALL still carry the same id and a workflow-v1 identity.
+
+Acceptance Criteria
+- A workflow-v1 archive moved before the cutoff to a directory not ending in `-<id>` is accepted by the cutoff-tree check exactly as the history walk accepts it, and the change loads.
+- A record absent at the cutoff, added after it, or present at it only under another id is still refused with the existing message.
 
 ### REQ-change-147
 
@@ -1849,6 +1865,71 @@ SpecSync's lifecycle reads SHALL walk only the history its read-cache and lifecy
 Acceptance Criteria
 - With a replacement under a custom `GIT_REPLACE_REF_BASE` that swaps HEAD for a copy whose archived record lost its workflow version, `change status` under that variable gives exactly the plain read, fresh and cached.
 - `GIT_NO_REPLACE_OBJECTS=1` gives the plain read too.
+
+### REQ-change-142
+
+When a remote default exists and its archived state records cannot be listed or read, the upstream-archive lookup SHALL report that it cannot tell whether the change is already archived there, rather than reporting no upstream archive. `change review` and `change finalize` SHALL refuse before acceptance and write no archive, and `change status` and `change ship-status` SHALL report the same refusal. The refusal SHALL name the remote default reference and how to find out (SHIP-3.c).
+
+Acceptance Criteria
+- A failed listing, a failed or truncated batched read, or a failed addition or ancestry lookup for a matching package is reported as cannot-tell.
+- No remote default, or a readable archive with no copy of the change, reports nothing.
+
+### REQ-change-143
+
+A late close SHALL move a change package that is committed on the remote default branch but was never archived, byte for byte, into `.specsync/archive/closed-late/<date>-<id>/` with a `late-close.json` record, without reading the change's delivery evidence and without adding a change state, and SpecSync SHALL never treat a closed-late change as verified.
+
+Acceptance Criteria
+- The package comes from `.specsync/changes/` or `.specsync/archive/changes/`. Its `state.json` keeps its bytes and the state in it, and every other file keeps its bytes.
+- Destination components below the project root, including `.specsync`, `archive`, `closed-late` and the dated package name, must not be symlinks, including dangling links. Planning/dry-run refuses them with the offending path and recovery; the locked writer revalidates every plan before batch writes and each destination after directory creation before renaming. Refusal preserves source package bytes, the sequence ledger and outside targets.
+- The package's `state.json`, at its current path, must be present on the remote default reference (`origin/HEAD`, else `origin/main` or `origin/master`). When no remote default resolves, or the package is not on it, the close is refused and nothing is written.
+- No delivery input, acceptance manifest, acceptance input digest or verification is read or rebuilt.
+- `late-close.json` records the schema version, change ID, actor, reason, timestamp, the state it was closed from, its workflow version, the path it came from, the remote default reference and its commit, the commit that added the package and that commit's date, and `verified: false`.
+- For a member of an acknowledged sequence collision, the change is taken out of that acknowledgement in `.specsync/change-sequence.json`, the acknowledgement goes once fewer than two members remain, and the acknowledgement as it stood is recorded in `late-close.json`; the ledger's sequence and claim are unchanged.
+- A closed-late change is never part of the archive preflight, the successor walk or the sequence accounting, which read only `.specsync/changes/` and `.specsync/archive/changes/`.
+- `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
+- `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.
+- SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`.
+
+### REQ-change-149
+
+A read deadline (REQ-change-137) SHALL never panic: a timeout too large to add to the clock SHALL mean no deadline. Loading active changes, each commit of the workflow-version history walk, and the start of the archive-introduction index's bulk listing SHALL each be a phase boundary where a read past its deadline stops, so a read SHALL NOT overrun its deadline through any of them and print a normal verdict (SPEED-1).
+
+Acceptance Criteria
+- `--timeout` or `SPECSYNC_TIMEOUT` of `18446744073709551615` reads normally.
+- `change list --timeout 0` with active changes exits 124 during `active change loading`.
+- An expired deadline stops the archive-introduction index before it lists anything, even with no archive-introducing commit.
+
+### REQ-change-frozen-recovery-001
+
+A frozen audited-reopened delta conflicting with later canonical evolution SHALL refuse without rewriting canonical bytes and name its immutable scope restriction and honest recovery.
+
+Acceptance Criteria
+- Mutable scope guidance remains available for mutable changes; frozen guidance does not prescribe editing its approved ADDED/MODIFIED definition; ordinary exact-base, owner, review and recursive freshness checks remain enforced.
+
+
+- Schema v2 explicitly classifies source and custody; valid v1 bytes/semantics remain unchanged. Source defaults to accepted-receipt; only explicit committed-audited-reopening-unproven can authenticate an exact committed Verifying/canonical-applied reopening packet with unchanged frozen definition, complete ledger/prior verification/manifest/closing/finalization/review evidence and ancestor checks. It neither proves an Accepted transition nor rescues corrupt accepted history.
+- Unequal owners are permitted only as an explicit unchanged-exact-file-current-owner retirement classification: prior exactly @exact:delivery, both ordinary File with identical path/kind/mode/payload/entry digests, replacement owners nonempty valid named modules without reserved labels. Preserve both vectors and both authenticated manifests; reject all other remaps and File-to-Missing use of this exception.
+
+### REQ-change-recovery-retirement-001
+
+An obsolete audited-reopened obligation SHALL have an explicit terminal nonacceptance disposition with authenticated original evidence custody and an independently accepted current replacement; it SHALL grant no implementation, dependency or semantic succession credit.
+
+Acceptance Criteria
+- Retiring refuses atomically unless every original signed input is bound to retained evidence and a compatible replacement input in the custodian's fresh, authenticated, current evidence; missing, stale, unknown, tampered or circular custody refuses; original criteria, failures, approvals and canonical bytes remain unchanged; old readers fail closed instead of silently certifying retirement.
+- Validation of a recorded retirement authenticates the custodian's recorded accepted evidence and checks that custody still holds: every custody entry names a frozen prior-manifest input at the recorded predecessor digest and owners, its recorded classification is consistent with the receipt's own fields, and the custodian's current authenticated manifest still carries the path under the recorded replacement owners. It does not re-run the custodian's live delivery-input freshness: custodian staleness is the custodian's own reported lifecycle state, so the reopen remedy it names stays reachable.
+- Audited custodian evolution keeps custody valid while every custody path remains under its recorded signed owners; byte and manifest digest changes from a genuine re-acceptance are not a custody break. A custody path missing from the custodian's current authenticated manifest, or carried under different owners, refuses validation.
+- A committed receipt's recorded classification is a historical fact; validation never re-derives it from current evidence under newer rules, so receipts written before a classification rule change keep validating.
+- A custodian in an audited post-acceptance reopen keeps custody, judged against its last accepted authenticated manifest, so every roster read keeps working through the recovery window.
+
+### REQ-change-relay-compare-001
+
+Every comparison that decides whether an approval or correction history is current, intact or a lawful successor SHALL read a relayed decision as absent, as the review digest and both correction digests already do: the approval-succession check of a reopened package, the definition digest (and so the execution digest) over the correction ledger, and the trusted correction-history comparison SHALL clear `relayed_by` from top-level and embedded approvals before comparing or hashing. Every other field SHALL still be compared exactly.
+
+#### Acceptance Criteria
+
+- A reopened package whose `approvals.json` an older 6.x binary rewrote without `relayed_by`, on its approvals and on a reopen event's superseded approval, is a lawful successor; any other edit to an earlier approval, or a superseded approval that is not the one the package closed on, is not.
+- The definition digest is the same whether a correction's embedded approvals carry a relay, carry an edited one or carry none; any other edit to a correction changes it.
+- A correction ledger an older 6.x binary rewrote without its embedded relays matches its trusted history; any other edit to a committed correction is still divergence.
 
 ### REQ-change-relay-repair-001
 

@@ -1,0 +1,52 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794351662,
+      "digest": "090653c00f0671f466b5338d6dacc0c76efb2d6207019a5034ed14a1d9f56dc0",
+      "note": "Leif approved this definition and accepted PR #1031 on 2026-11-10 (relayed by coordinator t370); recorded by the Claude worker. Scope: release-runnable race-guard tests and the release-candidate lane step (CI-11, #614).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-release-tests-exercise-the-race-guards-in-the-shipped-profile",
+        "title": "The release tests exercise the race guards in the shipped profile",
+        "description": "the release tests exercise the race guards in the shipped profile",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_generate",
+          "mcp",
+          "validator"
+        ],
+        "affected_paths": [
+          "docs/RELEASING.md",
+          "fledge.toml",
+          "src/commands/generate.rs",
+          "src/mcp/confinement/tests.rs",
+          "src/validator/consumed_by_re.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Adds release-runnable unit tests for three existing TOCTOU guards and a release-candidate lane step; no guard behavior or contract changes",
+        "acceptance_criteria": [
+          "cargo test --release runs a unit test for each of verify_coverage_project_root, RetainedGenerateRoot::verify_public_path and ConfinedReadRoot::revalidate_before_success that replaces the root after it is retained and asserts the guard refuses; fledge lanes run release-candidate runs them under --release (CI-11)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "the rendezvous-driven integration tests stay debug-only (#581); these unit tests need no debug hook",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794351904,
+      "digest": "4b2cda89e4d025fcd4e7979d3bc0615441439957d73c900f55706319a39d9549",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

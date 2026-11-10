@@ -1408,8 +1408,7 @@ fn recovery_retirement_custody_survives_audited_custodian_drift_and_reacceptance
     .unwrap();
     assert!(validate_retirement(root, &retired).is_ok());
 
-    // A receipt claiming custody under owners the custodian no longer signs is refused.
-        // A receipt claiming custody under owners the custodian does not sign is refused
+    // A receipt claiming custody under owners the custodian does not sign is refused,
     // even before any committed history pins the receipt bytes.
     let dir = find_change_dir(root, &old.id).unwrap();
     let path = dir.join(RETIREMENT_FILE);
@@ -1438,6 +1437,17 @@ fn recovery_retirement_custody_survives_audited_custodian_drift_and_reacceptance
     .unwrap();
     assert_eq!(reopened.change.state, ChangeState::Verifying);
 
+    // The whole recovery window keeps loading: custody is judged against the custodian's
+    // last accepted authenticated manifest while the custodian is being re-verified.
+    assert!(
+        validate_retirement(root, &load_change(root, &old.id).unwrap()).is_ok(),
+        "custody holds while the custodian is reopened"
+    );
+    assert!(
+        list_all_changes_uncached(root).is_ok(),
+        "roster load keeps working while the custodian is reopened"
+    );
+
     assert!(check_change(root, Some(&replacement.id)).unwrap().unwrap().passed);
     recorded_review_recovery_git(root, &["add", "."]);
     recorded_review_recovery_git(root, &["commit", "-m", "evolve custodian delivery"]);
@@ -1465,4 +1475,50 @@ fn recovery_retirement_custody_survives_audited_custodian_drift_and_reacceptance
         custody.err().unwrap_or_default()
     );
 
+    // The receipt is now committed history: an owner tamper is refused as edited history.
+    let path = find_change_dir(root, &old.id).unwrap().join(RETIREMENT_FILE);
+    let original_bytes = fs::read(&path).unwrap();
+    let mut receipt: RetirementRecord = serde_json::from_slice(&original_bytes).unwrap();
+    receipt.custody[0].replacement_owners = vec!["forged-owner".into()];
+    receipt.digest = retirement_digest(&receipt).unwrap();
+    fs::write(&path, json_content(&receipt).unwrap()).unwrap();
+    assert!(
+        validate_retirement(root, &retired).is_err(),
+        "committed custody tamper is refused"
+    );
+    fs::write(&path, original_bytes).unwrap();
+    assert!(validate_retirement(root, &retired).is_ok());
+
+    // A send-back during recovery moves the custodian to Draft with cancelled approvals;
+    // custody still holds from the anchored last accepted evidence.
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    reopen_change(
+        root,
+        &replacement.id,
+        "Synthetic recovery actor".into(),
+        "Custody input drifted again".into(),
+    )
+    .unwrap();
+    send_back_change(
+        root,
+        &replacement.id,
+        "Synthetic operator".into(),
+        "Re-scope during recovery".into(),
+    )
+    .unwrap();
+    assert_eq!(
+        load_change(root, &replacement.id).unwrap().state,
+        ChangeState::Draft
+    );
+    let custody = validate_retirement(root, &load_change(root, &old.id).unwrap());
+    assert!(
+        custody.is_ok(),
+        "custody holds through the send-back window: {}",
+        custody.err().unwrap_or_default()
+    );
+    assert!(
+        list_all_changes_uncached(root).is_ok(),
+        "roster load keeps working through the send-back window"
+    );
 }
+

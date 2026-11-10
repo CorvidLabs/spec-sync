@@ -1919,6 +1919,7 @@ Acceptance Criteria
 - Validation of a recorded retirement authenticates the custodian's recorded accepted evidence and checks that custody still holds: every custody entry names a frozen prior-manifest input at the recorded predecessor digest and owners, its recorded classification is consistent with the receipt's own fields, and the custodian's current authenticated manifest still carries the path under the recorded replacement owners. It does not re-run the custodian's live delivery-input freshness: custodian staleness is the custodian's own reported lifecycle state, so the reopen remedy it names stays reachable.
 - Audited custodian evolution keeps custody valid while every custody path remains under its recorded signed owners; byte and manifest digest changes from a genuine re-acceptance are not a custody break. A custody path missing from the custodian's current authenticated manifest, or carried under different owners, refuses validation.
 - A committed receipt's recorded classification is a historical fact; validation never re-derives it from current evidence under newer rules, so receipts written before a classification rule change keep validating.
+- A custodian in an audited post-acceptance reopen keeps custody, judged against its last accepted authenticated manifest, so every roster read keeps working through the recovery window.
 
 ### REQ-change-relay-compare-001
 

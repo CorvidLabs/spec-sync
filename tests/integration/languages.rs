@@ -395,6 +395,15 @@ fn import_from_dir_imports_markdown_files() {
     assert!(imported.contains("This is the original purpose text that must survive import."));
     assert!(!imported.contains("Confluence"));
     assert!(imported.contains("Imported from local directory"));
+
+    // A frontmatter-complete import has no frontmatter failure under check.
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Frontmatter missing").not());
 }
 
 #[test]
@@ -429,7 +438,7 @@ fn import_from_dir_preserves_existing_sections() {
 }
 
 #[test]
-fn import_from_dir_refuses_doc_without_files() {
+fn import_from_dir_warns_for_doc_without_files() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_path_buf();
     write_config(&root, "specs", &["src"]);
@@ -441,15 +450,18 @@ fn import_from_dir_refuses_doc_without_files() {
     )
     .unwrap();
 
+    // A parseable doc imports as a draft with a loud empty-files warning (HI SETUP-5).
     specsync()
         .args(["import", "--from-dir", "docs", "--root"])
         .arg(&root)
         .assert()
-        .failure()
-        .stdout(predicate::str::contains("files:"))
-        .stdout(predicate::str::contains("1 error"));
+        .success()
+        .stdout(predicate::str::contains("1 imported"))
+        .stdout(predicate::str::contains("empty `files:` list"));
 
-    assert!(!root.join("specs/design").exists());
+    let imported = fs::read_to_string(root.join("specs/design/design.spec.md")).unwrap();
+    assert!(imported.contains("status: draft"));
+    assert!(imported.contains("Some prose about the design."));
 }
 
 #[test]

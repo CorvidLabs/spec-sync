@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 10
+version: 11
 status: active
 files:
   - src/importer.rs
@@ -36,7 +36,7 @@ Generates spec files from external project management systems. Supports importin
 | Type | Description |
 |------|-------------|
 | `ImportedItem` | Intermediate representation: `module_name`, `purpose`, `requirements`, `labels`, `source_url`, `issue_number`, `source_type`, `preserved` |
-| `PreservedSource` | Content preserved from a local markdown source: `files`, `version`, `status`, `title`, `sections` |
+| `PreservedSource` | Content preserved from a local markdown source: `files`, `depends_on`, `db_tables`, `implements`, `version`, `source_status`, `title`, `lead_in`, `sections` |
 | `ImportSource` | Enum: `GitHub`, `Jira`, `Confluence`, `LocalDir` |
 
 ## Invariants
@@ -49,10 +49,13 @@ Generates spec files from external project management systems. Supports importin
 4. `gh` remains outside the importer read path.
 5. Every provider-derived module name is portable after safe-name normalization, including
    reserved-device and generated-filename byte limits.
-6. A local markdown import preserves the source's frontmatter `module`, `version`, `status` and
-   `files` declarations and its existing `##` sections; only missing sections are scaffolded.
-7. A local markdown source with no determinable `files` list is refused loudly, and no import
-   stamps a source other than the real one in the Change Log.
+6. A local markdown import preserves the source's frontmatter `module`, `version` and list
+   declarations (`files`, `depends_on`, `db_tables`, `implements`), its H1 lead-in and its
+   existing `##` sections — a `## ` line inside a fenced code block is content, never a heading;
+   only missing sections are scaffolded.
+7. Rendered imports are always `status: draft`; a source's non-draft status is recorded in the
+   import Change Log row. A parseable source with no `files` list imports as a draft the command
+   layer warns about, and no import stamps a source other than the real one in the Change Log.
 
 ## Behavioral Examples
 
@@ -130,3 +133,4 @@ Generates spec files from external project management systems. Supports importin
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-11-10 | import-from-dir-preserves-source-content: preserve local markdown frontmatter and sections, refuse sources with no files list, name the real source (#416) |
+| 2026-11-10 | import-from-dir-review-follow-ups: Import --from-dir review follow-ups |

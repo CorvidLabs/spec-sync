@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/import.rs
@@ -55,8 +55,8 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | `GITHUB_TOKEN` missing for GitHub import | Exits 1 with explicit-token guidance; does not consult `gh` |
 | GitHub issue pagination is malformed, duplicated, or exceeds 100 pages | Batch import fails closed without reporting a truncated issue set |
 | Imported item has an unsafe/reserved/overlong module name | Fails before creating its output path; batch continues with later items |
-| `--from-dir` source declares no `files:` frontmatter list | Item fails loudly naming the missing list; nothing is written; batch continues and exits 1 |
-| Written draft spec still has an empty `files:` list | Import prints a warning that `check --strict` will fail until `files` is filled in |
+| `--from-dir` source is unreadable | Item fails loudly; nothing is written; batch continues and exits 1 |
+| Written draft spec has an empty `files:` list (including a parseable doc without frontmatter) | Import writes it as a `status: draft` draft and warns that `check --strict` will fail until `files` is filled in |
 | Any batch item errors | Summary includes imported/skipped/error counts and the command exits 1 |
 
 ## Dependencies
@@ -89,3 +89,4 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-11-10 | import-from-dir-preserves-source-content: `--from-dir` preserves source content, refuses sources with no files list, and warns on drafts with an empty files list (#416) |
+| 2026-11-10 | import-from-dir-review-follow-ups: Import --from-dir review follow-ups |

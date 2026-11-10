@@ -33,12 +33,21 @@ pub struct ImportedItem {
 pub struct PreservedSource {
     /// Frontmatter `files` list — the source files the imported spec covers.
     pub files: Vec<String>,
+    /// Frontmatter `depends_on` list, kept verbatim.
+    pub depends_on: Vec<String>,
+    /// Frontmatter `db_tables` list, kept verbatim.
+    pub db_tables: Vec<String>,
+    /// Frontmatter `implements` issue numbers, kept verbatim.
+    pub implements: Vec<u64>,
     /// Frontmatter `version`, kept verbatim when declared.
     pub version: Option<String>,
-    /// Frontmatter `status`, kept verbatim when declared.
-    pub status: Option<String>,
+    /// Frontmatter `status` when declared and not `draft` — recorded in the
+    /// import Change Log row; rendered specs are always `status: draft`.
+    pub source_status: Option<String>,
     /// Existing `# ` title, kept verbatim when present.
     pub title: Option<String>,
+    /// Text between the H1 and the first `## ` heading, kept verbatim.
+    pub lead_in: Option<String>,
     /// Existing `## ` sections as `(title, body)`, in source order.
     pub sections: Vec<(String, String)>,
 }
@@ -86,27 +95,42 @@ const CANONICAL_SECTIONS: &[&str] = &[
 /// Render an item whose source file was itself a spec-like markdown document:
 /// reuse every section the source already has and scaffold only what is missing.
 fn render_spec_preserving(item: &ImportedItem, source: &PreservedSource) -> String {
-    let implements_field = match item.issue_number {
-        Some(n) => format!("[{n}]"),
-        None => "[]".to_string(),
+    let implements_field = if !source.implements.is_empty() {
+        format!(
+            "[{}]",
+            source
+                .implements
+                .iter()
+                .map(u64::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    } else {
+        match item.issue_number {
+            Some(n) => format!("[{n}]"),
+            None => "[]".to_string(),
+        }
     };
 
-    let files_field = if source.files.is_empty() {
-        "[]".to_string()
-    } else {
-        format!(
-            "\n{}",
-            source
-                .files
-                .iter()
-                .map(|f| format!("  - {f}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
+    let yaml_list = |items: &[String]| -> String {
+        if items.is_empty() {
+            " []".to_string()
+        } else {
+            format!(
+                "\n{}",
+                items
+                    .iter()
+                    .map(|f| format!("  - {f}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        }
     };
+    let files_field = yaml_list(&source.files);
+    let depends_field = yaml_list(&source.depends_on);
+    let db_tables_field = yaml_list(&source.db_tables);
 
     let version = source.version.as_deref().unwrap_or("1");
-    let status = source.status.as_deref().unwrap_or("draft");
     let title = source
         .title
         .clone()
@@ -121,11 +145,19 @@ fn render_spec_preserving(item: &ImportedItem, source: &PreservedSource) -> Stri
     };
 
     let mut out = format!(
-        "---\nmodule: {module}\nversion: {version}\nstatus: {status}\nfiles: {files}\ndb_tables: []\ndepends_on: []\nimplements: {implements}\n---\n\n# {title}\n",
+        "---\nmodule: {module}\nversion: {version}\nstatus: draft\nfiles:{files}\ndb_tables:{db_tables}\ndepends_on:{depends}\nimplements: {implements}\n---\n\n# {title}\n",
         module = item.module_name,
         files = files_field,
+        db_tables = db_tables_field,
+        depends = depends_field,
         implements = implements_field,
     );
+    if let Some(lead_in) = &source.lead_in {
+        let lead_in = lead_in.trim_matches('\n');
+        if !lead_in.is_empty() {
+            out.push_str(&format!("\n{lead_in}\n"));
+        }
+    }
 
     for &name in CANONICAL_SECTIONS {
         match find(name) {
@@ -150,12 +182,20 @@ fn render_spec_preserving(item: &ImportedItem, source: &PreservedSource) -> Stri
         }
     }
 
-    let import_row = format!(
-        "| {} | Imported from {}: {} |",
-        today(),
-        item.source_type,
-        item.source_url
-    );
+    let import_row = match &source.source_status {
+        Some(status) => format!(
+            "| {} | Imported from {}: {} (source status: {status}, re-drafted) |",
+            today(),
+            item.source_type,
+            item.source_url
+        ),
+        None => format!(
+            "| {} | Imported from {}: {} |",
+            today(),
+            item.source_type,
+            item.source_url
+        ),
+    };
     match find("Change Log") {
         Some(body) => {
             let body = body.trim_end();
@@ -315,8 +355,9 @@ fn default_section(name: &str, item: &ImportedItem) -> String {
 /// A file whose frontmatter declares `module` and a non-empty `files` list
 /// imports with those values intact; frontmatter-less fields fall back to
 /// derivation (title from the first `# ` heading, purpose from the first
-/// non-empty paragraph, module name from the filename). A file with no
-/// determinable `files` list is refused loudly.
+/// non-empty paragraph, module name from the filename). A parseable file with
+/// no `files` list imports as a draft the command layer warns about; only
+/// unreadable sources fail.
 pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedItem, String> {
     let parsed = crate::parser::parse_frontmatter(content);
     let frontmatter = parsed.as_ref().map(|p| &p.frontmatter);
@@ -329,13 +370,6 @@ pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedIt
         .map_err(|error| format!("Unsafe module name for `{filename}`: {error}"))?;
 
     let files = frontmatter.map(|f| f.files.clone()).unwrap_or_default();
-    if files.is_empty() {
-        return Err(format!(
-            "`{filename}` declares no `files:` frontmatter list — an imported spec must cover \
-             at least one source file; add frontmatter with a `files` list (and a `module` name) \
-             or author the spec with `specsync new`"
-        ));
-    }
 
     let body = crate::parser::strip_frontmatter(content);
     let title = body
@@ -343,7 +377,7 @@ pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedIt
         .find(|l| l.starts_with("# "))
         .map(|l| l.trim_start_matches("# ").trim().to_string());
 
-    let sections = parse_body_sections(body);
+    let (lead_in, sections) = parse_body_sections(body);
 
     let purpose = sections
         .iter()
@@ -369,35 +403,81 @@ pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedIt
         source_type: ImportSource::LocalDir,
         preserved: Some(PreservedSource {
             files,
+            depends_on: frontmatter
+                .map(|f| f.depends_on.clone())
+                .unwrap_or_default(),
+            db_tables: frontmatter.map(|f| f.db_tables.clone()).unwrap_or_default(),
+            implements: frontmatter
+                .map(|f| f.implements.clone())
+                .unwrap_or_default(),
             version: frontmatter.and_then(|f| f.version.clone()),
-            status: frontmatter.and_then(|f| f.status.clone()),
+            source_status: frontmatter
+                .and_then(|f| f.status.clone())
+                .filter(|status| !status.eq_ignore_ascii_case("draft")),
             title,
+            lead_in,
             sections,
         }),
     })
 }
 
-/// Split a markdown body into its `## ` sections as `(title, body)` pairs, in
-/// order. Content before the first `## ` heading (the H1 and any lead-in) is
-/// not a section and is not returned.
-fn parse_body_sections(body: &str) -> Vec<(String, String)> {
+/// Split a markdown body into the lead-in (text between the H1 and the first
+/// `## ` heading, when any) and its `## ` sections as `(title, body)` pairs,
+/// in order. A `## ` line inside a fenced code block is content, never a
+/// heading.
+fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
+    let mut lead_in: Option<String> = None;
     let mut sections = Vec::new();
     let mut current: Option<(String, String)> = None;
+    let mut fence: Option<&str> = None;
+    let mut past_h1 = false;
     for line in body.lines() {
-        if let Some(heading) = line.strip_prefix("## ") {
+        let trimmed = line.trim_start();
+        let fence_marker = if trimmed.starts_with("```") {
+            Some("```")
+        } else if trimmed.starts_with("~~~") {
+            Some("~~~")
+        } else {
+            None
+        };
+        if let Some(marker) = fence_marker {
+            match fence {
+                Some(open) if open == marker => fence = None,
+                None => fence = Some(marker),
+                _ => {}
+            }
+        }
+        if !past_h1 {
+            if line.starts_with("# ") {
+                past_h1 = true;
+            }
+            continue;
+        }
+        if fence.is_none()
+            && let Some(heading) = line.strip_prefix("## ")
+        {
             if let Some(done) = current.take() {
                 sections.push(done);
             }
             current = Some((heading.trim().to_string(), String::new()));
-        } else if let Some((_, body_text)) = current.as_mut() {
-            body_text.push_str(line);
-            body_text.push('\n');
+            continue;
+        }
+        match current.as_mut() {
+            Some((_, body_text)) => {
+                body_text.push_str(line);
+                body_text.push('\n');
+            }
+            None => {
+                let lead = lead_in.get_or_insert_with(String::new);
+                lead.push_str(line);
+                lead.push('\n');
+            }
         }
     }
     if let Some(done) = current {
         sections.push(done);
     }
-    sections
+    (lead_in, sections)
 }
 
 fn today() -> String {
@@ -1262,18 +1342,57 @@ mod tests {
     }
 
     #[test]
-    fn test_import_local_markdown_refuses_missing_files() {
+    fn test_import_local_markdown_without_files_imports_as_warned_draft() {
         let content = "# Design Doc\n\nSome prose about the design.\n";
-        let error = import_local_markdown("design", content).unwrap_err();
-        assert!(error.contains("files:"));
+        let item = import_local_markdown("design", content).unwrap();
+        assert_eq!(item.module_name, "design");
+        let preserved = item.preserved.as_ref().unwrap();
+        assert!(preserved.files.is_empty());
+        let spec = render_spec(&item);
+        assert!(spec.contains("status: draft"));
+        assert!(spec.contains("files: []"));
+        assert!(spec.contains("Some prose about the design."));
     }
 
     #[test]
-    fn test_import_local_markdown_refuses_empty_files_list() {
+    fn test_import_local_markdown_empty_files_list_is_not_an_error() {
         let content =
             "---\nmodule: widget\nfiles: []\n---\n\n# Widget\n\n## Purpose\n\nWidget purpose.\n";
-        let error = import_local_markdown("widget", content).unwrap_err();
-        assert!(error.contains("files:"));
+        let item = import_local_markdown("widget", content).unwrap();
+        assert!(item.preserved.as_ref().unwrap().files.is_empty());
+    }
+
+    #[test]
+    fn test_import_local_markdown_fence_headings_stay_content() {
+        let content = "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Invariants\n\n1. Widgets are immutable.\n\n```text\n## Not a heading, inside a fence\n```\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let preserved = item.preserved.as_ref().unwrap();
+        assert_eq!(preserved.sections.len(), 2);
+        assert_eq!(preserved.sections[0].0, "Invariants");
+        assert!(
+            preserved.sections[0]
+                .1
+                .contains("## Not a heading, inside a fence")
+        );
+        let spec = render_spec(&item);
+        assert!(spec.contains("## Not a heading, inside a fence"));
+        // The fence content stays inside Invariants; no phantom section follows it.
+        assert_eq!(spec.matches("## Not a heading").count(), 1);
+    }
+
+    #[test]
+    fn test_import_local_markdown_preserves_lists_and_lead_in() {
+        let content = "---\nmodule: widget\nstatus: active\nfiles:\n  - src/widget.rs\ndepends_on:\n  - base\ndb_tables:\n  - widgets\nimplements: [41, 42]\n---\n\n# Widget\n\nA lead-in paragraph about the widget.\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let spec = render_spec(&item);
+        assert!(spec.contains("depends_on:\n  - base"));
+        assert!(spec.contains("db_tables:\n  - widgets"));
+        assert!(spec.contains("implements: [41, 42]"));
+        assert!(spec.contains("A lead-in paragraph about the widget."));
+        // Imports are always re-drafted; the source status is recorded instead.
+        assert!(spec.contains("status: draft"));
+        assert!(!spec.contains("\nstatus: active\n"));
+        assert!(spec.contains("source status: active, re-drafted"));
     }
 
     #[test]

@@ -308,9 +308,9 @@ specsync import --from-dir ./docs/specs    # import from local directory
 
 `--from-dir` preserves what the source declares: frontmatter (`module`, `version`, `status`,
 `files`) and existing sections are kept, and only missing sections are scaffolded, so a
-frontmatter-complete source passes `specsync check` immediately. A source with no `files:`
-frontmatter list is refused with an error — author those with `specsync scaffold` or
-`specsync new` instead, which detect source files for you. GitHub and Jira imports still write
+frontmatter-complete source passes `specsync check` immediately. A parseable source with no
+`files:` frontmatter list imports as a draft with a warning that `check --strict` will fail
+until `files` is filled in. GitHub and Jira imports still write
 `status: draft` skeletons with `files: []` and empty Public API tables; the command warns that
 `specsync check --strict` fails until you add the `files:` mapping and complete the sections
 ([#416](https://github.com/CorvidLabs/spec-sync/issues/416)).

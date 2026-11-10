@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794328204,
+      "commit": "82334a70662b3a74b85a682af9792dcdcc6b4827",
+      "contract_digest": "df038cf8a3fc2dd9c5671d357e0142240276ccb42872450ba10dca66536db278",
+      "execution_digest": "7d3ad5059bd20b791467a9ae3295ae954f7c3068f3fab2ff20d93f917b6d911c",
+      "workspace_digest": "9ccab11e5d1fe3492c3fb8d78591c2bb7e5fa44e331769fc5274fc4833a9bdd7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_import --spec importer",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-import-002",
+        "REQ-importer-002"
+      ]
+    },
+    {
+      "timestamp": 1794328227,
+      "commit": "82334a70662b3a74b85a682af9792dcdcc6b4827",
+      "contract_digest": "df038cf8a3fc2dd9c5671d357e0142240276ccb42872450ba10dca66536db278",
+      "execution_digest": "7d3ad5059bd20b791467a9ae3295ae954f7c3068f3fab2ff20d93f917b6d911c",
+      "workspace_digest": "9ccab11e5d1fe3492c3fb8d78591c2bb7e5fa44e331769fc5274fc4833a9bdd7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_import --spec importer",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-import-002",
+        "REQ-importer-002"
+      ]
+    }
+  ]
+}

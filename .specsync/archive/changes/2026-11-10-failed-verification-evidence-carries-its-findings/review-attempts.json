@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "failed-verification-evidence-carries-its-findings",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "b55ae92cad468620728ed863d5f99f086fb33f22",
+      "contract_digest": "9a3307e0085681f4c9952ef83ee35e9349fb51b0f6e2423727f69bc094bbd1a6",
+      "execution_digest": "39bc83ebcb84284b2aeb5f1e10058fcf348e2cd169a4eb2a330e537651000c76",
+      "workspace_digest": "986c989a2b8436843b505ca325ef8f81aad0002eb9b69abaf3e61b6af7a7f13e",
+      "timestamp": 1794332201
+    }
+  ]
+}

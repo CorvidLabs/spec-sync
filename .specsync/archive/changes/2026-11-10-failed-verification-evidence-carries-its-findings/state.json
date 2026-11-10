@@ -7,11 +7,11 @@
   "title": "Failed verification evidence carries its findings",
   "description": "failed verification evidence carries its findings",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
   "created_at": 1794331472,
-  "updated_at": 1794332194,
+  "updated_at": 1794332279,
   "affected_specs": [
     "change"
   ],

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "failed-verification-evidence-carries-its-findings",
+  "implementation_commit": "b55ae92cad468620728ed863d5f99f086fb33f22",
+  "implementation_tree": "7263bcb3dd9bdfb3a570798867382e9300c7f215",
+  "contract_digest": "9a3307e0085681f4c9952ef83ee35e9349fb51b0f6e2423727f69bc094bbd1a6",
+  "workspace_digest": "986c989a2b8436843b505ca325ef8f81aad0002eb9b69abaf3e61b6af7a7f13e",
+  "closing_digest": "ffd1ef7fc86d7f6d9e88d62d683f7a25f6dd9386e85b47dc5336032e26f60413",
+  "review_digest": "325b862bec7c3b81dce89c451a4620541888963020b3700608fc73ab6f8bffbf",
+  "finalization_digest": "c5e74ceca7811ea314dac306805bd72cd0b7f8b89c04304aac2f3a0e36f650b6",
+  "timestamp": 1794332271
+}

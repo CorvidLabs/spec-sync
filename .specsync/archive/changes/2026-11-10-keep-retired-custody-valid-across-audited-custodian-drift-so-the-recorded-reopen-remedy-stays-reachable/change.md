@@ -1,6 +1,6 @@
 ---
 id: keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 49d2326a8f80232b8fee94a5073c4c1a66fd2057
 ---

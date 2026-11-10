@@ -7,11 +7,11 @@
   "title": "Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable",
   "description": "Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
   "created_at": 1794321585,
-  "updated_at": 1794324919,
+  "updated_at": 1794326533,
   "affected_specs": [
     "change"
   ],

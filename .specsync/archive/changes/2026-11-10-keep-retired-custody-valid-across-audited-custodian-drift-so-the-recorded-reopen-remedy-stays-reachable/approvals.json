@@ -38,6 +38,13 @@
       "approved_delta_bases": {
         "change: REQUIREMENT REQ-change-recovery-retirement-001": "016e6e87f0392f92d0bd2a0cfa38e9143beb256662d090ad63a3bd444db61c88"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794326530,
+      "digest": "8edd6b0c3c0f65d8e802826a43e524b61879454ee9b0d4afec802bbe824fed9c",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -1,0 +1,108 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794323018,
+      "digest": "26a96c8d4718a2abfc6c9c03621f09d733f383cfe45c0d48999ec198b278a425",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "import-from-dir-preserves-source-content",
+        "title": "Import --from-dir preserves source content",
+        "description": "import --from-dir preserves source content",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_import",
+          "importer"
+        ],
+        "affected_paths": [
+          "specs/cmd_import/",
+          "specs/importer/",
+          "src/commands/import.rs",
+          "src/importer.rs",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "import --from-dir keeps the source file's module name, files list, purpose and existing sections (Public API, Invariants, Change Log); the imported spec passes specsync check --strict immediately; the Change Log names the real source instead of Confluence; a source with no usable files list is refused loudly and counted as an error"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Generated specs stay draft status; module names stay validated through the shared portable component contract; no new external dependencies",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_import": "a4e48ae0ec61f9b1ff16c10d22e9b1ec03a14ed720b6609713c702eb964b816f",
+        "importer": "4a425fbcb88b8939bcc82fd7511f23e301608b6bc9b20c0ecdec2e92469b7f0a"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794324023,
+      "digest": "95e07837d5d7884ba6f90bb0a36a8c05539f5a5fdd403aeec5282976d736b6e3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "import-from-dir-preserves-source-content",
+        "title": "Import --from-dir preserves source content",
+        "description": "import --from-dir preserves source content",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_import",
+          "importer"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/cli.md",
+          "specs/cmd_import/",
+          "specs/importer/",
+          "src/commands/import.rs",
+          "src/importer.rs",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "import --from-dir keeps the source file's module name, files list, purpose and existing sections (Public API, Invariants, Change Log); the imported spec passes specsync check --strict immediately; the Change Log names the real source instead of Confluence; a source with no usable files list is refused loudly and counted as an error"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Generated specs stay draft status; module names stay validated through the shared portable component contract; no new external dependencies",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_import": "a4e48ae0ec61f9b1ff16c10d22e9b1ec03a14ed720b6609713c702eb964b816f",
+        "importer": "4a425fbcb88b8939bcc82fd7511f23e301608b6bc9b20c0ecdec2e92469b7f0a"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "import-from-dir-preserves-source-content",
+      "actor": "0xLeif",
+      "reason": "add site/src/content/docs/cli.md to affected_paths for the docs update",
+      "timestamp": 1794324006,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false,
+      "applied_modules": [
+        "importer",
+        "cmd_import"
+      ]
+    }
+  ]
+}

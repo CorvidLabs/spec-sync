@@ -20,7 +20,7 @@ spec: cmd_import.spec.md
 - Each created spec lives at `<specsDir>/<module>/<module>.spec.md` and is never overwritten — an existing spec causes exit 1 (single) or a skip (batch).
 - After writing a spec, companions are generated via `generator::generate_companion_files_for_spec` with `companions.design` from config controlling whether `design.md` is created.
 - Batch modes print a `[n/total]` progress line per item and a final summary of imported/skipped/error counts; directory mode scans `.md` files one level deep, sorted.
-- Markdown directory items derive: title from the first `# ` heading (else filename), purpose from the first non-empty paragraph after the title, requirements via `importer::extract_requirements_pub`, and module name via `importer::slugify(filename)`.
+- Markdown directory items preserve declared frontmatter (`module`, `version`, `status`, `files`) and existing sections; fields the source does not declare derive as before: title from the first `# ` heading (else filename), purpose from the Purpose section or first non-empty paragraph, requirements via `importer::extract_requirements_pub`, and module name via `importer::slugify(filename)`. A source with no determinable `files` list is refused as a batch error.
 - Every derived module name is validated against the shared portable component contract before any
   path is joined or created.
 - Batch modes continue after item failures, preserve successful imports, print the complete
@@ -57,4 +57,15 @@ Acceptance Criteria
   paths are joined or created.
 - Batch item errors do not stop later items, but the final truthful summary is followed by exit 1
   whenever any error occurred.
+
+### REQ-cmd-import-002
+
+`import --from-dir` SHALL parse each markdown source's YAML frontmatter and preserve its declared `module`, `version`, `status` and `files` values, SHALL refuse a source whose files list cannot be determined, and SHALL warn whenever a written draft spec still has an empty files list.
+
+Acceptance Criteria
+- A source file whose frontmatter declares `module` and a non-empty `files` list imports with those values intact; the module name is not re-derived from the filename.
+- Frontmatter-less derivation (title from the first `# ` heading, purpose from the first non-empty paragraph, requirements via `importer::extract_requirements_pub`) remains the fallback when the source declares no frontmatter value for that field.
+- A source with no determinable `files` list fails the item with a message naming the missing `files:` frontmatter list, is counted as a batch error, and the batch exits 1.
+- Directory imports stamp the Change Log with the local directory source and the source file name, never `Imported from Confluence`.
+- Any import verb that writes a spec with an empty files list prints a warning that `specsync check --strict` will fail until `files` is filled in, instead of reporting unqualified success.
 

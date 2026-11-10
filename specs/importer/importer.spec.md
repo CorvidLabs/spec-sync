@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 9
+version: 10
 status: active
 files:
   - src/importer.rs
@@ -25,7 +25,8 @@ Generates spec files from external project management systems. Supports importin
 | `import_github_issue` | `repo: &str, number: u64` | `Result<ImportedItem, String>` | Fetch a GitHub issue through typed in-process REST with explicit `GITHUB_TOKEN` and convert it to `ImportedItem` |
 | `import_jira_issue` | `issue_key: &str` | `Result<ImportedItem, String>` | Fetch a Jira issue via REST API v3 and convert to `ImportedItem` |
 | `import_confluence_page` | `page_id: &str` | `Result<ImportedItem, String>` | Fetch a Confluence page via REST API and convert to `ImportedItem` |
-| `render_spec` | `item: &ImportedItem` | `String` | Render an `ImportedItem` into a complete spec markdown string |
+| `render_spec` | `item: &ImportedItem` | `String` | Render an `ImportedItem` into a complete spec markdown string, reusing preserved source sections when present |
+| `import_local_markdown` | `filename: &str, content: &str` | `Result<ImportedItem, String>` | Parse a local markdown file into an `ImportedItem`, preserving frontmatter (`module`, `version`, `status`, `files`) and existing sections; refuses a source with no determinable `files` list |
 | `extract_requirements_pub` | `body: &str` | `Vec<String>` | Extract requirement-like bullets (checkboxes, numbered lists, acceptance criteria sections) from text |
 | `extract_requirements` | `body: &str` | `Vec<String>` | Internal extractor used by `extract_requirements_pub` |
 | `slugify` | `title: &str` | `String` | Convert a title into a valid module name (lowercase, hyphen-separated) |
@@ -34,8 +35,9 @@ Generates spec files from external project management systems. Supports importin
 
 | Type | Description |
 |------|-------------|
-| `ImportedItem` | Intermediate representation: `module_name`, `purpose`, `requirements`, `labels`, `source_url`, `issue_number`, `source_type` |
-| `ImportSource` | Enum: `GitHub`, `Jira`, `Confluence` |
+| `ImportedItem` | Intermediate representation: `module_name`, `purpose`, `requirements`, `labels`, `source_url`, `issue_number`, `source_type`, `preserved` |
+| `PreservedSource` | Content preserved from a local markdown source: `files`, `version`, `status`, `title`, `sections` |
+| `ImportSource` | Enum: `GitHub`, `Jira`, `Confluence`, `LocalDir` |
 
 ## Invariants
 
@@ -47,6 +49,10 @@ Generates spec files from external project management systems. Supports importin
 4. `gh` remains outside the importer read path.
 5. Every provider-derived module name is portable after safe-name normalization, including
    reserved-device and generated-filename byte limits.
+6. A local markdown import preserves the source's frontmatter `module`, `version`, `status` and
+   `files` declarations and its existing `##` sections; only missing sections are scaffolded.
+7. A local markdown source with no determinable `files` list is refused loudly, and no import
+   stamps a source other than the real one in the Change Log.
 
 ## Behavioral Examples
 
@@ -123,3 +129,4 @@ Generates spec files from external project management systems. Supports importin
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-11-10 | import-from-dir-preserves-source-content: preserve local markdown frontmatter and sections, refuse sources with no files list, name the real source (#416) |

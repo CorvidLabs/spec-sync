@@ -306,11 +306,13 @@ specsync import jira PROJ-123              # import from Jira ticket
 specsync import --from-dir ./docs/specs    # import from local directory
 ```
 
-Every import source writes a `status: draft` skeleton: `files: []`, empty Public API tables, and
-placeholder sections. That skeleton does not pass `specsync check` on its own — the frontmatter
-fails with `files (must be a non-empty list)` and the module counts as 0% covered — until you add
-the `files:` mapping and complete the sections. When the source is code rather than prose, use
-`specsync scaffold` or `specsync new` instead; they detect source files for you
+`--from-dir` preserves what the source declares: frontmatter (`module`, `version`, `status`,
+`files`) and existing sections are kept, and only missing sections are scaffolded, so a
+frontmatter-complete source passes `specsync check` immediately. A source with no `files:`
+frontmatter list is refused with an error — author those with `specsync scaffold` or
+`specsync new` instead, which detect source files for you. GitHub and Jira imports still write
+`status: draft` skeletons with `files: []` and empty Public API tables; the command warns that
+`specsync check --strict` fails until you add the `files:` mapping and complete the sections
 ([#416](https://github.com/CorvidLabs/spec-sync/issues/416)).
 
 ### `wizard`

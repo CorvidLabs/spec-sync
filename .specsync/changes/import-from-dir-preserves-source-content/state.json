@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "import-from-dir-preserves-source-content",
+  "slug": "import-from-dir-preserves-source-content",
+  "title": "Import --from-dir preserves source content",
+  "description": "import --from-dir preserves source content",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
+  "created_at": 1794322636,
+  "updated_at": 1794325882,
+  "affected_specs": [
+    "importer",
+    "cmd_import"
+  ],
+  "affected_paths": [
+    "src/importer.rs",
+    "src/commands/import.rs",
+    "specs/importer/",
+    "specs/cmd_import/",
+    "tests/",
+    "site/src/content/docs/cli.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "import --from-dir keeps the source file's module name, files list, purpose and existing sections (Public API, Invariants, Change Log); the imported spec passes specsync check --strict immediately; the Change Log names the real source instead of Confluence; a source with no usable files list is refused loudly and counted as an error"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Generated specs stay draft status; module names stay validated through the shared portable component contract; no new external dependencies",
+    "public_contract": "yes"
+  }
+}

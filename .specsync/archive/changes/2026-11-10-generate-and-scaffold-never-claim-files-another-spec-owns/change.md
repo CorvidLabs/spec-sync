@@ -1,6 +1,6 @@
 ---
 id: generate-and-scaffold-never-claim-files-another-spec-owns
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 49d2326a8f80232b8fee94a5073c4c1a66fd2057
 ---

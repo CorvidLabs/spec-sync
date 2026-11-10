@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "generate-and-scaffold-never-claim-files-another-spec-owns",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "787a34a892f4445f9dae7c50e635bcb16731dbb7",
+  "contract_digest": "49222cfa5cee3c44dc9172dfeaa8a139a02c4b3b6fc38b0792944199a57a1f76",
+  "execution_digest": "a6d10cd9b71bd41f35d46b1d29164145adc8ff78ecc7465ab8e9ecd682cccb2b",
+  "workspace_digest": "1274272bf8aaa9723b9553ebd081aae43e402c1533e08e02b87b4c20f75e8a68",
+  "timestamp": 1794330006
+}

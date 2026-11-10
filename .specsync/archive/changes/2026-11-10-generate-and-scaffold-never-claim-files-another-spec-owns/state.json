@@ -7,11 +7,11 @@
   "title": "Generate and scaffold never claim files another spec owns",
   "description": "generate and scaffold never claim files another spec owns",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
   "created_at": 1794328954,
-  "updated_at": 1794329992,
+  "updated_at": 1794330122,
   "affected_specs": [
     "generator",
     "cmd_generate",

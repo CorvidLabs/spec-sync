@@ -90,9 +90,10 @@ git push origin refs/tags/v6.0.1-rc.1
 The push matches `on.push.tags: v*.*.*-rc.*` and runs `release.yml` in `qualify` mode:
 `resolve` (checks both immutable-tag rulesets, warns about the protections it does not enforce)
 -> `validate` (ancestor-of-main, Cargo version equals tag version) -> `qualify` on
-`ubuntu-latest` and `macos-15` (`fledge lanes run release-candidate`, i.e. `test-nextest` + `build`;
-the job installs a checksum-pinned `cargo-nextest` the same way it installs Fledge, and runs the
-same test set as `cargo test`)
+`ubuntu-latest` and `macos-15` (`fledge lanes run release-candidate`, i.e. `test-nextest` +
+`test-release-guards` + `build`; the job installs a checksum-pinned `cargo-nextest` the same way it
+installs Fledge and runs the same test set as `cargo test`, then runs the TOCTOU race-guard unit
+tests under `--release`, the profile it ships (CI-11, #614))
 -> `record-qualification`. Watch it:
 
 ```bash

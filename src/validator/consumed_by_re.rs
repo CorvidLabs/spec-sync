@@ -3265,3 +3265,30 @@ pub(crate) fn normalize_source_mapping(file: &str) -> Option<String> {
     }
     (!components.is_empty()).then(|| components.join("/"))
 }
+
+/// CI-11, #614: the coverage root-identity guard refuses a project root replaced
+/// during retained traversal. The test swaps the directory itself, so it runs in
+/// every test profile, including `cargo test --release`.
+#[cfg(all(test, unix))]
+mod release_race_guard_tests {
+    use super::*;
+
+    #[test]
+    fn release_race_guard_coverage_root_refuses_a_replaced_root() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir(&root).unwrap();
+        let retained = open_coverage_project_root(&root).unwrap();
+        verify_coverage_project_root(&root, &retained).expect("an unchanged root verifies");
+
+        std::fs::rename(&root, temp.path().join("moved")).unwrap();
+        std::fs::create_dir(&root).unwrap();
+
+        let error = verify_coverage_project_root(&root, &retained)
+            .expect_err("a root replaced during traversal is refused");
+        assert!(
+            error.contains("changed during retained traversal"),
+            "{error}"
+        );
+    }
+}

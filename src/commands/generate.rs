@@ -641,3 +641,30 @@ fn generate_after_coverage_test_barrier() -> Result<(), String> {
 fn generate_after_coverage_test_barrier() -> Result<(), String> {
     Ok(())
 }
+
+/// CI-11, #614: the Generate root guard refuses a project root replaced after it
+/// was retained. The test swaps the directory itself, so it runs in every test
+/// profile, including `cargo test --release`.
+#[cfg(all(test, unix))]
+mod release_race_guard_tests {
+    use super::*;
+
+    #[test]
+    fn release_race_guard_generate_root_refuses_a_replaced_root() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir(&root).unwrap();
+        let retained = RetainedGenerateRoot::open(&root).unwrap();
+        retained
+            .verify_public_path()
+            .expect("an unchanged root verifies");
+
+        std::fs::rename(&root, temp.path().join("moved")).unwrap();
+        std::fs::create_dir(&root).unwrap();
+
+        let error = retained
+            .verify_public_path()
+            .expect_err("a root replaced after it was retained is refused");
+        assert!(error.contains("changed after coverage snapshot"), "{error}");
+    }
+}

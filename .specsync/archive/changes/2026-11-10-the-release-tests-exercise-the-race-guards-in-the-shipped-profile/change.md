@@ -1,6 +1,6 @@
 ---
 id: the-release-tests-exercise-the-race-guards-in-the-shipped-profile
-state: implementing
+state: archived
 type: bug_fix
 base_commit: baf6e45509ac1fd4d5cbedfdf87d4dc17805a195
 ---

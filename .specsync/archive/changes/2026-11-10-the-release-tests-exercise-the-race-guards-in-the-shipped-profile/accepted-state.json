@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-release-tests-exercise-the-race-guards-in-the-shipped-profile",
+  "slug": "the-release-tests-exercise-the-race-guards-in-the-shipped-profile",
+  "title": "The release tests exercise the race guards in the shipped profile",
+  "description": "the release tests exercise the race guards in the shipped profile",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "baf6e45509ac1fd4d5cbedfdf87d4dc17805a195",
+  "created_at": 1794348422,
+  "updated_at": 1794351904,
+  "affected_specs": [
+    "cmd_generate",
+    "mcp",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/commands/generate.rs",
+    "src/mcp/confinement/tests.rs",
+    "src/validator/consumed_by_re.rs",
+    "fledge.toml",
+    "docs/RELEASING.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Adds release-runnable unit tests for three existing TOCTOU guards and a release-candidate lane step; no guard behavior or contract changes",
+  "acceptance_criteria": [
+    "cargo test --release runs a unit test for each of verify_coverage_project_root, RetainedGenerateRoot::verify_public_path and ConfinedReadRoot::revalidate_before_success that replaces the root after it is retained and asserts the guard refuses; fledge lanes run release-candidate runs them under --release (CI-11)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "the rendezvous-driven integration tests stay debug-only (#581); these unit tests need no debug hook",
+    "public_contract": "no"
+  }
+}

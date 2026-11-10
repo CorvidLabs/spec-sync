@@ -1,6 +1,6 @@
 ---
 id: bounded-failure-output-never-splits-a-multi-byte-character-and-gate-refusal-evidence-is-tested
-state: implementing
+state: archived
 type: bug_fix
 base_commit: aa2f5108929c19a4e9eabd126985de609f709af1
 ---

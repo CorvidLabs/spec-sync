@@ -40,6 +40,13 @@
       "approved_delta_bases": {
         "change: REQUIREMENT REQ-change-151": "7ebc4ea1f3083513ccbb23dc1eb2376bfc16365af98e291e024a9f89d00e9c94"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794345659,
+      "digest": "40ea032f34040395fbe3226ecacf5c3fcf927c17991f67679dca3492bc2bccac",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

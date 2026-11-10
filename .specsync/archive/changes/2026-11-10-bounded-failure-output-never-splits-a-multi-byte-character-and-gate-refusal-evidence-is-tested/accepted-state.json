@@ -7,11 +7,11 @@
   "title": "Bounded failure output never splits a multi-byte character and gate-refusal evidence is tested",
   "description": "bounded failure output never splits a multi-byte character and gate-refusal evidence is tested",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "aa2f5108929c19a4e9eabd126985de609f709af1",
   "created_at": 1794345153,
-  "updated_at": 1794345470,
+  "updated_at": 1794345659,
   "affected_specs": [
     "change"
   ],

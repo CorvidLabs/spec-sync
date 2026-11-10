@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "bounded-failure-output-never-splits-a-multi-byte-character-and-gate-refusal-evidence-is-tested",
+  "implementation_commit": "d1c7cecb0fd0d6ba8898c3d15455b3fab70f9ef1",
+  "implementation_tree": "b228452a621fbd9fa3a45ce90c6e6cb37df7369b",
+  "contract_digest": "4ce5e5eccabaf244f56db6877d587b685f420dc0824b796ea3b1a381809a5275",
+  "workspace_digest": "224a39ca20d0b923ed4f866aa7f5ee5ef0687dfbc27f3b32db9b8ccb5d50ec3d",
+  "closing_digest": "40ea032f34040395fbe3226ecacf5c3fcf927c17991f67679dca3492bc2bccac",
+  "review_digest": "6377362576bb6a44fdb869153d5c543cb6adf06cf28eb26a4435e9c58148837c",
+  "finalization_digest": "0776d42503b377006f1000a94ae4a16155d54d37b56950f6022aea4ae564de84",
+  "timestamp": 1794345659
+}

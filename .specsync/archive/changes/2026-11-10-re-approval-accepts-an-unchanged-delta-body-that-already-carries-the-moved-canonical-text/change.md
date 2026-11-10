@@ -1,6 +1,6 @@
 ---
 id: re-approval-accepts-an-unchanged-delta-body-that-already-carries-the-moved-canonical-text
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 6ef61e6aae6d63b2586d0f9f216c47803dba4d9f
 ---

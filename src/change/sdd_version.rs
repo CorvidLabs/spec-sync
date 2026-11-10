@@ -1906,6 +1906,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
+    ensure_affected_specs_exist(root, &affected_specs)?;
     let affected_paths: Vec<String> = affected_paths
         .iter()
         .map(|path| {
@@ -2785,6 +2786,24 @@ pub(crate) fn answer_question_with_snapshot(
     let _lock = acquire_project_lock(root)?;
     let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
+    const INTERVIEW_QUESTIONS: &[&str] = &[
+        "acceptance_criteria",
+        "affected_specs",
+        "affected_paths",
+        "dependencies",
+        "public_contract",
+        "architecture_risk",
+        "constraints",
+    ];
+    if !INTERVIEW_QUESTIONS.contains(&question) {
+        return Err(format!(
+            "unknown interview question `{question}`; expected one of: {}",
+            INTERVIEW_QUESTIONS.join(", ")
+        ));
+    }
+    if answer.trim().is_empty() {
+        return Err(format!("{question} answer must not be empty"));
+    }
     match question {
         "acceptance_criteria" => {
             record.acceptance_criteria = acceptance_criteria_values(answer)?;
@@ -2795,6 +2814,7 @@ pub(crate) fn answer_question_with_snapshot(
                 crate::commands::validate_module_name(module)
                     .map_err(|error| format!("invalid affected spec: {error}"))?;
             }
+            ensure_affected_specs_exist(root, &values)?;
             record.affected_specs = values;
             // The lessons those specs carry may have changed, so the previous citation is stale.
             record.answers.remove("constraints");
@@ -2849,7 +2869,10 @@ pub(crate) fn answer_question_with_snapshot(
             record.answers.insert(question.into(), answer.to_string());
         }
         _ => {
-            record.answers.insert(question.into(), answer.into());
+            return Err(format!(
+                "unknown interview question `{question}`; expected one of: {}",
+                INTERVIEW_QUESTIONS.join(", ")
+            ));
         }
     }
     // Every answer validates the list; the per-change overlap is re-judged when the answer is
@@ -3661,6 +3684,53 @@ struct ScopedSpecs {
 /// `module:` field. Deriving the name any other way records a command that
 /// selects nothing on a spec whose declared module and filename differ — a
 /// registry-mapped module most of all, where the two routinely differ.
+/// Refuse affected-spec declarations that name no spec on disk, whether the
+/// module is registered or conventional — a change cannot affect a spec that
+/// does not exist, and the typo surfaces at declaration, not at
+/// materialization. A project with no specs at all cannot typo against an
+/// empty set, so the declaration is provisional there (bootstrap).
+fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), String> {
+    if modules.is_empty() {
+        return Ok(());
+    }
+    let config = crate::config::load_config(root);
+    let known = known_module_names(root, &config.specs_dir);
+    if known.is_empty() {
+        return Ok(());
+    }
+    for module in modules {
+        let resolved = canonical_module_paths(root, &config.specs_dir, module);
+        let exists = resolved
+            .as_ref()
+            .is_ok_and(|(spec_path, _)| spec_path.is_file());
+        if !exists {
+            return Err(format!(
+                "affected spec `{module}` is not a registered spec module; known modules: {}",
+                known.join(", ")
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Names of every known spec module — registry entries plus modules discovered
+/// under the specs directory — for error messages that name the valid set.
+fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+        for (module, _) in &registry.specs {
+            names.insert(module.clone());
+        }
+    }
+    for spec in crate::validator::find_spec_files(&root.join(specs_dir)) {
+        let filter = spec_filter_name(&spec);
+        if !filter.is_empty() {
+            names.insert(filter);
+        }
+    }
+    names.into_iter().collect()
+}
+
 fn spec_filter_name(spec: &Path) -> String {
     spec.file_stem()
         .and_then(|stem| stem.to_str())

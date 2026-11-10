@@ -816,12 +816,19 @@ fn definition_approval_pair_id(
 }
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
-    actor
+    let actor = actor
         .or_else(|| git_output(root, &["config", "user.name"]))
         .or_else(|| std::env::var("USER").ok())
         .or_else(|| std::env::var("USERNAME").ok())
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| "approval actor is unknown; pass --actor <name>".to_string())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "approval actor is unknown; pass --actor <name>".to_string())?;
+    if actor.chars().any(|c| c.is_control()) {
+        return Err(format!(
+            "approval actor `{actor}` must be a single line of text; newlines and control characters are not allowed"
+        ));
+    }
+    Ok(actor)
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
@@ -4308,7 +4315,7 @@ fn split_values(value: &str) -> Vec<String> {
 fn acceptance_criteria_values(value: &str) -> Result<Vec<String>, String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Ok(Vec::new());
+        return Err("acceptance_criteria answer must not be empty".into());
     }
     if matches!(
         serde_json::from_str::<serde_json::Value>(trimmed),

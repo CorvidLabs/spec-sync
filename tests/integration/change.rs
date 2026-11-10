@@ -337,8 +337,349 @@ fn verification_freshness_status_and_check_are_environment_independent() {
 }
 
 #[test]
+fn change_answer_rejects_unknown_question_key_and_persists_nothing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "nonexistent_question",
+            "x",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown interview question"));
+
+    // A hyphen/underscore typo fails the same way (#426).
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "acceptance-criteria",
+            "typo",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown interview question"));
+
+    // Nothing was persisted.
+    let state: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/state.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(state["answers"], serde_json::json!({}));
+}
+
+#[test]
+fn change_answer_rejects_empty_and_whitespace_answers() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    for question in ["acceptance_criteria", "affected_paths", "public_contract"] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                "   ",
+            ])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("must not be empty"));
+    }
+
+    // A real answer still works.
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "acceptance_criteria",
+            "Passkeys enroll",
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn change_new_and_answer_reject_unregistered_affected_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "nosuch",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not a registered spec module"));
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "affected_specs",
+            "nosuch",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not a registered spec module"))
+        .stderr(predicate::str::contains("auth"));
+}
+
+#[test]
+fn change_approve_trims_and_validates_actor_identity() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-m", "seed"]);
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Passkeys enroll"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+    fs::create_dir_all(root.join(format!(".specsync/changes/{id}/deltas"))).unwrap();
+    fs::write(
+        root.join(format!(".specsync/changes/{id}/deltas/auth.md")),
+        "## ADDED\n\n### REQUIREMENT REQ-auth-900\n\nThe system SHALL hold.\n\nAcceptance Criteria\n- holds.\n",
+    )
+    .unwrap();
+
+    // A newline-bearing actor is rejected before any ledger write (#426).
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "\n  padded\nactor  ",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("single line"));
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ledger["approvals"], serde_json::json!([]));
+
+    // Padding is trimmed before it reaches the append-only ledger.
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "  Reviewer  ",
+        ])
+        .assert()
+        .success();
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ledger["approvals"][0]["actor"], "Reviewer");
+}
+
+#[test]
 fn change_new_json_returns_state_and_interview() {
     let temp = TempDir::new().unwrap();
+    fs::create_dir_all(temp.path().join("specs/auth")).unwrap();
+    fs::write(
+        temp.path().join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
     let output = specsync()
         .args([
             "--root",

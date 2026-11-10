@@ -959,7 +959,7 @@ fn mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully()
         CreateChangeRequest {
             description: "Declare one resolvable and one missing module".into(),
             kind: ChangeKind::BugFix,
-            affected_specs: vec!["other".into(), "absent".into()],
+            affected_specs: vec!["other".into()],
             affected_paths: vec!["src/".into()],
             requested_artifacts: Vec::new(),
             no_spec_change: true,
@@ -967,6 +967,10 @@ fn mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully()
         },
     )
     .unwrap();
+    // A module can go missing after the declaration (deleted spec, stale
+    // branch) — the deeper scope check is the TOCTOU guard for exactly that,
+    // so the fixture removes it after creation rather than declaring it.
+    record.affected_specs.push("absent".into());
     record.acceptance_criteria = vec!["Mixed scope is recorded honestly".into()];
 
     let scope = scoped_spec_files(root, &record, &crate::config::load_config(root));
@@ -3539,9 +3543,18 @@ fn semantic_application_rejects_unsafe_registry_paths() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     fs::create_dir_all(root.join(".specsync")).unwrap();
+    // Create the change against a safe registry; an unsafe mapping can only
+    // appear afterwards (a hand edit, a bad merge), which is the TOCTOU the
+    // application layer must still refuse.
     fs::write(
         root.join(".specsync/registry.toml"),
-        "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"../../outside/auth.spec.md\"\n",
+        "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
     )
     .unwrap();
     let record = create_change(
@@ -3555,6 +3568,12 @@ fn semantic_application_rejects_unsafe_registry_paths() {
             no_spec_change: false,
             rationale: None,
         },
+    )
+    .unwrap();
+    // The unsafe mapping arrives after the declaration.
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"../../outside/auth.spec.md\"\n",
     )
     .unwrap();
     fs::write(

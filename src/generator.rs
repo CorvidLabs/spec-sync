@@ -911,6 +911,8 @@ fn filter_unowned_candidates(
     candidates
         .into_iter()
         .filter(|candidate| {
+            // Candidates are root-joined by construction; one that fails to
+            // strip is not a project file the ownership set could name.
             let Ok(relative) = Path::new(candidate).strip_prefix(root) else {
                 return true;
             };

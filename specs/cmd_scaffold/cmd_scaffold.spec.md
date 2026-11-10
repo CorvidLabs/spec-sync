@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 13
+version: 14
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -90,3 +90,4 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
 | 2026-11-10 | generate-and-scaffold-never-claim-files-another-spec-owns: Generate and scaffold never claim files another spec owns |
+| 2026-11-10 | generate-ownership-wording-matches-shipped-no-files-path: Generate ownership wording matches shipped no-files path |

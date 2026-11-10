@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "generate-ownership-wording-matches-shipped-no-files-path",
+  "slug": "generate-ownership-wording-matches-shipped-no-files-path",
+  "title": "Generate ownership wording matches shipped no-files path",
+  "description": "generate ownership wording matches shipped no-files path",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "b2432e0488846b92f869e307c78b672354073415",
+  "created_at": 1794332679,
+  "updated_at": 1794333508,
+  "affected_specs": [
+    "generator",
+    "cmd_scaffold"
+  ],
+  "affected_paths": [
+    "src/generator.rs",
+    "specs/generator/",
+    "specs/cmd_scaffold/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "REQ-generator-009 and REQ-cmd-scaffold-006 describe the shipped behavior: an all-owned candidate set takes the existing no-files path (spec written with files: [] plus the empty-files warning); new foo against an owned flat file is covered by a test; the requirements carry no contradiction about config.modules mappings"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "wording follows shipped behavior; no behavior change in this change",
+    "public_contract": "no"
+  }
+}

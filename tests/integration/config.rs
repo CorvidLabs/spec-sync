@@ -1991,3 +1991,32 @@ fn migrate_preserves_explicitly_empty_arrays() {
         "explicit empty exclude_dirs must be written:\n{migrated}"
     );
 }
+
+/// `new` takes the same creation selection as scaffold: an owned flat file is
+/// never claimed (#611).
+#[test]
+fn new_never_claims_an_owned_flat_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/foo.rs"), "pub fn foo() {}").unwrap();
+    fs::create_dir_all(root.join("specs/special")).unwrap();
+    fs::write(
+        root.join("specs/special/special.spec.md"),
+        valid_spec("special", &["src/foo.rs"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["new", "foo", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let spec = fs::read_to_string(root.join("specs/foo/foo.spec.md")).unwrap();
+    assert!(
+        !spec.contains("src/foo.rs"),
+        "new foo must not claim the owned src/foo.rs, got:\n{spec}"
+    );
+}

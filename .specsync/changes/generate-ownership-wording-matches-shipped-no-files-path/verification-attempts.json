@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794333503,
+      "commit": "b2432e0488846b92f869e307c78b672354073415",
+      "contract_digest": "e1d1862b4ebbd8782c9ee9605c5f5cba0859e1835fb3de07a19561940f97b389",
+      "execution_digest": "b07bd769450c8c1ef5140e1cf741658120fd75279c318eada951371a9fa8593f",
+      "workspace_digest": "f9d493fb08fe68faa6ceb56c17fb36214b27e521d334c5680f1626c0c00fd025",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_scaffold --spec generator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-scaffold-006",
+        "REQ-generator-009"
+      ]
+    }
+  ]
+}

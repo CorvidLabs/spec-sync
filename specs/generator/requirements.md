@@ -95,6 +95,6 @@ Spec creation source selection SHALL exclude any file already listed in an exist
 
 Acceptance Criteria
 - Candidate collection in `find_creation_module_sources` and the single-source fallback filter out owned files before a spec is written.
-- A module whose candidates are all owned produces no spec (the caller's existing no-files path).
+- A module whose candidates are all owned takes the existing no-files path: the spec is written with `files: []` and the empty-files warning, and no owned file is ever listed.
 - Explicit `config.modules` mappings are not filtered — the config is the author's explicit ownership declaration.
 

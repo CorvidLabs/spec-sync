@@ -5502,14 +5502,16 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     /// answer 15, approve 32, check 110, status 53, review 176, finalize 287. Each ceiling is that
     /// count plus about 10%. Evidence capture keeps its working-tree reads and repository-identity
     /// reads live on purpose: it reads before and after each capture to catch a concurrent edit,
-    /// and that race check is never answered from memory.
+    /// and that race check is never answered from memory. A passing `change review` also runs the
+    /// ownership preflight finalize and ship-status run (#1002), measured at 203, so its ceiling
+    /// is 203 plus about 10%.
     const CEILINGS: &[(&str, usize)] = &[
         ("new", 32),
         ("answer", 17),
         ("approve", 35),
         ("check", 121),
         ("status", 58),
-        ("review", 194),
+        ("review", 223),
         ("finalize", 316),
     ];
 

@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794347852,
+      "digest": "c3f6983ef099cdd51e2f75d062481b5173fa72d2c0bee6ea60f5cdebf9855901",
+      "note": "Recorded by the Claude worker under Leif's 2026-11-10 standing rule: bug fixes that make behavior match existing intent may run the full lifecycle with 0xLeif as actor. Scope: report prints the --require-coverage verdict when the staleness refusal decides the exit; no exit-code or requirement change (#605, COVERAGE-2).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "report-states-the-require-coverage-verdict-when-another-finding-decides-the-exit",
+        "title": "Report states the require-coverage verdict when another finding decides the exit",
+        "description": "report states the require-coverage verdict when another finding decides the exit",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_report"
+        ],
+        "affected_paths": [
+          "src/commands/report.rs",
+          "tests/integration/regression_w1.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "COVERAGE-2 says a pipeline can refuse work when coverage falls below the bar, and REQ-cmd-report-003 keeps the staleness refusal; outside git the refusal pre-empted the --require-coverage gate so it never reported. This prints the gate's own verdict beside the refusal without changing any exit code or requirement",
+        "acceptance_criteria": [
+          "report --require-coverage N in a tree whose staleness cannot be measured still exits 1, and its text and markdown output state the coverage gate's verdict (met or not met, with the measured coverage) and name the findings that set the exit status; --require-coverage 0 reads met; a run where nothing pre-empts the gate prints exactly what it printed before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "the staleness refusal is deliberate 6.0 behavior (REQ-cmd-report-003) and stays; JSON and CSV keep gating by exit code only, since a printed line would corrupt machine output",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

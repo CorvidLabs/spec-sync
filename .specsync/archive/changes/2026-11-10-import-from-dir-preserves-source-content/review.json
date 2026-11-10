@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-preserves-source-content",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "8045cdacb66b70953bef8e2dd460b645d4621a43",
+  "contract_digest": "95e07837d5d7884ba6f90bb0a36a8c05539f5a5fdd403aeec5282976d736b6e3",
+  "execution_digest": "d54d3efd1fe2af739b50bab8cf1a47c6b6c7ca5a6de13994fe6a38607f7d33a0",
+  "workspace_digest": "dfd97bffb6dd047f7616c1ed8edc01a8a9d3024e695678cdee2f3df0fcc74adc",
+  "timestamp": 1794325940
+}

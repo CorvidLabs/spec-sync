@@ -1,6 +1,6 @@
 ---
 module: change
-version: 222
+version: 223
 status: active
 files:
   - src/change.rs
@@ -23,6 +23,7 @@ files:
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
+  - src/change_tests/bounded_failure_output.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
@@ -753,3 +754,4 @@ Acceptance Criteria
 | 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
 | 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
 | 2026-11-10 | failed-verification-evidence-carries-its-findings: Failed verification evidence carries its findings |
+| 2026-11-10 | bounded-failure-output-never-splits-a-multi-byte-character-and-gate-refusal-evidence-is-tested: Bounded failure output never splits a multi-byte character and gate-refusal evidence is tested |

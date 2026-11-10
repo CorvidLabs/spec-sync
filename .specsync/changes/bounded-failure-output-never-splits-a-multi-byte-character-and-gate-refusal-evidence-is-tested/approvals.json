@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794345306,
+      "digest": "4ce5e5eccabaf244f56db6877d587b685f420dc0824b796ea3b1a381809a5275",
+      "note": "Recorded by the Claude worker under Leif's 2026-11-10 standing rule: bug fixes that make behavior match existing specs may run the full lifecycle with 0xLeif as actor. Scope: bounded_failure_output char-boundary panic fix and REQ-change-151 AC3 test (PR #1027, #640).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "bounded-failure-output-never-splits-a-multi-byte-character-and-gate-refusal-evidence-is-tested",
+        "title": "Bounded failure output never splits a multi-byte character and gate-refusal evidence is tested",
+        "description": "bounded failure output never splits a multi-byte character and gate-refusal evidence is tested",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests.rs",
+          "src/change_tests/bounded_failure_output.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check records findings over 4 KiB that contain multi-byte characters at the cut without panicking, keeping a tail that starts on a character and line boundary after a leading … line; the gate-refusal (effective contract) evidence entry's output carries the refusal texts and a test asserts it"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md z=45 (#640): optional-and-skipped is the only way to grow the append-only ledger, so passing records stay byte-identical and the output field stays optional",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "d2ea1f3823a4c18b69925f10f5b03326d7254f7c067c8a4aeb18b720b49235b3"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-151": "7ebc4ea1f3083513ccbb23dc1eb2376bfc16365af98e291e024a9f89d00e9c94"
+      }
+    }
+  ],
+  "reopenings": []
+}

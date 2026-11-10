@@ -1418,7 +1418,12 @@ pub(crate) fn bounded_failure_output(findings: &[String]) -> Option<String> {
     if joined.len() <= CAP {
         return Some(joined);
     }
-    let start = joined.len() - CAP;
+    // Byte offsets, so the cap can land inside a multi-byte character —
+    // findings carry spec text with `↔`, `—`, `…`. Walk to a boundary first.
+    let mut start = joined.len() - CAP;
+    while !joined.is_char_boundary(start) {
+        start += 1;
+    }
     let boundary = joined[start..]
         .find('\n')
         .map(|offset| start + offset + 1)

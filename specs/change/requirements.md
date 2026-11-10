@@ -1955,4 +1955,5 @@ Acceptance Criteria
 - A failed scoped spec↔code check records its findings text (bounded to the last 4 KiB) in `output`.
 - A gate-refusal evidence entry records the refusal texts the same way.
 - Records written by an older binary parse without error.
+- The 4 KiB bound never splits a multi-byte character: findings over the bound keep a tail that starts on a character boundary, and on a line boundary when one falls inside the tail, after a leading `…` line, so a large non-ASCII failure is recorded instead of panicking.
 

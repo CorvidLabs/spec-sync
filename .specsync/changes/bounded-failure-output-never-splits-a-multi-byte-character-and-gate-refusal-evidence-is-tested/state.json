@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "bounded-failure-output-never-splits-a-multi-byte-character-and-gate-refusal-evidence-is-tested",
+  "slug": "bounded-failure-output-never-splits-a-multi-byte-character-and-gate-refusal-evidence-is-tested",
+  "title": "Bounded failure output never splits a multi-byte character and gate-refusal evidence is tested",
+  "description": "bounded failure output never splits a multi-byte character and gate-refusal evidence is tested",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "aa2f5108929c19a4e9eabd126985de609f709af1",
+  "created_at": 1794345153,
+  "updated_at": 1794345457,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change_tests.rs",
+    "src/change_tests/bounded_failure_output.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change check records findings over 4 KiB that contain multi-byte characters at the cut without panicking, keeping a tail that starts on a character and line boundary after a leading … line; the gate-refusal (effective contract) evidence entry's output carries the refusal texts and a test asserts it"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md z=45 (#640): optional-and-skipped is the only way to grow the append-only ledger, so passing records stay byte-identical and the output field stays optional",
+    "public_contract": "no"
+  }
+}

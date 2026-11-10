@@ -4533,6 +4533,14 @@ fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
     );
     assert_eq!(first["commands"][1]["command"], gate_entry.as_str());
     assert_eq!(first["commands"][1]["success"], false);
+    // The gate-refusal entry carries the refusal texts, not just an exit code
+    // (#640, REQ-change-151 AC3).
+    let gate_output = first["commands"][1]["output"].as_str().unwrap_or_default();
+    assert!(
+        gate_output.contains("effective contract `auth`")
+            && gate_output.contains("undocumented_probe"),
+        "the gate refusal records its texts in output: {first}"
+    );
 
     run(&["change", "check", id, "--commit"]).failure();
     assert_eq!(

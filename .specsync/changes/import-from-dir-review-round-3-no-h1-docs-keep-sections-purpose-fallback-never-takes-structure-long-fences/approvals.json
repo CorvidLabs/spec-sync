@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794330712,
+      "digest": "2fbf18c073236be59a2f71f0a57838e505e4f6e9cd7db604fc0c907669795913",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "import-from-dir-review-round-3-no-h1-docs-keep-sections-purpose-fallback-never-takes-structure-long-fences",
+        "title": "Import --from-dir review round 3: no-H1 docs keep sections, purpose fallback never takes structure, long fences",
+        "description": "import --from-dir review round 3: no-H1 docs keep sections, purpose fallback never takes structure, long fences",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "importer"
+        ],
+        "affected_paths": [
+          "src/importer.rs",
+          "tests/"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "code alignment with already-materialized REQ-importer-002; no contract change",
+        "acceptance_criteria": [
+          "a markdown source with no H1 keeps its sections and lead paragraphs; the purpose fallback never emits a heading, table row, fence or list marker; four-backtick fences nest three-backtick fences without splitting sections"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

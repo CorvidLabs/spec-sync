@@ -387,8 +387,19 @@ pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedIt
         .unwrap_or_else(|| {
             body.lines()
                 .skip_while(|l| l.starts_with("# ") || l.trim().is_empty())
-                .find(|l| !l.trim().is_empty())
-                .map(|l| l.trim().to_string())
+                .map(str::trim)
+                // A heading, table row, fence or list marker is structure,
+                // never the purpose prose.
+                .find(|l| {
+                    !l.is_empty()
+                        && !l.starts_with('#')
+                        && !l.starts_with('|')
+                        && !l.starts_with('`')
+                        && !l.starts_with('~')
+                        && !l.starts_with("- ")
+                        && !l.starts_with("* ")
+                })
+                .map(str::to_string)
                 .or_else(|| title.clone())
                 .unwrap_or_else(|| module_name.clone())
         });
@@ -429,29 +440,25 @@ fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
     let mut lead_in: Option<String> = None;
     let mut sections = Vec::new();
     let mut current: Option<(String, String)> = None;
-    let mut fence: Option<&str> = None;
-    let mut past_h1 = false;
+    // CommonMark: a fence is a run of 3+ backticks or tildes; the closing
+    // fence uses the same character and is at least as long as the opening.
+    let mut fence: Option<(char, usize)> = None;
     for line in body.lines() {
         let trimmed = line.trim_start();
-        let fence_marker = if trimmed.starts_with("```") {
-            Some("```")
-        } else if trimmed.starts_with("~~~") {
-            Some("~~~")
-        } else {
-            None
-        };
-        if let Some(marker) = fence_marker {
+        let marker = trimmed
+            .chars()
+            .next()
+            .filter(|c| *c == '`' || *c == '~')
+            .and_then(|c| {
+                let len = trimmed.chars().take_while(|ch| *ch == c).count();
+                (len >= 3).then_some((c, len))
+            });
+        if let Some((ch, len)) = marker {
             match fence {
-                Some(open) if open == marker => fence = None,
-                None => fence = Some(marker),
+                Some((open_ch, open_len)) if open_ch == ch && len >= open_len => fence = None,
+                None => fence = Some((ch, len)),
                 _ => {}
             }
-        }
-        if !past_h1 {
-            if line.starts_with("# ") {
-                past_h1 = true;
-            }
-            continue;
         }
         if fence.is_none()
             && let Some(heading) = line.strip_prefix("## ")
@@ -468,6 +475,11 @@ fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
                 body_text.push('\n');
             }
             None => {
+                // The H1 is the title, never lead-in prose; a document with no
+                // H1 keeps its lead paragraphs all the same.
+                if line.starts_with("# ") && lead_in.is_none() {
+                    continue;
+                }
                 let lead = lead_in.get_or_insert_with(String::new);
                 lead.push_str(line);
                 lead.push('\n');
@@ -1378,6 +1390,35 @@ mod tests {
         assert!(spec.contains("## Not a heading, inside a fence"));
         // The fence content stays inside Invariants; no phantom section follows it.
         assert_eq!(spec.matches("## Not a heading").count(), 1);
+    }
+
+    #[test]
+    fn test_import_local_markdown_without_h1_keeps_sections() {
+        let content = "---\nmodule: noh1\nfiles:\n  - src/a.rs\n---\n\n## Purpose\n\nNo H1 purpose text must survive.\n\n## Invariants\n\n1. Keep it.\n";
+        let item = import_local_markdown("noh1", content).unwrap();
+        let spec = render_spec(&item);
+        assert!(spec.contains("No H1 purpose text must survive."));
+        assert!(spec.contains("1. Keep it."));
+        assert!(!spec.contains("## Purpose\n\n## Purpose"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_purpose_fallback_never_takes_a_heading() {
+        let content = "---\nmodule: apifirst\nfiles:\n  - src/api.rs\n---\n\n# Api First\n\n## Public API\n\n| Function | Description |\n|----------|-------------|\n| `call` | Calls |\n";
+        let item = import_local_markdown("apifirst", content).unwrap();
+        assert_eq!(item.purpose, "Api First");
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("## Public API").count(), 1);
+        assert!(!spec.contains("## Purpose\n\n## Public API"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_long_fence_stays_content() {
+        let content = "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Invariants\n\n1. Immutable.\n\n````text\n```\n## Still content\n```\n````\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let preserved = item.preserved.as_ref().unwrap();
+        assert_eq!(preserved.sections.len(), 2);
+        assert!(preserved.sections[0].1.contains("## Still content"));
     }
 
     #[test]

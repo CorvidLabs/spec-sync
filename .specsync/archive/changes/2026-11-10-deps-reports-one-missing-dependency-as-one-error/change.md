@@ -1,6 +1,6 @@
 ---
 id: deps-reports-one-missing-dependency-as-one-error
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 5d20c7fb871e450e133e9b6c93422a0cfb978c61
 ---

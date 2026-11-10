@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "deps-reports-one-missing-dependency-as-one-error",
+  "slug": "deps-reports-one-missing-dependency-as-one-error",
+  "title": "Deps reports one missing dependency as one error",
+  "description": "deps reports one missing dependency as one error",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "5d20c7fb871e450e133e9b6c93422a0cfb978c61",
+  "created_at": 1794349449,
+  "updated_at": 1794349646,
+  "affected_specs": [
+    "deps"
+  ],
+  "affected_paths": [
+    "src/deps.rs",
+    "tests/integration/regression_w1.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The deps acceptance criterion already says validate_deps reports an error for each declared dependency whose target has no spec; one missing dependency produced two errors. This makes the count match the existing requirement",
+  "acceptance_criteria": [
+    "a spec whose depends_on names a module with no spec yields exactly one deps error for it, the 'Dependency spec not found' verdict check gives, for bare and path entries; missing_deps still names the edge; the regression_w1 pin now expects one occurrence"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "the edge stays in the graph so missing_deps and the JSON keep naming the target; the public DepNode shape is unchanged",
+    "public_contract": "no"
+  }
+}

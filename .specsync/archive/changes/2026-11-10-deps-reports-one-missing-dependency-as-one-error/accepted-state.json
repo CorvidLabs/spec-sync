@@ -7,11 +7,11 @@
   "title": "Deps reports one missing dependency as one error",
   "description": "deps reports one missing dependency as one error",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "5d20c7fb871e450e133e9b6c93422a0cfb978c61",
   "created_at": 1794349449,
-  "updated_at": 1794349533,
+  "updated_at": 1794349642,
   "affected_specs": [
     "deps"
   ],

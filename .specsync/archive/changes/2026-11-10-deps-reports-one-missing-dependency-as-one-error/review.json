@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "deps-reports-one-missing-dependency-as-one-error",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a1493ced4e1e3124ac0501ac4a963a93b91b52be",
+  "contract_digest": "094c3f022b7377410b8ff86d89de52c7c3b1f184b47f10cfaf1ae195fb781e32",
+  "execution_digest": "66692ee96405875ef02f343b5014c8311df801015fb3ad5fd2f60c684228b078",
+  "workspace_digest": "7ca392b3f7796adb278877abafda1eca2ae97f8154cf7a113f561d78c85bb35c",
+  "timestamp": 1794349581
+}

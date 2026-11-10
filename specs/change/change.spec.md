@@ -1,6 +1,6 @@
 ---
 module: change
-version: 221
+version: 223
 status: active
 files:
   - src/change.rs
@@ -192,7 +192,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 |----------|------------|---------|-------------|
 | `retire_change` | root, id, actor, reason, replacement, authority_source | Result<ChangeRecord, String> | Retire only intact audited-reopened intent under explicit nonacceptance with a genuinely accepted fresh custodian for every prior input; atomic/recoverable package move, idempotent same disposition, committed-history tamper refusal |
 | `retire_change_with_source` | root, id, actor, reason, replacement, authority_source, source_kind | Result<ChangeRecord, String> | Explicit schema-v2 source selection; committed reopening proves only retained ancestor package custody, never Accepted transition validity |
-| `validate_retirement` | root, record | Result<(), String> | Authenticate retained original package, committed disposition, complete custody and current recursive replacement freshness; supplies no acceptance credit |
+| `validate_retirement` | root, record | Result<(), String> | Authenticate retained original package, committed disposition and receipt integrity, and prove custody still holds: every retained input is bound to the frozen prior manifest and still carried under its recorded signed owners in the custodian's authenticated evidence — the current acceptance, or the last accepted manifest during an audited post-acceptance reopen — with receipt classifications read as historical fact. The custodian's own freshness stays terminal-evidence data on its record, so the reopen remedy stays reachable (#1021); supplies no acceptance credit |
 | `retirement_record` | root, record | Result<RetirementRecord, String> | Read disposition details after caller validates retirement custody |
 | `retirement_next_action` | root, record | String | Explain explicitly unproven nonacceptance and any invalid custody hold |
 | `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
@@ -494,6 +494,8 @@ Acceptance Criteria
 
 ## Change Log
 
+| 2026-11-10 | v221: Retirement custody validation stops re-running the custodian's live freshness and re-deriving historical receipt classifications on every load — the deadlock that made the prescribed `change reopen` remedy unreachable once a custodian drifted (#1021). Custody holds while every retained path stays under its recorded signed owners in the custodian's authenticated evidence — its current acceptance, or its last accepted manifest while the custodian is in an audited post-acceptance reopen, so the roster keeps loading through the recovery window. Owner or path loss still refuses, and custodian staleness stays terminal-evidence data on the custodian's own record. |
+
 | 2026-11-09 | v217: Deadline-boundary review fixes (#1005): recheck the deadline after the final archive-introduction commit before caching, after the post-history HEAD reads, and count completed workspaces (including unreadable ones) in the final active-loading boundary (REQ-change-149). |
 
 | 2026-11-09 | v216: Clippy `--all-targets` cleanup in the attributes reader and batch-output terminator check (`as_chunks::<3>()`, byte-string comparison); no behavior change (CI-8, #608, #1007 merge train). |
@@ -749,5 +751,6 @@ Acceptance Criteria
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
 | 2026-11-09 | the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints: The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966) |
 | 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
+| 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
 | 2026-11-10 | change-answer-validates-question-keys-answers-and-actor-identity: reject unknown interview question keys, empty answers, unregistered affected specs, and malformed actor identities (#426) |
 | 2026-11-10 | every-actor-accepting-verb-normalizes-identity-the-same-way: Every actor-accepting verb normalizes identity the same way |

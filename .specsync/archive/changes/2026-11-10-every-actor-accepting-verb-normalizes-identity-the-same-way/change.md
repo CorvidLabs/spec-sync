@@ -1,6 +1,6 @@
 ---
 id: every-actor-accepting-verb-normalizes-identity-the-same-way
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9ef1a373f316ae8b320f4ffc0b18bc31ed0cf9f2
 ---

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "coverage-reports-unspecced-modules-in-a-stable-sorted-order",
+  "implementation_commit": "84aabe229abb2f5771ca97b1fef73b447ca66132",
+  "implementation_tree": "cb617d8183ed269ee3bb7ab5a175fa18eb77a6d3",
+  "contract_digest": "fd4697beb6c3759230a214415083bef3f83625134ea17375400d5a231b06c7df",
+  "workspace_digest": "9428a2c170c37bad77027363a57b63c2ed1c7f7a94ac6e1547b1085d2efaab4a",
+  "closing_digest": "74e1e3044ecbd439bfb6ab340105f219d2d2022358848b2c9b80d4a7be5f8d09",
+  "review_digest": "21e688f3913d93e5cfd8176ff1d6ab82934810bcf227e418d1d0fdaddbc11387",
+  "finalization_digest": "2ec50fcaf6b3b599bd9e122928721bbc0701b4418145ada566c550535ec2acf7",
+  "timestamp": 1794350307
+}

@@ -1,6 +1,6 @@
 ---
 id: coverage-reports-unspecced-modules-in-a-stable-sorted-order
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4fe1e1ed93e00102d1eda73d3cf3e19d5cd53c7f
 ---

@@ -7,11 +7,11 @@
   "title": "Coverage reports unspecced modules in a stable sorted order",
   "description": "coverage reports unspecced modules in a stable sorted order",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "4fe1e1ed93e00102d1eda73d3cf3e19d5cd53c7f",
   "created_at": 1794350195,
-  "updated_at": 1794350239,
+  "updated_at": 1794350307,
   "affected_specs": [
     "validator"
   ],

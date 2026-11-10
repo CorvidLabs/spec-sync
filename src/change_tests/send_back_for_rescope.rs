@@ -390,6 +390,63 @@ fn a_sent_back_change_can_change_the_body_of_an_item_it_added() {
     assert_eq!(spec.matches("## Sessions").count(), 1, "{spec}");
 }
 
+const OWN_ADDED_REQUIREMENT: &str = "## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL keep a session alive for a day.\n\nAcceptance Criteria\n- A session survives a day.\n";
+
+const REVISED_OWN_ADDED_REQUIREMENT: &str = "## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL keep a session alive for an hour.\n\nAcceptance Criteria\n- A session survives an hour.\n";
+
+/// A change that added REQ-auth-002, materialized it and was sent back.
+fn sent_back_after_adding_a_requirement(root: &Path) -> ChangeRecord {
+    let record = completed_section_only_current_record(root, OWN_ADDED_REQUIREMENT);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    start_implementation(root, &record.id).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    send_back_change(root, &record.id, "Scope owner".into(), SEND_BACK_REASON.into()).unwrap();
+    fs::write(
+        change_dir(root, &record.id).join("deltas/auth.md"),
+        REVISED_OWN_ADDED_REQUIREMENT,
+    )
+    .unwrap();
+    record
+}
+
+/// #1001: approve accepts a sent-back change's revised body for a requirement it added itself,
+/// as materialization already does, and materialization then replaces the change's own block.
+#[test]
+fn a_sent_back_change_can_be_re_approved_with_a_revised_requirement_it_added() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = sent_back_after_adding_a_requirement(root);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None)
+        .expect("the canonical block is this change's own earlier text, so approve accepts the revision");
+    start_implementation(root, &record.id).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    let requirements = fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap();
+    assert!(requirements.contains("alive for an hour."), "{requirements}");
+    assert!(!requirements.contains("alive for a day."), "{requirements}");
+    assert_eq!(requirements.matches("### REQ-auth-002").count(), 1, "{requirements}");
+}
+
+/// #1001: the exception covers only the change's own text. A block whose canonical text
+/// someone else changed after the send-back is still refused as an existing block.
+#[test]
+fn approve_still_refuses_an_added_requirement_whose_canonical_text_someone_else_changed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = sent_back_after_adding_a_requirement(root);
+    let path = root.join("specs/auth/requirements.md");
+    let foreign = fs::read_to_string(&path)
+        .unwrap()
+        .replace("alive for a day.", "alive for a week.")
+        .replace("survives a day.", "survives a week.");
+    fs::write(&path, foreign).unwrap();
+    let error = approve_definition(root, &record.id, Some("Scope owner".into()), None)
+        .expect_err("text the change did not write is not its own");
+    assert!(
+        error.contains("cannot add existing block `REQ-auth-002`"),
+        "{error}"
+    );
+}
+
 /// DISCRIMINATOR (Medium): a dropped MODIFIED item replaced text that existed before the change,
 /// so the refusal says to restore that text, not to take the section out.
 #[test]

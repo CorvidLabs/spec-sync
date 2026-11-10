@@ -40,3 +40,13 @@ live remote GitHub/Jira/Confluence fetches are not exercised in CI.
 @plane z=4 label="Notes"
 - `cmd_import` routes over three modes from its 7-argument signature: a single GitHub/Jira/Confluence item, all open issues (`all_issues`/`label`), or a directory of files (`from_dir`); `source`/`id` are optional accordingly.
 - Part of the command layer — orchestrates importer/github/generator modules rather than containing domain logic.
+
+@plane z=5 label="Lesson: --from-dir is a spec import, not a doc skeletonizer"
+
+Directory imports parse each source's YAML frontmatter and preserve its `module`, `version`,
+`status` and `files` declarations plus existing `##` sections; only missing sections are
+scaffolded (import-from-dir-preserves-source-content, #416). A source with no determinable
+`files` list is refused loudly as a batch error — writing a skeleton with `files: []` failed
+the tool's own gate on the next `check --strict` while reporting `✓`. The old mapping of
+directory items to `ImportSource::Confluence` is gone: `ImportSource::LocalDir` names the real
+source in the Change Log.

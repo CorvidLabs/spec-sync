@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-review-follow-ups",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "48288c38105e0733f88f4f1e0c9859fab348951e",
+  "contract_digest": "df038cf8a3fc2dd9c5671d357e0142240276ccb42872450ba10dca66536db278",
+  "execution_digest": "7d3ad5059bd20b791467a9ae3295ae954f7c3068f3fab2ff20d93f917b6d911c",
+  "workspace_digest": "8f858bc5d36fa2385282292fe9bc40490a42d0812e2cc167bd01669bd8ad7de6",
+  "timestamp": 1794328251
+}

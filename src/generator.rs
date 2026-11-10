@@ -881,8 +881,7 @@ fn owned_source_files(root: &Path, config: &SpecSyncConfig) -> std::collections:
         let Ok(content) = fs::read_to_string(&spec) else {
             continue;
         };
-        let Some(parsed) = crate::parser::parse_frontmatter(&content.replace("\r\n", "\n"))
-        else {
+        let Some(parsed) = crate::parser::parse_frontmatter(&content.replace("\r\n", "\n")) else {
             continue;
         };
         for file in &parsed.frontmatter.files {

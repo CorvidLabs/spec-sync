@@ -483,7 +483,7 @@ fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
 }
 
 /// The first line of actual prose in a markdown fragment: skips blank lines,
-/// headings, table rows, list items (bulleted, numbered, checkbox), and
+/// headings, table rows, list items (bulleted, numbered with `.` or `)`, checkbox), and
 /// fenced code including its contents. Purpose prose is never structure.
 fn first_prose_line(text: &str) -> Option<String> {
     let mut fence: Option<(char, usize)> = None;
@@ -510,7 +510,9 @@ fn first_prose_line(text: &str) -> Option<String> {
         }
         let numbered = trimmed
             .find(|c: char| !c.is_ascii_digit())
-            .is_some_and(|i| trimmed[..i].len() > 0 && trimmed[i..].starts_with(". "));
+            .is_some_and(|i| {
+                i > 0 && (trimmed[i..].starts_with(". ") || trimmed[i..].starts_with(") "))
+            });
         let structural = trimmed.is_empty()
             || trimmed.starts_with('#')
             || trimmed.starts_with('|')
@@ -1480,6 +1482,16 @@ mod tests {
         let spec = render_spec(&item);
         assert!(spec.contains("```rust\nfn secret_internal()\n```"));
         assert!(!spec.contains("## Purpose\n\nfn secret_internal()"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_purpose_fallback_skips_paren_numbered_lead_in() {
+        // CommonMark ordered lists may close the number with `)` as well as `.`.
+        let parens = "---\nmodule: parens\nfiles:\n  - src/p.rs\n---\n\n# Parens\n\n1) First item.\n2) Second item.\n";
+        let item = import_local_markdown("parens", parens).unwrap();
+        assert_eq!(item.purpose, "Parens");
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("1) First item.").count(), 1, "{spec}");
     }
 
     #[test]

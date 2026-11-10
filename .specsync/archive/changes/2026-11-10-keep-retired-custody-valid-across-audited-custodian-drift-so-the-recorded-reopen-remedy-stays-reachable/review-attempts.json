@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "dbd3b1549c7c93e9d10e8a11ec80686fbaba1107",
+      "contract_digest": "78b20b2a06a7f3b5cf9c7fb92eb6661e3f11b52fa178b25f2f26cbecce282908",
+      "execution_digest": "1a19a9c596f5c4972c641c9ce3c32c1cb32b7bc4962c101fcd1d9a1e802bf7ef",
+      "workspace_digest": "6faefb47d9c33ecee76c4e191aa3b1499dfa1ef95ca0b4e67882e77b7e9a901f",
+      "timestamp": 1794326491
+    }
+  ]
+}

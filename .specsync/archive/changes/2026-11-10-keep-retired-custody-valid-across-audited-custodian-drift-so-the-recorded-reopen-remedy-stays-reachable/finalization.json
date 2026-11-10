@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable",
+  "implementation_commit": "dbd3b1549c7c93e9d10e8a11ec80686fbaba1107",
+  "implementation_tree": "35268eda699551460f613d9d595d52d8d257d7b1",
+  "contract_digest": "78b20b2a06a7f3b5cf9c7fb92eb6661e3f11b52fa178b25f2f26cbecce282908",
+  "workspace_digest": "6faefb47d9c33ecee76c4e191aa3b1499dfa1ef95ca0b4e67882e77b7e9a901f",
+  "closing_digest": "8edd6b0c3c0f65d8e802826a43e524b61879454ee9b0d4afec802bbe824fed9c",
+  "review_digest": "22c03e413d15181fb4155868ced3bac72b9bee51067936a164e4ebc367be95c8",
+  "finalization_digest": "795ff6ff4ec97c338e27dc9d82567bd4c76ca06370ad57673188e68cbe7ad890",
+  "timestamp": 1794326530
+}

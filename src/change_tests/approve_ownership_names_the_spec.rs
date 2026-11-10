@@ -467,6 +467,14 @@ fn the_ownership_preflight_walks_the_spec_tree_once() {
 // are not ownership blockers, registry-backed canonical specs join owner discovery, and a
 // directory scope is not ownership-checked as a file.
 
+/// Write an existing production source file: approve checks ownership only for
+/// declared paths that already exist (REQ-change-053).
+fn write_owned_source(root: &Path, path: &str) {
+    let path = root.join(path);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, "export const value = 1;\n").unwrap();
+}
+
 fn approve_ownership_record(root: &Path, specs: &[&str], paths: &[&str]) -> ChangeRecord {
     let mut record = completed_no_spec_record(root);
     record.affected_specs = specs.iter().map(|spec| spec.to_string()).collect();
@@ -501,6 +509,7 @@ fn ownership_recovery_never_prints_a_command_for_a_comma_bearing_module() {
     let root = temp.path();
     write_lifecycle_test_policy(root);
     ownership_spec(root, "billing,legacy", &["src/billing/charge.ts"]);
+    write_owned_source(root, "src/billing/charge.ts");
     let record = approve_ownership_record(root, &[], &["src/billing/charge.ts"]);
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("the module is undeclared, so approve still refuses");
@@ -525,6 +534,7 @@ fn ownership_recovery_says_when_the_spec_listing_is_truncated() {
     for index in 0..=10_000 {
         fs::write(filler.join(format!("filler-{index}.md")), "filler\n").unwrap();
     }
+    write_owned_source(root, "src/billing/ledger.ts");
     let record = approve_ownership_record(root, &[], &["src/billing/ledger.ts"]);
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("the module is undeclared, so approve still refuses");
@@ -544,6 +554,7 @@ fn ownership_recovery_renews_the_constraints_answer_it_clears() {
     let root = temp.path();
     write_lifecycle_test_policy(root);
     ownership_spec(root, "ledger", &["src/billing/ledger.ts"]);
+    write_owned_source(root, "src/billing/ledger.ts");
     let mut record = approve_ownership_record(root, &[], &["src/billing/ledger.ts"]);
     record.answers.insert("constraints".into(), "none".into());
     save_change(root, &record).unwrap();
@@ -572,6 +583,7 @@ fn owner_discovery_includes_registry_specs_outside_the_specs_dir() {
         "name = \"proj\"\n\n[specs]\nledger = \"vendor/registry-specs/ledger.spec.md\"\n",
     )
     .unwrap();
+    write_owned_source(root, "src/billing/ledger.ts");
     let record = approve_ownership_record(root, &[], &["src/billing/ledger.ts"]);
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("the module is undeclared, so approve still refuses");
@@ -580,7 +592,7 @@ fn owner_discovery_includes_registry_specs_outside_the_specs_dir() {
         "the registry-backed canonical spec owns the path, so the hint offers the declaration: {error}"
     );
     assert!(
-        error.contains("affected_specs ledger"),
+        error.contains("affected_specs 'ledger'"),
         "the printed answer declares the registry-backed module: {error}"
     );
 }

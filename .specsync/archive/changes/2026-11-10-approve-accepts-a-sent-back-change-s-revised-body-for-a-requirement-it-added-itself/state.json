@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "approve-accepts-a-sent-back-change-s-revised-body-for-a-requirement-it-added-itself",
+  "slug": "approve-accepts-a-sent-back-change-s-revised-body-for-a-requirement-it-added-itself",
+  "title": "Approve accepts a sent-back change's revised body for a requirement it added itself",
+  "description": "approve accepts a sent-back change's revised body for a requirement it added itself",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "82c724703d5f6b89fe0a68dc672d4b1dbd8e41dc",
+  "created_at": 1794346765,
+  "updated_at": 1794347245,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests/send_back_for_rescope.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-123 already requires that after a send-back a kept ADDED item with a new body replaces the change's earlier body; materialization did, but approve refused the revised requirement body first. This change makes approve match the existing requirement",
+  "acceptance_criteria": [
+    "after a send-back, change approve accepts a revised body for an ADDED requirement whose key the send-back recorded as this change's own applied item while the canonical text is still that item's text, and materialization then replaces the block; an ADDED requirement whose canonical text someone else changed is still refused with 'cannot add existing block'"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md lessons on send-back (#914, #960): approve and materialization must judge a sent-back change's own text the same way, through the one sent_back_added_block_is_own helper",
+    "public_contract": "no"
+  }
+}

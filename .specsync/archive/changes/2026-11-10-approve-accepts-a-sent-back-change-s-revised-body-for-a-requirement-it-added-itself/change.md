@@ -1,6 +1,6 @@
 ---
 id: approve-accepts-a-sent-back-change-s-revised-body-for-a-requirement-it-added-itself
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 82c724703d5f6b89fe0a68dc672d4b1dbd8e41dc
 ---

@@ -12,3 +12,4 @@ artifact: tasks
 - [x] Include registry-registered canonical specs outside specs_dir in owner discovery (#1011.5)
 - [x] Skip the file-level ownership check for declared paths that are directories (#1011.6)
 - [x] Tests for each; spec delta for REQ-change-053; spec + 3md updates
+- [x] Review round (corvid-agent at c79a5727): recovery also refuses names `change answer` trims or `validate_module_name` rejects; unsafe `--spec` hints are quoted; test that `correct-owner --all-missing` skips reserved delivery paths; Change Log row matches version 223

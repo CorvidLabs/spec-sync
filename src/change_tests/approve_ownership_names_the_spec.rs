@@ -610,3 +610,58 @@ fn approve_does_not_file_check_a_directory_scope_with_a_source_like_extension() 
         "a directory scope is walked for descendant files at finalize, not extension-checked at approve",
     );
 }
+
+/// #1028 review: `change answer affected_specs` also trims values and runs
+/// `validate_module_name`, so a module name it would refuse gets prose, not an answer
+/// command, and the `--spec` hint is quoted so a shell cannot read `|` as a pipe.
+#[test]
+fn ownership_recovery_never_prints_a_command_answer_would_refuse() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "billing|v2", &["src/billing/charge.ts"]);
+    write_owned_source(root, "src/billing/charge.ts");
+    let record = approve_ownership_record(root, &[], &["src/billing/charge.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        !error.contains("On this draft"),
+        "`change answer` refuses `billing|v2`, so no answer command may be printed: {error}"
+    );
+    assert!(
+        error.contains("add `--spec 'billing|v2'`"),
+        "the --spec hint is one quoted shell word: {error}"
+    );
+}
+
+/// #1011: recognized reserved delivery metadata is signed with the exact delivery owner
+/// at finalize, so `correct-owner --all-missing` never offers it as a missing owner,
+/// while a real unowned production source still is.
+#[test]
+fn owner_discovery_skips_reserved_delivery_paths() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\n",
+    )
+    .unwrap();
+    ownership_spec(
+        root,
+        "tooling",
+        &[".github/scripts/check.py", "src/tools/run.ts"],
+    );
+    write_owned_source(root, ".github/scripts/check.py");
+    write_owned_source(root, "src/tools/run.ts");
+    let mut record = approve_ownership_record(
+        root,
+        &[],
+        &[".github/scripts/check.py", "src/tools/run.ts"],
+    );
+    record.state = ChangeState::Verifying;
+    save_change(root, &record).unwrap();
+
+    let missing = missing_acceptance_owner_paths(root, &record.id, "tooling").unwrap();
+    assert_eq!(missing, vec!["src/tools/run.ts"]);
+}

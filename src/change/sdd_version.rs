@@ -4960,7 +4960,15 @@ fn declare_owners_answer(
             }
         }
     }
-    if modules.len() == before || modules.iter().any(|module| module.contains([',', '\n'])) {
+    // Print an answer command only when `change answer affected_specs` would take it as
+    // printed: it splits on commas, trims each value and runs `validate_module_name`.
+    if modules.len() == before
+        || modules.iter().any(|module| {
+            module.contains([',', '\n'])
+                || module.trim() != module
+                || crate::commands::validate_module_name(module).is_err()
+        })
+    {
         return None;
     }
     let mut guidance = format!(
@@ -5065,7 +5073,8 @@ fn ownership_hint(
     configured.sort();
     for module in configured {
         declare.push(format!(
-            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {module}`"
+            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",
+            shell_word(module)
         ));
     }
 
@@ -5087,7 +5096,8 @@ fn ownership_hint(
                 ));
             }
             Some(module) if !record.affected_specs.contains(&module) => declare.push(format!(
-                "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
+                "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {}`",
+            shell_word(&module)
             )),
             Some(module) => {
                 let canonical = canonical_module_paths(root, &config.specs_dir, &module)

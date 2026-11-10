@@ -1,6 +1,6 @@
 ---
 id: change-review-refuses-to-pass-a-change-finalize-would-refuse-on-ownership
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 6ef61e6aae6d63b2586d0f9f216c47803dba4d9f
 ---

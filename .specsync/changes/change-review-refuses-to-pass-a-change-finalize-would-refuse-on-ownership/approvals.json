@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794352399,
+      "digest": "499d20476ede2ffb01ee71c9eb85347277d1c96eaa68aa3e3584803ec150cdd0",
+      "note": "Leif chose option (b) for #1002 on 2026-11-10 and directed it be implemented as a bug fix under his standing rule (relayed by coordinator t370); recorded by the Claude worker. Scope: change review refuses a passing verdict while the ownership preflight reports a blocker.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-review-refuses-to-pass-a-change-finalize-would-refuse-on-ownership",
+        "title": "Change review refuses to pass a change finalize would refuse on ownership",
+        "description": "change review refuses to pass a change finalize would refuse on ownership",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Invariant 51 says canonical ownership is checked before a human is asked to act; a passing review is that act and the Archive check names change ship for a change with a passing review at HEAD. Leif chose this fix (option b) on 2026-11-10",
+        "acceptance_criteria": [
+          "change review with a passing verdict refuses a verifying change whose production delivery inputs no declared module owns, naming the blocker and the send-back and answer recovery, and records nothing; a blocking verdict is still recorded; so a passing review at HEAD implies ship would not refuse on ownership, and the Archive check's change ship advice holds without a SpecSync binary"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "ownership is decided exactly as ship preflight and finalize decide it (ownership_preflight_blocker); archive_candidate_can_ship keeps its own ownership check for reviews recorded before this refusal",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

@@ -4176,13 +4176,30 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     git(&["add", "."]);
     git(&["commit", "-m", "tune the rate"]);
     run(&["change", "check", &id, "--commit"]);
-    run(&[
+    // A passing review refuses a change finalize would refuse on ownership and names the
+    // recovery, so the Archive check never sees a passing review to call ready (#1002).
+    let review = invoke(&[
         "change",
         "review",
         &id,
         "--reviewer",
         "Independent reviewer",
     ]);
+    let review_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
+    assert!(
+        !review.status.success() && review_text.contains("scoped review cannot pass"),
+        "the review refuses to pass:\n{review_text}"
+    );
+    assert!(
+        review_text.contains(&format!(
+            "specsync change answer '{id}' affected_specs 'billing'"
+        )),
+        "the review refusal names the recovery:\n{review_text}"
+    );
 
     // Readiness tells the truth before finalize does.
     let ship_status = run(&["change", "ship-status", &id]);

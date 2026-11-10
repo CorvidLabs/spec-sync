@@ -1,6 +1,6 @@
 ---
 id: fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 49d2326a8f80232b8fee94a5073c4c1a66fd2057
 ---

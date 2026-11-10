@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "id": "OBS-product-test-90bf0977e2b93bd25507025c",
+  "criteria": [
+    "SHIP-2"
+  ],
+  "requirements": [
+    "REQ-change-151"
+  ],
+  "contracts": [
+    "specs/change/change.spec.md"
+  ],
+  "kind": "product-test",
+  "outcome": "passed",
+  "environment": "local",
+  "summary": "#640 round 2 (PR #1027): bounded_failure_output walks the 4 KiB cut to a char boundary. Unit bounded_failure_output_* 3/3 pass (the multi-byte test panics on the old code: 'byte index 3 is not a char boundary'); integration change_check_records_the_effective_contract_refusal_on_the_first_run now asserts the gate-refusal output (AC3), failed_change_check_records_findings_in_command_evidence and passing_change_check_records_no_output_key pass. clippy --all-targets -D warnings clean, pre-push green (macOS, branch build).",
+  "artifacts": [],
+  "artifact_fingerprints": {},
+  "observed_at_unix_seconds": 1794345726,
+  "snapshot": {
+    "revision": "d843be58ac6c1ac0736510a246b5c66def98b6fe",
+    "dirty": false,
+    "fingerprint": "44296c5263e8966ec72c1e06da0715df4e61023ac493b6e1223f3fdc2e41ea90",
+    "content": "5159d685b174d25e3e53cef22635407aed5125942cb61d60c0fef08788ed94ef"
+  },
+  "provenance": "unauthenticated observation; not proof of human approval, test execution, or deployment",
+  "method": "automated",
+  "limitations": [
+    "Full cargo test suite not run locally; hosted CI is the authority for it"
+  ]
+}

@@ -84,6 +84,13 @@
         "importer": "4a425fbcb88b8939bcc82fd7511f23e301608b6bc9b20c0ecdec2e92469b7f0a"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794326000,
+      "digest": "17e4e4bc2ae34f217495163b7e85e3995f869c5deaa570dc8d5ec5bba166f4c5",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

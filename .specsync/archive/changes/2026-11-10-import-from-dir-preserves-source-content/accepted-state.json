@@ -7,11 +7,11 @@
   "title": "Import --from-dir preserves source content",
   "description": "import --from-dir preserves source content",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
   "created_at": 1794322636,
-  "updated_at": 1794325896,
+  "updated_at": 1794326000,
   "affected_specs": [
     "importer",
     "cmd_import"

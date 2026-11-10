@@ -6317,8 +6317,8 @@ fn passing_change_check_records_no_output_key() {
         .assert()
         .success();
 
-    let raw = fs::read_to_string(root.join(format!(".specsync/changes/{id}/verification.json")))
-        .unwrap();
+    let raw =
+        fs::read_to_string(root.join(format!(".specsync/changes/{id}/verification.json"))).unwrap();
     assert!(
         !raw.contains("\"output\""),
         "a passing record carries no output key: {raw}"

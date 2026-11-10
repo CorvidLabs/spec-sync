@@ -1,6 +1,6 @@
 ---
 id: report-states-the-require-coverage-verdict-when-another-finding-decides-the-exit
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 82c724703d5f6b89fe0a68dc672d4b1dbd8e41dc
 ---

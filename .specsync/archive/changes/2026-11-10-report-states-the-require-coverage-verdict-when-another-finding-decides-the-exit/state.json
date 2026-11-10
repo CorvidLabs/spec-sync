@@ -7,11 +7,11 @@
   "title": "Report states the require-coverage verdict when another finding decides the exit",
   "description": "report states the require-coverage verdict when another finding decides the exit",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "82c724703d5f6b89fe0a68dc672d4b1dbd8e41dc",
   "created_at": 1794347803,
-  "updated_at": 1794347959,
+  "updated_at": 1794348114,
   "affected_specs": [
     "cmd_report"
   ],

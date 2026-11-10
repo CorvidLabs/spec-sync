@@ -38,6 +38,45 @@ mod tests {
         );
     }
 
+    /// #612: configured modules come from a `HashMap`, so their order used to vary
+    /// between runs. Eight unspecced modules make an accidentally sorted order
+    /// vanishingly unlikely on the old code.
+    #[test]
+    fn coverage_reports_unspecced_modules_in_sorted_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        let names = ["zeta", "eta", "alpha", "theta", "delta", "beta", "gamma", "epsilon"];
+        let mut modules = std::collections::HashMap::new();
+        for name in names {
+            let file = format!("src/{name}.ts");
+            fs::create_dir_all(tmp.path().join("src")).unwrap();
+            fs::write(tmp.path().join(&file), "export const value = 1;\n").unwrap();
+            modules.insert(
+                name.to_string(),
+                crate::types::ModuleDefinition {
+                    files: vec![file],
+                    ..crate::types::ModuleDefinition::default()
+                },
+            );
+        }
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            modules,
+            ..SpecSyncConfig::default()
+        };
+
+        let report = compute_coverage_checked(tmp.path(), &[], &config).unwrap();
+        let mut sorted = report.unspecced_modules.clone();
+        sorted.sort();
+        assert_eq!(report.unspecced_modules, sorted);
+        for name in names {
+            assert!(
+                report.unspecced_modules.iter().any(|module| module == name),
+                "{name} missing from {:?}",
+                report.unspecced_modules
+            );
+        }
+    }
+
     #[test]
     fn gradle_coverage_names_the_root_project_not_the_package_tld() {
         let tmp = tempfile::tempdir().unwrap();
@@ -3443,6 +3482,12 @@ pub fn compute_coverage_checked(
     // value stored for that case is a fabrication. `CoverageReport` derives the
     // percentages on demand and returns `None` when there was nothing to
     // measure (#582); the previous `100` fallbacks are gone.
+    //
+    // Two of the blocks above iterate `HashMap`s (`config.modules`,
+    // `manifest.modules`), so the order they push in can change between runs of
+    // the same command on the same tree. Sort once, so text and JSON coverage, PR
+    // comments and the order `generate` writes specs in are reproducible (#612).
+    unspecced_modules.sort();
     Ok(CoverageReport {
         total_source_files: all_source_files.len(),
         specced_file_count: specced_count,

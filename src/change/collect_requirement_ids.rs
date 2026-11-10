@@ -1443,10 +1443,13 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
             }
             // A block already present with exactly the declared content means this
             // delta is applied, not conflicting. Rejecting it here would make an
-            // applied change permanently unverifiable.
+            // applied change permanently unverifiable. A sent-back change's own earlier
+            // ADDED block is not a foreign one either: materialization replaces it, so
+            // approve must accept the revised body too (#1001).
             if item.target == DeltaTarget::Requirement
                 && item.operation == DeltaOperation::Added
                 && living_requirement_conflicts(root, module, &item.key, &item.content)?
+                && !sent_back_added_block_is_own_on_disk(root, record, module, &item)?
             {
                 return Err(format!(
                     "cannot add existing block `{}` with different content; use ## MODIFIED for requirements already present in the living tree",
@@ -2101,6 +2104,34 @@ pub fn approval_current_for_guidance(root: &Path, record: &ChangeRecord) -> bool
 ///
 /// A byte-equivalent block is an already-applied delta and is not a conflict, so
 /// re-deriving the canonical tree converges instead of failing.
+/// Whether an ADDED block that conflicts with the living tree is this change's own earlier
+/// text, judged exactly as `prepare_module_application` judges it before materialization
+/// replaces the block: the latest send-backs list it as an applied ADDED item and the
+/// canonical tree still carries that item's text. A block whose canonical text someone else
+/// changed is not the change's own, so approve still refuses it (#1001).
+fn sent_back_added_block_is_own_on_disk(
+    root: &Path,
+    record: &ChangeRecord,
+    module: &str,
+    item: &DeltaItem,
+) -> Result<bool, String> {
+    let ledger = load_approvals(root, record).unwrap_or_default();
+    if ledger.send_backs.is_empty() {
+        return Ok(false);
+    }
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
+    let spec = fs::read_to_string(&spec_path).unwrap_or_default();
+    let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+    Ok(sent_back_added_block_is_own(
+        &ledger,
+        module,
+        item,
+        &spec,
+        &requirements,
+    ))
+}
+
 fn living_requirement_conflicts(
     root: &Path,
     module: &str,

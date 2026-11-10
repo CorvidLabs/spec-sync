@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "approve-accepts-a-sent-back-change-s-revised-body-for-a-requirement-it-added-itself",
+  "implementation_commit": "cf7f52fba17f60e667e8917ff76171d8a0894702",
+  "implementation_tree": "32388c6125c0ed0729f37a66a45fc75fc691b289",
+  "contract_digest": "07e81072beb17bb51b643d8088fb4200b493027a3090d6d2cffc1d66a17c0b6f",
+  "workspace_digest": "9d4f392d3236320f116c7f930b6980b169ed6cc16900ba1e69601f6129d52282",
+  "closing_digest": "0387c7fdde2f7a9adec1f1eda2c10be43c88b019958b63b1bd87752782097126",
+  "review_digest": "596f4ca8391cb395dbd2d1ab29d4340e4bad902cf45a6e7cb65c1f4e772953bf",
+  "finalization_digest": "1e85ef9c5089d98892e2fb88c570b4a582e4f62def713311801cf7ba158552e9",
+  "timestamp": 1794347220
+}

@@ -1388,3 +1388,81 @@ fn recovery_retired_record_keeps_its_historical_sequence_classification() {
         "retirement is immutable terminal nonacceptance; the sequence stays historical"
     );
 }
+
+#[test]
+fn recovery_retirement_custody_survives_audited_custodian_drift_and_reacceptance() {
+    // The #1021 site shape: a retired record whose custodian's accepted inputs legitimately
+    // drift after acceptance. Custody is the recorded binding, not the custodian's
+    // freshness, so the record still validates and the reopen remedy stays reachable.
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let retired = retire_change(
+        root,
+        &old.id,
+        "Synthetic operator".into(),
+        "Obsolete intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+    )
+    .unwrap();
+    assert!(validate_retirement(root, &retired).is_ok());
+
+    // A receipt claiming custody under owners the custodian no longer signs is refused.
+        // A receipt claiming custody under owners the custodian does not sign is refused
+    // even before any committed history pins the receipt bytes.
+    let dir = find_change_dir(root, &old.id).unwrap();
+    let path = dir.join(RETIREMENT_FILE);
+    let original_bytes = fs::read(&path).unwrap();
+    let mut receipt: RetirementRecord = serde_json::from_slice(&original_bytes).unwrap();
+    receipt.custody[0].replacement_owners = vec!["forged-owner".into()];
+    receipt.digest = retirement_digest(&receipt).unwrap();
+    fs::write(&path, json_content(&receipt).unwrap()).unwrap();
+    let error = validate_retirement(root, &retired).unwrap_err();
+    assert!(error.contains("custody"), "{error}");
+    fs::write(&path, original_bytes).unwrap();
+    assert!(validate_retirement(root, &retired).is_ok());
+
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { false }\n").unwrap();
+
+    assert!(
+        validate_retirement(root, &retired).is_ok(),
+        "custodian drift is reported on the custodian, never a custody failure"
+    );
+    let reopened = reopen_change(
+        root,
+        &replacement.id,
+        "Synthetic recovery actor".into(),
+        "Custody input drifted after acceptance".into(),
+    )
+    .unwrap();
+    assert_eq!(reopened.change.state, ChangeState::Verifying);
+
+    assert!(check_change(root, Some(&replacement.id)).unwrap().unwrap().passed);
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "evolve custodian delivery"]);
+    check_change(root, Some(&replacement.id)).unwrap();
+    record_scoped_review(
+        root,
+        &replacement.id,
+        "Synthetic implementation reviewer".into(),
+    )
+    .unwrap();
+    finalize_change(root, &replacement.id).unwrap();
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "archive evolved custodian"]);
+    assert_eq!(
+        load_change(root, &replacement.id).unwrap().state,
+        ChangeState::Archived
+    );
+
+    // Custody survives the audited evolution: new digests, same signed owners.
+    let retired = load_change(root, &old.id).unwrap();
+    let custody = validate_retirement(root, &retired);
+    assert!(
+        custody.is_ok(),
+        "custody holds across the custodian's audited re-acceptance: {}",
+        custody.err().unwrap_or_default()
+    );
+
+}

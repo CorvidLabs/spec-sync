@@ -410,22 +410,108 @@ fn validate_retirement_with_records(
     {
         return Err("retirement historical receipt custody does not authenticate".into());
     }
-    let (custody, closing, digest) = retirement_custody(
-        root,
-        &original,
-        &receipt.replacement_id,
-        &proof.manifest,
-        records,
-        receipt.schema_version,
-    )?;
-    if custody != receipt.custody
-        || closing != receipt.replacement_closing_digest
-        || digest != receipt.replacement_manifest_digest
+    retirement_custody_holds(root, &original, &receipt, &proof.manifest, records)
+}
+
+/// Judge a recorded receipt against the custodian's current authenticated evidence.
+///
+/// Validation deliberately differs from retire time in two ways. First, it does not re-run
+/// the custodian's live delivery-input freshness: staleness is the custodian's own reported
+/// lifecycle state, and refusing the roster here deadlocked the `change reopen` remedy the
+/// staleness report names (#1021). Second, it never re-derives a receipt's recorded
+/// classification under today's rules: the receipt is pinned to committed history, so its
+/// classification is a historical fact checked for consistency with the receipt's own
+/// fields. Custody then holds while the custodian's authenticated manifest still carries
+/// every retained path under the recorded signed owners; byte and digest evolution from a
+/// genuine audited re-acceptance is not a custody break.
+fn retirement_custody_holds(
+    root: &Path,
+    original: &ChangeRecord,
+    receipt: &RetirementRecord,
+    prior_manifest: &AcceptanceManifestV1,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> Result<(), String> {
+    let replacement = records
+        .get(&receipt.replacement_id)
+        .ok_or_else(|| format!("replacement change {} not found", receipt.replacement_id))?;
+    if replacement.id == original.id
+        || !matches!(
+            replacement.state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
     {
-        return Err(
-            "retirement replacement custody no longer matches authenticated closing evidence"
-                .into(),
-        );
+        return Err("retirement replacement must be independently accepted or archived".into());
+    }
+    if dependency_reaches(root, &replacement.id, &original.id, &mut BTreeSet::new()) {
+        return Err("retirement replacement cannot depend on the obligation it retires".into());
+    }
+    let mut memo = AcceptedInputValidationMemo::default();
+    let verification = memo
+        .authenticate(root, replacement, None)
+        .map_err(|e| format!("retirement replacement evidence does not authenticate: {e}"))?;
+    let current = verification
+        .acceptance_manifest
+        .as_ref()
+        .ok_or_else(|| "retirement replacement requires a signed current manifest".to_string())?;
+    if receipt.custody.len() != prior_manifest.entries.len() {
+        return Err("retirement custody does not cover exactly the retained signed inputs".into());
+    }
+    for prior in &prior_manifest.entries {
+        let entry = receipt
+            .custody
+            .iter()
+            .find(|candidate| candidate.path == prior.path)
+            .ok_or_else(|| {
+                format!(
+                    "retirement receipt has no custody for retained input {}",
+                    prior.path
+                )
+            })?;
+        if prior.entry_digest != entry.predecessor_entry_digest
+            || prior.owners != entry.predecessor_owners
+        {
+            return Err(format!(
+                "retirement custody for {} does not match the retained original manifest",
+                entry.path
+            ));
+        }
+        let consistent = match entry.classification {
+            None => {
+                receipt.schema_version == 1
+                    && entry.predecessor_owners == entry.replacement_owners
+            },
+            Some(RetirementCustodyClassification::SameSignedOwners) => {
+                receipt.schema_version == 2
+                    && entry.predecessor_owners == entry.replacement_owners
+            },
+            Some(RetirementCustodyClassification::UnchangedExactFileCurrentOwner) => {
+                receipt.schema_version == 2
+                    && entry.predecessor_owners == ["@exact:delivery".to_string()]
+                    && entry.predecessor_entry_digest == entry.replacement_entry_digest
+                    && !entry.replacement_owners.is_empty()
+                    && entry
+                        .replacement_owners
+                        .iter()
+                        .all(|owner| !owner.starts_with("@exact:"))
+            },
+        };
+        if !consistent {
+            return Err(format!(
+                "retirement custody classification for {} is inconsistent with its recorded owners and digests",
+                entry.path
+            ));
+        }
+        let next = current
+            .entries
+            .iter()
+            .find(|candidate| candidate.path == entry.path)
+            .ok_or_else(|| format!("retirement replacement has no custody for {}", entry.path))?;
+        if next.owners != entry.replacement_owners {
+            return Err(format!(
+                "retirement replacement no longer holds {} under its recorded signed owners",
+                entry.path
+            ));
+        }
     }
     Ok(())
 }

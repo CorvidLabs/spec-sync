@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794321890,
+      "digest": "78b20b2a06a7f3b5cf9c7fb92eb6661e3f11b52fa178b25f2f26cbecce282908",
+      "note": "Scope: validation-time retirement custody stops re-running custodian freshness and stops re-deriving historical receipt classifications; custody holds while every path stays under its recorded signed owners in the custodian's authenticated current evidence; retire-time rules unchanged (#1021)",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable",
+        "title": "Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable",
+        "description": "Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/retirement.rs",
+          "src/change_tests/recovery_retirement.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Reopening a drifted retirement custodian no longer aborts on the retired records' custody validation; after audited re-acceptance with evolved digests, custody still validates while owners hold; owner or path loss still refuses"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "4239431551610162a600b6dfa34164598b899aaa1b5df6034b00d61045296ff9"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-recovery-retirement-001": "016e6e87f0392f92d0bd2a0cfa38e9143beb256662d090ad63a3bd444db61c88"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable",
+  "slug": "keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable",
+  "title": "Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable",
+  "description": "Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
+  "created_at": 1794321585,
+  "updated_at": 1794324909,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/retirement.rs",
+    "src/change_tests/recovery_retirement.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reopening a drifted retirement custodian no longer aborts on the retired records' custody validation; after audited re-acceptance with evolved digests, custody still validates while owners hold; owner or path loss still refuses"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

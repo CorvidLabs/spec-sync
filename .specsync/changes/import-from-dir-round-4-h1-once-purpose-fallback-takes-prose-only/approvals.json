@@ -1,0 +1,39 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794332510,
+      "digest": "b40ed439f3d57f2009599fb18b43d7c6a3b5ce990104cc09d3d4fbbac6331ae9",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "import-from-dir-round-4-h1-once-purpose-fallback-takes-prose-only",
+        "title": "Import from-dir round 4: H1 once, purpose fallback takes prose only",
+        "description": "import from-dir round 4: H1 once, purpose fallback takes prose only",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "importer"
+        ],
+        "affected_paths": [
+          "src/importer.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "code alignment with REQ-importer-002; no contract change",
+        "acceptance_criteria": [
+          "the H1 renders exactly once with a blank line after frontmatter; the purpose fallback returns the first prose line of the lead-in, never a numbered list item or fenced code"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

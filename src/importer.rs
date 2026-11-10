@@ -385,21 +385,9 @@ pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedIt
         .map(|(_, b)| b.trim().to_string())
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| {
-            body.lines()
-                .skip_while(|l| l.starts_with("# ") || l.trim().is_empty())
-                .map(str::trim)
-                // A heading, table row, fence or list marker is structure,
-                // never the purpose prose.
-                .find(|l| {
-                    !l.is_empty()
-                        && !l.starts_with('#')
-                        && !l.starts_with('|')
-                        && !l.starts_with('`')
-                        && !l.starts_with('~')
-                        && !l.starts_with("- ")
-                        && !l.starts_with("* ")
-                })
-                .map(str::to_string)
+            lead_in
+                .as_deref()
+                .and_then(first_prose_line)
                 .or_else(|| title.clone())
                 .unwrap_or_else(|| module_name.clone())
         });
@@ -475,9 +463,12 @@ fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
                 body_text.push('\n');
             }
             None => {
-                // The H1 is the title, never lead-in prose; a document with no
-                // H1 keeps its lead paragraphs all the same.
-                if line.starts_with("# ") && lead_in.is_none() {
+                // The H1 is the title, never lead-in prose; blank lines before
+                // it are not lead-in either, so they must not make the H1
+                // count as content.
+                if line.starts_with("# ")
+                    && lead_in.as_deref().is_none_or(|l| l.trim().is_empty())
+                {
                     continue;
                 }
                 let lead = lead_in.get_or_insert_with(String::new);
@@ -490,6 +481,49 @@ fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
         sections.push(done);
     }
     (lead_in, sections)
+}
+
+/// The first line of actual prose in a markdown fragment: skips blank lines,
+/// headings, table rows, list items (bulleted, numbered, checkbox), and
+/// fenced code including its contents. Purpose prose is never structure.
+fn first_prose_line(text: &str) -> Option<String> {
+    let mut fence: Option<(char, usize)> = None;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        let marker = trimmed
+            .chars()
+            .next()
+            .filter(|c| *c == '`' || *c == '~')
+            .and_then(|c| {
+                let len = trimmed.chars().take_while(|ch| *ch == c).count();
+                (len >= 3).then_some((c, len))
+            });
+        if let Some((ch, len)) = marker {
+            match fence {
+                Some((open_ch, open_len)) if open_ch == ch && len >= open_len => fence = None,
+                None => fence = Some((ch, len)),
+                _ => {}
+            }
+            continue;
+        }
+        if fence.is_some() {
+            continue;
+        }
+        let numbered = trimmed
+            .find(|c: char| !c.is_ascii_digit())
+            .is_some_and(|i| trimmed[..i].len() > 0 && trimmed[i..].starts_with(". "));
+        let structural = trimmed.is_empty()
+            || trimmed.starts_with('#')
+            || trimmed.starts_with('|')
+            || trimmed.starts_with("- ")
+            || trimmed.starts_with("* ")
+            || trimmed.starts_with("- [")
+            || numbered;
+        if !structural {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
 }
 
 fn today() -> String {
@@ -1419,6 +1453,34 @@ mod tests {
         let preserved = item.preserved.as_ref().unwrap();
         assert_eq!(preserved.sections.len(), 2);
         assert!(preserved.sections[0].1.contains("## Still content"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_h1_appears_once_with_blank_line_after_frontmatter() {
+        // The usual layout — blank line between frontmatter and the title —
+        // must not duplicate the H1 into the lead-in.
+        let content = "---\nmodule: loose\nfiles:\n  - src/b.rs\n---\n\n# Loose\n\nLead para.\n\n## Purpose\n\nLoose purpose.\n";
+        let item = import_local_markdown("loose", content).unwrap();
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("# Loose\n").count(), 1, "{spec}");
+        assert!(spec.contains("Lead para."));
+        assert!(spec.contains("Loose purpose."));
+    }
+
+    #[test]
+    fn test_import_local_markdown_purpose_fallback_skips_numbered_and_fenced() {
+        let numbered = "---\nmodule: listy\nfiles:\n  - src/l.rs\n---\n\n# Listy\n\n## Invariants\n\n1. Keep it sorted.\n";
+        let item = import_local_markdown("listy", numbered).unwrap();
+        assert_eq!(item.purpose, "Listy");
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("1. Keep it sorted.").count(), 1, "{spec}");
+
+        let fenced = "---\nmodule: codey\nfiles:\n  - src/c.rs\n---\n\n# Codey\n\n```rust\nfn secret_internal()\n```\n";
+        let item = import_local_markdown("codey", fenced).unwrap();
+        assert_eq!(item.purpose, "Codey");
+        let spec = render_spec(&item);
+        assert!(spec.contains("```rust\nfn secret_internal()\n```"));
+        assert!(!spec.contains("## Purpose\n\nfn secret_internal()"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 221
+version: 222
 status: active
 files:
   - src/change.rs
@@ -491,6 +491,8 @@ Acceptance Criteria
 | cmd_init | New-project policy and version initialization |
 
 ## Change Log
+
+| 2026-11-10 | v222: Ownership recovery follow-ups (#1011, #999 review): recognized reserved delivery metadata is no longer an approve-time ownership refusal (finalize already signs it `@exact:delivery`); owner recovery never prints a `change answer` command that cannot run as printed (comma/newline-bearing module names) or one built on a truncated spec listing, says when the 10,000-entry walk bound was hit, and renews the constraints answer that declaring owners clears; registry-registered canonical specs outside `specs_dir` join owner discovery; a declared directory scope is not file-level ownership-checked at approve (its descendants are checked at finalize). |
 
 | 2026-11-10 | v221: Retirement custody validation stops re-running the custodian's live freshness and re-deriving historical receipt classifications on every load — the deadlock that made the prescribed `change reopen` remedy unreachable once a custodian drifted (#1021). Custody holds while every retained path stays under its recorded signed owners in the custodian's authenticated evidence — its current acceptance, or its last accepted manifest while the custodian is in an audited post-acceptance reopen, so the roster keeps loading through the recovery window. Owner or path loss still refuses, and custodian staleness stays terminal-evidence data on the custodian's own record. |
 

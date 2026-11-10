@@ -461,3 +461,140 @@ fn the_ownership_preflight_walks_the_spec_tree_once() {
     assert!(blocker.contains("src/billing/c.ts"), "{blocker}");
     assert_eq!(test_spec_listing_walks(), 1);
 }
+
+// #1011 follow-ups from the #999 review rounds: recovery that cannot run as printed is
+// never printed, the bounded listing says when it is incomplete, reserved delivery paths
+// are not ownership blockers, registry-backed canonical specs join owner discovery, and a
+// directory scope is not ownership-checked as a file.
+
+fn approve_ownership_record(root: &Path, specs: &[&str], paths: &[&str]) -> ChangeRecord {
+    let mut record = completed_no_spec_record(root);
+    record.affected_specs = specs.iter().map(|spec| spec.to_string()).collect();
+    record.affected_paths = paths.iter().map(|path| path.to_string()).collect();
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+    record
+}
+
+#[test]
+fn approve_no_spec_change_allows_reserved_delivery_paths() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\n",
+    )
+    .unwrap();
+    let script = root.join(".github/scripts/check.py");
+    fs::create_dir_all(script.parent().unwrap()).unwrap();
+    fs::write(&script, "print('ok')\n").unwrap();
+    let record = approve_ownership_record(root, &[], &[".github/scripts/check.py"]);
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).expect(
+        "finalize signs recognized delivery metadata with the exact delivery owner, so approve must not refuse it",
+    );
+}
+
+#[test]
+fn ownership_recovery_never_prints_a_command_for_a_comma_bearing_module() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "billing,legacy", &["src/billing/charge.ts"]);
+    let record = approve_ownership_record(root, &[], &["src/billing/charge.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        error.contains("billing,legacy"),
+        "the refusal still names the owning module in prose: {error}"
+    );
+    assert!(
+        !error.contains("On this draft"),
+        "`change answer` splits on commas, so no answer command can declare a comma-bearing module: {error}"
+    );
+}
+
+#[test]
+fn ownership_recovery_says_when_the_spec_listing_is_truncated() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "ledger", &["src/billing/ledger.ts"]);
+    let filler = root.join("specs/zz-filler");
+    fs::create_dir_all(&filler).unwrap();
+    for index in 0..=10_000 {
+        fs::write(filler.join(format!("filler-{index}.md")), "filler\n").unwrap();
+    }
+    let record = approve_ownership_record(root, &[], &["src/billing/ledger.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        error.contains("10,000-entry walk bound"),
+        "an incomplete listing must say so instead of omitting the owner: {error}"
+    );
+    assert!(
+        !error.contains("On this draft"),
+        "a truncated listing cannot promise the answer declares every owner: {error}"
+    );
+}
+
+#[test]
+fn ownership_recovery_renews_the_constraints_answer_it_clears() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "ledger", &["src/billing/ledger.ts"]);
+    let mut record = approve_ownership_record(root, &[], &["src/billing/ledger.ts"]);
+    record.answers.insert("constraints".into(), "none".into());
+    save_change(root, &record).unwrap();
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        error.contains("renew the constraints answer"),
+        "answering affected_specs clears the constraints answer, so the recovery renews it: {error}"
+    );
+}
+
+#[test]
+fn owner_discovery_includes_registry_specs_outside_the_specs_dir() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let outside = root.join("vendor/registry-specs/ledger.spec.md");
+    fs::create_dir_all(outside.parent().unwrap()).unwrap();
+    fs::write(
+        &outside,
+        "---\nmodule: ledger\nversion: 1\nstatus: stable\nfiles:\n  - src/billing/ledger.ts\n---\n\n# Ledger\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "name = \"proj\"\n\n[specs]\nledger = \"vendor/registry-specs/ledger.spec.md\"\n",
+    )
+    .unwrap();
+    let record = approve_ownership_record(root, &[], &["src/billing/ledger.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        error.contains("add `--spec ledger`"),
+        "the registry-backed canonical spec owns the path, so the hint offers the declaration: {error}"
+    );
+    assert!(
+        error.contains("affected_specs ledger"),
+        "the printed answer declares the registry-backed module: {error}"
+    );
+}
+
+#[test]
+fn approve_does_not_file_check_a_directory_scope_with_a_source_like_extension() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let directory = root.join("src/generated.rs");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(directory.join("README.md"), "generated docs\n").unwrap();
+    let record = approve_ownership_record(root, &[], &["src/generated.rs"]);
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).expect(
+        "a directory scope is walked for descendant files at finalize, not extension-checked at approve",
+    );
+}

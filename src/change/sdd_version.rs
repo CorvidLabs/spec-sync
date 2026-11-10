@@ -4860,6 +4860,12 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         if !root.join(path).exists() {
             continue;
         }
+        // A declared directory is a scope, not a file: ownership is decided for its
+        // descendant files when the acceptance walker collects them at finalize, so the
+        // scope itself is never checked by its extension here (#1011).
+        if root.join(path).is_dir() {
+            continue;
+        }
         if production_source_lacks_canonical_owner_with_evidence(root, record, path, &evidence)? {
             unowned.push(path.as_str());
         }
@@ -4886,7 +4892,7 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if record.state == ChangeState::Draft
         && let Some(answer) = declare_owners_answer(root, record, &unowned, &index)
     {
-        message.push_str(&format!("\nOn this draft, declare them with `{answer}`."));
+        message.push_str(&format!("\nOn this draft, declare them with {answer}."));
     }
     Err(message)
 }
@@ -4931,13 +4937,20 @@ fn listing_spec_is_canonical(root: &Path, specs_dir: &str, spec: &str, module: &
 
 /// `specsync change answer <id> affected_specs <modules>` that declares, beside the modules
 /// `record` already declares, every module that owns one of `paths`; `None` when no module owns
-/// any of them, so declaring cannot help (#986).
+/// any of them, so declaring cannot help (#986). The command is only printed when it runs exactly
+/// as printed: `change answer` splits the value on commas and newlines, so a comma- or
+/// newline-bearing module name cannot round-trip, and a listing that hit its walk bound may be
+/// missing the owner (#1011). When the record carries a constraints answer, the guidance renews
+/// it: answering `affected_specs` clears it.
 fn declare_owners_answer(
     root: &Path,
     record: &ChangeRecord,
     paths: &[&str],
     index: &SpecListingIndex,
 ) -> Option<String> {
+    if index.truncated {
+        return None;
+    }
     let mut modules = record.affected_specs.clone();
     let before = modules.len();
     for path in paths {
@@ -4947,13 +4960,21 @@ fn declare_owners_answer(
             }
         }
     }
-    (modules.len() > before).then(|| {
-        format!(
-            "specsync change answer {} affected_specs {}",
-            shell_quote(&record.id),
-            shell_quote(&modules.join(","))
-        )
-    })
+    if modules.len() == before || modules.iter().any(|module| module.contains([',', '\n'])) {
+        return None;
+    }
+    let mut guidance = format!(
+        "`specsync change answer {} affected_specs {}`",
+        shell_quote(&record.id),
+        shell_quote(&modules.join(","))
+    );
+    if record.answers.contains_key("constraints") {
+        guidance.push_str(&format!(
+            ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
+            shell_quote(&record.id)
+        ));
+    }
+    Some(guidance)
 }
 
 /// The ship-preflight blocker for production source in the change's delivery that no declared
@@ -4985,20 +5006,27 @@ pub fn ownership_preflight_blocker(
         .copied()
         .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
         .collect();
-    let recovery = match declare_owners_answer(root, record, &paths, &index) {
-        Some(answer) if !unclaimed.is_empty() => format!(
-            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, and add {} to its owning spec's `files:` list, then approve, check and review again",
-            shell_quote(&record.id),
-            unclaimed.join(", ")
-        ),
-        Some(answer) => format!(
-            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, then approve, check and review again",
+    let recovery = if index.truncated {
+        format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
             shell_quote(&record.id)
-        ),
-        None => format!(
-            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
-            shell_quote(&record.id)
-        ),
+        )
+    } else {
+        match declare_owners_answer(root, record, &paths, &index) {
+            Some(answer) if !unclaimed.is_empty() => format!(
+                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
+                shell_quote(&record.id),
+                unclaimed.join(", ")
+            ),
+            Some(answer) => format!(
+                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
+                shell_quote(&record.id)
+            ),
+            None => format!(
+                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+                shell_quote(&record.id)
+            ),
+        }
     };
     Ok(Some((
         format!(
@@ -5079,9 +5107,15 @@ fn ownership_hint(
 
     if !declare.is_empty() {
         explain.extend(declare);
-        return explain.join("; ");
+    } else {
+        explain.push(closest_declared_spec_hint(root, &config, record, path));
     }
-    explain.push(closest_declared_spec_hint(root, &config, record, path));
+    if index.truncated {
+        explain.push(
+            "the spec listing hit its 10,000-entry walk bound, so an owning spec may be missing from this list"
+                .to_string(),
+        );
+    }
     explain.join("; ")
 }
 
@@ -5102,12 +5136,16 @@ fn test_spec_listing_walks() -> usize {
 }
 
 /// Every `*.spec.md` under the specs directory, with its frontmatter module and normalized
-/// `files:` entries, read in one bounded walk (10,000 entries). A refusal or a preflight over many
-/// paths builds it once and asks it per path, instead of rereading the spec tree per path
-/// (#999 review).
+/// `files:` entries, read in one bounded walk (10,000 entries), plus every registry-registered
+/// canonical spec that lives outside the specs directory (#1011). A refusal or a preflight over
+/// many paths builds it once and asks it per path, instead of rereading the spec tree per path
+/// (#999 review). `truncated` records that the walk hit its bound, so recovery built on this
+/// index must say the listing is incomplete instead of presenting it as complete.
 struct SpecListingIndex {
     /// `(portable spec path, frontmatter module, files)`, sorted by spec path.
     specs: Vec<(String, Option<String>, BTreeSet<String>)>,
+    /// The walk stopped at its entry bound; the listing may be missing specs.
+    truncated: bool,
 }
 
 impl SpecListingIndex {
@@ -5117,6 +5155,7 @@ impl SpecListingIndex {
         let mut specs = Vec::new();
         let mut stack = vec![root.join(specs_dir)];
         let mut visited = 0usize;
+        let mut truncated = false;
         'walk: while let Some(directory) = stack.pop() {
             let Ok(entries) = fs::read_dir(&directory) else {
                 continue;
@@ -5124,6 +5163,7 @@ impl SpecListingIndex {
             for entry in entries.flatten() {
                 visited += 1;
                 if visited > 10_000 {
+                    truncated = true;
                     break 'walk;
                 }
                 let entry_path = entry.path();
@@ -5161,8 +5201,35 @@ impl SpecListingIndex {
                 ));
             }
         }
+        // Canonical resolution honors the local registry first, so a registered canonical spec
+        // outside the specs directory owns through its `files:` list exactly like a walked one
+        // (#1011). The registry key is the module that resolution binds to the path.
+        if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+            for (module, path) in &registry.specs {
+                let Ok(spec_path) = safe_project_path(root, path) else {
+                    continue;
+                };
+                let portable = portable_project_path(root, &spec_path);
+                if specs.iter().any(|(spec, _, _)| spec == &portable) {
+                    continue;
+                }
+                let Some(parsed) = fs::read_to_string(&spec_path)
+                    .ok()
+                    .and_then(|content| crate::parser::parse_frontmatter(&content))
+                else {
+                    continue;
+                };
+                let files = parsed
+                    .frontmatter
+                    .files
+                    .iter()
+                    .filter_map(|file| normalize_project_path(file).ok())
+                    .collect();
+                specs.push((portable, Some(module.clone()), files));
+            }
+        }
         specs.sort();
-        Self { specs }
+        Self { specs, truncated }
     }
 
     /// Every spec whose `files:` lists `path`, as `(portable spec path, frontmatter module)`,

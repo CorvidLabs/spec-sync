@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "id": "OBS-product-test-05d0716e18e3dafacb1e4655",
+  "criteria": [
+    "SHIP-2"
+  ],
+  "requirements": [
+    "REQ-change-151"
+  ],
+  "contracts": [
+    "specs/change/change.spec.md"
+  ],
+  "kind": "product-test",
+  "outcome": "passed",
+  "environment": "local",
+  "summary": "#640: failed CommandEvidence carries bounded findings in output; passing records omit the key. Integration: failed check names the missing file; passing record byte-shape unchanged; old-format fixtures parse",
+  "artifacts": [],
+  "artifact_fingerprints": {},
+  "observed_at_unix_seconds": 1794332516,
+  "snapshot": {
+    "revision": "4bd8e724c91be160df3604a94e8c1d89d87df837",
+    "dirty": false,
+    "fingerprint": "be31ec8e90843e34e09d64554f6335bc61c5b943c12dc44134dac96c96a521b7",
+    "content": "79bb0e013212dccc7dabcf8877a96f2d127c29c4327ec7c6e4685a60a577d179"
+  },
+  "provenance": "unauthenticated observation; not proof of human approval, test execution, or deployment",
+  "method": "automated"
+}

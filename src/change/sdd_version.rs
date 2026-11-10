@@ -2777,6 +2777,20 @@ pub fn answer_question(
     answer_question_with_snapshot(root, id, question, answer).map(|result| result.change)
 }
 
+/// Every interview question id `change answer` accepts. `next_questions` and
+/// `next_questions_for` advertise a subset of these (`dependencies` is answerable
+/// but never asked); a unit test keeps every advertised id in this list, so a
+/// question added in one place cannot drift from the other (#426).
+const INTERVIEW_QUESTION_IDS: &[&str] = &[
+    "acceptance_criteria",
+    "affected_specs",
+    "affected_paths",
+    "dependencies",
+    "public_contract",
+    "architecture_risk",
+    "constraints",
+];
+
 pub(crate) fn answer_question_with_snapshot(
     root: &Path,
     id: &str,
@@ -2786,19 +2800,10 @@ pub(crate) fn answer_question_with_snapshot(
     let _lock = acquire_project_lock(root)?;
     let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
-    const INTERVIEW_QUESTIONS: &[&str] = &[
-        "acceptance_criteria",
-        "affected_specs",
-        "affected_paths",
-        "dependencies",
-        "public_contract",
-        "architecture_risk",
-        "constraints",
-    ];
-    if !INTERVIEW_QUESTIONS.contains(&question) {
+    if !INTERVIEW_QUESTION_IDS.contains(&question) {
         return Err(format!(
             "unknown interview question `{question}`; expected one of: {}",
-            INTERVIEW_QUESTIONS.join(", ")
+            INTERVIEW_QUESTION_IDS.join(", ")
         ));
     }
     if answer.trim().is_empty() {
@@ -2871,7 +2876,7 @@ pub(crate) fn answer_question_with_snapshot(
         _ => {
             return Err(format!(
                 "unknown interview question `{question}`; expected one of: {}",
-                INTERVIEW_QUESTIONS.join(", ")
+                INTERVIEW_QUESTION_IDS.join(", ")
             ));
         }
     }
@@ -3677,13 +3682,6 @@ struct ScopedSpecs {
     unresolved: Vec<String>,
 }
 
-/// The `--spec` argument that selects this file.
-///
-/// `filter_specs` matches a filter against the file stem with a trailing
-/// `.spec` removed (`src/commands/mod.rs`), never against the frontmatter
-/// `module:` field. Deriving the name any other way records a command that
-/// selects nothing on a spec whose declared module and filename differ — a
-/// registry-mapped module most of all, where the two routinely differ.
 /// Refuse affected-spec declarations that name no spec on disk, whether the
 /// module is registered or conventional — a change cannot affect a spec that
 /// does not exist, and the typo surfaces at declaration, not at
@@ -3731,6 +3729,13 @@ fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
     names.into_iter().collect()
 }
 
+/// The `--spec` argument that selects this file.
+///
+/// `filter_specs` matches a filter against the file stem with a trailing
+/// `.spec` removed (`src/commands/mod.rs`), never against the frontmatter
+/// `module:` field. Deriving the name any other way records a command that
+/// selects nothing on a spec whose declared module and filename differ — a
+/// registry-mapped module most of all, where the two routinely differ.
 fn spec_filter_name(spec: &Path) -> String {
     spec.file_stem()
         .and_then(|stem| stem.to_str())

@@ -999,7 +999,7 @@ pub fn correct_interview_metadata(
         original_value,
         prior_effective_value,
         corrected_value,
-        actor: actor.into(),
+        actor,
         reason: reason.into(),
         timestamp: now(),
         prior_view_digest: effective.view_digest,

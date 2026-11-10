@@ -3717,6 +3717,45 @@ fn interview_complete_bugfix(root: &Path, module: &str) -> ChangeRecord {
     record
 }
 
+// Verifies REQ-change-150: `change answer` accepts every id the interview advertises.
+#[test]
+fn every_advertised_interview_question_is_answerable() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "---\nspec: auth.spec.md\n---\n\n## Notes\n\nKeep the lock around the write.\n",
+    )
+    .unwrap();
+    let complete = interview_complete_bugfix(root, "auth");
+    let mut advertised: Vec<String> = next_questions_for(root, &complete)
+        .into_iter()
+        .map(|question| question.id)
+        .collect();
+    assert_eq!(advertised, ["constraints"]);
+
+    let mut fresh = complete.clone();
+    fresh.acceptance_criteria.clear();
+    fresh.affected_specs.clear();
+    fresh.affected_paths.clear();
+    fresh.no_spec_change = false;
+    fresh.answers.clear();
+    let asked: Vec<String> = next_questions(&fresh)
+        .into_iter()
+        .map(|question| question.id)
+        .collect();
+    assert_eq!(asked.len(), 5, "{asked:?}");
+    advertised.extend(asked);
+
+    for id in &advertised {
+        assert!(
+            INTERVIEW_QUESTION_IDS.contains(&id.as_str()),
+            "`{id}` is advertised but `change answer` would refuse it"
+        );
+    }
+}
+
 // Verifies REQ-change-104.
 #[test]
 fn constraints_question_is_asked_only_for_a_draft_that_has_lessons_or_principles() {

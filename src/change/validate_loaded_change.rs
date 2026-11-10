@@ -815,20 +815,30 @@ fn definition_approval_pair_id(
     digest.finish()
 }
 
+/// Trim an actor identity and reject names that cannot live in an append-only
+/// ledger: empty after trimming, or containing newlines or control characters.
+/// Every `--actor`-accepting verb uses this before any ledger write (#426).
+pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String> {
+    let actor = value.trim();
+    if actor.is_empty() {
+        return Err(format!("{verb} requires a non-empty human actor passed with --actor"));
+    }
+    if actor.chars().any(|c| c.is_control()) {
+        return Err(format!(
+            "{verb} actor `{}` must be a single line of text; newlines and control characters are not allowed",
+            actor.escape_debug()
+        ));
+    }
+    Ok(actor.to_string())
+}
+
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
     let actor = actor
         .or_else(|| git_output(root, &["config", "user.name"]))
         .or_else(|| std::env::var("USER").ok())
         .or_else(|| std::env::var("USERNAME").ok())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
         .ok_or_else(|| "approval actor is unknown; pass --actor <name>".to_string())?;
-    if actor.chars().any(|c| c.is_control()) {
-        return Err(format!(
-            "approval actor `{actor}` must be a single line of text; newlines and control characters are not allowed"
-        ));
-    }
-    Ok(actor)
+    normalize_actor(&actor, "approval")
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {

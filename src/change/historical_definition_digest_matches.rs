@@ -937,12 +937,7 @@ pub fn correct_interview_metadata(
     if !record.canonical_applied {
         return Err("accepted metadata correction requires canonical application evidence".into());
     }
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err(
-            "metadata correction requires a non-empty human actor passed with --actor".into(),
-        );
-    }
+    let actor = normalize_actor(&actor, "metadata correction")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err("metadata correction requires a non-empty reason passed with --reason".into());

@@ -4054,10 +4054,7 @@ fn reopen_unarchived_change(
     reason: String,
 ) -> Result<ReopenResult, String> {
     let mut record = load_change(root, id)?;
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err("reopen requires a non-empty human actor passed with --actor".into());
-    }
+    let actor = normalize_actor(&actor, "reopen")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err("reopen requires a non-empty reason passed with --reason".into());
@@ -4677,13 +4674,7 @@ pub fn add_acceptance_owner_corrections(
             "acceptance owner correction batch requires at least one path/module entry".into(),
         );
     }
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err(
-            "acceptance owner correction requires a non-empty human actor passed with --actor"
-                .into(),
-        );
-    }
+    let actor = normalize_actor(&actor, "acceptance owner correction")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err(

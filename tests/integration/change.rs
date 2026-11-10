@@ -669,6 +669,27 @@ fn change_approve_trims_and_validates_actor_identity() {
     )
     .unwrap();
     assert_eq!(ledger["approvals"][0]["actor"], "Reviewer");
+
+    // Every actor-accepting verb applies the same rule: a newline actor is
+    // rejected before any ledger write, here through send-back (#426 round 2).
+    let before = fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "send-back",
+            id,
+            "--actor",
+            "Ada\nInjected",
+            "--reason",
+            "probe",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("single line"));
+    let after = fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap();
+    assert_eq!(before, after, "the ledger is untouched by a rejected actor");
 }
 
 #[test]

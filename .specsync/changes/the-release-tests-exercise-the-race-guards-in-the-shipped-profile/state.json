@@ -7,10 +7,11 @@
   "title": "The release tests exercise the race guards in the shipped profile",
   "description": "the release tests exercise the race guards in the shipped profile",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "baf6e45509ac1fd4d5cbedfdf87d4dc17805a195",
   "created_at": 1794348422,
-  "updated_at": 1794348438,
+  "updated_at": 1794351702,
   "affected_specs": [
     "cmd_generate",
     "mcp",

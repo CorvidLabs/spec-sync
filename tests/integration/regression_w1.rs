@@ -328,23 +328,12 @@ fn deps_duplicate_depends_on_entries_deduped() {
         "repeating a depends_on entry must not change deps output at all"
     );
 
-    // ─── PIN for #606 — asserts today's WRONG behaviour on purpose ───────
-    //
-    // One missing dependency is currently reported TWICE, by two independent
-    // code paths that each emit their own finding:
-    //   src/validator.rs → "Dependency spec not found: {dep}"
-    //   src/deps.rs      → "{}: depends on '{}' but no spec exists for that module"
-    // A single defect is therefore double-counted in deps error totals.
-    //
-    // This is NOT the desired behaviour. The pin exists so that fixing #606
-    // fails this assertion loudly instead of silently un-pinning. When #606
-    // lands, change the expected count from 2 to 1 and delete this comment.
+    // One missing dependency is reported once, with the verdict `check` gives
+    // (#606). Two code paths used to report it twice.
     let occurrences = one.matches("nonexistent-module").count();
     assert_eq!(
-        occurrences, 2,
-        "PIN(#606): one missing dependency is currently reported twice by two \
-         separate code paths. If this now reads 1, #606 is fixed — update this \
-         assertion to 1 and remove the pin. Got: {one}"
+        occurrences, 1,
+        "one missing dependency must be reported once (#606). Got: {one}"
     );
 }
 

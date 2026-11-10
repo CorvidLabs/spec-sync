@@ -747,3 +747,11 @@ A read deadline only stops a read at a phase that checks it, so every phase that
 
 @plane z=43 label="One priority order for every next step (#908)"
 `change status` derives three answers for the same change: `next_action`, the handoff and the ship-status blocker. #889 put the upstream-archive refusal first in the handoff and in ship-status, while `next_action` already put a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of it. A frozen ledger then read as "rebase onto origin/main" in one place and "fix the ledger" in another, and rebasing clears neither. When a new refusal joins the guidance, give it one rank and apply that rank in every projection: freeze, then ignored-path refusal, then upstream archive, then the lifecycle verdict. A refusal that only filters out another answer is not enough. The handoff needs its own answer for it (`verification_ignored_handoff`, like `upstream_archive_handoff`), or it falls back to a lifecycle verdict that names a command the policy refuses (#937).
+@plane z=45 label="Evidence that cannot be classified is not evidence (#640)"
+
+A failed CommandEvidence used to carry only command/success/exit_code — a flake and a
+regression were indistinguishable without re-running ten minutes of tests against a machine
+state that no longer existed. Persist a bounded `output` (last 4 KiB of findings) on failure;
+omit it on success so passing bytes are unchanged. Optional-and-skipped is the only way to grow
+an append-only ledger schema: old binaries must parse new records and old records must stay
+valid.

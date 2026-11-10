@@ -1,6 +1,6 @@
 ---
 module: change
-version: 219
+version: 220
 status: active
 files:
   - src/change.rs
@@ -139,7 +139,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen and send-back history |
-| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
+| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync); a failed step carries a bounded `output` with the findings that failed it, omitted on success (#640) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
 | `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
 | `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
@@ -199,6 +199,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
 | `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
+| `bounded_failure_output` | `findings: &[String]` | `Option<String>` | Crate-private bound of failed-command findings to the last 4 KiB for `CommandEvidence.output`; `None` when there is nothing to record (#640) |
 | `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
 | `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
 | `check_read_deadline` | `phase, done, total` | `Result<(), String>` | Call between items of a long read phase; past the deadline the command's thread flushes its read caches, reports and exits 124, and a worker gets `Err` |
@@ -359,6 +360,7 @@ Acceptance Criteria
 48. A scoped review recorded before a send-back stays valid review history. It validates against the definition approval it bound, including one the send-back cancelled, so it never blocks a fresh `change review` after re-approval, and it is never removed or rewritten. Whether a review counts is a separate question, answered as before: it must match the current contract and evidence and bind a definition approval the latest send-back did not cancel. A review bound only to a cancelled approval is reported stale, never unreadable, and never lets `change ship` or `change finalize` through (#914, REQ-change-123, CHANGE-12.b, CHANGE-12.d).
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
+52. Failed verification command evidence carries a bounded `output` of the findings that failed it, so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-151).
 51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
 
 ## Behavioral Examples
@@ -747,3 +749,4 @@ Acceptance Criteria
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
 | 2026-11-09 | the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints: The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966) |
 | 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
+| 2026-11-10 | failed-verification-evidence-carries-its-findings: Failed verification evidence carries its findings |

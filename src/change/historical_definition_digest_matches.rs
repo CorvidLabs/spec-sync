@@ -5189,6 +5189,7 @@ mod lesson_bundle_dash_tests {
                 command: format!("cargo test auth{dash}"),
                 success: true,
                 exit_code: Some(0),
+                output: None,
             }],
             requirement_ids: Vec::new(),
         };

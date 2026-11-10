@@ -1942,3 +1942,13 @@ Every comparison that decides whether an approval or correction history is curre
 - An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
 - A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 
+### REQ-change-151
+
+Failed verification command evidence SHALL carry a bounded `output` field with the findings that failed it, so a recorded failure is classifiable without re-running the command.
+
+Acceptance Criteria
+- `CommandEvidence` gains `output: Option<String>`, serde-defaulted and omitted when `None`; passing records serialize byte-identically to before.
+- A failed scoped spec↔code check records its findings text (bounded to the last 4 KiB) in `output`.
+- A gate-refusal evidence entry records the refusal texts the same way.
+- Records written by an older binary parse without error.
+

@@ -1400,6 +1400,30 @@ pub struct CommandEvidence {
     pub command: String,
     pub success: bool,
     pub exit_code: Option<i32>,
+    /// Bounded findings text, recorded on failure so a recorded failure is
+    /// classifiable without re-running the command (#640). Omitted on success
+    /// so passing records serialize exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+}
+
+/// The last 4 KiB of findings text — enough to name the failing test or
+/// finding without letting a verbose failure grow the ledger without bound.
+pub(crate) fn bounded_failure_output(findings: &[String]) -> Option<String> {
+    if findings.is_empty() {
+        return None;
+    }
+    let joined = findings.join("\n");
+    const CAP: usize = 4096;
+    if joined.len() <= CAP {
+        return Some(joined);
+    }
+    let start = joined.len() - CAP;
+    let boundary = joined[start..]
+        .find('\n')
+        .map(|offset| start + offset + 1)
+        .unwrap_or(start);
+    Some(format!("…\n{}", &joined[boundary..]))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -3555,6 +3579,7 @@ fn verify_change_locked(
         // Named for the command that reproduces the gate's verdict, not as a `--strict` run:
         // the gate suppresses unauthored stubs and replays other active deltas, which
         // `specsync check --strict` does not.
+        let refusal_texts: Vec<String> = gate_refusals.values().flatten().cloned().collect();
         commands.push(CommandEvidence {
             command: format!(
                 "specsync change check {} (effective contract: {})",
@@ -3563,8 +3588,9 @@ fn verify_change_locked(
             ),
             success: false,
             exit_code: Some(1),
+            output: bounded_failure_output(&refusal_texts),
         });
-        findings.splice(0..0, gate_refusals.into_values().flatten());
+        findings.splice(0..0, refusal_texts);
     }
     let passed = commands.iter().all(|command| command.success);
     let verification = VerificationRecord {
@@ -3812,11 +3838,17 @@ fn evaluate_spec_code_sync(
         }
     }
     let failed = errors > 0 || (strict && warnings > 0);
+    let output = if failed {
+        bounded_failure_output(&findings)
+    } else {
+        None
+    };
     Ok((
         CommandEvidence {
             command: scoped_check_command(&scope.filters, strict),
             success: !failed,
             exit_code: Some(i32::from(failed)),
+            output,
         },
         findings,
     ))

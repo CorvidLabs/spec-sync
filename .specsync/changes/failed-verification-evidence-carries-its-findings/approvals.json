@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794331530,
+      "digest": "9a3307e0085681f4c9952ef83ee35e9349fb51b0f6e2423727f69bc094bbd1a6",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "failed-verification-evidence-carries-its-findings",
+        "title": "Failed verification evidence carries its findings",
+        "description": "failed verification evidence carries its findings",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "src/change/",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a failed CommandEvidence in verification.json carries a bounded output field with the findings text; passing records serialize byte-identically to before; a flake vs regression is classifiable from the artifact alone"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "append-only evidence stays parseable by older binaries; new fields are optional and skipped when absent",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "8f9680be0efb3afdbb3bcd5434125f49a9ce0859c335855ca3b4ee554f49ce23"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

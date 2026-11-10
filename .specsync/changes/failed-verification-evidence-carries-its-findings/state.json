@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "failed-verification-evidence-carries-its-findings",
+  "slug": "failed-verification-evidence-carries-its-findings",
+  "title": "Failed verification evidence carries its findings",
+  "description": "failed verification evidence carries its findings",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
+  "created_at": 1794331472,
+  "updated_at": 1794332186,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "specs/change/",
+    "tests/",
+    "src/change_tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a failed CommandEvidence in verification.json carries a bounded output field with the findings text; passing records serialize byte-identically to before; a flake vs regression is classifiable from the artifact alone"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "append-only evidence stays parseable by older binaries; new fields are optional and skipped when absent",
+    "public_contract": "yes"
+  }
+}

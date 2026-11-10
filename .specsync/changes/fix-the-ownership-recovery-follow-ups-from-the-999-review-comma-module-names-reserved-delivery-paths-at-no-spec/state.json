@@ -7,10 +7,11 @@
   "title": "Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes",
   "description": "Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
   "created_at": 1794332211,
-  "updated_at": 1794333949,
+  "updated_at": 1794346208,
   "affected_specs": [
     "change"
   ],

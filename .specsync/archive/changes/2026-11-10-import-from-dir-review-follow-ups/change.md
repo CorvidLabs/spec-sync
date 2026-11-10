@@ -1,6 +1,6 @@
 ---
 id: import-from-dir-review-follow-ups
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 82334a70662b3a74b85a682af9792dcdcc6b4827
 ---

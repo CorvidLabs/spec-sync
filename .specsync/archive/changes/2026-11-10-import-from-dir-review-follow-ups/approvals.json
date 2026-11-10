@@ -44,6 +44,13 @@
         "cmd_import: REQUIREMENT REQ-cmd-import-002": "3d15d1aab659509cc11bd9e8543f235cedf7c3f0b5c9aeb13c636b16129de0fb",
         "importer: REQUIREMENT REQ-importer-002": "deeec54674c134f76e156a181e821b8cd08fca8e9d91db9b16e018887a4b960c"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794328300,
+      "digest": "5387eae24ade7843e07556818f2cf0d31e4f61e088751d84c1c3fbdba5ddb7fa",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

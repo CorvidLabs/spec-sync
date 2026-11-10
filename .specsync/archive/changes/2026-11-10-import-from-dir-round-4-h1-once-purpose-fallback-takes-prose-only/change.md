@@ -1,6 +1,6 @@
 ---
 id: import-from-dir-round-4-h1-once-purpose-fallback-takes-prose-only
-state: implementing
+state: archived
 type: bug_fix
 base_commit: a5b942b2083e405ab7a2379f580e3cf70f33a6da
 ---

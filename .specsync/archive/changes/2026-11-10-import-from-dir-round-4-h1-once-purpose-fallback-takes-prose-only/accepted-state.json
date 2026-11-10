@@ -7,11 +7,11 @@
   "title": "Import from-dir round 4: H1 once, purpose fallback takes prose only",
   "description": "import from-dir round 4: H1 once, purpose fallback takes prose only",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "a5b942b2083e405ab7a2379f580e3cf70f33a6da",
   "created_at": 1794332476,
-  "updated_at": 1794332524,
+  "updated_at": 1794332570,
   "affected_specs": [
     "importer"
   ],

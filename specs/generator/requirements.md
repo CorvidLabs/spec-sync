@@ -89,3 +89,12 @@ Source selection SHALL accept confined exact regular source files alongside dire
 Acceptance Criteria
 - Preserve explicit mapping precedence, configured extensions, test and exclusion filters, no-follow root confinement, deterministic deduplication and exactly-one-file fallback; overlapping entries are not ambiguous and distinct candidates remain ambiguous.
 
+### REQ-generator-009
+
+Spec creation source selection SHALL exclude any file already listed in an existing spec's frontmatter `files` list, so `new`, `scaffold`, and generated specs never claim a file another spec owns.
+
+Acceptance Criteria
+- Candidate collection in `find_creation_module_sources` and the single-source fallback filter out owned files before a spec is written.
+- A module whose candidates are all owned produces no spec (the caller's existing no-files path).
+- Explicit `config.modules` mappings are not filtered — the config is the author's explicit ownership declaration.
+

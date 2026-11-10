@@ -795,7 +795,9 @@ fn find_creation_module_sources(
         return Vec::new();
     };
     let mut files = Vec::new();
+    let mut explicit_mapping = false;
     if let Some(module) = config.modules.get(module_name) {
+        explicit_mapping = true;
         for selected in &module.files {
             let Some(relative) = CreationSources::normalized(selected) else {
                 return Vec::new();
@@ -836,7 +838,13 @@ fn find_creation_module_sources(
         .collect();
     files.sort();
     files.dedup();
-    files
+    if explicit_mapping {
+        // An explicit `config.modules` mapping is the author's own ownership
+        // declaration and is honored as written.
+        files
+    } else {
+        filter_unowned_candidates(root, config, files)
+    }
 }
 
 /// Source selection for `new`, preserving its combined directory/flat matches
@@ -864,6 +872,54 @@ pub(crate) fn find_new_module_sources(
         .collect()
 }
 
+/// Source files already claimed by an existing spec's frontmatter `files`
+/// list, root-relative with forward slashes. Generation never claims these:
+/// two specs mapping one source is the double-mapping defect (#611).
+fn owned_source_files(root: &Path, config: &SpecSyncConfig) -> std::collections::HashSet<String> {
+    let mut owned = std::collections::HashSet::new();
+    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
+        let Ok(content) = fs::read_to_string(&spec) else {
+            continue;
+        };
+        let Some(parsed) = crate::parser::parse_frontmatter(&content.replace("\r\n", "\n"))
+        else {
+            continue;
+        };
+        for file in &parsed.frontmatter.files {
+            if let Some(normalized) = crate::validator::normalize_source_mapping(file) {
+                owned.insert(normalized);
+            }
+        }
+    }
+    owned
+}
+
+/// Keep only root-joined candidate paths no existing spec claims. Explicit
+/// `config.modules` mappings are the author's own declaration and never pass
+/// through this filter.
+fn filter_unowned_candidates(
+    root: &Path,
+    config: &SpecSyncConfig,
+    candidates: Vec<String>,
+) -> Vec<String> {
+    if candidates.is_empty() {
+        return candidates;
+    }
+    let owned = owned_source_files(root, config);
+    if owned.is_empty() {
+        return candidates;
+    }
+    candidates
+        .into_iter()
+        .filter(|candidate| {
+            let Ok(relative) = Path::new(candidate).strip_prefix(root) else {
+                return true;
+            };
+            !owned.contains(&relative.to_string_lossy().replace('\\', "/"))
+        })
+        .collect()
+}
+
 /// The project's only distinct eligible file across exact and directory source
 /// selections, or None when no file, ambiguity or inconclusive traversal exists.
 pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Option<String> {
@@ -876,10 +932,17 @@ pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Opti
             return None;
         }
     }
-    files
+    let candidate = files
         .into_iter()
         .next()
-        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .map(|path| path.to_string_lossy().replace('\\', "/"))?;
+    // The one eligible file may already belong to an existing spec; the
+    // fallback must not claim it for a second owner (#611).
+    let owned = owned_source_files(root, config);
+    if owned.contains(&candidate) {
+        return None;
+    }
+    Some(candidate)
 }
 
 /// Generate a spec from a template, using language-aware defaults.

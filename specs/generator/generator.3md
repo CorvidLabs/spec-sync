@@ -58,3 +58,12 @@ Module identity and spec filename are different: @scope/demo keeps its full iden
 
 @plane z=8 label="Creation sources and shared filenames"
 Root-file Cargo selections were valid for init/generate but silently disappeared in new/add-spec/scaffold. Use one confined metadata selector for exact files and directories, retain explicit empty mappings, and count distinct eligible paths rather than source-root entries. Preserve each command's prior directory/flat matching priority. Source enumeration is no-follow; later export extraction retains its existing checks rather than becoming a whole-command retained transaction. The leaf filename helper is shared with scoped batch recognition.
+
+@plane z=9 label="Creation selection must consult existing owners (#611)"
+
+Coverage-derived generation self-corrects through `unspecced_files`; direct filesystem selection
+(`find_creation_module_sources`, `find_single_source_fallback`) did not, so `scaffold foo` could
+claim a file `specs/special` already owned. `owned_source_files` collects every spec's
+frontmatter `files` list and both selection paths filter against it — except explicit
+`config.modules` mappings, which are the author's own declaration. Two specs mapping one source
+is a creation-time bug, not a check-time finding.

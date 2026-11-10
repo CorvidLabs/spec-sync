@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "generate-and-scaffold-never-claim-files-another-spec-owns",
+  "slug": "generate-and-scaffold-never-claim-files-another-spec-owns",
+  "title": "Generate and scaffold never claim files another spec owns",
+  "description": "generate and scaffold never claim files another spec owns",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
+  "created_at": 1794328954,
+  "updated_at": 1794329972,
+  "affected_specs": [
+    "generator",
+    "cmd_generate",
+    "cmd_scaffold"
+  ],
+  "affected_paths": [
+    "src/generator.rs",
+    "src/commands/generate.rs",
+    "src/commands/scaffold.rs",
+    "specs/generator/",
+    "specs/cmd_generate/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "scaffold/new/generate filter candidate files against files already mapped in existing specs' frontmatter; a module whose files are all owned produces no spec; the MCP generate path behaves identically"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "no new dependencies; generation stays deterministic; the config's explicit module mappings are the author's ownership declaration",
+    "public_contract": "yes"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 id: scaffold-prints-the-empty-files-warning-when-every-candidate-source-is-owned-by-another-spec
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 1fffafcbcf05e179b0d92139d709a6bf146abcb8
 ---

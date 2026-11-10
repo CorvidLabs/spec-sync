@@ -7,11 +7,11 @@
   "title": "Scaffold prints the empty-files warning when every candidate source is owned by another spec",
   "description": "scaffold prints the empty-files warning when every candidate source is owned by another spec",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "1fffafcbcf05e179b0d92139d709a6bf146abcb8",
   "created_at": 1794344160,
-  "updated_at": 1794344390,
+  "updated_at": 1794344441,
   "affected_specs": [
     "cmd_scaffold"
   ],

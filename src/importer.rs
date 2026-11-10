@@ -466,8 +466,7 @@ fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
                 // The H1 is the title, never lead-in prose; blank lines before
                 // it are not lead-in either, so they must not make the H1
                 // count as content.
-                if line.starts_with("# ")
-                    && lead_in.as_deref().is_none_or(|l| l.trim().is_empty())
+                if line.starts_with("# ") && lead_in.as_deref().is_none_or(|l| l.trim().is_empty())
                 {
                     continue;
                 }

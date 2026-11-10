@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "scaffold-prints-the-empty-files-warning-when-every-candidate-source-is-owned-by-another-spec",
+  "slug": "scaffold-prints-the-empty-files-warning-when-every-candidate-source-is-owned-by-another-spec",
+  "title": "Scaffold prints the empty-files warning when every candidate source is owned by another spec",
+  "description": "scaffold prints the empty-files warning when every candidate source is owned by another spec",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "1fffafcbcf05e179b0d92139d709a6bf146abcb8",
+  "created_at": 1794344160,
+  "updated_at": 1794344385,
+  "affected_specs": [
+    "cmd_scaffold"
+  ],
+  "affected_paths": [
+    "src/commands/scaffold.rs",
+    "tests/integration/config.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-cmd-scaffold-006 AC2 already requires files: [] plus the empty-files warning when no unowned candidate is left; scaffold omitted the warning, and this change makes the code match the existing requirement",
+  "acceptance_criteria": [
+    "scaffold foo, where every candidate source file is already listed by another spec, writes files: [] and prints the same empty-files warning on stderr that new prints; the scaffold, single-source-fallback and new ownership integration tests assert files: [] and that warning"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "an existing spec is never overwritten (cmd_scaffold context); the warning text matches new's so both commands report the no-files path the same way",
+    "public_contract": "no"
+  }
+}

@@ -1274,15 +1274,26 @@ fn scaffold_never_claims_a_file_another_spec_owns() {
     )
     .unwrap();
 
-    specsync()
+    let output = specsync()
         .args(["scaffold", "foo", "--root", root.to_str().unwrap()])
-        .assert()
-        .success();
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No source files matched module 'foo'")
+            && stderr.contains("empty `files:` list"),
+        "an all-owned scaffold must print the empty-files warning (REQ-cmd-scaffold-006), got:\n{stderr}"
+    );
 
     let spec = fs::read_to_string(root.join("specs/foo/foo.spec.md")).unwrap();
     assert!(
         !spec.contains("src/foo.rs"),
         "scaffolded foo must not claim the owned src/foo.rs, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("files: []"),
+        "expected files: [], got:\n{spec}"
     );
 
     // An unowned flat file still scaffolds normally.
@@ -1310,15 +1321,30 @@ fn scaffold_single_source_fallback_skips_an_owned_file() {
     )
     .unwrap();
 
-    specsync()
+    let output = specsync()
         .args(["scaffold", "greeter", "--root", root.to_str().unwrap()])
-        .assert()
-        .success();
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No source files matched module 'greeter'")
+            && stderr.contains("empty `files:` list"),
+        "the skipped fallback must print the empty-files warning, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("claiming the project's only source file"),
+        "the fallback must not announce a claim it did not make, got:\n{stderr}"
+    );
 
     let spec = fs::read_to_string(root.join("specs/greeter/greeter.spec.md")).unwrap();
     assert!(
         !spec.contains("src/lib.rs"),
         "the fallback must not claim the owned src/lib.rs, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("files: []"),
+        "expected files: [], got:\n{spec}"
     );
 }
 
@@ -2009,14 +2035,25 @@ fn new_never_claims_an_owned_flat_file() {
     )
     .unwrap();
 
-    specsync()
+    let output = specsync()
         .args(["new", "foo", "--root", root.to_str().unwrap()])
-        .assert()
-        .success();
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No source files matched module 'foo'")
+            && stderr.contains("empty `files:` list"),
+        "an all-owned new must print the empty-files warning, got:\n{stderr}"
+    );
 
     let spec = fs::read_to_string(root.join("specs/foo/foo.spec.md")).unwrap();
     assert!(
         !spec.contains("src/foo.rs"),
         "new foo must not claim the owned src/foo.rs, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("files: []"),
+        "expected files: [], got:\n{spec}"
     );
 }

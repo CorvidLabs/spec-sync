@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794344258,
+      "digest": "3b022a31c3d2045158a9afa7d521422e749a4d198e5e510d85bfe09eb8151a3b",
+      "note": "Recorded by the Claude worker under Leif's 2026-11-10 standing rule: bug fixes that make behavior match existing specs may run the full lifecycle with 0xLeif as actor. Scope: scaffold empty-files warning per REQ-cmd-scaffold-006 AC2 (PR #1025, #611).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "scaffold-prints-the-empty-files-warning-when-every-candidate-source-is-owned-by-another-spec",
+        "title": "Scaffold prints the empty-files warning when every candidate source is owned by another spec",
+        "description": "scaffold prints the empty-files warning when every candidate source is owned by another spec",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_scaffold"
+        ],
+        "affected_paths": [
+          "src/commands/scaffold.rs",
+          "tests/integration/config.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-cmd-scaffold-006 AC2 already requires files: [] plus the empty-files warning when no unowned candidate is left; scaffold omitted the warning, and this change makes the code match the existing requirement",
+        "acceptance_criteria": [
+          "scaffold foo, where every candidate source file is already listed by another spec, writes files: [] and prints the same empty-files warning on stderr that new prints; the scaffold, single-source-fallback and new ownership integration tests assert files: [] and that warning"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "an existing spec is never overwritten (cmd_scaffold context); the warning text matches new's so both commands report the no-files path the same way",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

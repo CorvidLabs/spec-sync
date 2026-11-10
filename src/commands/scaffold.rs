@@ -62,14 +62,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
     }
 
     if module_files.is_empty() {
-        eprintln!(
-            "{} No source files matched module '{module_name}' — the spec is created with an empty `files:` list.",
-            "⚠".yellow()
-        );
-        eprintln!(
-            "  Add the module's source path(s) to the `files:` list in the spec frontmatter;"
-        );
-        eprintln!("  `specsync check` fails on empty `files:`.");
+        warn_empty_files(module_name);
     }
 
     // Generate spec content with the shared deterministic generator (language-aware
@@ -92,6 +85,20 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
             process::exit(1);
         }
     }
+}
+
+/// Warn that a creation command is about to write a spec with an empty `files:` list.
+///
+/// `new`/`add-spec` and `scaffold` share this text so both report the no-files path
+/// (no candidate matched, or every candidate is already owned by another spec) the
+/// same way.
+fn warn_empty_files(module_name: &str) {
+    eprintln!(
+        "{} No source files matched module '{module_name}' — the spec is created with an empty `files:` list.",
+        "⚠".yellow()
+    );
+    eprintln!("  Add the module's source path(s) to the `files:` list in the spec frontmatter;");
+    eprintln!("  `specsync check` fails on empty `files:`.");
 }
 
 pub fn cmd_scaffold(
@@ -184,6 +191,12 @@ pub fn cmd_scaffold(
             "  Verify this mapping; if another spec already covers this file, `specsync check` reports duplicate spec ownership."
         );
         module_files.push(single);
+    }
+
+    // No unowned candidate is left (or none ever matched): the spec is written with
+    // an empty `files:` list, so say so exactly as `new` does (REQ-cmd-scaffold-006).
+    if module_files.is_empty() {
+        warn_empty_files(module_name);
     }
 
     // Generate spec content

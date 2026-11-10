@@ -43,6 +43,13 @@
         "cmd_scaffold: REQUIREMENT REQ-cmd-scaffold-006": "d1a519092c974bf6365f21205b2ce43eda9d3d8e66a3bfca86504684fab1758d",
         "generator: REQUIREMENT REQ-generator-009": "56edcd74139333598013558f659a3e372cde58bb37c72634c74895242b356124"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794333562,
+      "digest": "a2c08bd4967e5b9ae21580bff02194faa47967f4652bf3f45353a519a4c9e3e6",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

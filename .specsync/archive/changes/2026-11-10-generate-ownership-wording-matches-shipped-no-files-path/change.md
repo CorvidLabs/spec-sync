@@ -1,6 +1,6 @@
 ---
 id: generate-ownership-wording-matches-shipped-no-files-path
-state: implementing
+state: archived
 type: bug_fix
 base_commit: b2432e0488846b92f869e307c78b672354073415
 ---

@@ -7,11 +7,11 @@
   "title": "Generate ownership wording matches shipped no-files path",
   "description": "generate ownership wording matches shipped no-files path",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "b2432e0488846b92f869e307c78b672354073415",
   "created_at": 1794332679,
-  "updated_at": 1794333514,
+  "updated_at": 1794333562,
   "affected_specs": [
     "generator",
     "cmd_scaffold"

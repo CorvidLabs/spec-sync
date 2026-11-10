@@ -7,11 +7,11 @@
   "title": "Import --from-dir review round 3: no-H1 docs keep sections, purpose fallback never takes structure, long fences",
   "description": "import --from-dir review round 3: no-H1 docs keep sections, purpose fallback never takes structure, long fences",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "63319e1bd96c3bdd9e1049d3298b42ed04825f89",
   "created_at": 1794330627,
-  "updated_at": 1794330757,
+  "updated_at": 1794330898,
   "affected_specs": [
     "importer"
   ],

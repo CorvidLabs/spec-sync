@@ -1,6 +1,6 @@
 ---
 id: import-from-dir-review-round-3-no-h1-docs-keep-sections-purpose-fallback-never-takes-structure-long-fences
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 63319e1bd96c3bdd9e1049d3298b42ed04825f89
 ---

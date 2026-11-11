@@ -6376,7 +6376,11 @@ fn a_refusal_preserves_the_prior_verification_and_attempts() {
         serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap()).unwrap();
     let entries = attempts_after["attempts"].as_array().unwrap();
     assert_eq!(entries.len(), passed_before + 1, "{attempts_after}");
-    assert_eq!(entries[..passed_before], attempts_before["attempts"].as_array().unwrap()[..], "the prior attempts are preserved: {attempts_after}");
+    assert_eq!(
+        entries[..passed_before],
+        attempts_before["attempts"].as_array().unwrap()[..],
+        "the prior attempts are preserved: {attempts_after}"
+    );
     let refusal = &entries[passed_before];
     assert_eq!(refusal["passed"], false, "{attempts_after}");
     assert!(

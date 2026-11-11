@@ -1,0 +1,52 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794333949,
+      "digest": "49e25538873792fcb7f6a37f2cc596a5777ac6d69772b73b626f6ec31edd1422",
+      "note": "Scope: the six #999-review follow-ups in #1011 — reserved-delivery exemption at approve, no un-runnable printed answers (comma names, truncated listing), constraints renewal in recovery, registry specs in owner discovery, directory scopes not file-checked; REQ-change-053 amended",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec",
+        "title": "Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes",
+        "description": "Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A no-spec-change draft listing a reserved delivery path approves; a comma-bearing module name never produces a non-round-tripping printed answer; an over-bound spec listing never silently omits an owner from recovery; ownership recovery re-prompts constraints when it clears them; a registry canonical spec outside specs_dir joins owner discovery; a directory scope with a source-like extension is not ownership-checked as a file"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Ownership gates from #986/#956 and the #999 review threads bound this work; lessons in specs/change/change.3md apply",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "918db5752264c675eab16c3064ca6a2cc8c81694f5210b1c7f2c970230cfcd56"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "b28f12384cfd8dfe63947569ea2ec20249e8fae49bbf01dfa1d9439d77395c45"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794351706,
+      "digest": "c4be29b9d364b85941abd0cd61813272076df5148ed18c0a886b0f18102c0812",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

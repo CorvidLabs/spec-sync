@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec",
+  "slug": "fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec",
+  "title": "Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes",
+  "description": "Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
+  "created_at": 1794332211,
+  "updated_at": 1794351707,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/approve_ownership_names_the_spec.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A no-spec-change draft listing a reserved delivery path approves; a comma-bearing module name never produces a non-round-tripping printed answer; an over-bound spec listing never silently omits an owner from recovery; ownership recovery re-prompts constraints when it clears them; a registry canonical spec outside specs_dir joins owner discovery; a directory scope with a source-like extension is not ownership-checked as a file"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Ownership gates from #986/#956 and the #999 review threads bound this work; lessons in specs/change/change.3md apply",
+    "public_contract": "yes"
+  }
+}

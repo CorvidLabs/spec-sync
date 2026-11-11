@@ -32,6 +32,11 @@ fn production_source_lacks_canonical_owner_with_evidence(
     if !path_is_production_source(root, relative) {
         return Ok(false);
     }
+    // Reserved delivery metadata is signed with the exact delivery owner by design and
+    // finalize accepts it, so it is not an unowned-production refusal (#1011).
+    if path_is_recognized_delivery_metadata(relative) {
+        return Ok(false);
+    }
     let owners = acceptance_input_owners(
         root,
         record,

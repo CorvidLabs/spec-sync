@@ -1,6 +1,6 @@
 ---
 id: check-commit-json-prints-the-outcome
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d93cad4615c3b1de5dfd0b2fa19425f06a2bbad6
 ---

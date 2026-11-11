@@ -116,6 +116,13 @@
       "approved_delta_bases": {
         "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794415763,
+      "digest": "9e3eaa30666ae0500debe90ee41e0f44550200d01354882a384b6086db406028",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

@@ -7,11 +7,11 @@
   "title": "Minimal cap-primitives bump, audit in evidence",
   "description": "minimal cap-primitives bump, audit in evidence",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "9f85c34f3fe08ea4e28074c228d6003725e2c295",
   "created_at": 1794391084,
-  "updated_at": 1794391776,
+  "updated_at": 1794391876,
   "affected_specs": [],
   "affected_paths": [
     "Cargo.lock"

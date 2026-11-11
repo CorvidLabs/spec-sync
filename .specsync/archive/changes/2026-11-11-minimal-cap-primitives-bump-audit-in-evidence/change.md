@@ -1,6 +1,6 @@
 ---
 id: minimal-cap-primitives-bump-audit-in-evidence
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9f85c34f3fe08ea4e28074c228d6003725e2c295
 ---

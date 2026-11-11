@@ -5251,12 +5251,13 @@ fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeS
     // A change whose record carries no full commit id as `base_commit` is not classified. The
     // value is only a gate: it never reaches Git, where `--output=<path>` read from `state.json`
     // could become an option, least of all from read-only `ship-status` (#1037 review).
-    record
+    let base_commit = record
         .base_commit
         .as_deref()
         .filter(|base| is_canonical_commit_id(base))?;
     // The branch's own work is what differs from the merge base with the remote default branch,
-    // the base the coverage gate diffs against (`pull_request_diff_base`), plus untracked files.
+    // the base the coverage gate diffs against locally (`pull_request_diff_base`; in CI it diffs
+    // against the pull request's base branch), plus untracked files.
     // It is not compared with `base_commit`: once the branch merges or rebases the default branch,
     // that diff also holds every upstream edit made since, which this change never touched
     // (#1037 review). Without a remote default branch or a merge base, the branch's work cannot be
@@ -5266,6 +5267,36 @@ fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeS
     let merge_base = git_output(root, &["merge-base", remote.as_str(), "HEAD"])?;
     let merge_base = merge_base.trim();
     if !is_canonical_commit_id(merge_base) {
+        return None;
+    }
+    // Once the change's own commits are on the remote default branch (it merged with the change
+    // still active, the documented recovery state), the merge base no longer separates its work
+    // from upstream work: its committed edits sit at or behind the merge base and would all look
+    // untouched. Then nothing is classified (#1037 review). That is so when HEAD is the merge
+    // base although the change has commits past its base, and when the merge base already holds
+    // this change's own workspace, as after a recovery `change check --commit` on the default
+    // branch. `base_commit` is only compared here; it still never reaches Git.
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
+    let head = head.trim();
+    if !is_canonical_commit_id(head) || (merge_base == head && base_commit != head) {
+        return None;
+    }
+    let own_workspace = format!("{CHANGES_PATH}/{}", record.id);
+    let own_workspace_on_the_default_branch = !git_output_allow_empty(
+        root,
+        &[
+            "ls-tree",
+            "-d",
+            "--name-only",
+            "--end-of-options",
+            merge_base,
+            "--",
+            own_workspace.as_str(),
+        ],
+    )?
+    .trim()
+    .is_empty();
+    if own_workspace_on_the_default_branch {
         return None;
     }
     let mut changed = BTreeSet::new();

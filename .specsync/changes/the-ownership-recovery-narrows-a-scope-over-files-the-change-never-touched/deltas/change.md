@@ -51,4 +51,7 @@ Acceptance Criteria
   Without a full commit id as the change's base commit, a merge base with the
   remote default branch, a readable set of active changes, or a complete spec
   listing, every input keeps the declare recovery, and the base commit is never
-  passed to Git.
+  passed to Git. So does every input once the change's own commits have reached
+  the remote default branch: when HEAD is that merge base although the change
+  has commits past its base, or when the merge base already holds the change's
+  own workspace.

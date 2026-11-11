@@ -25,11 +25,14 @@ change adds, edits or deletes inside its current scope, or a quoted
 `'<path>,<path>'` placeholder when no such list can be written as that answer), because declaring its owner would pull an untouched module into the
 change (#1000). An input counts as modified by the change when it differs from the
 merge base with the remote default branch (the base the coverage gate diffs
-against) or is untracked, and no other active change covers it: an upstream edit
+against locally) or is untracked, and no other active change covers it: an upstream edit
 merged into the branch is not the change's work, and a path another active change
 covers is left to that change. Without a full commit id as the change's base
 commit, a merge base with the remote default branch, a readable set of active
-changes, or a complete spec listing, every input keeps the declare recovery. When both kinds are
+changes, or a complete spec listing, every input keeps the declare recovery,
+as it does once the change's own commits have reached the remote default branch
+(HEAD is that merge base although the change has commits past its base, or the
+merge base already holds the change's own workspace). When both kinds are
 present, one send-back carries both answers. An untouched input whose owners the
 declare answer already declares is not narrowed.
 

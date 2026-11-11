@@ -4196,6 +4196,105 @@ if the floor call is removed from this function"
         );
     }
 
+    /// #1037 review: a change whose `src/billing/` scope edits `charge.ts` (owned by the declared
+    /// `billing`) and `ledger.ts` (owned by the undeclared `ledger`), committing its records with
+    /// the code when `commit_records`. Returns the temp dir, the project root and the change id.
+    fn edited_owner_fixture(commit_records: bool) -> (tempfile::TempDir, PathBuf, String) {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["billing".into()],
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        approve_and_implement_fixture(&root, &record.id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        fs::write(root.join("src/billing/ledger.ts"), "const rate = 2;\n").unwrap();
+        git_in(&root, &["add", if commit_records { "." } else { "src" }]);
+        git_in(&root, &["commit", "-m", "implement both"]);
+        (temp, root, record.id)
+    }
+
+    /// The edited `ledger.ts` keeps the declare recovery and is never called untouched.
+    fn assert_declares_ledger(root: &Path, id: &str, when: &str) {
+        let record = change::load_change(root, id).unwrap();
+        let (blocker, recovery) = change::ownership_preflight_blocker(root, &record)
+            .unwrap()
+            .expect("ledger.ts is edited and unowned by the declared module");
+        assert!(
+            recovery.contains("affected_specs 'billing,ledger'")
+                && !recovery.contains("not modified by this change")
+                && !blocker.contains("not modified by this change"),
+            "{when}: the edited ledger.ts keeps the declare recovery: {recovery}"
+        );
+    }
+
+    /// #1037 review: once the change's own commits are on the remote default branch (it merged
+    /// with the change still active, the documented recovery state), the merge base no longer
+    /// separates its work from upstream work. Nothing is classified then, so a file the change
+    /// edited is never called untouched: not when HEAD is the merge base, and not after a later
+    /// local commit on top, as a recovery `change check --commit` on the default branch makes.
+    #[test]
+    fn the_ownership_recovery_declares_every_owner_once_the_change_reached_the_default_branch() {
+        let (_temp, root, id) = edited_owner_fixture(true);
+        assert_declares_ledger(&root, &id, "before the work reaches the default branch");
+
+        // The branch merges with the change still active: origin/main is HEAD.
+        git_in(&root, &["push", "-q", "origin", "HEAD:main"]);
+        git_in(&root, &["fetch", "-q", "origin"]);
+        assert_declares_ledger(&root, &id, "with HEAD at the merge base");
+
+        // A later local commit on top: the merge base holds the change's own workspace.
+        fs::write(root.join("NOTES.md"), "recovery notes\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(
+            &root,
+            &["commit", "-m", "recovery commit on the default branch"],
+        );
+        assert_declares_ledger(&root, &id, "after a local commit past the merge base");
+    }
+
+    /// #1037 review: the same holds when the change's records were never committed, so the
+    /// merge base cannot hold them: HEAD at the merge base past the change's base is enough.
+    #[test]
+    fn the_ownership_recovery_declares_every_owner_when_head_is_the_merge_base_past_the_base() {
+        let (_temp, root, id) = edited_owner_fixture(false);
+        assert_declares_ledger(&root, &id, "before the work reaches the default branch");
+        git_in(&root, &["push", "-q", "origin", "HEAD:main"]);
+        git_in(&root, &["fetch", "-q", "origin"]);
+        assert_declares_ledger(
+            &root,
+            &id,
+            "with HEAD at the merge base and the records uncommitted",
+        );
+    }
+
     /// Codex P2 on #999: the recovery repairs every unowned input, not only the ones a module
     /// claims: `billing` is declared by the answer, and the path no module owns is named for a
     /// `files:` entry.

@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 48
+version: 49
 status: stable
 files:
   - src/validator.rs
@@ -108,6 +108,7 @@ instead of a false success.
     reachability checks around recursion.
 22. Configured source-root selection stores stable identities without retaining every root handle;
     traversal reopens, identity-checks, consumes, and releases each root sequentially.
+23. The duplicate-requirement-ID audit reports a specs-tree traversal error as an audit error naming the path; a directory it cannot read is never silently skipped (REQ-validator-046, #873).
 
 
 - Checked coverage retains manifest module source paths in its report from the same retained manifest observation used for module attribution. Degraded discovery leaves this mapping empty.
@@ -325,3 +326,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-11-05 | v47 / #862: `check` refuses a requirements file that contains the same requirement ID twice and names that ID |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-11 | audit-reports-requirements-traversal-errors: Audit reports requirements traversal errors |

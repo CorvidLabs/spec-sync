@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "audit-reports-requirements-traversal-errors",
+  "slug": "audit-reports-requirements-traversal-errors",
+  "title": "Audit reports requirements traversal errors",
+  "description": "audit reports requirements traversal errors",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794367141,
+  "updated_at": 1794382863,
+  "affected_specs": [
+    "validator"
+  ],
+  "affected_paths": [
+    "src/validator/requirement_ids.rs",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "an unreadable subdirectory under specs/ produces an audit error naming the path instead of being skipped"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

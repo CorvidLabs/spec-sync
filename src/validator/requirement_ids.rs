@@ -46,7 +46,23 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
         return Vec::new();
     }
     let mut errors = Vec::new();
-    for entry in WalkDir::new(&specs).into_iter().filter_map(Result::ok) {
+    for entry in WalkDir::new(&specs) {
+        // A directory that cannot be traversed hides every requirements.md below it;
+        // skip silently and an audit passes over work it never inspected (#873).
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                let path = error
+                    .path()
+                    .map(|path| path.strip_prefix(root).unwrap_or(path).to_path_buf());
+                errors.push(format!(
+                    "cannot traverse {} to check requirement IDs: {error}",
+                    path.map(|path| path.display().to_string().replace('\\', "/"))
+                        .unwrap_or_else(|| specs.display().to_string())
+                ));
+                continue;
+            }
+        };
         if !entry.file_type().is_file() {
             continue;
         }
@@ -248,6 +264,31 @@ One.
         let errors = duplicate_requirement_id_errors(root);
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert!(errors[0].contains("REQ-live-001"), "{errors:?}");
+    }
+
+    /// #873: an unreadable subdirectory under the specs tree is an audit error naming the
+    /// path, never a silent skip.
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_specs_subdirectory_is_an_error_naming_the_path() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        let sealed = root.join("specs/locked");
+        fs::create_dir_all(&sealed).unwrap();
+        fs::write(
+            sealed.join("requirements.md"),
+            "### REQ-locked-001\n\nHidden.\n",
+        )
+        .unwrap();
+        fs::set_permissions(&sealed, fs::Permissions::from_mode(0o000)).unwrap();
+        let errors = duplicate_requirement_id_errors(root);
+        fs::set_permissions(&sealed, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            errors[0].contains("specs/locked"),
+            "the error names the path: {errors:?}"
+        );
     }
 
     #[test]

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+      "reviewer": "claude-code-t384",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "768027bfd088235eb7256de53839306923746b71",
+      "contract_digest": "6047474e937e55dfb0a3f06c5e827910d37ffda1c23d7928281be134d6b784c3",
+      "execution_digest": "d1d5b7dfb89107531cae09bfc6fadc885e82c2f0a806fda4d59246fbc0bdd25e",
+      "workspace_digest": "c45aec3e0b222f3b28900c39b721ee346ab5c6acd8e48328125f3334e935c423",
+      "timestamp": 1794423757
+    }
+  ]
+}

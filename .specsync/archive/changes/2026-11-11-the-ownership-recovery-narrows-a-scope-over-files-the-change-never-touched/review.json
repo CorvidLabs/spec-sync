@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "f229aad986021436a2008933e179fa7d0e7d0fef",
+  "contract_digest": "7b29d241d9300a081bd1fb71f1f85c7313bb69d0128f7e63f8400c6c2c2656ce",
+  "execution_digest": "ef846d22bb1e2866d7b055e56dd7cc19826e99fadcf3455198c0c676414c60dd",
+  "workspace_digest": "e27640b33951301f291fb3fa97ec5aaa67bb74879c2ab25cbbc589db90526fc1",
+  "timestamp": 1794419992
+}

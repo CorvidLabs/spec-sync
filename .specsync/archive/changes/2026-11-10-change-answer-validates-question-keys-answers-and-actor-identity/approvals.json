@@ -1,0 +1,106 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794324589,
+      "digest": "6e6756746e59d0ec5d398f3724ad71b012ac9350cd72a30e4e26634a48c396ce",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-answer-validates-question-keys-answers-and-actor-identity",
+        "title": "Change answer validates question keys, answers, and actor identity",
+        "description": "change answer validates question keys, answers, and actor identity",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "src/change/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change answer rejects an unknown question key at exit 1 naming the advertised questions; empty or whitespace-only answers are rejected; actor strings are trimmed and rejected when empty or containing newlines; affected_specs entries must name specs in the registry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "append-only audit records stay append-only; validation errors name the expected values",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "74bee9a2089914516721ce9b17a04b44d7277f3a94b32eeafa2fdca599b81f3c"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794331181,
+      "digest": "b5f94ccad1713102cb5549c3b3d86a8831aadb6124f03658a06cb5bbdad53f6c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-answer-validates-question-keys-answers-and-actor-identity",
+        "title": "Change answer validates question keys, answers, and actor identity",
+        "description": "change answer validates question keys, answers, and actor identity",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "src/change/",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change answer rejects an unknown question key at exit 1 naming the advertised questions; empty or whitespace-only answers are rejected; actor strings are trimmed and rejected when empty or containing newlines; affected_specs entries must name specs in the registry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "append-only audit records stay append-only; validation errors name the expected values",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "74bee9a2089914516721ce9b17a04b44d7277f3a94b32eeafa2fdca599b81f3c"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794331318,
+      "digest": "a677d7dacfb15ebb796832cc184e2a8ae1395fed3bc3d1702f53c505edab0312",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "change-answer-validates-question-keys-answers-and-actor-identity",
+      "actor": "0xLeif",
+      "reason": "add src/change_tests/ to affected_paths for the two TOCTOU fixture updates",
+      "timestamp": 1794331174,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false,
+      "applied_modules": [
+        "change"
+      ]
+    }
+  ]
+}

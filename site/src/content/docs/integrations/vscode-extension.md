@@ -10,13 +10,20 @@ Real-time spec validation, quality scores, and coverage reports inside VS Code.
 
 ## Installation
 
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=corvidlabs.specsync) or search **"SpecSync"** in the Extensions panel.
+Build a local VSIX from this repository. The `corvidlabs.specsync` Marketplace listing returned
+HTTP 404 when checked on 2026-11-06, so Marketplace installation is not currently verified.
+From the repository root, with Bun installed:
 
 ```bash
-code --install-extension corvidlabs.specsync
+cd vscode-extension
+bun install --frozen-lockfile
+bun run package
+# In VS Code: Extensions → … → Install from VSIX…
+# Select the specsync-<version>.vsix file produced in this directory.
 ```
 
-The extension requires the `specsync` CLI binary to be installed and on your PATH. See the [CLI Reference](../cli.md) for installation instructions.
+The extension requires the `specsync` CLI binary to be installed and on your PATH. See the
+[Quick Start](../quickstart.md) for installation instructions.
 
 ---
 

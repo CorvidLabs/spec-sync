@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "change-answer-validates-question-keys-answers-and-actor-identity",
+  "slug": "change-answer-validates-question-keys-answers-and-actor-identity",
+  "title": "Change answer validates question keys, answers, and actor identity",
+  "description": "change answer validates question keys, answers, and actor identity",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "49d2326a8f80232b8fee94a5073c4c1a66fd2057",
+  "created_at": 1794324464,
+  "updated_at": 1794331326,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "src/change_tests/",
+    "specs/change/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change answer rejects an unknown question key at exit 1 naming the advertised questions; empty or whitespace-only answers are rejected; actor strings are trimmed and rejected when empty or containing newlines; affected_specs entries must name specs in the registry"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "append-only audit records stay append-only; validation errors name the expected values",
+    "public_contract": "yes"
+  }
+}

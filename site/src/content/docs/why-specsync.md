@@ -58,7 +58,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Who runs the project's tests | **Your CI**; verification runs no configured command | Configurable workflow shell steps | Agentic verification |
 | Import existing Spec Kit/OpenSpec work | **Yes** | N/A | N/A |
 
-Sources: [Spec Kit workflows](https://github.github.com/spec-kit/reference/workflows.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md).
+Sources: [Spec Kit workflows](https://github.github.com/spec-kit/workflows/overview.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md). Moved Spec Kit link refreshed 2026-11-06; the comparison date above is unchanged.
 
 For evaluator-ready detail, see [SpecSync vs Spec Kit](comparisons/spec-kit/), [SpecSync vs OpenSpec](comparisons/openspec/), [using them together](comparisons/using-together/), and the [adversarial drift proof](comparisons/adversarial-proof/).
 

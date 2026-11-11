@@ -1070,6 +1070,8 @@ pub fn run_doctor(root: &Path, request: &DoctorRequest) -> Result<DoctorReport, 
         if actor.is_empty() {
             return Err("a late close needs a non-empty human actor passed with --actor".into());
         }
+        let actor = normalize_actor(actor, "late close")?;
+        let actor = actor.as_str();
         let reason = request.reason.as_deref().map(str::trim).unwrap_or_default();
         if reason.is_empty() {
             return Err("a late close needs a non-empty reason passed with --reason".into());

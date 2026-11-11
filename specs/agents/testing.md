@@ -31,3 +31,14 @@ spec: agents.spec.md
 | Re-running `agents install` after upgrading spec-sync (template content changed) | Overwrites the stale artifact with current content and returns `Ok(true)`; unchanged artifacts are left alone and return `Ok(false)` |
 | Cursor's flat command file is the only file in `.cursor/commands/` | Uninstall removes the file but does not remove `.cursor/commands/` itself (only namespaced `specsync/` subdirectories are cleaned up when empty) |
 | Gemini's TOML `prompt` value spans multiple lines with embedded backticks/quotes in the body text | Triple-quoted TOML string (`"""..."""`) must remain balanced — verified via `content.matches("\"\"\"").count() == 2` |
+
+## Automatic archive commit guidance (REQ-agents-009)
+
+`agents::tests::tracked_agent_files_teach_archive_first_ci` requires every tracked skill to
+explain that native ship creates the archive commit and to push the archive tip, while rejecting
+the old instruction to make an extra manual commit. Failing-first commit `355f1d69`
+reproduces the observed failure. Run
+`cargo test agents::tests::` for the surrounding install, customization, digest-manifest,
+byte-parity and idempotency regressions. Template version 8 and installer-generated copies
+move together. These tests inspect instruction artifacts; they do not prove host discovery or
+supply human implementation acceptance.

@@ -151,13 +151,18 @@ To refresh an existing pre-commit hook after upgrading the generator, run `specs
 Install native SDD skills and supported slash commands for coding agents. This is separate from repository instruction snippets and Git hooks managed by `hooks`.
 
 ```bash
-specsync agents install                    # install all detected integrations
+specsync agents install                    # install all four supported integrations
 specsync agents install --claude --gemini # install selected integrations
 specsync agents status                     # show installation status
 specsync agents uninstall                  # remove generated integrations
 ```
 
-Supports Claude Code, Cursor, Codex, and Gemini CLI. Claude, Cursor, and Gemini also receive slash commands for `create-spec`, `create-change`, **`check`**, and **`audit`** (`/specsync:check`, `/specsync:audit`). Codex is skill-only. The installed skills use the deterministic SpecSync 6.0 lifecycle (`change check` for one change; `change audit` for active workspaces and living specs) and never grant human approvals on an agent's behalf.
+Supports Claude Code, Cursor, Codex, and Gemini CLI. Claude and Gemini receive slash commands
+such as `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, and
+`/specsync:audit`. Cursor uses flat names: `/specsync-create-spec`, `/specsync-create-change`,
+`/specsync-check`, and `/specsync-audit`. Codex is skill-only. The installed skills use the
+deterministic SpecSync 6.0 lifecycle (`change check` for one change; `change audit` for active
+workspaces and living specs) and never grant human approvals on an agent's behalf.
 
 ### `compact`
 
@@ -408,6 +413,19 @@ specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for checks before GitHub merges
 ```
+
+`change answer` checks an answer before it stores anything. An unknown question id is refused
+with the accepted ids. An empty answer is refused, and so is a list answer that names nothing:
+`,` for `affected_specs`, `affected_paths` or `dependencies`, `[]` for `acceptance_criteria` or
+`affected_paths`. Answer exactly `none` or `'[]'` to clear `affected_specs` or `dependencies`
+(`'[]'` always clears; `none` is refused as ambiguous when a change or module is itself called
+`none`; quote `'[]'`, because zsh reads a bare `[]` as a pattern). `public_contract` and
+`architecture_risk` take `yes` or `no`. Every `affected_specs` module needs its spec at its
+canonical path, with the module's directory and file spelled exactly and no symlink on the way,
+unless the project has no specs yet. A new module's spec must exist before the module is
+declared, including a module that so far exists only under `[modules]` in the config. An `--actor` is trimmed
+and refused when it holds a newline, a control character or an invisible character other than
+ZWNJ and ZWJ.
 
 For a separately created draft successor called `update-ui`, dependency and exact succession
 are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full

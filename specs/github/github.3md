@@ -209,3 +209,13 @@ A job-level `if:` with no status function gets an implicit `success()`, and that
 
 @plane z=11 label="The lint gate covers the tests"
 `cargo clippy` without `--all-targets` compiles only the library and binary targets. It never sees a `#[cfg(test)]` module or `tests/`, so a green lint run said the shipped code lints clean while it read as "the code lints clean". CI's `test` job and the fledge `lint` task both ran it that way through 6.2, and the test code collected 36 lints in 15 files that nobody saw (#608 counted 20 earlier). A gate that cannot see an input reports the input's absence as the input's health. Run `cargo clippy --all-targets -- -D warnings` everywhere the project lints, and clear what it finds in the code, never with an `allow`. `test-clippy-all-targets.py` holds every clippy command in `ci.yml` and `fledge.toml` to `--all-targets` and `-D warnings` with no allow or cap. It also requires that the gate still exists, so deleting it cannot pass for want of input (CI-8, REQ-github-028).
+
+@plane z=12 label="Parse diagrams and check their meaning separately"
+Verified: failing-first commit 355f1d69 parsed all 11 maintained diagrams but failed four semantic
+checks for missing send-back edges, obsolete staging, an archive commit nested under optional
+push, and remote review scheduled on an open change. After corrections the same checks pass;
+Mermaid also caught a semicolon introduced into a sequence label during editing. Keep official
+parser coverage plus explicit source-backed state/edge checks and negative controls. A syntax
+pass alone does not establish diagram meaning, and source extraction must fail closed when an
+enum or transition declaration changes shape. Scope: maintained docs and generated skills;
+external links are dated manual observations, not a live network requirement in CI.

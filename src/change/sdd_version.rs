@@ -2004,6 +2004,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
+    ensure_affected_specs_exist(root, &affected_specs)?;
     let affected_paths: Vec<String> = affected_paths
         .iter()
         .map(|path| {
@@ -2874,6 +2875,73 @@ pub fn answer_question(
     answer_question_with_snapshot(root, id, question, answer).map(|result| result.change)
 }
 
+/// A comma-separated answer for a list that may legitimately be empty: `none` clears it, and an
+/// answer that parses to no value is refused rather than silently clearing the list (#426).
+fn clearable_list_answer(
+    root: &Path,
+    question: &str,
+    answer: &str,
+) -> Result<Vec<String>, String> {
+    // `[]` can name no change or module, so it always clears.
+    if answer.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+    if answer.trim() == "none" {
+        // A change or spec module may itself be called `none`; clearing the list would then
+        // silently drop what the answer meant to name (#1026 review).
+        let named = match question {
+            "dependencies" => find_change_dir(root, "none").is_ok(),
+            _ => {
+                let specs_dir = crate::config::load_config(root).specs_dir;
+                known_module_names(root, &specs_dir).iter().any(|name| name == "none")
+            }
+        };
+        if named {
+            return Err(format!(
+                "{question} answer `none` is ambiguous because something is named `none`: answer `none,` to name it, or answer the entries to keep; or answer `'[]'` to clear it"
+            ));
+        }
+        return Ok(Vec::new());
+    }
+    let values = split_values(answer);
+    if values.is_empty() {
+        return Err(format!(
+            "{question} answer names no value; answer `'[]'` to clear it"
+        ));
+    }
+    Ok(values)
+}
+
+/// A yes/no interview answer as `yes` or `no`. The spellings the correction ledger accepts
+/// (`y`, `true`, `1`, `n`, `false`, `0`, any case, padded) are stored as the choice they name;
+/// anything else is refused naming the choices before it is stored, where it used to fail later
+/// as a corrupt correction ledger (#1026 review).
+fn yes_no_answer(question: &str, answer: &str) -> Result<String, String> {
+    let trimmed = answer.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "yes" | "y" | "true" | "1" => Ok("yes".into()),
+        "no" | "n" | "false" | "0" => Ok("no".into()),
+        _ => Err(format!(
+            "{question} answer `{}` is not one of its choices; answer yes or no",
+            trimmed.escape_debug()
+        )),
+    }
+}
+
+/// Every interview question id `change answer` accepts. `next_questions` and
+/// `next_questions_for` advertise a subset of these (`dependencies` is answerable
+/// but never asked); a unit test keeps every advertised id in this list, so a
+/// question added in one place cannot drift from the other (#426).
+const INTERVIEW_QUESTION_IDS: &[&str] = &[
+    "acceptance_criteria",
+    "affected_specs",
+    "affected_paths",
+    "dependencies",
+    "public_contract",
+    "architecture_risk",
+    "constraints",
+];
+
 pub(crate) fn answer_question_with_snapshot(
     root: &Path,
     id: &str,
@@ -2883,22 +2951,53 @@ pub(crate) fn answer_question_with_snapshot(
     let _lock = acquire_project_lock(root)?;
     let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
+    if !INTERVIEW_QUESTION_IDS.contains(&question) {
+        return Err(format!(
+            "unknown interview question `{question}`; expected one of: {}",
+            INTERVIEW_QUESTION_IDS.join(", ")
+        ));
+    }
+    if answer.trim().is_empty() {
+        return Err(if question == "constraints" {
+            "constraints answer must not be empty; answer none if none apply".into()
+        } else {
+            format!("{question} answer must not be empty")
+        });
+    }
     match question {
         "acceptance_criteria" => {
-            record.acceptance_criteria = acceptance_criteria_values(answer)?;
+            let criteria = acceptance_criteria_values(answer)?;
+            if criteria.is_empty() {
+                return Err("acceptance_criteria answer names no criterion".into());
+            }
+            record.acceptance_criteria = criteria;
         }
         "affected_specs" => {
-            let values = split_values(answer);
+            let values = clearable_list_answer(root, question, answer)?;
             for module in &values {
                 crate::commands::validate_module_name(module)
                     .map_err(|error| format!("invalid affected spec: {error}"))?;
             }
+            ensure_affected_specs_exist(root, &values).map_err(|error| {
+                // `None` or `NONE` is a module name, not the clearing keyword (#1026 review).
+                if values.iter().any(|module| module.eq_ignore_ascii_case("none")) {
+                    format!("{error}; to clear the list, answer exactly `none` or `'[]'`")
+                } else {
+                    error
+                }
+            })?;
             record.affected_specs = values;
             // The lessons those specs carry may have changed, so the previous citation is stale.
             record.answers.remove("constraints");
         }
         "affected_paths" => {
+            if answer.trim() == "[]" {
+                return Err("affected_paths answer `[]` names no path; a change needs at least one path in scope".into());
+            }
             let values = split_values(answer);
+            if values.is_empty() {
+                return Err("affected_paths answer names no path".into());
+            }
             let affected_paths: Vec<String> = values
                 .iter()
                 .map(|path| {
@@ -2909,7 +3008,7 @@ pub(crate) fn answer_question_with_snapshot(
             record.affected_paths = affected_paths;
         }
         "dependencies" => {
-            let dependencies = split_values(answer);
+            let dependencies = clearable_list_answer(root, question, answer)?;
             for dependency in &dependencies {
                 if dependency == id || dependency_reaches(root, dependency, id, &mut BTreeSet::new()) {
                     return Err("dependency rescope would create a change cycle".into());
@@ -2921,15 +3020,17 @@ pub(crate) fn answer_question_with_snapshot(
             record.dependencies.dedup();
         }
         "public_contract" => {
-            record.answers.insert(question.into(), answer.into());
-            if is_yes(answer) {
+            let answer = yes_no_answer(question, answer)?;
+            record.answers.insert(question.into(), answer.clone());
+            if is_yes(&answer) {
                 add_artifact(&mut record, ArtifactKind::Requirements);
                 add_artifact(&mut record, ArtifactKind::Docs);
             }
         }
         "architecture_risk" => {
-            record.answers.insert(question.into(), answer.into());
-            if is_yes(answer) {
+            let answer = yes_no_answer(question, answer)?;
+            record.answers.insert(question.into(), answer.clone());
+            if is_yes(&answer) {
                 add_artifact(&mut record, ArtifactKind::Research);
                 add_artifact(&mut record, ArtifactKind::Design);
                 add_artifact(&mut record, ArtifactKind::Plan);
@@ -2947,7 +3048,10 @@ pub(crate) fn answer_question_with_snapshot(
             record.answers.insert(question.into(), answer.to_string());
         }
         _ => {
-            record.answers.insert(question.into(), answer.into());
+            return Err(format!(
+                "unknown interview question `{question}`; expected one of: {}",
+                INTERVIEW_QUESTION_IDS.join(", ")
+            ));
         }
     }
     // Every answer validates the list; the per-change overlap is re-judged when the answer is
@@ -3211,6 +3315,13 @@ pub fn approve_definition_with_relay(
     portable_v501: bool,
     relayed_by: Option<RelayedDecision>,
 ) -> Result<ChangeRecord, String> {
+    // The recorded actor is trimmed (#426), so the relay's decider is trimmed the same way:
+    // otherwise `actor` and `relayed_by.decided_by` differ by padding and every later read of the
+    // ledger refuses the mismatch (#1026 review).
+    let relayed_by = relayed_by.map(|mut relay| {
+        relay.decided_by = relay.decided_by.trim().to_string();
+        relay
+    });
     if relayed_by.is_some() {
         let Some(decider) = actor.as_deref() else {
             return Err(
@@ -3219,7 +3330,7 @@ pub fn approve_definition_with_relay(
                     .into(),
             );
         };
-        ensure_relay_names_the_decider(relayed_by.as_ref(), decider, "--actor")?;
+        ensure_relay_names_the_decider(relayed_by.as_ref(), decider.trim(), "--actor")?;
     }
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
@@ -3768,6 +3879,177 @@ struct ScopedSpecs {
     unresolved: Vec<String>,
 }
 
+/// The conventional spec path `specsync new <module>` writes.
+fn specs_dir_conventional_path(specs_dir: &str, module: &str) -> String {
+    format!("{}/{module}/{module}.spec.md", specs_dir.trim_end_matches('/'))
+}
+
+/// How to create a missing spec at `expected`: `specsync new` only when it would write exactly
+/// that path and accept the name; otherwise, create the spec at that path.
+fn scaffold_hint(conventional: &str, expected: &str, module: &str) -> String {
+    if conventional == expected && crate::commands::validate_scaffold_module_name(module).is_ok() {
+        format!("scaffold it first with `specsync new {}`", shell_word(module))
+    } else {
+        format!("create its spec at `{expected}` first")
+    }
+}
+
+/// Refuse affected-spec declarations that name no spec on disk, whether the
+/// module is registered or conventional — a change cannot affect a spec that
+/// does not exist, and the typo surfaces at declaration, not at
+/// materialization. A project with no specs at all cannot typo against an
+/// empty set, so the declaration is provisional there (bootstrap).
+fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), String> {
+    if modules.is_empty() {
+        return Ok(());
+    }
+    let config = crate::config::load_config(root);
+    // An unreadable registry is reported, never read as "no modules" (which would skip this
+    // check entirely in a project whose specs all live in the registry).
+    let registry = crate::registry::load_local_registry(root)
+        .map_err(|error| format!("the spec registry cannot be read: {error}"))?;
+    let spec_files = crate::validator::find_spec_files(&root.join(&config.specs_dir));
+    // Bootstrap, exactly as REQ-change-150 says: a project with no spec files and no registry
+    // entries cannot typo against an empty set, so the declaration is provisional there.
+    if spec_files.is_empty() && registry.as_ref().is_none_or(|registry| registry.specs.is_empty()) {
+        return Ok(());
+    }
+    // One rule: a module is accepted exactly when it is declarable, the same set the error
+    // names as known modules and the owner recovery checks (#1026 review).
+    let known = known_module_names(root, &config.specs_dir);
+    for module in modules {
+        if module_has_canonical_spec(root, &config.specs_dir, module) {
+            continue;
+        }
+        let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)
+            .map_err(|error| format!("affected spec `{module}` cannot be resolved: {error}"))?;
+        let expected = portable_project_path(root, &spec_path);
+        if spec_path.is_file() && path_traverses_symlink(root, &spec_path) {
+            return Err(format!(
+                "affected spec `{module}` is reached through a symlink at `{expected}`, and SpecSync does not follow symlinks into specs; put the spec there as a regular file"
+            ));
+        }
+        if let Some(actual) = known.iter().find(|name| name.eq_ignore_ascii_case(module)) {
+            return Err(format!(
+                "affected spec `{module}` is not a module; module names are case-sensitive, so name it as `{actual}`"
+            ));
+        }
+        let registered = registry
+            .as_ref()
+            .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
+        if registered {
+            return Err(format!(
+                "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create the spec at that path or fix its registry entry"
+            ));
+        }
+        // A spec that declares this module somewhere else is moved or registered, never
+        // duplicated by a scaffold at the canonical path.
+        if let Some(elsewhere) = spec_files.iter().find(|spec| {
+            fs::read_to_string(spec)
+                .ok()
+                .and_then(|content| crate::parser::parse_frontmatter(&content))
+                .and_then(|parsed| parsed.frontmatter.module)
+                .is_some_and(|declared| &declared == module)
+        }) {
+            return Err(format!(
+                "affected spec `{module}` has a spec at `{}`, but not at its canonical path `{expected}`; move it there or register it in the spec registry",
+                portable_project_path(root, elsewhere)
+            ));
+        }
+        let known_clause = if known.is_empty() {
+            String::new()
+        } else {
+            format!(", or name one of the known modules: {}", known.join(", "))
+        };
+        return Err(format!(
+            "affected spec `{module}` has no spec at `{expected}`; {}{known_clause}",
+            scaffold_hint(&specs_dir_conventional_path(&config.specs_dir, module), &expected, module),
+        ));
+    }
+    Ok(())
+}
+
+/// Whether `module` has a spec at its canonical path: the one rule `change answer
+/// affected_specs`, the owner hints and the printed owner answer share (#1026 review).
+///
+/// - A spec reached through a symlink is not one: verification refuses to traverse it.
+/// - A conventional path must spell the module's own directory and file exactly. A case variant
+///   that a case-insensitive disk resolves fails on a case-sensitive one, so an entry differing
+///   only in ASCII case does not count. The specs directory above it, a registered path, and a
+///   difference in Unicode normalization (macOS matches either form) are taken as the disk
+///   resolves them.
+fn module_has_canonical_spec(root: &Path, specs_dir: &str, module: &str) -> bool {
+    let Ok((spec_path, _)) = canonical_module_paths(root, specs_dir, module) else {
+        return false;
+    };
+    if !spec_path.is_file() || path_traverses_symlink(root, &spec_path) {
+        return false;
+    }
+    let registered = matches!(
+        crate::registry::load_local_registry(root),
+        Ok(Some(registry)) if registry.specs.iter().any(|(name, _)| name == module)
+    );
+    registered
+        || spec_path
+            .parent()
+            .is_none_or(|directory| entry_is_not_an_ascii_case_variant(directory) && entry_is_not_an_ascii_case_variant(&spec_path))
+}
+
+/// Whether some component of `path` below `root` is a symlink.
+fn path_traverses_symlink(root: &Path, path: &Path) -> bool {
+    let Ok(relative) = path.strip_prefix(root) else {
+        return false;
+    };
+    let mut current = root.to_path_buf();
+    relative.components().any(|component| {
+        current.push(component);
+        fs::symlink_metadata(&current).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    })
+}
+
+/// False when `path`'s directory holds an entry differing from its name only in ASCII case and
+/// none spelled exactly: the disk resolved a case variant.
+fn entry_is_not_an_ascii_case_variant(path: &Path) -> bool {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return true;
+    };
+    let Ok(entries) = fs::read_dir(parent) else {
+        return true;
+    };
+    let names: Vec<std::ffi::OsString> = entries.flatten().map(|entry| entry.file_name()).collect();
+    names.iter().any(|entry| entry == name)
+        || !names.iter().any(|entry| {
+            entry
+                .to_str()
+                .zip(name.to_str())
+                .is_some_and(|(entry, name)| entry != name && entry.eq_ignore_ascii_case(name))
+        })
+}
+
+/// Names of every known spec module — registry entries plus modules discovered
+/// under the specs directory — for error messages that name the valid set.
+fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
+    // Only names `affected_specs` would accept: a registry name whose spec exists, or a
+    // discovered spec whose stem is a module with that spec at its canonical path. A file stem
+    // that is not a module (`main` for a registry entry's `main.spec.md`) is not listed.
+    let mut candidates: BTreeSet<String> = BTreeSet::new();
+    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+        for (module, _) in &registry.specs {
+            candidates.insert(module.clone());
+        }
+    }
+    for spec in crate::validator::find_spec_files(&root.join(specs_dir)) {
+        let filter = spec_filter_name(&spec);
+        if !filter.is_empty() {
+            candidates.insert(filter);
+        }
+    }
+    candidates
+        .into_iter()
+        .filter(|module| module_has_canonical_spec(root, specs_dir, module))
+        .collect()
+}
+
 /// The `--spec` argument that selects this file.
 ///
 /// `filter_specs` matches a filter against the file stem with a trailing
@@ -4039,6 +4321,8 @@ pub fn reopen_change(
     actor: String,
     reason: String,
 ) -> Result<ReopenResult, String> {
+    // Refused before anything moves: an archived package is not relocated for a bad actor.
+    let actor = normalize_actor(&actor, "reopen")?;
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(
@@ -4115,10 +4399,6 @@ fn reopen_unarchived_change(
     reason: String,
 ) -> Result<ReopenResult, String> {
     let mut record = load_change(root, id)?;
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err("reopen requires a non-empty human actor passed with --actor".into());
-    }
     let reason = reason.trim();
     if reason.is_empty() {
         return Err("reopen requires a non-empty reason passed with --reason".into());
@@ -4740,13 +5020,7 @@ pub fn add_acceptance_owner_corrections(
             "acceptance owner correction batch requires at least one path/module entry".into(),
         );
     }
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err(
-            "acceptance owner correction requires a non-empty human actor passed with --actor"
-                .into(),
-        );
-    }
+    let actor = normalize_actor(&actor, "acceptance owner correction")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err(
@@ -5022,12 +5296,43 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         unowned.join(", "),
         hints.join("\n")
     );
-    if record.state == ChangeState::Draft
-        && let Some(answer) = declare_owners_answer(root, record, &unowned, &index)
-    {
-        message.push_str(&format!("\nOn this draft, declare them with {answer}."));
+    if record.state == ChangeState::Draft {
+        match declare_owners_answer(root, record, &unowned, &index) {
+            Some(answer) => message.push_str(&format!("\nOn this draft, declare them with {answer}.")),
+            None => {
+                if let Some(missing) = declared_modules_without_spec(root, record) {
+                    message.push_str(&format!("\n{missing}."));
+                }
+            }
+        }
     }
     Err(message)
+}
+
+/// The sentence naming every declared module with no spec at its canonical path, which keeps the
+/// owner recovery from printing an `affected_specs` answer (#1026 review); `None` when every
+/// declared module has its spec.
+fn declared_modules_without_spec(root: &Path, record: &ChangeRecord) -> Option<String> {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let missing: Vec<String> = record
+        .affected_specs
+        .iter()
+        .filter(|module| !module_has_canonical_spec(root, &specs_dir, module))
+        .map(|module| match canonical_module_paths(root, &specs_dir, module) {
+            Ok((spec_path, _)) => format!(
+                "`{module}` has no spec at `{}`",
+                portable_project_path(root, &spec_path)
+            ),
+            Err(_) => format!("`{module}` has no spec at its canonical path"),
+        })
+        .collect();
+    (!missing.is_empty()).then(|| {
+        format!(
+            "The declared {} {}, so no `affected_specs` answer is printed: create that spec, or drop the module from `affected_specs`",
+            if missing.len() == 1 { "module" } else { "modules" },
+            missing.join(" and ")
+        )
+    })
 }
 
 /// Every module that owns `path` and that `record` does not declare: modules whose configured
@@ -5104,11 +5409,24 @@ fn declare_owners_answer(
     {
         return None;
     }
-    let mut guidance = format!(
+    // A declared module with no spec at its canonical path fails verification, and outside a
+    // project with no specs `change answer affected_specs` refuses it (#426). The answer re-lists
+    // every module, already-declared ones included, so no answer is printed while any of them
+    // lacks a spec; the per-path hints and `declared_modules_without_spec` say which spec to
+    // create first (#1026 review).
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    if modules
+        .iter()
+        .any(|module| !module_has_canonical_spec(root, &specs_dir, module))
+    {
+        return None;
+    }
+    let mut guidance = String::new();
+    guidance.push_str(&format!(
         "`specsync change answer {} affected_specs {}`",
         shell_quote(&record.id),
         shell_quote(&modules.join(","))
-    );
+    ));
     if record.answers.contains_key("constraints") {
         guidance.push_str(&format!(
             ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
@@ -5136,38 +5454,82 @@ pub fn ownership_preflight_blocker(
     }
     let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
     let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
-    let hints: Vec<String> = paths
-        .iter()
-        .map(|path| format!("{path}: {}", ownership_hint(root, record, path, &index)))
-        .collect();
-    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
-    // entry in the spec that should own it.
-    let unclaimed: Vec<&str> = paths
+    // An unowned input this branch never modified is in scope only because a path prefix is
+    // wider than the work, and declaring its owner would pull an untouched module into the
+    // change: the recovery for it is a narrower scope (#1000). Without a usable base commit, a
+    // merge base with the remote default branch or Git, nothing is classified as untouched and
+    // the declare recovery covers every path.
+    // A truncated spec listing cannot say which owners exist, so nothing is classified then.
+    let changed = (!index.truncated)
+        .then(|| files_changed_since_base(root, record))
+        .flatten();
+    let (touched, untouched): (Vec<&str>, Vec<&str>) = paths
         .iter()
         .copied()
-        .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
-        .collect();
-    let recovery = if index.truncated {
-        format!(
-            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
-            shell_quote(&record.id)
+        .partition(|path| changed.as_ref().is_none_or(|changed| changed.contains(*path)));
+    // An untouched input whose every owner is already declared by the touched inputs' answer is
+    // fixed by that answer; narrowing it out as well would be redundant advice (#1037 review).
+    let declared_by_answer: BTreeSet<String> = record
+        .affected_specs
+        .iter()
+        .cloned()
+        .chain(
+            touched
+                .iter()
+                .flat_map(|path| undeclared_owning_modules(root, record, path, &index)),
         )
-    } else {
-        match declare_owners_answer(root, record, &paths, &index) {
-            Some(answer) if !unclaimed.is_empty() => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
-                shell_quote(&record.id),
-                unclaimed.join(", ")
-            ),
-            Some(answer) => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
-                shell_quote(&record.id)
-            ),
-            None => format!(
-                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
-                shell_quote(&record.id)
-            ),
-        }
+        .collect();
+    let answer_is_printed =
+        !touched.is_empty() && declare_owners_answer(root, record, &touched, &index).is_some();
+    let untouched: Vec<&str> = untouched
+        .into_iter()
+        .filter(|path| {
+            let owners = undeclared_owning_modules(root, record, path, &index);
+            !answer_is_printed
+                || owners.is_empty()
+                || !owners.iter().all(|owner| declared_by_answer.contains(owner))
+        })
+        .collect();
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|path| {
+            if untouched.contains(path) {
+                let owners = undeclared_owning_modules(root, record, path, &index);
+                if owners.is_empty() {
+                    format!(
+                        "{path}: not modified by this change since its base and no module owns it, so leave it out of `affected_paths`"
+                    )
+                } else {
+                    format!(
+                        "{path}: owned by {}, but not modified by this change since its base, so leave it out of `affected_paths`",
+                        owners
+                            .iter()
+                            .map(|owner| format!("`{owner}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            } else {
+                format!("{path}: {}", ownership_hint(root, record, path, &index))
+            }
+        })
+        .collect();
+    let touched: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| !untouched.contains(path))
+        .collect();
+    let recovery = match (touched.is_empty(), untouched.is_empty()) {
+        (_, true) => declare_owners_recovery(root, record, &touched, &index),
+        (true, false) => narrow_scope_recovery(record, &untouched, changed.as_ref()),
+        (false, false) => declare_and_narrow_recovery(
+            root,
+            record,
+            &touched,
+            &untouched,
+            &index,
+            changed.as_ref(),
+        ),
     };
     Ok(Some((
         format!(
@@ -5176,6 +5538,267 @@ pub fn ownership_preflight_blocker(
         ),
         recovery,
     )))
+}
+
+/// The recovery that declares the owners of unowned inputs the change modified.
+fn declare_owners_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> String {
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it.
+    let unclaimed: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    if index.truncated {
+        return format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
+            shell_quote(&record.id)
+        );
+    }
+    match declare_owners_answer(root, record, paths, index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
+            shell_quote(&record.id),
+            unclaimed.join(", ")
+        ),
+        Some(answer) => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
+            shell_quote(&record.id)
+        ),
+        None => format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and give each path an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module{}",
+            shell_quote(&record.id),
+            declared_modules_without_spec(root, record)
+                .map(|missing| format!(". {missing}"))
+                .unwrap_or_default()
+        ),
+    }
+}
+
+/// The recovery for unowned inputs the change never modified: narrow `affected_paths` to the
+/// files and directories the change edits instead of declaring their owners (#1000).
+fn narrow_scope_recovery(
+    record: &ChangeRecord,
+    untouched: &[&str],
+    changed: Option<&BTreeSet<String>>,
+) -> String {
+    format!(
+        "{} — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then {}, then approve, check and review again",
+        untouched_sentence(untouched),
+        shell_quote(&record.id),
+        narrow_answer(record, changed)
+    )
+}
+
+/// One send-back for a change with both modified and untouched unowned inputs: declare the
+/// modified inputs' owners and narrow the scope in the same draft, then one approve, check and
+/// review (#1037 review: two separate send-backs could not both run).
+fn declare_and_narrow_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    touched: &[&str],
+    untouched: &[&str],
+    index: &SpecListingIndex,
+    changed: Option<&BTreeSet<String>>,
+) -> String {
+    // A truncated spec listing turns classification off, so this mixed recovery never sees one.
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it, exactly as in the declare-only recovery.
+    let unclaimed: Vec<&str> = touched
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    // Without a printable answer (a listed module has no spec, #1026), the modified inputs get
+    // the same owning-spec guidance as the declare-only recovery, and a declared module whose
+    // spec is missing is named after the recovery.
+    let (declare, missing) = match declare_owners_answer(root, record, touched, index) {
+        Some(answer) if !unclaimed.is_empty() => (
+            format!(
+                "{answer}, and add {} to its owning spec's `files:` list",
+                unclaimed.join(", ")
+            ),
+            None,
+        ),
+        Some(answer) => (answer, None),
+        None => (
+            format!(
+                "give {} an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module",
+                touched.join(", ")
+            ),
+            declared_modules_without_spec(root, record),
+        ),
+    };
+    format!(
+        "send it back once and rescope: `specsync change send-back {} --actor <name> --reason \"declare the owning modules and narrow affected_paths\"`, then {declare}, and {} ({}), then approve, check and review again{}",
+        shell_quote(&record.id),
+        narrow_answer(record, changed),
+        untouched_sentence(untouched),
+        missing
+            .map(|missing| format!(". {missing}"))
+            .unwrap_or_default()
+    )
+}
+
+/// The `affected_paths` answer that narrows a scope, with a quoted, comma-separated placeholder.
+fn narrow_answer(record: &ChangeRecord, changed: Option<&BTreeSet<String>>) -> String {
+    // Name the files exactly: every path the change added, edited or deleted inside its current
+    // scope. A placeholder invited listing only the edited files and forgetting a deletion, which
+    // then shipped and failed the meaningful-path audit (#1037 review). The placeholder is kept
+    // only when there is no list or a path cannot round-trip through the comma-separated answer.
+    let in_scope: Vec<&String> = changed
+        .map(|changed| {
+            changed
+                .iter()
+                .filter(|path| {
+                    record
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // Printed only when `change answer` stores exactly these paths: `split_values` splits on
+    // commas and newlines and trims each value, `normalize_project_path` rewrites a backslash and refuses
+    // control characters, and a list starting with `-` would be read as an option.
+    let round_trips = |path: &&String| {
+        !path.contains([',', '\\'])
+            && !path.chars().any(char::is_control)
+            && path.trim() == path.as_str()
+    };
+    if !in_scope.is_empty()
+        && in_scope.iter().all(round_trips)
+        && !in_scope.first().is_some_and(|path| path.starts_with('-'))
+    {
+        let list = in_scope
+            .iter()
+            .map(|path| path.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        return format!(
+            "`specsync change answer {} affected_paths {}` (every file the change adds, edits or deletes in its scope)",
+            shell_quote(&record.id),
+            shell_quote(&list)
+        );
+    }
+    format!(
+        "`specsync change answer {} affected_paths '<path>,<path>'` naming every file the change adds, edits or deletes, so the scope no longer covers the untouched paths",
+        shell_quote(&record.id)
+    )
+}
+
+/// Names up to five untouched inputs and why they should leave the scope.
+fn untouched_sentence(untouched: &[&str]) -> String {
+    const SHOWN: usize = 5;
+    let mut named = untouched
+        .iter()
+        .take(SHOWN)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if untouched.len() > SHOWN {
+        named.push_str(&format!(" and {} more", untouched.len() - SHOWN));
+    }
+    format!(
+        "{named} {} not modified by this change since its base, so its `affected_paths` scope is wider than the work: narrow it instead of declaring those owners",
+        if untouched.len() == 1 { "is" } else { "are" }
+    )
+}
+
+/// Every project-relative path the working tree has changed since the change's base commit,
+/// committed or not, plus untracked files. `None` without a base commit or when Git cannot say.
+fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
+    // A change whose record carries no full commit id as `base_commit` is not classified. The
+    // value is only a gate: it never reaches Git, where `--output=<path>` read from `state.json`
+    // could become an option, least of all from read-only `ship-status` (#1037 review).
+    let base_commit = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))?;
+    // The branch's own work is what differs from the merge base with the remote default branch,
+    // the base the coverage gate diffs against locally (`pull_request_diff_base`; in CI it diffs
+    // against the pull request's base branch), plus untracked files.
+    // It is not compared with `base_commit`: once the branch merges or rebases the default branch,
+    // that diff also holds every upstream edit made since, which this change never touched
+    // (#1037 review). Without a remote default branch or a merge base, the branch's work cannot be
+    // told from untouched files, so nothing is classified and every input keeps the declare
+    // recovery: the safe direction.
+    let remote = remote_default_ref(root)?;
+    let merge_base = git_output(root, &["merge-base", remote.as_str(), "HEAD"])?;
+    let merge_base = merge_base.trim();
+    if !is_canonical_commit_id(merge_base) {
+        return None;
+    }
+    // Once the change's own commits are on the remote default branch (it merged with the change
+    // still active, the documented recovery state), the merge base no longer separates its work
+    // from upstream work: its committed edits sit at or behind the merge base and would all look
+    // untouched. Then nothing is classified (#1037 review). That is so when HEAD is the merge
+    // base although the change has commits past its base, and when the merge base already holds
+    // this change's own workspace, as after a recovery `change check --commit` on the default
+    // branch. `base_commit` is only compared here; it still never reaches Git.
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
+    let head = head.trim();
+    if !is_canonical_commit_id(head) || (merge_base == head && base_commit != head) {
+        return None;
+    }
+    let own_workspace = format!("{CHANGES_PATH}/{}", record.id);
+    let own_workspace_on_the_default_branch = !git_output_allow_empty(
+        root,
+        &[
+            "ls-tree",
+            "-d",
+            "--name-only",
+            "--end-of-options",
+            merge_base,
+            "--",
+            own_workspace.as_str(),
+        ],
+    )?
+    .trim()
+    .is_empty();
+    if own_workspace_on_the_default_branch {
+        return None;
+    }
+    let mut changed = BTreeSet::new();
+    // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
+    // than C-quoted under git's default `core.quotePath`; `--no-renames`, so a renamed file's old
+    // path counts as changed too.
+    for args in [
+        vec![
+            "diff",
+            "--name-only",
+            "--relative",
+            "--no-renames",
+            "-z",
+            "--end-of-options",
+            merge_base,
+        ],
+        vec!["ls-files", "--others", "--exclude-standard", "-z"],
+    ] {
+        changed.extend(
+            git_output_allow_empty(root, &args)?
+                .split('\0')
+                .filter(|path| !path.is_empty())
+                .map(str::to_string),
+        );
+    }
+    // A path another active change on this branch covers is that change's work: it is neither
+    // declared for this change nor kept in its narrowed scope (#1037 review). An unreadable
+    // workspace leaves that unknown, so nothing is classified.
+    let others = list_changes_checked(root).ok()?;
+    changed.retain(|path| {
+        !others
+            .iter()
+            .filter(|other| other.id != record.id)
+            .any(|other| other.affected_paths.iter().any(|scope| path_matches_scope(path, scope)))
+    });
+    Some(changed)
 }
 
 /// Names what to change for one unowned affected path.
@@ -5205,10 +5828,17 @@ fn ownership_hint(
         .collect();
     configured.sort();
     for module in configured {
-        declare.push(format!(
-            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",
-            shell_word(module)
-        ));
+        let has_spec = module_has_canonical_spec(root, &config.specs_dir, module);
+        declare.push(if has_spec {
+            format!(
+                "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",
+                shell_word(module)
+            )
+        } else {
+            format!(
+                "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which has no spec yet; create that module's spec, then declare it"
+            )
+        });
     }
 
     for (spec, module) in index.listing(path) {

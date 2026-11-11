@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "correct-reference-documentation-and-validate-mermaid-lifecycle-diagrams",
+  "implementation_commit": "bb88f200b0b4d6ee71b46149e4509e949285a2c0",
+  "implementation_tree": "91849d3ccdd2606c18ffbfa52270a86601e72252",
+  "contract_digest": "c43a23f81c1cad75ad60a0464954a4e6f8b6b0e1221432c3fc770bf0ce35017f",
+  "workspace_digest": "65a078c666379377fbee9016bfe00176489f489dd2ba13dd5e661459ffe5c15c",
+  "closing_digest": "bb7c5be9c7005da568da44a63a50ea64a0fbb0144ccbf270ecdd2e20993a384a",
+  "review_digest": "fccf3a0f29925316390fb2e9f4714238066593f132c427a1345ea2f350530e9a",
+  "finalization_digest": "2a22afd76fa7290db3599a198edfb4d9f1b04616df0729e02bd0811b93474545",
+  "timestamp": 1794413996
+}

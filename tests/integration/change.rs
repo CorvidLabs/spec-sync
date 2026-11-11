@@ -337,8 +337,412 @@ fn verification_freshness_status_and_check_are_environment_independent() {
 }
 
 #[test]
+fn change_answer_rejects_unknown_question_key_and_persists_nothing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "nonexistent_question",
+            "x",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown interview question"));
+
+    // A hyphen/underscore typo fails the same way (#426).
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "acceptance-criteria",
+            "typo",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown interview question"));
+
+    // Nothing was persisted.
+    let state: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/state.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(state["answers"], serde_json::json!({}));
+}
+
+#[test]
+fn change_answer_rejects_empty_and_whitespace_answers() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    for question in ["acceptance_criteria", "affected_paths", "public_contract"] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                "   ",
+            ])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("must not be empty"));
+    }
+
+    // A real answer still works.
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "acceptance_criteria",
+            "Passkeys enroll",
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn change_new_and_answer_reject_unregistered_affected_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "nosuch",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("has no spec at").and(predicate::str::contains(
+                "scaffold it first with `specsync new",
+            )),
+        );
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "affected_specs",
+            "nosuch",
+        ])
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("has no spec at").and(predicate::str::contains(
+                "scaffold it first with `specsync new",
+            )),
+        )
+        .stderr(predicate::str::contains("auth"));
+}
+
+#[test]
+fn change_approve_trims_and_validates_actor_identity() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-m", "seed"]);
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Passkeys enroll"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+    fs::create_dir_all(root.join(format!(".specsync/changes/{id}/deltas"))).unwrap();
+    fs::write(
+        root.join(format!(".specsync/changes/{id}/deltas/auth.md")),
+        "## ADDED\n\n### REQUIREMENT REQ-auth-900\n\nThe system SHALL hold.\n\nAcceptance Criteria\n- holds.\n",
+    )
+    .unwrap();
+
+    // An actor taken from Git is held to the same rule and says where it came from (#1026 review).
+    git(&["config", "user.name", "Ada\u{202E}x"]);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "approve", id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("taken from Git `user.name`"));
+    git(&["config", "user.name", "Test"]);
+    // A newline-bearing actor is rejected before any ledger write (#426).
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "\n  padded\nactor  ",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("single line"));
+    // A Unicode line separator or a bidirectional override reorders or breaks the printed line
+    // just as a newline does, so it is refused the same way (#1026 review).
+    for actor in [
+        "Ada\u{2028}Evil",
+        "Ada\u{202E}live",
+        "Ada\u{200B}",
+        "\u{FEFF}Ada",
+        // Every format and default-ignorable character, not only the bidi ones (#1026 review).
+        "Ada\u{00AD}X",
+        "Ada\u{E0041}\u{E0042}",
+        "Ada\u{3164}",
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "approve",
+                id,
+                "--actor",
+                actor,
+            ])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("single line"));
+    }
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ledger["approvals"], serde_json::json!([]));
+
+    // Padding is trimmed before it reaches the append-only ledger.
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "  Reviewer  ",
+        ])
+        .assert()
+        .success();
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ledger["approvals"][0]["actor"], "Reviewer");
+
+    // Every actor-accepting verb applies the same rule: a newline actor is
+    // rejected before any ledger write, here through send-back (#426 round 2).
+    let before = fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "send-back",
+            id,
+            "--actor",
+            "Ada\nInjected",
+            "--reason",
+            "probe",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("single line"));
+    let after = fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap();
+    assert_eq!(before, after, "the ledger is untouched by a rejected actor");
+}
+
+#[test]
 fn change_new_json_returns_state_and_interview() {
     let temp = TempDir::new().unwrap();
+    fs::create_dir_all(temp.path().join("specs/auth")).unwrap();
+    fs::write(
+        temp.path().join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
     let output = specsync()
         .args([
             "--root",
@@ -6789,6 +7193,167 @@ fn coverage_uses_a_changes_recorded_base_only_when_it_is_a_full_commit_id() {
         !text.contains("unable to inspect"),
         "a recorded base that is not a full commit id is not used as the diff base: {text}"
     );
+}
+
+/// #1026 review: the bootstrap exemption is exactly "no spec files and no registry entries". A
+/// project whose only declaration is a registry entry is checked, and a missing registered spec
+/// is named as registered.
+#[test]
+fn change_new_checks_affected_specs_when_only_the_registry_declares_modules() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/billing.rs"), "pub fn bill() {}\n").unwrap();
+    fs::write(
+        root.join("specsync-registry.toml"),
+        "name = \"proj\"\n\n[specs]\nbilling = \"specs/billing/billing.spec.md\"\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root_arg,
+            "change",
+            "new",
+            "Bill",
+            "--spec",
+            "billing",
+            "--path",
+            "src/billing.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "is registered at `specs/billing/billing.spec.md`, but no spec exists there",
+        ));
+}
+
+/// #1026 review: an answer that parses to no value is refused rather than silently clearing a
+/// list, and `none` clears the lists that may be empty.
+#[test]
+fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    run(&[
+        "change",
+        "new",
+        "Add passkeys",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    let id = "add-passkeys";
+    let state = || -> Value {
+        serde_json::from_str(
+            &fs::read_to_string(root.join(format!(".specsync/changes/{id}/state.json"))).unwrap(),
+        )
+        .unwrap()
+    };
+    for (question, answer) in [
+        ("acceptance_criteria", "[]"),
+        ("affected_paths", ","),
+        ("affected_paths", "[]"),
+        ("affected_specs", " , "),
+        ("dependencies", ","),
+    ] {
+        let before = state();
+        run(&["change", "answer", id, question, answer])
+            .failure()
+            .stderr(predicate::str::contains("names no"));
+        assert_eq!(
+            state(),
+            before,
+            "{question} {answer:?} must persist nothing"
+        );
+    }
+    run(&["change", "answer", id, "dependencies", "none"]).success();
+    assert_eq!(state()["dependencies"], serde_json::json!([]));
+
+    run(&["change", "answer", id, "affected_specs", "none"]).success();
+    assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // `None` is a module name, so it is looked up, and the refusal says how to clear instead.
+    run(&["change", "answer", id, "affected_specs", "None"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "to clear the list, answer exactly `none` or `'[]'`",
+        ));
+    // A yes/no question takes yes or no: anything else is refused naming the choices and stores
+    // nothing (it used to fail as a corrupt correction ledger), and a recognised spelling is
+    // stored as the choice it names (#1026 review).
+    let before = state();
+    run(&["change", "answer", id, "public_contract", "maybe"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "public_contract answer `maybe` is not one of its choices; answer yes or no",
+        ))
+        .stderr(predicate::str::contains("correction ledger").not());
+    assert_eq!(state(), before, "a refused choice persists nothing");
+    run(&["change", "answer", id, "architecture_risk", " N "]).success();
+    assert_eq!(state()["answers"]["architecture_risk"], "no");
+    // A case variant names the real module instead of a scaffold that would collide.
+    run(&["change", "answer", id, "affected_specs", "AUTH"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "module names are case-sensitive, so name it as `auth`",
+        ));
+    // An empty constraints answer keeps its own guidance.
+    run(&["change", "answer", id, "constraints", "  "])
+        .failure()
+        .stderr(predicate::str::contains("answer none if none apply"));
+    // A module literally named `none` makes `none` ambiguous, so it is refused, not a silent clear.
+    fs::create_dir_all(root.join("specs/none")).unwrap();
+    fs::write(
+        root.join("specs/none/none.spec.md"),
+        "---\nmodule: none\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# None\n",
+    )
+    .unwrap();
+    run(&["change", "answer", id, "affected_specs", "none"])
+        .failure()
+        .stderr(predicate::str::contains("is ambiguous"));
+    // `[]` names nothing, so it clears even while something is named `none`.
+    run(&["change", "answer", id, "affected_specs", "[]"]).success();
+    assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // A spec that declares the module off its canonical path is moved or registered, never
+    // duplicated by a scaffold at the canonical path.
+    fs::create_dir_all(root.join("specs/pay")).unwrap();
+    fs::write(
+        root.join("specs/pay/main.spec.md"),
+        "---\nmodule: pay\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Pay\n",
+    )
+    .unwrap();
+    let refused = run(&["change", "answer", id, "affected_specs", "pay"]).failure();
+    let error = String::from_utf8_lossy(&refused.get_output().stderr).to_string();
+    assert!(
+        error.contains("has a spec at `specs/pay/main.spec.md`, but not at its canonical path")
+            && !error.contains("specsync new"),
+        "{error}"
+    );
+    // A registered module whose spec file is missing is named as registered, not as moved.
+    fs::write(
+        root.join("specsync-registry.toml"),
+        "name = \"proj\"\n\n[specs]\nbilling = \"specs/billing/main.spec.md\"\n",
+    )
+    .unwrap();
+    run(&["change", "answer", id, "affected_specs", "billing"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "affected spec `billing` is registered at `specs/billing/main.spec.md`, but no spec exists there",
+        ));
 }
 
 /// #1043, #434 (REQ-change-079): every lifecycle rewrite keeps the members a newer SpecSync wrote

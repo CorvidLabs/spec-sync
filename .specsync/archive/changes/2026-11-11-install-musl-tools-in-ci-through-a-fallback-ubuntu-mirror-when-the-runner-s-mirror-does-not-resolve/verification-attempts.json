@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794413092,
+      "commit": "6b8db231d5d757051e7adad2816fd10f1b94c9b5",
+      "contract_digest": "ff4b0743ea050858f57eb00eb7981a8639ca25c2221bec02812fb0abdd38d161",
+      "execution_digest": "17fffbe0fb815ff3a4d28ac64f521c50a762df41dee7f5a9336a644e89a8e7b9",
+      "workspace_digest": "71e7e374adb9489868b5b1f79f9ced9d1a580d2d5a3c37a88580ae00a0712643",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794413108,
+      "commit": "9cddb8aed43acbf25cea5910f26b71ad0b93ccc5",
+      "contract_digest": "ff4b0743ea050858f57eb00eb7981a8639ca25c2221bec02812fb0abdd38d161",
+      "execution_digest": "17fffbe0fb815ff3a4d28ac64f521c50a762df41dee7f5a9336a644e89a8e7b9",
+      "workspace_digest": "71e7e374adb9489868b5b1f79f9ced9d1a580d2d5a3c37a88580ae00a0712643",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794413108,
+      "commit": "ff1f8d1c97e7a50f060efdd9d6535504b54803bd",
+      "contract_digest": "ff4b0743ea050858f57eb00eb7981a8639ca25c2221bec02812fb0abdd38d161",
+      "execution_digest": "17fffbe0fb815ff3a4d28ac64f521c50a762df41dee7f5a9336a644e89a8e7b9",
+      "workspace_digest": "71e7e374adb9489868b5b1f79f9ced9d1a580d2d5a3c37a88580ae00a0712643",
+      "acceptance_input_digest": "bcc83db9241af559a4093142df56347c8e24f6affc0c1f2d756a948c498d5c39",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/scripts/install-musl-tools.sh",
+            "kind": "file",
+            "mode": 33261,
+            "payload_digest": "5dd5a55fa38aef7b49e4c444ade19c7522813101a1c82cb4e222b16c1529dac5",
+            "entry_digest": "2c402fc14a234b83287cf410612dea92ce72de4ae687e81f66754c5800083f47",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".github/scripts/test-install-musl-tools.sh",
+            "kind": "file",
+            "mode": 33261,
+            "payload_digest": "355c648099c80cb82596453c7dc62f0694543aafad08db18e5ee7341e46523a8",
+            "entry_digest": "cb94de9b2633cde435b77b596c72421aa65b463db8931dfbc02837c3210b4bca",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".github/workflows/ci.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "74c7c3ba65ea02895845f6c902c369b5fa1b115ab5119f2502e7d99d15626639",
+            "entry_digest": "d5aa00fac164d5a7a9b00ea0e1d0cce6e8b48e4ac49afd2a746de0c993d076d7",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "fledge.toml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "57da3abd7bf52c03e5b0b10d0f5a7397cbb3f59de2d0fea92b708115243d88ac",
+            "entry_digest": "efbfdd73f9dead929622039aa79cae102a9ffcd964aab2efb63c05548af28ca7",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

@@ -5025,19 +5025,37 @@ pub fn ownership_preflight_blocker(
                 .flat_map(|path| undeclared_owning_modules(root, record, path, &index)),
         )
         .collect();
+    let answer_is_printed = !touched.is_empty()
+        && !index.truncated
+        && declare_owners_answer(root, record, &touched, &index).is_some();
     let untouched: Vec<&str> = untouched
         .into_iter()
         .filter(|path| {
             let owners = undeclared_owning_modules(root, record, path, &index);
-            owners.is_empty() || !owners.iter().all(|owner| declared_by_answer.contains(owner))
+            !answer_is_printed
+                || owners.is_empty()
+                || !owners.iter().all(|owner| declared_by_answer.contains(owner))
         })
         .collect();
     let hints: Vec<String> = paths
         .iter()
         .map(|path| {
             if untouched.contains(path) {
+                let owners = undeclared_owning_modules(root, record, path, &index);
+                let owned = if owners.is_empty() {
+                    "no module owns it".to_string()
+                } else {
+                    format!(
+                        "owned by {}",
+                        owners
+                            .iter()
+                            .map(|owner| format!("`{owner}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                };
                 format!(
-                    "{path}: not modified by this change since its base, so leave it out of `affected_paths`"
+                    "{path}: {owned}, but not modified by this change since its base, so leave it out of `affected_paths`"
                 )
             } else {
                 format!("{path}: {}", ownership_hint(root, record, path, &index))
@@ -5124,7 +5142,18 @@ fn declare_and_narrow_recovery(
     if index.truncated {
         return declare_owners_recovery(root, record, touched, index);
     }
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it, exactly as in the declare-only recovery.
+    let unclaimed: Vec<&str> = touched
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
     let declare = match declare_owners_answer(root, record, touched, index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "{answer}, and add {} to its owning spec's `files:` list",
+            unclaimed.join(", ")
+        ),
         Some(answer) => answer,
         None => format!(
             "add {} to its owning spec's `files:` list",

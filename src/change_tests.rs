@@ -43,3 +43,4 @@ include!("change_tests/doctor_collision.rs");
 include!("change_tests/recovery_retirement.rs");
 include!("change_tests/transaction_journal_error.rs");
 include!("change_tests/titled_requirement_header_delta.rs");
+include!("change_tests/bounded_failure_output.rs");

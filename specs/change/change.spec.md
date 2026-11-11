@@ -23,6 +23,7 @@ files:
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
+  - src/change_tests/bounded_failure_output.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
@@ -141,7 +142,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen and send-back history |
-| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
+| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync); a failed step carries a bounded `output` with the findings that failed it, omitted on success (#640) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
 | `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
 | `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
@@ -284,6 +285,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` with no remote default, or for an archive already in `HEAD` (reopen); once a remote default resolves, a failed or truncated listing or batched read, an archived `state.json` with no readable `id`, or a failed addition or ancestry lookup for a matching package, is `CannotTell`, never `None` (REQ-change-142). The archive root is passed as `:(top,literal)` (#962) |
 | `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print. `Archived`: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy. `CannotTell`: the reference, that the tool cannot tell, and how to find out: `git fetch --refetch origin` (which repairs a missing object even when the reference has not moved), `git remote set-head origin --auto` (which repairs a dangling remote default), then `specsync --root '<project-root>' change status -- '<id>'`, which retains the selected project and reruns this lookup and either clears the refusal or names the archive and the rebase; the root and id are separate shell-quoted words |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
+| `bounded_failure_output` | `findings: &[String]` | `Option<String>` | Crate-private bound of failed-command findings to the last 4 KiB for `CommandEvidence.output`; `None` when there is nothing to record (#640) |
 
 **Exported Methods**
 
@@ -364,6 +366,7 @@ Acceptance Criteria
 51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
 52. A corrupt or unreadable transaction journal is reported with its path and a quoted set-aside command; every printed `change reopen <id>` remediation includes `--actor <name> --reason <text>` (#433, REQ-change-151).
 53. The delta materializer matches a requirement block through the shared requirement-heading parser (`crate::validator::requirement_heading_id`), so every header form the parser accepts — a title suffix (`### REQ-<module>-<number> — Title`), punctuation after the id (`### REQ-x-001: Title`), a multi-segment module id, up to three spaces of indent — matches, and the id token boundary holds (`REQ-cli-006` never matches `REQ-cli-0060`). The tolerance applies only to `### ` requirement blocks — a `## ` section key still requires an exact heading, so `Change Log` never matches `## Change Log Archive`. A materialized block keeps its matched header line unchanged, title included; convergence comes from the tolerant matcher, not normalization (#1024, REQ-change-152, REQ-validator-047).
+58. Failed verification command evidence carries a bounded `output` of the findings that failed it (errors, and warnings only under `--strict`), so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-153).
 
 ## Behavioral Examples
 

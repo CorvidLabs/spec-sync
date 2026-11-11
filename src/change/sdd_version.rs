@@ -1417,6 +1417,40 @@ pub struct CommandEvidence {
     pub command: String,
     pub success: bool,
     pub exit_code: Option<i32>,
+    /// Bounded findings text, recorded on failure so a recorded failure is
+    /// classifiable without re-running the command (#640). Omitted on success
+    /// so passing records serialize exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+}
+
+/// The last 4 KiB of the findings that failed a check, behind a `…` line when cut, so
+/// the record names what failed without a verbose failure growing the ledger without
+/// bound. `None` when there is no finding text to record.
+pub(crate) fn bounded_failure_output(findings: &[String]) -> Option<String> {
+    let joined = findings.join("\n");
+    if joined.trim().is_empty() {
+        return None;
+    }
+    const CAP: usize = 4096;
+    if joined.len() <= CAP {
+        return Some(joined);
+    }
+    // Byte offsets, so the cap can land inside a multi-byte character —
+    // findings carry spec text with `↔`, `—`, `…`. Walk to a boundary first.
+    let mut start = joined.len() - CAP;
+    while !joined.is_char_boundary(start) {
+        start += 1;
+    }
+    // Start the tail at a line boundary when one is near and text follows it; snapping to a
+    // newline far into the tail, or to a trailing one, would throw most of it away.
+    const SNAP_WINDOW: usize = 512;
+    let boundary = joined[start..]
+        .find('\n')
+        .filter(|offset| *offset < SNAP_WINDOW && start + offset + 1 < joined.len())
+        .map(|offset| start + offset + 1)
+        .unwrap_or(start);
+    Some(format!("…\n{}", &joined[boundary..]))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -3572,6 +3606,7 @@ fn verify_change_locked(
         // Named for the command that reproduces the gate's verdict, not as a `--strict` run:
         // the gate suppresses unauthored stubs and replays other active deltas, which
         // `specsync check --strict` does not.
+        let refusal_texts: Vec<String> = gate_refusals.values().flatten().cloned().collect();
         commands.push(CommandEvidence {
             command: format!(
                 "specsync change check {} (effective contract: {})",
@@ -3580,8 +3615,9 @@ fn verify_change_locked(
             ),
             success: false,
             exit_code: Some(1),
+            output: bounded_failure_output(&refusal_texts),
         });
-        findings.splice(0..0, gate_refusals.into_values().flatten());
+        findings.splice(0..0, refusal_texts);
     }
     let passed = commands.iter().all(|command| command.success);
     let verification = VerificationRecord {
@@ -3745,9 +3781,9 @@ fn scoped_spec_files(
         selected.insert(spec, filter);
     }
     // An unresolved module keeps its declared name in the filter list. That is
-    // the only place the persisted record names it: findings are not written to
-    // `verification.json`, so without this the stored evidence for a
-    // missing-spec failure would not say which module was missing.
+    // the only place the persisted record of a passing check names it: a check's
+    // findings reach `verification.json` only as the bounded `output` of a failed
+    // command, so without this a missing-spec scope would not say which module it named.
     //
     // What that string does NOT promise is a faithful rerun in every case.
     // `filter_specs` demotes an unmatched filter to a stderr warning as soon as
@@ -3812,6 +3848,11 @@ fn evaluate_spec_code_sync(
     // that happened to resolve.
     errors += scope.unresolved.len();
     findings.extend(scope.unresolved.iter().cloned());
+    // What failed the check: errors always, warnings only when --strict makes them failures.
+    // The recorded `output` is built from these, so a long run of warnings cannot crowd the
+    // error that failed a non-strict check out of the bounded tail (#1027 review).
+    let mut failing: Vec<String> = scope.unresolved.clone();
+    let mut warning_lines: Vec<String> = Vec::new();
     for spec in &scope.files {
         let result =
             crate::validator::validate_spec(spec, root, &schema_tables, &schema_columns, &config);
@@ -3819,21 +3860,33 @@ fn evaluate_spec_code_sync(
             .map(|content| crate::ignore::IgnoreRules::parse_inline(&content))
             .unwrap_or_default();
         errors += result.errors.len();
+        failing.extend(result.errors.iter().cloned());
         findings.extend(result.errors);
         for warning in result.warnings {
             if ignore_rules.is_suppressed(&warning, &result.spec_path, &inline_ignores) {
                 continue;
             }
             warnings += 1;
-            findings.push(format!("warning: {warning}"));
+            let line = format!("warning: {warning}");
+            warning_lines.push(line.clone());
+            findings.push(line);
         }
     }
     let failed = errors > 0 || (strict && warnings > 0);
+    if strict {
+        failing.extend(warning_lines);
+    }
+    let output = if failed {
+        bounded_failure_output(&failing)
+    } else {
+        None
+    };
     Ok((
         CommandEvidence {
             command: scoped_check_command(&scope.filters, strict),
             success: !failed,
             exit_code: Some(i32::from(failed)),
+            output,
         },
         findings,
     ))

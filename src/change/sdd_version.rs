@@ -894,7 +894,7 @@ impl Default for SddPolicy {
                 ".specsync/registry.toml".into(),
                 ".specsync/version".into(),
             ],
-            ignored_paths: vec![".specsync/".into(), "specs/".into()],
+            ignored_paths: vec![".specsync/".into()],
             verification_commands: Vec::new(),
             custom_artifacts: BTreeMap::new(),
             principles_file: None,
@@ -1843,9 +1843,46 @@ fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
     }
     let content = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?;
-    serde_json::from_str(&content)
-        .map(Some)
-        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))
+    let policy: SddPolicy = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
+    disclose_inert_ignored_paths(root, &policy);
+    Ok(Some(policy))
+}
+
+/// `ignored_paths` entries whose coverage is entirely always-meaningful: the configured specs
+/// tree and the protected SDD policy files can never be ignored, so an entry covering only
+/// those is inert (#676). An entry that also covers other files (`.specsync/` covers the change
+/// workspaces) does real work and stays silent.
+fn inert_ignored_paths(policy: &SddPolicy, specs_dir: &str) -> Vec<String> {
+    let specs_root = format!("{}/", specs_dir.trim_matches('/'));
+    policy
+        .ignored_paths
+        .iter()
+        .filter(|entry| {
+            let entry = entry.as_str();
+            (entry.starts_with(specs_root.as_str()) || entry == specs_root.trim_end_matches('/'))
+                || PROTECTED_SDD_PATHS.contains(&entry)
+        })
+        .cloned()
+        .collect()
+}
+
+/// Disclose inert `ignored_paths` entries where the conflict exists — at policy load, on
+/// stderr, once per process — rather than three verbs later at audit (#676). stdout stays
+/// clean for `--json` payloads.
+fn disclose_inert_ignored_paths(root: &Path, policy: &SddPolicy) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static DISCLOSED: AtomicBool = AtomicBool::new(false);
+    if DISCLOSED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    for entry in inert_ignored_paths(policy, &specs_dir) {
+        eprintln!(
+            "note: ignored_paths entry `{entry}` is inert — SDD policy files and the \
+             configured specs tree are always meaningful; remove the entry from {POLICY_PATH}"
+        );
+    }
 }
 
 pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> Result<(), String> {

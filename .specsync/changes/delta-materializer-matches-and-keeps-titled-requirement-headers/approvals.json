@@ -42,5 +42,39 @@
       "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+      "actor": "kimi-code-t37b",
+      "reason": "READY policy (t370, 2026-11-11): no agent approval stands on new requirement text; the definition approval is Leif's gate",
+      "timestamp": 1794385831,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-152",
+          "content": "When a delta item targets a requirement whose canonical header carries a title\nsuffix (`### REQ-<module>-<number> — Title`, `### REQ-x-001: Title`), the\nmaterializer SHALL match the block by the shared requirement-heading parser —\naccepting every form the parser accepts, including multi-segment module ids\nand up to three spaces of indent — and the block-end scan SHALL apply the same\nATX indent rule, so a matched indented block ends at the next heading. The\nmaterialized block SHALL keep the matched header line unchanged. Section\ndeltas (`## ` targets) SHALL keep exact heading matching.\n\n#### Acceptance Criteria\n\n- A MODIFIED delta applies to a titled header, including a hyphenated module\n  id (`REQ-cmd-change-012 — Title`) and a colon title (`REQ-x-001: Title`).\n- A MODIFIED or REMOVED on an indented titled header leaves the following\n  indented requirement block intact.\n- The matched header line is preserved byte-for-byte in the materialized\n  tree, and re-application converges.\n- A `## ` section delta whose key is a strict prefix of an existing section\n  heading does not match that section."
+        },
+        {
+          "module": "validator",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-validator-047",
+          "content": "Requirement-heading identity SHALL be decided by one shared parser: the\nvalidator's `requirement_heading_id`, reused by the delta materializer, so a\nheader form the validator accepts is a form the materializer matches.\n\n#### Acceptance Criteria\n\n- The materializer's block matcher returns the same answer as\n  `requirement_heading_id(line) == Some(key)` for every `### ` target."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "validator"
+      ]
+    }
+  ]
 }

@@ -19,7 +19,7 @@ the already-released 6.2.0, which no code here can change.
 1. Span parser, merge and splice in `src/change/unknown_members.rs`.
 2. Route every in-place rewrite through it.
 3. Unit tests with an older and a newer record type; an end-to-end CLI test.
-4. REQ-change-079 delta, invariant 52, CHANGELOG.
+4. REQ-change-079 delta, invariant 57, CHANGELOG.
 
 ## Risks
 

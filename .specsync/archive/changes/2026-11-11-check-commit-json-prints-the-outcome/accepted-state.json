@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "check-commit-json-prints-the-outcome",
+  "slug": "check-commit-json-prints-the-outcome",
+  "title": "Check commit json prints the outcome",
+  "description": "check commit json prints the outcome",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "d93cad4615c3b1de5dfd0b2fa19425f06a2bbad6",
+  "created_at": 1794383855,
+  "updated_at": 1794415763,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

@@ -1968,6 +1968,7 @@ fn successor_evidence_fields_are_byte_compatible_when_absent() {
         passed: true,
         commands: Vec::new(),
         requirement_ids: Vec::new(),
+        refusal: None,
     };
     let mut legacy_verification = serde_json::to_value(&verification).unwrap();
     let object = legacy_verification.as_object_mut().unwrap();

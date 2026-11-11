@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "journal-error-names-its-file-and-recovery",
+  "slug": "journal-error-names-its-file-and-recovery",
+  "title": "Journal error names its file and recovery",
+  "description": "journal error names its file and recovery",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794362866,
+  "updated_at": 1794374379,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests.rs",
+    "src/change_tests/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a corrupt change-transaction.json error names the path and how to set it aside; every printed 'change reopen' remediation carries --actor and --reason"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

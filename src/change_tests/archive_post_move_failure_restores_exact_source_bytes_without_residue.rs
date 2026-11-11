@@ -774,6 +774,7 @@ fn legacy_archived_unowned_production_source_reconstructs_with_exact_delivery_ow
         passed: true,
         commands: Vec::new(),
         requirement_ids: Vec::new(),
+        refusal: None,
     };
     write_json(
         &change_dir(root, &record.id).join("verification.json"),
@@ -2709,6 +2710,7 @@ fn failed_archive_move_leaves_an_accepted_change_retryable() {
         passed: true,
         commands: Vec::new(),
         requirement_ids: Vec::new(),
+        refusal: None,
     };
     write_json(
         &change_dir(root, &record.id).join("verification.json"),

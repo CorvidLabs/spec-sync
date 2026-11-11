@@ -2849,10 +2849,27 @@ fn markdown_block_matches(existing: &str, heading: &str, content: &str) -> bool 
             .to_string()
     }
     let existing = normalize(existing);
-    let Some(body) = existing.strip_prefix(&normalize(heading)) else {
+    let (header_line, body) = existing.split_once('\n').unwrap_or((&existing, ""));
+    if !requirement_heading_line_matches(header_line, &normalize(heading)) {
+        return false;
+    }
+    normalize(body) == normalize(content)
+}
+
+/// Whether `line` names the `heading` block: exactly the heading, or — for `### ` requirement
+/// targets only — any header form the shared requirement parser accepts for the same id
+/// (`### REQ-cmd-change-012 — Title`, `### REQ-x-001: Title`, up to three spaces of indent;
+/// #1024, t384's review). The parser owns the id rule (`REQ-<module>-<number>`, multi-segment
+/// module allowed), so the materializer never drifts from what every reader accepts. A `## `
+/// section key matches only exactly, so `Change Log` never matches `## Change Log Archive`.
+fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
+    if line.trim_end() == heading {
+        return true;
+    }
+    let Some(key) = heading.strip_prefix("### ") else {
         return false;
     };
-    normalize(body) == normalize(content)
+    crate::validator::requirement_heading_id(line) == Some(key)
 }
 
 /// Byte range of the `heading` block in `source` — the heading line through to the next heading at
@@ -2878,7 +2895,7 @@ fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Ran
     }
     let start = lines
         .iter()
-        .position(|(_, line)| line.trim_end() == heading)?;
+        .position(|(_, line)| requirement_heading_line_matches(line, heading))?;
     let end = lines
         .iter()
         .skip(start + 1)
@@ -2937,7 +2954,16 @@ fn apply_markdown_block(
             .trim_end_matches(['\r', '\n'])
             .replace("\r\n", "\n")
             .replace('\n', line_ending);
-        format!("{heading}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
+        // A matched block keeps its own header line byte-for-byte (only the line ending's `\r`
+        // comes off): a title suffix the parser accepted is the author's annotation, not drift
+        // to normalize away (#1024, t384's review).
+        let header = block
+            .as_ref()
+            .and_then(|range| source[range.clone()].lines().next())
+            .map(|line| line.strip_suffix('\r').unwrap_or(line))
+            .filter(|line| !line.is_empty())
+            .unwrap_or(&heading);
+        format!("{header}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
     };
     if let Some(range) = block {
         let mut output =
@@ -2960,6 +2986,14 @@ fn apply_markdown_block(
 }
 
 fn markdown_heading_level(line: &str) -> Option<usize> {
+    // ATX headings may be indented by up to three spaces — four is indented code. The block-end
+    // scan must see the same headings the matcher sees (t384's round-2 review of #1039): an
+    // indented `### ` header ends the previous block exactly as an unindented one does.
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+    let line = &line[indent..];
     let level = line
         .chars()
         .take_while(|character| *character == '#')

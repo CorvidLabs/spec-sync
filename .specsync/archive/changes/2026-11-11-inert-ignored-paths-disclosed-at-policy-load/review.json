@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "8cc1b3094d126222132c28041d8ab51dc76aca42",
+  "contract_digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+  "execution_digest": "28eef4eed718a8af5701d06d6fc207e6ea4a3878a1f8218b75a3ab555ac1dbac",
+  "workspace_digest": "cb784e3d2bd9d5d6b6cd3210877ffdaf42f4079a4e161ae1a41d5cdb1b56a5ab",
+  "timestamp": 1794416347
+}

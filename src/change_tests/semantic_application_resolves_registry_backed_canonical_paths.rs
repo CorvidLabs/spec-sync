@@ -709,6 +709,46 @@ fn missing_requirement_evidence_is_distinct_from_missing_semantic_evidence() {
     assert!(!error.contains("verification command"), "{error}");
 }
 
+// #847 (REQ-change-154): the missing-requirement-evidence refusal also records itself — one
+// `passed: false` attempt carrying the reason, and no verification.json posing as a pass.
+#[test]
+fn missing_requirement_evidence_refusal_records_the_attempt() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_section_only_record(
+        root,
+        "## ADDED\n### REQUIREMENT REQ-auth-009\n\nSessions SHALL expire after their bound.\n\n\
+         Acceptance Criteria\n- A session older than its bound is refused.\n",
+    );
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+    assert!(
+        error.contains("no requirement evidence for REQ-auth-009"),
+        "{error}"
+    );
+
+    let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+    let ledger: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&attempts_path).expect("the refusal left an attempts ledger"),
+    )
+    .unwrap();
+    let attempts = ledger["attempts"].as_array().unwrap();
+    assert_eq!(attempts.len(), 1, "{ledger}");
+    assert_eq!(attempts[0]["passed"], false, "{ledger}");
+    assert!(
+        attempts[0]["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("no requirement evidence for REQ-auth-009")),
+        "the attempt carries the refusal reason: {ledger}"
+    );
+    assert!(
+        !change_dir(root, &record.id).join("verification.json").exists(),
+        "a refusal never writes verification.json"
+    );
+}
+
 const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
 
 #[test]
@@ -2322,7 +2362,7 @@ fn torn_canonical_transaction_journal_fails_closed() {
     write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
 
     let error = acquire_project_lock(root).err().unwrap();
-    assert!(error.contains("transaction journal integrity"));
+    assert!(error.contains("invalid transaction journal at"));
     assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
     assert!(root.join(TRANSACTION_PATH).exists());
 }

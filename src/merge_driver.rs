@@ -140,9 +140,30 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
     let mut content = pre.content;
 
     let base_ids: BTreeSet<&str> = base_blocks.iter().map(|block| block.id.as_str()).collect();
-    // #874: the ancestor's order is the default, not the answer. A side that reordered the
-    // surviving blocks while the other kept the ancestor's order wins outright; two different
-    // reorders conflict rather than one silently prevailing.
+    // #874: the ancestor's order is the default, not the answer. Compare each side's order over
+    // the ids surviving on BOTH sides (t384's review of #1058: comparing full surviving sets let
+    // a deletion mask a reorder). A side that reordered those while the other kept the ancestor's
+    // order wins outright; two different reorders conflict rather than one silently prevailing.
+    let ours_ids: BTreeSet<&str> = ours_blocks.iter().map(|block| block.id.as_str()).collect();
+    let theirs_ids: BTreeSet<&str> = theirs_blocks
+        .iter()
+        .map(|block| block.id.as_str())
+        .collect();
+    let common: BTreeSet<&str> = base_ids
+        .iter()
+        .copied()
+        .filter(|id| ours_ids.contains(id) && theirs_ids.contains(id))
+        .collect();
+    let common_order = |blocks: &[ReqBlock]| -> Vec<String> {
+        blocks
+            .iter()
+            .filter(|block| common.contains(block.id.as_str()))
+            .map(|block| block.id.clone())
+            .collect()
+    };
+    let base_common = common_order(&base_blocks);
+    let ours_common = common_order(&ours_blocks);
+    let theirs_common = common_order(&theirs_blocks);
     let surviving_order = |blocks: &[ReqBlock]| -> Vec<String> {
         blocks
             .iter()
@@ -151,30 +172,25 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
             .collect()
     };
     let base_order: Vec<String> = base_blocks.iter().map(|block| block.id.clone()).collect();
-    let ours_order = surviving_order(&ours_blocks);
-    let theirs_order = surviving_order(&theirs_blocks);
-    // Reorder detection applies only when both sides kept the same SET of surviving ids:
-    // a different set is a deletion, which the per-block rules below already judge.
-    let same_set = |a: &[String], b: &[String]| {
-        let mut a = a.to_vec();
-        let mut b = b.to_vec();
-        a.sort();
-        b.sort();
-        a == b
+    let mut order: Vec<String> = if ours_common == theirs_common {
+        surviving_order(&ours_blocks)
+    } else if ours_common == base_common {
+        surviving_order(&theirs_blocks)
+    } else if theirs_common == base_common {
+        surviving_order(&ours_blocks)
+    } else {
+        clean = false;
+        base_order.clone()
     };
-    let mut order: Vec<String> =
-        if !same_set(&ours_order, &base_order) || !same_set(&theirs_order, &base_order) {
-            base_order.clone()
-        } else if ours_order == theirs_order {
-            ours_order.clone()
-        } else if ours_order == base_order {
-            theirs_order.clone()
-        } else if theirs_order == base_order {
-            ours_order.clone()
-        } else {
-            clean = false;
-            base_order.clone()
-        };
+    // The winning side's sequence may omit ids the loser kept (a winner-side deletion is
+    // judged per-block below, never by absence from the sequence).
+    for block in &base_blocks {
+        let kept_by_either =
+            ours_ids.contains(block.id.as_str()) || theirs_ids.contains(block.id.as_str());
+        if kept_by_either && !order.iter().any(|id| id == &block.id) {
+            order.push(block.id.clone());
+        }
+    }
     let mut added = Vec::new();
     for block in ours_blocks.iter().chain(theirs_blocks.iter()) {
         if !base_ids.contains(block.id.as_str()) && !added.iter().any(|id: &String| id == &block.id)
@@ -1551,6 +1567,44 @@ mod tests {
             "the addition lands after the reordered blocks:\n{}",
             forward.content
         );
+        assert_eq!(forward.content, backward.content);
+    }
+
+    // t384 on #1058: a reorder on one side plus a deletion on the other must keep the reorder.
+    #[test]
+    fn a_reorder_plus_a_deletion_keeps_the_reorder() {
+        let one =
+            "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
+        let two = "### REQ-cli-002\n\nThe system SHALL run.\n\nAcceptance Criteria\n- It runs.\n";
+        let three =
+            "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
+        let doc = |blocks: &[&str]| {
+            let mut text = "---\nspec: cli.spec.md\n---\n\n# Requirements\n\n".to_string();
+            for block in blocks {
+                text.push_str(block);
+                text.push('\n');
+            }
+            text
+        };
+        let base = doc(&[one, two, three]);
+        let ours = doc(&[two, one, three]); // reordered
+        let theirs = doc(&[one, two]); // deleted three
+        let forward = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        let backward = merge_contract(&base, &theirs, &ours, "specs/cli/requirements.md");
+        for merged in [&forward, &backward] {
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                !merged.content.contains("REQ-cli-003"),
+                "the deletion stands: {}",
+                merged.content
+            );
+            assert!(
+                merged.content.find("REQ-cli-002").unwrap()
+                    < merged.content.find("REQ-cli-001").unwrap(),
+                "the reorder is kept: {}",
+                merged.content
+            );
+        }
         assert_eq!(forward.content, backward.content);
     }
 

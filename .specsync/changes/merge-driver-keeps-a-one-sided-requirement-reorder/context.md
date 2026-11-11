@@ -5,10 +5,4 @@ artifact: context
 
 # Context
 
-Issue #874 (follow-up from #865's review): `merge_requirements` seeds the
-output order from the ancestor's ID sequence, so when one branch reorders
-existing requirement blocks and the other only adds or edits one, the merge
-reports clean and silently drops the reorder. Fix: compare each side's
-surviving-ID sequence against the ancestor's; keep a one-sided reorder; when
-both sides reordered differently, mark the merge conflicted rather than
-picking one silently.
+#874 + t384 on #1058: merge_requirements seeded output order from the ancestor, silently dropping a one-sided reorder; and a reorder beside a deletion was masked by comparing full surviving sets. Order is compared over ids surviving on both sides; one-sided reorder wins, divergent reorders conflict, deletions keep their per-block rules. Cites REQ-merge-006 (clean only when the result keeps everything both sides wrote); no new requirement text (t370).

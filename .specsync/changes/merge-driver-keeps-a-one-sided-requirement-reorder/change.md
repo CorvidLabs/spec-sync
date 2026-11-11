@@ -2,7 +2,7 @@
 id: merge-driver-keeps-a-one-sided-requirement-reorder
 state: implementing
 type: bug_fix
-base_commit: 46f55652649a72ddf5e1715938b504b96686566b
+base_commit: 949ced6a4935688757ed82ea74819fdc6494691b
 ---
 
 # Merge driver keeps a one-sided requirement reorder
@@ -17,8 +17,8 @@ merge driver keeps a one-sided requirement reorder
 
 ## Acceptance Criteria
 
-- when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict
+- a one-sided reorder of existing requirement blocks survives the merge in either direction; divergent reorders conflict
 
 ## No-spec Rationale
 
-Not applicable
+REQ-merge-006 already requires a clean merge to keep everything both sides wrote; the dropped reorder violated it

@@ -5,6 +5,6 @@ artifact: tasks
 
 # Tasks
 
-- [x] Red-first tests: one-sided reorder kept, divergent reorders conflict
-- [x] merge_requirements compares per-side ID sequences
-- [x] Full suite, clippy, pre-push green
+- [x] Common-ids order comparison
+- [x] Red-first tests incl. reorder+deletion both directions
+- [x] Full suite + clippy green

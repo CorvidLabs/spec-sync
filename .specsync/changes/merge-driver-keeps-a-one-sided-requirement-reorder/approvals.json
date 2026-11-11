@@ -2,81 +2,9 @@
   "approvals": [
     {
       "gate": "definition",
-      "actor": "0xLeif",
-      "timestamp": 1794367785,
-      "digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
-      "note": null,
-      "approved_scope": {
-        "schema_version": 1,
-        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
-        "title": "Merge driver keeps a one-sided requirement reorder",
-        "description": "merge driver keeps a one-sided requirement reorder",
-        "kind": "bug_fix",
-        "affected_specs": [
-          "merge"
-        ],
-        "affected_paths": [
-          "src/merge_driver.rs"
-        ],
-        "no_spec_change": false,
-        "no_spec_change_rationale": null,
-        "acceptance_criteria": [
-          "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
-        ],
-        "dependencies": [],
-        "supersedes": [],
-        "answers": {
-          "architecture_risk": "no",
-          "constraints": "none",
-          "public_contract": "no"
-        }
-      },
-      "approved_delta_digests": {
-        "merge": "70cf6e730e66a860a0559108581e22945273f8b4e327276b4a46077fbbfec706"
-      },
-      "approved_delta_bases": {}
-    },
-    {
-      "gate": "definition",
-      "actor": "0xLeif",
-      "timestamp": 1794367857,
-      "digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
-      "note": null,
-      "approved_scope": {
-        "schema_version": 1,
-        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
-        "title": "Merge driver keeps a one-sided requirement reorder",
-        "description": "merge driver keeps a one-sided requirement reorder",
-        "kind": "bug_fix",
-        "affected_specs": [
-          "merge"
-        ],
-        "affected_paths": [
-          "src/merge_driver.rs"
-        ],
-        "no_spec_change": false,
-        "no_spec_change_rationale": null,
-        "acceptance_criteria": [
-          "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
-        ],
-        "dependencies": [],
-        "supersedes": [],
-        "answers": {
-          "architecture_risk": "no",
-          "constraints": "none",
-          "public_contract": "no"
-        }
-      },
-      "approved_delta_digests": {
-        "merge": "768ab0530729831df1e121c452a8a567afc848348141b67407394704f81a5da7"
-      },
-      "approved_delta_bases": {}
-    },
-    {
-      "gate": "definition",
       "actor": "kimi-code-t37b",
-      "timestamp": 1794379943,
-      "digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
+      "timestamp": 1794397466,
+      "digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
       "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
       "approved_scope": {
         "schema_version": 1,
@@ -90,10 +18,10 @@
         "affected_paths": [
           "src/merge_driver.rs"
         ],
-        "no_spec_change": false,
-        "no_spec_change_rationale": null,
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-merge-006 already requires a clean merge to keep everything both sides wrote; the dropped reorder violated it",
         "acceptance_criteria": [
-          "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
+          "a one-sided reorder of existing requirement blocks survives the merge in either direction; divergent reorders conflict"
         ],
         "dependencies": [],
         "supersedes": [],
@@ -103,9 +31,75 @@
           "public_contract": "no"
         }
       },
-      "approved_delta_digests": {
-        "merge": "768ab0530729831df1e121c452a8a567afc848348141b67407394704f81a5da7"
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794397496,
+      "digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+        "title": "Merge driver keeps a one-sided requirement reorder",
+        "description": "merge driver keeps a one-sided requirement reorder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "merge"
+        ],
+        "affected_paths": [
+          "src/merge_driver.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-merge-006 already requires a clean merge to keep everything both sides wrote; the dropped reorder violated it",
+        "acceptance_criteria": [
+          "a one-sided reorder of existing requirement blocks survives the merge in either direction; divergent reorders conflict"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
       },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794397575,
+      "digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+        "title": "Merge driver keeps a one-sided requirement reorder",
+        "description": "merge driver keeps a one-sided requirement reorder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "merge"
+        ],
+        "affected_paths": [
+          "src/merge_driver.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-merge-006 already requires a clean merge to keep everything both sides wrote; the dropped reorder violated it",
+        "acceptance_criteria": [
+          "a one-sided reorder of existing requirement blocks survives the merge in either direction; divergent reorders conflict"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
       "approved_delta_bases": {}
     }
   ],

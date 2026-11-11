@@ -1,9 +1,9 @@
 {
-  "timestamp": 1794395702,
-  "commit": "06f2a472d1cb407b50e59302203edc0f502d9694",
-  "contract_digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
-  "execution_digest": "b923eeee5459aaca086ff3c2d2f07b4b444efc86160c4a380c387ed21b38e741",
-  "workspace_digest": "7475b73a300762c4387d805b70e8ad82d79288f6d2618c9f475bbb074587b903",
+  "timestamp": 1794397578,
+  "commit": "949ced6a4935688757ed82ea74819fdc6494691b",
+  "contract_digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+  "execution_digest": "310dca4e220798797b1e43ed2fc5dae7112e31b09976b4503b92b44961cfbf5e",
+  "workspace_digest": "6ecef560a8134167b9293c292c9702a757f4510bdc9682110a5661a4ad9917bb",
   "passed": true,
   "commands": [
     {
@@ -12,7 +12,5 @@
       "exit_code": 0
     }
   ],
-  "requirement_ids": [
-    "REQ-merge-007"
-  ]
+  "requirement_ids": []
 }

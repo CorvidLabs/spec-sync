@@ -1,6 +1,6 @@
 ---
 id: the-recorded-base-order-test-uses-full-commit-ids
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f3605f2c9a97af46d8f0cdf0aa46825b70acf1c2
 ---

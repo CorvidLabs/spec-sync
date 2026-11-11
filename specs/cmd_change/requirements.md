@@ -500,6 +500,13 @@ Acceptance Criteria
 - Text output escapes control characters in recorded names and relayed fields, so recorded words cannot move the cursor or recolour the terminal.
 - A change with no approval and no review prints neither line, and its JSON omits `recorded_claims`.
 
+### REQ-cmd-change-034
+
+Text `change status` and the `change ship-status` lifecycle next action SHALL name a sequence-ledger freeze before the upstream-archive step, matching JSON status.
+
+Acceptance Criteria
+- With an upstream archive and a frozen ledger, the text `Next:` line names the freeze.
+
 ### REQ-cmd-change-035
 
 `specsync doctor` SHALL report every problem it finds in the repository's change records, each with its fix classed as safe, decision or report-only; with `--fix` it SHALL apply only the safe fixes, and it SHALL apply a late close (REQ-change-143) only to the changes named with `--close-late`, and only with a human actor and a reason.
@@ -553,4 +560,14 @@ Acceptance Criteria
 - Plain and committed text checks and text audit use the same note. JSON check and audit carry the same ordered list. `change check --commit --json` gains no success document, preserving #839.
 - The disclosure never changes exit status and never spawns a configured command.
 - SpecSync's own `.specsync/sdd.json` empties only `verification_commands`; all 13 component modules and all 3 strict commands remain configured and are disclosed rather than removed to silence the note.
+
+### REQ-cmd-change-recovery-retirement-001
+
+The change command SHALL expose audited retirement as explicit nonacceptance and report its authority claim, replacement and remaining historical limitations without describing it as accepted.
+
+Acceptance Criteria
+- The operation requires actor, reason, replacement and authority source; repeated identical disposition is safe; retired-only dependencies and incoming semantic claims remain refused; custody is checked before relying on retirement.
+
+
+- Report source-kind and per-input classification, preserve historical receipt formats, and refuse a corrupt/missing source rather than infer a weaker source.
 

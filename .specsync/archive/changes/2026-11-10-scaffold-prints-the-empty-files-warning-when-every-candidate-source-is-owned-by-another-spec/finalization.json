@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "scaffold-prints-the-empty-files-warning-when-every-candidate-source-is-owned-by-another-spec",
+  "implementation_commit": "bc0302a9f95df609b6807a2268ec3b7e13194133",
+  "implementation_tree": "b2779f05f140b147c5c9a7fba9173fdba3613f28",
+  "contract_digest": "3b022a31c3d2045158a9afa7d521422e749a4d198e5e510d85bfe09eb8151a3b",
+  "workspace_digest": "5e1834e2ec9556479100d8d44bf77e7cba72a9e8a705c15d3f0cd1515908b897",
+  "closing_digest": "d8cc44700598ed45ddf5af8aa6ef01832c0bc15742de44093603ac5010cb8150",
+  "review_digest": "e6ecb69956774a8b2a117aa147348ea18acc13b8c6ade316d81ae21f56081744",
+  "finalization_digest": "49052c26455fff7902c2b253eab0f237d2ae9e55c638a80ab3ac6fc03548a24f",
+  "timestamp": 1794344441
+}

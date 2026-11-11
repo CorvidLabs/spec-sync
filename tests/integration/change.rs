@@ -16,15 +16,14 @@ fn path_for_bash(path: &Path) -> String {
         .or_else(|| displayed.strip_prefix("//?/"))
         .unwrap_or(&displayed);
     let forward = stripped.replace('\\', "/");
-    if let Some((drive, rest)) = forward.split_once(':') {
-        if drive.len() == 1
-            && drive
-                .chars()
-                .next()
-                .is_some_and(|character| character.is_ascii_alphabetic())
-        {
-            return format!("/{}{}", drive.to_ascii_lowercase(), rest);
-        }
+    if let Some((drive, rest)) = forward.split_once(':')
+        && drive.len() == 1
+        && drive
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_alphabetic())
+    {
+        return format!("/{}{}", drive.to_ascii_lowercase(), rest);
     }
     forward
 }
@@ -2772,7 +2771,7 @@ fn change_check_notes_the_configured_commands_it_did_not_run() {
     let reporter = reporter.display().to_string();
     let id = change_ready_to_verify_with(
         root,
-        &[reporter.clone()],
+        std::slice::from_ref(&reporter),
         serde_json::json!({
             "component_verification_commands": { "lib": ["cargo test lib::"] },
             "strict_verification_commands": ["cargo test lib::", "cargo test"],
@@ -3820,6 +3819,46 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
     ]);
     assert_eq!(fs::read(&verification).unwrap(), original);
     assert_authenticated_and_safe("after the archiving-commit restore is committed");
+
+    // Damage the commit that archived the package (#966, CHANGE-7.a.2): fold the tamper into
+    // that commit, so the commit that added its state.json holds the same corrupt bytes as HEAD.
+    // Neither restore would change anything, so the step names the status JSON field that says
+    // what failed. That field must exist at exactly the path the step prints.
+    assert_eq!(archiving_commit, git(&["rev-parse", "HEAD~2"]));
+    tamper();
+    git(&["reset", "-q", "--soft", &format!("{archiving_commit}~1")]);
+    git(&[
+        "commit",
+        "-q",
+        "-am",
+        "archive with the damage already in it",
+    ]);
+    let json = status_json();
+    assert_eq!(
+        json["summary"]["terminal_evidence"]["validity"], "corrupt-history",
+        "{json}"
+    );
+    let step = json["summary"]["handoff"]["before_clearing"][0]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        step.starts_with(&format!(
+            "run `specsync change status '{id}' --json`, restore what its `"
+        )),
+        "the step reads the status JSON when no package restore would help: {step}"
+    );
+    assert_eq!(json["summary"]["next_action"], step);
+    no_digest(&step);
+    let field = step
+        .split('`')
+        .nth(3)
+        .expect("the step names the JSON field in backticks");
+    let named = field.split('.').fold(&json, |value, key| &value[key]);
+    assert!(
+        named.as_str().is_some_and(|reason| !reason.is_empty()),
+        "`{field}` must name a non-empty string in `change status --json`, got {named}: {json}"
+    );
 }
 
 // Verifies CHANGE-12.e and REQ-change-123 through the built binary (#960, from the Codex review of
@@ -4137,13 +4176,30 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     git(&["add", "."]);
     git(&["commit", "-m", "tune the rate"]);
     run(&["change", "check", &id, "--commit"]);
-    run(&[
+    // A passing review refuses a change finalize would refuse on ownership and names the
+    // recovery, so the Archive check never sees a passing review to call ready (#1002).
+    let review = invoke(&[
         "change",
         "review",
         &id,
         "--reviewer",
         "Independent reviewer",
     ]);
+    let review_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
+    assert!(
+        !review.status.success() && review_text.contains("scoped review cannot pass"),
+        "the review refuses to pass:\n{review_text}"
+    );
+    assert!(
+        review_text.contains(&format!(
+            "specsync change answer '{id}' affected_specs 'billing'"
+        )),
+        "the review refusal names the recovery:\n{review_text}"
+    );
 
     // Readiness tells the truth before finalize does.
     let ship_status = run(&["change", "ship-status", &id]);
@@ -5446,14 +5502,16 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     /// answer 15, approve 32, check 110, status 53, review 176, finalize 287. Each ceiling is that
     /// count plus about 10%. Evidence capture keeps its working-tree reads and repository-identity
     /// reads live on purpose: it reads before and after each capture to catch a concurrent edit,
-    /// and that race check is never answered from memory.
+    /// and that race check is never answered from memory. A passing `change review` also runs the
+    /// ownership preflight finalize and ship-status run (#1002), measured at 203, so its ceiling
+    /// is 203 plus about 10%.
     const CEILINGS: &[(&str, usize)] = &[
         ("new", 32),
         ("answer", 17),
         ("approve", 35),
         ("check", 121),
         ("status", 58),
-        ("review", 194),
+        ("review", 223),
         ("finalize", 316),
     ];
 
@@ -6167,4 +6225,57 @@ fn a_custom_replace_ref_base_does_not_change_what_status_reads() {
         plain,
         "a fresh read under GIT_NO_REPLACE_OBJECTS"
     );
+}
+
+// G-deadline (#925, REQ-change-149): a timeout too large to add to the clock is no deadline,
+// never a panic, whether it comes from `--timeout` or `SPECSYNC_TIMEOUT`.
+#[test]
+fn a_timeout_too_large_for_the_clock_reads_normally() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let id = fixture.id.clone();
+    let huge = u64::MAX.to_string();
+    let flag = fixture.run(&["change", "status", &id, "--json", "--timeout", &huge]);
+    let output = flag.get_output();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let env = specsync()
+        .env("SPECSYNC_TIMEOUT", &huge)
+        .args([
+            "--root",
+            fixture.root_arg(),
+            "change",
+            "status",
+            &id,
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        env.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&env.stderr)
+    );
+}
+
+// G-deadline (#924, REQ-change-149): loading active changes is a phase with a deadline
+// boundary, so `change list` past its deadline stops with 124 instead of printing a verdict.
+#[test]
+fn change_list_past_its_timeout_stops_while_loading_active_changes() {
+    let fixture = VerificationIgnoredCli::new(&[]);
+    let output = fixture.run(&["change", "list", "--json", "--timeout", "0"]);
+    let output = output.get_output();
+    assert_eq!(
+        output.status.code(),
+        Some(124),
+        "change list --timeout 0 printed: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["error"], "timeout");
+    assert_eq!(report["phase"], "active change loading", "{report}");
 }

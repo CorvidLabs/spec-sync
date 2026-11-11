@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794350209,
+      "digest": "fd4697beb6c3759230a214415083bef3f83625134ea17375400d5a231b06c7df",
+      "note": "Recorded by the Claude worker under Leif's 2026-11-10 standing rule for bug fixes that change no requirement. Scope: sort coverage unspecced_modules so output is reproducible (#612); module set unchanged.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "coverage-reports-unspecced-modules-in-a-stable-sorted-order",
+        "title": "Coverage reports unspecced modules in a stable sorted order",
+        "description": "coverage reports unspecced modules in a stable sorted order",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "validator"
+        ],
+        "affected_paths": [
+          "src/validator/tests.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "No requirement changes: coverage already reports unspecced modules; this only makes their order reproducible, as find_spec_files and the uncovered-file list already are",
+        "acceptance_criteria": [
+          "compute_coverage_checked returns unspecced_modules sorted, so coverage text and JSON, PR comments and generate's spec order are identical across runs of the same command on the same tree, whatever HashMap order config.modules and manifest.modules iterate in"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "the module set is unchanged; only its order is fixed",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794350307,
+      "digest": "74e1e3044ecbd439bfb6ab340105f219d2d2022358848b2c9b80d4a7be5f8d09",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

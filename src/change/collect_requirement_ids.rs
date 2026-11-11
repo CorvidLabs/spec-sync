@@ -1443,10 +1443,13 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
             }
             // A block already present with exactly the declared content means this
             // delta is applied, not conflicting. Rejecting it here would make an
-            // applied change permanently unverifiable.
+            // applied change permanently unverifiable. A sent-back change's own earlier
+            // ADDED block is not a foreign one either: materialization replaces it, so
+            // approve must accept the revised body too (#1001).
             if item.target == DeltaTarget::Requirement
                 && item.operation == DeltaOperation::Added
                 && living_requirement_conflicts(root, module, &item.key, &item.content)?
+                && !sent_back_added_block_is_own_on_disk(root, record, module, &item)?
             {
                 return Err(format!(
                     "cannot add existing block `{}` with different content; use ## MODIFIED for requirements already present in the living tree",
@@ -1634,6 +1637,166 @@ fn delta_base_digests(
     Ok(bases)
 }
 
+/// One unchanged, unapplied delta item whose canonical block moved since its approval.
+struct MovedBaseCandidate {
+    module: String,
+    item: DeltaItem,
+    key: String,
+    previous_base: String,
+    current_base: String,
+    current_body: String,
+}
+
+/// Commits searched, newest first, for the canonical text an earlier approval recorded.
+const MOVED_BASE_HISTORY_LIMIT: usize = 200;
+/// Lines per side the three-way comparison accepts; a larger block keeps the refusal.
+const MOVED_BASE_LINE_LIMIT: usize = 1_000;
+
+/// Whether the approved body already carries every edit the current canonical text made to
+/// the approval-time base (#975). The base text is recovered from git by its recorded digest;
+/// when it cannot be found the answer is no, and the approval is refused as before.
+fn moved_base_is_already_carried(
+    root: &Path,
+    candidate: &MovedBaseCandidate,
+) -> Result<bool, String> {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let (spec_path, requirements_path) =
+        canonical_module_paths(root, &specs_dir, &candidate.module)?;
+    let path = match candidate.item.target {
+        DeltaTarget::Requirement => requirements_path,
+        DeltaTarget::SpecSection => spec_path,
+    };
+    let Some(old_body) = recover_approved_base_body(root, &path, candidate) else {
+        return Ok(false);
+    };
+    let approved = candidate
+        .item
+        .content
+        .replace("\r\n", "\n")
+        .trim_matches(['\n', ' ', '\t'])
+        .to_string();
+    Ok(three_way_keeps_body(
+        &old_body,
+        &candidate.current_body,
+        &approved,
+    ))
+}
+
+/// The block body whose digest an earlier approval recorded, read from the newest commit
+/// that holds it. `None` outside git, past the history bound, or when no commit matches.
+fn recover_approved_base_body(
+    root: &Path,
+    path: &Path,
+    candidate: &MovedBaseCandidate,
+) -> Option<String> {
+    let prefix = git_repo_prefix(root).ok()?;
+    let file = project_relative(root, path)?;
+    let limit = MOVED_BASE_HISTORY_LIMIT.to_string();
+    let commits = git_output_allow_empty(
+        root,
+        &["log", "--format=%H", "-n", limit.as_str(), "--", file.as_str()],
+    )?;
+    for commit in commits.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        let object = format!("{commit}:{prefix}{file}");
+        let text = git_output_allow_empty(root, &["show", object.as_str()]).unwrap_or_default();
+        let (spec, requirements) = match candidate.item.target {
+            DeltaTarget::Requirement => ("", text.as_str()),
+            DeltaTarget::SpecSection => (text.as_str(), ""),
+        };
+        if canonical_block_digest(&candidate.module, spec, requirements, &candidate.item)
+            == candidate.previous_base
+        {
+            let source = if spec.is_empty() { requirements } else { spec };
+            return Some(block_body(source, &candidate.item).unwrap_or_default());
+        }
+    }
+    None
+}
+
+/// Three-way comparison of an approval-time base, the current canonical text and the approved
+/// body, line by line, aligned diff3-style on the base. Applying the approved body overwrites
+/// nothing exactly when every region the current text changed is either unchanged there or
+/// already identical in the approved body; then the merge of the three is the approved body.
+fn three_way_keeps_body(base: &str, current: &str, approved: &str) -> bool {
+    let base: Vec<&str> = base.lines().collect();
+    let current: Vec<&str> = current.lines().collect();
+    let approved: Vec<&str> = approved.lines().collect();
+    if [base.len(), current.len(), approved.len()]
+        .iter()
+        .any(|lines| *lines > MOVED_BASE_LINE_LIMIT)
+    {
+        return false;
+    }
+    let to_current = longest_common_subsequence_map(&base, &current);
+    let to_approved = longest_common_subsequence_map(&base, &approved);
+    let (mut b, mut c, mut a) = (0usize, 0usize, 0usize);
+    loop {
+        while b < base.len() && to_current[b] == Some(c) && to_approved[b] == Some(a) {
+            b += 1;
+            c += 1;
+            a += 1;
+        }
+        if b == base.len() && c == current.len() && a == approved.len() {
+            return true;
+        }
+        let next = (b..base.len()).find(|&index| {
+            to_current[index].is_some_and(|line| line >= c)
+                && to_approved[index].is_some_and(|line| line >= a)
+        });
+        let (base_end, current_end, approved_end) = match next {
+            Some(index) => (
+                index,
+                to_current[index].unwrap_or(current.len()),
+                to_approved[index].unwrap_or(approved.len()),
+            ),
+            None => (base.len(), current.len(), approved.len()),
+        };
+        let base_chunk = &base[b..base_end];
+        let current_chunk = &current[c..current_end];
+        let approved_chunk = &approved[a..approved_end];
+        if current_chunk != base_chunk && current_chunk != approved_chunk {
+            return false;
+        }
+        b = base_end;
+        c = current_end;
+        a = approved_end;
+        if next.is_none() {
+            return true;
+        }
+    }
+}
+
+/// For each line of `left`, the index of the line it is paired with in one longest common
+/// subsequence of `left` and `right`, or `None`.
+fn longest_common_subsequence_map(left: &[&str], right: &[&str]) -> Vec<Option<usize>> {
+    let (rows, columns) = (left.len(), right.len());
+    let mut lengths = vec![0u32; (rows + 1) * (columns + 1)];
+    let at = |row: usize, column: usize| row * (columns + 1) + column;
+    for row in (0..rows).rev() {
+        for column in (0..columns).rev() {
+            lengths[at(row, column)] = if left[row] == right[column] {
+                lengths[at(row + 1, column + 1)] + 1
+            } else {
+                lengths[at(row + 1, column)].max(lengths[at(row, column + 1)])
+            };
+        }
+    }
+    let mut map = vec![None; rows];
+    let (mut row, mut column) = (0usize, 0usize);
+    while row < rows && column < columns {
+        if left[row] == right[column] {
+            map[row] = Some(column);
+            row += 1;
+            column += 1;
+        } else if lengths[at(row + 1, column)] >= lengths[at(row, column + 1)] {
+            row += 1;
+        } else {
+            column += 1;
+        }
+    }
+    map
+}
+
 /// The bases a new definition approval records (#843), refusing a re-approval that would
 /// launder a stale body.
 ///
@@ -1666,7 +1829,7 @@ fn approval_delta_bases(
     };
     let current_bodies = delta_body_digests(root, record)?;
     let mut bases = BTreeMap::new();
-    let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut candidates: Vec<MovedBaseCandidate> = Vec::new();
     for_each_replacing_delta_item(root, record, |module, spec, requirements, item| {
         let key = delta_base_key(module, item);
         let current = canonical_block_digest(module, spec, requirements, item);
@@ -1675,11 +1838,18 @@ fn approval_delta_bases(
         let base = match previous_bases.get(&key) {
             Some(previous_base) if body_unchanged => {
                 if !delta_item_is_applied(spec, requirements, item) && *previous_base != current {
-                    let target = match item.target {
-                        DeltaTarget::Requirement => item.key.clone(),
-                        DeltaTarget::SpecSection => format!("section `{}`", item.key),
+                    let source = match item.target {
+                        DeltaTarget::Requirement => requirements,
+                        DeltaTarget::SpecSection => spec,
                     };
-                    moved.entry(module.to_string()).or_default().push(target);
+                    candidates.push(MovedBaseCandidate {
+                        module: module.to_string(),
+                        item: item.clone(),
+                        key: key.clone(),
+                        previous_base: previous_base.clone(),
+                        current_base: current.clone(),
+                        current_body: block_body(source, item).unwrap_or_default(),
+                    });
                 }
                 previous_base.clone()
             }
@@ -1687,6 +1857,22 @@ fn approval_delta_bases(
         };
         bases.insert(key, base);
     })?;
+    // A moved base is not by itself a stale body (#975): when the body the human approved
+    // already carries every edit the newer canonical text made to the approval-time base, a
+    // three-way comparison shows applying it overwrites nothing, so the approval records the
+    // new base. Anything else, including an approval-time base git no longer holds, is refused.
+    let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for candidate in candidates {
+        if moved_base_is_already_carried(root, &candidate)? {
+            bases.insert(candidate.key.clone(), candidate.current_base.clone());
+            continue;
+        }
+        let target = match candidate.item.target {
+            DeltaTarget::Requirement => candidate.item.key.clone(),
+            DeltaTarget::SpecSection => format!("section `{}`", candidate.item.key),
+        };
+        moved.entry(candidate.module).or_default().push(target);
+    }
     if moved.is_empty() {
         return Ok(bases);
     }
@@ -2101,6 +2287,34 @@ pub fn approval_current_for_guidance(root: &Path, record: &ChangeRecord) -> bool
 ///
 /// A byte-equivalent block is an already-applied delta and is not a conflict, so
 /// re-deriving the canonical tree converges instead of failing.
+/// Whether an ADDED block that conflicts with the living tree is this change's own earlier
+/// text, judged exactly as `prepare_module_application` judges it before materialization
+/// replaces the block: the latest send-backs list it as an applied ADDED item and the
+/// canonical tree still carries that item's text. A block whose canonical text someone else
+/// changed is not the change's own, so approve still refuses it (#1001).
+fn sent_back_added_block_is_own_on_disk(
+    root: &Path,
+    record: &ChangeRecord,
+    module: &str,
+    item: &DeltaItem,
+) -> Result<bool, String> {
+    let ledger = load_approvals(root, record).unwrap_or_default();
+    if ledger.send_backs.is_empty() {
+        return Ok(false);
+    }
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
+    let spec = fs::read_to_string(&spec_path).unwrap_or_default();
+    let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+    Ok(sent_back_added_block_is_own(
+        &ledger,
+        module,
+        item,
+        &spec,
+        &requirements,
+    ))
+}
+
 fn living_requirement_conflicts(
     root: &Path,
     module: &str,
@@ -2492,7 +2706,15 @@ fn prepare_pending_delta_application(
     for module in &record.affected_specs {
         let delta =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
-        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)?;
+        prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)
+            .map_err(|error| {
+                let frozen = record.canonical_applied && load_approvals(root, record)
+                    .is_ok_and(|ledger| !ledger.reopenings.is_empty());
+                if frozen {
+                    let detail = error.split(';').next().unwrap_or(&error);
+                    format!("frozen audited-reopened change {} cannot replay its {module} delta: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable", record.id)
+                } else { error }
+            })?;
     }
     Ok(prepared)
 }
@@ -3745,9 +3967,11 @@ fn definition_digest_from_snapshot_with_task_mode(
     }
     if !corrections.is_empty() {
         let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
+        // Hashed as both correction digests hash it: without the relays its embedded approvals
+        // carry, so a relay changes no gate (#927, REQ-change-relay-compare-001).
         let ledger = CorrectionLedger {
             schema_version: 1,
-            corrections: corrections.to_vec(),
+            corrections: corrections.iter().map(correction_digest_projection).collect(),
         };
         let content = json_content(&ledger)?;
         let mode = snapshot

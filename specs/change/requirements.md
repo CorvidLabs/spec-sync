@@ -799,17 +799,30 @@ Acceptance Criteria
   canonically owns, naming every offending path in one error.
 - Paths that do not yet exist are not rejected at approve, since the owning spec
   may claim them in the same change; they remain enforced at finalize.
+- A declared path that is a directory is not file-level ownership-checked at
+  approve; its descendant files remain checked at finalize.
+- Recognized reserved delivery paths (for example files under `.github/` or
+  `docs/`, and the protected SDD and root metadata files) are signed with the
+  exact delivery owner by design and finalize accepts them, so they are not
+  ownership refusals at approve and not `correct-owner` discovery candidates.
 - A change with justified `no_spec_change` and no declared specs is
   ownership-checked at approve as well: an existing production-source path in
-  its scope has no declared owner, so it is rejected, naming the module that
-  owns it, before anyone approves or reviews it (#986, #956). Empty specs
-  without that justification still fail closed at definition validation and at
-  ownership validation.
+  its scope that is not recognized reserved delivery metadata has no declared
+  owner, so it is rejected, naming the module that owns it, before anyone
+  approves or reviews it (#986, #956). Empty specs without that justification
+  still fail closed at definition validation and at ownership validation.
 - A change at verifying that has never closed may correct an acceptance input
   owner under a currently valid definition approval. That substitute is for
   guided-path reachability, not audit-equivalent provenance to an
   Accepted→reopen cycle.
 - A change that did close continues to require an audited reopen, unchanged.
+- Owner recovery never prints a command that cannot run as printed: when a
+  module name cannot round-trip through the comma-separated `affected_specs`
+  answer, the guidance names the modules in prose instead. When the spec
+  listing exceeds its bound, the recovery says the listing is incomplete rather
+  than omitting an owner. A recovery that replaces `affected_specs` says the
+  constraints answer must be renewed before approval. Owner discovery includes
+  registry-registered canonical specs outside the specs directory.
 
 ### REQ-change-054
 
@@ -1270,7 +1283,7 @@ Acceptance Criteria
   `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
   package matches `HEAD` but not that commit; and, when the package still matches the commit
   that archived it or no package or repository can answer, `specsync change status <id> --json`
-  to read what `terminal_evidence.reason` names and restore that from trusted Git history, since
+  to read what `summary.terminal_evidence.reason` names and restore that from trusted Git history, since
   a package restore would change nothing. Running the named step through a shell on a tampered
   archive returns `authenticated-history` and `safe`.
 - Every change ID and path interpolated into a printed command is single-quoted as one shell
@@ -1778,6 +1791,14 @@ The persistent read cache SHALL be reused only by the build that wrote it. Its b
 - A persistent read cache stamped with the pre-#878 identity is not reused. The next read recomputes the verdict and rewrites the cache under this build's identity.
 - Removing the fingerprint from the read-cache identity fails that test.
 
+### REQ-change-138
+
+The `change status` summary SHALL derive the handoff for a change archived upstream in the same priority order as `next_action`: a sequence-ledger freeze, then a `verification_ignored_paths` refusal, then the upstream archive. A freeze SHALL never be reported behind the upstream-archive rebase step.
+
+Acceptance Criteria
+- With an upstream archive and a frozen ledger, `next_action` and `handoff.before_clearing` both name the freeze.
+- Without a freeze, both name the upstream archive.
+
 ### REQ-change-139
 
 The upstream-archive lookup SHALL identify the remote default's archive of a change by the `id` recorded in each archived package's `state.json`, as `find_change_dir` does, not by the package directory name, and SHALL do so with a bounded number of Git processes that does not grow with the number of archived packages.
@@ -1834,6 +1855,14 @@ Acceptance Criteria
 - In an offline `--filter=tree:0` clone that never fetched the cutoff's archive tree, the check returns an error naming the unreadable archive tree, not `false`.
 - A cutoff with no archive root gives the same verdict as before.
 
+### REQ-change-146
+
+The trusted pre-v2 cutoff check of a workflow-v1 change (REQ-change-136) SHALL consider the change's own resolved package path, the archive directory `find_change_dir` finds by the id its state declares, alongside the active state path and the cutoff archive entries ending in `-<id>`. A workflow-v1 archive the history walk accepted SHALL NOT be refused because its directory name does not end in its id (SPEED-1.a.2). The record found at the cutoff SHALL still carry the same id and a workflow-v1 identity.
+
+Acceptance Criteria
+- A workflow-v1 archive moved before the cutoff to a directory not ending in `-<id>` is accepted by the cutoff-tree check exactly as the history walk accepts it, and the change loads.
+- A record absent at the cutoff, added after it, or present at it only under another id is still refused with the existing message.
+
 ### REQ-change-147
 
 A change summary of an archived change SHALL NOT take the whole-tree project-input digest to report `scoped_review_current` once its archived package is committed; it SHALL report `false`, which is what the full check gives for a committed archive. While the archived package has uncommitted changes, the summary SHALL compute it as before. A warm `change status` of an archived change SHALL NOT spawn more Git processes as the project tracks more files (SPEED-1.a). Summaries of changes before archive are unchanged.
@@ -1849,21 +1878,6 @@ SpecSync's lifecycle reads SHALL walk only the history its read-cache and lifecy
 Acceptance Criteria
 - With a replacement under a custom `GIT_REPLACE_REF_BASE` that swaps HEAD for a copy whose archived record lost its workflow version, `change status` under that variable gives exactly the plain read, fresh and cached.
 - `GIT_NO_REPLACE_OBJECTS=1` gives the plain read too.
-
-### REQ-change-relay-repair-001
-
-`repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.
-
-#### Acceptance Criteria
-
-- Between `change review` and `change ship`, when neither review file is committed, a damaged relay in `review.json` is put back from the last review attempt, and one in the last attempt is put back from `review.json`, byte for byte; the change then ships with nothing committed in between.
-- A damaged relay in a committed `approvals.json` is put back from `HEAD`, and the file's bytes equal the committed file.
-- A damaged relay with no surviving copy, such as an earlier review attempt or an approval that was never committed, is removed; every approval and attempt stays with its verdict, and the change can ship.
-- A record whose relay reads cleanly is never changed, and with nothing damaged nothing is written.
-- Files are written the way SpecSync writes them, all in one step under the project lock. A file that still does not read after its relays are repaired is refused and nothing is written.
-- Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
-- An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
-- A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 
 ### REQ-change-142
 
@@ -1888,4 +1902,60 @@ Acceptance Criteria
 - `change status` (text and JSON) and `change ship-status` report a closed-late change as closed late, with who, when and why, the commit that merged it and that commit's date, never re-checked and not verified; one closed from draft is also reported as never approved.
 - `reopen`, `review`, `check`, `accept`, `archive` and `finalize` refuse a closed-late change, and `change new` refuses its slug.
 - SpecSync 6.0.0 and 6.2.0, run against a repository holding closed-late packages, pass `change audit`, omit them from `change list`, report them not found in `change status`, `change ship-status` and `change reopen`, and are not blocked by them in `change finalize` or `change archive`.
+
+### REQ-change-149
+
+A read deadline (REQ-change-137) SHALL never panic: a timeout too large to add to the clock SHALL mean no deadline. Loading active changes, each commit of the workflow-version history walk, and the start of the archive-introduction index's bulk listing SHALL each be a phase boundary where a read past its deadline stops, so a read SHALL NOT overrun its deadline through any of them and print a normal verdict (SPEED-1).
+
+Acceptance Criteria
+- `--timeout` or `SPECSYNC_TIMEOUT` of `18446744073709551615` reads normally.
+- `change list --timeout 0` with active changes exits 124 during `active change loading`.
+- An expired deadline stops the archive-introduction index before it lists anything, even with no archive-introducing commit.
+
+### REQ-change-frozen-recovery-001
+
+A frozen audited-reopened delta conflicting with later canonical evolution SHALL refuse without rewriting canonical bytes and name its immutable scope restriction and honest recovery.
+
+Acceptance Criteria
+- Mutable scope guidance remains available for mutable changes; frozen guidance does not prescribe editing its approved ADDED/MODIFIED definition; ordinary exact-base, owner, review and recursive freshness checks remain enforced.
+
+
+- Schema v2 explicitly classifies source and custody; valid v1 bytes/semantics remain unchanged. Source defaults to accepted-receipt; only explicit committed-audited-reopening-unproven can authenticate an exact committed Verifying/canonical-applied reopening packet with unchanged frozen definition, complete ledger/prior verification/manifest/closing/finalization/review evidence and ancestor checks. It neither proves an Accepted transition nor rescues corrupt accepted history.
+- Unequal owners are permitted only as an explicit unchanged-exact-file-current-owner retirement classification: prior exactly @exact:delivery, both ordinary File with identical path/kind/mode/payload/entry digests, replacement owners nonempty valid named modules without reserved labels. Preserve both vectors and both authenticated manifests; reject all other remaps and File-to-Missing use of this exception.
+
+### REQ-change-recovery-retirement-001
+
+An obsolete audited-reopened obligation SHALL have an explicit terminal nonacceptance disposition with authenticated original evidence custody and an independently accepted current replacement; it SHALL grant no implementation, dependency or semantic succession credit.
+
+Acceptance Criteria
+- Retiring refuses atomically unless every original signed input is bound to retained evidence and a compatible replacement input in the custodian's fresh, authenticated, current evidence; missing, stale, unknown, tampered or circular custody refuses; original criteria, failures, approvals and canonical bytes remain unchanged; old readers fail closed instead of silently certifying retirement.
+- Validation of a recorded retirement authenticates the custodian's recorded accepted evidence and checks that custody still holds: every custody entry names a frozen prior-manifest input at the recorded predecessor digest and owners, its recorded classification is consistent with the receipt's own fields, and the custodian's current authenticated manifest still carries the path under the recorded replacement owners. It does not re-run the custodian's live delivery-input freshness: custodian staleness is the custodian's own reported lifecycle state, so the reopen remedy it names stays reachable.
+- Audited custodian evolution keeps custody valid while every custody path remains under its recorded signed owners; byte and manifest digest changes from a genuine re-acceptance are not a custody break. A custody path missing from the custodian's current authenticated manifest, or carried under different owners, refuses validation.
+- A committed receipt's recorded classification is a historical fact; validation never re-derives it from current evidence under newer rules, so receipts written before a classification rule change keep validating.
+- A custodian in an audited post-acceptance reopen keeps custody, judged against its last accepted authenticated manifest, so every roster read keeps working through the recovery window.
+
+### REQ-change-relay-compare-001
+
+Every comparison that decides whether an approval or correction history is current, intact or a lawful successor SHALL read a relayed decision as absent, as the review digest and both correction digests already do: the approval-succession check of a reopened package, the definition digest (and so the execution digest) over the correction ledger, and the trusted correction-history comparison SHALL clear `relayed_by` from top-level and embedded approvals before comparing or hashing. Every other field SHALL still be compared exactly.
+
+#### Acceptance Criteria
+
+- A reopened package whose `approvals.json` an older 6.x binary rewrote without `relayed_by`, on its approvals and on a reopen event's superseded approval, is a lawful successor; any other edit to an earlier approval, or a superseded approval that is not the one the package closed on, is not.
+- The definition digest is the same whether a correction's embedded approvals carry a relay, carry an edited one or carry none; any other edit to a correction changes it.
+- A correction ledger an older 6.x binary rewrote without its embedded relays matches its trusted history; any other edit to a committed correction is still divergence.
+
+### REQ-change-relay-repair-001
+
+`repair_relayed_decisions` SHALL repair every damaged `relayed_by` in an active change's `approvals.json`, `review-attempts.json` and `review.json`, where damaged means the reader refuses it: a shape it cannot read, or a `decided_by` that is not the record's own actor or reviewer. Each one SHALL be put back from the first copy of the same record that still exists and reads cleanly: the record at the same position in the file as committed at `HEAD`, then its twin, because `review.json` and the last review attempt are copies of each other. A copy is the same record when every field other than `relayed_by` is equal. With no such copy, only that record's `relayed_by` SHALL be removed. No approval or review attempt SHALL be removed and no verdict changed, so no blocking review is erased (REQ-change-046). For an active change, every refusal caused by a damaged relay SHALL name `specsync change repair-relays <id>`.
+
+#### Acceptance Criteria
+
+- Between `change review` and `change ship`, when neither review file is committed, a damaged relay in `review.json` is put back from the last review attempt, and one in the last attempt is put back from `review.json`, byte for byte; the change then ships with nothing committed in between.
+- A damaged relay in a committed `approvals.json` is put back from `HEAD`, and the file's bytes equal the committed file.
+- A damaged relay with no surviving copy, such as an earlier review attempt or an approval that was never committed, is removed; every approval and attempt stays with its verdict, and the change can ship.
+- A record whose relay reads cleanly is never changed, and with nothing damaged nothing is written.
+- Files are written the way SpecSync writes them, all in one step under the project lock. A file that still does not read after its relays are repaired is refused and nothing is written.
+- Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
+- An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
+- A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 

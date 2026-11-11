@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-review-round-3-no-h1-docs-keep-sections-purpose-fallback-never-takes-structure-long-fences",
+  "implementation_commit": "799d3723829b68fc5d682d0a627a1584ca173797",
+  "implementation_tree": "813a7e1fd7bb5db267462f3f3d554c7f04bb86ef",
+  "contract_digest": "2fbf18c073236be59a2f71f0a57838e505e4f6e9cd7db604fc0c907669795913",
+  "workspace_digest": "ee01db7bebdbed34586ddf7d9dc4786cc4918d69a5c88660b10cf7a3ac21cdbc",
+  "closing_digest": "f1c68c018a8e6b76465c9abd69f6678d115d5b75b10d4cc26277f5953d2699e3",
+  "review_digest": "6783a5a0da761f5995d50e291bb79bbdb2715a4c110a349307c7b01eb94edd0c",
+  "finalization_digest": "07389203a0d074101e4687c60470748e44159f06cc2d076702d400d93c3b855c",
+  "timestamp": 1794330898
+}

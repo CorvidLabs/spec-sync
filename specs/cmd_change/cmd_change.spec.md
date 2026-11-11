@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 78
+version: 81
 status: active
 files:
   - src/commands/change.rs
@@ -51,9 +51,9 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 1. JSON output contains no terminal coloring.
 2. Domain errors always produce exit code 1.
 3. `change check` runs scoped verification for one change only: evidence completeness then in-process spec↔code sync. It does not spawn project tests or rewalk archived terminal evidence.
-4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors. With `--archives` it also re-walks every archived change's own workflow-version history through `audit_project_with_archives`, the walk `change finalize` no longer repeats (REQ-change-124).
+4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors, and the active workspace includes a retirement whose archive move is still pending, so its custody is validated too. With `--archives` it also re-walks every archived change's own workflow-version history through `audit_project_with_archives`, the walk `change finalize` no longer repeats (REQ-change-124).
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge. When it succeeds, it commits the archive move as `chore(lifecycle): archive <id>`, the same commit `change ship` records on a first archive. The active change directory is not left behind as an uncommitted rename. If the package is already archived and the commit did not happen, running finalize again commits that package. The next action says to push the archive commit before merging.
-6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. Product-stage completion uses the same verification currency predicate, and its action text describes content currency rather than asserting ancestry. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass.
+6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. Product-stage completion uses the same verification currency predicate, and its action text describes content currency rather than asserting ancestry. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass. A retired record is a completed terminal disposition in every stage, and the finalize/merge ordering warnings do not apply to it.
 7. Opening, showing, and status render one briefing of the substantive lessons for the change's modules and of the configured principles file, in text and in JSON. A scaffold-only context is omitted. The excerpt is bounded and names the file for the rest. An unreadable principles file does not fail the command. A `.specsync/sdd.json` that cannot be parsed fails `change status` with the policy error, and status does not print a briefing as if no principles were configured. `change finalize` and `change ship` name the lesson-bundle path in text and in JSON. Their next action stays the merge instruction and does not require copying lessons into the spec. A passing `change check` says nothing about lessons.
 8. `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end their text result with exactly one `Handoff:` line — after `Next:` where one is printed — reading `safe`, `conditional`, or `not yet`, an em-dash, the domain's reason, and, when readiness is not safe, `Before clearing:` followed by the domain's steps. The line renders the domain's `HandoffSummary` verbatim: the adapter never decides readiness itself and never prints a digest on it. JSON carries the same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on the approve transition.
 9. Git reads in this module run through `git_utils::output_after_child_exits`, and exit-code checks run through `git_utils::status_without_inherited_output`, so a read returns when the Git child exits even while a descendant still holds its output pipe, and a status child never receives the caller's stdout or stderr (REQ-git-utils-008).
@@ -121,6 +121,8 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 `crate::cli::ChangeAction` to the `cli_args` contract rather than the top-level `cli` executable contract.
 
 ## Change Log
+
+| 2026-11-09 | v80: `change ship-status` treats a retired record as a completed terminal disposition in every stage and omits the finalize/merge ordering warnings for it; text `change status` prints the recorded retirement provenance (authority claim, source kind, per-input custody classifications) without digests (#1018 review). |
 
 | 2026-07-30 | Scoped `change check`; add `change audit` two-verb UX |
 
@@ -209,5 +211,11 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-07 | report-production-source-no-declared-module-owns-before-approval-and-review-and-never-call-such-a-change-ready-to: Report production source no declared module owns before approval and review, and never call such a change ready to finalize |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-06 | keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze: Keep the upstream-archive status guidance behind a sequence-ledger freeze |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is: Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893) |
+| 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
+
+## Audited nonacceptance retirement
+
+change retire requires the obsolete audited-reopened id, actor, reason, current accepted replacement and authority-source. Retired is neither implementation acceptance nor ordinary semantic succession; old readers must refuse it. Eligible children can be sent back and answer dependencies with a fresh replacement before new approval. Original definitions, failures and signed input ownership remain unchanged.

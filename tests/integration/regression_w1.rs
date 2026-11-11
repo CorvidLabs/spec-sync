@@ -167,6 +167,73 @@ fn report_require_coverage_at_actual_exits_0() {
         .success();
 }
 
+/// #605: outside git, staleness is unmeasurable and `report` exits 1 whatever
+/// the coverage. The `--require-coverage` gate must still say its own verdict
+/// and name what set the exit status, so a coverage pass and a coverage failure
+/// are told apart. `--require-coverage 0` can never fail on coverage.
+#[test]
+fn report_states_the_coverage_verdict_when_staleness_decides_the_exit() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    for (required, verdict) in [("0", "met"), ("100", "met"), ("101", "not met")] {
+        let output = specsync()
+            .args(["report", "--require-coverage", required, "--root"])
+            .arg(&root)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(output.status.code(), Some(1), "{stdout}");
+        assert!(
+            stdout.contains(&format!(
+                "--require-coverage {required}%: {verdict} (actual coverage is 100%)"
+            )),
+            "the coverage gate states its own verdict: {stdout}"
+        );
+        assert!(
+            stdout.contains("module(s) whose staleness could not be measured"),
+            "the verdict names the finding that set the exit status: {stdout}"
+        );
+    }
+
+    let output = specsync()
+        .args([
+            "report",
+            "--format",
+            "markdown",
+            "--require-coverage",
+            "100",
+            "--root",
+        ])
+        .arg(&root)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(1), "{stdout}");
+    assert!(
+        stdout
+            .contains("--require-coverage 100%: met (actual coverage is 100%). report exits 1 for"),
+        "markdown states the verdict too: {stdout}"
+    );
+}
+
+/// #605: with nothing pre-empting the gate, output is unchanged: no verdict
+/// line on a pass, and the existing failure message on a miss.
+#[test]
+fn report_prints_no_extra_coverage_verdict_when_the_gate_decides_the_exit() {
+    let tmp = TempDir::new().unwrap();
+    let root = report_project(&tmp);
+
+    let output = specsync()
+        .args(["report", "--require-coverage", "100", "--root"])
+        .arg(&root)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "{stdout}");
+    assert!(!stdout.contains("--require-coverage 100%: met"), "{stdout}");
+}
+
 // ─── #419: deps scalar depends_on + dedupe + --require-coverage ─────────
 
 #[test]
@@ -261,23 +328,12 @@ fn deps_duplicate_depends_on_entries_deduped() {
         "repeating a depends_on entry must not change deps output at all"
     );
 
-    // ─── PIN for #606 — asserts today's WRONG behaviour on purpose ───────
-    //
-    // One missing dependency is currently reported TWICE, by two independent
-    // code paths that each emit their own finding:
-    //   src/validator.rs → "Dependency spec not found: {dep}"
-    //   src/deps.rs      → "{}: depends on '{}' but no spec exists for that module"
-    // A single defect is therefore double-counted in deps error totals.
-    //
-    // This is NOT the desired behaviour. The pin exists so that fixing #606
-    // fails this assertion loudly instead of silently un-pinning. When #606
-    // lands, change the expected count from 2 to 1 and delete this comment.
+    // One missing dependency is reported once, with the verdict `check` gives
+    // (#606). Two code paths used to report it twice.
     let occurrences = one.matches("nonexistent-module").count();
     assert_eq!(
-        occurrences, 2,
-        "PIN(#606): one missing dependency is currently reported twice by two \
-         separate code paths. If this now reads 1, #606 is fixed — update this \
-         assertion to 1 and remove the pin. Got: {one}"
+        occurrences, 1,
+        "one missing dependency must be reported once (#606). Got: {one}"
     );
 }
 

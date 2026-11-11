@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "coverage-reports-unspecced-modules-in-a-stable-sorted-order",
+  "slug": "coverage-reports-unspecced-modules-in-a-stable-sorted-order",
+  "title": "Coverage reports unspecced modules in a stable sorted order",
+  "description": "coverage reports unspecced modules in a stable sorted order",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4fe1e1ed93e00102d1eda73d3cf3e19d5cd53c7f",
+  "created_at": 1794350195,
+  "updated_at": 1794350311,
+  "affected_specs": [
+    "validator"
+  ],
+  "affected_paths": [
+    "src/validator/tests.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "No requirement changes: coverage already reports unspecced modules; this only makes their order reproducible, as find_spec_files and the uncovered-file list already are",
+  "acceptance_criteria": [
+    "compute_coverage_checked returns unspecced_modules sorted, so coverage text and JSON, PR comments and generate's spec order are identical across runs of the same command on the same tree, whatever HashMap order config.modules and manifest.modules iterate in"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "the module set is unchanged; only its order is fixed",
+    "public_contract": "no"
+  }
+}

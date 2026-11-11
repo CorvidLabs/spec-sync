@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 22
+version: 23
 status: stable
 files:
   - src/agents.rs
@@ -156,3 +156,4 @@ managed bytes from user customization.
 | 2026-11-01 | SpecSync | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
 | 2026-11-01 | SpecSync | write-generated-markdown-and-hook-files-without-em-or-en-dashes-while-still-recognizing-the-managed-markers-earlier: Write generated Markdown and hook files without em or en dashes while still recognizing the managed markers earlier versions wrote |
 | 2026-11-06 | SpecSync | correct-reference-documentation-and-validate-mermaid-lifecycle-diagrams: Correct reference documentation and validate Mermaid lifecycle diagrams |
+| 2026-11-07 | SpecSync | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

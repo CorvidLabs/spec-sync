@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 12
+version: 13
 status: stable
 files:
   - src/merge.rs
@@ -169,17 +169,18 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 
 | Date | Change |
 |------|--------|
-| 2026-10-10 | Add `merge.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
-| 2026-08-14 | Issue #578: expose `conflict_hunks`, `document_conflict_hunks`, `conflict_free_side`, `unmerged_paths`, and `cached_unmerged_paths` as the shared conflict detector; add `MergeStatus::Unknown` so a scan git never performed stops reporting as "no conflicts found" |
-| 2026-07-27 | Issue #427 / CHG-0066: parse exact diff3 markers, use numeric max for versions, reject ambiguous rows/scalars and lossy table/YAML shapes, validate reconstructed frontmatter, report both sides accurately, and preserve all-or-nothing writes |
-| 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
+| 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base: Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes |
+| 2026-07-27 | Issue #427 / CHG-0066: parse exact diff3 markers, use numeric max for versions, reject ambiguous rows/scalars and lossy table/YAML shapes, validate reconstructed frontmatter, report both sides accurately, and preserve all-or-nothing writes |
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
+| 2026-08-14 | Issue #578: expose `conflict_hunks`, `document_conflict_hunks`, `conflict_free_side`, `unmerged_paths`, and `cached_unmerged_paths` as the shared conflict detector; add `MergeStatus::Unknown` so a scan git never performed stops reporting as "no conflicts found" |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-10-10 | Add `merge.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
+| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-05 | stop-waiting-on-a-descendant-pipe-after-the-git-child-exits: Stop waiting on a descendant pipe after the git child exits |
 | 2026-11-05 | v9 / #862: git merge driver counts both version bumps and unions change-log rows, `files:`, and requirement blocks without loosening the marker resolver |
-| 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-06 | retire-the-merge-empty-list-and-init-strict-default-contract-clauses: Retire the merge empty-list and init strict-default contract clauses |
 | 2026-11-07 | keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first: Keep a clean merge-driver result faithful to both sides: quote YAML-typed list items, end the change log at its first blank line, merge version comments three ways, and stop renumbering at u64::MAX (#870 #872 #875 #876) |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |

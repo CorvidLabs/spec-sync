@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history",
+  "implementation_commit": "b87cb25ea6f2bf6a484083525288f19a808f8463",
+  "implementation_tree": "1ff8a4e001ef9bcfcc1aacc04b714ca645b40d47",
+  "contract_digest": "9903ba85333f8365b761436408be29573e7cb085ea0d7bae92204baec6c213b1",
+  "workspace_digest": "208a46b47e80fe4c556899f54abe6f0dd41f7b484acc5538272251a0656cb9c6",
+  "closing_digest": "2a1d6ade17e7fed138dd9f441c106da4625c4e223e4e3baf870b46ff3a783e85",
+  "review_digest": "2eb3c2af3428e948aed94df2be6caabea42c1f855880bed26cdbe140a9518e12",
+  "finalization_digest": "0a32a813adca37868b4d27fb59ceb2f7605b229c1af3b3aa51f3acbbb166ba8b",
+  "timestamp": 1794065536
+}

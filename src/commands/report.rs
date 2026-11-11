@@ -584,6 +584,28 @@ pub fn cmd_report(
             require_coverage,
         ));
     }
+    // Under gating enforcement a stale, unmeasured or incomplete module (or an
+    // unregistered file under `enforce-new`) decides the exit before
+    // `--require-coverage` is consulted, so a coverage pass and a coverage
+    // failure used to exit the same way with no verdict. Say the coverage
+    // gate's own verdict and what set the exit status, so the exit code is
+    // attributable. The staleness refusal itself stays (#605).
+    if let Some(required) = require_coverage
+        && compute_exit_code(failures, 0, strict, enforcement, &coverage, None) != 0
+    {
+        let reasons = pre_empting_findings(
+            stale_count,
+            unmeasured_stale_count,
+            incomplete_count,
+            strict,
+            enforcement,
+            &coverage,
+        );
+        println!(
+            "\n{}",
+            pre_empted_coverage_verdict(&coverage, required, &reasons)
+        );
+    }
     super::exit_with_status(
         failures,
         0,
@@ -592,4 +614,72 @@ pub fn cmd_report(
         &coverage,
         require_coverage,
     );
+}
+
+/// The findings that make `report` exit 1 before `--require-coverage` is
+/// consulted, in the order `compute_exit_code` checks them.
+fn pre_empting_findings(
+    stale_count: usize,
+    unmeasured_stale_count: usize,
+    incomplete_count: usize,
+    strict: bool,
+    enforcement: types::EnforcementMode,
+    coverage: &types::CoverageReport,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+    match enforcement {
+        types::EnforcementMode::Warn => {}
+        types::EnforcementMode::EnforceNew => {
+            if !coverage.unspecced_files.is_empty() {
+                reasons.push(format!(
+                    "{} file(s) not yet in the spec registry",
+                    coverage.unspecced_files.len()
+                ));
+            }
+        }
+        types::EnforcementMode::Strict => {
+            if stale_count > 0 {
+                reasons.push(format!("{stale_count} stale module(s)"));
+            }
+            if unmeasured_stale_count > 0 {
+                reasons.push(format!(
+                    "{unmeasured_stale_count} module(s) whose staleness could not be measured"
+                ));
+            }
+            if incomplete_count > 0 {
+                reasons.push(format!("{incomplete_count} incomplete module(s)"));
+            }
+            if strict && !coverage.skipped_links.is_empty() {
+                reasons.push(format!(
+                    "{} symlinked path(s) excluded from coverage under --strict",
+                    coverage.skipped_links.len()
+                ));
+            }
+        }
+    }
+    reasons
+}
+
+/// The `--require-coverage` verdict for a run whose exit status another
+/// finding already decides (#605): met or not met, the measured figure, and
+/// what the exit status reports.
+fn pre_empted_coverage_verdict(
+    coverage: &types::CoverageReport,
+    required: usize,
+    reasons: &[String],
+) -> String {
+    let (met, measured) = match coverage.file_coverage_percent() {
+        Some(pct) => (pct >= required, format!("actual coverage is {pct}%")),
+        None => (required == 0, "no source files were measured".to_string()),
+    };
+    let findings = reasons.join(", ");
+    if met {
+        format!(
+            "--require-coverage {required}%: met ({measured}). report exits 1 for {findings}, not for coverage."
+        )
+    } else {
+        format!(
+            "--require-coverage {required}%: not met ({measured}). report also exits 1 for {findings}."
+        )
+    }
 }

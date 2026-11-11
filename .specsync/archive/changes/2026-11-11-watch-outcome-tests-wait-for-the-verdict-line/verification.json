@@ -1,0 +1,32 @@
+{
+  "timestamp": 1794388123,
+  "commit": "4f443aa1eab3506bbb5242078c477d00de3bf79b",
+  "contract_digest": "1b2d777c0f4f2de2be1b7ba7023b9683d6d50f29f6cffcf88b6320da5337bda3",
+  "execution_digest": "e250034d4aeb14f345878b1f9d0d055fa8ed72a73686293123d382546faa02df",
+  "workspace_digest": "ffa18c32f5ebf565a16b80c50994a4fe220a9575e21608a18f0790e42800e623",
+  "acceptance_input_digest": "77cfc188bf8c5c5df288631569f136139b986ebb63fcd20564c5582e35f5575a",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "tests/integration/watch.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "26572b8b75787f943d42c59e2c3f5d78830e8afdaeee498d9f3633700c5615f3",
+        "entry_digest": "69124a7bfb3819249171ff4b4290a5a7d4fb7b4be1719ede7a2575efde0b0b85",
+        "owners": [
+          "@exact:test"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

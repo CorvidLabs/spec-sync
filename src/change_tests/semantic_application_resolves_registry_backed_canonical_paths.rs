@@ -718,9 +718,11 @@ fn change_check_does_not_execute_configured_project_commands() {
     // not appear.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["python3 -c \"open('was-run','w').write('ran')\"".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -750,9 +752,11 @@ fn change_check_fails_when_specs_and_code_drift() {
     // would go green here. Phantom export is an error, not a warning.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["true".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["true".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -781,9 +785,11 @@ fn change_check_ignores_drift_in_an_unowned_spec() {
     // change's problem, and the whole-project answer is `specsync check`.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["true".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["true".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -1000,9 +1006,11 @@ fn change_check_fails_when_a_declared_module_has_no_spec_on_disk() {
     // standing between this record and a vacuous green.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["python3 -c \"open('was-run','w').write('ran')\"".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
 
     let mut record = completed_no_spec_record(root);
@@ -1053,9 +1061,11 @@ fn change_check_passes_a_no_spec_change_delivery_that_maps_no_spec_at_all() {
     // failed every empty scope would go red here.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["python3 -c \"open('was-run','w').write('ran')\"".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(root.join("src/other.rs"), "// other\n").unwrap();
@@ -1132,9 +1142,11 @@ fn change_check_fails_a_no_spec_change_delivery_whose_mapped_spec_drifted() {
     // helper in isolation cannot catch that; only the verb can.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["python3 -c \"open('was-run','w').write('ran')\"".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     fs::create_dir_all(root.join("src")).unwrap();
     fs::create_dir_all(root.join("specs/other")).unwrap();
@@ -1185,9 +1197,11 @@ fn change_check_passes_a_no_spec_change_delivery_when_only_an_unmapped_spec_drif
     // over a real scope rather than an empty one.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["python3 -c \"open('was-run','w').write('ran')\"".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     fs::create_dir_all(root.join("src")).unwrap();
     fs::create_dir_all(root.join("vendor")).unwrap();
@@ -1717,8 +1731,10 @@ fn cargo_manifest_path_detects_recursive_specsync_before_state_mutation() {
         .is_err()
     );
 
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
+    let mut policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        ..SddPolicy::default()
+    };
     policy.verification_commands =
         vec!["cargo run --manifest-path tools/specsync/Cargo.toml -- check".into()];
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -1846,8 +1862,10 @@ fn interview_preserves_prose_and_requires_explicit_multiple_criteria() {
 fn disabled_policy_skips_sequence_validation() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.enabled = false;
+    let policy = SddPolicy {
+        enabled: false,
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     fs::write(root.join(SEQUENCE_PATH), "not valid json\n").unwrap();
 
@@ -1861,9 +1879,11 @@ fn disabled_policy_skips_sequence_validation() {
 fn failed_spec_sync_is_retryable_with_append_only_history() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        verification_commands: vec!["python3 -c \"open('was-run','w').write('ran')\"".into()],
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -2038,8 +2058,10 @@ fn unified_gate_validates_code_against_effective_delta() {
         .unwrap();
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     assert_eq!(record.state, ChangeState::Approved);
-    let mut policy = SddPolicy::default();
-    policy.require_change_for_meaningful_files = false;
+    let policy = SddPolicy {
+        require_change_for_meaningful_files: false,
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let report = check_project(root);
     assert!(
@@ -2165,9 +2187,11 @@ fn project_principles_are_part_of_the_approval_digest() {
         "# Principles\n\nPrefer safety.\n",
     )
     .unwrap();
-    let mut policy = SddPolicy::default();
-    policy.principles_file = Some("PRINCIPLES.md".into());
-    policy.require_change_for_meaningful_files = false;
+    let policy = SddPolicy {
+        principles_file: Some("PRINCIPLES.md".into()),
+        require_change_for_meaningful_files: false,
+        ..SddPolicy::default()
+    };
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_record(root);
     record.answers.insert("constraints".into(), "none".into());

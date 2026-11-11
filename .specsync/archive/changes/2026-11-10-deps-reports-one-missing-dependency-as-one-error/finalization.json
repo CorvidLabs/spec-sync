@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "deps-reports-one-missing-dependency-as-one-error",
+  "implementation_commit": "a1493ced4e1e3124ac0501ac4a963a93b91b52be",
+  "implementation_tree": "9321d3b7f2303665d6784ad0cd70ec489c72a4a6",
+  "contract_digest": "094c3f022b7377410b8ff86d89de52c7c3b1f184b47f10cfaf1ae195fb781e32",
+  "workspace_digest": "7ca392b3f7796adb278877abafda1eca2ae97f8154cf7a113f561d78c85bb35c",
+  "closing_digest": "d8ad8459dd203745467c93ee682f1f3855f3877ea20054ed0864729c5a1d8bbc",
+  "review_digest": "0f8685e1e55c9d8bdfce0c1861d7c507e5385fb6bfa0daf9fb85466f0dbd9ac1",
+  "finalization_digest": "0043a9349336325cbb605a2844ed5e2e8cacdc48039a387908b1993a8eb8d4d8",
+  "timestamp": 1794349642
+}

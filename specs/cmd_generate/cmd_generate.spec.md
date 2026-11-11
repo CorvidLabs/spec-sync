@@ -1,6 +1,6 @@
 ---
 module: cmd_generate
-version: 9
+version: 10
 status: stable
 files:
   - src/commands/generate.rs
@@ -83,3 +83,4 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
+| 2026-11-10 | generate-and-scaffold-never-claim-files-another-spec-owns: Generate and scaffold never claim files another spec owns |

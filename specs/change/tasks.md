@@ -105,3 +105,12 @@ spec: change.spec.md
 - [x] Make the cannot-tell recovery repair missing objects and `origin/HEAD`, then rerun the upstream lookup through `change status` instead of grepping from the caller's directory (#967).
 
 - [x] Execute the complete cannot-tell recovery from a project parent and retain the quoted selected root in status (#967, REQ-change-142).
+
+- [x] Implement bounded audited nonacceptance and retry with frozen-scope guidance; full qualification and human review remain separate.
+- [x] Read a relayed decision as absent in the approval-succession check, the definition digest over the correction ledger and the trusted correction-history comparison (#926, #927, #971, REQ-change-relay-compare-001).
+- [x] Correct PR1014 review findings within the existing relay contract: retain reopening fields, normalize accepted-anchor comparison and deduplication, and refuse embedded correction decider mismatches; four committed regressions fail on the old source and pass unchanged after the fix.
+- [x] Repair the independently found numeric-field collapse in that new projection: committed actual helper/key and reachable-anchor RED, unchanged numeric assertions GREEN, wire/scalar/tamper controls, and all prior relay tests; preserve the original archive and review candidate separately.
+
+- [x] Preserve exact unknown JSON values in approval/reopening succession prefixes and the first newly superseded approval: three committed intended REDs pass unchanged after the private-helper repair, with the five prior numeric and 22 related relay controls, formatting and production Clippy passing; keep initial fixture failures and prior archives separate.
+
+- [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).

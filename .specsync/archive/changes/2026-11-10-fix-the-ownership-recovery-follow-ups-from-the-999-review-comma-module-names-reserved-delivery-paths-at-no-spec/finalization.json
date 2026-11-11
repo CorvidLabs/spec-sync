@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec",
+  "implementation_commit": "b0563e3f96c644539022bbaf91a17897f69b0649",
+  "implementation_tree": "b7c87547583bd100c7d4ebaa07af8545f73dee88",
+  "contract_digest": "49e25538873792fcb7f6a37f2cc596a5777ac6d69772b73b626f6ec31edd1422",
+  "workspace_digest": "0b22240b27855a27afcaeb8a0fc22c5101c9d137058f63e676c48eecb9495462",
+  "closing_digest": "c4be29b9d364b85941abd0cd61813272076df5148ed18c0a886b0f18102c0812",
+  "review_digest": "308ddc0cf02e7a8f75c9960c6b675d81bc09df4fc935bd21f59fddb66eed995d",
+  "finalization_digest": "75c3deae3ac0030f18aeea5f6d358cbb97e452056afae2b6427bfad09bd8f0a5",
+  "timestamp": 1794351707
+}

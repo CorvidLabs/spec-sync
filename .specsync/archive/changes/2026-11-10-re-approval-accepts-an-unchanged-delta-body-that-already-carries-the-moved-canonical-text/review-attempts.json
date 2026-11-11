@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "re-approval-accepts-an-unchanged-delta-body-that-already-carries-the-moved-canonical-text",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "39fb7f5d750b21cc0c9b686d837f04c32f4174ee",
+      "contract_digest": "abcbf038ea3bcfbd0a4a47656d8548c4a43973bd7b1ddd42b6ec976f5a6b6971",
+      "execution_digest": "c3f88b3121e028f41bb79ddb5312fbb5767902f45b25edb787ca772663e6f6b5",
+      "workspace_digest": "1137ac8bc8a8efeca6d899df3186755c31cb6a6350a027a0bd7cca02df4795e5",
+      "timestamp": 1794354483
+    }
+  ]
+}

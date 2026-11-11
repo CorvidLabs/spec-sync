@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "import-from-dir-round-4-h1-once-purpose-fallback-takes-prose-only",
+  "slug": "import-from-dir-round-4-h1-once-purpose-fallback-takes-prose-only",
+  "title": "Import from-dir round 4: H1 once, purpose fallback takes prose only",
+  "description": "import from-dir round 4: H1 once, purpose fallback takes prose only",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a5b942b2083e405ab7a2379f580e3cf70f33a6da",
+  "created_at": 1794332476,
+  "updated_at": 1794332570,
+  "affected_specs": [
+    "importer"
+  ],
+  "affected_paths": [
+    "src/importer.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "code alignment with REQ-importer-002; no contract change",
+  "acceptance_criteria": [
+    "the H1 renders exactly once with a blank line after frontmatter; the purpose fallback returns the first prose line of the lead-in, never a numbered list item or fenced code"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

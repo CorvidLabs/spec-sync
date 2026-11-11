@@ -1,0 +1,1 @@
+Historical synthetic schema-v1 receipt copied byte-for-byte from the earlier ee5e qualification fixture. Actor/source labels are synthetic and establish no real human acceptance. SHA256: 8b56014f2e3a4f662bf192599f67849573834d2494000a7df50ac7699100db86\n

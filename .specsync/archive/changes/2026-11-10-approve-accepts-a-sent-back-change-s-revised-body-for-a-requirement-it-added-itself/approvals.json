@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794346818,
+      "digest": "07e81072beb17bb51b643d8088fb4200b493027a3090d6d2cffc1d66a17c0b6f",
+      "note": "Recorded by the Claude worker under Leif's 2026-11-10 standing rule: bug fixes that make behavior match existing requirements may run the full lifecycle with 0xLeif as actor. Scope: approve applies the send-back own-ADDED-block exception per REQ-change-123 (#1001).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "approve-accepts-a-sent-back-change-s-revised-body-for-a-requirement-it-added-itself",
+        "title": "Approve accepts a sent-back change's revised body for a requirement it added itself",
+        "description": "approve accepts a sent-back change's revised body for a requirement it added itself",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests/send_back_for_rescope.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-123 already requires that after a send-back a kept ADDED item with a new body replaces the change's earlier body; materialization did, but approve refused the revised requirement body first. This change makes approve match the existing requirement",
+        "acceptance_criteria": [
+          "after a send-back, change approve accepts a revised body for an ADDED requirement whose key the send-back recorded as this change's own applied item while the canonical text is still that item's text, and materialization then replaces the block; an ADDED requirement whose canonical text someone else changed is still refused with 'cannot add existing block'"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md lessons on send-back (#914, #960): approve and materialization must judge a sent-back change's own text the same way, through the one sent_back_added_block_is_own helper",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794347220,
+      "digest": "0387c7fdde2f7a9adec1f1eda2c10be43c88b019958b63b1bd87752782097126",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

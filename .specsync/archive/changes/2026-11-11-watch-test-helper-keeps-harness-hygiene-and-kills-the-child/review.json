@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "watch-test-helper-keeps-harness-hygiene-and-kills-the-child",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "fad23cd3a18720c6627a54dc462284fbd62643ed",
+  "contract_digest": "20cd6f20ac2837f1b74933a6dda42037b91ffb4108d385675790e1ba031795c3",
+  "execution_digest": "e714dc8173ac9dcef045dab8c853a35f9183e956569b9366c15e66fb33fc5818",
+  "workspace_digest": "f91572315130b62fc5e605bc153f48d6e8f039f59e77d868856460be0e6c0d5b",
+  "timestamp": 1794394998
+}

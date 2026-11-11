@@ -1,6 +1,6 @@
 ---
 module: github
-version: 52
+version: 55
 status: stable
 files:
   - src/github.rs
@@ -257,3 +257,6 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 | 2026-11-06 | correct-reference-documentation-and-validate-mermaid-lifecycle-diagrams: Correct reference documentation and validate Mermaid lifecycle diagrams |
 | 2026-11-06 | drop-the-ci-yml-path-filters-so-every-pull-request-starts-ci-and-classify-alone-picks-its-lane: Drop the ci.yml path filters so every pull request starts CI and classify alone picks its lane |
 | 2026-11-06 | keep-a-passing-check-green-when-the-action-s-pr-comment-is-refused-for-a-read-only-token: Keep a passing check green when the Action's PR comment is refused for a read-only token |
+| 2026-11-07 | record-the-attestation-on-every-green-push-to-main-and-keep-the-pull-request-summary-red-when-a-gate-failed-or-was: Record the attestation on every green push to main, and keep the pull request summary red when a gate failed or was blocked |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-09 | v54: The clippy-all-targets guard splits shell commands at control operators before validating flags and holds all five linting lanes (`check`, `pre-commit`, `verify`, `ci`, `repo`) to the `lint` task (CI-8, REQ-github-028, #1007 review). |

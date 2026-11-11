@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "other-write-errors-still-panic-and-test-output-stays-captured",
+  "slug": "other-write-errors-still-panic-and-test-output-stays-captured",
+  "title": "Other write errors still panic and test output stays captured",
+  "description": "other write errors still panic and test output stays captured",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "e853e93a3ef0ab58e0467e2ba5c01a3040b3477f",
+  "created_at": 1794387093,
+  "updated_at": 1794387461,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "src/main.rs",
+    "tests/integration/closed_stdout.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Follow-up to #1048: a test for the existing 'any other write error still panics' behavior, and test-build output through libtest capture; no spec text",
+  "acceptance_criteria": [
+    "A write error other than a closed pipe still panics and is reported as a bug with exit 1 (tested on Linux with /dev/full); under cargo test the printing macros go through libtest's output capture; the CHANGELOG says watch stops at its next output"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-cli: a panic is reported as a please-report-it bug message; #1048 kept every non-pipe write error a panic",
+    "public_contract": "no"
+  }
+}

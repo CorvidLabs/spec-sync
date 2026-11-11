@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "coverage-reports-unspecced-modules-in-a-stable-sorted-order",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "84aabe229abb2f5771ca97b1fef73b447ca66132",
+      "contract_digest": "fd4697beb6c3759230a214415083bef3f83625134ea17375400d5a231b06c7df",
+      "execution_digest": "07eb6cc02d5fab290f850c65394b7c4085d09c44d3ce8a1dd5debfe599a7ec03",
+      "workspace_digest": "9428a2c170c37bad77027363a57b63c2ed1c7f7a94ac6e1547b1085d2efaab4a",
+      "timestamp": 1794350245
+    }
+  ]
+}

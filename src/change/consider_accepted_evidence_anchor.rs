@@ -938,7 +938,7 @@ fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String
     let Some(raw) = snapshot.get("core.autocrlf") else {
         return Ok(None);
     };
-    return normalize_checkout_core_value("core.autocrlf", raw).map(Some);
+    normalize_checkout_core_value("core.autocrlf", raw).map(Some)
 }
 
 fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
@@ -1892,7 +1892,8 @@ fn validate_git_attribute_output(
         .collect::<BTreeSet<_>>();
     let mut seen = BTreeSet::new();
     let mut lfs_paths = BTreeSet::new();
-    for record in fields.chunks_exact(3) {
+    let (records, _) = fields.as_chunks::<3>();
+    for record in records {
         let path = record[0];
         let attribute = record[1];
         let value = record[2];
@@ -2444,7 +2445,13 @@ fn consider_accepted_evidence_anchor(
     let Some(approval_bytes) = git_object_bytes(root, anchor, approvals_path) else {
         return;
     };
-    if verification_bytes != current_verification || approval_bytes != current_approvals {
+    let (Some(anchor_approvals), Some(current_approvals)) = (
+        relay_blind_approval_ledger_bytes(&approval_bytes),
+        relay_blind_approval_ledger_bytes(current_approvals),
+    ) else {
+        return;
+    };
+    if verification_bytes != current_verification || anchor_approvals != current_approvals {
         return;
     }
     let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
@@ -2557,6 +2564,9 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
     let mut index: ArchiveIntroductionIndex = BTreeMap::new();
     // One `diff-tree --stdin` lists what every uncached commit added (REQ-change-135); a commit
     // it did not answer is read on its own, as before.
+    // Check before the bulk listing, not only between commits after it: a deadline that has
+    // passed must not start the one long Git read (REQ-change-149).
+    check_read_deadline("archive-introduction index", 0, commits.len())?;
     let listings = archive_introduction_listings(root, &commits, &history_pathspec);
     let total = commits.len();
     for (done, commit) in commits.into_iter().enumerate() {
@@ -2592,6 +2602,10 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
             (&left.commit, &left.directory).cmp(&(&right.commit, &right.directory))
         });
     }
+    // And once after the last commit's reads, before the index is cached and
+    // returned: the final commit's per-commit Git reads may themselves cross
+    // the deadline after the last loop-entry check passed (REQ-change-149).
+    check_read_deadline("archive-introduction index", total, total)?;
     let index = Arc::new(index);
     if let Ok(mut cache) = ARCHIVE_INTRODUCTION_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))
@@ -2614,17 +2628,204 @@ enum LedgerSuccession {
     LawfulSuccessor,
 }
 
-/// The array named `field` in an approval-ledger JSON document, compared as raw JSON.
-///
-/// Raw values rather than `ApprovalLedger` structs on purpose: round-tripping through the typed
-/// form silently drops fields the struct does not know, which is exactly where an attacker would
-/// hide a difference between the ledger history committed and the one being presented.
-fn ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<serde_json::Value> {
-    ledger
-        .get(field)
-        .and_then(serde_json::Value::as_array)
-        .cloned()
-        .unwrap_or_default()
+/// Reads a member from already normalized JSON without decoding its value. `field` is the
+/// canonical quoted key. Keep the previous last-member selection while retaining every member
+/// inside the selected value, including duplicate unknown keys and exact numeric tokens.
+fn ledger_json_member<'a>(object: &'a [u8], field: &[u8]) -> Option<&'a [u8]> {
+    if object.first() != Some(&b'{') {
+        return None;
+    }
+    let mut offset = 1;
+    let mut selected = None;
+    while object.get(offset) != Some(&b'}') {
+        let key = ledger_json_span(object, &mut offset)?;
+        if object.get(offset) != Some(&b':') {
+            return None;
+        }
+        offset += 1;
+        let value = ledger_json_span(object, &mut offset)?;
+        if key == field {
+            selected = Some(value);
+        }
+        match object.get(offset)? {
+            b',' => offset += 1,
+            b'}' => break,
+            _ => return None,
+        }
+    }
+    selected
+}
+
+/// Borrows the ordered entries of a normalized ledger array. Historical absent or non-array
+/// fields still mean an empty list; entries never round-trip through `Value` or typed structs.
+fn ledger_entries<'a>(ledger: &'a [u8], field: &[u8]) -> Option<Vec<&'a [u8]>> {
+    let Some(array) =
+        ledger_json_member(ledger, field).filter(|value| value.first() == Some(&b'['))
+    else {
+        return Some(Vec::new());
+    };
+    let mut offset = 1;
+    let mut entries = Vec::new();
+    while array.get(offset) != Some(&b']') {
+        entries.push(ledger_json_span(array, &mut offset)?);
+        match array.get(offset)? {
+            b',' => offset += 1,
+            b']' => break,
+            _ => return None,
+        }
+    }
+    Some(entries)
+}
+
+#[derive(Clone, Copy)]
+enum LedgerRelayLocation {
+    Ledger,
+    Approvals,
+    Reopenings,
+    Approval,
+    Reopening,
+    Other,
+}
+
+/// Reads one fully validated JSON value without converting its numeric tokens to floats.
+fn ledger_json_span<'a>(bytes: &'a [u8], offset: &mut usize) -> Option<&'a [u8]> {
+    while bytes.get(*offset).is_some_and(u8::is_ascii_whitespace) {
+        *offset += 1;
+    }
+    let start = *offset;
+    let mut values = serde_json::Deserializer::from_slice(bytes.get(start..)?)
+        .into_iter::<serde::de::IgnoredAny>();
+    values.next()?.ok()?;
+    *offset = start.checked_add(values.byte_offset())?;
+    bytes.get(start..*offset)
+}
+
+/// Canonicalizes object order and string escapes while retaining exact numeric tokens and
+/// duplicate unknown members. Only the fixed ledger approval positions may lose relay members.
+fn project_ledger_json(
+    bytes: &[u8],
+    location: LedgerRelayLocation,
+    remaining_depth: u8,
+) -> Option<Vec<u8>> {
+    let bytes = bytes.trim_ascii();
+    match bytes.first()? {
+        b'{' => {
+            if remaining_depth <= 1 {
+                return None;
+            }
+            let mut offset = 1;
+            let mut members = Vec::new();
+            loop {
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                if bytes.get(offset) == Some(&b'}') {
+                    break;
+                }
+                let key: String =
+                    serde_json::from_slice(ledger_json_span(bytes, &mut offset)?).ok()?;
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                if bytes.get(offset) != Some(&b':') {
+                    return None;
+                }
+                offset += 1;
+                let child = match (location, key.as_str()) {
+                    (LedgerRelayLocation::Ledger, "approvals") => LedgerRelayLocation::Approvals,
+                    (LedgerRelayLocation::Ledger, "reopenings") => LedgerRelayLocation::Reopenings,
+                    (LedgerRelayLocation::Reopening, "superseded_approval") => {
+                        LedgerRelayLocation::Approval
+                    }
+                    _ => LedgerRelayLocation::Other,
+                };
+                let projected = project_ledger_json(
+                    ledger_json_span(bytes, &mut offset)?,
+                    child,
+                    remaining_depth - 1,
+                )?;
+                if !(matches!(location, LedgerRelayLocation::Approval) && key == "relayed_by") {
+                    members.push((key, projected));
+                }
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                match bytes.get(offset)? {
+                    b',' => offset += 1,
+                    b'}' => break,
+                    _ => return None,
+                }
+            }
+            // Stable sorting keeps the order of duplicate keys, so an earlier unknown member
+            // cannot disappear through a map's last-value-wins behavior.
+            members.sort_by(|(left, _), (right, _)| left.cmp(right));
+            let mut output = vec![b'{'];
+            for (index, (key, value)) in members.iter().enumerate() {
+                if index != 0 {
+                    output.push(b',');
+                }
+                output.extend(serde_json::to_vec(key).ok()?);
+                output.push(b':');
+                output.extend(value);
+            }
+            output.push(b'}');
+            Some(output)
+        }
+        b'[' => {
+            if remaining_depth <= 1 {
+                return None;
+            }
+            let child = match location {
+                LedgerRelayLocation::Approvals => LedgerRelayLocation::Approval,
+                LedgerRelayLocation::Reopenings => LedgerRelayLocation::Reopening,
+                _ => LedgerRelayLocation::Other,
+            };
+            let mut offset = 1;
+            let mut output = vec![b'['];
+            let mut first = true;
+            loop {
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                if bytes.get(offset) == Some(&b']') {
+                    break;
+                }
+                let projected = project_ledger_json(
+                    ledger_json_span(bytes, &mut offset)?,
+                    child,
+                    remaining_depth - 1,
+                )?;
+                if !first {
+                    output.push(b',');
+                }
+                first = false;
+                output.extend(projected);
+                while bytes.get(offset).is_some_and(u8::is_ascii_whitespace) {
+                    offset += 1;
+                }
+                match bytes.get(offset)? {
+                    b',' => offset += 1,
+                    b']' => break,
+                    _ => return None,
+                }
+            }
+            output.push(b']');
+            Some(output)
+        }
+        b'"' => serde_json::to_vec(&serde_json::from_slice::<String>(bytes).ok()?).ok(),
+        _ => Some(bytes.to_vec()),
+    }
+}
+
+/// Full-input Serde validation precedes projection. Unknown numbers never pass through `Value`
+/// or f64; scalar types, duplicate members and every non-relay field remain distinguishable.
+fn relay_blind_approval_ledger_bytes(bytes: &[u8]) -> Option<Vec<u8>> {
+    serde_json::from_slice::<serde::de::IgnoredAny>(bytes).ok()?;
+    if bytes.trim_ascii().first() != Some(&b'{') {
+        return None;
+    }
+    // Match the default 128-level Serde recursion budget the previous Value parser enforced.
+    project_ledger_json(bytes, LedgerRelayLocation::Ledger, 128)
 }
 
 /// Decide whether `current` lawfully continues the ledger an earlier introduction committed.
@@ -2649,16 +2850,26 @@ fn ledger_succession(earlier: Option<&[u8]>, current: &[u8]) -> LedgerSuccession
     let Some(earlier) = earlier else {
         return LedgerSuccession::NotASuccessor;
     };
-    let (Ok(earlier), Ok(current)) = (
-        serde_json::from_slice::<serde_json::Value>(earlier),
-        serde_json::from_slice::<serde_json::Value>(current),
+    let (Some(earlier), Some(current)) = (
+        relay_blind_approval_ledger_bytes(earlier),
+        relay_blind_approval_ledger_bytes(current),
     ) else {
         return LedgerSuccession::NotASuccessor;
     };
-    let earlier_approvals = ledger_entries(&earlier, "approvals");
-    let current_approvals = ledger_entries(&current, "approvals");
-    let earlier_reopenings = ledger_entries(&earlier, "reopenings");
-    let current_reopenings = ledger_entries(&current, "reopenings");
+    let (
+        Some(earlier_approvals),
+        Some(current_approvals),
+        Some(earlier_reopenings),
+        Some(current_reopenings),
+    ) = (
+        ledger_entries(&earlier, br#""approvals""#),
+        ledger_entries(&current, br#""approvals""#),
+        ledger_entries(&earlier, br#""reopenings""#),
+        ledger_entries(&current, br#""reopenings""#),
+    )
+    else {
+        return LedgerSuccession::NotASuccessor;
+    };
     if current_reopenings.len() <= earlier_reopenings.len()
         || current_approvals.len() < earlier_approvals.len()
         || current_approvals[..earlier_approvals.len()] != earlier_approvals[..]
@@ -2669,17 +2880,18 @@ fn ledger_succession(earlier: Option<&[u8]>, current: &[u8]) -> LedgerSuccession
     // The first reopen event the successor adds must supersede exactly the approval the earlier
     // package closed on, so that a new generation names the package it supersedes instead of
     // merely counting past it.
-    let Some(superseded) = current_reopenings[earlier_reopenings.len()].get("superseded_approval")
-    else {
+    let Some(superseded) = ledger_json_member(
+        current_reopenings[earlier_reopenings.len()],
+        br#""superseded_approval""#,
+    ) else {
         return LedgerSuccession::NotASuccessor;
     };
     let earlier_terminal = earlier_approvals.iter().rev().find(|approval| {
-        approval
-            .get("gate")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|gate| matches!(gate, "acceptance" | "finalization"))
+        ledger_json_member(approval, br#""gate""#)
+            .and_then(|gate| serde_json::from_slice::<String>(gate).ok())
+            .is_some_and(|gate| matches!(gate.as_str(), "acceptance" | "finalization"))
     });
-    if earlier_terminal != Some(superseded) {
+    if earlier_terminal.copied() != Some(superseded) {
         return LedgerSuccession::NotASuccessor;
     }
     LedgerSuccession::LawfulSuccessor
@@ -3015,7 +3227,8 @@ fn accepted_evidence_key(state: &[u8], verification: &[u8], approvals: &[u8]) ->
     let mut digest = FramedDigest::new(b"specsync.accepted-evidence-key.v1");
     digest.frame(b"state", state);
     digest.frame(b"verification", verification);
-    digest.frame(b"approvals", approvals);
+    let projected = relay_blind_approval_ledger_bytes(approvals);
+    digest.frame(b"approvals", projected.as_deref().unwrap_or(approvals));
     digest.finish()
 }
 
@@ -4121,6 +4334,7 @@ fn load_legacy_archive_baseline_context(
     validate_legacy_baseline_authority_cutoff(root, authority, &baseline.cutoff_commit)?;
     let cutoff = baseline.cutoff_commit.clone();
     match authority.state {
+        ChangeState::Retired => return Err("retired nonacceptance cannot supply legacy baseline authority".into()),
         ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {}
         ChangeState::Accepted | ChangeState::Archived => {
             let authority_verification = authenticate_accepted_evidence(root, authority, None)
@@ -4736,7 +4950,7 @@ impl DeliveryBlobStream {
         if let Err(error) = self.stdout.read_exact(&mut terminator) {
             return Err(failed(self, error));
         }
-        if terminator != [b'\n'] {
+        if terminator != *b"\n" {
             return Err(format!(
                 "Git batch output for delivery input `{relative}` has no terminator"
             ));

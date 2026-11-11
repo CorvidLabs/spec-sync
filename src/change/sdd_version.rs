@@ -86,9 +86,12 @@ fn canonical_companion_names(module: &str) -> Vec<String> {
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
+/// A test hook called with the PID of each spawned Git child.
+#[cfg(test)]
+type TestGitChildSpawnedHook = Box<dyn FnOnce(u32)>;
 #[cfg(test)]
 thread_local! {
-    static TEST_GIT_CHILD_SPAWNED: RefCell<Option<Box<dyn FnOnce(u32)>>> = RefCell::new(None);
+    static TEST_GIT_CHILD_SPAWNED: RefCell<Option<TestGitChildSpawnedHook>> = RefCell::new(None);
     static TEST_GIT_STDIN_WRITER_JOINED: Cell<bool> = const { Cell::new(false) };
     static TRANSACTION_WRITE_FAILURE_INDEX: RefCell<Option<usize>> = const { RefCell::new(None) };
     static TRANSACTION_AFTER_JOURNAL_HOOK: RefCell<Option<Box<dyn FnOnce()>>> =
@@ -728,6 +731,7 @@ pub enum ChangeState {
     Verifying,
     Accepted,
     Archived,
+    Retired,
 }
 
 impl ChangeState {
@@ -739,6 +743,7 @@ impl ChangeState {
             Self::Verifying => "verifying",
             Self::Accepted => "accepted",
             Self::Archived => "archived",
+            Self::Retired => "retired",
         }
     }
 }
@@ -2068,7 +2073,9 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
         Err(error) => return Err(format!("failed to read active changes: {error}")),
     };
-    for entry in entries {
+    for (done, entry) in entries.enumerate() {
+        // Loading active changes is a phase with a deadline boundary (REQ-change-149).
+        check_read_deadline("active change loading", done, 0)?;
         // Enumeration failures are not scoped to one workspace: we cannot name
         // what we could not enumerate, so there is no partial truth to report.
         let entry =
@@ -2149,6 +2156,11 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         }
         roster.records.push(record);
     }
+    // And once after the last workspace, so a deadline that passed while reading it still stops.
+    // Progress counts every completed workspace directory, including the unreadable
+    // ones; records alone would under-report them (Codex review of #1005).
+    let completed = roster.records.len() + roster.unreadable.len();
+    check_read_deadline("active change loading", completed, completed)?;
     roster
         .records
         .sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
@@ -2405,8 +2417,14 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             };
             validate_loaded_change(&record, &expected_id, &state_path)?;
             let sequence = located_change_ordinal(&record.id)?;
-            let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
-                || reopened_change_preserves_sequence_history(root, &record);
+            // Retired is immutable terminal nonacceptance: like Accepted and
+            // Archived it freezes the sequence its ledger recorded, so an
+            // acknowledged collision stays acknowledged after a member is
+            // retired.
+            let historical = matches!(
+                record.state,
+                ChangeState::Accepted | ChangeState::Archived | ChangeState::Retired
+            ) || reopened_change_preserves_sequence_history(root, &record);
             located.push(LocatedChangeSequence {
                 sequence,
                 id: record.id,
@@ -2432,7 +2450,12 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
         || reopening.change_id != record.id
         || reopening.actor.trim().is_empty()
         || reopening.reason.trim().is_empty()
-        || reopening.from_state != ChangeState::Accepted
+        // `reopen_change` reopens out of the archive as well as out of Accepted,
+        // so a preserved-sequence reopening may carry either origin.
+        || !matches!(
+            reopening.from_state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
         || reopening.to_state != ChangeState::Verifying
         || !reopening.prior_verification.passed
         || (reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
@@ -2476,7 +2499,7 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
 
 /// Project-wide next_action when the sequence ledger is frozen (invalid acknowledgements,
 /// mutable multi-id acks, or unacknowledged duplicates). Returns `None` when the ledger is healthy.
-fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
+pub(crate) fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
     match validate_change_sequences(root) {
         Ok(()) => None,
         Err(reason)
@@ -2786,6 +2809,18 @@ pub(crate) fn answer_question_with_snapshot(
                 })
                 .collect::<Result<_, _>>()?;
             record.affected_paths = affected_paths;
+        }
+        "dependencies" => {
+            let dependencies = split_values(answer);
+            for dependency in &dependencies {
+                if dependency == id || dependency_reaches(root, dependency, id, &mut BTreeSet::new()) {
+                    return Err("dependency rescope would create a change cycle".into());
+                }
+                load_change(root, dependency)?;
+            }
+            record.dependencies = dependencies;
+            record.dependencies.sort();
+            record.dependencies.dedup();
         }
         "public_contract" => {
             record.answers.insert(question.into(), answer.into());
@@ -3128,6 +3163,7 @@ pub fn approve_definition_with_relay(
         ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
         ChangeState::Implementing | ChangeState::Verifying => ChangeState::Implementing,
         ChangeState::Accepted | ChangeState::Archived => prior_state,
+        ChangeState::Retired => return Err("retirement is immutable nonacceptance".into()),
     };
     record.updated_at = now();
     save_change(root, &record)?;
@@ -3234,9 +3270,38 @@ fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, Stri
     materialize_change_deltas_rerunning(root, id, &CheckInvocation::default().command(id))
 }
 
+/// Whether the latest audited reopening still freezes canonical content: a send-back at or
+/// after it superseded the reopening by re-scoping the change (Codex review of #1018).
+fn latest_reopening_still_freezes_canonical(ledger: &ApprovalLedger) -> bool {
+    ledger.reopenings.last().is_some_and(|reopening| {
+        !ledger
+            .send_backs
+            .iter()
+            .any(|sent| sent.timestamp >= reopening.timestamp)
+    })
+}
+
 /// [`materialize_change_deltas`], naming `rerun` as the command to re-run when open tasks
 /// refuse it (REQ-change-131).
 fn materialize_change_deltas_rerunning(
+    root: &Path,
+    id: &str,
+    rerun: &str,
+) -> Result<ChangeRecord, String> {
+    materialize_change_deltas_inner(root, id, rerun).map_err(|error| {
+        let frozen = load_change(root, id).is_ok_and(|record| {
+            record.canonical_applied
+                && load_approvals(root, &record)
+                    .is_ok_and(|ledger| latest_reopening_still_freezes_canonical(&ledger))
+        });
+        if frozen && !error.contains("frozen audited-reopened") {
+            let detail = error.split(';').next().unwrap_or(&error);
+            format!("frozen audited-reopened change {id}: {detail}; preserve the approved definition and later canonical text; use a separately approved current-intent replacement and audited nonacceptance retirement, or hold while authenticated custody is unavailable")
+        } else { error }
+    })
+}
+
+fn materialize_change_deltas_inner(
     root: &Path,
     id: &str,
     rerun: &str,
@@ -4795,6 +4860,12 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         if !root.join(path).exists() {
             continue;
         }
+        // A declared directory is a scope, not a file: ownership is decided for its
+        // descendant files when the acceptance walker collects them at finalize, so the
+        // scope itself is never checked by its extension here (#1011).
+        if root.join(path).is_dir() {
+            continue;
+        }
         if production_source_lacks_canonical_owner_with_evidence(root, record, path, &evidence)? {
             unowned.push(path.as_str());
         }
@@ -4821,7 +4892,7 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if record.state == ChangeState::Draft
         && let Some(answer) = declare_owners_answer(root, record, &unowned, &index)
     {
-        message.push_str(&format!("\nOn this draft, declare them with `{answer}`."));
+        message.push_str(&format!("\nOn this draft, declare them with {answer}."));
     }
     Err(message)
 }
@@ -4866,13 +4937,20 @@ fn listing_spec_is_canonical(root: &Path, specs_dir: &str, spec: &str, module: &
 
 /// `specsync change answer <id> affected_specs <modules>` that declares, beside the modules
 /// `record` already declares, every module that owns one of `paths`; `None` when no module owns
-/// any of them, so declaring cannot help (#986).
+/// any of them, so declaring cannot help (#986). The command is only printed when it runs exactly
+/// as printed: `change answer` splits the value on commas and newlines, so a comma- or
+/// newline-bearing module name cannot round-trip, and a listing that hit its walk bound may be
+/// missing the owner (#1011). When the record carries a constraints answer, the guidance renews
+/// it: answering `affected_specs` clears it.
 fn declare_owners_answer(
     root: &Path,
     record: &ChangeRecord,
     paths: &[&str],
     index: &SpecListingIndex,
 ) -> Option<String> {
+    if index.truncated {
+        return None;
+    }
     let mut modules = record.affected_specs.clone();
     let before = modules.len();
     for path in paths {
@@ -4882,13 +4960,29 @@ fn declare_owners_answer(
             }
         }
     }
-    (modules.len() > before).then(|| {
-        format!(
-            "specsync change answer {} affected_specs {}",
-            shell_quote(&record.id),
-            shell_quote(&modules.join(","))
-        )
-    })
+    // Print an answer command only when `change answer affected_specs` would take it as
+    // printed: it splits on commas, trims each value and runs `validate_module_name`.
+    if modules.len() == before
+        || modules.iter().any(|module| {
+            module.contains([',', '\n'])
+                || module.trim() != module
+                || crate::commands::validate_module_name(module).is_err()
+        })
+    {
+        return None;
+    }
+    let mut guidance = format!(
+        "`specsync change answer {} affected_specs {}`",
+        shell_quote(&record.id),
+        shell_quote(&modules.join(","))
+    );
+    if record.answers.contains_key("constraints") {
+        guidance.push_str(&format!(
+            ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
+            shell_quote(&record.id)
+        ));
+    }
+    Some(guidance)
 }
 
 /// The ship-preflight blocker for production source in the change's delivery that no declared
@@ -4920,20 +5014,27 @@ pub fn ownership_preflight_blocker(
         .copied()
         .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
         .collect();
-    let recovery = match declare_owners_answer(root, record, &paths, &index) {
-        Some(answer) if !unclaimed.is_empty() => format!(
-            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, and add {} to its owning spec's `files:` list, then approve, check and review again",
-            shell_quote(&record.id),
-            unclaimed.join(", ")
-        ),
-        Some(answer) => format!(
-            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then `{answer}`, then approve, check and review again",
+    let recovery = if index.truncated {
+        format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
             shell_quote(&record.id)
-        ),
-        None => format!(
-            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
-            shell_quote(&record.id)
-        ),
+        )
+    } else {
+        match declare_owners_answer(root, record, &paths, &index) {
+            Some(answer) if !unclaimed.is_empty() => format!(
+                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
+                shell_quote(&record.id),
+                unclaimed.join(", ")
+            ),
+            Some(answer) => format!(
+                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
+                shell_quote(&record.id)
+            ),
+            None => format!(
+                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+                shell_quote(&record.id)
+            ),
+        }
     };
     Ok(Some((
         format!(
@@ -4972,7 +5073,8 @@ fn ownership_hint(
     configured.sort();
     for module in configured {
         declare.push(format!(
-            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {module}`"
+            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",
+            shell_word(module)
         ));
     }
 
@@ -4994,7 +5096,8 @@ fn ownership_hint(
                 ));
             }
             Some(module) if !record.affected_specs.contains(&module) => declare.push(format!(
-                "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {module}`"
+                "`{spec}` lists it for module `{module}`, which this change does not declare; add `--spec {}`",
+            shell_word(&module)
             )),
             Some(module) => {
                 let canonical = canonical_module_paths(root, &config.specs_dir, &module)
@@ -5014,9 +5117,15 @@ fn ownership_hint(
 
     if !declare.is_empty() {
         explain.extend(declare);
-        return explain.join("; ");
+    } else {
+        explain.push(closest_declared_spec_hint(root, &config, record, path));
     }
-    explain.push(closest_declared_spec_hint(root, &config, record, path));
+    if index.truncated {
+        explain.push(
+            "the spec listing hit its 10,000-entry walk bound, so an owning spec may be missing from this list"
+                .to_string(),
+        );
+    }
     explain.join("; ")
 }
 
@@ -5037,12 +5146,16 @@ fn test_spec_listing_walks() -> usize {
 }
 
 /// Every `*.spec.md` under the specs directory, with its frontmatter module and normalized
-/// `files:` entries, read in one bounded walk (10,000 entries). A refusal or a preflight over many
-/// paths builds it once and asks it per path, instead of rereading the spec tree per path
-/// (#999 review).
+/// `files:` entries, read in one bounded walk (10,000 entries), plus every registry-registered
+/// canonical spec that lives outside the specs directory (#1011). A refusal or a preflight over
+/// many paths builds it once and asks it per path, instead of rereading the spec tree per path
+/// (#999 review). `truncated` records that the walk hit its bound, so recovery built on this
+/// index must say the listing is incomplete instead of presenting it as complete.
 struct SpecListingIndex {
     /// `(portable spec path, frontmatter module, files)`, sorted by spec path.
     specs: Vec<(String, Option<String>, BTreeSet<String>)>,
+    /// The walk stopped at its entry bound; the listing may be missing specs.
+    truncated: bool,
 }
 
 impl SpecListingIndex {
@@ -5052,6 +5165,7 @@ impl SpecListingIndex {
         let mut specs = Vec::new();
         let mut stack = vec![root.join(specs_dir)];
         let mut visited = 0usize;
+        let mut truncated = false;
         'walk: while let Some(directory) = stack.pop() {
             let Ok(entries) = fs::read_dir(&directory) else {
                 continue;
@@ -5059,6 +5173,7 @@ impl SpecListingIndex {
             for entry in entries.flatten() {
                 visited += 1;
                 if visited > 10_000 {
+                    truncated = true;
                     break 'walk;
                 }
                 let entry_path = entry.path();
@@ -5096,8 +5211,35 @@ impl SpecListingIndex {
                 ));
             }
         }
+        // Canonical resolution honors the local registry first, so a registered canonical spec
+        // outside the specs directory owns through its `files:` list exactly like a walked one
+        // (#1011). The registry key is the module that resolution binds to the path.
+        if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+            for (module, path) in &registry.specs {
+                let Ok(spec_path) = safe_project_path(root, path) else {
+                    continue;
+                };
+                let portable = portable_project_path(root, &spec_path);
+                if specs.iter().any(|(spec, _, _)| spec == &portable) {
+                    continue;
+                }
+                let Some(parsed) = fs::read_to_string(&spec_path)
+                    .ok()
+                    .and_then(|content| crate::parser::parse_frontmatter(&content))
+                else {
+                    continue;
+                };
+                let files = parsed
+                    .frontmatter
+                    .files
+                    .iter()
+                    .filter_map(|file| normalize_project_path(file).ok())
+                    .collect();
+                specs.push((portable, Some(module.clone()), files));
+            }
+        }
         specs.sort();
-        Self { specs }
+        Self { specs, truncated }
     }
 
     /// Every spec whose `files:` lists `path`, as `(portable spec path, frontmatter module)`,

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "b87cb25ea6f2bf6a484083525288f19a808f8463",
+      "contract_digest": "9903ba85333f8365b761436408be29573e7cb085ea0d7bae92204baec6c213b1",
+      "execution_digest": "3054762005d57c2020f67bd7b519738127436143cb18771b07710c55229fb135",
+      "workspace_digest": "208a46b47e80fe4c556899f54abe6f0dd41f7b484acc5538272251a0656cb9c6",
+      "timestamp": 1794065044,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "yes to all",
+        "where": "Direct Leif reply to orc t19f three-gate numbered batch on 2026-11-07, gate 2: accept relay-compare implementation, PR #1014 at b87cb25ea6f2bf6a484083525288f19a808f8463; https://github.com/CorvidLabs/spec-sync/pull/1014/files. Main-only bookkeeping after archive is separate; merge readiness not inferred.",
+        "recorded_by": "orc-t19f"
+      }
+    }
+  ]
+}

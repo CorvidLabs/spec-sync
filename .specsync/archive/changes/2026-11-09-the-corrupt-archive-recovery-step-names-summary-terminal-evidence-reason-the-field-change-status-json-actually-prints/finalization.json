@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints",
+  "implementation_commit": "43756b1bf8f06502f02ff9353c1adaa3a59f501f",
+  "implementation_tree": "b0d801947a9df403eb1ab3b9d2abb0e85d415e4f",
+  "contract_digest": "098666be38ee785d4f9d89e6891ef6c00e5b72b3a6767024a33480860b3ba45e",
+  "workspace_digest": "115e7e5bbd17a7539dccf239a29cdfb2a62839174b7bb390913dd01d4c0120ab",
+  "closing_digest": "ceddfd0a20d940eb09786cde15dfcf990200b81bafdbba4b62679f11af31aafc",
+  "review_digest": "d19c76a12d2fa2e4c5521101926a71c9099155b616934b61909ab7faa28a27aa",
+  "finalization_digest": "63b30850d787fecc5f340f8c0fe58380831d9d092dcce5309baeafac75954ba8",
+  "timestamp": 1794247455
+}

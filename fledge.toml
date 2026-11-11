@@ -10,8 +10,15 @@ cmd = "cargo test"
 [tasks.test-nextest]
 cmd = "cargo nextest run --no-fail-fast"
 
+# CI-11 (#614): the TOCTOU race guards tested in the profile we ship. The
+# rendezvous-driven integration tests stay debug-only; these unit tests replace the
+# root themselves, so they need no debug hook and run under `--release`.
+[tasks.test-release-guards]
+cmd = "cargo test --release --locked --bin specsync -- release_race_guard"
+
+# --all-targets lints the test code too, as CI does (CI-8, REQ-github-028, #608).
 [tasks.lint]
-cmd = "cargo clippy -- -D warnings"
+cmd = "cargo clippy --all-targets -- -D warnings"
 
 [tasks.fmt]
 cmd = "cargo fmt --check"
@@ -39,11 +46,21 @@ cmd = "python3 .github/scripts/test-linux-baseline.py"
 [tasks.ci-trigger-paths-test]
 cmd = "python3 .github/scripts/test-ci-trigger-paths.py"
 
+# attest runs on every green push to main, and the scoped-review summary cannot read green
+# over a failed or blocked gate (CI-9, CI-10, #798, #799).
+[tasks.ci-attest-and-summary-test]
+cmd = "python3 .github/scripts/test-ci-attest-and-summary.py"
+
 # Real SpecSync 6.0.0 and 6.2.0 releases, pinned by sha256, read what `specsync doctor` writes and
 # never count a closed-late change as checked (REQ-change-143, SHIP-12.g). Downloads the releases;
 # CI runs it on every full pull request.
 [tasks.closed-late-compat]
 cmd = "bash .github/scripts/test-closed-late-compat.sh target/release/specsync"
+
+# Every clippy command in ci.yml and fledge.toml lints every target and denies warnings, with no
+# allow or cap (CI-8, #608).
+[tasks.clippy-all-targets-test]
+cmd = "python3 .github/scripts/test-clippy-all-targets.py"
 
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
@@ -91,6 +108,8 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "ci-attest-and-summary-test",
+  "clippy-all-targets-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
 
@@ -120,6 +139,8 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "ci-attest-and-summary-test",
+  "clippy-all-targets-test",
 ]
 
 # Used by .trust.toml [lifecycle] for the GitHub Trust action only.
@@ -133,8 +154,8 @@ steps = ["check-types"]
 # immutable RC tag. Keep platform qualification here so local reproduction
 # and every hosted runner share one command surface.
 [lanes.release-candidate]
-description = "Immutable release-candidate qualification (tests under cargo-nextest + release build)"
-steps = ["test-nextest", "build"]
+description = "Immutable release-candidate qualification (tests under cargo-nextest, race guards under --release, release build)"
+steps = ["test-nextest", "test-release-guards", "build"]
 
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"
@@ -148,5 +169,7 @@ steps = [
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
+  "ci-attest-and-summary-test",
+  "clippy-all-targets-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

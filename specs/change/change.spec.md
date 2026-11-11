@@ -1,11 +1,12 @@
 ---
 module: change
-version: 206
+version: 223
 status: active
 files:
   - src/change.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
+  - src/change/retirement.rs
   - src/change/doctor.rs
   - src/change/historical_definition_digest_matches.rs
   - src/change/historical_reconciliation.rs
@@ -29,6 +30,7 @@ files:
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests/open_task_gate.rs
   - src/change_tests/recorded_review_recovery.rs
+  - src/change_tests/recovery_retirement.rs
   - src/change_tests/relayed_decision.rs
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/send_back_for_rescope.rs
@@ -94,7 +96,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 |------|-------------|
 | `ReadDeadline` | When a read must stop and the limit it was given; copied to worker threads |
 | `ReadDeadlineGuard` | Clears this thread's read deadline when dropped (REQ-change-137) |
-| `ChangeState` | Six-state delivery lifecycle: draft, approved, implementing, verifying, accepted, archived |
+| `ChangeState` | Delivery lifecycle including retired terminal nonacceptance; retired grants no dependency or succession credit |
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
 | `UpstreamArchive` | What the remote default says about an archive of a change this branch holds unarchived: `Archived` with the reference and the commit on it that archived the change (#694), or `CannotTell` with the reference and selected project root when its archived state records could not be read (REQ-change-142, #946) |
@@ -179,10 +181,20 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `DoctorFixClass` | `safe` (`doctor --fix` applies it), `decision` (`--close-late` with `--actor` and `--reason`) or `report-only` |
 | `DoctorAction` | One thing `doctor --fix` did, or with `--dry-run` would do: kind, change, outcome and detail |
 
+| `RetirementRecord` | Explicit unproven nonacceptance event binding original raw state/package, historical receipt anchor, actor/source claims and complete current replacement custody |
+| `RetirementCustodyEntry` | Exact historical path/digest/owners and current replacement signed path/digest/owners, preserving every prior input obligation |
+| `RetirementSourceKind` | Explicit accepted-receipt or committed-audited-reopening-unproven source; neither authenticates human authority |
+| `RetirementCustodyClassification` | Same signed owners or the retirement-only unchanged exact ordinary-file/current named-owner classification |
+
 **Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `retire_change` | root, id, actor, reason, replacement, authority_source | Result<ChangeRecord, String> | Retire only intact audited-reopened intent under explicit nonacceptance with a genuinely accepted fresh custodian for every prior input; atomic/recoverable package move, idempotent same disposition, committed-history tamper refusal |
+| `retire_change_with_source` | root, id, actor, reason, replacement, authority_source, source_kind | Result<ChangeRecord, String> | Explicit schema-v2 source selection; committed reopening proves only retained ancestor package custody, never Accepted transition validity |
+| `validate_retirement` | root, record | Result<(), String> | Authenticate retained original package, committed disposition and receipt integrity, and prove custody still holds: every retained input is bound to the frozen prior manifest and still carried under its recorded signed owners in the custodian's authenticated evidence — the current acceptance, or the last accepted manifest during an audited post-acceptance reopen — with receipt classifications read as historical fact. The custodian's own freshness stays terminal-evidence data on its record, so the reopen remedy stays reachable (#1021); supplies no acceptance credit |
+| `retirement_record` | root, record | Result<RetirementRecord, String> | Read disposition details after caller validates retirement custody |
+| `retirement_next_action` | root, record | String | Explain explicitly unproven nonacceptance and any invalid custody hold |
 | `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
 | `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
@@ -232,6 +244,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `finalize_change` | `root, id` | `Result<PathBuf, String>` | Validate current verification/review evidence and transactionally produce the dated same-PR archive |
 | `find_change_dir` | Resolves a change's workspace wherever it lives, active or archived — the single answer to where a change's artifacts are |
 | `floor_sequence_ledger_to_committed` | `root: &Path` | `Result<Option<(u64, u64)>, String>` | Raise a working-tree sequence ledger to the committed high-water mark before staging, returning the previous and adopted values so the caller can disclose the raise, or `None` when the ledger is already at or above it |
+| `sequence_ledger_freeze_next_action` | `root: &Path` | `Option<String>` | The remediation for a frozen change-sequence ledger, or `None`. Every status surface names it before any other next step, the upstream archive included (#908) |
 | `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs and classify them; an Archived record reads the same terminal-evidence verdict `ChangeSummary` carries, so text cannot call `safe` an archive JSON reports as `corrupt-history` (#880); the same verdict `ChangeSummary.handoff` carries |
 | `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
 | `lifecycle_commit_scope` | `root, id` | `Result<LifecycleCommitScope, String>` | The one answer to which untracked paths a lifecycle commit for this change may stage: its workspace, its archive package, each affected spec's canonical file and companions, and the lifecycle ledgers — never its `affected_paths` prefixes; `Err` when the change cannot be loaded |
@@ -479,12 +492,30 @@ Acceptance Criteria
 
 ## Change Log
 
+| 2026-11-10 | v223: Ownership recovery follow-ups (#1011, #999 review): recognized reserved delivery metadata is no longer an approve-time ownership refusal (finalize already signs it `@exact:delivery`); owner recovery never prints a `change answer` command that cannot run as printed (comma/newline-bearing module names) or one built on a truncated spec listing, says when the 10,000-entry walk bound was hit, and renews the constraints answer that declaring owners clears; registry-registered canonical specs outside `specs_dir` join owner discovery; a declared directory scope is not file-level ownership-checked at approve (its descendants are checked at finalize). |
+
+| 2026-11-10 | v221: Retirement custody validation stops re-running the custodian's live freshness and re-deriving historical receipt classifications on every load — the deadlock that made the prescribed `change reopen` remedy unreachable once a custodian drifted (#1021). Custody holds while every retained path stays under its recorded signed owners in the custodian's authenticated evidence — its current acceptance, or its last accepted manifest while the custodian is in an audited post-acceptance reopen, so the roster keeps loading through the recovery window. Owner or path loss still refuses, and custodian staleness stays terminal-evidence data on the custodian's own record. |
+
+| 2026-11-09 | v217: Deadline-boundary review fixes (#1005): recheck the deadline after the final archive-introduction commit before caching, after the post-history HEAD reads, and count completed workspaces (including unreadable ones) in the final active-loading boundary (REQ-change-149). |
+
+| 2026-11-09 | v216: Clippy `--all-targets` cleanup in the attributes reader and batch-output terminator check (`as_chunks::<3>()`, byte-string comparison); no behavior change (CI-8, #608, #1007 merge train). |
+
+| 2026-11-09 | v213: Retirement review fixes (#1018): accept an archived-origin audited reopening (`from_state: archived`, the ordinary finalize-then-reopen path) and require the reopening to prove staleness; pin that a shallow clone cannot launder retirement custody (custody validation fails closed beyond the boundary and a locally deleted retired archive is still found through the boundary commit's receipt); require unchanged bytes when custody owners are reserved `@exact:*` labels; classify Retired records as historical in sequence accounting; a send-back at or after the latest reopening supersedes it in the frozen-conflict test; the default active audit validates pending retired records' custody. |
+
+| 2026-11-09 | v210: Declare the existing recovery_retirement regression file in the change module coverage list; no runtime code, fixture, assertion or configuration change. |
+
+| 2026-11-08 | v208: Explicit committed audited-reopening custody source and unchanged exact ordinary-file owner classification in schema v2, retaining v1 digest compatibility and all nonacceptance guards. |
+
+| 2026-11-09 | v207: Explicit audited-reopened retirement with complete retained custody, committed-event immutability and old-reader fail-closed state; preserve frozen conflict refusal and allow fresh draft dependency answers. |
+
 | 2026-07-30 | Add `audit_project`; scope CLI `change check` to one change; archives are history |
 
 | Date | Change |
 |------|--------|
 | 2026-11-06 | v195: approve refuses a no-spec-change draft over owned production source and names the `change answer` command; ship preflight and ship-status run finalize's ownership check (#986, #956). |
 | 2026-11-07 | v200: carry the selected root in `CannotTell` so command adapters remain unchanged within the original change-only scope. v199: keep the selected project root as a quoted `--root` argument in cannot-tell recovery; execute the printed status command from the repository parent (#967, REQ-change-142). |
+
+| 2026-11-08 | v201: PR1014 succession compares lossless normalized approval/reopening prefixes and the first newly superseded approval; three committed decimal-edit regressions fail on the previous source and pass unchanged after the private-helper fix, with prior numeric and relay controls preserved (REQ-change-relay-compare-001). |
 | 2026-11-06 | #878: the persistent read cache is reused only by the build that wrote it; its identity is the package version plus the build fingerprint, so a sibling worktree on other code at the same version recomputes its history verdicts (REQ-change-134). |
 | 2026-11-06 | v200: Reject symlink components in late-close destinations during planning/dry-run, before any batch write under the lifecycle lock, and again after directory creation before each rename; include dangling links and name how to retry safely (REQ-change-143, #994 P1) |
 | 2026-11-06 | v187: `specsync doctor`'s late close moves a merged but never-archived package byte for byte into `.specsync/archive/closed-late/<date>-<id>/` with `late-close.json` (`verified: false`); it reads no delivery evidence and adds no change state, so SpecSync 6.0 to 6.2 never read it. A collision member's acknowledgement is dropped and recorded. 6.3 reports a closed-late change in status and ship-status, refuses it in every lifecycle verb, and reserves its ID in `change new` (REQ-change-143, #833) |
@@ -710,4 +741,15 @@ Acceptance Criteria
 | 2026-11-06 | repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed: Repair a damaged relayed decision with one command, whether or not it is committed |
 | 2026-11-06 | stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent: Stop review and finalize when the upstream archive cannot be read instead of reading it as absent |
 | 2026-11-06 | add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync: Add specsync doctor to report every change problem with its fix and close merged changes late where older SpecSync never reads |
+| 2026-11-06 | keep-the-upstream-archive-status-guidance-behind-a-sequence-ledger-freeze: Keep the upstream-archive status guidance behind a sequence-ledger freeze |
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
+| 2026-11-07 | leave-relayed-decisions-out-of-approval-succession-the-definition-digest-and-the-trusted-correction-history: Leave relayed decisions out of approval succession, the definition digest and the trusted correction history |
+| 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-07 | read-deadlines-never-panic-on-a-huge-timeout-and-stop-at-every-long-read-phase-including-active-change-loading-and: Read deadlines never panic on a huge timeout and stop at every long read phase, including active-change loading and before the bulk archive listing |
+| 2026-11-08 | v199 / PR1014 review: preserve a reopening's own unknown fields, compare and deduplicate accepted approval ledgers without approval relays, and validate both embedded correction deciders before relay projection; existing relay requirements and public API unchanged |
+| 2026-11-08 | v200 / PR1014 numeric review: project validated raw JSON spans without rounding unknown numbers or dropping duplicate unknown members; retain scalar types, harmless wire equivalence and the existing approval-only relay positions |
+| 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
+| 2026-11-09 | the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints: The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966) |
+| 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
+| 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
+| 2026-11-10 | fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec: Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes |

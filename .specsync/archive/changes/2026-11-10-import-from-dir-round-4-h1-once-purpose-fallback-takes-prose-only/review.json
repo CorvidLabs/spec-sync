@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-round-4-h1-once-purpose-fallback-takes-prose-only",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5d1065bb6149c78115a009a3882c71ad7e520232",
+  "contract_digest": "b40ed439f3d57f2009599fb18b43d7c6a3b5ce990104cc09d3d4fbbac6331ae9",
+  "execution_digest": "f0ce61db75ddb184286c1188291dffe1604f678efbc1a9ad9b133ab3b920cf50",
+  "workspace_digest": "5565853bc6d42f2efe090ffd7608fb5186b789032f5431a2e8248678cc2e27cb",
+  "timestamp": 1794332529
+}

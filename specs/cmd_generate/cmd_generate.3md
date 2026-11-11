@@ -31,3 +31,9 @@ Scoped module identity and spec filename are separate: `@scope/demo` is the modu
 leaf-name helper as generation so a repeated request reports `skipped_already_specced`, preserves
 the spec and companions byte for byte, and never creates a nested duplicate. Keep flat-module
 and unknown-module controls beside the scoped text and JSON rerun regressions.
+
+@plane z=5 label="Every generate mode shares the ownership rule (#611)"
+
+Batch and MCP generation bind files from coverage, which already excludes owned files; the
+creation-selection fix in generator.z9 closes the scaffold/new side. A module whose candidates
+are all owned takes the existing no-files outcome.

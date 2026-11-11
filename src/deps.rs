@@ -94,7 +94,7 @@ pub struct DepsReport {
 
 /// Build the dependency graph from all spec files in the project.
 pub fn build_dep_graph(root: &Path, specs_dir: &str) -> HashMap<String, DepNode> {
-    build_dep_graph_checked(root, specs_dir).0
+    build_dep_graph_checked(root, specs_dir).graph
 }
 
 /// Like `build_dep_graph`, but also returns error messages for spec files that
@@ -104,14 +104,23 @@ pub fn build_dep_graph(root: &Path, specs_dir: &str) -> HashMap<String, DepNode>
 /// these as hard errors rather than losing them. Kept internal; `build_dep_graph`
 /// preserves the original signature for the non-gating callers (visualization,
 /// topological order).
-fn build_dep_graph_checked(
-    root: &Path,
-    specs_dir: &str,
-) -> (HashMap<String, DepNode>, Vec<String>) {
+/// The dependency graph plus what building it already reported.
+struct CheckedDepGraph {
+    graph: HashMap<String, DepNode>,
+    /// Hard errors found while reading specs and their `depends_on` entries.
+    unreadable: Vec<String>,
+    /// `(module, dependency)` edges kept in the graph whose entry already failed
+    /// validation with an error in `unreadable`, so `validate_deps` does not report
+    /// the same missing dependency a second time (#606).
+    reported_edges: HashSet<(String, String)>,
+}
+
+fn build_dep_graph_checked(root: &Path, specs_dir: &str) -> CheckedDepGraph {
     let specs_path = root.join(specs_dir);
     let spec_files = find_spec_files(&specs_path);
     let mut graph: HashMap<String, DepNode> = HashMap::new();
     let mut unreadable: Vec<String> = Vec::new();
+    let mut reported_edges: HashSet<(String, String)> = HashSet::new();
 
     for spec_file in &spec_files {
         let content = match fs::read_to_string(spec_file) {
@@ -193,8 +202,10 @@ fn build_dep_graph_checked(
                     )),
                 },
                 Err(message) => {
-                    // Keep the edge so missing_deps still names the target.
+                    // Keep the edge so missing_deps still names the target, and
+                    // remember that this entry's error is already reported.
                     if let Some(module) = extract_module_from_dep_path(dep) {
+                        reported_edges.insert((module_name.clone(), module.clone()));
                         declared_deps.push(module);
                     }
                     unreadable.push(format!("{spec_path}: {message}"));
@@ -213,7 +224,11 @@ fn build_dep_graph_checked(
         );
     }
 
-    (graph, unreadable)
+    CheckedDepGraph {
+        graph,
+        unreadable,
+        reported_edges,
+    }
 }
 
 /// Extract a module name from a dependency path.
@@ -242,7 +257,11 @@ fn extract_module_from_dep_path(dep: &str) -> Option<String> {
 
 /// Validate the entire dependency graph.
 pub fn validate_deps(root: &Path, specs_dir: &str) -> DepsReport {
-    let (graph, unreadable_specs) = build_dep_graph_checked(root, specs_dir);
+    let CheckedDepGraph {
+        graph,
+        unreadable: unreadable_specs,
+        reported_edges,
+    } = build_dep_graph_checked(root, specs_dir);
     let mut report = DepsReport::default();
     // A spec that exists but couldn't be read was dropped from the graph; record it
     // as a hard error so cmd_deps exits 1 instead of silently under-validating.
@@ -257,10 +276,15 @@ pub fn validate_deps(root: &Path, specs_dir: &str) -> DepsReport {
             report.edge_count += 1;
             if !known_modules.contains(dep.as_str()) {
                 report.missing_deps.push((node.module.clone(), dep.clone()));
-                report.errors.push(format!(
-                    "{}: depends on '{}' but no spec exists for that module",
-                    node.spec_path, dep
-                ));
+                // One missing dependency is one error: an entry whose validation
+                // already reported it (the same verdict `check` gives) is not
+                // reported again here (#606).
+                if !reported_edges.contains(&(node.module.clone(), dep.clone())) {
+                    report.errors.push(format!(
+                        "{}: depends on '{}' but no spec exists for that module",
+                        node.spec_path, dep
+                    ));
+                }
             }
         }
     }
@@ -1442,6 +1466,33 @@ mod tests {
         assert_eq!(report.missing_deps[0].0, "api");
         assert_eq!(report.missing_deps[0].1, "nonexistent");
         assert!(!report.errors.is_empty());
+    }
+
+    /// #606: one missing dependency is one error, in both entry shapes, with the
+    /// same verdict `check` gives, and `missing_deps` still names it.
+    #[test]
+    fn test_one_missing_dependency_is_one_error() {
+        for entry in ["nonexistent", "specs/nonexistent/nonexistent.spec.md"] {
+            let tmp = TempDir::new().unwrap();
+            create_spec(tmp.path(), "api", &[entry], &[]);
+
+            let report = validate_deps(tmp.path(), "specs");
+            let naming: Vec<&String> = report
+                .errors
+                .iter()
+                .filter(|error| error.contains("nonexistent"))
+                .collect();
+            assert_eq!(naming.len(), 1, "{entry}: {:?}", report.errors);
+            assert!(
+                naming[0].contains("Dependency spec not found"),
+                "{entry}: {:?}",
+                report.errors
+            );
+            assert_eq!(
+                report.missing_deps,
+                vec![("api".to_string(), "nonexistent".to_string())]
+            );
+        }
     }
 
     #[test]

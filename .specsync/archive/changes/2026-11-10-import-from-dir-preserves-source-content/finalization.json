@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-preserves-source-content",
+  "implementation_commit": "8045cdacb66b70953bef8e2dd460b645d4621a43",
+  "implementation_tree": "943e2b754d7701f103e93111ebbaf0c30f2b88a1",
+  "contract_digest": "95e07837d5d7884ba6f90bb0a36a8c05539f5a5fdd403aeec5282976d736b6e3",
+  "workspace_digest": "dfd97bffb6dd047f7616c1ed8edc01a8a9d3024e695678cdee2f3df0fcc74adc",
+  "closing_digest": "17e4e4bc2ae34f217495163b7e85e3995f869c5deaa570dc8d5ec5bba166f4c5",
+  "review_digest": "b96d41af9c80104f2ab13e829bea3b6b161cc8849fb0b25ecec3b42a58fea20f",
+  "finalization_digest": "0258dd8e0a77c6e85ed1d114036e21963cd9066ebfb47cb6bd2b6eb1119f689a",
+  "timestamp": 1794326000
+}

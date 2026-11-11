@@ -1,0 +1,92 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794387646,
+      "digest": "a14efffc7cf7e8db5940f017e59bccc50a4c5095a00303de20f3706616af6d56",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "watch-outcome-tests-wait-for-the-verdict-line",
+        "title": "Watch outcome tests wait for the verdict line",
+        "description": "watch outcome tests wait for the verdict line",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "none"
+        ],
+        "affected_paths": [
+          "tests/integration/watch.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "test-only change; no module contract moves (watch spec's missing sections are pre-existing and out of scope)",
+        "acceptance_criteria": [
+          "the zero-specs watch test and its control wait for the verdict line instead of a fixed 5s window"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794387781,
+      "digest": "1b2d777c0f4f2de2be1b7ba7023b9683d6d50f29f6cffcf88b6320da5337bda3",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "watch-outcome-tests-wait-for-the-verdict-line",
+        "title": "Watch outcome tests wait for the verdict line",
+        "description": "watch outcome tests wait for the verdict line",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "tests/integration/watch.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "test-only change; no module contract moves (watch spec's missing sections are pre-existing and out of scope)",
+        "acceptance_criteria": [
+          "the zero-specs watch test and its control wait for the verdict line instead of a fixed 5s window"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794388848,
+      "digest": "3a5d7518b98e4d4568f7e5242ff3f8b416f761e7711586af1beb0b95036aa9b5",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "watch-outcome-tests-wait-for-the-verdict-line",
+      "actor": "kimi-code-t37b",
+      "reason": "affected_specs must be empty, not the literal word none",
+      "timestamp": 1794387730,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true
+    }
+  ]
+}

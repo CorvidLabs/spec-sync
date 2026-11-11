@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "other-write-errors-still-panic-and-test-output-stays-captured",
+      "reviewer": "claude-code-t384",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5113eb51b60bb6ce819488697f08c0aed784ba73",
+      "contract_digest": "15c3e470416e19dcb76adf7d59f2116e135b924477ec71961c7460cb0de8901f",
+      "execution_digest": "7707fb221a937574f63ed592d85abfec03cffc972d5633b164a11d02ec55d1bc",
+      "workspace_digest": "1402154d1115aca56aa29d250bd1d83fa8bdd996e74e6bce27251f4a88051af5",
+      "timestamp": 1794387420
+    }
+  ]
+}

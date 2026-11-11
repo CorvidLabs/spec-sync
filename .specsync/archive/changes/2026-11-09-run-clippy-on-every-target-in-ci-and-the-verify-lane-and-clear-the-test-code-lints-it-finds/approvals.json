@@ -1,0 +1,185 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794015111,
+      "digest": "2bef3e150f3b46a44c6c107c37ac8c8a3b13f44524e206295816c336d1566179",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds",
+        "title": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
+        "description": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
+        "kind": "operations",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_init",
+          "cmd_scaffold",
+          "generator",
+          "github",
+          "hash_cache",
+          "merge",
+          "validator"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-clippy-all-targets.py",
+          ".github/workflows/ci.yml",
+          "INTENT.md",
+          "fledge.toml",
+          "hi/ci.md",
+          "specs/github",
+          "src/agents.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+          "src/change_tests/fast_archived_reads.rs",
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+          "src/change_tests/substantive_plan.rs",
+          "src/commands/init.rs",
+          "src/commands/scaffold.rs",
+          "src/generator.rs",
+          "src/hash_cache.rs",
+          "src/merge_driver.rs",
+          "src/validator/tests.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Failing test first: on the unmodified tree the new test fails (neither CI's clippy step nor the fledge `lint` task has `--all-targets`, and the test is not wired into fledge or CI) and `cargo clippy --all-targets -- -D warnings` fails with 36 errors; after the change both pass, and `cargo test` and `cargo clippy -- -D warnings` still pass. No tag or release is created or published.",
+          "The `github` spec gains REQ-github-028: CI's `test` job and the fledge `lint` task (which the `verify`, `ci`, `check`, `pre-commit` and `repo` lanes run) run `cargo clippy --all-targets -- -D warnings`, so the lint gate compiles and lints the test code as well as the shipped code (CI-8); the spec version, a testing row and the Change Log follow.",
+          "`.github/scripts/test-clippy-all-targets.py` fails, naming the recovery, when any `cargo clippy` step in `ci.yml` or task in `fledge.toml` lacks `--all-targets` or `-D warnings`, or passes `-A`, `--allow` or `--cap-lints`; when CI's `test` job or the fledge `lint` task stops running clippy; when the `verify` or `ci` lane stops running `lint`; and when the `verify` and `ci` lanes or `ci.yml` stop running the test itself.",
+          "`cargo clippy --all-targets -- -D warnings` exits 0 at the change's tip. The 36 lints it reports on main (ab688246), all in test code across 15 files, are fixed in the code: no new `allow` or `expect` attribute, no lint group lowered, no lint flag added, and no test weakened or removed (the constant assertion in `src/agents.rs` becomes a compile-time `const` assertion). The 28 existing `allow(clippy::...)` attributes are unchanged.",
+          "`hi/ci.md` gains CI-8 in Leif's words, \"When the pipeline says the code lints clean, that includes the tests.\", with its source in the Intent section, and `INTENT.md` is regenerated with `hi index`."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Never weaken a lint: every fix goes in the code, never in an allow or expect attribute, a lint-level flag or a lowered group. The toolchain is pinned (rust-toolchain.toml and dtolnay/rust-toolchain@1.89.0), so local clippy and CI's give the same answers. Test-only code changes keep each test's meaning; none is removed or loosened. CI is archive-first, so a tip with an open change fails Archive before any lane runs. Workflow tests read YAML through the required-gate model's Ruby Psych loader, as the other workflow validators do. Builds run modestly (nice, -j 4) because the machine is shared.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "fa89f098e3ba8ccd50e9727152827bf33f9dee6070fb8ec32562f4991760d4ee",
+        "change": "b8d88bf4ab5d1e422ec357044582cbea103b801fb363c22eec34f67404c02982",
+        "cmd_init": "a6e669683c9309f86596cb335de252a408221beba4b1af0f5dac0a03f09d1afe",
+        "cmd_scaffold": "357fae55b9cc37ba5cb8eb9462b88dcb2559a49723c63b19684b4f6f45666a7b",
+        "generator": "989e8a397e538820547bfe70d2f4f68b656978a7e143eed680e9ca405b2fa22a",
+        "github": "41d8a0430333e27bcc2c1a381334a4ce467e64e825071a19a2c25eba149ddebe",
+        "hash_cache": "dd549c21692e854af4b160ce5350e116850becd488658161206415f0129a3dd2",
+        "merge": "0508707335c98a6760710305a49cfeaccc4d9f2de720d7a9b7eb71b393682428",
+        "validator": "78ca690d596a27d0ece49a5b03a6c3f62f6137600f914b78965000d636de612a"
+      },
+      "approved_delta_bases": {
+        "agents: SPEC SECTION Purpose": "ab62769b678252e3841b099f6e072607c9d566ddf140ccb41f95fd9f091d1442",
+        "change: SPEC SECTION Purpose": "a6d33b17ebe5d5aaea1504f21c08a868a25f4cc833684f7da3940c1d358ada21",
+        "cmd_init: SPEC SECTION Purpose": "b0fe140510a2a685230bfcb05b0964f06bf1242b31d745dd830a26a6213db616",
+        "cmd_scaffold: SPEC SECTION Purpose": "476c7d71762b7a5eee1361f546a5c074f564298a0a3e614e63c40fb5488fdfc0",
+        "generator: SPEC SECTION Purpose": "60b1b4e54ff07a264b804cb09ef83b0a00a0bd14c8e0218b1914e7f6bcb2e0c9",
+        "hash_cache: SPEC SECTION Purpose": "f08536dfe23c756d0a5466bb40701625a4ee7bf9f3604cc2fc4b57d11450139e",
+        "merge: SPEC SECTION Purpose": "90d6e2b0cdf8c02e79fa970a28048e2b2de23b3445aca130b6ec28adfd3c99d5",
+        "validator: SPEC SECTION Purpose": "f3be53f188f163d8a00873c539e84964113123ae50dab7ea05bcfc092ce4b76e"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794022461,
+      "digest": "f595037be3bf6716aa521ee6f4107f1d95ef150104102c9dc1abeef7d4dcdc4c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds",
+        "title": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
+        "description": "Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds",
+        "kind": "operations",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_init",
+          "cmd_scaffold",
+          "generator",
+          "github",
+          "hash_cache",
+          "merge",
+          "validator"
+        ],
+        "affected_paths": [
+          ".github/PULL_REQUEST_TEMPLATE.md",
+          ".github/scripts/test-clippy-all-targets.py",
+          ".github/workflows/ci.yml",
+          "CONTRIBUTING.md",
+          "INTENT.md",
+          "docs/ci-confidence.md",
+          "fledge.toml",
+          "hi/ci.md",
+          "specs/github",
+          "src/agents.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+          "src/change_tests/fast_archived_reads.rs",
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+          "src/change_tests/substantive_plan.rs",
+          "src/commands/init.rs",
+          "src/commands/scaffold.rs",
+          "src/generator.rs",
+          "src/hash_cache.rs",
+          "src/merge_driver.rs",
+          "src/validator/tests.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Failing test first: on the unmodified tree the new test fails (neither CI's clippy step nor the fledge `lint` task has `--all-targets`, and the test is not wired into fledge or CI) and `cargo clippy --all-targets -- -D warnings` fails with 36 errors; after the change both pass, and `cargo test` and `cargo clippy -- -D warnings` still pass. No tag or release is created or published.",
+          "The `github` spec gains REQ-github-028: CI's `test` job and the fledge `lint` task (which the `verify`, `ci`, `check`, `pre-commit` and `repo` lanes run) run `cargo clippy --all-targets -- -D warnings`, so the lint gate compiles and lints the test code as well as the shipped code (CI-8); the spec version, a testing row and the Change Log follow.",
+          "`.github/scripts/test-clippy-all-targets.py` fails, naming the recovery, when any `cargo clippy` step in `ci.yml` or task in `fledge.toml` lacks `--all-targets` or `-D warnings`, or passes `-A`, `--allow` or `--cap-lints`; when CI's `test` job or the fledge `lint` task stops running clippy; when the `verify` or `ci` lane stops running `lint`; and when the `verify` and `ci` lanes or `ci.yml` stop running the test itself.",
+          "`cargo clippy --all-targets -- -D warnings` exits 0 at the change's tip. The 36 lints it reports on main (ab688246), all in test code across 15 files, are fixed in the code: no new `allow` or `expect` attribute, no lint group lowered, no lint flag added, and no test weakened or removed (the constant assertion in `src/agents.rs` becomes a compile-time `const` assertion). The 28 existing `allow(clippy::...)` attributes are unchanged.",
+          "`hi/ci.md` gains CI-8 in Leif's words, \"When the pipeline says the code lints clean, that includes the tests.\", with its source in the Intent section, and `INTENT.md` is regenerated with `hi index`."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Never weaken a lint: every fix goes in the code, never in an allow or expect attribute, a lint-level flag or a lowered group. The toolchain is pinned (rust-toolchain.toml and dtolnay/rust-toolchain@1.89.0), so local clippy and CI's give the same answers. Test-only code changes keep each test's meaning; none is removed or loosened. CI is archive-first, so a tip with an open change fails Archive before any lane runs. Workflow tests read YAML through the required-gate model's Ruby Psych loader, as the other workflow validators do. Builds run modestly (nice, -j 4) because the machine is shared.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "fa89f098e3ba8ccd50e9727152827bf33f9dee6070fb8ec32562f4991760d4ee",
+        "change": "b8d88bf4ab5d1e422ec357044582cbea103b801fb363c22eec34f67404c02982",
+        "cmd_init": "a6e669683c9309f86596cb335de252a408221beba4b1af0f5dac0a03f09d1afe",
+        "cmd_scaffold": "357fae55b9cc37ba5cb8eb9462b88dcb2559a49723c63b19684b4f6f45666a7b",
+        "generator": "989e8a397e538820547bfe70d2f4f68b656978a7e143eed680e9ca405b2fa22a",
+        "github": "41d8a0430333e27bcc2c1a381334a4ce467e64e825071a19a2c25eba149ddebe",
+        "hash_cache": "dd549c21692e854af4b160ce5350e116850becd488658161206415f0129a3dd2",
+        "merge": "0508707335c98a6760710305a49cfeaccc4d9f2de720d7a9b7eb71b393682428",
+        "validator": "78ca690d596a27d0ece49a5b03a6c3f62f6137600f914b78965000d636de612a"
+      },
+      "approved_delta_bases": {
+        "agents: SPEC SECTION Purpose": "ab62769b678252e3841b099f6e072607c9d566ddf140ccb41f95fd9f091d1442",
+        "change: SPEC SECTION Purpose": "a6d33b17ebe5d5aaea1504f21c08a868a25f4cc833684f7da3940c1d358ada21",
+        "cmd_init: SPEC SECTION Purpose": "b0fe140510a2a685230bfcb05b0964f06bf1242b31d745dd830a26a6213db616",
+        "cmd_scaffold: SPEC SECTION Purpose": "476c7d71762b7a5eee1361f546a5c074f564298a0a3e614e63c40fb5488fdfc0",
+        "generator: SPEC SECTION Purpose": "60b1b4e54ff07a264b804cb09ef83b0a00a0bd14c8e0218b1914e7f6bcb2e0c9",
+        "hash_cache: SPEC SECTION Purpose": "f08536dfe23c756d0a5466bb40701625a4ee7bf9f3604cc2fc4b57d11450139e",
+        "merge: SPEC SECTION Purpose": "90d6e2b0cdf8c02e79fa970a28048e2b2de23b3445aca130b6ec28adfd3c99d5",
+        "validator: SPEC SECTION Purpose": "f3be53f188f163d8a00873c539e84964113123ae50dab7ea05bcfc092ce4b76e"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794250707,
+      "digest": "cebe8da8892702406f4ad83fd5e8f0364574758a0b701b68a7de63731bd465a5",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

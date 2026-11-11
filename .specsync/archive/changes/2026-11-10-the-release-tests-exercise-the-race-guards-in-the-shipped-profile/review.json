@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "the-release-tests-exercise-the-race-guards-in-the-shipped-profile",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "633acf3d10a9296ef9d5623b1dcecce19cacbf83",
+  "contract_digest": "090653c00f0671f466b5338d6dacc0c76efb2d6207019a5034ed14a1d9f56dc0",
+  "execution_digest": "08768f94885c6d1e3a0beedf8039cbc83a648ee75dd3fb9c1907e5f22fce556d",
+  "workspace_digest": "90630cd3d834f322c0090b2099c6b157ab4252993f180b1ecf40b6ba4b5cff1e",
+  "timestamp": 1794351719
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "import-from-dir-round-4-h1-once-purpose-fallback-takes-prose-only",
+  "implementation_commit": "5d1065bb6149c78115a009a3882c71ad7e520232",
+  "implementation_tree": "77755d30e6b95a8be807179d17fb0e44acddfa97",
+  "contract_digest": "b40ed439f3d57f2009599fb18b43d7c6a3b5ce990104cc09d3d4fbbac6331ae9",
+  "workspace_digest": "5565853bc6d42f2efe090ffd7608fb5186b789032f5431a2e8248678cc2e27cb",
+  "closing_digest": "af475887155d9bb1dc2053b8aa3bf8e0ac6b3b582d1ab87d61334c68f44c0d13",
+  "review_digest": "99f150819ce17f207f5a96ac4769eae52d5e288c9d63ad76da923bbc32a76d24",
+  "finalization_digest": "7b0a34c08418e535e6da05f52656a90d7d1a9ce74cf767300bfc1bc8a89c0274",
+  "timestamp": 1794332570
+}

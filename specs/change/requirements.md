@@ -1974,6 +1974,7 @@ remediation SHALL include `--actor` and `--reason`.
   a space.
 - Every printed `specsync change reopen <id>` remediation includes
   `--actor <name> --reason <text>`.
+
 ### REQ-change-152
 
 When a delta item targets a requirement whose canonical header carries a title

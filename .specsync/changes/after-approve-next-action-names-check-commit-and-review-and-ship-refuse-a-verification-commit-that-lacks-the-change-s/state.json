@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s",
+  "slug": "after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s",
+  "title": "After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work",
+  "description": "After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "ad8544e9da79725f499b38ae4d4b3a052be5f807",
+  "created_at": 1794408991,
+  "updated_at": 1794409004,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "specs/change/requirements.md",
+    "specs/change/change.spec.md",
+    "specs/change/testing.md",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/sdd_version.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+    "src/change_tests/verification_ignored_paths.rs",
+    "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "After approve, status and show name specsync change check <id> --commit. change review and change ship refuse when the verification commit does not contain the change's work, and do not bind a review to a commit that lacks that work."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

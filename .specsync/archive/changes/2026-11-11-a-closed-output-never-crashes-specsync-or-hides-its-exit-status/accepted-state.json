@@ -7,11 +7,11 @@
   "title": "A closed output never crashes specsync or hides its exit status",
   "description": "a closed output never crashes specsync or hides its exit status",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794384575,
-  "updated_at": 1794384638,
+  "updated_at": 1794385350,
   "affected_specs": [
     "cli",
     "watch"

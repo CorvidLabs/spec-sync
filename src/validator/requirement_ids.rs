@@ -55,8 +55,14 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
                 let path = error
                     .path()
                     .map(|path| path.strip_prefix(root).unwrap_or(path).to_path_buf());
+                // t384's nit on #1046: walkdir's Display repeats the absolute path;
+                // the OS error carries the real cause.
+                let detail = error
+                    .io_error()
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| error.to_string());
                 errors.push(format!(
-                    "cannot traverse {} to check requirement IDs: {error}",
+                    "cannot traverse {} to check requirement IDs: {detail}",
                     path.map(|path| path.display().to_string().replace('\\', "/"))
                         .unwrap_or_else(|| specs.display().to_string())
                 ));
@@ -272,6 +278,10 @@ One.
     #[test]
     fn an_unreadable_specs_subdirectory_is_an_error_naming_the_path() {
         use std::os::unix::fs::PermissionsExt;
+        // chmod 000 does not block root; skip where the bit can't bite (t384's nit on #1046).
+        if unsafe { libc::geteuid() } == 0 {
+            return;
+        }
         let temp = tempfile::TempDir::new().unwrap();
         let root = temp.path();
         let sealed = root.join("specs/locked");

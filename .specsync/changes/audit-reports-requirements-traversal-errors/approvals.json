@@ -73,6 +73,43 @@
         "validator": "7db112362e1519b1bc8eb1d19190b91d1df5ed9ebf2eb5a27e85f5ea9e52d175"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794385553,
+      "digest": "0cba4aa1b56385e4542b5e1f6ca397e9c8102fce95c803c890ccf6ac4f5cc8bf",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-validator-046) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "audit-reports-requirements-traversal-errors",
+        "title": "Audit reports requirements traversal errors",
+        "description": "audit reports requirements traversal errors",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "validator"
+        ],
+        "affected_paths": [
+          "src/validator/requirement_ids.rs",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "an unreadable subdirectory under specs/ produces an audit error naming the path instead of being skipped"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "validator": "7db112362e1519b1bc8eb1d19190b91d1df5ed9ebf2eb5a27e85f5ea9e52d175"
+      },
+      "approved_delta_bases": {}
     }
   ],
   "reopenings": [],
@@ -88,6 +125,30 @@
       "cancelled_approvals": 1,
       "cancelled_review_attempts": 0,
       "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "audit-reports-requirements-traversal-errors",
+      "actor": "kimi-code-t37b",
+      "reason": "READY track per t370: REQ-validator-046 is new requirement text; withdraw the bug-fix-rule approval",
+      "timestamp": 1794385543,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "validator",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-validator-046",
+          "content": "The duplicate-requirement-ID audit SHALL report a specs-tree traversal error as\nan audit error naming the path; it SHALL NOT silently skip a directory it\ncannot read.\n\n#### Acceptance Criteria\n\n- An unreadable subdirectory under the specs tree produces an audit error\n  naming the path.\n- A readable tree produces no traversal errors."
+        }
+      ],
+      "applied_modules": [
+        "validator"
+      ]
     }
   ]
 }

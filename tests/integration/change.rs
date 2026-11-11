@@ -4550,6 +4550,14 @@ fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
     );
     assert_eq!(first["commands"][1]["command"], gate_entry.as_str());
     assert_eq!(first["commands"][1]["success"], false);
+    // The gate-refusal entry carries the refusal texts, not just an exit code
+    // (#640, REQ-change-153 AC3).
+    let gate_output = first["commands"][1]["output"].as_str().unwrap_or_default();
+    assert!(
+        gate_output.contains("effective contract `auth`")
+            && gate_output.contains("undocumented_probe"),
+        "the gate refusal records its texts in output: {first}"
+    );
 
     run(&["change", "check", id, "--commit"]).failure();
     assert_eq!(
@@ -6278,4 +6286,120 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
+}
+
+/// A failed verification records the findings that failed it, so a flake and a
+/// regression are classifiable from the artifact alone (#640).
+#[cfg(unix)]
+#[test]
+fn failed_change_check_records_findings_in_command_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    // Break the scoped spec: a listed source file does not exist.
+    let spec_path = root.join("specs/lib/lib.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replace("  - src/lib.rs", "  - src/lib.rs\n  - src/gone.rs"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("gone.rs"),
+        "the failed command evidence names the missing file, got: {output}"
+    );
+}
+
+/// #1027 review: a non-strict check fails on its errors, not its warnings, so the bounded
+/// `output` is built from what failed. An error followed by enough warnings to fill 4 KiB is
+/// still recorded, rather than pushed out of the tail by findings that did not fail anything.
+#[cfg(unix)]
+#[test]
+fn failed_change_check_output_keeps_the_error_behind_many_warnings() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    let spec_path = root.join("specs/lib/lib.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replace("  - src/lib.rs", "  - src/lib.rs\n  - src/gone.rs"),
+    )
+    .unwrap();
+    let mut source = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    for index in 0..150 {
+        source.push_str(&format!(
+            "pub fn undocumented_export_number_{index}() {{}}\n"
+        ));
+    }
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("gone.rs"),
+        "the error that failed the check is recorded: {output}"
+    );
+    assert!(
+        !output.contains("warning: "),
+        "a non-strict check is not failed by its warnings, so they are not its output: {output}"
+    );
+}
+
+/// Passing command evidence omits `output`, so passing records serialize
+/// exactly as they did before the field existed (#640).
+#[cfg(unix)]
+#[test]
+fn passing_change_check_records_no_output_key() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .success();
+
+    let raw =
+        fs::read_to_string(root.join(format!(".specsync/changes/{id}/verification.json"))).unwrap();
+    assert!(
+        !raw.contains("\"output\""),
+        "a passing record carries no output key: {raw}"
+    );
 }

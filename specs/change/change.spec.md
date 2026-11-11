@@ -23,6 +23,7 @@ files:
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
+  - src/change_tests/bounded_failure_output.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
@@ -139,7 +140,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen and send-back history |
-| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
+| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync); a failed step carries a bounded `output` with the findings that failed it, omitted on success (#640) |
+| `bounded_failure_output` | `findings: &[String]` | `Option<String>` | Crate-private bound of failed-command findings to the last 4 KiB for `CommandEvidence.output`; `None` when there is nothing to record (#640) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
 | `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
 | `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
@@ -360,6 +362,7 @@ Acceptance Criteria
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
 51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
+58. Failed verification command evidence carries a bounded `output` of the findings that failed it (errors, and warnings only under `--strict`), so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-153).
 
 ## Behavioral Examples
 

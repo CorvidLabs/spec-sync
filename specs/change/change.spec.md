@@ -1,6 +1,6 @@
 ---
 module: change
-version: 230
+version: 231
 status: active
 files:
   - src/change.rs
@@ -778,3 +778,4 @@ Acceptance Criteria
 | 2026-11-10 | change-answer-validates-question-keys-answers-and-actor-identity: reject unknown interview question keys, empty answers, unregistered affected specs, and malformed actor identities (#426) |
 | 2026-11-10 | every-actor-accepting-verb-normalizes-identity-the-same-way: Every actor-accepting verb normalizes identity the same way |
 | 2026-11-11 | identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists: Identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists |
+| 2026-11-11 | answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested: Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested |

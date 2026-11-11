@@ -7,10 +7,11 @@
   "title": "Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
   "description": "answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "1c07640aa5960c97c0d7fe9b7edb49aa42b8556b",
   "created_at": 1794362162,
-  "updated_at": 1794411105,
+  "updated_at": 1794423103,
   "affected_specs": [
     "change"
   ],

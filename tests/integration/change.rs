@@ -6280,7 +6280,7 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
 
-// #847 (REQ-change-152): a check refused before verification records the refusal, so a reader
+// #847 (REQ-change-154): a check refused before verification records the refusal, so a reader
 // can see the check was tried and why it failed.
 #[cfg(unix)]
 #[test]
@@ -6296,11 +6296,20 @@ fn a_refused_check_records_the_refusal_as_an_attempt() {
     let output = specsync()
         .args(["--root", root.to_str().unwrap(), "change", "check", &id])
         .assert()
-        .failure()
+        .code(1)
         .get_output()
         .clone();
+    let expected_line = format!(
+        "error: tasks.md contains incomplete tasks: finish the 1 open task in \
+         `.specsync/changes/{id}/tasks.md` (line 3: \"Complete verification preparation.\") \
+         and mark it `[x]`, then re-run `specsync change check {id}`"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("incomplete tasks"), "{stderr}");
+    assert_eq!(
+        stderr.lines().last(),
+        Some(expected_line.as_str()),
+        "the refusal names the gate, the task and the re-run verbatim: {stderr}"
+    );
 
     // The refusal was recorded: one passed:false attempt carrying the reason.
     let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
@@ -6321,5 +6330,59 @@ fn a_refused_check_records_the_refusal_as_an_attempt() {
             .join(format!(".specsync/changes/{id}/verification.json"))
             .exists(),
         "a refusal never writes verification.json"
+    );
+}
+
+// #847 (REQ-change-154): a refusal after a completed verification preserves the recorded
+// verification byte for byte and only appends the refusal to the attempts ledger.
+#[cfg(unix)]
+#[test]
+fn a_refusal_preserves_the_prior_verification_and_attempts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    // A completed check records verification.json and a passed attempt.
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .success();
+    let verification_path = root.join(format!(".specsync/changes/{id}/verification.json"));
+    let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
+    let verification_before = fs::read_to_string(&verification_path)
+        .expect("the completed check wrote verification.json");
+    let attempts_before: Value = serde_json::from_str(
+        &fs::read_to_string(&attempts_path).expect("the completed check left an attempts ledger"),
+    )
+    .unwrap();
+    let passed_before = attempts_before["attempts"].as_array().unwrap().len();
+    assert!(passed_before >= 1, "{attempts_before}");
+
+    // Reopen the task so the next check is refused at the tasks gate.
+    let tasks_path = root.join(format!(".specsync/changes/{id}/tasks.md"));
+    let tasks = fs::read_to_string(&tasks_path).unwrap();
+    fs::write(&tasks_path, tasks.replace("- [x]", "- [ ]")).unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .code(1);
+
+    // The completed verification is untouched and the refusal only appended.
+    assert_eq!(
+        fs::read_to_string(&verification_path).unwrap(),
+        verification_before,
+        "a refusal never overwrites the recorded verification"
+    );
+    let attempts_after: Value =
+        serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap()).unwrap();
+    let entries = attempts_after["attempts"].as_array().unwrap();
+    assert_eq!(entries.len(), passed_before + 1, "{attempts_after}");
+    assert_eq!(entries[..passed_before], attempts_before["attempts"].as_array().unwrap()[..], "the prior attempts are preserved: {attempts_after}");
+    let refusal = &entries[passed_before];
+    assert_eq!(refusal["passed"], false, "{attempts_after}");
+    assert!(
+        refusal["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("incomplete tasks")),
+        "the appended attempt carries the refusal reason: {attempts_after}"
     );
 }

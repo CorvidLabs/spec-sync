@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+      "reviewer": "claude-code-t384",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "fbdd2f484998fcc37cc4c7d70c2b699928a65d53",
+      "contract_digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+      "execution_digest": "e9d5e84ff935d468c56407d9bbfa4240d0b480c81e945caee99a9872063c3226",
+      "workspace_digest": "eb33a3461640f52e900c11ef01b0c8f66175c154ce13ffd74825bed868b42b70",
+      "timestamp": 1794412125
+    }
+  ]
+}

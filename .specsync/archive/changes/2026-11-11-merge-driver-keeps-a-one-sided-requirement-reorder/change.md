@@ -1,6 +1,6 @@
 ---
 id: merge-driver-keeps-a-one-sided-requirement-reorder
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 949ced6a4935688757ed82ea74819fdc6494691b
 ---

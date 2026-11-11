@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+  "slug": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+  "title": "Delta materializer matches and keeps titled requirement headers",
+  "description": "delta materializer matches and keeps titled requirement headers",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794384585,
+  "updated_at": 1794384970,
+  "affected_specs": [
+    "change",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/validator/requirement_ids.rs",
+    "src/change_tests.rs",
+    "src/change_tests/titled_requirement_header_delta.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a MODIFIED delta applies to every header form the requirement parser accepts (title suffix, punctuation, multi-segment ids, up to 3-space indent); the matched header line is written back unchanged; a following indented requirement block survives"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

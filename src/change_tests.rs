@@ -41,3 +41,4 @@ include!("change_tests/approve_refusal_hints.rs");
 include!("change_tests/doctor_collision.rs");
 
 include!("change_tests/recovery_retirement.rs");
+include!("change_tests/titled_requirement_header_delta.rs");

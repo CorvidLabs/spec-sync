@@ -1,0 +1,42 @@
+{
+  "timestamp": 1794394787,
+  "commit": "fad23cd3a18720c6627a54dc462284fbd62643ed",
+  "contract_digest": "20cd6f20ac2837f1b74933a6dda42037b91ffb4108d385675790e1ba031795c3",
+  "execution_digest": "e714dc8173ac9dcef045dab8c853a35f9183e956569b9366c15e66fb33fc5818",
+  "workspace_digest": "f91572315130b62fc5e605bc153f48d6e8f039f59e77d868856460be0e6c0d5b",
+  "acceptance_input_digest": "36911c74592cba1dd5ab296c41943d95b6dc0d8ab003bb24ae94d3c74be13c32",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "tests/integration/helpers.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7f9c14832620842ddf6a0aa7790aa9316a5ef10e0aa5d549a13f0960c04c67b4",
+        "entry_digest": "ddac8d341128ad70299167f6b25617881927bc1491643ae38155affadd6f8b5d",
+        "owners": [
+          "@exact:test"
+        ]
+      },
+      {
+        "path": "tests/integration/watch.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "21700aca7fd970015ee31c23a20c411398de78cbf747b6d9dc2a4c4aa541a486",
+        "entry_digest": "0ac495a69970db02b1796d436a641f6e4d0350ad3d137b50f2447b23667c3bea",
+        "owners": [
+          "@exact:test"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

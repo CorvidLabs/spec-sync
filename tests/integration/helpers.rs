@@ -5,8 +5,11 @@ use tempfile::TempDir;
 
 pub const SUBSTANTIVE_PLAN: &str = "# Plan\n\n## Approach\n\nDo the work.\n\n## Out of scope\n\nLeave unrelated work alone.\n\n## Steps\n\nLand the change.\n\n## Risks\n\nnone\n\n## Constraints consulted\n\nnone\n";
 
-pub fn specsync() -> Command {
-    let mut cmd = Command::cargo_bin("specsync").unwrap();
+/// The specsync binary as a std Command with the harness env hygiene — the base every
+/// integration test builds on, so a raw-std caller (like watch_until) inherits the same
+/// hygiene instead of re-deriving it.
+pub fn specsync_std() -> std::process::Command {
+    let mut cmd = std::process::Command::new(assert_cmd::cargo::cargo_bin("specsync"));
     cmd.env_remove("GITHUB_EVENT_NAME");
     cmd.env_remove("GITHUB_BASE_REF");
     for (key, _) in std::env::vars() {
@@ -15,6 +18,10 @@ pub fn specsync() -> Command {
         }
     }
     cmd
+}
+
+pub fn specsync() -> Command {
+    Command::from_std(specsync_std())
 }
 
 pub fn valid_spec(module: &str, files: &[&str]) -> String {

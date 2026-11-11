@@ -72,6 +72,7 @@ File watcher that re-runs `specsync check` on file changes. Watches the spec dir
 |-----------|----------|
 | No valid directories or exact files to watch | Prints error retaining `No directories to watch`, exits with code 1 |
 | Watcher creation fails | Panics with "Failed to create file watcher" |
+| Nobody reads the output any more (a closed stdout) | Stops after the banner or the run it was printing, and exits 0 instead of watching on unseen (#1036) |
 | Missing configured path | Emits legacy `nonexistent_watch_directory` JSON or a human missing-path warning; continues if other valid paths register |
 | Invalid path, link/reparse component, escape, unsupported kind or registration failure | Emits `invalid_watch_path` JSON or a human invalid-path warning; never labels an existing regular source file nonexistent |
 | Coarse exact-source fingerprint exceeds 8 MiB, cannot be read, or changes during acquisition | Discloses unavailable coarse fingerprinting; never reads unselected siblings or claims unsupported backend proof |

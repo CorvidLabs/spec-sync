@@ -1,6 +1,6 @@
 ---
 id: bump-cap-primitives-to-4-0-3-for-rustsec-2026-0482
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 46f55652649a72ddf5e1715938b504b96686566b
 ---

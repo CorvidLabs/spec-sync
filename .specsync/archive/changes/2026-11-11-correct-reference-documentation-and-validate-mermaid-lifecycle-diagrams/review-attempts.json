@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "correct-reference-documentation-and-validate-mermaid-lifecycle-diagrams",
+      "reviewer": "claude-code-t384",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bb88f200b0b4d6ee71b46149e4509e949285a2c0",
+      "contract_digest": "c43a23f81c1cad75ad60a0464954a4e6f8b6b0e1221432c3fc770bf0ce35017f",
+      "execution_digest": "c6469846bbcbc30740b055db674ca0c864ed8fb2b652da43ef7ed24bc0507a52",
+      "workspace_digest": "65a078c666379377fbee9016bfe00176489f489dd2ba13dd5e661459ffe5c15c",
+      "timestamp": 1794413962
+    }
+  ]
+}

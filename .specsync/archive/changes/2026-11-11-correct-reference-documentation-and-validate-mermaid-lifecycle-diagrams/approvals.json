@@ -84,6 +84,13 @@
       "approved_delta_bases": {
         "agents: REQUIREMENT REQ-agents-009": "efb868cd0a7b209a02d24688201627e06d31dc67e76bdaeacbe874e570b99063"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794413995,
+      "digest": "bb7c5be9c7005da568da44a63a50ea64a0fbb0144ccbf270ecdd2e20993a384a",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

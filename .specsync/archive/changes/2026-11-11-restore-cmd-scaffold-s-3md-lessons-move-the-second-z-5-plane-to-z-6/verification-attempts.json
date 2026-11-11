@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794414097,
+      "commit": "446e6a4e1dfdae87a1823b845486c73656a526a5",
+      "contract_digest": "8632a5def36ed1045f5570f2c03b2f01be6ab4e306af0362f70486b5b2e66630",
+      "execution_digest": "872245822c1348c4a557bce1a45411cf37cdadc2d6c7e37e93b4ece4eac0eb7d",
+      "workspace_digest": "31a3983fdf60ca5270ea811bfc8e38d6aa36b05253f45d38e99dc8ba9f329177",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_scaffold",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794414102,
+      "commit": "b02eb12f1a39279b551221f34569bb4876c7735f",
+      "contract_digest": "8632a5def36ed1045f5570f2c03b2f01be6ab4e306af0362f70486b5b2e66630",
+      "execution_digest": "872245822c1348c4a557bce1a45411cf37cdadc2d6c7e37e93b4ece4eac0eb7d",
+      "workspace_digest": "31a3983fdf60ca5270ea811bfc8e38d6aa36b05253f45d38e99dc8ba9f329177",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_scaffold",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794414102,
+      "commit": "a642b549d580a780381e2987ece7eb77f88359c2",
+      "contract_digest": "8632a5def36ed1045f5570f2c03b2f01be6ab4e306af0362f70486b5b2e66630",
+      "execution_digest": "872245822c1348c4a557bce1a45411cf37cdadc2d6c7e37e93b4ece4eac0eb7d",
+      "workspace_digest": "31a3983fdf60ca5270ea811bfc8e38d6aa36b05253f45d38e99dc8ba9f329177",
+      "acceptance_input_digest": "65eae5002c5177457d9ac6a5423758b1893f3c248464556f6ec9d2e1125a0e1c",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/cmd_scaffold/cmd_scaffold.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a41950a1c72f23c6fe4b67069ec209c8667b732806c48f59e3495fe167637459",
+            "entry_digest": "59262b660d1b0ca4806cb5292536132feb9f03c4923bffbbfdaf6f1fd155aae6",
+            "owners": [
+              "cmd_scaffold"
+            ]
+          },
+          {
+            "path": "specs/cmd_scaffold/cmd_scaffold.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6f80368ba4ef4421c2c74285a38817c1d4a77225b17501349c4e737b0ac93d19",
+            "entry_digest": "4bbe291f363b2040faa3b9bf4e155e6ee3f8c09c929d42cfdcb103ab2a8fefe8",
+            "owners": [
+              "cmd_scaffold"
+            ]
+          },
+          {
+            "path": "specs/cmd_scaffold/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4ac59328cdcbef32fb2f5d08b37b4324b3c6b0a6a0ca0137e01af47315a34ca5",
+            "entry_digest": "12f33af5c6237e282f12ff179d3b5429302c39803386022d2cd15ca905c4de58",
+            "owners": [
+              "cmd_scaffold"
+            ]
+          },
+          {
+            "path": "specs/cmd_scaffold/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "91111761d3d6f5d6a55a7c0139c0e46b46c38f2da956b3db8df18c1b7bb6e845",
+            "entry_digest": "68302e174521b9d3e1fd09ec8f3cff3a104da25df13a172658c94248cce69ba7",
+            "owners": [
+              "cmd_scaffold"
+            ]
+          },
+          {
+            "path": "specs/cmd_scaffold/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e4b697ea3ecc183f9fb7156aa8133a9da5c623541a8a8252ad771d9b572919f1",
+            "entry_digest": "d4b4724769c2468c6990ccdcdb5174e3adb77b42c9fbf97807009a7de40ff757",
+            "owners": [
+              "cmd_scaffold"
+            ]
+          },
+          {
+            "path": "specs/cmd_scaffold/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d50f00b294e11e1a9525b6e15e0e5a3b31309ac257712c81ce2221bd622b0602",
+            "entry_digest": "422acaa226a18c6c970fe74f9c7f0763636299b40453767bdde7d3722906ac16",
+            "owners": [
+              "cmd_scaffold"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_scaffold",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

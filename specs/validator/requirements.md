@@ -311,3 +311,26 @@ Acceptance Criteria
 - The same ID written inside a fenced code block is not a second requirement.
 - A file with each ID once still passes this check.
 
+### REQ-validator-047
+
+Requirement-heading identity SHALL be decided by one shared parser: the
+validator's `requirement_heading_id`, reused by the delta materializer, so a
+header form the validator accepts is a form the materializer matches.
+
+#### Acceptance Criteria
+
+- The materializer's block matcher returns the same answer as
+  `requirement_heading_id(line) == Some(key)` for every `### ` target.
+
+### REQ-validator-046
+
+The duplicate-requirement-ID audit SHALL report a specs-tree traversal error as
+an audit error naming the path; it SHALL NOT silently skip a directory it
+cannot read.
+
+#### Acceptance Criteria
+
+- An unreadable subdirectory under the specs tree produces an audit error
+  naming the path.
+- A readable tree produces no traversal errors.
+

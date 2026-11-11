@@ -1,0 +1,128 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794384658,
+      "digest": "b53c3ac830d2f610b2d5261cda9e0e1ca33cee71474d64fcc3de255f34c6db6e",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-152, REQ-validator-047, invariant 53) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+        "title": "Delta materializer matches and keeps titled requirement headers",
+        "description": "delta materializer matches and keeps titled requirement headers",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/titled_requirement_header_delta.rs",
+          "src/validator/requirement_ids.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta applies to every header form the requirement parser accepts (title suffix, punctuation, multi-segment ids, up to 3-space indent); the matched header line is written back unchanged; a following indented requirement block survives"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "afc21e0ecf12b33220f452802f1934b84602650a5ee1bd294bc013e288ca5365",
+        "validator": "97dd3cf0d44b7b36dfb6dbd994588013ac5a369e9b3c00c07643bd61409347f4"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794414127,
+      "digest": "b53c3ac830d2f610b2d5261cda9e0e1ca33cee71474d64fcc3de255f34c6db6e",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+        "title": "Delta materializer matches and keeps titled requirement headers",
+        "description": "delta materializer matches and keeps titled requirement headers",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/titled_requirement_header_delta.rs",
+          "src/validator/requirement_ids.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta applies to every header form the requirement parser accepts (title suffix, punctuation, multi-segment ids, up to 3-space indent); the matched header line is written back unchanged; a following indented requirement block survives"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "afc21e0ecf12b33220f452802f1934b84602650a5ee1bd294bc013e288ca5365",
+        "validator": "97dd3cf0d44b7b36dfb6dbd994588013ac5a369e9b3c00c07643bd61409347f4"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794414586,
+      "digest": "3531608093f92e1aa4f52e3b78126f1eed5794b7a1d24cc1babc344442d30a8f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+      "actor": "kimi-code-t37b",
+      "reason": "READY policy (t370, 2026-11-11): no agent approval stands on new requirement text; the definition approval is Leif's gate",
+      "timestamp": 1794385831,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-152",
+          "content": "When a delta item targets a requirement whose canonical header carries a title\nsuffix (`### REQ-<module>-<number> — Title`, `### REQ-x-001: Title`), the\nmaterializer SHALL match the block by the shared requirement-heading parser —\naccepting every form the parser accepts, including multi-segment module ids\nand up to three spaces of indent — and the block-end scan SHALL apply the same\nATX indent rule, so a matched indented block ends at the next heading. The\nmaterialized block SHALL keep the matched header line unchanged. Section\ndeltas (`## ` targets) SHALL keep exact heading matching.\n\n#### Acceptance Criteria\n\n- A MODIFIED delta applies to a titled header, including a hyphenated module\n  id (`REQ-cmd-change-012 — Title`) and a colon title (`REQ-x-001: Title`).\n- A MODIFIED or REMOVED on an indented titled header leaves the following\n  indented requirement block intact.\n- The matched header line is preserved byte-for-byte in the materialized\n  tree, and re-application converges.\n- A `## ` section delta whose key is a strict prefix of an existing section\n  heading does not match that section."
+        },
+        {
+          "module": "validator",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-validator-047",
+          "content": "Requirement-heading identity SHALL be decided by one shared parser: the\nvalidator's `requirement_heading_id`, reused by the delta materializer, so a\nheader form the validator accepts is a form the materializer matches.\n\n#### Acceptance Criteria\n\n- The materializer's block matcher returns the same answer as\n  `requirement_heading_id(line) == Some(key)` for every `### ` target."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "validator"
+      ]
+    }
+  ]
+}

@@ -1560,7 +1560,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
             "accepted change verification is stale for current delivery inputs",
         ))
         .stderr(predicate::str::contains(
-            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen update-review-instructions` to re-verify the accepted change",
+            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen update-review-instructions --actor <name> --reason <text>` to re-verify the accepted change",
         ));
     let output = specsync()
         .args([
@@ -4550,6 +4550,14 @@ fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
     );
     assert_eq!(first["commands"][1]["command"], gate_entry.as_str());
     assert_eq!(first["commands"][1]["success"], false);
+    // The gate-refusal entry carries the refusal texts, not just an exit code
+    // (#640, REQ-change-153 AC3).
+    let gate_output = first["commands"][1]["output"].as_str().unwrap_or_default();
+    assert!(
+        gate_output.contains("effective contract `auth`")
+            && gate_output.contains("undocumented_probe"),
+        "the gate refusal records its texts in output: {first}"
+    );
 
     run(&["change", "check", id, "--commit"]).failure();
     assert_eq!(
@@ -6278,6 +6286,509 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
+}
+
+/// A failed verification records the findings that failed it, so a flake and a
+/// regression are classifiable from the artifact alone (#640).
+#[cfg(unix)]
+#[test]
+fn failed_change_check_records_findings_in_command_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    // Break the scoped spec: a listed source file does not exist.
+    let spec_path = root.join("specs/lib/lib.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replace("  - src/lib.rs", "  - src/lib.rs\n  - src/gone.rs"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("gone.rs"),
+        "the failed command evidence names the missing file, got: {output}"
+    );
+}
+
+/// #1027 review: a non-strict check fails on its errors, not its warnings, so the bounded
+/// `output` is built from what failed. An error followed by enough warnings to fill 4 KiB is
+/// still recorded, rather than pushed out of the tail by findings that did not fail anything.
+#[cfg(unix)]
+#[test]
+fn failed_change_check_output_keeps_the_error_behind_many_warnings() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    let spec_path = root.join("specs/lib/lib.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replace("  - src/lib.rs", "  - src/lib.rs\n  - src/gone.rs"),
+    )
+    .unwrap();
+    let mut source = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    for index in 0..150 {
+        source.push_str(&format!(
+            "pub fn undocumented_export_number_{index}() {{}}\n"
+        ));
+    }
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("gone.rs"),
+        "the error that failed the check is recorded: {output}"
+    );
+    assert!(
+        !output.contains("warning: "),
+        "a non-strict check is not failed by its warnings, so they are not its output: {output}"
+    );
+}
+
+/// #1047 review: under `--strict` a check's warnings are failures, so a strict check failed
+/// only by warnings records those warnings as its output (REQ-change-153).
+#[cfg(unix)]
+#[test]
+fn failed_strict_change_check_output_records_the_warnings_that_failed_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    // Warnings only: undocumented exports, and no error.
+    let mut source = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    for index in 0..3 {
+        source.push_str(&format!(
+            "pub fn undocumented_export_number_{index}() {{}}\n"
+        ));
+    }
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--strict",
+        ])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("warning: ") && output.contains("undocumented_export_number_0"),
+        "a strict check failed by its warnings records them: {output}"
+    );
+}
+
+/// Passing command evidence omits `output`, so passing records serialize
+/// exactly as they did before the field existed (#640).
+#[cfg(unix)]
+#[test]
+fn passing_change_check_records_no_output_key() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .success();
+
+    let raw =
+        fs::read_to_string(root.join(format!(".specsync/changes/{id}/verification.json"))).unwrap();
+    assert!(
+        !raw.contains("\"output\""),
+        "a passing record carries no output key: {raw}"
+    );
+}
+// #839 (REQ-change-004): `change check --commit --json` must print one JSON document on
+// success — the run previously exited 0 with empty stdout, so a runner parsing the output got
+// nothing to parse.
+#[cfg(unix)]
+#[test]
+fn change_check_commit_json_prints_the_outcome() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--commit",
+            "--json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.trim().is_empty(),
+        "a successful --commit --json run must print its outcome"
+    );
+    let document: Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is one JSON document: {error}\n{stdout}"));
+    assert_eq!(document["change"], id, "{document}");
+    assert_eq!(document["verified"], true, "{document}");
+    assert_eq!(document["pushed"], false, "{document}");
+    assert!(
+        document["materialize_commit"].is_string() || document["materialize_commit"].is_null(),
+        "{document}"
+    );
+    assert!(
+        document["verification_commit"].is_string(),
+        "the verification commit is always recorded: {document}"
+    );
+    assert!(
+        document["configured_commands_not_run"].is_array(),
+        "the outcome document carries the same disclosure as every other JSON success: {document}"
+    );
+}
+
+// #839 (REQ-change-004, the change's refusal criterion): a refused `change check --commit
+// --json` run prints exactly one JSON error document on stdout and exits non-zero. A progress
+// line or a second document on stdout would make the output unparseable for a runner.
+#[test]
+fn change_check_commit_json_refusal_prints_one_error_document() {
+    let fixture = OpenTaskCli::new();
+    let id = fixture.id.clone();
+    fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
+    fixture.git(&["commit", "-am", "leave one task open"]);
+    let head_before = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap()
+        .stdout;
+
+    let output = fixture
+        .run(&["change", "check", &id, "--commit", "--json"])
+        .failure()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let mut documents = serde_json::Deserializer::from_str(&stdout).into_iter::<Value>();
+    let document = documents
+        .next()
+        .unwrap_or_else(|| panic!("a refused --commit --json run prints a document: {stdout:?}"))
+        .unwrap_or_else(|error| panic!("stdout starts with a JSON document: {error}\n{stdout}"));
+    // The streaming reader fails on any text before the document and yields Some for any
+    // text or second document after it, so this pins "one document, nothing else".
+    assert!(
+        documents.next().is_none(),
+        "stdout holds exactly one JSON document and nothing after it: {stdout:?}"
+    );
+    let error = document["error"]
+        .as_str()
+        .unwrap_or_else(|| panic!("the document carries an `error` string: {document}"));
+    assert!(
+        error.contains("tasks.md contains incomplete tasks"),
+        "the error names the refusal: {error}"
+    );
+    let head_after = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap()
+        .stdout;
+    assert_eq!(head_before, head_after, "a refused run commits nothing");
+}
+// #676 (REQ-change-155): an ignored_paths entry whose whole coverage is always meaningful is
+// disclosed at policy load, on stderr, with the file to edit — not three verbs later at audit.
+#[cfg(unix)]
+#[test]
+fn an_inert_ignored_paths_entry_is_disclosed_at_policy_load() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    policy["ignored_paths"] = serde_json::json!([".specsync/", "specs/"]);
+    fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+    // `change status` loads the policy (the briefing reads the principles file); `change list`
+    // only reads the roster and never loads it.
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "status", &id])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ignored_paths entry `specs/` is inert"),
+        "the note names the inert entry: {stderr}"
+    );
+    assert!(
+        stderr.contains(".specsync/sdd.json"),
+        "the note names the file to edit: {stderr}"
+    );
+    assert!(
+        !stderr.contains("`.specsync/` is inert"),
+        "the .specsync/ entry does real work and stays silent: {stderr}"
+    );
+}
+// #847 (REQ-change-154): a check refused before verification records the refusal, so a reader
+// can see the check was tried and why it failed.
+#[cfg(unix)]
+#[test]
+fn a_refused_check_records_the_refusal_as_an_attempt() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    // Reopen the task so the tasks gate refuses before verification starts.
+    let tasks_path = root.join(format!(".specsync/changes/{id}/tasks.md"));
+    let tasks = fs::read_to_string(&tasks_path).unwrap();
+    fs::write(&tasks_path, tasks.replace("- [x]", "- [ ]")).unwrap();
+
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    let expected_line = format!(
+        "error: tasks.md contains incomplete tasks: finish the 1 open task in \
+         `.specsync/changes/{id}/tasks.md` (line 3: \"Complete verification preparation.\") \
+         and mark it `[x]`, then re-run `specsync change check {id}`"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        stderr.lines().last(),
+        Some(expected_line.as_str()),
+        "the refusal names the gate, the task and the re-run verbatim: {stderr}"
+    );
+
+    // The refusal was recorded: one passed:false attempt carrying the reason.
+    let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
+    let attempts: Value = serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap())
+        .expect("the refusal left an attempts ledger");
+    let entries = attempts["attempts"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{attempts}");
+    assert_eq!(entries[0]["passed"], false, "{attempts}");
+    assert!(
+        entries[0]["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("incomplete tasks")),
+        "the attempt carries the refusal reason: {attempts}"
+    );
+    // And it did not pose as completed verification.
+    assert!(
+        !root
+            .join(format!(".specsync/changes/{id}/verification.json"))
+            .exists(),
+        "a refusal never writes verification.json"
+    );
+}
+
+// #847 (REQ-change-154): a refusal after a completed verification preserves the recorded
+// verification byte for byte and only appends the refusal to the attempts ledger.
+#[cfg(unix)]
+#[test]
+fn a_refusal_preserves_the_prior_verification_and_attempts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    // A completed check records verification.json and a passed attempt.
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .success();
+    let verification_path = root.join(format!(".specsync/changes/{id}/verification.json"));
+    let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
+    let verification_before = fs::read_to_string(&verification_path)
+        .expect("the completed check wrote verification.json");
+    let attempts_before: Value = serde_json::from_str(
+        &fs::read_to_string(&attempts_path).expect("the completed check left an attempts ledger"),
+    )
+    .unwrap();
+    let passed_before = attempts_before["attempts"].as_array().unwrap().len();
+    assert!(passed_before >= 1, "{attempts_before}");
+
+    // Reopen the task so the next check is refused at the tasks gate.
+    let tasks_path = root.join(format!(".specsync/changes/{id}/tasks.md"));
+    let tasks = fs::read_to_string(&tasks_path).unwrap();
+    fs::write(&tasks_path, tasks.replace("- [x]", "- [ ]")).unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .code(1);
+
+    // The completed verification is untouched and the refusal only appended.
+    assert_eq!(
+        fs::read_to_string(&verification_path).unwrap(),
+        verification_before,
+        "a refusal never overwrites the recorded verification"
+    );
+    let attempts_after: Value =
+        serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap()).unwrap();
+    let entries = attempts_after["attempts"].as_array().unwrap();
+    assert_eq!(entries.len(), passed_before + 1, "{attempts_after}");
+    assert_eq!(
+        entries[..passed_before],
+        attempts_before["attempts"].as_array().unwrap()[..],
+        "the prior attempts are preserved: {attempts_after}"
+    );
+    let refusal = &entries[passed_before];
+    assert_eq!(refusal["passed"], false, "{attempts_after}");
+    assert!(
+        refusal["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("incomplete tasks")),
+        "the appended attempt carries the refusal reason: {attempts_after}"
+    );
+}
+
+/// A change's recorded `base_commit` is used as the coverage diff base only when it is a full commit
+/// id (REQ-change-013); any other value falls back to the base used when no change records one, so
+/// the coverage gate still inspects the changed paths.
+#[test]
+fn coverage_uses_a_changes_recorded_base_only_when_it_is_a_full_commit_id() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": true,
+  "meaningful_paths": ["src/"],
+  "ignored_paths": [".specsync/", "specs/"],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        super::helpers::valid_spec("auth", &["src/auth.rs"]),
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "base"]);
+    let root_arg = root.to_str().unwrap();
+    specsync()
+        .args([
+            "--root",
+            root_arg,
+            "change",
+            "new",
+            "Tune auth",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--no-spec-change",
+            "--rationale",
+            "internal",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let state_path = root.join(".specsync/changes/tune-auth/state.json");
+    let mut state: Value = serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    state["base_commit"] = Value::String("--not-a-commit".into());
+    fs::write(
+        &state_path,
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+    )
+    .unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "record"]);
+    fs::write(root.join("src/auth.rs"), "pub fn auth() { }\n").unwrap();
+    git(&["commit", "-q", "-am", "edit"]);
+
+    // No remote and no CI base, so the gate would fall back to the change's recorded base.
+    let output = specsync()
+        .args(["--root", root_arg, "change", "audit", "--strict"])
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !text.contains("unable to inspect"),
+        "a recorded base that is not a full commit id is not used as the diff base: {text}"
+    );
 }
 
 /// #1043, #434 (REQ-change-079): every lifecycle rewrite keeps the members a newer SpecSync wrote

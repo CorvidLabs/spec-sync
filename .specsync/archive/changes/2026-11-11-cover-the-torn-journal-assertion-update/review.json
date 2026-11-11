@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-torn-journal-assertion-update",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ef79eda1672a1dcb15daa520ab3e58435ee40c26",
+  "contract_digest": "f901a930a93a596d62fae60b4cea63c80e54afcd8b664cf8f7777c32d968ca05",
+  "execution_digest": "422e97a7f39fcc2d7adbd6b9510714723cc44a9d20f9858225e39bff1f2d92f8",
+  "workspace_digest": "a2c116672ca8ce973abe0e9283ecc86d346df23833fc94aea721d2eeffa56951",
+  "timestamp": 1794413745
+}

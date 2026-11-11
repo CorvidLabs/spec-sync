@@ -14,4 +14,4 @@ inputs are all modified, are unchanged.
 | Requirement | Evidence |
 | --- | --- |
 | REQ-cmd-change-008 | unit `the_ownership_recovery_narrows_a_scope_over_files_the_change_never_touched`, `the_ownership_recovery_names_a_repair_for_every_unowned_input`; integration `ship_readiness_names_unowned_production_source_before_finalize_and_the_recovery_ships` |
-| REQ-change-053 | unit `the_ownership_recovery_narrows_a_scope_over_files_the_change_never_touched`, `the_ownership_recovery_quotes_every_interpolated_word` |
+| REQ-change-053 | unit `the_ownership_recovery_only_narrows_when_every_unowned_input_is_untouched`, `files_changed_since_base_is_root_relative_and_counts_pre_change_work`, unit `the_ownership_recovery_narrows_a_scope_over_files_the_change_never_touched`, `the_ownership_recovery_quotes_every_interpolated_word` |

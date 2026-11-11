@@ -3801,7 +3801,6 @@ if the floor call is removed from this function"
         );
     }
 
-    /// A git project with a committed base tree, ready for a change to be driven through it.
     /// Give a fixture repository a remote default branch at its current commit, so the
     /// ownership recovery can tell this branch's work from untouched files (#1000, #1037).
     fn with_remote_default(root: &Path) {
@@ -3816,6 +3815,7 @@ if the floor call is removed from this function"
         git_in(root, &["remote", "set-head", "origin", "main"]);
     }
 
+    /// A git project with a committed base tree, ready for a change to be driven through it.
     fn git_project_fixture(root: &Path) {
         git_in(root, &["init", "-b", "main"]);
         git_in(root, &["config", "user.email", "t@example.com"]);

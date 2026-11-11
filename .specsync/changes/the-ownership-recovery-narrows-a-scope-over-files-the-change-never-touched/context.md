@@ -30,5 +30,5 @@ Two independent reviews (2026-11-10) led to these fixes:
 - A mixed case gets one send-back, and it keeps the \`files:\` repair for modified inputs no
   module claims.
 
-Known limit: work committed before \`change new\` in a repository with no remote is classified
-untouched; the approve-time ownership check then asks for its owner.
+With no remote default branch (so no merge base), nothing is classified, and every input keeps
+the declare recovery.

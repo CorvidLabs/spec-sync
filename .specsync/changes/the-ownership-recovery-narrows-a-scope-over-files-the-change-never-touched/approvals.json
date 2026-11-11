@@ -185,7 +185,92 @@
         "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037; re-recorded after review clarifications that keep the approved narrowing recovery and state its declare fallback",
         "recorded_by": "Claude worker t37f"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794372738,
+      "digest": "dd0100cce1dc603eff1901edd9804075fed9866c814876673fa51897e70baf42",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "92a88deade44f4db9f8e3261d3c34596c70bff8b4d24464159c10a677fd63cd1",
+        "cmd_change": "ef38851eb04434ee5e8993814a9e93aece338f620226ab5a1db6a466b0f956b9"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "aa62d3e3d0f5348d0b45ac2f25a363b32880a25dfc183db075330005c6860aa0",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "1d38d16011b769609363e37244989c2de36eb85e89ae513c9ac2fa03ee364a95"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve, merge when green",
+        "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037; re-recorded after a send-back that only added the edited test file to affected_paths",
+        "recorded_by": "Claude worker t37f"
+      }
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+      "actor": "0xLeif",
+      "reason": "Recorded by the Claude worker under Leif's rules: add the edited test file src/change_tests/approve_ownership_names_the_spec.rs to affected_paths; the independent review found change audit --strict would refuse it as uncovered",
+      "timestamp": 1794372701,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 4,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-change-053",
+          "content": "Canonical ownership of declared paths SHALL be resolved when the definition is\napproved, and a change that has never closed SHALL be able to correct an\nacceptance input owner without an audited reopen event.\n\nAcceptance Criteria\n\n- Approving a definition rejects declared paths that no declared module\n  canonically owns, naming every offending path in one error.\n- Paths that do not yet exist are not rejected at approve, since the owning spec\n  may claim them in the same change; they remain enforced at finalize.\n- A declared path that is a directory is not file-level ownership-checked at\n  approve; its descendant files remain checked at finalize.\n- Recognized reserved delivery paths (for example files under `.github/` or\n  `docs/`, and the protected SDD and root metadata files) are signed with the\n  exact delivery owner by design and finalize accepts them, so they are not\n  ownership refusals at approve and not `correct-owner` discovery candidates.\n- A change with justified `no_spec_change` and no declared specs is\n  ownership-checked at approve as well: an existing production-source path in\n  its scope that is not recognized reserved delivery metadata has no declared\n  owner, so it is rejected, naming the module that owns it, before anyone\n  approves or reviews it (#986, #956). Empty specs without that justification\n  still fail closed at definition validation and at ownership validation.\n- A change at verifying that has never closed may correct an acceptance input\n  owner under a currently valid definition approval. That substitute is for\n  guided-path reachability, not audit-equivalent provenance to an\n  Accepted→reopen cycle.\n- A change that did close continues to require an audited reopen, unchanged.\n- Owner recovery never prints a command that cannot run as printed: when a\n  module name cannot round-trip through the comma-separated `affected_specs`\n  answer, the guidance names the modules in prose instead. When the spec\n  listing exceeds its bound, the recovery says the listing is incomplete rather\n  than omitting an owner. A recovery that replaces `affected_specs` says the\n  constraints answer must be renewed before approval. Owner discovery includes\n  registry-registered canonical specs outside the specs directory.\n- The ship preflight and review owner recovery declares owners only for unowned\n  inputs the change modified (since its base commit or the merge base with the\n  remote default branch, or untracked); an unowned input it never modified is named\n  with a recovery that narrows `affected_paths` instead, since its owner has nothing\n  to approve in this change (#1000). Approve's own ownership refusal is unchanged.\n  Without a usable base commit, a merge base with the remote default branch, or a\n  complete spec listing, every input keeps the declare recovery, and a base commit\n  that is not a full commit id is never passed to Git.",
+          "previous_content": "Canonical ownership of declared paths SHALL be resolved when the definition is\napproved, and a change that has never closed SHALL be able to correct an\nacceptance input owner without an audited reopen event.\n\nAcceptance Criteria\n\n- Approving a definition rejects declared paths that no declared module\n  canonically owns, naming every offending path in one error.\n- Paths that do not yet exist are not rejected at approve, since the owning spec\n  may claim them in the same change; they remain enforced at finalize.\n- A declared path that is a directory is not file-level ownership-checked at\n  approve; its descendant files remain checked at finalize.\n- Recognized reserved delivery paths (for example files under `.github/` or\n  `docs/`, and the protected SDD and root metadata files) are signed with the\n  exact delivery owner by design and finalize accepts them, so they are not\n  ownership refusals at approve and not `correct-owner` discovery candidates.\n- A change with justified `no_spec_change` and no declared specs is\n  ownership-checked at approve as well: an existing production-source path in\n  its scope that is not recognized reserved delivery metadata has no declared\n  owner, so it is rejected, naming the module that owns it, before anyone\n  approves or reviews it (#986, #956). Empty specs without that justification\n  still fail closed at definition validation and at ownership validation.\n- A change at verifying that has never closed may correct an acceptance input\n  owner under a currently valid definition approval. That substitute is for\n  guided-path reachability, not audit-equivalent provenance to an\n  Accepted→reopen cycle.\n- A change that did close continues to require an audited reopen, unchanged.\n- Owner recovery never prints a command that cannot run as printed: when a\n  module name cannot round-trip through the comma-separated `affected_specs`\n  answer, the guidance names the modules in prose instead. When the spec\n  listing exceeds its bound, the recovery says the listing is incomplete rather\n  than omitting an owner. A recovery that replaces `affected_specs` says the\n  constraints answer must be renewed before approval. Owner discovery includes\n  registry-registered canonical specs outside the specs directory."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-cmd-change-008",
+          "content": "`specsync change ship [ID]` SHALL run ship preflight for one change and, when\n`ready_to_finalize` is true, perform finalize. When not ready it SHALL exit\nnon-zero and print blockers and the next stage without mutating state.\nShip preflight, including `--dry-run`, SHALL run the canonical-ownership check\nfinalize runs over the change's delivery inputs. A production-source input that\nno declared module owns SHALL be a blocker naming the path, the module that owns\nit, and the recovery (`specsync change send-back <id>`, then\n`specsync change answer <id> affected_specs <modules>`); `change ship-status`\nSHALL report the same blocker and SHALL NOT report the change ready to finalize\n(#986, #956). An unowned input the change has not modified since its base\ncommit SHALL instead be named with a narrowing recovery\n(`specsync change send-back <id>`, then\n`specsync change answer <id> affected_paths '<path>,<path>'` naming only what the\nchange edits), because declaring its owner would pull an untouched module into the\nchange (#1000). An input counts as modified when it differs from the base commit\nor from the merge base with the remote default branch, or is untracked; without a usable base commit, a merge base with the remote default branch, or a\ncomplete spec listing, every input keeps the declare recovery. When both kinds are\npresent, one send-back carries both answers. An untouched input whose owners the\ndeclare answer already declares is not narrowed.\n\nOptional orchestration flags after a successful finalize (or for already-archived\nchanges):\n\n- `--push` SHALL commit the archive tip when the working tree is dirty and run\n  `git push` for the current branch.\n- `--wait` SHALL poll GitHub check-runs for HEAD (using the same in-process REST\n  path as ship-status trust) until overall status is `green`, `failed`, timeout,\n  or offline/`GITHUB_TOKEN` absent (reported as `local_guidance` without failing\n  when no token).\n- `--wait-timeout-secs` SHALL bound the wait (default 900).\n- `--dry-run` SHALL refuse combination with `--push` or `--wait`.\n\nAcceptance Criteria\n\n- Exit code 0 only when preflight is clean and finalize succeeds (or the change\n  is already archived and nothing remains), and optional push/wait succeed.\n- Exit code non-zero when blockers remain, push fails, wait sees failed checks,\n  or wait times out.\n- Text and JSON outputs name the current tip class and next ship stage; JSON may\n  include `push` and `wait` result objects when those flags are used.\n- When sibling active changes remain after finalize, next guidance names them and\n  requires their own check → review → ship cycle before merge.\n- A no-spec-change change whose directory scope delivers production source a\n  module owns is not ready: `change ship-status` names the blocker and the\n  recovery, `change ship --dry-run` exits non-zero, and running the named\n  recovery ships it (#986, #956).\n- When a directory scope covers an unowned file the change never modified, the\n  recovery names that file and says to narrow `affected_paths`; a modified\n  unowned file in the same scope keeps the declare-the-owner recovery (#1000).",
+          "previous_content": "`specsync change ship [ID]` SHALL run ship preflight for one change and, when\n`ready_to_finalize` is true, perform finalize. When not ready it SHALL exit\nnon-zero and print blockers and the next stage without mutating state.\nShip preflight, including `--dry-run`, SHALL run the canonical-ownership check\nfinalize runs over the change's delivery inputs. A production-source input that\nno declared module owns SHALL be a blocker naming the path, the module that owns\nit, and the recovery (`specsync change send-back <id>`, then\n`specsync change answer <id> affected_specs <modules>`); `change ship-status`\nSHALL report the same blocker and SHALL NOT report the change ready to finalize\n(#986, #956).\n\nOptional orchestration flags after a successful finalize (or for already-archived\nchanges):\n\n- `--push` SHALL commit the archive tip when the working tree is dirty and run\n  `git push` for the current branch.\n- `--wait` SHALL poll GitHub check-runs for HEAD (using the same in-process REST\n  path as ship-status trust) until overall status is `green`, `failed`, timeout,\n  or offline/`GITHUB_TOKEN` absent (reported as `local_guidance` without failing\n  when no token).\n- `--wait-timeout-secs` SHALL bound the wait (default 900).\n- `--dry-run` SHALL refuse combination with `--push` or `--wait`.\n\nAcceptance Criteria\n\n- Exit code 0 only when preflight is clean and finalize succeeds (or the change\n  is already archived and nothing remains), and optional push/wait succeed.\n- Exit code non-zero when blockers remain, push fails, wait sees failed checks,\n  or wait times out.\n- Text and JSON outputs name the current tip class and next ship stage; JSON may\n  include `push` and `wait` result objects when those flags are used.\n- When sibling active changes remain after finalize, next guidance names them and\n  requires their own check → review → ship cycle before merge.\n- A no-spec-change change whose directory scope delivers production source a\n  module owns is not ready: `change ship-status` names the blocker and the\n  recovery, `change ship --dry-run` exits non-zero, and running the named\n  recovery ships it (#986, #956)."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
 }

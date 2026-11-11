@@ -5173,7 +5173,7 @@ fn declare_and_narrow_recovery(
 /// The `affected_paths` answer that narrows a scope, with a quoted, comma-separated placeholder.
 fn narrow_answer(record: &ChangeRecord) -> String {
     format!(
-        "`specsync change answer {} affected_paths '<path>,<path>'` naming only the files and directories the change edits",
+        "`specsync change answer {} affected_paths '<path>,<path>'` naming only the files the change edits, so the scope no longer covers the untouched paths",
         shell_quote(&record.id)
     )
 }

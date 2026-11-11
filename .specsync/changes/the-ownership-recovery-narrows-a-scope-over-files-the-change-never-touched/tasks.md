@@ -9,3 +9,4 @@ artifact: tasks
 - [x] Narrowing recovery for untouched inputs; declare recovery only for modified ones
 - [x] Unit test with one modified and one untouched unowned file under one directory scope
 - [x] REQ-cmd-change-008 and REQ-change-053 name the narrowing recovery
+- [x] Review round (corvid-agent at 0ac9b11a): NUL-separated git output so non-ASCII paths match; fail-first non-ASCII test

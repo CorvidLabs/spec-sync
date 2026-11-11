@@ -3886,6 +3886,7 @@ if the floor call is removed from this function"
         for (module, file) in [
             ("billing", "src/billing/charge.ts"),
             ("ledger", "src/billing/ledger.ts"),
+            ("tarifa", "src/billing/tarifa-ñ.ts"),
         ] {
             fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
             fs::write(
@@ -3914,6 +3915,8 @@ if the floor call is removed from this function"
         let id = record.id.clone();
         approve_and_implement_fixture(&root, &id);
         fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        // A modified file whose name is not ASCII: git C-quotes it unless asked for raw names.
+        fs::write(root.join("src/billing/tarifa-ñ.ts"), "const rate = 3;\n").unwrap();
         git_in(&root, &["add", "."]);
         git_in(&root, &["commit", "-m", "implement"]);
         change::check_change(&root, Some(&id)).expect("check");
@@ -3933,8 +3936,12 @@ if the floor call is removed from this function"
             "the untouched file asks for a narrower scope: {recovery}"
         );
         assert!(
-            recovery.contains("affected_specs 'billing'") && !recovery.contains("ledger'"),
-            "only the modified file's owner is declared: {recovery}"
+            recovery.contains("affected_specs 'billing,tarifa'") && !recovery.contains("ledger'"),
+            "every modified file's owner is declared, including a non-ASCII one: {recovery}"
+        );
+        assert!(
+            !recovery.contains("tarifa-ñ.ts"),
+            "a modified non-ASCII file is not narrowed out: {recovery}"
         );
     }
 

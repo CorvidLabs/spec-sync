@@ -5096,13 +5096,18 @@ fn narrow_scope_recovery(record: &ChangeRecord, untouched: &[&str]) -> String {
 fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
     let base = record.base_commit.as_deref()?;
     let mut changed = BTreeSet::new();
+    // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
+    // than C-quoted under git's default `core.quotePath` (#1037 review). A file main changed
+    // after `base` and that was merged in also counts as changed: it keeps the declare
+    // recovery, which is the conservative pre-#1000 behaviour.
     for args in [
-        vec!["diff", "--name-only", "--relative", base],
-        vec!["ls-files", "--others", "--exclude-standard"],
+        vec!["diff", "--name-only", "--relative", "-z", base],
+        vec!["ls-files", "--others", "--exclude-standard", "-z"],
     ] {
         changed.extend(
             git_output_allow_empty(root, &args)?
-                .lines()
+                .split('\0')
+                .filter(|path| !path.is_empty())
                 .map(str::to_string),
         );
     }

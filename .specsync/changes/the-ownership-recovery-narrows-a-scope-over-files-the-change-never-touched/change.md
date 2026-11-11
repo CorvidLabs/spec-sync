@@ -1,6 +1,6 @@
 ---
 id: the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: 46f55652649a72ddf5e1715938b504b96686566b
 ---

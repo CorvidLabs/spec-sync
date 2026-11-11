@@ -140,9 +140,10 @@ defaults to `6.1.2`. This commit's omitted-input default is `6.2.0`. Move the fl
 only after promotion, to a commit whose omitted-input default is the promoted release. The action runs on Linux and macOS runners
 and refuses a Windows runner.
 
-When using Trust, pin **Trust 1.2.0** (`uses: CorvidLabs/trust@v1.2.0` or SHA `fcc889f`).
-Trust 1.2.0 defaults `specsync-version` to `6.0.0`; explicitly set `specsync-version: "6.2.0"`
-to match the current CLI and Action binary examples above. An older
+When using Trust, pin **Trust 1.2.1**, as SpecSync's own `trust.yml` does
+(`uses: CorvidLabs/trust@v1.2.1` or SHA `dd52a7a`). Trust 1.2.1 defaults `specsync-version` to
+`6.0.0`; explicitly set `specsync-version: "6.2.0"` to match the current CLI and Action binary
+examples above. An older
 Trust wrapper (1.1.x, 1.2.0-rc.*) still defaults an RC or 5.x binary. A soft provenance
 setting alone does not enforce release provenance.
 

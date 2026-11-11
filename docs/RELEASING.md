@@ -78,8 +78,8 @@ done
 ```
 
 For current 6.2.0 adoption, select the `@v6.2.0` wrapper and explicitly set
-`version: '6.2.0'`. With Trust `v1.2.0`, set `specsync-version: '6.2.0'` to override its
-embedded `6.0.0` default. Inspect each consumer; do not infer its selected binary from its
+`version: '6.2.0'`. With Trust `v1.2.1` (the version SpecSync's own `trust.yml` pins), set
+`specsync-version: '6.2.0'` to override its embedded `6.0.0` default. Inspect each consumer; do not infer its selected binary from its
 wrapper tag or let a release gate float on `latest`.
 
 ## 2. Cut the candidate

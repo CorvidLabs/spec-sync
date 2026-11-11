@@ -8,8 +8,9 @@ Thank you for your interest in contributing to SpecSync! This guide will help yo
 
 - [Rust](https://rustup.rs/) 1.89 or newer (the CI toolchain is pinned; see `rust-toolchain.toml`)
 - Git
-- Linux or macOS. On Windows, use Linux through WSL 2. Native Windows builds are unsupported
-  and no Windows release asset is published.
+- Linux or macOS. Windows is neither built nor published as a 6.0 target (#735); the code still
+  compiles there, but CI does not qualify it and no release asset exists for it. On Windows,
+  WSL 2 gives you the qualified Linux environment.
 
 ### Development Setup
 

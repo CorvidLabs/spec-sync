@@ -277,5 +277,5 @@ Releases up to and including 6.2.0 predate this floor
 they have no aarch64 musl download. On those versions use `specsync-linux-x86_64-musl`, a newer
 runner image, or `cargo install specsync --locked`.
 
-Native Windows is unsupported and no Windows binary is published. On a Windows workstation,
-run the Linux version inside WSL 2, including any `cargo install specsync --locked` build.
+No Windows binary is published, and CI does not build or test Windows (#735). On a Windows
+workstation, run SpecSync in WSL 2, or build it from source with `cargo install specsync --locked`.

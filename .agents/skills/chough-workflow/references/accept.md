@@ -19,12 +19,9 @@ records. Follow native status where it names a different next action.
 3. Record the gate: `chough checkpoint --awaiting-human "Implementation review of <id>"`.
 4. Commit the source together with `.chough/`.
 5. Run `specsync change check <id> --commit` (stage new source files first).
-6. Run the required local verification lane and open or update the pull request. In
-   this archive-first repository, an open change fails Archive before product CI runs;
-   a pre-archive push is only a PR/backup tip, not a product test result. Run the
-   pre-push gate and `specsync change audit --strict` before every push. Report local
-   product tests, structural checks, native lifecycle state, provenance and platforms
-   separately; hosted product CI follows review and archival.
+6. Push the branch, open or update the pull request, and observe hosted CI at the
+   real tip. Report product tests, structural checks, native lifecycle state,
+   provenance and platforms separately.
 7. Present to the human: what changed, the current verification, the relevant case
    observations with freshness, open bugs and limits, and what was not checked.
 

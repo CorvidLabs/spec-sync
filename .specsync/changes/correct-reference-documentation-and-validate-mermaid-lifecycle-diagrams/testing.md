@@ -10,7 +10,8 @@
 ## Observed implementation checks
 
 - Red commit `355f1d69`: 21/25 documentation checks passed, four failed; the exact generated
-  skill regression ran once and failed. Retained in `.chough/artifacts/docs-accuracy-red-*.log`.
+  skill regression ran once and failed. The raw logs were removed on 2026-11-11 because they
+  held local home-directory paths; commit `355f1d69` still reproduces both failures.
 - Final focused runs: 25/25 documentation checks and 45/45 agent tests passed. Full site suite:
   48/48, Astro 0 errors / 0 warnings, 43-page build; pinned Bun 1.3.14 frozen install succeeded.
 - The documented local VSIX workflow installed frozen dependencies, compiled and packaged
@@ -55,7 +56,7 @@ Original pinned build and selected lifecycle fixtures passed. All 11 diagrams we
 all seven configured steps in 18m53s. Rust/Clippy were 1.89.0, as pinned in
 `rust-toolchain.toml`: 2838 unit tests passed, 2 ignored; all 499 integration tests passed;
 release build, strict spec check, release-candidate, CI-gate and Linux-baseline guard tests
-passed. Full output is retained in `.chough/artifacts/docs-accuracy-verify.log.gz`.
+passed. The raw log was removed on 2026-11-11 (it held local home-directory paths).
 The run started at 3bfa1bdd; the only commit during it was 21c732a4 (contributor prose and
 diagnostic receipts, no Rust/test/configuration changes). Chough case capture remains blocked
 by #941, which owns sibling checkpoint recovery. No human implementation acceptance, archived

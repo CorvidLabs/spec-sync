@@ -86,8 +86,9 @@ Releases up to and including 6.2.0 predate this floor
 2.39, and they have no ARM64 musl download. On those versions use `specsync-linux-x86_64-musl`,
 or build from source with `cargo install specsync --locked`.
 
-SpecSync supports macOS and Linux. On Windows, run the Linux version through **WSL 2**;
-native Windows builds are not supported or published.
+SpecSync is built and qualified for macOS and Linux. No Windows binary is published, and CI
+does not build or test Windows (#735). On Windows, run SpecSync in **WSL 2**, or build it from
+source with `cargo install specsync --locked`.
 
 ## A contract change in 60 seconds
 

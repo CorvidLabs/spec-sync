@@ -36,8 +36,8 @@ spec: agents.spec.md
 
 `agents::tests::tracked_agent_files_teach_archive_first_ci` requires every tracked skill to
 explain that native ship creates the archive commit and to push the archive tip, while rejecting
-the old instruction to make an extra manual commit. Failing-first commit `355f1d69` and
-`.chough/artifacts/docs-accuracy-red-skill.log` retain the observed failure. Run
+the old instruction to make an extra manual commit. Failing-first commit `355f1d69`
+reproduces the observed failure. Run
 `cargo test agents::tests::` for the surrounding install, customization, digest-manifest,
 byte-parity and idempotency regressions. Template version 8 and installer-generated copies
 move together. These tests inspect instruction artifacts; they do not prove host discovery or

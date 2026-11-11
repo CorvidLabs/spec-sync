@@ -22,7 +22,7 @@ brew install CorvidLabs/tap/spec-sync
 # Via GitHub releases (no Rust toolchain needed)
 # Download the Linux or macOS binary for your platform from:
 # https://github.com/CorvidLabs/spec-sync/releases
-# On Windows, run the Linux version inside WSL 2; native Windows is unsupported
+# No Windows binary is published: on Windows, use WSL 2, or cargo install (above)
 
 # Via GitHub Action (CI only)
 # See integrations/github-action

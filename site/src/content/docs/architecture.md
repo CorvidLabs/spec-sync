@@ -74,7 +74,7 @@ Approval digests bind recorded approval to content. The actor/reviewer label is 
 - Require configured `##` sections
 - Validate requirement and companion conventions
 
-Draft specs may name planned files when `rules.require_draft_files` is `false` (the default)
+Draft specs may name planned files when the top-level `require_draft_files` setting is `false` (the default)
 and skip required-section checks. Review specs may omit Public API. Other scaffold warnings
 still become failures in strict mode.
 

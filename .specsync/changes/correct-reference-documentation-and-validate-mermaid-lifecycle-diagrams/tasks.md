@@ -2,7 +2,7 @@
 
 - [x] Add failing Mermaid/source-lifecycle and generated-skill documentation regressions, with deliberate negative controls and retained red output.
 - [x] Correct non-overlapping reference prose and Mermaid states/edges/labels against current source and exact command evidence.
-- [x] Correct generated skill template text/version, regenerate its tracked artifacts/manifest, and synchronize copied Chough closeout references.
+- [x] Correct generated skill template text/version and regenerate its tracked artifacts/manifest. The copied Chough closeout references stay as installed: Chough 0.5.0 already teaches the archive-first closeout, so a Chough skill refresh brings it, and a hand edit would mark the copy edited.
 - [x] Resolve the four dead link destinations against current primary sources without inventing Marketplace publication.
 - [x] Prepare the approved agents/github contract deltas for native materialization and update affected test strategy and lesson companions.
 - [x] Resolve all focused-check failures and prepare the complete reviewable diff with protected-hunk/path evidence.

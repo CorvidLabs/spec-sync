@@ -2,7 +2,7 @@
 
 This document explains how SpecSync works end to end: the binary, the validation engine, the
 verified change lifecycle, the evidence it leaves in Git, and the CI, Trust and release machinery
-around it. It describes **SpecSync 6.2.0** and the changes on `main` as of 2026-11-06. Claims are traceable to files in this
+around it. It describes **SpecSync 6.2.0** and the changes on `main` as of 2026-11-11. Claims are traceable to files in this
 repository, linked inline. Where something could not be established from the code, it says
 **Unknown**.
 
@@ -286,7 +286,7 @@ and fall back to regex when the AST pass finds nothing ([`src/exports/mod.rs`](.
 ### 4.2 The change lifecycle
 
 A change is one workspace under `.specsync/changes/<id>/` with a `state.json` whose `state` is
-one of six values (`ChangeState` in [`src/change.rs`](../src/change.rs)). The diagram shows the
+one of seven values (`ChangeState` in [`src/change/sdd_version.rs`](../src/change/sdd_version.rs)). The diagram shows the
 workflow-v2 path every new change takes, plus the audited recovery edges. Each arrow names the
 command and the domain function that performs the transition.
 
@@ -308,7 +308,9 @@ stateDiagram-v2
     Approved --> Draft: change send-back<br/>send_back_change
     Implementing --> Draft: change send-back<br/>send_back_change
     Verifying --> Draft: change send-back<br/>send_back_change
+    Verifying --> Retired: change retire<br/>audited-reopened, obsolete intent
     Archived --> [*]
+    Retired --> [*]
 ```
 
 How to read it, with the guards each command enforces:
@@ -346,6 +348,11 @@ How to read it, with the guards each command enforces:
   to `Verifying`, un-archiving if needed and restoring the archive if the reopen is refused
   (`reopen_change`). The prior verification and closing approval stay in `approvals.json` as an
   audit record.
+- **Retired.** `change retire <id> --actor --reason --replacement --authority-source` ends an
+  audited-reopened `Verifying` change whose intent is obsolete, without accepting its old
+  implementation (`retire_change_with_source`). It names an independently accepted replacement,
+  writes `retirement.json` and leaves the change `retired`: terminal nonacceptance, never an
+  accepted successor.
 
 Workflow-v1 records (numeric `CHG-NNNN` IDs, from before 6.0) keep their own compatibility
 commands: `start`, `verify`, `accept`, `archive`, `correct` and `correct-owner`. `finalize`
@@ -613,6 +620,7 @@ erDiagram
     CHANGE_RECORD ||--o| SCOPED_REVIEW : "review.json"
     CHANGE_RECORD ||--o{ REVIEW_ATTEMPT : "review-attempts.json"
     CHANGE_RECORD ||--o| FINALIZATION : "finalization.json"
+    CHANGE_RECORD ||--o| RETIREMENT : "retirement.json"
     CHANGE_RECORD ||--o| CORRECTION_LEDGER : "corrections.json"
     CHANGE_RECORD ||--o{ DELTA : "deltas/module.md"
     CHANGE_RECORD ||--o{ ARTIFACT : "kind.md"
@@ -620,7 +628,7 @@ erDiagram
 
     CHANGE_RECORD {
         string id "slug"
-        string state "draft..archived"
+        string state "draft..archived, or retired"
         int workflow_version
         bool canonical_applied
         string base_commit
@@ -702,9 +710,9 @@ symbols. Main dependencies: `clap`, `serde`/`serde_json`, `toml`, `regex`, `walk
 | Lane | Steps | When |
 |---|---|---|
 | `pre-push` | `cargo fmt --check`, `cargo check`, strict spec check with 100% coverage | before every push ([`scripts/pre-push-gate.sh`](../scripts/pre-push-gate.sh)) |
-| `verify` | fmt, clippy, check, `cargo test`, release build, spec-check, release-candidate, CI-gate and Linux-baseline guard tests | before calling work done |
+| `verify` | fmt, clippy (all targets), check, `cargo test`, release build, spec-check, and the release-candidate, CI-gate, Linux-baseline, CI-trigger-path, attest-and-summary and clippy-all-targets guard tests | before calling work done |
 | `trust-lifecycle` | `cargo check` only | the Trust action's lifecycle step |
-| `release-candidate` | `cargo nextest run --no-fail-fast`, release build | the release workflow, per platform |
+| `release-candidate` | `cargo nextest run --no-fail-fast`, the race guards under `--release`, release build | the release workflow, per platform |
 | `ci` / `repo` | everything, including site and VS Code builds | full local reproduction |
 
 ### 6.2 Release

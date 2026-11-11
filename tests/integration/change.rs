@@ -655,7 +655,12 @@ fn change_approve_trims_and_validates_actor_identity() {
         .stderr(predicate::str::contains("single line"));
     // A Unicode line separator or a bidirectional override reorders or breaks the printed line
     // just as a newline does, so it is refused the same way (#1026 review).
-    for actor in ["Ada\u{2028}Evil", "Ada\u{202E}live"] {
+    for actor in [
+        "Ada\u{2028}Evil",
+        "Ada\u{202E}live",
+        "Ada\u{200B}",
+        "\u{FEFF}Ada",
+    ] {
         specsync()
             .args([
                 "--root",
@@ -6722,4 +6727,29 @@ fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
 
     run(&["change", "answer", id, "affected_specs", "none"]).success();
     assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // An empty constraints answer keeps its own guidance.
+    run(&["change", "answer", id, "constraints", "  "])
+        .failure()
+        .stderr(predicate::str::contains("answer none if none apply"));
+    // A module literally named `none` makes `none` ambiguous, so it is refused, not a silent clear.
+    fs::create_dir_all(root.join("specs/none")).unwrap();
+    fs::write(
+        root.join("specs/none/none.spec.md"),
+        "---\nmodule: none\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# None\n",
+    )
+    .unwrap();
+    run(&["change", "answer", id, "affected_specs", "none"])
+        .failure()
+        .stderr(predicate::str::contains("is ambiguous"));
+    // A registered module whose spec file is missing is named as registered, not as moved.
+    fs::write(
+        root.join("specsync-registry.toml"),
+        "name = \"proj\"\n\n[specs]\nbilling = \"specs/billing/main.spec.md\"\n",
+    )
+    .unwrap();
+    run(&["change", "answer", id, "affected_specs", "billing"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "affected spec `billing` is registered at `specs/billing/main.spec.md`, but no spec exists there",
+        ));
 }

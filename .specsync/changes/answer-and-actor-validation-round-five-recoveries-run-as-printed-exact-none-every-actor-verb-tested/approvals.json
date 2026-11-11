@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794362199,
+      "digest": "3f784aa5eecace1ff6a05f7c5bea36f03120bb2cc7c3fe83c640b51315f781e1",
+      "note": "Recorded by the Claude worker under Leif's standing bug-fix rule (reconfirmed 2026-11-10 via coordinator t370); #1026 continues as a bug fix. Scope: fixes from the second independent review of #1026; REQ-change-150 is this PR's own unmerged requirement.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+        "title": "Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+        "description": "answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/historical_reconciliation.rs",
+          "src/change_tests/recovery_retirement.rs",
+          "tests/integration/change.rs",
+          "tests/integration/doctor.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "owner recovery scaffolds a configured owner with no spec before declaring it; empty constraints keep their none guidance; an exact none is refused as ambiguous when something is named none; registered-but-missing specs and unreadable registries get their own messages; zero-width and directional-mark characters are refused in actors; reopen, retire, correct, correct-owner, reconcile-history and the doctor late close each have a bad-actor test; REQ-change-150, invariant 52 and the lesson match"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md z=45 (#1011): a printed recovery command must run as printed",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "f6d4e885ed3e3241013841fd44740cd1bafa337d2cdf40a61a6c40677c7a8beb"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-150": "dfdb809181a6a6d7ba42281c736c0f3e8418e3f1e47810cc16a711c9a3f89a4f"
+      }
+    }
+  ],
+  "reopenings": []
+}

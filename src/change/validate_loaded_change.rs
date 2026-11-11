@@ -825,7 +825,7 @@ pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String>
     }
     if actor.chars().any(actor_character_is_refused) {
         return Err(format!(
-            "{verb} actor `{}` must be a single line of text; newlines and control characters are not allowed",
+            "{verb} actor `{}` must be a single line of visible text; newlines, control characters and invisible or direction-changing characters are not allowed",
             actor.escape_debug()
         ));
     }
@@ -833,12 +833,18 @@ pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String>
 }
 
 /// Characters an actor identity may not hold: control characters, the Unicode line and
-/// paragraph separators, and the bidirectional overrides and isolates that reorder printed text.
+/// paragraph separators, the bidirectional marks, overrides and isolates that reorder printed
+/// text, and zero-width or invisible characters that let two identities look identical.
 fn actor_character_is_refused(c: char) -> bool {
     c.is_control()
         || matches!(
             c,
-            '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+            '\u{200B}'..='\u{200F}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202A}'..='\u{202E}'
+                | '\u{2060}'..='\u{2069}'
+                | '\u{FEFF}'
         )
 }
 

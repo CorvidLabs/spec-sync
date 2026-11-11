@@ -2779,8 +2779,26 @@ pub fn answer_question(
 
 /// A comma-separated answer for a list that may legitimately be empty: `none` clears it, and an
 /// answer that parses to no value is refused rather than silently clearing the list (#426).
-fn clearable_list_answer(question: &str, answer: &str) -> Result<Vec<String>, String> {
-    if answer.trim().eq_ignore_ascii_case("none") {
+fn clearable_list_answer(
+    root: &Path,
+    question: &str,
+    answer: &str,
+) -> Result<Vec<String>, String> {
+    if answer.trim() == "none" {
+        // A change or spec module may itself be called `none`; clearing the list would then
+        // silently drop what the answer meant to name (#1026 review).
+        let named = match question {
+            "dependencies" => find_change_dir(root, "none").is_ok(),
+            _ => {
+                let specs_dir = crate::config::load_config(root).specs_dir;
+                known_module_names(root, &specs_dir).iter().any(|name| name == "none")
+            }
+        };
+        if named {
+            return Err(format!(
+                "{question} answer `none` is ambiguous: something is named `none`; name it as `none,` to declare it, or remove it to clear the list"
+            ));
+        }
         return Ok(Vec::new());
     }
     let values = split_values(answer);
@@ -2822,7 +2840,11 @@ pub(crate) fn answer_question_with_snapshot(
         ));
     }
     if answer.trim().is_empty() {
-        return Err(format!("{question} answer must not be empty"));
+        return Err(if question == "constraints" {
+            "constraints answer must not be empty; answer none if none apply".into()
+        } else {
+            format!("{question} answer must not be empty")
+        });
     }
     match question {
         "acceptance_criteria" => {
@@ -2833,7 +2855,7 @@ pub(crate) fn answer_question_with_snapshot(
             record.acceptance_criteria = criteria;
         }
         "affected_specs" => {
-            let values = clearable_list_answer(question, answer)?;
+            let values = clearable_list_answer(root, question, answer)?;
             for module in &values {
                 crate::commands::validate_module_name(module)
                     .map_err(|error| format!("invalid affected spec: {error}"))?;
@@ -2858,7 +2880,7 @@ pub(crate) fn answer_question_with_snapshot(
             record.affected_paths = affected_paths;
         }
         "dependencies" => {
-            let dependencies = clearable_list_answer(question, answer)?;
+            let dependencies = clearable_list_answer(root, question, answer)?;
             for dependency in &dependencies {
                 if dependency == id || dependency_reaches(root, dependency, id, &mut BTreeSet::new()) {
                     return Err("dependency rescope would create a change cycle".into());
@@ -3721,6 +3743,10 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         return Ok(());
     }
     let config = crate::config::load_config(root);
+    // An unreadable registry is reported, never read as "no modules" (which would skip this
+    // check entirely in a project whose specs all live in the registry).
+    let registry = crate::registry::load_local_registry(root)
+        .map_err(|error| format!("the spec registry cannot be read: {error}"))?;
     let known = known_module_names(root, &config.specs_dir);
     if known.is_empty() {
         return Ok(());
@@ -3732,7 +3758,14 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
             .map_err(|error| format!("affected spec `{module}` cannot be resolved: {error}"))?;
         if !spec_path.is_file() {
             let expected = portable_project_path(root, &spec_path);
-            return Err(if known.iter().any(|name| name == module) {
+            let registered = registry
+                .as_ref()
+                .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
+            return Err(if registered {
+                format!(
+                    "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create it with `specsync new {module}` or fix its registry entry"
+                )
+            } else if known.iter().any(|name| name == module) {
                 format!(
                     "affected spec `{module}` has a spec, but not at its canonical path `{expected}`; move it there or register it in the spec registry"
                 )
@@ -5074,11 +5107,31 @@ fn declare_owners_answer(
     {
         return None;
     }
-    let mut guidance = format!(
+    // `change answer affected_specs` refuses a module with no spec on disk (#426), so a module
+    // that owns the path only through `[modules.X] owns` or a registry entry is scaffolded first;
+    // otherwise the printed answer would fail as printed (#1026 review).
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let unscaffolded: Vec<&String> = modules[before..]
+        .iter()
+        .filter(|module| {
+            !canonical_module_paths(root, &specs_dir, module)
+                .is_ok_and(|(spec_path, _)| spec_path.is_file())
+        })
+        .collect();
+    let scaffold = unscaffolded
+        .iter()
+        .map(|module| format!("`specsync new {}`", shell_quote(module)))
+        .collect::<Vec<_>>();
+    let mut guidance = if scaffold.is_empty() {
+        String::new()
+    } else {
+        format!("scaffold {} first with {}, then ", unscaffolded.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", "), scaffold.join(" and "))
+    };
+    guidance.push_str(&format!(
         "`specsync change answer {} affected_specs {}`",
         shell_quote(&record.id),
         shell_quote(&modules.join(","))
-    );
+    ));
     if record.answers.contains_key("constraints") {
         guidance.push_str(&format!(
             ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",

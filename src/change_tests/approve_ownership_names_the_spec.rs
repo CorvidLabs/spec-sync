@@ -665,3 +665,27 @@ fn owner_discovery_skips_reserved_delivery_paths() {
     let missing = missing_acceptance_owner_paths(root, &record.id, "tooling").unwrap();
     assert_eq!(missing, vec!["src/tools/run.ts"]);
 }
+
+/// #1026 review: a module that owns a path only through `[modules.X] owns` and has no spec on
+/// disk is refused by `change answer affected_specs`, so the recovery scaffolds it first rather
+/// than printing an answer that fails as printed.
+#[test]
+fn ownership_recovery_scaffolds_a_configured_owner_with_no_spec_before_declaring_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.core]\nowns = [\"src/core/\"]\n",
+    )
+    .unwrap();
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    write_owned_source(root, "src/core/engine.ts");
+    let record = approve_ownership_record(root, &[], &["src/core/engine.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        error.contains("scaffold `core` first with `specsync new 'core'`, then"),
+        "an owner with no spec is scaffolded before it is declared: {error}"
+    );
+}

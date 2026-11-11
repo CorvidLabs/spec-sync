@@ -83,6 +83,16 @@ fn recovery_retirement_positive_custody_and_child_route() {
     let old_dir = find_change_dir(root, &old.id).unwrap();
     let before =
         archive_workspace_snapshot(root, &old_dir, &portable_project_path(root, &old_dir)).unwrap();
+    let refused = retire_change(
+        root,
+        &old.id,
+        "Synthetic\noperator".into(),
+        "Obsolete Hatch intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic test authority, not a real human decision".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
     let retired = retire_change(
         root,
         &old.id,

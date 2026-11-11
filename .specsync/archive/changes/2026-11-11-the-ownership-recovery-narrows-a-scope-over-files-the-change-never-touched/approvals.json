@@ -1,0 +1,401 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794357104,
+      "digest": "e28349e767e821996b777f7aef4a0df5d5caf2373f0b244325e64ce7e72d318a",
+      "note": "Leif directed on 2026-11-10 (relayed by coordinator t370) that #1000 be reworked to fit #1028 under his rule; recorded by the Claude worker. Scope: the ownership recovery narrows affected_paths for unowned inputs the change never modified; REQ-cmd-change-008 and REQ-change-053 updated to say so.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7bc9c597d30130b09bb1f35f9d76debe5aece2f9a96d163d4cf9cb2846a9f02a",
+        "cmd_change": "6b71844787124335228ce81e5512bd2e491ed239a436e8d61c6fb9490ee53ade"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "12d95eabe89f9419fc3b958d7b267010a46d7d10c39121c226dc06741ca82f61",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "96273ac84069efd1ddc832219b6791a09cafc73fdd35e172bd039e3f539943d9"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794363373,
+      "digest": "e28349e767e821996b777f7aef4a0df5d5caf2373f0b244325e64ce7e72d318a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7bc9c597d30130b09bb1f35f9d76debe5aece2f9a96d163d4cf9cb2846a9f02a",
+        "cmd_change": "6b71844787124335228ce81e5512bd2e491ed239a436e8d61c6fb9490ee53ade"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "12d95eabe89f9419fc3b958d7b267010a46d7d10c39121c226dc06741ca82f61",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "96273ac84069efd1ddc832219b6791a09cafc73fdd35e172bd039e3f539943d9"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve, merge when green",
+        "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037",
+        "recorded_by": "Claude worker t37f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794365792,
+      "digest": "e28349e767e821996b777f7aef4a0df5d5caf2373f0b244325e64ce7e72d318a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "052b683226b8c89a170ab28c79a2ef1ba11cffac56ffe3e21dacb9373d727559",
+        "cmd_change": "ef1a92f493545eb37b6863a55ee79ebb74e40e8ae56a41acc737adc2faae3608"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "b29492f850a43d3a7a9ad8bb27178452089083b906984edcea727b1f7800c3a7",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "e51d487869b77f10074f7cd28436da7e98e2dd8cfef8fff18074a8e62c147951"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve, merge when green",
+        "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037; re-recorded after the delta was clarified to state the fallback and single send-back his approval's acceptance criterion already describes",
+        "recorded_by": "Claude worker t37f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794369542,
+      "digest": "e28349e767e821996b777f7aef4a0df5d5caf2373f0b244325e64ce7e72d318a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "92a88deade44f4db9f8e3261d3c34596c70bff8b4d24464159c10a677fd63cd1",
+        "cmd_change": "ef38851eb04434ee5e8993814a9e93aece338f620226ab5a1db6a466b0f956b9"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "aa62d3e3d0f5348d0b45ac2f25a363b32880a25dfc183db075330005c6860aa0",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "1d38d16011b769609363e37244989c2de36eb85e89ae513c9ac2fa03ee364a95"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve, merge when green",
+        "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037; re-recorded after review clarifications that keep the approved narrowing recovery and state its declare fallback",
+        "recorded_by": "Claude worker t37f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794372738,
+      "digest": "dd0100cce1dc603eff1901edd9804075fed9866c814876673fa51897e70baf42",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "92a88deade44f4db9f8e3261d3c34596c70bff8b4d24464159c10a677fd63cd1",
+        "cmd_change": "ef38851eb04434ee5e8993814a9e93aece338f620226ab5a1db6a466b0f956b9"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "aa62d3e3d0f5348d0b45ac2f25a363b32880a25dfc183db075330005c6860aa0",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "1d38d16011b769609363e37244989c2de36eb85e89ae513c9ac2fa03ee364a95"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve, merge when green",
+        "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037; re-recorded after a send-back that only added the edited test file to affected_paths",
+        "recorded_by": "Claude worker t37f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794375067,
+      "digest": "7b29d241d9300a081bd1fb71f1f85c7313bb69d0128f7e63f8400c6c2c2656ce",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command lists the changed paths in scope and falls back to a quoted placeholder only when no list can be written; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "92a88deade44f4db9f8e3261d3c34596c70bff8b4d24464159c10a677fd63cd1",
+        "cmd_change": "754a7cd190d7203ac33aee5abfe256f6e05852ff12279b0614bfe66cb423b4e1"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "aa62d3e3d0f5348d0b45ac2f25a363b32880a25dfc183db075330005c6860aa0",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "d626dbcf578bc63bfa6ec4f791f08ee53fe2a4d2b75d1b823cf77c5e0316c768"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve, merge when green",
+        "where": "relayed by coordinator t370 on 2026-11-10 for PR #1037; re-recorded after the fifth independent review: the narrowing recovery now lists the changed paths in scope instead of a placeholder, within the approved narrowing recovery",
+        "recorded_by": "Claude worker t37f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794411082,
+      "digest": "7b29d241d9300a081bd1fb71f1f85c7313bb69d0128f7e63f8400c6c2c2656ce",
+      "note": "Leif approved this himself on 2026-11-11 after the coordinator agent (claude-code-t370) checked it was aligned and summarised it: when SpecSync can't tell which files a change edited, it keeps the safer declare-the-owner recovery. Covers the round-7 wording and the round-8 fallback clauses at 00ade4bd.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command lists the changed paths in scope and falls back to a quoted placeholder only when no list can be written; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "75339c1510da43306fe05a636e600fa46809ab1d341cf68b113d6a8dda7d293a",
+        "cmd_change": "2393e2b672ba0342b072d686e4dd50032b997fd2fa381eb40441b92d749ac83d"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "277feff623c5a222deb9cd7027225e5c622bc62a40b3c4fe4d06c018667c492b",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "2552933b1d3c09e6da16febf0aa16f0d13dc4314cc2ce9eabf44e810a2b53ec9"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794420023,
+      "digest": "4c903daed1cde4eebfccd3ddf58a6f3f5f60e364c82c41ac95837cdedc52ebee",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+      "actor": "0xLeif",
+      "reason": "Recorded by the Claude worker under Leif's rules: add the edited test file src/change_tests/approve_ownership_names_the_spec.rs to affected_paths; the independent review found change audit --strict would refuse it as uncovered",
+      "timestamp": 1794372701,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 4,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-change-053",
+          "content": "Canonical ownership of declared paths SHALL be resolved when the definition is\napproved, and a change that has never closed SHALL be able to correct an\nacceptance input owner without an audited reopen event.\n\nAcceptance Criteria\n\n- Approving a definition rejects declared paths that no declared module\n  canonically owns, naming every offending path in one error.\n- Paths that do not yet exist are not rejected at approve, since the owning spec\n  may claim them in the same change; they remain enforced at finalize.\n- A declared path that is a directory is not file-level ownership-checked at\n  approve; its descendant files remain checked at finalize.\n- Recognized reserved delivery paths (for example files under `.github/` or\n  `docs/`, and the protected SDD and root metadata files) are signed with the\n  exact delivery owner by design and finalize accepts them, so they are not\n  ownership refusals at approve and not `correct-owner` discovery candidates.\n- A change with justified `no_spec_change` and no declared specs is\n  ownership-checked at approve as well: an existing production-source path in\n  its scope that is not recognized reserved delivery metadata has no declared\n  owner, so it is rejected, naming the module that owns it, before anyone\n  approves or reviews it (#986, #956). Empty specs without that justification\n  still fail closed at definition validation and at ownership validation.\n- A change at verifying that has never closed may correct an acceptance input\n  owner under a currently valid definition approval. That substitute is for\n  guided-path reachability, not audit-equivalent provenance to an\n  Accepted→reopen cycle.\n- A change that did close continues to require an audited reopen, unchanged.\n- Owner recovery never prints a command that cannot run as printed: when a\n  module name cannot round-trip through the comma-separated `affected_specs`\n  answer, the guidance names the modules in prose instead. When the spec\n  listing exceeds its bound, the recovery says the listing is incomplete rather\n  than omitting an owner. A recovery that replaces `affected_specs` says the\n  constraints answer must be renewed before approval. Owner discovery includes\n  registry-registered canonical specs outside the specs directory.\n- The ship preflight and review owner recovery declares owners only for unowned\n  inputs the change modified (since its base commit or the merge base with the\n  remote default branch, or untracked); an unowned input it never modified is named\n  with a recovery that narrows `affected_paths` instead, since its owner has nothing\n  to approve in this change (#1000). Approve's own ownership refusal is unchanged.\n  Without a usable base commit, a merge base with the remote default branch, or a\n  complete spec listing, every input keeps the declare recovery, and a base commit\n  that is not a full commit id is never passed to Git.",
+          "previous_content": "Canonical ownership of declared paths SHALL be resolved when the definition is\napproved, and a change that has never closed SHALL be able to correct an\nacceptance input owner without an audited reopen event.\n\nAcceptance Criteria\n\n- Approving a definition rejects declared paths that no declared module\n  canonically owns, naming every offending path in one error.\n- Paths that do not yet exist are not rejected at approve, since the owning spec\n  may claim them in the same change; they remain enforced at finalize.\n- A declared path that is a directory is not file-level ownership-checked at\n  approve; its descendant files remain checked at finalize.\n- Recognized reserved delivery paths (for example files under `.github/` or\n  `docs/`, and the protected SDD and root metadata files) are signed with the\n  exact delivery owner by design and finalize accepts them, so they are not\n  ownership refusals at approve and not `correct-owner` discovery candidates.\n- A change with justified `no_spec_change` and no declared specs is\n  ownership-checked at approve as well: an existing production-source path in\n  its scope that is not recognized reserved delivery metadata has no declared\n  owner, so it is rejected, naming the module that owns it, before anyone\n  approves or reviews it (#986, #956). Empty specs without that justification\n  still fail closed at definition validation and at ownership validation.\n- A change at verifying that has never closed may correct an acceptance input\n  owner under a currently valid definition approval. That substitute is for\n  guided-path reachability, not audit-equivalent provenance to an\n  Accepted→reopen cycle.\n- A change that did close continues to require an audited reopen, unchanged.\n- Owner recovery never prints a command that cannot run as printed: when a\n  module name cannot round-trip through the comma-separated `affected_specs`\n  answer, the guidance names the modules in prose instead. When the spec\n  listing exceeds its bound, the recovery says the listing is incomplete rather\n  than omitting an owner. A recovery that replaces `affected_specs` says the\n  constraints answer must be renewed before approval. Owner discovery includes\n  registry-registered canonical specs outside the specs directory."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-cmd-change-008",
+          "content": "`specsync change ship [ID]` SHALL run ship preflight for one change and, when\n`ready_to_finalize` is true, perform finalize. When not ready it SHALL exit\nnon-zero and print blockers and the next stage without mutating state.\nShip preflight, including `--dry-run`, SHALL run the canonical-ownership check\nfinalize runs over the change's delivery inputs. A production-source input that\nno declared module owns SHALL be a blocker naming the path, the module that owns\nit, and the recovery (`specsync change send-back <id>`, then\n`specsync change answer <id> affected_specs <modules>`); `change ship-status`\nSHALL report the same blocker and SHALL NOT report the change ready to finalize\n(#986, #956). An unowned input the change has not modified since its base\ncommit SHALL instead be named with a narrowing recovery\n(`specsync change send-back <id>`, then\n`specsync change answer <id> affected_paths '<path>,<path>'` naming only what the\nchange edits), because declaring its owner would pull an untouched module into the\nchange (#1000). An input counts as modified when it differs from the base commit\nor from the merge base with the remote default branch, or is untracked; without a usable base commit, a merge base with the remote default branch, or a\ncomplete spec listing, every input keeps the declare recovery. When both kinds are\npresent, one send-back carries both answers. An untouched input whose owners the\ndeclare answer already declares is not narrowed.\n\nOptional orchestration flags after a successful finalize (or for already-archived\nchanges):\n\n- `--push` SHALL commit the archive tip when the working tree is dirty and run\n  `git push` for the current branch.\n- `--wait` SHALL poll GitHub check-runs for HEAD (using the same in-process REST\n  path as ship-status trust) until overall status is `green`, `failed`, timeout,\n  or offline/`GITHUB_TOKEN` absent (reported as `local_guidance` without failing\n  when no token).\n- `--wait-timeout-secs` SHALL bound the wait (default 900).\n- `--dry-run` SHALL refuse combination with `--push` or `--wait`.\n\nAcceptance Criteria\n\n- Exit code 0 only when preflight is clean and finalize succeeds (or the change\n  is already archived and nothing remains), and optional push/wait succeed.\n- Exit code non-zero when blockers remain, push fails, wait sees failed checks,\n  or wait times out.\n- Text and JSON outputs name the current tip class and next ship stage; JSON may\n  include `push` and `wait` result objects when those flags are used.\n- When sibling active changes remain after finalize, next guidance names them and\n  requires their own check → review → ship cycle before merge.\n- A no-spec-change change whose directory scope delivers production source a\n  module owns is not ready: `change ship-status` names the blocker and the\n  recovery, `change ship --dry-run` exits non-zero, and running the named\n  recovery ships it (#986, #956).\n- When a directory scope covers an unowned file the change never modified, the\n  recovery names that file and says to narrow `affected_paths`; a modified\n  unowned file in the same scope keeps the declare-the-owner recovery (#1000).",
+          "previous_content": "`specsync change ship [ID]` SHALL run ship preflight for one change and, when\n`ready_to_finalize` is true, perform finalize. When not ready it SHALL exit\nnon-zero and print blockers and the next stage without mutating state.\nShip preflight, including `--dry-run`, SHALL run the canonical-ownership check\nfinalize runs over the change's delivery inputs. A production-source input that\nno declared module owns SHALL be a blocker naming the path, the module that owns\nit, and the recovery (`specsync change send-back <id>`, then\n`specsync change answer <id> affected_specs <modules>`); `change ship-status`\nSHALL report the same blocker and SHALL NOT report the change ready to finalize\n(#986, #956).\n\nOptional orchestration flags after a successful finalize (or for already-archived\nchanges):\n\n- `--push` SHALL commit the archive tip when the working tree is dirty and run\n  `git push` for the current branch.\n- `--wait` SHALL poll GitHub check-runs for HEAD (using the same in-process REST\n  path as ship-status trust) until overall status is `green`, `failed`, timeout,\n  or offline/`GITHUB_TOKEN` absent (reported as `local_guidance` without failing\n  when no token).\n- `--wait-timeout-secs` SHALL bound the wait (default 900).\n- `--dry-run` SHALL refuse combination with `--push` or `--wait`.\n\nAcceptance Criteria\n\n- Exit code 0 only when preflight is clean and finalize succeeds (or the change\n  is already archived and nothing remains), and optional push/wait succeed.\n- Exit code non-zero when blockers remain, push fails, wait sees failed checks,\n  or wait times out.\n- Text and JSON outputs name the current tip class and next ship stage; JSON may\n  include `push` and `wait` result objects when those flags are used.\n- When sibling active changes remain after finalize, next guidance names them and\n  requires their own check → review → ship cycle before merge.\n- A no-spec-change change whose directory scope delivers production source a\n  module owns is not ready: `change ship-status` names the blocker and the\n  recovery, `change ship --dry-run` exits non-zero, and running the named\n  recovery ships it (#986, #956)."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+      "actor": "0xLeif",
+      "reason": "Recorded by the Claude worker under Leif's rules: the fifth independent review asked the narrowing recovery to list every changed path in scope (deletions included) instead of a placeholder; renew the constraints answer that named the placeholder",
+      "timestamp": 1794375048,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 5,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-change-053",
+          "content": "Canonical ownership of declared paths SHALL be resolved when the definition is\napproved, and a change that has never closed SHALL be able to correct an\nacceptance input owner without an audited reopen event.\n\nAcceptance Criteria\n\n- Approving a definition rejects declared paths that no declared module\n  canonically owns, naming every offending path in one error.\n- Paths that do not yet exist are not rejected at approve, since the owning spec\n  may claim them in the same change; they remain enforced at finalize.\n- A declared path that is a directory is not file-level ownership-checked at\n  approve; its descendant files remain checked at finalize.\n- Recognized reserved delivery paths (for example files under `.github/` or\n  `docs/`, and the protected SDD and root metadata files) are signed with the\n  exact delivery owner by design and finalize accepts them, so they are not\n  ownership refusals at approve and not `correct-owner` discovery candidates.\n- A change with justified `no_spec_change` and no declared specs is\n  ownership-checked at approve as well: an existing production-source path in\n  its scope that is not recognized reserved delivery metadata has no declared\n  owner, so it is rejected, naming the module that owns it, before anyone\n  approves or reviews it (#986, #956). Empty specs without that justification\n  still fail closed at definition validation and at ownership validation.\n- A change at verifying that has never closed may correct an acceptance input\n  owner under a currently valid definition approval. That substitute is for\n  guided-path reachability, not audit-equivalent provenance to an\n  Accepted→reopen cycle.\n- A change that did close continues to require an audited reopen, unchanged.\n- Owner recovery never prints a command that cannot run as printed: when a\n  module name cannot round-trip through the comma-separated `affected_specs`\n  answer, the guidance names the modules in prose instead. When the spec\n  listing exceeds its bound, the recovery says the listing is incomplete rather\n  than omitting an owner. A recovery that replaces `affected_specs` says the\n  constraints answer must be renewed before approval. Owner discovery includes\n  registry-registered canonical specs outside the specs directory.\n- The ship preflight and review owner recovery declares owners only for unowned\n  inputs the change modified (since its base commit or the merge base with the\n  remote default branch, or untracked); an unowned input it never modified is named\n  with a recovery that narrows `affected_paths` instead, since its owner has nothing\n  to approve in this change (#1000). Approve's own ownership refusal is unchanged.\n  Without a usable base commit, a merge base with the remote default branch, or a\n  complete spec listing, every input keeps the declare recovery, and a base commit\n  that is not a full commit id is never passed to Git.",
+          "previous_content": "Canonical ownership of declared paths SHALL be resolved when the definition is\napproved, and a change that has never closed SHALL be able to correct an\nacceptance input owner without an audited reopen event.\n\nAcceptance Criteria\n\n- Approving a definition rejects declared paths that no declared module\n  canonically owns, naming every offending path in one error.\n- Paths that do not yet exist are not rejected at approve, since the owning spec\n  may claim them in the same change; they remain enforced at finalize.\n- A declared path that is a directory is not file-level ownership-checked at\n  approve; its descendant files remain checked at finalize.\n- Recognized reserved delivery paths (for example files under `.github/` or\n  `docs/`, and the protected SDD and root metadata files) are signed with the\n  exact delivery owner by design and finalize accepts them, so they are not\n  ownership refusals at approve and not `correct-owner` discovery candidates.\n- A change with justified `no_spec_change` and no declared specs is\n  ownership-checked at approve as well: an existing production-source path in\n  its scope that is not recognized reserved delivery metadata has no declared\n  owner, so it is rejected, naming the module that owns it, before anyone\n  approves or reviews it (#986, #956). Empty specs without that justification\n  still fail closed at definition validation and at ownership validation.\n- A change at verifying that has never closed may correct an acceptance input\n  owner under a currently valid definition approval. That substitute is for\n  guided-path reachability, not audit-equivalent provenance to an\n  Accepted→reopen cycle.\n- A change that did close continues to require an audited reopen, unchanged.\n- Owner recovery never prints a command that cannot run as printed: when a\n  module name cannot round-trip through the comma-separated `affected_specs`\n  answer, the guidance names the modules in prose instead. When the spec\n  listing exceeds its bound, the recovery says the listing is incomplete rather\n  than omitting an owner. A recovery that replaces `affected_specs` says the\n  constraints answer must be renewed before approval. Owner discovery includes\n  registry-registered canonical specs outside the specs directory."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
+}

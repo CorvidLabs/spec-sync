@@ -5448,41 +5448,82 @@ pub fn ownership_preflight_blocker(
     }
     let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
     let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
-    let hints: Vec<String> = paths
-        .iter()
-        .map(|path| format!("{path}: {}", ownership_hint(root, record, path, &index)))
-        .collect();
-    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
-    // entry in the spec that should own it.
-    let unclaimed: Vec<&str> = paths
+    // An unowned input this branch never modified is in scope only because a path prefix is
+    // wider than the work, and declaring its owner would pull an untouched module into the
+    // change: the recovery for it is a narrower scope (#1000). Without a usable base commit, a
+    // merge base with the remote default branch or Git, nothing is classified as untouched and
+    // the declare recovery covers every path.
+    // A truncated spec listing cannot say which owners exist, so nothing is classified then.
+    let changed = (!index.truncated)
+        .then(|| files_changed_since_base(root, record))
+        .flatten();
+    let (touched, untouched): (Vec<&str>, Vec<&str>) = paths
         .iter()
         .copied()
-        .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
-        .collect();
-    let recovery = if index.truncated {
-        format!(
-            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
-            shell_quote(&record.id)
+        .partition(|path| changed.as_ref().is_none_or(|changed| changed.contains(*path)));
+    // An untouched input whose every owner is already declared by the touched inputs' answer is
+    // fixed by that answer; narrowing it out as well would be redundant advice (#1037 review).
+    let declared_by_answer: BTreeSet<String> = record
+        .affected_specs
+        .iter()
+        .cloned()
+        .chain(
+            touched
+                .iter()
+                .flat_map(|path| undeclared_owning_modules(root, record, path, &index)),
         )
-    } else {
-        match declare_owners_answer(root, record, &paths, &index) {
-            Some(answer) if !unclaimed.is_empty() => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
-                shell_quote(&record.id),
-                unclaimed.join(", ")
-            ),
-            Some(answer) => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
-                shell_quote(&record.id)
-            ),
-            None => format!(
-                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and give each path an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module{}",
-                shell_quote(&record.id),
-                declared_modules_without_spec(root, record)
-                    .map(|missing| format!(". {missing}"))
-                    .unwrap_or_default()
-            ),
-        }
+        .collect();
+    let answer_is_printed =
+        !touched.is_empty() && declare_owners_answer(root, record, &touched, &index).is_some();
+    let untouched: Vec<&str> = untouched
+        .into_iter()
+        .filter(|path| {
+            let owners = undeclared_owning_modules(root, record, path, &index);
+            !answer_is_printed
+                || owners.is_empty()
+                || !owners.iter().all(|owner| declared_by_answer.contains(owner))
+        })
+        .collect();
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|path| {
+            if untouched.contains(path) {
+                let owners = undeclared_owning_modules(root, record, path, &index);
+                if owners.is_empty() {
+                    format!(
+                        "{path}: not modified by this change since its base and no module owns it, so leave it out of `affected_paths`"
+                    )
+                } else {
+                    format!(
+                        "{path}: owned by {}, but not modified by this change since its base, so leave it out of `affected_paths`",
+                        owners
+                            .iter()
+                            .map(|owner| format!("`{owner}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            } else {
+                format!("{path}: {}", ownership_hint(root, record, path, &index))
+            }
+        })
+        .collect();
+    let touched: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| !untouched.contains(path))
+        .collect();
+    let recovery = match (touched.is_empty(), untouched.is_empty()) {
+        (_, true) => declare_owners_recovery(root, record, &touched, &index),
+        (true, false) => narrow_scope_recovery(record, &untouched, changed.as_ref()),
+        (false, false) => declare_and_narrow_recovery(
+            root,
+            record,
+            &touched,
+            &untouched,
+            &index,
+            changed.as_ref(),
+        ),
     };
     Ok(Some((
         format!(
@@ -5491,6 +5532,267 @@ pub fn ownership_preflight_blocker(
         ),
         recovery,
     )))
+}
+
+/// The recovery that declares the owners of unowned inputs the change modified.
+fn declare_owners_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> String {
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it.
+    let unclaimed: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    if index.truncated {
+        return format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
+            shell_quote(&record.id)
+        );
+    }
+    match declare_owners_answer(root, record, paths, index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
+            shell_quote(&record.id),
+            unclaimed.join(", ")
+        ),
+        Some(answer) => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
+            shell_quote(&record.id)
+        ),
+        None => format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and give each path an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module{}",
+            shell_quote(&record.id),
+            declared_modules_without_spec(root, record)
+                .map(|missing| format!(". {missing}"))
+                .unwrap_or_default()
+        ),
+    }
+}
+
+/// The recovery for unowned inputs the change never modified: narrow `affected_paths` to the
+/// files and directories the change edits instead of declaring their owners (#1000).
+fn narrow_scope_recovery(
+    record: &ChangeRecord,
+    untouched: &[&str],
+    changed: Option<&BTreeSet<String>>,
+) -> String {
+    format!(
+        "{} — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then {}, then approve, check and review again",
+        untouched_sentence(untouched),
+        shell_quote(&record.id),
+        narrow_answer(record, changed)
+    )
+}
+
+/// One send-back for a change with both modified and untouched unowned inputs: declare the
+/// modified inputs' owners and narrow the scope in the same draft, then one approve, check and
+/// review (#1037 review: two separate send-backs could not both run).
+fn declare_and_narrow_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    touched: &[&str],
+    untouched: &[&str],
+    index: &SpecListingIndex,
+    changed: Option<&BTreeSet<String>>,
+) -> String {
+    // A truncated spec listing turns classification off, so this mixed recovery never sees one.
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it, exactly as in the declare-only recovery.
+    let unclaimed: Vec<&str> = touched
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    // Without a printable answer (a listed module has no spec, #1026), the modified inputs get
+    // the same owning-spec guidance as the declare-only recovery, and a declared module whose
+    // spec is missing is named after the recovery.
+    let (declare, missing) = match declare_owners_answer(root, record, touched, index) {
+        Some(answer) if !unclaimed.is_empty() => (
+            format!(
+                "{answer}, and add {} to its owning spec's `files:` list",
+                unclaimed.join(", ")
+            ),
+            None,
+        ),
+        Some(answer) => (answer, None),
+        None => (
+            format!(
+                "give {} an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module",
+                touched.join(", ")
+            ),
+            declared_modules_without_spec(root, record),
+        ),
+    };
+    format!(
+        "send it back once and rescope: `specsync change send-back {} --actor <name> --reason \"declare the owning modules and narrow affected_paths\"`, then {declare}, and {} ({}), then approve, check and review again{}",
+        shell_quote(&record.id),
+        narrow_answer(record, changed),
+        untouched_sentence(untouched),
+        missing
+            .map(|missing| format!(". {missing}"))
+            .unwrap_or_default()
+    )
+}
+
+/// The `affected_paths` answer that narrows a scope, with a quoted, comma-separated placeholder.
+fn narrow_answer(record: &ChangeRecord, changed: Option<&BTreeSet<String>>) -> String {
+    // Name the files exactly: every path the change added, edited or deleted inside its current
+    // scope. A placeholder invited listing only the edited files and forgetting a deletion, which
+    // then shipped and failed the meaningful-path audit (#1037 review). The placeholder is kept
+    // only when there is no list or a path cannot round-trip through the comma-separated answer.
+    let in_scope: Vec<&String> = changed
+        .map(|changed| {
+            changed
+                .iter()
+                .filter(|path| {
+                    record
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // Printed only when `change answer` stores exactly these paths: `split_values` splits on
+    // commas and newlines and trims each value, `normalize_project_path` rewrites a backslash and refuses
+    // control characters, and a list starting with `-` would be read as an option.
+    let round_trips = |path: &&String| {
+        !path.contains([',', '\\'])
+            && !path.chars().any(char::is_control)
+            && path.trim() == path.as_str()
+    };
+    if !in_scope.is_empty()
+        && in_scope.iter().all(round_trips)
+        && !in_scope.first().is_some_and(|path| path.starts_with('-'))
+    {
+        let list = in_scope
+            .iter()
+            .map(|path| path.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        return format!(
+            "`specsync change answer {} affected_paths {}` (every file the change adds, edits or deletes in its scope)",
+            shell_quote(&record.id),
+            shell_quote(&list)
+        );
+    }
+    format!(
+        "`specsync change answer {} affected_paths '<path>,<path>'` naming every file the change adds, edits or deletes, so the scope no longer covers the untouched paths",
+        shell_quote(&record.id)
+    )
+}
+
+/// Names up to five untouched inputs and why they should leave the scope.
+fn untouched_sentence(untouched: &[&str]) -> String {
+    const SHOWN: usize = 5;
+    let mut named = untouched
+        .iter()
+        .take(SHOWN)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if untouched.len() > SHOWN {
+        named.push_str(&format!(" and {} more", untouched.len() - SHOWN));
+    }
+    format!(
+        "{named} {} not modified by this change since its base, so its `affected_paths` scope is wider than the work: narrow it instead of declaring those owners",
+        if untouched.len() == 1 { "is" } else { "are" }
+    )
+}
+
+/// Every project-relative path the working tree has changed since the change's base commit,
+/// committed or not, plus untracked files. `None` without a base commit or when Git cannot say.
+fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
+    // A change whose record carries no full commit id as `base_commit` is not classified. The
+    // value is only a gate: it never reaches Git, where `--output=<path>` read from `state.json`
+    // could become an option, least of all from read-only `ship-status` (#1037 review).
+    let base_commit = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))?;
+    // The branch's own work is what differs from the merge base with the remote default branch,
+    // the base the coverage gate diffs against locally (`pull_request_diff_base`; in CI it diffs
+    // against the pull request's base branch), plus untracked files.
+    // It is not compared with `base_commit`: once the branch merges or rebases the default branch,
+    // that diff also holds every upstream edit made since, which this change never touched
+    // (#1037 review). Without a remote default branch or a merge base, the branch's work cannot be
+    // told from untouched files, so nothing is classified and every input keeps the declare
+    // recovery: the safe direction.
+    let remote = remote_default_ref(root)?;
+    let merge_base = git_output(root, &["merge-base", remote.as_str(), "HEAD"])?;
+    let merge_base = merge_base.trim();
+    if !is_canonical_commit_id(merge_base) {
+        return None;
+    }
+    // Once the change's own commits are on the remote default branch (it merged with the change
+    // still active, the documented recovery state), the merge base no longer separates its work
+    // from upstream work: its committed edits sit at or behind the merge base and would all look
+    // untouched. Then nothing is classified (#1037 review). That is so when HEAD is the merge
+    // base although the change has commits past its base, and when the merge base already holds
+    // this change's own workspace, as after a recovery `change check --commit` on the default
+    // branch. `base_commit` is only compared here; it still never reaches Git.
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
+    let head = head.trim();
+    if !is_canonical_commit_id(head) || (merge_base == head && base_commit != head) {
+        return None;
+    }
+    let own_workspace = format!("{CHANGES_PATH}/{}", record.id);
+    let own_workspace_on_the_default_branch = !git_output_allow_empty(
+        root,
+        &[
+            "ls-tree",
+            "-d",
+            "--name-only",
+            "--end-of-options",
+            merge_base,
+            "--",
+            own_workspace.as_str(),
+        ],
+    )?
+    .trim()
+    .is_empty();
+    if own_workspace_on_the_default_branch {
+        return None;
+    }
+    let mut changed = BTreeSet::new();
+    // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
+    // than C-quoted under git's default `core.quotePath`; `--no-renames`, so a renamed file's old
+    // path counts as changed too.
+    for args in [
+        vec![
+            "diff",
+            "--name-only",
+            "--relative",
+            "--no-renames",
+            "-z",
+            "--end-of-options",
+            merge_base,
+        ],
+        vec!["ls-files", "--others", "--exclude-standard", "-z"],
+    ] {
+        changed.extend(
+            git_output_allow_empty(root, &args)?
+                .split('\0')
+                .filter(|path| !path.is_empty())
+                .map(str::to_string),
+        );
+    }
+    // A path another active change on this branch covers is that change's work: it is neither
+    // declared for this change nor kept in its narrowed scope (#1037 review). An unreadable
+    // workspace leaves that unknown, so nothing is classified.
+    let others = list_changes_checked(root).ok()?;
+    changed.retain(|path| {
+        !others
+            .iter()
+            .filter(|other| other.id != record.id)
+            .any(|other| other.affected_paths.iter().any(|scope| path_matches_scope(path, scope)))
+    });
+    Some(changed)
 }
 
 /// Names what to change for one unowned affected path.

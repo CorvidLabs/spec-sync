@@ -192,7 +192,24 @@ no declared module owns SHALL be a blocker naming the path, the module that owns
 it, and the recovery (`specsync change send-back <id>`, then
 `specsync change answer <id> affected_specs <modules>`); `change ship-status`
 SHALL report the same blocker and SHALL NOT report the change ready to finalize
-(#986, #956).
+(#986, #956). An unowned input the change has not modified SHALL instead be named with a
+narrowing recovery
+(`specsync change send-back <id>`, then
+`specsync change answer <id> affected_paths <paths>` listing every file the
+change adds, edits or deletes inside its current scope, or a quoted
+`'<path>,<path>'` placeholder when no such list can be written as that answer), because declaring its owner would pull an untouched module into the
+change (#1000). An input counts as modified by the change when it differs from the
+merge base with the remote default branch (the base the coverage gate diffs
+against locally) or is untracked, and no other active change covers it: an upstream edit
+merged into the branch is not the change's work, and a path another active change
+covers is left to that change. Without a full commit id as the change's base
+commit, a merge base with the remote default branch, a readable set of active
+changes, or a complete spec listing, every input keeps the declare recovery,
+as it does once the change's own commits have reached the remote default branch
+(HEAD is that merge base although the change has commits past its base, or the
+merge base already holds the change's own workspace). When both kinds are
+present, one send-back carries both answers. An untouched input whose owners the
+declare answer already declares is not narrowed.
 
 Optional orchestration flags after a successful finalize (or for already-archived
 changes):
@@ -220,6 +237,9 @@ Acceptance Criteria
   module owns is not ready: `change ship-status` names the blocker and the
   recovery, `change ship --dry-run` exits non-zero, and running the named
   recovery ships it (#986, #956).
+- When a directory scope covers an unowned file the change never modified, the
+  recovery names that file and says to narrow `affected_paths`; a modified
+  unowned file in the same scope keeps the declare-the-owner recovery (#1000).
 
 ### REQ-cmd-change-009
 

@@ -823,6 +823,19 @@ Acceptance Criteria
   than omitting an owner. A recovery that replaces `affected_specs` says the
   constraints answer must be renewed before approval. Owner discovery includes
   registry-registered canonical specs outside the specs directory.
+- The ship preflight and review owner recovery declares owners only for unowned
+  inputs the change modified (differing from the merge base with the remote
+  default branch, or untracked, and not covered by another active change); an
+  unowned input it never modified is named
+  with a recovery that narrows `affected_paths` instead, since its owner has nothing
+  to approve in this change (#1000). Approve's own ownership refusal is unchanged.
+  Without a full commit id as the change's base commit, a merge base with the
+  remote default branch, a readable set of active changes, or a complete spec
+  listing, every input keeps the declare recovery, and the base commit is never
+  passed to Git. So does every input once the change's own commits have reached
+  the remote default branch: when HEAD is that merge base although the change
+  has commits past its base, or when the merge base already holds the change's
+  own workspace.
 
 ### REQ-change-054
 

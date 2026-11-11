@@ -1,6 +1,6 @@
 ---
 module: change
-version: 229
+version: 230
 status: active
 files:
   - src/change.rs
@@ -774,6 +774,7 @@ Acceptance Criteria
 | 2026-11-11 | a-failed-verification-records-the-findings-that-failed-it: A failed verification records the findings that failed it |
 | 2026-11-11 | inert-ignored-paths-disclosed-at-policy-load: Inert ignored paths disclosed at policy load |
 | 2026-11-11 | a-refused-check-records-its-refusal: A refused check records its refusal |
+| 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |
 | 2026-11-10 | change-answer-validates-question-keys-answers-and-actor-identity: reject unknown interview question keys, empty answers, unregistered affected specs, and malformed actor identities (#426) |
 | 2026-11-10 | every-actor-accepting-verb-normalizes-identity-the-same-way: Every actor-accepting verb normalizes identity the same way |
 | 2026-11-11 | identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists: Identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists |

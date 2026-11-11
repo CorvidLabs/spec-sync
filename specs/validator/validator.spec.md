@@ -109,6 +109,7 @@ instead of a false success.
     reachability checks around recursion.
 22. Configured source-root selection stores stable identities without retaining every root handle;
     traversal reopens, identity-checks, consumes, and releases each root sequentially.
+23. The duplicate-requirement-ID audit reports a specs-tree traversal error as an audit error naming the path; a directory it cannot read is never silently skipped (REQ-validator-046, #873).
 24. Requirement-heading identity is decided by one shared parser, `requirement_heading_id`, which the delta materializer reuses: a header form the validator accepts — title suffix, punctuation after the id, a multi-segment module id, up to three spaces of indent — is a form the materializer matches (REQ-validator-047, #1024).
 
 

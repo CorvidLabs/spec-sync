@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "id": "OBS-product-test-ceb7be5ba7465c816660f1c3",
+  "criteria": [
+    "CHANGE-5"
+  ],
+  "requirements": [
+    "REQ-change-150"
+  ],
+  "contracts": [
+    "specs/change/change.spec.md"
+  ],
+  "kind": "product-test",
+  "outcome": "passed",
+  "environment": "local",
+  "summary": "round 2 (t384 review): matcher delegates to shared requirement_heading_id (hyphenated module ids, colon titles, 3-space indent all match; token boundary + section exactness hold); matched header written back with title kept. 9 titled-header tests green; full suite 3013 unit + 584 integration, clippy clean; dogfood on chough clone: titled MODIFIED applies and KEEPS the title (exit 0); true missing-block refusal exit 1",
+  "artifacts": [],
+  "artifact_fingerprints": {},
+  "observed_at_unix_seconds": 1794375405,
+  "snapshot": {
+    "revision": "6314ae85541184959c61d34a100f0044cade4138",
+    "dirty": false,
+    "fingerprint": "9bcb678580bbc84885fc29a1e62d3793e4ed4d4f58677eb687efafe26e404739",
+    "content": "7e310ad23c13a665ee252944f6764ff5911bdc30fe9dc3ccb01847c400beeee5"
+  },
+  "provenance": "unauthenticated observation; not proof of human approval, test execution, or deployment",
+  "method": "automated"
+}

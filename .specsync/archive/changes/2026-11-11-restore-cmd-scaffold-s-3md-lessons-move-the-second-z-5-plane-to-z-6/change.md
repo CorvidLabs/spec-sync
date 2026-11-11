@@ -1,6 +1,6 @@
 ---
 id: restore-cmd-scaffold-s-3md-lessons-move-the-second-z-5-plane-to-z-6
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ad8544e9da79725f499b38ae4d4b3a052be5f807
 ---

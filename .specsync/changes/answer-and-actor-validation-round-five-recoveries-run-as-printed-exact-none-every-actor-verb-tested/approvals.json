@@ -318,6 +318,53 @@
       "approved_delta_bases": {
         "change: REQUIREMENT REQ-change-150": "4a0508f09dded4ea1bbf419b965f032af8832114b09ce894508dab847ed0db98"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794411105,
+      "digest": "6047474e937e55dfb0a3f06c5e827910d37ffda1c23d7928281be134d6b784c3",
+      "note": "Leif approved this himself on 2026-11-11 after the coordinator agent (claude-code-t370) checked it was aligned and summarised it: answers and actor names are validated before anything is saved. Covers REQ-change-150 as round 5 words it at b5ac8700.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+        "title": "Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+        "description": "answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/cli.md",
+          "src/change/retirement.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/historical_reconciliation.rs",
+          "src/change_tests/recovery_retirement.rs",
+          "tests/integration/change.rs",
+          "tests/integration/doctor.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "owner recovery scaffolds a configured owner with no spec before declaring it; empty constraints keep their none guidance; an exact none is refused as ambiguous when something is named none; registered-but-missing specs and unreadable registries get their own messages; zero-width and directional-mark characters are refused in actors; reopen, retire, correct, correct-owner, reconcile-history and the doctor late close each have a bad-actor test; REQ-change-150, invariant 56 and the lesson match"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md z=45 (#1011): a printed recovery command must run as printed",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1436b52b43acc810cb2e4f62d44f381ed0a6655c2905838745f12c2e8c6dde9f"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-150": "4a0508f09dded4ea1bbf419b965f032af8832114b09ce894508dab847ed0db98"
+      }
     }
   ],
   "reopenings": [],

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "watch-outcome-tests-wait-for-the-verdict-line",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "4f443aa1eab3506bbb5242078c477d00de3bf79b",
+  "contract_digest": "1b2d777c0f4f2de2be1b7ba7023b9683d6d50f29f6cffcf88b6320da5337bda3",
+  "execution_digest": "e250034d4aeb14f345878b1f9d0d055fa8ed72a73686293123d382546faa02df",
+  "workspace_digest": "ffa18c32f5ebf565a16b80c50994a4fe220a9575e21608a18f0790e42800e623",
+  "timestamp": 1794388804
+}

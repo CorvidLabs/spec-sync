@@ -1854,12 +1854,12 @@ fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
 /// those is inert (#676). An entry that also covers other files (`.specsync/` covers the change
 /// workspaces) does real work and stays silent.
 fn inert_ignored_paths(policy: &SddPolicy, specs_dir: &str) -> Vec<String> {
-    let specs_root = format!("{}/", specs_dir.trim_matches('/'));
+    let specs_root = format!("{}/", specs_dir.trim_start_matches("./").trim_matches('/'));
     policy
         .ignored_paths
         .iter()
         .filter(|entry| {
-            let entry = entry.as_str();
+            let entry = entry.trim_start_matches("./");
             (entry.starts_with(specs_root.as_str()) || entry == specs_root.trim_end_matches('/'))
                 || PROTECTED_SDD_PATHS.contains(&entry)
         })

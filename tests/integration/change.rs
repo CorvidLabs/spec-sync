@@ -6280,7 +6280,7 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
 
-// #676 (REQ-change-153): an ignored_paths entry whose whole coverage is always meaningful is
+// #676 (REQ-change-155): an ignored_paths entry whose whole coverage is always meaningful is
 // disclosed at policy load, on stderr, with the file to edit — not three verbs later at audit.
 #[cfg(unix)]
 #[test]

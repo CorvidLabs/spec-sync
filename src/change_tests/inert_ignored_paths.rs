@@ -66,3 +66,14 @@ fn a_custom_specs_dir_is_respected() {
 fn the_default_policy_writes_no_inert_entry() {
     assert!(inert_ignored_paths(&SddPolicy::default(), "specs").is_empty());
 }
+
+#[test]
+fn a_dot_slash_prefixed_entry_is_inert() {
+    // `./specs/` names the same tree; the disclosure keeps the entry's original text so the
+    // note says exactly what to remove.
+    let policy = SddPolicy {
+        ignored_paths: vec!["./specs/".into()],
+        ..Default::default()
+    };
+    assert_eq!(inert_ignored_paths(&policy, "specs"), vec!["./specs/"]);
+}

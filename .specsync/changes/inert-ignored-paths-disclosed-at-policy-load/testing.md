@@ -6,7 +6,7 @@ artifact: testing
 # Testing
 
 Unit tests on the detector (specs tree entry, protected file, .specsync/
-silent); integration test that `change list` prints the note on stderr.
+silent); integration test that `change status` prints the note on stderr.
 
 ## Requirement evidence
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "generate-ownership-wording-matches-shipped-no-files-path",
+  "implementation_commit": "194d566b155f3422d71d6d977db6e2eedef3755e",
+  "implementation_tree": "f4d5769ca83adce53b44eab43c0ff7ad88a49430",
+  "contract_digest": "e1d1862b4ebbd8782c9ee9605c5f5cba0859e1835fb3de07a19561940f97b389",
+  "workspace_digest": "b1ea05acbcc953d8013679548b36f8c04c9036f3d1ce0cfcedea795b11cbdc38",
+  "closing_digest": "a2c08bd4967e5b9ae21580bff02194faa47967f4652bf3f45353a519a4c9e3e6",
+  "review_digest": "571551299bbfa204b8c62da1f18e4c7475a5fdbf289fa0b4db484a44cf0e4aae",
+  "finalization_digest": "e926804620bbf0c92b304276ffc4054db4f800b025960574357315ffce390d5b",
+  "timestamp": 1794333562
+}

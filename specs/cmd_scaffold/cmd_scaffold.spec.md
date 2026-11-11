@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 12
+version: 14
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -35,6 +35,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 3. Neither overwrites existing specs
 4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
 5. Both validate `module_name` as a single path segment before any filesystem write — a name containing a path separator (`/`, `\`), `.`/`..`, or an absolute path is refused with exit 1, so scaffolding can never create files outside the project (no path traversal)
+6. The scaffolded spec never claims a file another spec already lists in `files:`; a module whose candidates are all owned writes no such mapping (#611).
 
 ## Behavioral Examples
 
@@ -88,3 +89,5 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-10 | generate-and-scaffold-never-claim-files-another-spec-owns: Generate and scaffold never claim files another spec owns |
+| 2026-11-10 | generate-ownership-wording-matches-shipped-no-files-path: Generate ownership wording matches shipped no-files path |

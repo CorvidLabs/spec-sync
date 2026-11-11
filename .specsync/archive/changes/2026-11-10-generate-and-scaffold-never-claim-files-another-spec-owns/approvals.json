@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794329171,
+      "digest": "49222cfa5cee3c44dc9172dfeaa8a139a02c4b3b6fc38b0792944199a57a1f76",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "generate-and-scaffold-never-claim-files-another-spec-owns",
+        "title": "Generate and scaffold never claim files another spec owns",
+        "description": "generate and scaffold never claim files another spec owns",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_generate",
+          "cmd_scaffold",
+          "generator"
+        ],
+        "affected_paths": [
+          "specs/cmd_generate/",
+          "specs/generator/",
+          "src/commands/generate.rs",
+          "src/commands/scaffold.rs",
+          "src/generator.rs",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "scaffold/new/generate filter candidate files against files already mapped in existing specs' frontmatter; a module whose files are all owned produces no spec; the MCP generate path behaves identically"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "no new dependencies; generation stays deterministic; the config's explicit module mappings are the author's ownership declaration",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_generate": "132e58338b2b14111b8c5a058a34522767f614fdbabb87e9ce4f84ff69f22a48",
+        "cmd_scaffold": "90cbf2e4da2b18ee98db170983272f4d4c9a9aebd51432c643e720311e9e28d5",
+        "generator": "ae0cc855a1436609d92672e68a7cd415833d64d5dffabc44c11a57b8c312cc27"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794330110,
+      "digest": "21d26ee290d775ee0b120d00fac1608917ee7af18ef356fa28fcb3a02653b015",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

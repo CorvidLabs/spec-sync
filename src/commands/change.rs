@@ -3932,7 +3932,7 @@ if the floor call is removed from this function"
         assert!(
             recovery
                 .contains("src/billing/ledger.ts is not modified by this change since its base")
-                && recovery.contains("affected_paths <paths>"),
+                && recovery.contains("affected_paths '<path>,<path>'"),
             "the untouched file asks for a narrower scope: {recovery}"
         );
         assert!(
@@ -3942,6 +3942,49 @@ if the floor call is removed from this function"
         assert!(
             !recovery.contains("tarifa-ñ.ts"),
             "a modified non-ASCII file is not narrowed out: {recovery}"
+        );
+        assert_eq!(
+            recovery.matches("change send-back").count(),
+            1,
+            "one send-back rescopes both sets in the same draft: {recovery}"
+        );
+        assert!(
+            blocker.contains("src/billing/ledger.ts: not modified by this change since its base"),
+            "the blocker hint for an untouched file agrees with the recovery: {blocker}"
+        );
+
+        // An untouched file whose owner the answer already declares is fixed by that answer,
+        // so it is not narrowed out as well.
+        let mut billing = fs::read_to_string(root.join("specs/billing/billing.spec.md")).unwrap();
+        billing = billing.replace(
+            "  - src/billing/charge.ts\n",
+            "  - src/billing/charge.ts\n  - src/billing/ledger.ts\n",
+        );
+        fs::write(root.join("specs/billing/billing.spec.md"), billing).unwrap();
+        fs::remove_dir_all(root.join("specs/ledger")).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("billing's files are still undeclared");
+        assert!(
+            !recovery.contains("not modified by this change"),
+            "declaring billing already covers ledger.ts: {recovery}"
+        );
+
+        // A base commit that is not a full commit id is never handed to Git: a value shaped
+        // like an option writes nothing, and every owner keeps the declare recovery.
+        let probe = root.join("probe-output.txt");
+        let mut tampered = record.clone();
+        tampered.base_commit = Some(format!("--output={}", probe.display()));
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &tampered)
+            .unwrap()
+            .expect("still unowned");
+        assert!(
+            !probe.exists(),
+            "the record's base_commit never became a Git option"
+        );
+        assert!(
+            !recovery.contains("not modified by this change"),
+            "without a usable base, nothing is classified untouched: {recovery}"
         );
     }
 

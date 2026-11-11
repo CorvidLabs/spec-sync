@@ -824,9 +824,11 @@ Acceptance Criteria
   constraints answer must be renewed before approval. Owner discovery includes
   registry-registered canonical specs outside the specs directory.
 - Owner recovery declares owners only for unowned inputs the change modified
-  since its base commit; an unowned input it never modified is named with a
-  recovery that narrows `affected_paths` instead, since its owner has nothing to
-  approve in this change (#1000).
+  since its base commit (or since the merge base with the remote default branch,
+  or untracked); an unowned input it never modified is named with a recovery that
+  narrows `affected_paths` instead, since its owner has nothing to approve in this
+  change (#1000). Without a usable base commit every input keeps the declare
+  recovery, and a base commit that is not a full commit id is never passed to Git.
 
 ### REQ-change-054
 

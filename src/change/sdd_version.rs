@@ -5003,27 +5003,57 @@ pub fn ownership_preflight_blocker(
     }
     let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
     let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
-    let hints: Vec<String> = paths
-        .iter()
-        .map(|path| format!("{path}: {}", ownership_hint(root, record, path, &index)))
-        .collect();
     // An unowned input the change never modified since its base is in scope only because a
     // path prefix is wider than the work, and declaring its owner would pull an untouched module
-    // into the change: the recovery for it is a narrower scope (#1000). Without a base commit or
-    // Git, nothing is classified as untouched and the declare recovery covers every path.
+    // into the change: the recovery for it is a narrower scope (#1000). Without a usable base
+    // commit or Git, nothing is classified as untouched and the declare recovery covers every
+    // path.
     let changed = files_changed_since_base(root, record);
     let (touched, untouched): (Vec<&str>, Vec<&str>) = paths
         .iter()
         .copied()
         .partition(|path| changed.as_ref().is_none_or(|changed| changed.contains(*path)));
-    let mut recoveries = Vec::new();
-    if !touched.is_empty() {
-        recoveries.push(declare_owners_recovery(root, record, &touched, &index));
-    }
-    if !untouched.is_empty() {
-        recoveries.push(narrow_scope_recovery(record, &untouched));
-    }
-    let recovery = recoveries.join("; ");
+    // An untouched input whose every owner is already declared by the touched inputs' answer is
+    // fixed by that answer; narrowing it out as well would be redundant advice (#1037 review).
+    let declared_by_answer: BTreeSet<String> = record
+        .affected_specs
+        .iter()
+        .cloned()
+        .chain(
+            touched
+                .iter()
+                .flat_map(|path| undeclared_owning_modules(root, record, path, &index)),
+        )
+        .collect();
+    let untouched: Vec<&str> = untouched
+        .into_iter()
+        .filter(|path| {
+            let owners = undeclared_owning_modules(root, record, path, &index);
+            owners.is_empty() || !owners.iter().all(|owner| declared_by_answer.contains(owner))
+        })
+        .collect();
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|path| {
+            if untouched.contains(path) {
+                format!(
+                    "{path}: not modified by this change since its base, so leave it out of `affected_paths`"
+                )
+            } else {
+                format!("{path}: {}", ownership_hint(root, record, path, &index))
+            }
+        })
+        .collect();
+    let touched: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| !untouched.contains(path))
+        .collect();
+    let recovery = match (touched.is_empty(), untouched.is_empty()) {
+        (_, true) => declare_owners_recovery(root, record, &touched, &index),
+        (true, false) => narrow_scope_recovery(record, &untouched),
+        (false, false) => declare_and_narrow_recovery(root, record, &touched, &untouched, &index),
+    };
     Ok(Some((
         format!(
             "finalize would refuse production source no declared module owns: {}",
@@ -5073,6 +5103,52 @@ fn declare_owners_recovery(
 /// The recovery for unowned inputs the change never modified: narrow `affected_paths` to the
 /// files and directories the change edits instead of declaring their owners (#1000).
 fn narrow_scope_recovery(record: &ChangeRecord, untouched: &[&str]) -> String {
+    format!(
+        "{} — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then {}, then approve, check and review again",
+        untouched_sentence(untouched),
+        shell_quote(&record.id),
+        narrow_answer(record)
+    )
+}
+
+/// One send-back for a change with both modified and untouched unowned inputs: declare the
+/// modified inputs' owners and narrow the scope in the same draft, then one approve, check and
+/// review (#1037 review: two separate send-backs could not both run).
+fn declare_and_narrow_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    touched: &[&str],
+    untouched: &[&str],
+    index: &SpecListingIndex,
+) -> String {
+    if index.truncated {
+        return declare_owners_recovery(root, record, touched, index);
+    }
+    let declare = match declare_owners_answer(root, record, touched, index) {
+        Some(answer) => answer,
+        None => format!(
+            "add {} to its owning spec's `files:` list",
+            touched.join(", ")
+        ),
+    };
+    format!(
+        "send it back once and rescope: `specsync change send-back {} --actor <name> --reason \"declare the owning modules and narrow affected_paths\"`, then {declare}, and {} ({}), then approve, check and review again",
+        shell_quote(&record.id),
+        narrow_answer(record),
+        untouched_sentence(untouched)
+    )
+}
+
+/// The `affected_paths` answer that narrows a scope, with a quoted, comma-separated placeholder.
+fn narrow_answer(record: &ChangeRecord) -> String {
+    format!(
+        "`specsync change answer {} affected_paths '<path>,<path>'` naming only the files and directories the change edits",
+        shell_quote(&record.id)
+    )
+}
+
+/// Names up to five untouched inputs and why they should leave the scope.
+fn untouched_sentence(untouched: &[&str]) -> String {
     const SHOWN: usize = 5;
     let mut named = untouched
         .iter()
@@ -5084,26 +5160,51 @@ fn narrow_scope_recovery(record: &ChangeRecord, untouched: &[&str]) -> String {
         named.push_str(&format!(" and {} more", untouched.len() - SHOWN));
     }
     format!(
-        "{named} {} not modified by this change since its base, so its `affected_paths` scope is wider than the work: narrow it instead of declaring those owners — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then `specsync change answer {} affected_paths <paths>` naming only the files and directories the change edits, then approve, check and review again",
-        if untouched.len() == 1 { "is" } else { "are" },
-        shell_quote(&record.id),
-        shell_quote(&record.id)
+        "{named} {} not modified by this change since its base, so its `affected_paths` scope is wider than the work: narrow it instead of declaring those owners",
+        if untouched.len() == 1 { "is" } else { "are" }
     )
 }
 
 /// Every project-relative path the working tree has changed since the change's base commit,
 /// committed or not, plus untracked files. `None` without a base commit or when Git cannot say.
 fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
-    let base = record.base_commit.as_deref()?;
+    // `base_commit` comes from the change's own record, so it is never handed to Git unless it
+    // is a full commit id, and it follows `--end-of-options`: a value like `--output=<path>` must
+    // not become a Git option, least of all from read-only `ship-status` (#1037 review).
+    let base = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))?;
+    let mut bases = vec![base.to_string()];
+    // Work committed before `change new` is in `base` already, but it is still this branch's
+    // work: also compare against the merge base with the remote default branch when there is
+    // one. A larger changed set only ever keeps the declare recovery.
+    if let Some(remote) = remote_default_ref(root)
+        && let Some(merge_base) = git_output(root, &["merge-base", remote.as_str(), "HEAD"])
+        && is_canonical_commit_id(merge_base.trim())
+    {
+        bases.push(merge_base.trim().to_string());
+    }
     let mut changed = BTreeSet::new();
     // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
-    // than C-quoted under git's default `core.quotePath` (#1037 review). A file main changed
-    // after `base` and that was merged in also counts as changed: it keeps the declare
-    // recovery, which is the conservative pre-#1000 behaviour.
-    for args in [
-        vec!["diff", "--name-only", "--relative", "-z", base],
-        vec!["ls-files", "--others", "--exclude-standard", "-z"],
-    ] {
+    // than C-quoted under git's default `core.quotePath`; `--no-renames`, so a renamed file's old
+    // path counts as changed too.
+    let mut queries: Vec<Vec<&str>> = bases
+        .iter()
+        .map(|base| {
+            vec![
+                "diff",
+                "--name-only",
+                "--relative",
+                "--no-renames",
+                "-z",
+                "--end-of-options",
+                base.as_str(),
+            ]
+        })
+        .collect();
+    queries.push(vec!["ls-files", "--others", "--exclude-standard", "-z"]);
+    for args in queries {
         changed.extend(
             git_output_allow_empty(root, &args)?
                 .split('\0')

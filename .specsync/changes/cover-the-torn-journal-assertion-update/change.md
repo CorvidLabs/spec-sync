@@ -1,6 +1,6 @@
 ---
 id: cover-the-torn-journal-assertion-update
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: f7d234568795a17862a371c2ab1107cb9d5e16e1
 ---

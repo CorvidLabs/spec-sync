@@ -3,6 +3,9 @@
 // readable by every requirement parser; the materializer now matches through the same shared
 // parser and writes the matched header line back unchanged, so the title survives.
 
+mod titled_requirement_header_delta {
+    use super::*;
+
 /// A MODIFIED delta lands on a titled requirement header, and the matched header line —
 /// title included — is written back unchanged.
 #[test]
@@ -231,4 +234,5 @@ fn the_kept_header_keeps_its_trailing_spaces() {
         modified.contains("### REQ-auth-001 — Titled   \n\nNew"),
         "trailing spaces survive: {modified:?}"
     );
+}
 }

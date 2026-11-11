@@ -1,6 +1,6 @@
 ---
 module: change
-version: 224
+version: 225
 status: active
 files:
   - src/change.rs
@@ -361,7 +361,7 @@ Acceptance Criteria
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
 51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
-52. A refusal that names a lifecycle verb prints the complete command. A corrupt or integrity-damaged transaction journal is reported with its file path and the set-aside recovery, never as a bare parser error; and every remediation that names `specsync change reopen <id>` includes the required `--actor <name>` and `--reason <text>`, so a pasted recovery runs as printed (#433, REQ-change-151).
+52. A corrupt or unreadable transaction journal is reported with its path and a quoted set-aside command; every printed `change reopen <id>` remediation includes `--actor <name> --reason <text>` (#433, REQ-change-151).
 
 ## Behavioral Examples
 
@@ -756,3 +756,4 @@ Acceptance Criteria
 | 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
 | 2026-11-10 | fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec: Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes |
 | 2026-11-11 | journal-error-names-its-file-and-recovery: Journal error names its file and recovery |
+| 2026-11-11 | journal-read-errors-name-the-file-and-a-quoted-recovery: Journal read errors name the file and a quoted recovery |

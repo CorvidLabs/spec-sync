@@ -1166,3 +1166,32 @@ fn repair_relays_refuses_while_another_ledger_does_not_read_and_writes_nothing()
     );
     assert_eq!(fs::read_to_string(project.review_path()).unwrap(), review);
 }
+
+/// #1026 review: `--actor` is trimmed before it is recorded (#426), so the relay's decider must be
+/// the same trimmed text. A padded actor with a relay used to record `actor: "Ada"` beside
+/// `decided_by: "  Ada  "`, a ledger every later read refused.
+#[test]
+fn a_relayed_approval_with_a_padded_actor_records_one_decider_and_stays_readable() {
+    let project = Project::ready_to_approve();
+    let padded = format!("  {ACTOR}  ");
+    project
+        .run(&[
+            "change",
+            "approve",
+            ID,
+            "--actor",
+            &padded,
+            "--words",
+            WORDS,
+            "--where",
+            WHERE,
+            "--recorded-by",
+            AGENT,
+        ])
+        .success();
+    let approval = project.last_approval();
+    assert_eq!(approval["actor"], ACTOR, "{approval}");
+    assert_eq!(approval["relayed_by"]["decided_by"], ACTOR, "{approval}");
+    project.run(&["change", "status", ID]).success();
+    assert_eq!(project.status_json()["summary"]["approval_valid"], true);
+}

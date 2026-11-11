@@ -573,6 +573,7 @@ pub fn retire_change_with_source(
     source_kind: RetirementSourceKind,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
+    let actor = normalize_actor(&actor, "retirement")?;
     for (text, flag, limit) in [
         (actor.as_str(), "--actor", 256),
         (reason.as_str(), "--reason", 4096),

@@ -32,7 +32,7 @@ pub fn enable_historical_reconciliation(
     record.answers.insert(HISTORICAL_ANCHOR.into(), anchor);
     record
         .answers
-        .insert(HISTORICAL_ACTOR.into(), actor.trim().into());
+        .insert(HISTORICAL_ACTOR.into(), normalize_actor(&actor, "reconcile-history")?);
     record
         .answers
         .insert(HISTORICAL_REASON.into(), reason.trim().into());
@@ -95,7 +95,6 @@ fn historical_reconciliation_anchor(record: &ChangeRecord) -> Result<Option<&str
     if actor.trim().is_empty()
         || actor.len() > 256
         || actor.trim() != actor
-        || actor.chars().any(|c| c.is_control())
         || reason.trim().is_empty()
         || reason.len() > 4096
         || reason.trim() != reason

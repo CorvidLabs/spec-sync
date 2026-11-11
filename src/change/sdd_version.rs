@@ -2777,6 +2777,21 @@ pub fn answer_question(
     answer_question_with_snapshot(root, id, question, answer).map(|result| result.change)
 }
 
+/// A comma-separated answer for a list that may legitimately be empty: `none` clears it, and an
+/// answer that parses to no value is refused rather than silently clearing the list (#426).
+fn clearable_list_answer(question: &str, answer: &str) -> Result<Vec<String>, String> {
+    if answer.trim().eq_ignore_ascii_case("none") {
+        return Ok(Vec::new());
+    }
+    let values = split_values(answer);
+    if values.is_empty() {
+        return Err(format!(
+            "{question} answer names no value; answer `none` to clear it"
+        ));
+    }
+    Ok(values)
+}
+
 /// Every interview question id `change answer` accepts. `next_questions` and
 /// `next_questions_for` advertise a subset of these (`dependencies` is answerable
 /// but never asked); a unit test keeps every advertised id in this list, so a
@@ -2811,10 +2826,14 @@ pub(crate) fn answer_question_with_snapshot(
     }
     match question {
         "acceptance_criteria" => {
-            record.acceptance_criteria = acceptance_criteria_values(answer)?;
+            let criteria = acceptance_criteria_values(answer)?;
+            if criteria.is_empty() {
+                return Err("acceptance_criteria answer names no criterion".into());
+            }
+            record.acceptance_criteria = criteria;
         }
         "affected_specs" => {
-            let values = split_values(answer);
+            let values = clearable_list_answer(question, answer)?;
             for module in &values {
                 crate::commands::validate_module_name(module)
                     .map_err(|error| format!("invalid affected spec: {error}"))?;
@@ -2826,6 +2845,9 @@ pub(crate) fn answer_question_with_snapshot(
         }
         "affected_paths" => {
             let values = split_values(answer);
+            if values.is_empty() {
+                return Err("affected_paths answer names no path".into());
+            }
             let affected_paths: Vec<String> = values
                 .iter()
                 .map(|path| {
@@ -2836,7 +2858,7 @@ pub(crate) fn answer_question_with_snapshot(
             record.affected_paths = affected_paths;
         }
         "dependencies" => {
-            let dependencies = split_values(answer);
+            let dependencies = clearable_list_answer(question, answer)?;
             for dependency in &dependencies {
                 if dependency == id || dependency_reaches(root, dependency, id, &mut BTreeSet::new()) {
                     return Err("dependency rescope would create a change cycle".into());
@@ -3141,6 +3163,13 @@ pub fn approve_definition_with_relay(
     portable_v501: bool,
     relayed_by: Option<RelayedDecision>,
 ) -> Result<ChangeRecord, String> {
+    // The recorded actor is trimmed (#426), so the relay's decider is trimmed the same way:
+    // otherwise `actor` and `relayed_by.decided_by` differ by padding and every later read of the
+    // ledger refuses the mismatch (#1026 review).
+    let relayed_by = relayed_by.map(|mut relay| {
+        relay.decided_by = relay.decided_by.trim().to_string();
+        relay
+    });
     if relayed_by.is_some() {
         let Some(decider) = actor.as_deref() else {
             return Err(
@@ -3149,7 +3178,7 @@ pub fn approve_definition_with_relay(
                     .into(),
             );
         };
-        ensure_relay_names_the_decider(relayed_by.as_ref(), decider, "--actor")?;
+        ensure_relay_names_the_decider(relayed_by.as_ref(), decider.trim(), "--actor")?;
     }
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
@@ -3697,15 +3726,22 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         return Ok(());
     }
     for module in modules {
-        let resolved = canonical_module_paths(root, &config.specs_dir, module);
-        let exists = resolved
-            .as_ref()
-            .is_ok_and(|(spec_path, _)| spec_path.is_file());
-        if !exists {
-            return Err(format!(
-                "affected spec `{module}` is not a registered spec module; known modules: {}",
-                known.join(", ")
-            ));
+        // Say why: a registry that cannot be read is not a typo, and a spec outside its
+        // canonical location is not a missing module.
+        let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)
+            .map_err(|error| format!("affected spec `{module}` cannot be resolved: {error}"))?;
+        if !spec_path.is_file() {
+            let expected = portable_project_path(root, &spec_path);
+            return Err(if known.iter().any(|name| name == module) {
+                format!(
+                    "affected spec `{module}` has a spec, but not at its canonical path `{expected}`; move it there or register it in the spec registry"
+                )
+            } else {
+                format!(
+                    "affected spec `{module}` has no spec at `{expected}`; scaffold it first with `specsync new {module}`, or name one of the known modules: {}",
+                    known.join(", ")
+                )
+            });
         }
     }
     Ok(())
@@ -3983,6 +4019,8 @@ pub fn reopen_change(
     actor: String,
     reason: String,
 ) -> Result<ReopenResult, String> {
+    // Refused before anything moves: an archived package is not relocated for a bad actor.
+    let actor = normalize_actor(&actor, "reopen")?;
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(
@@ -4059,7 +4097,6 @@ fn reopen_unarchived_change(
     reason: String,
 ) -> Result<ReopenResult, String> {
     let mut record = load_change(root, id)?;
-    let actor = normalize_actor(&actor, "reopen")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err("reopen requires a non-empty reason passed with --reason".into());

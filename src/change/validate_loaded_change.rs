@@ -823,13 +823,23 @@ pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String>
     if actor.is_empty() {
         return Err(format!("{verb} requires a non-empty human actor passed with --actor"));
     }
-    if actor.chars().any(|c| c.is_control()) {
+    if actor.chars().any(actor_character_is_refused) {
         return Err(format!(
             "{verb} actor `{}` must be a single line of text; newlines and control characters are not allowed",
             actor.escape_debug()
         ));
     }
     Ok(actor.to_string())
+}
+
+/// Characters an actor identity may not hold: control characters, the Unicode line and
+/// paragraph separators, and the bidirectional overrides and isolates that reorder printed text.
+fn actor_character_is_refused(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c,
+            '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+        )
 }
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {

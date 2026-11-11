@@ -491,7 +491,11 @@ fn change_new_and_answer_reject_unregistered_affected_spec() {
         ])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not a registered spec module"));
+        .stderr(
+            predicate::str::contains("has no spec at").and(predicate::str::contains(
+                "scaffold it first with `specsync new",
+            )),
+        );
 
     let created = specsync()
         .args([
@@ -526,7 +530,11 @@ fn change_new_and_answer_reject_unregistered_affected_spec() {
         ])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not a registered spec module"))
+        .stderr(
+            predicate::str::contains("has no spec at").and(predicate::str::contains(
+                "scaffold it first with `specsync new",
+            )),
+        )
         .stderr(predicate::str::contains("auth"));
 }
 
@@ -645,6 +653,23 @@ fn change_approve_trims_and_validates_actor_identity() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("single line"));
+    // A Unicode line separator or a bidirectional override reorders or breaks the printed line
+    // just as a newline does, so it is refused the same way (#1026 review).
+    for actor in ["Ada\u{2028}Evil", "Ada\u{202E}live"] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "approve",
+                id,
+                "--actor",
+                actor,
+            ])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("single line"));
+    }
     let ledger: Value = serde_json::from_slice(
         &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
     )
@@ -6640,4 +6665,61 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
+}
+
+/// #1026 review: an answer that parses to no value is refused rather than silently clearing a
+/// list, and `none` clears the lists that may be empty.
+#[test]
+fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    run(&[
+        "change",
+        "new",
+        "Add passkeys",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    let id = "add-passkeys";
+    let state = || -> Value {
+        serde_json::from_str(
+            &fs::read_to_string(root.join(format!(".specsync/changes/{id}/state.json"))).unwrap(),
+        )
+        .unwrap()
+    };
+    for (question, answer) in [
+        ("acceptance_criteria", "[]"),
+        ("affected_paths", ","),
+        ("affected_specs", " , "),
+        ("dependencies", ","),
+    ] {
+        let before = state();
+        run(&["change", "answer", id, question, answer])
+            .failure()
+            .stderr(predicate::str::contains("names no"));
+        assert_eq!(
+            state(),
+            before,
+            "{question} {answer:?} must persist nothing"
+        );
+    }
+    run(&["change", "answer", id, "dependencies", "none"]).success();
+    assert_eq!(state()["dependencies"], serde_json::json!([]));
+
+    run(&["change", "answer", id, "affected_specs", "none"]).success();
+    assert_eq!(state()["affected_specs"], serde_json::json!([]));
 }

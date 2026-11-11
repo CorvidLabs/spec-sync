@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "audit-reports-requirements-traversal-errors",
+      "reviewer": "claude-code-t384",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "6ab73f9421bde01e2c415727e7f34105b894f0e3",
+      "contract_digest": "0cba4aa1b56385e4542b5e1f6ca397e9c8102fce95c803c890ccf6ac4f5cc8bf",
+      "execution_digest": "13ab7f947da82b4f0bfc41079488e242694ff1a8643a19872412de17ceb2bd1b",
+      "workspace_digest": "e99164fff9b9dfc16844dab2df7725f4c8b353089a996c17bf64e920fd33f35b",
+      "timestamp": 1794417648
+    }
+  ]
+}

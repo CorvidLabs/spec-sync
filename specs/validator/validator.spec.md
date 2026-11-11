@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 49
+version: 50
 status: stable
 files:
   - src/validator.rs
@@ -329,3 +329,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
 | 2026-11-11 | delta-materializer-matches-and-keeps-titled-requirement-headers: Delta materializer matches and keeps titled requirement headers |
+| 2026-11-11 | audit-reports-requirements-traversal-errors: Audit reports requirements traversal errors |

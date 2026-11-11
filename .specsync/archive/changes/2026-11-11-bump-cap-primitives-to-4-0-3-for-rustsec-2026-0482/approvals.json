@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794388482,
+      "digest": "8a9e198e3246df9171dfba8fa2b9c4f7e929666f79cb5bb938e4bb1049cca995",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "bump-cap-primitives-to-4-0-3-for-rustsec-2026-0482",
+        "title": "Bump cap-primitives to 4.0.3 for RUSTSEC-2026-0482",
+        "description": "bump cap-primitives to 4.0.3 for RUSTSEC-2026-0482",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "dependency security patch; no behavior or API change",
+        "acceptance_criteria": [
+          "cargo audit no longer reports RUSTSEC-2026-0482; the full suite passes unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794389232,
+      "digest": "abf2cb5772978ffbd7dc5c5858246039ce4275eccd43ddde9db8a46ecfc7e1c6",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -7,11 +7,11 @@
   "title": "Commit identities from change records are used only as full commit ids",
   "description": "commit identities from change records are used only as full commit ids",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794386342,
-  "updated_at": 1794386406,
+  "updated_at": 1794388347,
   "affected_specs": [
     "change",
     "cmd_change"

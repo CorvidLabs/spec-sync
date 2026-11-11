@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "watch-test-helper-keeps-harness-hygiene-and-kills-the-child",
+  "implementation_commit": "fad23cd3a18720c6627a54dc462284fbd62643ed",
+  "implementation_tree": "475658eeb9b389ab74edefff31d8e660f3f0f66d",
+  "contract_digest": "20cd6f20ac2837f1b74933a6dda42037b91ffb4108d385675790e1ba031795c3",
+  "workspace_digest": "f91572315130b62fc5e605bc153f48d6e8f039f59e77d868856460be0e6c0d5b",
+  "closing_digest": "9983281884407a3920264f7c04d21df579a87e13ea0f0faaefb70a8d815902ae",
+  "review_digest": "7a56390296836c74fd66082b37d9ed8e18d160a95610c2bde4cf491c1c03f26c",
+  "finalization_digest": "24defd653a6fc348dcfe4063834da42b98d1a0dcee685f6c7750bb4d191b5b3a",
+  "timestamp": 1794395039
+}

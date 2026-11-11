@@ -14,10 +14,11 @@ the recorded base order test uses full commit ids
 ## Affected Canonical Specs
 
 - `change`
+- `cmd_change`
 
 ## Acceptance Criteria
 
-- recorded_base_uses_oldest_change_order_not_hash_order builds its records with full commit ids, so it still proves the oldest change's base is used once only full commit ids are accepted
+- Only the oldest active change's recorded base is considered as the coverage diff base, and one that is not a full commit id falls back to the no-record base (two-record test); the order test uses full commit ids; status evidence shares is_canonical_commit_id
 
 ## No-spec Rationale
 

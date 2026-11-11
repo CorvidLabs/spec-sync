@@ -5,5 +5,10 @@ artifact: design
 
 # Design
 
-The test's two records now carry full 40-hex commit ids, so `recorded_diff_base` still has to pick the
-oldest change's base, as the test intends; the short ids it used before are no longer accepted.
+- `recorded_diff_base` considers only the oldest active change's `base_commit`, and uses it only when it
+  is a full commit id. Any other value falls back to the no-record base (`HEAD~1...HEAD`, or `HEAD`), never
+  to a later change's base, as the acceptance criterion of the full-commit-id change says.
+- `is_canonical_commit_id` is `pub(crate)` and `change status` evidence uses it instead of a copy.
+- It accepts SHA-1 ids only. A SHA-256 repository would see every recorded commit treated as absent; that is
+  the existing recording format, and noted here for when SpecSync records SHA-256 ids.
+- The order test's records carry full commit ids.

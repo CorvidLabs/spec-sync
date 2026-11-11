@@ -44,4 +44,12 @@ fn a_recorded_commit_that_is_not_a_full_commit_id_is_never_handed_to_git() {
     assert_eq!(recorded_diff_base(root, std::slice::from_ref(&record)), "HEAD~1...HEAD");
     record.base_commit = Some(head.clone());
     assert_eq!(recorded_diff_base(root, std::slice::from_ref(&record)), head);
+
+    // Only the oldest change's base counts: a later change's valid base never stands in for it.
+    let mut oldest = record.clone();
+    oldest.base_commit = Some("--not-a-commit".into());
+    let mut later = record.clone();
+    later.id = "CHG-0002-later".into();
+    later.base_commit = Some(head.clone());
+    assert_eq!(recorded_diff_base(root, &[oldest, later]), "HEAD~1...HEAD");
 }

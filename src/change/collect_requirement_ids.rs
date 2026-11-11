@@ -536,7 +536,8 @@ fn validate_sha256_digest(value: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn is_canonical_commit_id(value: &str) -> bool {
+/// Whether `value` is a full commit id as SpecSync records one: 40 lowercase hex digits (SHA-1).
+pub(crate) fn is_canonical_commit_id(value: &str) -> bool {
     value.len() == 40
         && value
             .bytes()

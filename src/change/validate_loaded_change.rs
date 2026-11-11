@@ -1174,13 +1174,13 @@ fn remote_default_ref(root: &Path) -> Option<String> {
 }
 
 fn recorded_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
-    // A change's `base_commit` is persisted workspace state (REQ-change-013): only a full commit
-    // id is used as the diff base; any other value falls back to the base used when no change
-    // records one.
+    // The oldest change's `base_commit` is the diff base. It is persisted workspace state
+    // (REQ-change-013), so it is used only when it is a full commit id; any other value falls back
+    // to the base used when no change records one, never to a later change's base.
     records
         .iter()
-        .filter_map(|record| record.base_commit.clone())
-        .find(|base| is_canonical_commit_id(base))
+        .find_map(|record| record.base_commit.clone())
+        .filter(|base| is_canonical_commit_id(base))
         .unwrap_or_else(|| {
             // `HEAD~1` does not resolve in a repository whose first commit is
             // also its only one, and the resulting `git diff` failure reported

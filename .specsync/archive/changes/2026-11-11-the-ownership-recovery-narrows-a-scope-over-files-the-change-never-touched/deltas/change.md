@@ -1,0 +1,57 @@
+---
+change: the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched
+artifact: delta
+module: change
+---
+
+## MODIFIED
+
+### REQUIREMENT REQ-change-053
+
+Canonical ownership of declared paths SHALL be resolved when the definition is
+approved, and a change that has never closed SHALL be able to correct an
+acceptance input owner without an audited reopen event.
+
+Acceptance Criteria
+
+- Approving a definition rejects declared paths that no declared module
+  canonically owns, naming every offending path in one error.
+- Paths that do not yet exist are not rejected at approve, since the owning spec
+  may claim them in the same change; they remain enforced at finalize.
+- A declared path that is a directory is not file-level ownership-checked at
+  approve; its descendant files remain checked at finalize.
+- Recognized reserved delivery paths (for example files under `.github/` or
+  `docs/`, and the protected SDD and root metadata files) are signed with the
+  exact delivery owner by design and finalize accepts them, so they are not
+  ownership refusals at approve and not `correct-owner` discovery candidates.
+- A change with justified `no_spec_change` and no declared specs is
+  ownership-checked at approve as well: an existing production-source path in
+  its scope that is not recognized reserved delivery metadata has no declared
+  owner, so it is rejected, naming the module that owns it, before anyone
+  approves or reviews it (#986, #956). Empty specs without that justification
+  still fail closed at definition validation and at ownership validation.
+- A change at verifying that has never closed may correct an acceptance input
+  owner under a currently valid definition approval. That substitute is for
+  guided-path reachability, not audit-equivalent provenance to an
+  Accepted→reopen cycle.
+- A change that did close continues to require an audited reopen, unchanged.
+- Owner recovery never prints a command that cannot run as printed: when a
+  module name cannot round-trip through the comma-separated `affected_specs`
+  answer, the guidance names the modules in prose instead. When the spec
+  listing exceeds its bound, the recovery says the listing is incomplete rather
+  than omitting an owner. A recovery that replaces `affected_specs` says the
+  constraints answer must be renewed before approval. Owner discovery includes
+  registry-registered canonical specs outside the specs directory.
+- The ship preflight and review owner recovery declares owners only for unowned
+  inputs the change modified (differing from the merge base with the remote
+  default branch, or untracked, and not covered by another active change); an
+  unowned input it never modified is named
+  with a recovery that narrows `affected_paths` instead, since its owner has nothing
+  to approve in this change (#1000). Approve's own ownership refusal is unchanged.
+  Without a full commit id as the change's base commit, a merge base with the
+  remote default branch, a readable set of active changes, or a complete spec
+  listing, every input keeps the declare recovery, and the base commit is never
+  passed to Git. So does every input once the change's own commits have reached
+  the remote default branch: when HEAD is that merge base although the change
+  has commits past its base, or when the merge base already holds the change's
+  own workspace.

@@ -686,15 +686,27 @@ enum TransactionJournalRead {
     Legacy(Vec<TransactionEntry>),
 }
 
+/// The refusal for a journal that cannot be read or parsed: the path, and a set-aside
+/// command that runs as printed — both paths shell-quoted, so a project whose path contains a
+/// space recovers by pasting (#433, t384's review of #1041).
+fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
+    let quoted = shell_quote(&journal_path.display().to_string());
+    format!(
+        "invalid transaction journal at {quoted}: {detail}; the journal records an interrupted \
+         multi-file write and cannot be replayed — inspect it for partial writes, then set it \
+         aside with `mv {quoted} {quoted}.broken` and re-run the command"
+    )
+}
+
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     let journal_path = root.join(TRANSACTION_PATH);
     if !journal_path.exists() {
         return Ok(());
     }
     let content = fs::read_to_string(&journal_path)
-        .map_err(|error| format!("failed to read transaction journal: {error}"))?;
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
     let journal: TransactionJournalRead = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid transaction journal: {error}"))?;
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
     let entries = match journal {
         TransactionJournalRead::Legacy(entries) => entries,
         TransactionJournalRead::Durable(journal) => {
@@ -702,13 +714,18 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
                 || journal.entry_count != journal.entries.len()
                 || journal.entries_digest != transaction_entries_digest(&journal.entries)?
             {
-                return Err("invalid transaction journal integrity envelope".into());
+                return Err(invalid_journal_error(
+                    &journal_path,
+                    "the integrity envelope does not hold",
+                ));
             }
             journal.entries
         }
     };
     for entry in entries {
-        let path = safe_project_path(root, &entry.path)?;
+        let path = safe_project_path(root, &entry.path).map_err(|error| {
+            invalid_journal_error(&journal_path, &format!("entry `{}`: {error}", entry.path))
+        })?;
         if let Some(original) = entry.original {
             atomic_write_durable(&path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
@@ -894,7 +911,7 @@ impl Default for SddPolicy {
                 ".specsync/registry.toml".into(),
                 ".specsync/version".into(),
             ],
-            ignored_paths: vec![".specsync/".into(), "specs/".into()],
+            ignored_paths: vec![".specsync/".into()],
             verification_commands: Vec::new(),
             custom_artifacts: BTreeMap::new(),
             principles_file: None,
@@ -1400,6 +1417,40 @@ pub struct CommandEvidence {
     pub command: String,
     pub success: bool,
     pub exit_code: Option<i32>,
+    /// Bounded findings text, recorded on failure so a recorded failure is
+    /// classifiable without re-running the command (#640). Omitted on success
+    /// so passing records serialize exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+}
+
+/// The last 4 KiB of the findings that failed a check, behind a `…` line when cut, so
+/// the record names what failed without a verbose failure growing the ledger without
+/// bound. `None` when there is no finding text to record.
+pub(crate) fn bounded_failure_output(findings: &[String]) -> Option<String> {
+    let joined = findings.join("\n");
+    if joined.trim().is_empty() {
+        return None;
+    }
+    const CAP: usize = 4096;
+    if joined.len() <= CAP {
+        return Some(joined);
+    }
+    // Byte offsets, so the cap can land inside a multi-byte character —
+    // findings carry spec text with `↔`, `—`, `…`. Walk to a boundary first.
+    let mut start = joined.len() - CAP;
+    while !joined.is_char_boundary(start) {
+        start += 1;
+    }
+    // Start the tail at a line boundary when one is near and text follows it; snapping to a
+    // newline far into the tail, or to a trailing one, would throw most of it away.
+    const SNAP_WINDOW: usize = 512;
+    let boundary = joined[start..]
+        .find('\n')
+        .filter(|offset| *offset < SNAP_WINDOW && start + offset + 1 < joined.len())
+        .map(|offset| start + offset + 1)
+        .unwrap_or(start);
+    Some(format!("…\n{}", &joined[boundary..]))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1420,6 +1471,11 @@ pub struct VerificationRecord {
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
+    /// Why a check was refused before verification started (#847). Present only on attempts
+    /// that never ran the gate; absent from every record written before the field existed, so
+    /// historical ledgers stay valid and an older binary drops it on rewrite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1843,9 +1899,46 @@ fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
     }
     let content = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?;
-    serde_json::from_str(&content)
-        .map(Some)
-        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))
+    let policy: SddPolicy = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
+    disclose_inert_ignored_paths(root, &policy);
+    Ok(Some(policy))
+}
+
+/// `ignored_paths` entries whose coverage is entirely always-meaningful: the configured specs
+/// tree and the protected SDD policy files can never be ignored, so an entry covering only
+/// those is inert (#676). An entry that also covers other files (`.specsync/` covers the change
+/// workspaces) does real work and stays silent.
+fn inert_ignored_paths(policy: &SddPolicy, specs_dir: &str) -> Vec<String> {
+    let specs_root = format!("{}/", specs_dir.trim_start_matches("./").trim_matches('/'));
+    policy
+        .ignored_paths
+        .iter()
+        .filter(|entry| {
+            let entry = entry.trim_start_matches("./");
+            (entry.starts_with(specs_root.as_str()) || entry == specs_root.trim_end_matches('/'))
+                || PROTECTED_SDD_PATHS.contains(&entry)
+        })
+        .cloned()
+        .collect()
+}
+
+/// Disclose inert `ignored_paths` entries where the conflict exists — at policy load, on
+/// stderr, once per process — rather than three verbs later at audit (#676). stdout stays
+/// clean for `--json` payloads.
+fn disclose_inert_ignored_paths(root: &Path, policy: &SddPolicy) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static DISCLOSED: AtomicBool = AtomicBool::new(false);
+    if DISCLOSED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    for entry in inert_ignored_paths(policy, &specs_dir) {
+        eprintln!(
+            "note: ignored_paths entry `{entry}` is inert — SDD policy files and the \
+             configured specs tree are always meaningful; remove the entry from {POLICY_PATH}"
+        );
+    }
 }
 
 pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> Result<(), String> {
@@ -3330,7 +3423,11 @@ fn materialize_change_deltas_inner(
     ensure_approved_delta_bases_current(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
-    ensure_tasks_complete(root, &record, rerun)?;
+    if let Err(error) = ensure_tasks_complete(root, &record, rerun) {
+        // #847: a refusal before verification still leaves a record of itself.
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
+    }
     // `canonical_applied` records that materialization RAN, never that it ran for the delta on
     // disk now. Re-approving a corrected delta satisfies every gate above — the guard directly
     // above asks whether the delta matches its approval, and a new approval signs the new body —
@@ -3529,13 +3626,21 @@ fn verify_change_locked(
     // `specsync change audit` run this same gate and report the suppressions.
     // A verdict about a module this change declares is a spec↔code verdict about this change,
     // so it is held and recorded as part of the attempt below. Every other gate failure is
-    // still refused before any attempt is recorded.
+    // refused without running the gate, and the refusal records itself as a `passed: false`
+    // attempt carrying its reason, so a reader can see the check was tried and why it failed
+    // (#847).
     let gate = validate_effective_contracts(root, &records);
     let (gate_refusals, unattributed) = gate.split_for_declared(&record.affected_specs);
     if !unattributed.is_empty() {
+        // A gate failure about another change's module is not a verdict about this change,
+        // so unlike the workspace-grounded refusals below it records no attempt (#847 keeps
+        // the control at semantic_application_resolves_registry_backed_canonical_paths.rs).
         return Err(gate.error_text().unwrap_or_else(|| unattributed.join("; ")));
     }
-    ensure_tasks_complete(root, &record, rerun)?;
+    if let Err(error) = ensure_tasks_complete(root, &record, rerun) {
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
+    }
     // Evidence completeness is markdown in the change workspace. Fail it before
     // the spec↔code pass so a missing testing.md row is not a 18-minute suite.
     let requirement_ids = collect_requirement_ids(root, &record)?;
@@ -3544,10 +3649,12 @@ fn verify_change_locked(
     let acceptance_evidence_present =
         acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
     if !acceptance_evidence_present || !missing_evidence.is_empty() {
-        return Err(format!(
+        let error = format!(
             "verification cannot start: {}",
             evidence_gap_detail(&record, acceptance_evidence_present, &missing_evidence)
-        ));
+        );
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
     }
     let (sync, mut findings) = evaluate_spec_code_sync(root, &record, strict)?;
     let mut commands = vec![sync];
@@ -3555,6 +3662,7 @@ fn verify_change_locked(
         // Named for the command that reproduces the gate's verdict, not as a `--strict` run:
         // the gate suppresses unauthored stubs and replays other active deltas, which
         // `specsync check --strict` does not.
+        let refusal_texts: Vec<String> = gate_refusals.values().flatten().cloned().collect();
         commands.push(CommandEvidence {
             command: format!(
                 "specsync change check {} (effective contract: {})",
@@ -3563,8 +3671,9 @@ fn verify_change_locked(
             ),
             success: false,
             exit_code: Some(1),
+            output: bounded_failure_output(&refusal_texts),
         });
-        findings.splice(0..0, gate_refusals.into_values().flatten());
+        findings.splice(0..0, refusal_texts);
     }
     let passed = commands.iter().all(|command| command.success);
     let verification = VerificationRecord {
@@ -3581,6 +3690,7 @@ fn verify_change_locked(
         passed,
         commands,
         requirement_ids,
+        refusal: None,
     };
     record_verification_attempt(root, &record, &verification)?;
     record.state = ChangeState::Verifying;
@@ -3728,9 +3838,9 @@ fn scoped_spec_files(
         selected.insert(spec, filter);
     }
     // An unresolved module keeps its declared name in the filter list. That is
-    // the only place the persisted record names it: findings are not written to
-    // `verification.json`, so without this the stored evidence for a
-    // missing-spec failure would not say which module was missing.
+    // the only place the persisted record of a passing check names it: a check's
+    // findings reach `verification.json` only as the bounded `output` of a failed
+    // command, so without this a missing-spec scope would not say which module it named.
     //
     // What that string does NOT promise is a faithful rerun in every case.
     // `filter_specs` demotes an unmatched filter to a stderr warning as soon as
@@ -3795,6 +3905,11 @@ fn evaluate_spec_code_sync(
     // that happened to resolve.
     errors += scope.unresolved.len();
     findings.extend(scope.unresolved.iter().cloned());
+    // What failed the check: errors always, warnings only when --strict makes them failures.
+    // The recorded `output` is built from these, so a long run of warnings cannot crowd the
+    // error that failed a non-strict check out of the bounded tail (#1027 review).
+    let mut failing: Vec<String> = scope.unresolved.clone();
+    let mut warning_lines: Vec<String> = Vec::new();
     for spec in &scope.files {
         let result =
             crate::validator::validate_spec(spec, root, &schema_tables, &schema_columns, &config);
@@ -3802,21 +3917,33 @@ fn evaluate_spec_code_sync(
             .map(|content| crate::ignore::IgnoreRules::parse_inline(&content))
             .unwrap_or_default();
         errors += result.errors.len();
+        failing.extend(result.errors.iter().cloned());
         findings.extend(result.errors);
         for warning in result.warnings {
             if ignore_rules.is_suppressed(&warning, &result.spec_path, &inline_ignores) {
                 continue;
             }
             warnings += 1;
-            findings.push(format!("warning: {warning}"));
+            let line = format!("warning: {warning}");
+            warning_lines.push(line.clone());
+            findings.push(line);
         }
     }
     let failed = errors > 0 || (strict && warnings > 0);
+    if strict {
+        failing.extend(warning_lines);
+    }
+    let output = if failed {
+        bounded_failure_output(&failing)
+    } else {
+        None
+    };
     Ok((
         CommandEvidence {
             command: scoped_check_command(&scope.filters, strict),
             success: !failed,
             exit_code: Some(i32::from(failed)),
+            output,
         },
         findings,
     ))
@@ -5003,38 +5130,82 @@ pub fn ownership_preflight_blocker(
     }
     let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
     let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
-    let hints: Vec<String> = paths
-        .iter()
-        .map(|path| format!("{path}: {}", ownership_hint(root, record, path, &index)))
-        .collect();
-    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
-    // entry in the spec that should own it.
-    let unclaimed: Vec<&str> = paths
+    // An unowned input this branch never modified is in scope only because a path prefix is
+    // wider than the work, and declaring its owner would pull an untouched module into the
+    // change: the recovery for it is a narrower scope (#1000). Without a usable base commit, a
+    // merge base with the remote default branch or Git, nothing is classified as untouched and
+    // the declare recovery covers every path.
+    // A truncated spec listing cannot say which owners exist, so nothing is classified then.
+    let changed = (!index.truncated)
+        .then(|| files_changed_since_base(root, record))
+        .flatten();
+    let (touched, untouched): (Vec<&str>, Vec<&str>) = paths
         .iter()
         .copied()
-        .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
-        .collect();
-    let recovery = if index.truncated {
-        format!(
-            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
-            shell_quote(&record.id)
+        .partition(|path| changed.as_ref().is_none_or(|changed| changed.contains(*path)));
+    // An untouched input whose every owner is already declared by the touched inputs' answer is
+    // fixed by that answer; narrowing it out as well would be redundant advice (#1037 review).
+    let declared_by_answer: BTreeSet<String> = record
+        .affected_specs
+        .iter()
+        .cloned()
+        .chain(
+            touched
+                .iter()
+                .flat_map(|path| undeclared_owning_modules(root, record, path, &index)),
         )
-    } else {
-        match declare_owners_answer(root, record, &paths, &index) {
-            Some(answer) if !unclaimed.is_empty() => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
-                shell_quote(&record.id),
-                unclaimed.join(", ")
-            ),
-            Some(answer) => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
-                shell_quote(&record.id)
-            ),
-            None => format!(
-                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
-                shell_quote(&record.id)
-            ),
-        }
+        .collect();
+    let answer_is_printed =
+        !touched.is_empty() && declare_owners_answer(root, record, &touched, &index).is_some();
+    let untouched: Vec<&str> = untouched
+        .into_iter()
+        .filter(|path| {
+            let owners = undeclared_owning_modules(root, record, path, &index);
+            !answer_is_printed
+                || owners.is_empty()
+                || !owners.iter().all(|owner| declared_by_answer.contains(owner))
+        })
+        .collect();
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|path| {
+            if untouched.contains(path) {
+                let owners = undeclared_owning_modules(root, record, path, &index);
+                if owners.is_empty() {
+                    format!(
+                        "{path}: not modified by this change since its base and no module owns it, so leave it out of `affected_paths`"
+                    )
+                } else {
+                    format!(
+                        "{path}: owned by {}, but not modified by this change since its base, so leave it out of `affected_paths`",
+                        owners
+                            .iter()
+                            .map(|owner| format!("`{owner}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            } else {
+                format!("{path}: {}", ownership_hint(root, record, path, &index))
+            }
+        })
+        .collect();
+    let touched: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| !untouched.contains(path))
+        .collect();
+    let recovery = match (touched.is_empty(), untouched.is_empty()) {
+        (_, true) => declare_owners_recovery(root, record, &touched, &index),
+        (true, false) => narrow_scope_recovery(record, &untouched, changed.as_ref()),
+        (false, false) => declare_and_narrow_recovery(
+            root,
+            record,
+            &touched,
+            &untouched,
+            &index,
+            changed.as_ref(),
+        ),
     };
     Ok(Some((
         format!(
@@ -5043,6 +5214,252 @@ pub fn ownership_preflight_blocker(
         ),
         recovery,
     )))
+}
+
+/// The recovery that declares the owners of unowned inputs the change modified.
+fn declare_owners_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> String {
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it.
+    let unclaimed: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    if index.truncated {
+        return format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
+            shell_quote(&record.id)
+        );
+    }
+    match declare_owners_answer(root, record, paths, index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
+            shell_quote(&record.id),
+            unclaimed.join(", ")
+        ),
+        Some(answer) => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
+            shell_quote(&record.id)
+        ),
+        None => format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+            shell_quote(&record.id)
+        ),
+    }
+}
+
+/// The recovery for unowned inputs the change never modified: narrow `affected_paths` to the
+/// files and directories the change edits instead of declaring their owners (#1000).
+fn narrow_scope_recovery(
+    record: &ChangeRecord,
+    untouched: &[&str],
+    changed: Option<&BTreeSet<String>>,
+) -> String {
+    format!(
+        "{} — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then {}, then approve, check and review again",
+        untouched_sentence(untouched),
+        shell_quote(&record.id),
+        narrow_answer(record, changed)
+    )
+}
+
+/// One send-back for a change with both modified and untouched unowned inputs: declare the
+/// modified inputs' owners and narrow the scope in the same draft, then one approve, check and
+/// review (#1037 review: two separate send-backs could not both run).
+fn declare_and_narrow_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    touched: &[&str],
+    untouched: &[&str],
+    index: &SpecListingIndex,
+    changed: Option<&BTreeSet<String>>,
+) -> String {
+    // A truncated spec listing turns classification off, so this mixed recovery never sees one.
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it, exactly as in the declare-only recovery.
+    let unclaimed: Vec<&str> = touched
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    let declare = match declare_owners_answer(root, record, touched, index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "{answer}, and add {} to its owning spec's `files:` list",
+            unclaimed.join(", ")
+        ),
+        Some(answer) => answer,
+        None => format!(
+            "add {} to its owning spec's `files:` list",
+            touched.join(", ")
+        ),
+    };
+    format!(
+        "send it back once and rescope: `specsync change send-back {} --actor <name> --reason \"declare the owning modules and narrow affected_paths\"`, then {declare}, and {} ({}), then approve, check and review again",
+        shell_quote(&record.id),
+        narrow_answer(record, changed),
+        untouched_sentence(untouched)
+    )
+}
+
+/// The `affected_paths` answer that narrows a scope, with a quoted, comma-separated placeholder.
+fn narrow_answer(record: &ChangeRecord, changed: Option<&BTreeSet<String>>) -> String {
+    // Name the files exactly: every path the change added, edited or deleted inside its current
+    // scope. A placeholder invited listing only the edited files and forgetting a deletion, which
+    // then shipped and failed the meaningful-path audit (#1037 review). The placeholder is kept
+    // only when there is no list or a path cannot round-trip through the comma-separated answer.
+    let in_scope: Vec<&String> = changed
+        .map(|changed| {
+            changed
+                .iter()
+                .filter(|path| {
+                    record
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // Printed only when `change answer` stores exactly these paths: `split_values` splits on
+    // commas and newlines and trims each value, `normalize_project_path` rewrites a backslash and refuses
+    // control characters, and a list starting with `-` would be read as an option.
+    let round_trips = |path: &&String| {
+        !path.contains([',', '\\'])
+            && !path.chars().any(char::is_control)
+            && path.trim() == path.as_str()
+    };
+    if !in_scope.is_empty()
+        && in_scope.iter().all(round_trips)
+        && !in_scope.first().is_some_and(|path| path.starts_with('-'))
+    {
+        let list = in_scope
+            .iter()
+            .map(|path| path.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        return format!(
+            "`specsync change answer {} affected_paths {}` (every file the change adds, edits or deletes in its scope)",
+            shell_quote(&record.id),
+            shell_quote(&list)
+        );
+    }
+    format!(
+        "`specsync change answer {} affected_paths '<path>,<path>'` naming every file the change adds, edits or deletes, so the scope no longer covers the untouched paths",
+        shell_quote(&record.id)
+    )
+}
+
+/// Names up to five untouched inputs and why they should leave the scope.
+fn untouched_sentence(untouched: &[&str]) -> String {
+    const SHOWN: usize = 5;
+    let mut named = untouched
+        .iter()
+        .take(SHOWN)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if untouched.len() > SHOWN {
+        named.push_str(&format!(" and {} more", untouched.len() - SHOWN));
+    }
+    format!(
+        "{named} {} not modified by this change since its base, so its `affected_paths` scope is wider than the work: narrow it instead of declaring those owners",
+        if untouched.len() == 1 { "is" } else { "are" }
+    )
+}
+
+/// Every project-relative path the working tree has changed since the change's base commit,
+/// committed or not, plus untracked files. `None` without a base commit or when Git cannot say.
+fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
+    // A change whose record carries no full commit id as `base_commit` is not classified. The
+    // value is only a gate: it never reaches Git, where `--output=<path>` read from `state.json`
+    // could become an option, least of all from read-only `ship-status` (#1037 review).
+    let base_commit = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))?;
+    // The branch's own work is what differs from the merge base with the remote default branch,
+    // the base the coverage gate diffs against locally (`pull_request_diff_base`; in CI it diffs
+    // against the pull request's base branch), plus untracked files.
+    // It is not compared with `base_commit`: once the branch merges or rebases the default branch,
+    // that diff also holds every upstream edit made since, which this change never touched
+    // (#1037 review). Without a remote default branch or a merge base, the branch's work cannot be
+    // told from untouched files, so nothing is classified and every input keeps the declare
+    // recovery: the safe direction.
+    let remote = remote_default_ref(root)?;
+    let merge_base = git_output(root, &["merge-base", remote.as_str(), "HEAD"])?;
+    let merge_base = merge_base.trim();
+    if !is_canonical_commit_id(merge_base) {
+        return None;
+    }
+    // Once the change's own commits are on the remote default branch (it merged with the change
+    // still active, the documented recovery state), the merge base no longer separates its work
+    // from upstream work: its committed edits sit at or behind the merge base and would all look
+    // untouched. Then nothing is classified (#1037 review). That is so when HEAD is the merge
+    // base although the change has commits past its base, and when the merge base already holds
+    // this change's own workspace, as after a recovery `change check --commit` on the default
+    // branch. `base_commit` is only compared here; it still never reaches Git.
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
+    let head = head.trim();
+    if !is_canonical_commit_id(head) || (merge_base == head && base_commit != head) {
+        return None;
+    }
+    let own_workspace = format!("{CHANGES_PATH}/{}", record.id);
+    let own_workspace_on_the_default_branch = !git_output_allow_empty(
+        root,
+        &[
+            "ls-tree",
+            "-d",
+            "--name-only",
+            "--end-of-options",
+            merge_base,
+            "--",
+            own_workspace.as_str(),
+        ],
+    )?
+    .trim()
+    .is_empty();
+    if own_workspace_on_the_default_branch {
+        return None;
+    }
+    let mut changed = BTreeSet::new();
+    // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
+    // than C-quoted under git's default `core.quotePath`; `--no-renames`, so a renamed file's old
+    // path counts as changed too.
+    for args in [
+        vec![
+            "diff",
+            "--name-only",
+            "--relative",
+            "--no-renames",
+            "-z",
+            "--end-of-options",
+            merge_base,
+        ],
+        vec!["ls-files", "--others", "--exclude-standard", "-z"],
+    ] {
+        changed.extend(
+            git_output_allow_empty(root, &args)?
+                .split('\0')
+                .filter(|path| !path.is_empty())
+                .map(str::to_string),
+        );
+    }
+    // A path another active change on this branch covers is that change's work: it is neither
+    // declared for this change nor kept in its narrowed scope (#1037 review). An unreadable
+    // workspace leaves that unknown, so nothing is classified.
+    let others = list_changes_checked(root).ok()?;
+    changed.retain(|path| {
+        !others
+            .iter()
+            .filter(|other| other.id != record.id)
+            .any(|other| other.affected_paths.iter().any(|scope| path_matches_scope(path, scope)))
+    });
+    Some(changed)
 }
 
 /// Names what to change for one unowned affected path.

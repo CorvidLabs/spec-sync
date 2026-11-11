@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794377334,
+      "digest": "b6ac9c119ce343ba1d563521406a15f2bfd209d7eb74220f612c91963995e782",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "journal-read-errors-name-the-file-and-a-quoted-recovery",
+        "title": "Journal read errors name the file and a quoted recovery",
+        "description": "journal read errors name the file and a quoted recovery",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/transaction_journal_error.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a non-UTF-8 or unreadable journal gets the same path+recovery error as an unparseable one; the printed recovery works verbatim in a project whose path contains a space"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "77012eae2d8fd9848ecc5c80bb419ca6e9a2c220d473e143d76736519d05ec89"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-151": "1ebe2ba9a9cab460972f69dc43a89050408ad68f03f9170c55cdef3f550e5e7b"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794377813,
+      "digest": "49fe5b6b2ae30b5e8a09d6b76dd03f79b722363f062d4059c8338bb59e1a4b34",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

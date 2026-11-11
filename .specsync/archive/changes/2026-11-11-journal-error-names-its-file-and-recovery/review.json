@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "journal-error-names-its-file-and-recovery",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "71e4afbb04ec9bcefe299e395c921637da672e67",
+  "contract_digest": "1eaeb2e2e7315e2648fda1485f8d843bd1d4b8fa7362704528bb2cdc867b9b7e",
+  "execution_digest": "784ad35b2634c127bb86dcc70a329fdf15240b78b2be11013acdf32ca50446e1",
+  "workspace_digest": "70ccb07a9c2b7c242d8c06f41a7e8c3dc0de0d644c7080450bdeff81bc403b12",
+  "timestamp": 1794374298
+}

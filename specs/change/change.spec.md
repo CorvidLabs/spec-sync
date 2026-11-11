@@ -1,6 +1,6 @@
 ---
 module: change
-version: 223
+version: 230
 status: active
 files:
   - src/change.rs
@@ -23,7 +23,9 @@ files:
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
   - src/change_tests/approved_delta_requirements.rs
   - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
+  - src/change_tests/bounded_failure_output.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
+  - src/change_tests/commit_identity_guards.rs
   - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs
@@ -35,6 +37,9 @@ files:
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/transaction_journal_error.rs
+  - src/change_tests/titled_requirement_header_delta.rs
+  - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs
@@ -139,7 +144,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, normal/strict summaries and approved delta summaries built inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen and send-back history |
-| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
+| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync); a failed step carries a bounded `output` with the findings that failed it, omitted on success (#640) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
 | `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
 | `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
@@ -198,6 +203,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `run_doctor` | `root: &Path, request: &DoctorRequest` | `Result<DoctorReport, String>` | Scan the change records; with `--fix`, apply the late closes named with `--close-late` (all or nothing, or every eligible one for `all`) and then every safe fix; with `--dry-run`, report them and write nothing. Planning and the locked write boundary reject destination symlink components, including dangling links, and name recovery. A refused late close is an error and writes nothing (REQ-cmd-change-035, REQ-change-143) |
 | `is_only_closed_late` | `root: &Path, id: &str` | `bool` | Whether only a closed-late package holds `id` (no active workspace, no archive package records it); status and ship-status report the closed-late record only then (REQ-change-143) |
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
+| `is_canonical_commit_id` | `value: &str` | `bool` | Crate-private: whether `value` is a full commit id as SpecSync records one (40 lowercase hex digits, SHA-1). A commit identity read from a change record reaches Git as a revision only when it passes (REQ-change-013) |
 | `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
 | `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
 | `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
@@ -207,6 +213,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `read_timeout_secs` | `flag: Option<u64>` | `Option<u64>` | `--timeout` when given, else `SPECSYNC_TIMEOUT` when it is a whole number of seconds, else none (REQ-cmd-change-032) |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `acceptance_entries` | `root: &Path, record: &ChangeRecord` | `Vec<AcceptanceInputEntryV1>` | Accepted acceptance-input entries, so `change show --json` can surface the `specsync.acceptance-entry.v1` digests `change supersede --digest` requires; empty when evidence is absent |
+| `record_refused_attempt` | `root: &Path, record: &ChangeRecord, reason: &str` | `Result<(), String>` | Append a `passed: false` attempt carrying the refusal reason to the change's `verification-attempts.json` (#847); never writes `verification.json` or moves the recorded state |
 | `accumulated_lessons` | `root, modules` | `Vec<(String, usize)>` | Substantive-prose line count for each module context that holds any, so a new change can be pointed at what its modules already learned |
 | `active_change_id` | `root` | `Option<String>` | The change a bare lifecycle command acts on: the single active approved/implementing/verifying record — the same states `check_change` selects — or none |
 | `add_acceptance_owner_correction` | `root, id, path, module, actor, reason` | `Result<ChangeRecord, String>` | Append one audited exact canonical owner correction to a reopened already-applied change |
@@ -282,6 +289,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` with no remote default, or for an archive already in `HEAD` (reopen); once a remote default resolves, a failed or truncated listing or batched read, an archived `state.json` with no readable `id`, or a failed addition or ancestry lookup for a matching package, is `CannotTell`, never `None` (REQ-change-142). The archive root is passed as `:(top,literal)` (#962) |
 | `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print. `Archived`: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy. `CannotTell`: the reference, that the tool cannot tell, and how to find out: `git fetch --refetch origin` (which repairs a missing object even when the reference has not moved), `git remote set-head origin --auto` (which repairs a dangling remote default), then `specsync --root '<project-root>' change status -- '<id>'`, which retains the selected project and reruns this lookup and either clears the refusal or names the archive and the rebase; the root and id are separate shell-quoted words |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
+| `bounded_failure_output` | `findings: &[String]` | `Option<String>` | Crate-private bound of failed-command findings to the last 4 KiB for `CommandEvidence.output`; `None` when there is nothing to record (#640) |
 
 **Exported Methods**
 
@@ -360,6 +368,11 @@ Acceptance Criteria
 49. A passing proof of a legacy archive baseline's introductions is kept in the persistent read cache under a key that digests the baseline ledger digest, the full cutoff commit id and every enumerated archive's current subtree digest, so an archived read of one legacy archive does not walk every introduction commit and every legacy archive's trees again. The proof's other inputs are commits named by full id, which are immutable while the persistent cache is enabled. A refusal is never cached, a changed archive subtree or baseline misses the cache and is judged live, and with the persistent cache disabled (shallow, grafted, replaced or partial clone) the proof always runs live (#901).
 50. A send-back records how many scoped review attempts preceded it, and a scoped review recorded before the latest send-back is never current, even when the change is re-approved with an unchanged scope and the re-approval carries the same digest the review followed; it is reported stale until a fresh `change review`, and `change ship` and `change finalize` refuse it. A send-back recorded before that count existed answers by time: only a review with a strictly later timestamp counts. Review history validity is unchanged (#960, REQ-change-123, CHANGE-12.e).
 51. Canonical ownership is checked before a human is asked to act. Approve refuses an existing production-source path that no declared module owns, including for a no-spec-change change with no declared specs, and for a draft names `specsync change answer <id> affected_specs <modules>`. Ship preflight, `change ship --dry-run` and `change ship-status` build finalize's acceptance manifest read-only and report every production-source delivery input no declared module owns as a blocker, naming the send-back and answer recovery as the next action, so a change finalize would refuse is never reported ready to finalize. Who owns a path is decided exactly as before (#986, #956, REQ-change-053).
+52. A corrupt or unreadable transaction journal is reported with its path and a quoted set-aside command; every printed `change reopen <id>` remediation includes `--actor <name> --reason <text>` (#433, REQ-change-151).
+53. The delta materializer matches a requirement block through the shared requirement-heading parser (`crate::validator::requirement_heading_id`), so every header form the parser accepts — a title suffix (`### REQ-<module>-<number> — Title`), punctuation after the id (`### REQ-x-001: Title`), a multi-segment module id, up to three spaces of indent — matches, and the id token boundary holds (`REQ-cli-006` never matches `REQ-cli-0060`). The tolerance applies only to `### ` requirement blocks — a `## ` section key still requires an exact heading, so `Change Log` never matches `## Change Log Archive`. A materialized block keeps its matched header line unchanged, title included; convergence comes from the tolerant matcher, not normalization (#1024, REQ-change-152, REQ-validator-047).
+54. An `ignored_paths` entry whose coverage is entirely always-meaningful — the configured specs tree, or an SDD policy file named directly — is inert, and the policy loader says so on stderr at load, once per process, naming the entry and the file to edit; an entry that also covers other files (`.specsync/` covers the change workspaces) stays silent, and a newly written default policy carries no inert entry (#676, REQ-change-155).
+55. A `change check` refused on grounds in the change's own workspace — open tasks or missing requirement evidence — records the refusal as a `passed: false` entry carrying its reason in the change's `verification-attempts.json`, so a reader can see the check was tried and why it failed; a gate failure about another change's module records nothing. A refusal never writes `verification.json` and never moves the recorded state (#847, REQ-change-154).
+58. Failed verification command evidence carries a bounded `output` of the findings that failed it (errors, and warnings only under `--strict`), so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-153).
 
 ## Behavioral Examples
 
@@ -753,3 +766,10 @@ Acceptance Criteria
 | 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
 | 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
 | 2026-11-10 | fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec: Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes |
+| 2026-11-11 | journal-error-names-its-file-and-recovery: Journal error names its file and recovery |
+| 2026-11-11 | journal-read-errors-name-the-file-and-a-quoted-recovery: Journal read errors name the file and a quoted recovery |
+| 2026-11-11 | delta-materializer-matches-and-keeps-titled-requirement-headers: Delta materializer matches and keeps titled requirement headers |
+| 2026-11-11 | a-failed-verification-records-the-findings-that-failed-it: A failed verification records the findings that failed it |
+| 2026-11-11 | inert-ignored-paths-disclosed-at-policy-load: Inert ignored paths disclosed at policy load |
+| 2026-11-11 | a-refused-check-records-its-refusal: A refused check records its refusal |
+| 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |

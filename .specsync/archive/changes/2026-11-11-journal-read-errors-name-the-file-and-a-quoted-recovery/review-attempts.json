@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "journal-read-errors-name-the-file-and-a-quoted-recovery",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bcfd9c3271db222cb1571730f676884efdb95a1b",
+      "contract_digest": "b6ac9c119ce343ba1d563521406a15f2bfd209d7eb74220f612c91963995e782",
+      "execution_digest": "6ea986eaf3478f50223098f4c1103bcf29bc437d4ef3bcd6ed7bfed2771a8f33",
+      "workspace_digest": "3d03311452e52c9dcdad4111859b7743d2551ab1fc16d071b757b48d7f9b7a42",
+      "timestamp": 1794377760
+    }
+  ]
+}

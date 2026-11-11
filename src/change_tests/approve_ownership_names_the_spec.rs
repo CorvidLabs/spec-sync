@@ -665,3 +665,108 @@ fn owner_discovery_skips_reserved_delivery_paths() {
     let missing = missing_acceptance_owner_paths(root, &record.id, "tooling").unwrap();
     assert_eq!(missing, vec!["src/tools/run.ts"]);
 }
+
+/// #1037 review: the changed set used to classify unowned inputs, in a real repository whose
+/// project root is a subdirectory. Paths are root-relative (`--relative`), an untracked file and
+/// both sides of a rename count, work committed before `change new` counts through the merge base
+/// with the remote default branch, and a file outside the root never leaks in. Without a remote
+/// default branch nothing is classified, so every input keeps the declare recovery.
+#[test]
+fn files_changed_since_base_is_root_relative_and_counts_pre_change_work() {
+    let temp = TempDir::new().unwrap();
+    let repo = temp.path().join("repo");
+    let root = repo.join("proj");
+    fs::create_dir_all(root.join("src")).unwrap();
+    let git = |args: &[&str]| {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        assert!(status.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&status.stderr));
+        String::from_utf8_lossy(&status.stdout).trim().to_string()
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    for file in ["proj/src/early.ts", "proj/src/edited.ts", "proj/src/moved.ts", "proj/src/still.ts", "outside.ts"] {
+        fs::write(repo.join(file), "const value = 1;\n").unwrap();
+    }
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "seed"]);
+    let remote = temp.path().join("remote.git");
+    std::process::Command::new("git")
+        .args(["init", "-q", "--bare", remote.to_str().unwrap()])
+        .output()
+        .unwrap();
+    git(&["remote", "add", "origin", remote.to_str().unwrap()]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["remote", "set-head", "origin", "main"]);
+
+    // Work committed before `change new`.
+    fs::write(root.join("src/early.ts"), "const value = 2;\n").unwrap();
+    git(&["commit", "-q", "-am", "early work"]);
+    let mut record = completed_no_spec_record(&root);
+    record.base_commit = Some(git(&["rev-parse", "HEAD"]));
+
+    // Work after `change new`: an edit, an untracked file, a rename, and an edit outside the root.
+    fs::write(root.join("src/edited.ts"), "const value = 3;\n").unwrap();
+    fs::write(root.join("src/fresh ü.ts"), "const value = 4;\n").unwrap();
+    git(&["mv", "proj/src/moved.ts", "proj/src/renamed.ts"]);
+    fs::write(repo.join("outside.ts"), "const value = 5;\n").unwrap();
+
+    let changed = files_changed_since_base(&root, &record).expect("a remote default branch exists");
+    for path in ["src/early.ts", "src/edited.ts", "src/fresh ü.ts", "src/moved.ts", "src/renamed.ts"] {
+        assert!(changed.contains(path), "{path} is modified: {changed:?}");
+    }
+    assert!(!changed.contains("src/still.ts"), "{changed:?}");
+    assert!(
+        !changed.iter().any(|path| path.contains("outside") || path.starts_with("proj/")),
+        "paths are relative to the project root and stay inside it: {changed:?}"
+    );
+
+    // Without a remote default branch, nothing is classified.
+    git(&["remote", "remove", "origin"]);
+    assert!(files_changed_since_base(&root, &record).is_none());
+}
+
+/// The narrowing answer names every changed path inside the current scope (directory scopes
+/// included, files outside the scope left out) so a deletion is not forgotten (#1037 review). It
+/// falls back to the placeholder when nothing is classified, nothing in the scope changed, or a
+/// path cannot round-trip through the comma-separated answer.
+#[test]
+fn the_narrowing_answer_names_every_changed_path_in_scope_or_falls_back_to_the_placeholder() {
+    let temp = TempDir::new().unwrap();
+    let mut record = completed_no_spec_record(temp.path());
+    record.affected_paths = vec!["src/billing/".to_string(), "docs/notes.md".to_string()];
+    let changed = |paths: &[&str]| paths.iter().map(|path| path.to_string()).collect::<BTreeSet<_>>();
+
+    let answer = narrow_answer(
+        &record,
+        Some(&changed(&["docs/notes.md", "src/billing/charge.ts", "src/billing/old.ts", "src/other.ts"])),
+    );
+    assert!(
+        answer.contains("affected_paths 'docs/notes.md,src/billing/charge.ts,src/billing/old.ts'"),
+        "every in-scope path, a deleted one included, and nothing outside the scope: {answer}"
+    );
+    assert!(!answer.contains("<path>"), "{answer}");
+
+    // `.` is the whole project, as finalize reads it.
+    record.affected_paths = vec![".".to_string()];
+    let answer = narrow_answer(&record, Some(&changed(&["docs/notes.md", "src/other.ts"])));
+    assert!(answer.contains("affected_paths 'docs/notes.md,src/other.ts'"), "{answer}");
+    record.affected_paths = vec!["src/billing/".to_string(), "docs/notes.md".to_string(), "-x/".to_string()];
+
+    for (label, classified) in [
+        ("nothing classified", None),
+        ("nothing in scope changed", Some(changed(&["src/other.ts"]))),
+        ("a comma-bearing path", Some(changed(&["src/billing/a,b.ts"]))),
+        ("a backslash", Some(changed(&["src/billing/a\\b.ts"]))),
+        ("a control character", Some(changed(&["src/billing/a\u{7}b.ts"]))),
+        ("a list read as an option", Some(changed(&["-x/a.ts", "src/billing/b.ts"]))),
+        ("a padded path", Some(changed(&["src/billing/padded.ts "]))),
+    ] {
+        let answer = narrow_answer(&record, classified.as_ref());
+        assert!(answer.contains("affected_paths '<path>,<path>'"), "{label}: {answer}");
+    }
+}

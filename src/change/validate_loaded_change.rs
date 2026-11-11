@@ -191,7 +191,7 @@ fn stale_input_remediation_reason(
 ) -> String {
     if rejected_successors.is_empty() {
         return format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         );
     }
@@ -217,7 +217,7 @@ fn stale_input_remediation_reason(
         )
     } else {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         )
     }
@@ -229,7 +229,7 @@ fn stale_input_remediation_reason(
 /// wherever the configuration can grant it.
 fn exact_only_input_remediation_reason(record: &ChangeRecord, path: &str) -> String {
     let mut reason = format!(
-        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
+        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id
     );
     if ownership_is_configurable(path) {
@@ -875,13 +875,12 @@ fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationR
         .map_err(|error| format!("invalid verification evidence: {error}"))
 }
 
-fn record_verification_attempt(
+fn load_verification_attempt_ledger(
     root: &Path,
     record: &ChangeRecord,
-    verification: &VerificationRecord,
-) -> Result<(), String> {
+) -> Result<(std::path::PathBuf, VerificationAttemptLedger), String> {
     let history_path = change_dir(root, &record.id).join("verification-attempts.json");
-    let mut history = if history_path.exists() {
+    let history = if history_path.exists() {
         let content = fs::read_to_string(&history_path)
             .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
         let history: VerificationAttemptLedger = serde_json::from_str(&content)
@@ -904,6 +903,15 @@ fn record_verification_attempt(
             attempts: Vec::new(),
         }
     };
+    Ok((history_path, history))
+}
+
+fn record_verification_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<(), String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
     history.attempts.push(verification.clone());
     write_prepared_files(
         root,
@@ -915,6 +923,33 @@ fn record_verification_attempt(
             (history_path, json_content(&history)?),
         ],
     )
+}
+
+/// Record that a check was refused before verification could start, so a reader can see the
+/// attempt and its reason (#847). Appends to the attempts ledger ONLY: `verification.json`
+/// holds the last completed verification and a refusal must never overwrite it, and the
+/// change's recorded state is untouched.
+pub(crate) fn record_refused_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    reason: &str,
+) -> Result<(), String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
+    history.attempts.push(VerificationRecord {
+        timestamp: now(),
+        commit: git_output(root, &["rev-parse", "HEAD"]),
+        contract_digest: String::new(),
+        execution_digest: None,
+        workspace_digest: String::new(),
+        acceptance_input_digest: None,
+        acceptance_manifest: None,
+        semantic_succession: None,
+        passed: false,
+        commands: Vec::new(),
+        requirement_ids: Vec::new(),
+        refusal: Some(reason.to_string()),
+    });
+    write_prepared_files(root, &[(history_path, json_content(&history)?)])
 }
 
 /// The coverage gate is the first hard failure most projects meet, and the way
@@ -985,7 +1020,8 @@ fn uncovered_meaningful_paths(
     {
         return Ok(Vec::new());
     }
-    let mut args = vec!["diff", "--name-only", "--relative"];
+    // The base is a revision, so it follows `--end-of-options`, as in `specsync diff`.
+    let mut args = vec!["diff", "--name-only", "--relative", "--end-of-options"];
     let base = pull_request_diff_base(root, records);
     args.push(&base);
     let output = git_output_allow_empty(root, &args)
@@ -1173,10 +1209,13 @@ fn remote_default_ref(root: &Path) -> Option<String> {
 }
 
 fn recorded_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
+    // The oldest change's `base_commit` is the diff base. It is persisted workspace state
+    // (REQ-change-013), so it is used only when it is a full commit id; any other value falls back
+    // to the base used when no change records one, never to a later change's base.
     records
         .iter()
-        .filter_map(|record| record.base_commit.clone())
-        .next()
+        .find_map(|record| record.base_commit.clone())
+        .filter(|base| is_canonical_commit_id(base))
         .unwrap_or_else(|| {
             // `HEAD~1` does not resolve in a repository whose first commit is
             // also its only one, and the resulting `git diff` failure reported
@@ -3803,6 +3842,9 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
     let Some(commit) = evidence.commit.as_deref() else {
         return git_output(root, &["rev-parse", "HEAD"]).is_none();
     };
+    if !is_canonical_commit_id(commit) {
+        return false;
+    }
     crate::git_utils::status_without_inherited_output(
         Command::new("git")
             .args(["merge-base", "--is-ancestor", commit, "HEAD"])

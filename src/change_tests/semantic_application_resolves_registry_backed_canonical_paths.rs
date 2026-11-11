@@ -3230,16 +3230,15 @@ fn workspace_digest_rejects_non_utf8_paths_instead_of_lossy_aliasing() {
 
 #[test]
 fn recorded_base_uses_oldest_change_order_not_hash_order() {
+    // Full commit ids: a recorded base that is not one is never used (REQ-change-013).
+    let oldest = "f".repeat(40);
     let mut first = completed_record(TempDir::new().unwrap().path());
-    first.base_commit = Some("ffffffff".into());
+    first.base_commit = Some(oldest.clone());
     let mut second = first.clone();
     second.id = "CHG-0002-second".into();
-    second.base_commit = Some("00000000".into());
+    second.base_commit = Some("0".repeat(40));
     let temp = TempDir::new().unwrap();
-    assert_eq!(
-        recorded_diff_base(temp.path(), &[first, second]),
-        "ffffffff"
-    );
+    assert_eq!(recorded_diff_base(temp.path(), &[first, second]), oldest);
 }
 
 #[test]

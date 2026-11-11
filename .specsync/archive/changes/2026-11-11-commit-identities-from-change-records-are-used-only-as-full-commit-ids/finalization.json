@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "commit-identities-from-change-records-are-used-only-as-full-commit-ids",
+  "implementation_commit": "8d49973e96de0830bf07d4523ce161194c9f49f7",
+  "implementation_tree": "008e15e25459924c80114802ee9683a3ff31ffd7",
+  "contract_digest": "11c61209d0e24d3886fe1749da2bed9806dcfa4f769012561a5fb2c17247bc42",
+  "workspace_digest": "cd04a68c1c13e8837951d1495fdb05cf2996f60fb3a3f3b2e0a1e3d8ae2a46ff",
+  "closing_digest": "5faa93219f0a9a228e41582efa3b6b69a22f9de1ce120ddba072b6fb9f1dc738",
+  "review_digest": "101a52308672b88ab88f0f667b678da5bebe231da10082ea99f1e952056c1b2a",
+  "finalization_digest": "a63b919ec04997d410a6c78a6356de9ca85c15a84503b1a81bda282677cd830c",
+  "timestamp": 1794388347
+}

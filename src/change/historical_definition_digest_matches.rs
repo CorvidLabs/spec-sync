@@ -2462,6 +2462,16 @@ pub fn record_scoped_review_with_relay(
                 reviewer_argument(reviewer)
             ),
         )?;
+        // A passing review is the last human step before `change ship`, and the Archive check
+        // names `change ship` for a change with a passing review at HEAD. That check runs with
+        // no SpecSync binary and cannot prove ownership itself, so a pass must not certify a
+        // change finalize would refuse for production source no declared module owns (#1002).
+        // Recording that such a change fails review stays possible.
+        if let Some((blocker, recovery)) = ownership_preflight_blocker(root, &record)? {
+            return Err(format!(
+                "scoped review cannot pass: {blocker}. Recovery: {recovery}"
+            ));
+        }
     }
     let current_commit = git_output(root, &["rev-parse", "HEAD"])
         .ok_or_else(|| "scoped review requires a committed implementation".to_string())?;

@@ -3859,13 +3859,18 @@ if the floor call is removed from this function"
         change::check_change(root, Some(&id)).expect("check");
         git_in(root, &["add", "."]);
         git_in(root, &["commit", "-m", "record verification"]);
-        change::record_scoped_review_with_verdict(
+        // A passing review refuses a change finalize would refuse on ownership (#1002), so a
+        // fixture that is unowned by design stays verifying without a review.
+        match change::record_scoped_review_with_verdict(
             root,
             &id,
             "Independent".into(),
             change::ScopedReviewVerdict::Pass,
-        )
-        .expect("review");
+        ) {
+            Ok(_) => {}
+            Err(error) if error.contains("scoped review cannot pass") => {}
+            Err(error) => panic!("review: {error}"),
+        }
         id
     }
 
@@ -3910,6 +3915,39 @@ if the floor call is removed from this function"
         let workspace = root.join(".specsync/changes").join(&id);
         let record = change::load_change(&root, &id).unwrap();
         assert_eq!(record.state, ChangeState::Verifying);
+
+        // #1002: the review itself refuses to pass, so the Archive check (which cannot prove
+        // ownership) never sees a passing review at HEAD for this change.
+        let refused = change::record_scoped_review_with_verdict(
+            &root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect_err("a passing review refuses a change finalize would refuse on ownership");
+        assert!(
+            refused.contains("scoped review cannot pass")
+                && refused
+                    .contains("finalize would refuse production source no declared module owns")
+                && refused.contains("Recovery:"),
+            "{refused}"
+        );
+        assert!(
+            !workspace.join("review.json").exists(),
+            "nothing is recorded"
+        );
+        assert!(!archive_candidate_can_ship(&root, &record, &workspace));
+
+        // A passing review recorded before #1002 refused this is still not told to ship.
+        let head = git_output_text(&root, &["rev-parse", "HEAD"]).unwrap();
+        fs::write(
+            workspace.join("review.json"),
+            format!(
+                "{{\"verdict\":\"pass\",\"implementation_commit\":\"{}\"}}\n",
+                head.trim()
+            ),
+        )
+        .unwrap();
         assert!(
             !archive_candidate_can_ship(&root, &record, &workspace),
             "ship refuses unowned production source, so the candidate is not told to ship"

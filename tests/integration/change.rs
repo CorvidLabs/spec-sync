@@ -4176,13 +4176,30 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     git(&["add", "."]);
     git(&["commit", "-m", "tune the rate"]);
     run(&["change", "check", &id, "--commit"]);
-    run(&[
+    // A passing review refuses a change finalize would refuse on ownership and names the
+    // recovery, so the Archive check never sees a passing review to call ready (#1002).
+    let review = invoke(&[
         "change",
         "review",
         &id,
         "--reviewer",
         "Independent reviewer",
     ]);
+    let review_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
+    assert!(
+        !review.status.success() && review_text.contains("scoped review cannot pass"),
+        "the review refuses to pass:\n{review_text}"
+    );
+    assert!(
+        review_text.contains(&format!(
+            "specsync change answer '{id}' affected_specs 'billing'"
+        )),
+        "the review refusal names the recovery:\n{review_text}"
+    );
 
     // Readiness tells the truth before finalize does.
     let ship_status = run(&["change", "ship-status", &id]);
@@ -5485,14 +5502,16 @@ fn lifecycle_commands_stay_within_git_spawn_ceilings() {
     /// answer 15, approve 32, check 110, status 53, review 176, finalize 287. Each ceiling is that
     /// count plus about 10%. Evidence capture keeps its working-tree reads and repository-identity
     /// reads live on purpose: it reads before and after each capture to catch a concurrent edit,
-    /// and that race check is never answered from memory.
+    /// and that race check is never answered from memory. A passing `change review` also runs the
+    /// ownership preflight finalize and ship-status run (#1002), measured at 203, so its ceiling
+    /// is 203 plus about 10%.
     const CEILINGS: &[(&str, usize)] = &[
         ("new", 32),
         ("answer", 17),
         ("approve", 35),
         ("check", 121),
         ("status", 58),
-        ("review", 194),
+        ("review", 223),
         ("finalize", 316),
     ];
 

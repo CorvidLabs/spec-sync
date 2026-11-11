@@ -1,6 +1,6 @@
 ---
 id: answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 1c07640aa5960c97c0d7fe9b7edb49aa42b8556b
 ---

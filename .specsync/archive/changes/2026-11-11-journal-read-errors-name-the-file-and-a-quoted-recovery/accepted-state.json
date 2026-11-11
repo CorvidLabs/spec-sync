@@ -7,11 +7,11 @@
   "title": "Journal read errors name the file and a quoted recovery",
   "description": "journal read errors name the file and a quoted recovery",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "2321597cf803f495c7491901b088a040fe42a457",
   "created_at": 1794377243,
-  "updated_at": 1794377751,
+  "updated_at": 1794377814,
   "affected_specs": [
     "change"
   ],

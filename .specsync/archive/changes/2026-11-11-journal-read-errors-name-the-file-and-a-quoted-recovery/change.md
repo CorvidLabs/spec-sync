@@ -1,6 +1,6 @@
 ---
 id: journal-read-errors-name-the-file-and-a-quoted-recovery
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 2321597cf803f495c7491901b088a040fe42a457
 ---

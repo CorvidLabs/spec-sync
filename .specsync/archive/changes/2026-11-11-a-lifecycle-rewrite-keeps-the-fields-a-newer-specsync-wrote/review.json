@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "0af6bada3b51e4b908ff9c901479c6cd34854107",
+  "contract_digest": "6d6ea94969b33a22f0a4711f1ed58163be1e9c891255365a62056889eb3d22f6",
+  "execution_digest": "684aa64727498fa36fa3e33b06cd7660d122a13ad9d2ff32cc010620d5456b79",
+  "workspace_digest": "a808b308428e55d4db62fc2b796c56fc6d9a859fb74a3b24dd126bba84ff43b3",
+  "timestamp": 1794425943
+}

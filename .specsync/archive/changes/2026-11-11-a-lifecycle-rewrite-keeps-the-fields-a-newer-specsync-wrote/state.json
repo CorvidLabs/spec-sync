@@ -7,11 +7,11 @@
   "title": "A lifecycle rewrite keeps the fields a newer specsync wrote",
   "description": "a lifecycle rewrite keeps the fields a newer specsync wrote",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794381262,
-  "updated_at": 1794425155,
+  "updated_at": 1794425979,
   "affected_specs": [
     "change"
   ],

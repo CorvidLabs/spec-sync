@@ -5129,7 +5129,7 @@ fn validate_accepted_inputs_recursive(
             .as_deref()
             .ok_or_else(|| {
                 format!(
-                    "accepted change is missing current delivery-input evidence; run `specsync change reopen {}` to record fresh acceptance evidence",
+                    "accepted change is missing current delivery-input evidence; run `specsync change reopen {} --actor <name> --reason <text>` to record fresh acceptance evidence",
                     record.id
                 )
             })?;
@@ -5158,7 +5158,7 @@ fn validate_accepted_inputs_recursive(
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
                 format!(
-                    "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {}` to re-verify the accepted change",
+                    "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
                     expected.path, record.id
                 )
             })?;

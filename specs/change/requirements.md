@@ -1959,3 +1959,17 @@ Every comparison that decides whether an approval or correction history is curre
 - An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
 - A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 
+### REQ-change-151
+
+A corrupt or unreadable transaction journal SHALL be reported with its file
+path and the recovery (inspect it, then set it aside when no write was in
+flight); a refusal that names `change reopen` SHALL print the complete command,
+including `--actor <name>` and `--reason <text>`.
+
+#### Acceptance Criteria
+
+- A corrupt `.specsync/change-transaction.json` produces an error naming the
+  file and the set-aside recovery.
+- Every printed `specsync change reopen <id>` remediation includes
+  `--actor <name> --reason <text>`.
+

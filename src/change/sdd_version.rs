@@ -693,8 +693,14 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     }
     let content = fs::read_to_string(&journal_path)
         .map_err(|error| format!("failed to read transaction journal: {error}"))?;
-    let journal: TransactionJournalRead = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid transaction journal: {error}"))?;
+    let journal: TransactionJournalRead = serde_json::from_str(&content).map_err(|error| {
+        format!(
+            "invalid transaction journal at {}: {error}; the journal records an interrupted \
+             multi-file write and cannot be replayed — inspect it for partial writes, then set \
+             it aside with `mv {0} {0}.broken` and re-run the command",
+            journal_path.display()
+        )
+    })?;
     let entries = match journal {
         TransactionJournalRead::Legacy(entries) => entries,
         TransactionJournalRead::Durable(journal) => {
@@ -702,7 +708,13 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
                 || journal.entry_count != journal.entries.len()
                 || journal.entries_digest != transaction_entries_digest(&journal.entries)?
             {
-                return Err("invalid transaction journal integrity envelope".into());
+                return Err(format!(
+                    "invalid transaction journal integrity envelope at {}; the journal records \
+                     an interrupted multi-file write and cannot be replayed — inspect it for \
+                     partial writes, then set it aside with `mv {0} {0}.broken` and re-run the \
+                     command",
+                    journal_path.display()
+                ));
             }
             journal.entries
         }

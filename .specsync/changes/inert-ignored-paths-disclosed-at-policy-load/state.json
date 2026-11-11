@@ -7,10 +7,11 @@
   "title": "Inert ignored paths disclosed at policy load",
   "description": "inert ignored paths disclosed at policy load",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794365407,
-  "updated_at": 1794385839,
+  "updated_at": 1794416170,
   "affected_specs": [
     "change"
   ],

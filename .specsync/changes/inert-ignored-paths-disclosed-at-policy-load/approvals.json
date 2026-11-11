@@ -122,6 +122,47 @@
         "change": "6da8d11b184a960fe883ea0f4fad0d4cf7e509af26f759a447c506e7503fe374"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794416165,
+      "digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+        "title": "Inert ignored paths disclosed at policy load",
+        "description": "inert ignored paths disclosed at policy load",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/sdd.json",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a policy whose ignored_paths lists the specs tree or a protected policy file prints a load-time note naming the inert entry and its removal; adopt no longer writes the inert specs/ entry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "6da8d11b184a960fe883ea0f4fad0d4cf7e509af26f759a447c506e7503fe374"
+      },
+      "approved_delta_bases": {}
     }
   ],
   "reopenings": [],

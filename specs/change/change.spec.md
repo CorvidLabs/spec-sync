@@ -1,6 +1,6 @@
 ---
 module: change
-version: 227
+version: 228
 status: active
 files:
   - src/change.rs
@@ -767,3 +767,4 @@ Acceptance Criteria
 | 2026-11-11 | journal-read-errors-name-the-file-and-a-quoted-recovery: Journal read errors name the file and a quoted recovery |
 | 2026-11-11 | delta-materializer-matches-and-keeps-titled-requirement-headers: Delta materializer matches and keeps titled requirement headers |
 | 2026-11-11 | a-failed-verification-records-the-findings-that-failed-it: A failed verification records the findings that failed it |
+| 2026-11-11 | inert-ignored-paths-disclosed-at-policy-load: Inert ignored paths disclosed at policy load |

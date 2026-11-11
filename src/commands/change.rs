@@ -3806,8 +3806,16 @@ if the floor call is removed from this function"
     /// ownership recovery can tell this branch's work from untouched files (#1000, #1037).
     fn with_remote_default(root: &Path) {
         let remote = root.parent().unwrap().join("remote.git");
+        // The remote's HEAD names `main` whatever `init.defaultBranch` says, so a clone of it
+        // checks out the pushed tree on stock git too (#1037 review).
         let status = std::process::Command::new("git")
-            .args(["init", "-q", "--bare", remote.to_str().unwrap()])
+            .args([
+                "init",
+                "-q",
+                "--bare",
+                "--initial-branch=main",
+                remote.to_str().unwrap(),
+            ])
             .status()
             .unwrap();
         assert!(status.success());

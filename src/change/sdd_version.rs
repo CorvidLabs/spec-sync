@@ -686,15 +686,27 @@ enum TransactionJournalRead {
     Legacy(Vec<TransactionEntry>),
 }
 
+/// The refusal for a journal that cannot be read or parsed: the path, and a set-aside
+/// command that runs as printed — both paths shell-quoted, so a project whose path contains a
+/// space recovers by pasting (#433, t384's review of #1041).
+fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
+    let quoted = shell_quote(&journal_path.display().to_string());
+    format!(
+        "invalid transaction journal at {quoted}: {detail}; the journal records an interrupted \
+         multi-file write and cannot be replayed — inspect it for partial writes, then set it \
+         aside with `mv {quoted} {quoted}.broken` and re-run the command"
+    )
+}
+
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     let journal_path = root.join(TRANSACTION_PATH);
     if !journal_path.exists() {
         return Ok(());
     }
     let content = fs::read_to_string(&journal_path)
-        .map_err(|error| format!("failed to read transaction journal: {error}"))?;
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
     let journal: TransactionJournalRead = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid transaction journal: {error}"))?;
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
     let entries = match journal {
         TransactionJournalRead::Legacy(entries) => entries,
         TransactionJournalRead::Durable(journal) => {
@@ -702,13 +714,18 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
                 || journal.entry_count != journal.entries.len()
                 || journal.entries_digest != transaction_entries_digest(&journal.entries)?
             {
-                return Err("invalid transaction journal integrity envelope".into());
+                return Err(invalid_journal_error(
+                    &journal_path,
+                    "the integrity envelope does not hold",
+                ));
             }
             journal.entries
         }
     };
     for entry in entries {
-        let path = safe_project_path(root, &entry.path)?;
+        let path = safe_project_path(root, &entry.path).map_err(|error| {
+            invalid_journal_error(&journal_path, &format!("entry `{}`: {error}", entry.path))
+        })?;
         if let Some(original) = entry.original {
             atomic_write_durable(&path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;

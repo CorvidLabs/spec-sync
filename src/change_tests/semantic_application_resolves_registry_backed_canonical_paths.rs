@@ -2322,7 +2322,7 @@ fn torn_canonical_transaction_journal_fails_closed() {
     write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
 
     let error = acquire_project_lock(root).err().unwrap();
-    assert!(error.contains("transaction journal integrity"));
+    assert!(error.contains("invalid transaction journal at"));
     assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
     assert!(root.join(TRANSACTION_PATH).exists());
 }

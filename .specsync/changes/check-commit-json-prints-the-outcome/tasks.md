@@ -5,6 +5,6 @@ artifact: tasks
 
 # Tasks
 
-- [x] run_checked_commit prints the JSON outcome document
-- [x] Integration test parses it; refusal path covered
+- [x] Outcome document carries configured_commands_not_run
+- [x] REQ-cmd-change-unrun-commands-001 AC retired via MODIFIED delta; item 13 reworded
 - [x] Full suite, clippy, pre-push green

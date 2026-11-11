@@ -5606,6 +5606,9 @@ fn run_checked_commit(
                 "verification_commit": verification_commit,
                 "pushed": push,
                 "left_out": disclosed,
+                // REQ-cmd-change-unrun-commands-001 (t384's option a for #839): the outcome
+                // document carries the same disclosure every other JSON success output does.
+                "configured_commands_not_run": configured_commands_not_run(root)?,
             })
         );
         return Ok(());

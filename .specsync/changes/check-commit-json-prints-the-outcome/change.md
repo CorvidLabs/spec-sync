@@ -2,7 +2,7 @@
 id: check-commit-json-prints-the-outcome
 state: implementing
 type: bug_fix
-base_commit: 46f55652649a72ddf5e1715938b504b96686566b
+base_commit: d93cad4615c3b1de5dfd0b2fa19425f06a2bbad6
 ---
 
 # Check commit json prints the outcome
@@ -17,8 +17,8 @@ check commit json prints the outcome
 
 ## Acceptance Criteria
 
-- change check --commit --json prints one JSON document with the change id, both commit ids, pushed and left_out; a refusal prints the JSON error document with a non-zero exit
+- check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit
 
 ## No-spec Rationale
 
-the --json path must answer with one document (REQ-change-004: equivalent human and machine workflows; cli invariant 5: --json switches all output to JSON) — the commit path printing nothing was the bug
+Not applicable

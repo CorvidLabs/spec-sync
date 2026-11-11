@@ -3,9 +3,9 @@
     {
       "gate": "definition",
       "actor": "kimi-code-t37b",
-      "timestamp": 1794382003,
-      "digest": "3e4162cad33d9a9d28f029ca0cb93ab375c38da818c99285cfd15d59cdc2174f",
-      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "timestamp": 1794384034,
+      "digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+      "note": "Agent approval to carry the lifecycle; the REQ-cmd-change-unrun-commands-001 rewording (retiring the pinned empty-output clause) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
       "approved_scope": {
         "schema_version": 1,
         "change_id": "check-commit-json-prints-the-outcome",
@@ -19,10 +19,10 @@
           "src/commands/change.rs",
           "tests/integration/change.rs"
         ],
-        "no_spec_change": true,
-        "no_spec_change_rationale": "the --json path must answer with one document (REQ-change-004: equivalent human and machine workflows; cli invariant 5: --json switches all output to JSON) — the commit path printing nothing was the bug",
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
         "acceptance_criteria": [
-          "change check --commit --json prints one JSON document with the change id, both commit ids, pushed and left_out; a refusal prints the JSON error document with a non-zero exit"
+          "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
         ],
         "dependencies": [],
         "supersedes": [],
@@ -32,15 +32,19 @@
           "public_contract": "no"
         }
       },
-      "approved_delta_digests": {},
-      "approved_delta_bases": {}
+      "approved_delta_digests": {
+        "cmd_change": "4daaf09353d5438b4ca737b97e821b665044a4768f55f96f61f8d269a2f4697b"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
+      }
     },
     {
       "gate": "definition",
       "actor": "kimi-code-t37b",
-      "timestamp": 1794382548,
-      "digest": "3e4162cad33d9a9d28f029ca0cb93ab375c38da818c99285cfd15d59cdc2174f",
-      "note": "Agent approval to carry the lifecycle; retiring the stale clause in cmd_change contract item 13 is requirement text awaiting Leif's decision at merge, not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "timestamp": 1794384057,
+      "digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+      "note": "Agent approval to carry the lifecycle; the REQ-cmd-change-unrun-commands-001 rewording (retiring the pinned empty-output clause) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
       "approved_scope": {
         "schema_version": 1,
         "change_id": "check-commit-json-prints-the-outcome",
@@ -54,10 +58,10 @@
           "src/commands/change.rs",
           "tests/integration/change.rs"
         ],
-        "no_spec_change": true,
-        "no_spec_change_rationale": "the --json path must answer with one document (REQ-change-004: equivalent human and machine workflows; cli invariant 5: --json switches all output to JSON) — the commit path printing nothing was the bug",
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
         "acceptance_criteria": [
-          "change check --commit --json prints one JSON document with the change id, both commit ids, pushed and left_out; a refusal prints the JSON error document with a non-zero exit"
+          "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
         ],
         "dependencies": [],
         "supersedes": [],
@@ -67,8 +71,12 @@
           "public_contract": "no"
         }
       },
-      "approved_delta_digests": {},
-      "approved_delta_bases": {}
+      "approved_delta_digests": {
+        "cmd_change": "4daaf09353d5438b4ca737b97e821b665044a4768f55f96f61f8d269a2f4697b"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
+      }
     }
   ],
   "reopenings": [],

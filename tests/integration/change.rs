@@ -6321,4 +6321,8 @@ fn change_check_commit_json_prints_the_outcome() {
         document["verification_commit"].is_string(),
         "the verification commit is always recorded: {document}"
     );
+    assert!(
+        document["configured_commands_not_run"].is_array(),
+        "the outcome document carries the same disclosure as every other JSON success: {document}"
+    );
 }

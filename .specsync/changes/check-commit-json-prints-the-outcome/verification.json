@@ -1,9 +1,9 @@
 {
-  "timestamp": 1794382554,
-  "commit": "d6b5f2f8df03699c770362f0a0f8a4a3e949cc8d",
-  "contract_digest": "3e4162cad33d9a9d28f029ca0cb93ab375c38da818c99285cfd15d59cdc2174f",
-  "execution_digest": "eab70a6b51a4948fa56db428ee41cfa28596ceb83d2e21228e9877c9da39d3d1",
-  "workspace_digest": "f80e68b6d0d3c0a72c92082822e40b9b004ac15973a7e3936eb018805c1e393c",
+  "timestamp": 1794384200,
+  "commit": "d93cad4615c3b1de5dfd0b2fa19425f06a2bbad6",
+  "contract_digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+  "execution_digest": "a504dea8f7f63e5c782ab1ab4ce3432c8563b3fff252e9f476b5e9dd50d3f2b7",
+  "workspace_digest": "c0cfdf35f43788de8eb0e1dcbfaebca1d0c1b48a8ac1cb44a5eeb4f247109cf5",
   "passed": true,
   "commands": [
     {
@@ -12,5 +12,7 @@
       "exit_code": 0
     }
   ],
-  "requirement_ids": []
+  "requirement_ids": [
+    "REQ-cmd-change-unrun-commands-001"
+  ]
 }

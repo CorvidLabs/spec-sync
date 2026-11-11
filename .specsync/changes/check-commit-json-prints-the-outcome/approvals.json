@@ -77,6 +77,45 @@
       "approved_delta_bases": {
         "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794415564,
+      "digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-commit-json-prints-the-outcome",
+        "title": "Check commit json prints the outcome",
+        "description": "check commit json prints the outcome",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "4daaf09353d5438b4ca737b97e821b665044a4768f55f96f61f8d269a2f4697b"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
+      }
     }
   ],
   "reopenings": [],

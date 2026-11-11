@@ -34,7 +34,56 @@
       },
       "approved_delta_digests": {},
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794382548,
+      "digest": "3e4162cad33d9a9d28f029ca0cb93ab375c38da818c99285cfd15d59cdc2174f",
+      "note": "Agent approval to carry the lifecycle; retiring the stale clause in cmd_change contract item 13 is requirement text awaiting Leif's decision at merge, not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-commit-json-prints-the-outcome",
+        "title": "Check commit json prints the outcome",
+        "description": "check commit json prints the outcome",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "the --json path must answer with one document (REQ-change-004: equivalent human and machine workflows; cli invariant 5: --json switches all output to JSON) — the commit path printing nothing was the bug",
+        "acceptance_criteria": [
+          "change check --commit --json prints one JSON document with the change id, both commit ids, pushed and left_out; a refusal prints the JSON error document with a non-zero exit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "check-commit-json-prints-the-outcome",
+      "actor": "kimi-code-t37b",
+      "reason": "t370 ruled #1042 READY-track: retiring item 13's clause is requirement text; re-record with the READY note",
+      "timestamp": 1794382543,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true
+    }
+  ]
 }

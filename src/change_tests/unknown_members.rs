@@ -98,38 +98,78 @@ fn an_older_specsync_appending_to_a_ledger_keeps_what_a_newer_one_wrote() {
     assert_eq!(dropped.archive_hint, None);
 }
 
+/// t384's review of #1044: an entry keeps its own members when the rewrite edits it in place (a
+/// relay repair edits one approval) and wherever an insertion or a removal moves it; an entry that
+/// holds members this SpecSync does not know and that the rewrite removes refuses the rewrite; and
+/// no record gains another record's members.
 #[test]
-fn an_entry_the_rewrite_changed_or_replaced_never_gains_another_records_members() {
+fn every_entry_keeps_its_own_members_or_the_rewrite_is_refused() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("approvals.json");
-    let mut newer = newer_ledger();
-    newer.entries.push(NewerEntry {
-        actor: "Grace".into(),
+    let plain = |actor: &str| NewerEntry {
+        actor: actor.into(),
         note: None,
         relayed_by: None,
+        cancelled_review_attempts: None,
+    };
+    let mut newer = newer_ledger();
+    newer.entries.insert(0, plain("Lin"));
+    newer.entries.push(NewerEntry {
         cancelled_review_attempts: Some(3),
+        ..plain("Grace")
     });
-    fs::write(&path, json_content(&newer).unwrap()).unwrap();
+    let written_by_newer = json_content(&newer).unwrap();
+    let reset = || fs::write(&path, &written_by_newer).unwrap();
+    let older = || -> OlderLedger { serde_json::from_slice(&fs::read(&path).unwrap()).unwrap() };
+    let keep = |ledger: &OlderLedger| -> NewerLedger {
+        serde_json::from_str(&json_content_keeping_unknown_members(&path, ledger).unwrap()).unwrap()
+    };
+    let by_actor = |ledger: &NewerLedger, actor: &str| -> NewerEntry {
+        ledger.entries.iter().find(|entry| entry.actor == actor).unwrap().clone()
+    };
 
-    // The first entry is edited: its own unknown members are not carried onto the edited entry.
-    let mut older: OlderLedger = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    older.entries[0].note = Some("edited".into());
-    let reread: NewerLedger =
-        serde_json::from_str(&json_content_keeping_unknown_members(&path, &older).unwrap()).unwrap();
-    assert_eq!(reread.entries[0].relayed_by, None);
-    assert_eq!(reread.entries[0].cancelled_review_attempts, None);
-    assert_eq!(reread.entries[1].cancelled_review_attempts, Some(3), "the unchanged entry keeps its own");
+    // Edited in place: Ada keeps her relay and her count.
+    reset();
+    let mut ledger = older();
+    ledger.entries[1].note = Some("edited".into());
+    let reread = keep(&ledger);
+    assert_eq!(by_actor(&reread, "Ada").note.as_deref(), Some("edited"));
+    assert_eq!(by_actor(&reread, "Ada").relayed_by, newer.entries[1].relayed_by);
+    assert_eq!(by_actor(&reread, "Ada").cancelled_review_attempts, Some(0));
+    assert_eq!(by_actor(&reread, "Grace").cancelled_review_attempts, Some(3));
     assert_eq!(reread.archive_hint.as_deref(), Some("keep"), "the root is the same ledger");
 
-    // The first entry is removed: the entry now at position 0 is Grace, and it never takes Ada's
-    // relay.
-    let mut older: OlderLedger = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    older.entries.remove(0);
-    let reread: NewerLedger =
-        serde_json::from_str(&json_content_keeping_unknown_members(&path, &older).unwrap()).unwrap();
-    assert_eq!(reread.entries.len(), 1);
-    assert_eq!(reread.entries[0].actor, "Grace");
-    assert_eq!(reread.entries[0].relayed_by, None);
+    // A removal before them shifts Ada and Grace; each keeps its own, and Lin's place takes none.
+    reset();
+    let mut ledger = older();
+    ledger.entries.remove(0);
+    let reread = keep(&ledger);
+    assert_eq!(reread.entries.len(), 2);
+    assert_eq!(by_actor(&reread, "Ada").relayed_by, newer.entries[1].relayed_by);
+    assert_eq!(by_actor(&reread, "Ada").cancelled_review_attempts, Some(0));
+    assert_eq!(by_actor(&reread, "Grace").cancelled_review_attempts, Some(3));
+    assert_eq!(by_actor(&reread, "Grace").relayed_by, None, "Grace never takes Ada's relay");
+
+    // An insertion before them shifts them the other way.
+    reset();
+    let mut ledger = older();
+    ledger.entries.insert(0, older_entry("Kim"));
+    let reread = keep(&ledger);
+    assert_eq!(by_actor(&reread, "Kim"), plain("Kim"));
+    assert_eq!(by_actor(&reread, "Ada").relayed_by, newer.entries[1].relayed_by);
+    assert_eq!(by_actor(&reread, "Grace").cancelled_review_attempts, Some(3));
+
+    // Removing Ada, who holds members this SpecSync does not know, would drop them: refused, and
+    // nothing is written.
+    reset();
+    let mut ledger = older();
+    ledger.entries.remove(1);
+    let error = json_content_keeping_unknown_members(&path, &ledger).unwrap_err();
+    assert!(
+        error.contains("entries[1] hold members") && error.contains("upgrade specsync"),
+        "{error}"
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), written_by_newer);
 }
 
 #[test]
@@ -138,7 +178,7 @@ fn kept_members_keep_their_exact_text_and_known_members_their_order() {
     let path = temp.path().join("state.json");
     // Written by hand as a newer SpecSync would: an integer past u64, an exact decimal, an escape,
     // a nested object, and a member inside an object that this SpecSync knows as a map.
-    let previous = "{\n  \"schema_version\": 1,\n  \"future_count\": 123456789012345678901234567890,\n  \"entries\": [\n    {\n      \"actor\": \"Ada\",\n      \"future_ratio\": 1.50\n    }\n  ],\n  \"future_text\": \"caf\\u00e9\",\n  \"future_nested\": {\n    \"depth\": [\n      1,\n      {\n        \"x\": null\n      }\n    ]\n  }\n}\n";
+    let previous = "{\n  \"schema_version\": 1,\n  \"future_count\": 123456789012345678901234567890,\n  \"entries\": [\n    {\n      \"actor\": \"Ada\",\n      \"future_ratio\": 1.50\n    }\n  ],\n  \"future_text\": \"caf\\u00e9\",\n  \"future_caf\\u00e9\": true,\n  \"future_nested\": {\n    \"depth\": [\n      1,\n      {\n        \"x\": null\n      }\n    ]\n  }\n}\n";
     fs::write(&path, previous).unwrap();
     let mut older: OlderLedger = serde_json::from_str(previous).unwrap();
     older.entries.push(older_entry("Grace"));
@@ -147,6 +187,7 @@ fn kept_members_keep_their_exact_text_and_known_members_their_order() {
         "\"future_count\": 123456789012345678901234567890",
         "\"future_ratio\": 1.50",
         "\"future_text\": \"caf\\u00e9\"",
+        "\"future_caf\\u00e9\": true",
         "\"future_nested\": {\n    \"depth\": [\n      1,\n      {\n        \"x\": null\n      }\n    ]\n  }",
     ] {
         assert!(written.contains(exact), "{exact} kept verbatim:\n{written}");

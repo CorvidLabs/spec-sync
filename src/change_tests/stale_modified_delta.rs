@@ -548,3 +548,112 @@ fn an_unreadable_canonical_file_is_reported_not_treated_as_a_stale_base() {
         "an IO failure must not be reported as a stale base: {error}"
     );
 }
+
+/// #975: the three-way comparison accepts an approved body that already carries every edit the
+/// current text made to the approval-time base, and refuses one that would overwrite an edit.
+#[test]
+fn three_way_keeps_body_accepts_only_bodies_that_carry_the_moved_edits() {
+    // The other change appended a criterion; the approved body has it and its own edit.
+    assert!(three_way_keeps_body(
+        "S\n\nAC\n- one",
+        "S\n\nAC\n- one\n- each",
+        "S2\n\nAC\n- one\n- each",
+    ));
+    // Unmoved base: any approved body keeps it.
+    assert!(three_way_keeps_body("S\n- one", "S\n- one", "S2\n- one\n- two"));
+    // The current text edited a line the approved body left at the old text.
+    assert!(!three_way_keeps_body(
+        "S\n- one\n- two",
+        "S\n- one changed\n- two",
+        "S2\n- one\n- two",
+    ));
+    // Both changed the same line differently.
+    assert!(!three_way_keeps_body("S", "S current", "S approved"));
+    // The current text added a paragraph the approved body lacks.
+    assert!(!three_way_keeps_body(
+        "S\n\nAC\n- one",
+        "S\n\nP\n\nAC\n- one",
+        "S2\n\nAC\n- one",
+    ));
+}
+
+/// #975 end to end in a repository: the change's body was written on top of another change's
+/// edit. Once that edit lands, the canonical block moved, but the unchanged body already carries
+/// it, so re-approval succeeds with no byte edit, records the new base, and materializes the body
+/// exactly once.
+#[test]
+fn re_approving_an_unchanged_body_that_already_carries_the_moved_text_records_the_new_base() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let record = change_approved_against_old_requirement(root);
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "approved against the old base"]);
+    let first_base = load_approvals(root, &record)
+        .unwrap()
+        .approvals
+        .last()
+        .unwrap()
+        .approved_delta_bases
+        .clone();
+
+    // The other change lands the criterion this change's body was written on top of.
+    let landed = STALE_BASE_REQUIREMENTS.replace(
+        "- One session per user.\n",
+        "- One session per user.\n- Each transition is recorded.\n",
+    );
+    fs::write(requirements_path(root), &landed).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "the other change lands"]);
+
+    approve_definition(root, &record.id, Some("Scope owner".into()), None)
+        .expect("the unchanged body already carries the landed criterion");
+    let new_base = load_approvals(root, &record)
+        .unwrap()
+        .approvals
+        .last()
+        .unwrap()
+        .approved_delta_bases
+        .clone();
+    assert_ne!(new_base, first_base, "the approval records the new base");
+
+    materialize_change_deltas(root, &record.id).unwrap();
+    let requirements = fs::read_to_string(requirements_path(root)).unwrap();
+    assert!(
+        requirements.contains("keep one session per user and record each transition."),
+        "{requirements}"
+    );
+    assert_eq!(
+        requirements.matches("- Each transition is recorded.").count(),
+        1,
+        "{requirements}"
+    );
+}
+
+/// #975 guard: in a repository, where the approval-time base is recoverable, a moved block whose
+/// edit the unchanged body does not carry is still refused and nothing is recorded.
+#[test]
+fn re_approving_an_unchanged_body_that_lacks_the_moved_text_is_refused_in_a_repository() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let record = change_approved_against_old_requirement(root);
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "approved against the old base"]);
+    fs::write(requirements_path(root), main_moved_requirements()).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "main moves the block"]);
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    let before = fs::read_to_string(&ledger_path).unwrap();
+
+    let error = approve_definition(root, &record.id, Some("Scope owner".into()), None)
+        .expect_err("approving would overwrite the paragraph main added");
+    assert_refusal_names_the_block(&error, &record);
+    assert_eq!(fs::read_to_string(&ledger_path).unwrap(), before);
+}

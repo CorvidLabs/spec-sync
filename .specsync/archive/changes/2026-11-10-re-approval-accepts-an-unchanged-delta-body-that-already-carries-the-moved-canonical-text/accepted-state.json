@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "re-approval-accepts-an-unchanged-delta-body-that-already-carries-the-moved-canonical-text",
+  "slug": "re-approval-accepts-an-unchanged-delta-body-that-already-carries-the-moved-canonical-text",
+  "title": "Re-approval accepts an unchanged delta body that already carries the moved canonical text",
+  "description": "re-approval accepts an unchanged delta body that already carries the moved canonical text",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6ef61e6aae6d63b2586d0f9f216c47803dba4d9f",
+  "created_at": 1794353040,
+  "updated_at": 1794354554,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests/stale_modified_delta.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-122 says a rebased and re-approved delta materializes keeping the other change's text it now carries; a body rebased before the other change landed could not be re-approved without a byte edit. Leif chose the three-way fix on 2026-11-10",
+  "acceptance_criteria": [
+    "re-approving an unchanged MODIFIED or REMOVED delta whose canonical block moved since approval succeeds and records the new base when the approval-time base text, recovered from git by its recorded digest, shows in a line-level three-way comparison that the body already carries every edit the current text made; otherwise, including when the base cannot be recovered, it is refused as before and nothing is recorded; no new flags"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "CHANGE-11: an approved change never silently overwrites newer text; an unrecoverable base or any uncarried edit keeps the refusal",
+    "public_contract": "no"
+  }
+}

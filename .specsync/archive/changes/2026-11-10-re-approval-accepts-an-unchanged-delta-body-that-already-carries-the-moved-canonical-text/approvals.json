@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794353063,
+      "digest": "abcbf038ea3bcfbd0a4a47656d8548c4a43973bd7b1ddd42b6ec976f5a6b6971",
+      "note": "Leif chose the three-way fix for #975 on 2026-11-10 and directed it be implemented under his standing bug-fix rule (relayed by coordinator t370); recorded by the Claude worker. Scope: re-approval accepts an unchanged body that already carries the moved canonical text, recovered from git; no new flags.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "re-approval-accepts-an-unchanged-delta-body-that-already-carries-the-moved-canonical-text",
+        "title": "Re-approval accepts an unchanged delta body that already carries the moved canonical text",
+        "description": "re-approval accepts an unchanged delta body that already carries the moved canonical text",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests/stale_modified_delta.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-122 says a rebased and re-approved delta materializes keeping the other change's text it now carries; a body rebased before the other change landed could not be re-approved without a byte edit. Leif chose the three-way fix on 2026-11-10",
+        "acceptance_criteria": [
+          "re-approving an unchanged MODIFIED or REMOVED delta whose canonical block moved since approval succeeds and records the new base when the approval-time base text, recovered from git by its recorded digest, shows in a line-level three-way comparison that the body already carries every edit the current text made; otherwise, including when the base cannot be recovered, it is refused as before and nothing is recorded; no new flags"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "CHANGE-11: an approved change never silently overwrites newer text; an unrecoverable base or any uncarried edit keeps the refusal",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794354554,
+      "digest": "bba20318d8ab042f99fbe8f13bcc33bcfb36b76b22def5d0621e1c7bcfda4dd6",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

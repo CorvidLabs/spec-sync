@@ -1385,7 +1385,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 .and_then(|value| value.as_str())
                 .map(str::to_owned);
             match commit {
-                Some(commit) if commit.len() == 40 => {
+                // Only a full commit id, as SpecSync records it, reaches git.
+                Some(commit) if crate::change::is_canonical_commit_id(&commit) => {
                     let present = git_commit_present(root, &commit)?;
                     let ancestor = if present {
                         git_is_ancestor(root, &commit, "HEAD")?

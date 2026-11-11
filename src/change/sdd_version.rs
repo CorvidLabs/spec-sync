@@ -5003,11 +5003,11 @@ pub fn ownership_preflight_blocker(
     }
     let paths: Vec<&str> = unowned.iter().map(String::as_str).collect();
     let index = SpecListingIndex::build(root, &crate::config::load_config(root).specs_dir);
-    // An unowned input the change never modified since its base is in scope only because a
-    // path prefix is wider than the work, and declaring its owner would pull an untouched module
-    // into the change: the recovery for it is a narrower scope (#1000). Without a usable base
-    // commit or Git, nothing is classified as untouched and the declare recovery covers every
-    // path.
+    // An unowned input this branch never modified is in scope only because a path prefix is
+    // wider than the work, and declaring its owner would pull an untouched module into the
+    // change: the recovery for it is a narrower scope (#1000). Without a usable base commit, a
+    // merge base with the remote default branch or Git, nothing is classified as untouched and
+    // the declare recovery covers every path.
     // A truncated spec listing cannot say which owners exist, so nothing is classified then.
     let changed = (!index.truncated)
         .then(|| files_changed_since_base(root, record))
@@ -5028,9 +5028,8 @@ pub fn ownership_preflight_blocker(
                 .flat_map(|path| undeclared_owning_modules(root, record, path, &index)),
         )
         .collect();
-    let answer_is_printed = !touched.is_empty()
-        && !index.truncated
-        && declare_owners_answer(root, record, &touched, &index).is_some();
+    let answer_is_printed =
+        !touched.is_empty() && declare_owners_answer(root, record, &touched, &index).is_some();
     let untouched: Vec<&str> = untouched
         .into_iter()
         .filter(|path| {
@@ -5153,9 +5152,7 @@ fn declare_and_narrow_recovery(
     index: &SpecListingIndex,
     changed: Option<&BTreeSet<String>>,
 ) -> String {
-    if index.truncated {
-        return declare_owners_recovery(root, record, touched, index);
-    }
+    // A truncated spec listing turns classification off, so this mixed recovery never sees one.
     // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
     // entry in the spec that should own it, exactly as in the declare-only recovery.
     let unclaimed: Vec<&str> = touched
@@ -5193,15 +5190,26 @@ fn narrow_answer(record: &ChangeRecord, changed: Option<&BTreeSet<String>>) -> S
             changed
                 .iter()
                 .filter(|path| {
-                    record.affected_paths.iter().any(|scope| {
-                        let scope = scope.trim_end_matches('/');
-                        path.as_str() == scope || path.starts_with(&format!("{scope}/"))
-                    })
+                    record
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope))
                 })
                 .collect()
         })
         .unwrap_or_default();
-    if !in_scope.is_empty() && in_scope.iter().all(|path| !path.contains([',', '\n']) && path.trim() == path.as_str()) {
+    // Printed only when `change answer` stores exactly these paths: `split_values` splits on
+    // commas and newlines and trims each value, `normalize_project_path` rewrites a backslash and refuses
+    // control characters, and a list starting with `-` would be read as an option.
+    let round_trips = |path: &&String| {
+        !path.contains([',', '\\'])
+            && !path.chars().any(char::is_control)
+            && path.trim() == path.as_str()
+    };
+    if !in_scope.is_empty()
+        && in_scope.iter().all(round_trips)
+        && !in_scope.first().is_some_and(|path| path.starts_with('-'))
+    {
         let list = in_scope
             .iter()
             .map(|path| path.as_str())
@@ -5240,44 +5248,42 @@ fn untouched_sentence(untouched: &[&str]) -> String {
 /// Every project-relative path the working tree has changed since the change's base commit,
 /// committed or not, plus untracked files. `None` without a base commit or when Git cannot say.
 fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
-    // `base_commit` comes from the change's own record, so it is never handed to Git unless it
-    // is a full commit id, and it follows `--end-of-options`: a value like `--output=<path>` must
-    // not become a Git option, least of all from read-only `ship-status` (#1037 review).
-    let base = record
+    // A change whose record carries no full commit id as `base_commit` is not classified. The
+    // value is only a gate: it never reaches Git, where `--output=<path>` read from `state.json`
+    // could become an option, least of all from read-only `ship-status` (#1037 review).
+    record
         .base_commit
         .as_deref()
         .filter(|base| is_canonical_commit_id(base))?;
-    // Work committed before `change new` is in `base` already, but it is still this branch's
-    // work, so the merge base with the remote default branch is compared too. Without one (no
-    // remote, or no default ref) that work cannot be told from untouched files, so nothing is
-    // classified and every input keeps the declare recovery: the safe direction (#1037 review).
+    // The branch's own work is what differs from the merge base with the remote default branch,
+    // the base the coverage gate diffs against (`pull_request_diff_base`), plus untracked files.
+    // It is not compared with `base_commit`: once the branch merges or rebases the default branch,
+    // that diff also holds every upstream edit made since, which this change never touched
+    // (#1037 review). Without a remote default branch or a merge base, the branch's work cannot be
+    // told from untouched files, so nothing is classified and every input keeps the declare
+    // recovery: the safe direction.
     let remote = remote_default_ref(root)?;
     let merge_base = git_output(root, &["merge-base", remote.as_str(), "HEAD"])?;
     let merge_base = merge_base.trim();
     if !is_canonical_commit_id(merge_base) {
         return None;
     }
-    let bases = [base.to_string(), merge_base.to_string()];
     let mut changed = BTreeSet::new();
     // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
     // than C-quoted under git's default `core.quotePath`; `--no-renames`, so a renamed file's old
     // path counts as changed too.
-    let mut queries: Vec<Vec<&str>> = bases
-        .iter()
-        .map(|base| {
-            vec![
-                "diff",
-                "--name-only",
-                "--relative",
-                "--no-renames",
-                "-z",
-                "--end-of-options",
-                base.as_str(),
-            ]
-        })
-        .collect();
-    queries.push(vec!["ls-files", "--others", "--exclude-standard", "-z"]);
-    for args in queries {
+    for args in [
+        vec![
+            "diff",
+            "--name-only",
+            "--relative",
+            "--no-renames",
+            "-z",
+            "--end-of-options",
+            merge_base,
+        ],
+        vec!["ls-files", "--others", "--exclude-standard", "-z"],
+    ] {
         changed.extend(
             git_output_allow_empty(root, &args)?
                 .split('\0')
@@ -5285,6 +5291,16 @@ fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeS
                 .map(str::to_string),
         );
     }
+    // A path another active change on this branch covers is that change's work: it is neither
+    // declared for this change nor kept in its narrowed scope (#1037 review). An unreadable
+    // workspace leaves that unknown, so nothing is classified.
+    let others = list_changes_checked(root).ok()?;
+    changed.retain(|path| {
+        !others
+            .iter()
+            .filter(|other| other.id != record.id)
+            .any(|other| other.affected_paths.iter().any(|scope| path_matches_scope(path, scope)))
+    });
     Some(changed)
 }
 

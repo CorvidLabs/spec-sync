@@ -4058,11 +4058,33 @@ if the floor call is removed from this function"
         let id = record.id.clone();
         approve_and_implement_fixture(&root, &id);
         fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
-        // The change also deletes a file in its scope: the narrowed scope must still name it,
-        // or the shipped change fails the meaningful-path audit (#1037 review).
+        // The change also deletes a file in its scope: the narrowed scope must still name it, or
+        // the shipped change fails the meaningful-path audit, `change audit --strict` (#1037
+        // review).
         git_in(&root, &["rm", "-q", "src/billing/notes.md"]);
         git_in(&root, &["add", "."]);
         git_in(&root, &["commit", "-m", "implement"]);
+        // Someone else edits ledger.ts on the default branch, and this branch merges it: the
+        // upstream edit is not this change's work, so ledger.ts stays untouched (#1037 review).
+        let upstream = temp.path().join("upstream");
+        let remote = temp.path().join("remote.git");
+        let status = std::process::Command::new("git")
+            .args([
+                "clone",
+                "-q",
+                remote.to_str().unwrap(),
+                upstream.to_str().unwrap(),
+            ])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        git_in(&upstream, &["config", "user.email", "u@example.com"]);
+        git_in(&upstream, &["config", "user.name", "U"]);
+        fs::write(upstream.join("src/billing/ledger.ts"), "const rate = 3;\n").unwrap();
+        git_in(&upstream, &["commit", "-q", "-am", "upstream ledger edit"]);
+        git_in(&upstream, &["push", "-q", "origin", "main"]);
+        git_in(&root, &["fetch", "-q", "origin"]);
+        git_in(&root, &["merge", "-q", "--no-edit", "origin/main"]);
         change::check_change(&root, Some(&id)).expect("check");
 
         let record = change::load_change(&root, &id).unwrap();
@@ -4079,6 +4101,76 @@ if the floor call is removed from this function"
                 && !recovery.contains("declare the owners")
                 && recovery.matches("change send-back").count() == 1,
             "narrow only, with one send-back: {recovery}"
+        );
+    }
+
+    /// #1037 review: a file another active change on the branch covers is that change's work. The
+    /// first change is told to narrow it out of its scope, not to declare its owner.
+    #[test]
+    fn the_ownership_recovery_leaves_a_sibling_changes_file_to_that_change() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
+        let sibling = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Fix the ledger rounding".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["ledger".into()],
+                affected_paths: vec!["src/billing/ledger.ts".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal ledger details".into()),
+            },
+        )
+        .expect("create the sibling draft");
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges only".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["billing".into()],
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(&root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        fs::write(root.join("src/billing/ledger.ts"), "const rate = 3;\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "implement both"]);
+
+        let record = change::load_change(&root, &id).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("ledger.ts is in this change's scope and unowned by its declared module");
+        assert!(
+            recovery.contains("affected_paths 'src/billing/charge.ts'")
+                && !recovery.contains("declare the owners")
+                && !recovery.contains("affected_specs"),
+            "the sibling `{}` covers ledger.ts, so this change narrows it out: {recovery}",
+            sibling.id
         );
     }
 

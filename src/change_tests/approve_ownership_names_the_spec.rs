@@ -751,10 +751,19 @@ fn the_narrowing_answer_names_every_changed_path_in_scope_or_falls_back_to_the_p
     );
     assert!(!answer.contains("<path>"), "{answer}");
 
+    // `.` is the whole project, as finalize reads it.
+    record.affected_paths = vec![".".to_string()];
+    let answer = narrow_answer(&record, Some(&changed(&["docs/notes.md", "src/other.ts"])));
+    assert!(answer.contains("affected_paths 'docs/notes.md,src/other.ts'"), "{answer}");
+    record.affected_paths = vec!["src/billing/".to_string(), "docs/notes.md".to_string(), "-x/".to_string()];
+
     for (label, classified) in [
         ("nothing classified", None),
         ("nothing in scope changed", Some(changed(&["src/other.ts"]))),
         ("a comma-bearing path", Some(changed(&["src/billing/a,b.ts"]))),
+        ("a backslash", Some(changed(&["src/billing/a\\b.ts"]))),
+        ("a control character", Some(changed(&["src/billing/a\u{7}b.ts"]))),
+        ("a list read as an option", Some(changed(&["-x/a.ts", "src/billing/b.ts"]))),
         ("a padded path", Some(changed(&["src/billing/padded.ts "]))),
     ] {
         let answer = narrow_answer(&record, classified.as_ref());

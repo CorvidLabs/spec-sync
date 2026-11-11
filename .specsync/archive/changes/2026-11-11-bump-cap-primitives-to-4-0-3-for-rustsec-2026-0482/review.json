@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "bump-cap-primitives-to-4-0-3-for-rustsec-2026-0482",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "9f85c34f3fe08ea4e28074c228d6003725e2c295",
+  "contract_digest": "8a9e198e3246df9171dfba8fa2b9c4f7e929666f79cb5bb938e4bb1049cca995",
+  "execution_digest": "1823eed9872efd4a3f020cca3538d5faec15ec68c82565b74fd5386dee13b23c",
+  "workspace_digest": "f2011f4449d2ef1cb9823f18802b413e2c28a519e3e0a45fca04e2ce69e29823",
+  "timestamp": 1794389191
+}

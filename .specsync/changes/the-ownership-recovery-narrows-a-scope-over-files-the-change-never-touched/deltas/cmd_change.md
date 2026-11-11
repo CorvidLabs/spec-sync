@@ -20,8 +20,9 @@ SHALL report the same blocker and SHALL NOT report the change ready to finalize
 (#986, #956). An unowned input the change has not modified since its base
 commit SHALL instead be named with a narrowing recovery
 (`specsync change send-back <id>`, then
-`specsync change answer <id> affected_paths '<path>,<path>'` naming only what the
-change edits), because declaring its owner would pull an untouched module into the
+`specsync change answer <id> affected_paths <paths>` listing every file the
+change adds, edits or deletes inside its current scope, or a quoted
+`'<path>,<path>'` placeholder when no such list can be written as that answer), because declaring its owner would pull an untouched module into the
 change (#1000). An input counts as modified when it differs from the base commit
 or from the merge base with the remote default branch, or is untracked; without a usable base commit, a merge base with the remote default branch, or a
 complete spec listing, every input keeps the declare recovery. When both kinds are

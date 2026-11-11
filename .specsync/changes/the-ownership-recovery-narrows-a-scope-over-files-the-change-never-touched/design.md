@@ -18,7 +18,10 @@ The recovery has three shapes:
 
 - **Only modified inputs:** the previous declare recovery, unchanged.
 - **Only untouched inputs:** a narrowing recovery. `change send-back`, then `change answer <id>
-  affected_paths '<path>,<path>'` naming only what the change edits. The quoted placeholder keeps
-  the printed command honest (#1011).
+  affected_paths <paths>` listing every changed path inside the current scope, deletions included,
+  so a removed file is not dropped from the scope and the shipped change still passes the
+  meaningful-path audit. When nothing is classified, nothing in the scope changed, or a path holds a
+  comma, a newline or edge whitespace, the answer falls back to a quoted `'<path>,<path>'`
+  placeholder, which keeps the printed command honest (#1011).
 - **Both:** one send-back carrying the declare answer, any `files:` repair for modified inputs no
   module claims, and the narrowing answer, then one approve, check and review.

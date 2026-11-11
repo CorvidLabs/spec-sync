@@ -3949,7 +3949,9 @@ if the floor call is removed from this function"
         assert!(
             recovery
                 .contains("src/billing/ledger.ts is not modified by this change since its base")
-                && recovery.contains("affected_paths '<path>,<path>'"),
+                && recovery.contains(
+                "affected_paths 'src/billing/charge.ts,src/billing/helper.ts,src/billing/tarifa-ñ.ts'"
+            ),
             "the untouched file asks for a narrower scope: {recovery}"
         );
         assert!(
@@ -3957,7 +3959,8 @@ if the floor call is removed from this function"
             "every modified file's owner is declared, including a non-ASCII one: {recovery}"
         );
         assert!(
-            !recovery.contains("tarifa-ñ.ts"),
+            !recovery.contains("tarifa-ñ.ts is not modified")
+                && !blocker.contains("tarifa-ñ.ts: owned by"),
             "a modified non-ASCII file is not narrowed out: {recovery}"
         );
         assert_eq!(
@@ -4035,6 +4038,8 @@ if the floor call is removed from this function"
             fs::write(root.join(file), "const rate = 1;\n").unwrap();
         }
         git_in(&root, &["add", "."]);
+        fs::write(root.join("src/billing/notes.md"), "notes\n").unwrap();
+        git_in(&root, &["add", "."]);
         git_in(&root, &["commit", "-m", "billing and ledger"]);
         with_remote_default(&root);
         let record = change::create_change(
@@ -4053,6 +4058,9 @@ if the floor call is removed from this function"
         let id = record.id.clone();
         approve_and_implement_fixture(&root, &id);
         fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        // The change also deletes a file in its scope: the narrowed scope must still name it,
+        // or the shipped change fails the meaningful-path audit (#1037 review).
+        git_in(&root, &["rm", "-q", "src/billing/notes.md"]);
         git_in(&root, &["add", "."]);
         git_in(&root, &["commit", "-m", "implement"]);
         change::check_change(&root, Some(&id)).expect("check");
@@ -4067,7 +4075,7 @@ if the floor call is removed from this function"
             "{recovery}"
         );
         assert!(
-            recovery.contains("affected_paths '<path>,<path>'")
+            recovery.contains("affected_paths 'src/billing/charge.ts,src/billing/notes.md'")
                 && !recovery.contains("declare the owners")
                 && recovery.matches("change send-back").count() == 1,
             "narrow only, with one send-back: {recovery}"

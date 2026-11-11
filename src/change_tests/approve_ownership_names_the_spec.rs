@@ -729,3 +729,35 @@ fn files_changed_since_base_is_root_relative_and_counts_pre_change_work() {
     git(&["remote", "remove", "origin"]);
     assert!(files_changed_since_base(&root, &record).is_none());
 }
+
+/// The narrowing answer names every changed path inside the current scope (directory scopes
+/// included, files outside the scope left out) so a deletion is not forgotten (#1037 review). It
+/// falls back to the placeholder when nothing is classified, nothing in the scope changed, or a
+/// path cannot round-trip through the comma-separated answer.
+#[test]
+fn the_narrowing_answer_names_every_changed_path_in_scope_or_falls_back_to_the_placeholder() {
+    let temp = TempDir::new().unwrap();
+    let mut record = completed_no_spec_record(temp.path());
+    record.affected_paths = vec!["src/billing/".to_string(), "docs/notes.md".to_string()];
+    let changed = |paths: &[&str]| paths.iter().map(|path| path.to_string()).collect::<BTreeSet<_>>();
+
+    let answer = narrow_answer(
+        &record,
+        Some(&changed(&["docs/notes.md", "src/billing/charge.ts", "src/billing/old.ts", "src/other.ts"])),
+    );
+    assert!(
+        answer.contains("affected_paths 'docs/notes.md,src/billing/charge.ts,src/billing/old.ts'"),
+        "every in-scope path, a deleted one included, and nothing outside the scope: {answer}"
+    );
+    assert!(!answer.contains("<path>"), "{answer}");
+
+    for (label, classified) in [
+        ("nothing classified", None),
+        ("nothing in scope changed", Some(changed(&["src/other.ts"]))),
+        ("a comma-bearing path", Some(changed(&["src/billing/a,b.ts"]))),
+        ("a padded path", Some(changed(&["src/billing/padded.ts "]))),
+    ] {
+        let answer = narrow_answer(&record, classified.as_ref());
+        assert!(answer.contains("affected_paths '<path>,<path>'"), "{label}: {answer}");
+    }
+}

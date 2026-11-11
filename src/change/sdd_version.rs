@@ -5071,8 +5071,15 @@ pub fn ownership_preflight_blocker(
         .collect();
     let recovery = match (touched.is_empty(), untouched.is_empty()) {
         (_, true) => declare_owners_recovery(root, record, &touched, &index),
-        (true, false) => narrow_scope_recovery(record, &untouched),
-        (false, false) => declare_and_narrow_recovery(root, record, &touched, &untouched, &index),
+        (true, false) => narrow_scope_recovery(record, &untouched, changed.as_ref()),
+        (false, false) => declare_and_narrow_recovery(
+            root,
+            record,
+            &touched,
+            &untouched,
+            &index,
+            changed.as_ref(),
+        ),
     };
     Ok(Some((
         format!(
@@ -5122,12 +5129,16 @@ fn declare_owners_recovery(
 
 /// The recovery for unowned inputs the change never modified: narrow `affected_paths` to the
 /// files and directories the change edits instead of declaring their owners (#1000).
-fn narrow_scope_recovery(record: &ChangeRecord, untouched: &[&str]) -> String {
+fn narrow_scope_recovery(
+    record: &ChangeRecord,
+    untouched: &[&str],
+    changed: Option<&BTreeSet<String>>,
+) -> String {
     format!(
         "{} — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then {}, then approve, check and review again",
         untouched_sentence(untouched),
         shell_quote(&record.id),
-        narrow_answer(record)
+        narrow_answer(record, changed)
     )
 }
 
@@ -5140,6 +5151,7 @@ fn declare_and_narrow_recovery(
     touched: &[&str],
     untouched: &[&str],
     index: &SpecListingIndex,
+    changed: Option<&BTreeSet<String>>,
 ) -> String {
     if index.truncated {
         return declare_owners_recovery(root, record, touched, index);
@@ -5165,15 +5177,44 @@ fn declare_and_narrow_recovery(
     format!(
         "send it back once and rescope: `specsync change send-back {} --actor <name> --reason \"declare the owning modules and narrow affected_paths\"`, then {declare}, and {} ({}), then approve, check and review again",
         shell_quote(&record.id),
-        narrow_answer(record),
+        narrow_answer(record, changed),
         untouched_sentence(untouched)
     )
 }
 
 /// The `affected_paths` answer that narrows a scope, with a quoted, comma-separated placeholder.
-fn narrow_answer(record: &ChangeRecord) -> String {
+fn narrow_answer(record: &ChangeRecord, changed: Option<&BTreeSet<String>>) -> String {
+    // Name the files exactly: every path the change added, edited or deleted inside its current
+    // scope. A placeholder invited listing only the edited files and forgetting a deletion, which
+    // then shipped and failed the meaningful-path audit (#1037 review). The placeholder is kept
+    // only when there is no list or a path cannot round-trip through the comma-separated answer.
+    let in_scope: Vec<&String> = changed
+        .map(|changed| {
+            changed
+                .iter()
+                .filter(|path| {
+                    record.affected_paths.iter().any(|scope| {
+                        let scope = scope.trim_end_matches('/');
+                        path.as_str() == scope || path.starts_with(&format!("{scope}/"))
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if !in_scope.is_empty() && in_scope.iter().all(|path| !path.contains([',', '\n']) && path.trim() == path.as_str()) {
+        let list = in_scope
+            .iter()
+            .map(|path| path.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        return format!(
+            "`specsync change answer {} affected_paths {}` (every file the change adds, edits or deletes in its scope)",
+            shell_quote(&record.id),
+            shell_quote(&list)
+        );
+    }
     format!(
-        "`specsync change answer {} affected_paths '<path>,<path>'` naming only the files the change edits, so the scope no longer covers the untouched paths",
+        "`specsync change answer {} affected_paths '<path>,<path>'` naming every file the change adds, edits or deletes, so the scope no longer covers the untouched paths",
         shell_quote(&record.id)
     )
 }

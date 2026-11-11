@@ -1,6 +1,6 @@
 ---
 id: other-write-errors-still-panic-and-test-output-stays-captured
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e853e93a3ef0ab58e0467e2ba5c01a3040b3477f
 ---

@@ -45,21 +45,18 @@ git commit -m "chore: add spec registry for cross-project refs"
 git push
 ```
 
-The registry lists all modules from your specs directory:
+`init-registry` writes the module-to-spec mappings in a `[specs]` table:
 
 ```toml
 [registry]
 name = "spec-sync"
-generated = "2026-03-28T00:00:00Z"
 
-[[modules]]
-name = "cli"
-spec = "specs/cli/cli.spec.md"
-
-[[modules]]
-name = "parser"
-spec = "specs/parser/parser.spec.md"
+[specs]
+cli = "specs/cli/cli.spec.md"
+parser = "specs/parser/parser.spec.md"
 ```
+
+The reader also accepts the older `[[modules]]` entries with `name` and `spec` fields.
 
 > **Inert stubs are tolerated.** A 5.0.1-era `registry.toml` with no registry `name` and no
 > `[specs]`/`[[modules]]` mappings loads as absent: canonical module resolution falls back to the

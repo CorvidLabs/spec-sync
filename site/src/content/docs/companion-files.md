@@ -12,6 +12,7 @@ specs/auth/
 ├── requirements.md
 ├── tasks.md
 ├── context.md
+├── auth.3md         optional context and lessons
 ├── testing.md
 └── design.md        optional
 ```
@@ -89,7 +90,10 @@ Use `specsync archive-tasks` to move completed canonical tasks into their archiv
 
 ## `context.md`
 
-Context is the handoff surface for decisions that code and API tables cannot explain.
+Context is the handoff surface for decisions that code and API tables cannot explain. When a
+parseable `<module>.3md` exists beside the spec, briefings read its first plane for context and
+later planes for lessons instead. Keep `context.md`; it is the fallback when the 3md file is
+absent or cannot be parsed.
 
 ```markdown
 ---
@@ -114,7 +118,10 @@ spec: auth.spec.md
 - Preserve fail-closed behavior when the session store is unavailable.
 ```
 
-Update context when an architectural decision, constraint, key file, or current implementation status changes. Avoid duplicating requirements or API rows.
+Update the active context source when an architectural decision, constraint, key file, or
+current implementation status changes. Record new lessons on a later plane of `<module>.3md`
+when present; otherwise use the Lessons section of `context.md`. Avoid duplicating requirements
+or API rows.
 
 ## `testing.md`
 

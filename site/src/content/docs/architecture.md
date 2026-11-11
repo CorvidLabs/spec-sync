@@ -74,6 +74,10 @@ Approval digests bind recorded approval to content. The actor/reviewer label is 
 - Require configured `##` sections
 - Validate requirement and companion conventions
 
+Draft specs may name planned files when the top-level `require_draft_files` setting is `false` (the default)
+and skip required-section checks. Review specs may omit Public API. Other scaffold warnings
+still become failures in strict mode.
+
 ### 2. API and schema surface
 
 - Detect each source language
@@ -81,15 +85,21 @@ Approval digests bind recorded approval to content. The actor/reviewer label is 
 - Compare symbols with backtick-quoted Public API entries
 - Compare documented database tables and columns with migrations
 
-Spec-only symbols are errors. Code-only symbols and undocumented schema details are warnings that become failures in strict mode.
+For specs beyond draft/review, spec-only symbols are errors and code-only symbols are warnings
+that become failures in strict mode. Draft and review specs skip API-symbol comparison.
+Undocumented schema details also warn.
 
-### 3. Dependency graph
+### Separate dependency graph check
 
-Source imports are mapped to owning specs and compared with `depends_on`. Strict mode rejects undeclared imports, missing modules, and cycles.
+`specsync deps --strict` maps source imports to owning specs and compares them with `depends_on`,
+rejecting undeclared imports, missing modules, and cycles. Ordinary `check` validates declared
+local dependency targets; it does not run this import-graph analysis.
 
-### 4. Coverage and quality
+### Coverage and separate quality scoring
 
-Coverage measures source files and LOC governed by specs. Scoring evaluates frontmatter, required sections, API completeness, depth, and freshness.
+`check --require-coverage <percent>` enforces file coverage. `specsync coverage` reports file
+and LOC coverage. Run `specsync score` separately for quality scoring of frontmatter, sections,
+API completeness, depth, and freshness; ordinary `check` does not run that scoring command.
 
 ## Adding a language
 

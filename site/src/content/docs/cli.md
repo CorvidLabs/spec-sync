@@ -151,13 +151,18 @@ To refresh an existing pre-commit hook after upgrading the generator, run `specs
 Install native SDD skills and supported slash commands for coding agents. This is separate from repository instruction snippets and Git hooks managed by `hooks`.
 
 ```bash
-specsync agents install                    # install all detected integrations
+specsync agents install                    # install all four supported integrations
 specsync agents install --claude --gemini # install selected integrations
 specsync agents status                     # show installation status
 specsync agents uninstall                  # remove generated integrations
 ```
 
-Supports Claude Code, Cursor, Codex, and Gemini CLI. Claude, Cursor, and Gemini also receive slash commands for `create-spec`, `create-change`, **`check`**, and **`audit`** (`/specsync:check`, `/specsync:audit`). Codex is skill-only. The installed skills use the deterministic SpecSync 6.0 lifecycle (`change check` for one change; `change audit` for active workspaces and living specs) and never grant human approvals on an agent's behalf.
+Supports Claude Code, Cursor, Codex, and Gemini CLI. Claude and Gemini receive slash commands
+such as `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, and
+`/specsync:audit`. Cursor uses flat names: `/specsync-create-spec`, `/specsync-create-change`,
+`/specsync-check`, and `/specsync-audit`. Codex is skill-only. The installed skills use the
+deterministic SpecSync 6.0 lifecycle (`change check` for one change; `change audit` for active
+workspaces and living specs) and never grant human approvals on an agent's behalf.
 
 ### `compact`
 

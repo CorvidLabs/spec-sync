@@ -140,8 +140,10 @@ defaults to `6.1.2`. This commit's omitted-input default is `6.2.0`. Move the fl
 only after promotion, to a commit whose omitted-input default is the promoted release. The action runs on Linux and macOS runners
 and refuses a Windows runner.
 
-When using Trust, pin **Trust 1.2.0** (`uses: CorvidLabs/trust@v1.2.0` or SHA `fcc889f`).
-Trust 1.2.0 defaults `specsync-version` to `6.0.0`; omit the input or set `"6.0.0"`. An older
+When using Trust, pin **Trust 1.2.1**, as SpecSync's own `trust.yml` does
+(`uses: CorvidLabs/trust@v1.2.1` or SHA `dd52a7a`). Trust 1.2.1 defaults `specsync-version` to
+`6.0.0`; explicitly set `specsync-version: "6.2.0"` to match the current CLI and Action binary
+examples above. An older
 Trust wrapper (1.1.x, 1.2.0-rc.*) still defaults an RC or 5.x binary. A soft provenance
 setting alone does not enforce release provenance.
 
@@ -163,15 +165,19 @@ reason to schedule fresh review after every normal merge. Complete review and fi
 the PR first. Use `change ship-status <id>` for the current gate and `change status <id>` for
 the supported recovery action if an older change was already merged prematurely.
 
-**Scope freezes at approval, not at creation.** You can widen `affected_specs` and
-`affected_paths` while the change is `draft`. Once approved you cannot, and there is no withdraw
-verb — a mis-scoped change past approval has no clean exit. Get the scope right before
-`approve`, and if you are unsure, look at what the change actually touches first.
+**Scope is approved explicitly.** Set `affected_specs` and `affected_paths` while the change is
+`draft`. To re-scope an approved, implementing or verifying change, use
+`specsync change send-back <id> --actor <name> --reason "<why>"`, answer the scope questions,
+and obtain approval again. Send-back cancels the old approval and records applied work;
+it does not erase deltas already materialized into canonical specs. Follow `change status`
+for the next supported action.
 
 **Every path you touch needs an owning module.** Production source declared under
 `--no-spec-change` is refused: that flag means "no spec text changes", not "no module owns this".
-The refusal arrives at `ship`, several stages after the only place you could have fixed it —
-and scope freezes at approval, so by then the only exit is to redo the change.
+Approval checks existing production paths against the modules you declared. A justified
+`--no-spec-change` record that declares no modules skips that early ownership check, and
+finalization still refuses unowned production source. Declare owners up front; if the scope
+was already approved, use the audited send-back flow to correct it and obtain fresh approval.
 
 The remedy is to declare the owning specs **and** `--no-spec-change` together. They are not
 mutually exclusive, which is not obvious:
@@ -219,7 +225,8 @@ The point of archival is not filing — it is that a module accumulates what was
 - While building, put what you learn in the change's own `context.md` — prior attempts, dead ends,
   anything already ruled out.
 - At `finalize` or `ship`, spec-sync writes a `lesson-bundle.md` into the archive.
-  Folding useful lessons into a module's `context.md` is optional and is not a merge gate.
+  Folding useful lessons into a module's lesson source is optional and is not a merge gate:
+  use a later plane of `<module>.3md` when the module has migrated, otherwise `context.md`.
   If you choose to update tracked companions later, scope that documentation change normally;
   no recursive fold-back change is required merely because another archive contains lessons.
 

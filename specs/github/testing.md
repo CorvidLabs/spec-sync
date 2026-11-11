@@ -106,3 +106,19 @@ The proposed fallback changes REQ-github-002 explicitly; previous frozen source 
 The existing immutable release-candidate validator suite must still pass in full. Native lifecycle/Trust/full product qualification, exact-head hosted CI, real Ubuntu/macOS RC evidence and publication/Action smokes remain required before their respective delivery steps. No future platform or publication result is claimed by this proposal.
 
 | Archive check on a ship-status lookup | `Archive` is trust-relevant; `Archive old releases` is not | `parse_commit_check_summary_aggregates_green_pending_failed` in `src/github.rs` |
+
+## Maintained documentation and Mermaid (REQ-github-027)
+
+`site/scripts/documentation-accuracy.test.ts`, included by `fledge run docs-test` and the
+existing site CI job, parses maintained Markdown Mermaid fences with pinned Mermaid 11.17.2
+and JSDOM 29.1.1. It compares HLD nodes with `ChangeState`, recovery edges with
+`SEND_BACK_STATES`, and checks staging, native archive-commit ordering and archive-first CI
+claims against source. Negative controls reject malformed syntax, missing/phantom states,
+missing/wrong recovery edges and unrecognized source definitions. The parser does not render
+diagrams or prove all prose semantics.
+
+Failing-first commit `355f1d69` reproduces the red run
+(21 pass, 4 fail). After corrections, the same 25 tests pass and all 11 maintained diagrams
+parse; the complete site suite passes 48 tests with Bun 1.3.14, with zero Astro diagnostics
+and a successful 43-page build. Live external links remain dated audit observations, not
+network-dependent CI gates. Re-run the site lane after any additional documentation change.

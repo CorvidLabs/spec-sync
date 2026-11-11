@@ -1,6 +1,6 @@
 ---
 module: change
-version: 231
+version: 232
 status: active
 files:
   - src/change.rs
@@ -782,3 +782,4 @@ Acceptance Criteria
 | 2026-11-10 | every-actor-accepting-verb-normalizes-identity-the-same-way: Every actor-accepting verb normalizes identity the same way |
 | 2026-11-11 | identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists: Identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists |
 | 2026-11-11 | answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested: Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested |
+| 2026-11-11 | a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote: A lifecycle rewrite keeps the fields a newer specsync wrote |

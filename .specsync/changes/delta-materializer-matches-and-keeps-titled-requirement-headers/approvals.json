@@ -40,6 +40,47 @@
         "validator": "97dd3cf0d44b7b36dfb6dbd994588013ac5a369e9b3c00c07643bd61409347f4"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794414127,
+      "digest": "b53c3ac830d2f610b2d5261cda9e0e1ca33cee71474d64fcc3de255f34c6db6e",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-materializer-matches-and-keeps-titled-requirement-headers",
+        "title": "Delta materializer matches and keeps titled requirement headers",
+        "description": "delta materializer matches and keeps titled requirement headers",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/titled_requirement_header_delta.rs",
+          "src/validator/requirement_ids.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta applies to every header form the requirement parser accepts (title suffix, punctuation, multi-segment ids, up to 3-space indent); the matched header line is written back unchanged; a following indented requirement block survives"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "afc21e0ecf12b33220f452802f1934b84602650a5ee1bd294bc013e288ca5365",
+        "validator": "97dd3cf0d44b7b36dfb6dbd994588013ac5a369e9b3c00c07643bd61409347f4"
+      },
+      "approved_delta_bases": {}
     }
   ],
   "reopenings": [],

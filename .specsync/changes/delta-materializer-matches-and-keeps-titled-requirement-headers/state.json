@@ -7,10 +7,11 @@
   "title": "Delta materializer matches and keeps titled requirement headers",
   "description": "delta materializer matches and keeps titled requirement headers",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794384585,
-  "updated_at": 1794385832,
+  "updated_at": 1794414163,
   "affected_specs": [
     "change",
     "validator"

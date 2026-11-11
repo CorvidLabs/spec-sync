@@ -6546,3 +6546,39 @@ fn change_check_commit_json_refusal_prints_one_error_document() {
         .stdout;
     assert_eq!(head_before, head_after, "a refused run commits nothing");
 }
+// #676 (REQ-change-155): an ignored_paths entry whose whole coverage is always meaningful is
+// disclosed at policy load, on stderr, with the file to edit — not three verbs later at audit.
+#[cfg(unix)]
+#[test]
+fn an_inert_ignored_paths_entry_is_disclosed_at_policy_load() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    policy["ignored_paths"] = serde_json::json!([".specsync/", "specs/"]);
+    fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+    // `change status` loads the policy (the briefing reads the principles file); `change list`
+    // only reads the roster and never loads it.
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "status", &id])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ignored_paths entry `specs/` is inert"),
+        "the note names the inert entry: {stderr}"
+    );
+    assert!(
+        stderr.contains(".specsync/sdd.json"),
+        "the note names the file to edit: {stderr}"
+    );
+    assert!(
+        !stderr.contains("`.specsync/` is inert"),
+        "the .specsync/ entry does real work and stays silent: {stderr}"
+    );
+}

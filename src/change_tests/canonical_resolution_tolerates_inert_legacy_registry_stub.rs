@@ -886,7 +886,10 @@ fn bootstrap_records_exempt_only_newly_created_protected_paths() {
 
 #[test]
 fn uncovered_paths_error_names_the_escape_hatch_and_ignore_precedence() {
-    let policy = SddPolicy::default();
+    // The default policy no longer carries the inert `specs/` entry (#676); set it
+    // explicitly to test the precedence note.
+    let mut policy = SddPolicy::default();
+    policy.ignored_paths.push("specs/".into());
     let message = uncovered_paths_error(
         &policy,
         &["src/lib.rs".to_string(), "specs/zzz/note.md".to_string()],

@@ -106,7 +106,7 @@ fn only_archived_specs_in(dir: &Path) -> bool {
     seen
 }
 
-fn requirement_heading_id(line: &str) -> Option<&str> {
+pub(crate) fn requirement_heading_id(line: &str) -> Option<&str> {
     // An ATX heading may be indented by up to three spaces; four is indented code.
     let indent = line.chars().take_while(|ch| *ch == ' ').count();
     if indent > 3 {

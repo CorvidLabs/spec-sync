@@ -5008,7 +5008,10 @@ pub fn ownership_preflight_blocker(
     // into the change: the recovery for it is a narrower scope (#1000). Without a usable base
     // commit or Git, nothing is classified as untouched and the declare recovery covers every
     // path.
-    let changed = files_changed_since_base(root, record);
+    // A truncated spec listing cannot say which owners exist, so nothing is classified then.
+    let changed = (!index.truncated)
+        .then(|| files_changed_since_base(root, record))
+        .flatten();
     let (touched, untouched): (Vec<&str>, Vec<&str>) = paths
         .iter()
         .copied()
@@ -5042,21 +5045,20 @@ pub fn ownership_preflight_blocker(
         .map(|path| {
             if untouched.contains(path) {
                 let owners = undeclared_owning_modules(root, record, path, &index);
-                let owned = if owners.is_empty() {
-                    "no module owns it".to_string()
+                if owners.is_empty() {
+                    format!(
+                        "{path}: not modified by this change since its base and no module owns it, so leave it out of `affected_paths`"
+                    )
                 } else {
                     format!(
-                        "owned by {}",
+                        "{path}: owned by {}, but not modified by this change since its base, so leave it out of `affected_paths`",
                         owners
                             .iter()
                             .map(|owner| format!("`{owner}`"))
                             .collect::<Vec<_>>()
                             .join(", ")
                     )
-                };
-                format!(
-                    "{path}: {owned}, but not modified by this change since its base, so leave it out of `affected_paths`"
-                )
+                }
             } else {
                 format!("{path}: {}", ownership_hint(root, record, path, &index))
             }
@@ -5204,16 +5206,17 @@ fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeS
         .base_commit
         .as_deref()
         .filter(|base| is_canonical_commit_id(base))?;
-    let mut bases = vec![base.to_string()];
     // Work committed before `change new` is in `base` already, but it is still this branch's
-    // work: also compare against the merge base with the remote default branch when there is
-    // one. A larger changed set only ever keeps the declare recovery.
-    if let Some(remote) = remote_default_ref(root)
-        && let Some(merge_base) = git_output(root, &["merge-base", remote.as_str(), "HEAD"])
-        && is_canonical_commit_id(merge_base.trim())
-    {
-        bases.push(merge_base.trim().to_string());
+    // work, so the merge base with the remote default branch is compared too. Without one (no
+    // remote, or no default ref) that work cannot be told from untouched files, so nothing is
+    // classified and every input keeps the declare recovery: the safe direction (#1037 review).
+    let remote = remote_default_ref(root)?;
+    let merge_base = git_output(root, &["merge-base", remote.as_str(), "HEAD"])?;
+    let merge_base = merge_base.trim();
+    if !is_canonical_commit_id(merge_base) {
+        return None;
     }
+    let bases = [base.to_string(), merge_base.to_string()];
     let mut changed = BTreeSet::new();
     // NUL-separated, so a non-ASCII, quoted or newline-bearing path comes back verbatim rather
     // than C-quoted under git's default `core.quotePath`; `--no-renames`, so a renamed file's old

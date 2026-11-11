@@ -23,8 +23,8 @@ commit SHALL instead be named with a narrowing recovery
 `specsync change answer <id> affected_paths '<path>,<path>'` naming only what the
 change edits), because declaring its owner would pull an untouched module into the
 change (#1000). An input counts as modified when it differs from the base commit
-or from the merge base with the remote default branch, or is untracked; without a
-usable base commit, every input keeps the declare recovery. When both kinds are
+or from the merge base with the remote default branch, or is untracked; without a usable base commit, a merge base with the remote default branch, or a
+complete spec listing, every input keeps the declare recovery. When both kinds are
 present, one send-back carries both answers. An untouched input whose owners the
 declare answer already declares is not narrowed.
 

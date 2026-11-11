@@ -3802,6 +3802,20 @@ if the floor call is removed from this function"
     }
 
     /// A git project with a committed base tree, ready for a change to be driven through it.
+    /// Give a fixture repository a remote default branch at its current commit, so the
+    /// ownership recovery can tell this branch's work from untouched files (#1000, #1037).
+    fn with_remote_default(root: &Path) {
+        let remote = root.parent().unwrap().join("remote.git");
+        let status = std::process::Command::new("git")
+            .args(["init", "-q", "--bare", remote.to_str().unwrap()])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        git_in(root, &["remote", "add", "origin", remote.to_str().unwrap()]);
+        git_in(root, &["push", "-q", "origin", "main"]);
+        git_in(root, &["remote", "set-head", "origin", "main"]);
+    }
+
     fn git_project_fixture(root: &Path) {
         git_in(root, &["init", "-b", "main"]);
         git_in(root, &["config", "user.email", "t@example.com"]);
@@ -3899,6 +3913,7 @@ if the floor call is removed from this function"
         }
         git_in(&root, &["add", "."]);
         git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
         let record = change::create_change(
             &root,
             CreateChangeRequest {
@@ -4021,6 +4036,7 @@ if the floor call is removed from this function"
         }
         git_in(&root, &["add", "."]);
         git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
         let record = change::create_change(
             &root,
             CreateChangeRequest {

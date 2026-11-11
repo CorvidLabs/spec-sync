@@ -1,3 +1,42 @@
+// A reader that closes early (`specsync … | head`) must not crash SpecSync or hide its verdict
+// (#1036). Rust ignores SIGPIPE, so a write to a closed pipe fails with `BrokenPipe`, and the
+// standard printing macros panic on that error, which turned a passing command into a crash. These
+// definitions replace them crate-wide: a `macro_rules!` defined before the `mod` items below
+// shadows the prelude macro of the same name in every module. Once the reader is gone, further
+// output to that stream is dropped and the command runs to its own exit status, 0 or 1. Any other
+// write error still panics, as the standard macros do.
+macro_rules! println {
+    () => {
+        $crate::write_output_stream($crate::OutputStream::Stdout, format_args!(""), true)
+    };
+    ($($arg:tt)*) => {
+        $crate::write_output_stream($crate::OutputStream::Stdout, format_args!($($arg)*), true)
+    };
+}
+
+macro_rules! print {
+    ($($arg:tt)*) => {
+        $crate::write_output_stream($crate::OutputStream::Stdout, format_args!($($arg)*), false)
+    };
+}
+
+macro_rules! eprintln {
+    () => {
+        $crate::write_output_stream($crate::OutputStream::Stderr, format_args!(""), true)
+    };
+    ($($arg:tt)*) => {
+        $crate::write_output_stream($crate::OutputStream::Stderr, format_args!($($arg)*), true)
+    };
+}
+
+// Unused today; defined so a future `eprint!` cannot bypass the closed-pipe handling.
+#[allow(unused_macros)]
+macro_rules! eprint {
+    ($($arg:tt)*) => {
+        $crate::write_output_stream($crate::OutputStream::Stderr, format_args!($($arg)*), false)
+    };
+}
+
 mod agents;
 mod archive;
 mod change;
@@ -51,6 +90,70 @@ const HISTORY_REWRITING_GIT_ENV: [&str; 4] = [
     "GIT_GRAFT_FILE",
     "GIT_SHALLOW_FILE",
 ];
+
+/// The two standard streams the printing macros write to.
+#[derive(Clone, Copy)]
+enum OutputStream {
+    Stdout,
+    Stderr,
+}
+
+/// Set once a write to stdout found its reader gone (#1036).
+static STDOUT_CLOSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Set once a write to stderr found its reader gone (#1036).
+static STDERR_CLOSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether stdout's reader has gone, so a command that only reports (such as `watch`) can stop.
+fn stdout_closed() -> bool {
+    STDOUT_CLOSED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// What the printing macros above expand to: write `args` (and a newline) to `stream`, drop the
+/// output once that stream's reader has gone, and panic on any other write error.
+fn write_output_stream(stream: OutputStream, args: std::fmt::Arguments<'_>, newline: bool) {
+    use std::io::Write;
+    // Under `cargo test` the standard macros print through libtest's output capture, so a passing
+    // unit test stays quiet; the closed-pipe handling matters only to the built binary, which the
+    // integration tests run (#1048 review).
+    if cfg!(test) {
+        match (stream, newline) {
+            (OutputStream::Stdout, true) => std::println!("{args}"),
+            (OutputStream::Stdout, false) => std::print!("{args}"),
+            (OutputStream::Stderr, true) => std::eprintln!("{args}"),
+            (OutputStream::Stderr, false) => std::eprint!("{args}"),
+        }
+        return;
+    }
+    let (closed, name) = match stream {
+        OutputStream::Stdout => (&STDOUT_CLOSED, "stdout"),
+        OutputStream::Stderr => (&STDERR_CLOSED, "stderr"),
+    };
+    if closed.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    fn write_to(
+        out: &mut dyn Write,
+        args: std::fmt::Arguments<'_>,
+        newline: bool,
+    ) -> std::io::Result<()> {
+        out.write_fmt(args)?;
+        if newline {
+            out.write_all(b"\n")?;
+        }
+        Ok(())
+    }
+    let result = match stream {
+        OutputStream::Stdout => write_to(&mut std::io::stdout().lock(), args, newline),
+        OutputStream::Stderr => write_to(&mut std::io::stderr().lock(), args, newline),
+    };
+    match result {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {
+            closed.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        Err(error) => panic!("failed printing to {name}: {error}"),
+    }
+}
 
 fn main() {
     for key in HISTORY_REWRITING_GIT_ENV {

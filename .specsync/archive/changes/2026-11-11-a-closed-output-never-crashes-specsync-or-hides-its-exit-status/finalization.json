@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-closed-output-never-crashes-specsync-or-hides-its-exit-status",
+  "implementation_commit": "83eb01103c77e20d2e92c9b16196d84bb99b7fc8",
+  "implementation_tree": "dac9800d0970289131b3e123e962872fcad7310f",
+  "contract_digest": "242a2be178ac52e221fffc79ab76742bd9e11a29eb3896ba617e30be6326f69c",
+  "workspace_digest": "6c0640e19016601fbe017ab5f05e26a589efbd4d15e0d9d5c7380eb465fc09d1",
+  "closing_digest": "6c1c177a9ba9c1b21e5c0838e923a5f6392652a73739cb0355039aed72911e32",
+  "review_digest": "e2d690bfed9b786285b81b299f5469b5b4e14bdacca132b6892cf8e938833c05",
+  "finalization_digest": "b512809bc371f3ade60be85466d666d08e16eaa79f8a1903a83df32acf246a93",
+  "timestamp": 1794385350
+}

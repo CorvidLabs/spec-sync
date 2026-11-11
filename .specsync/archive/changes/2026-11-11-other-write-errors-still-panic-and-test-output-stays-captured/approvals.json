@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-code-t37f",
+      "timestamp": 1794387131,
+      "digest": "15c3e470416e19dcb76adf7d59f2116e135b924477ec71961c7460cb0de8901f",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by claude-code (Claude Opus 5.5, hc t37f). Follow-up to #1048; no requirement text.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "other-write-errors-still-panic-and-test-output-stays-captured",
+        "title": "Other write errors still panic and test output stays captured",
+        "description": "other write errors still panic and test output stays captured",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli"
+        ],
+        "affected_paths": [
+          "src/main.rs",
+          "tests/integration/closed_stdout.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Follow-up to #1048: a test for the existing 'any other write error still panics' behavior, and test-build output through libtest capture; no spec text",
+        "acceptance_criteria": [
+          "A write error other than a closed pipe still panics and is reported as a bug with exit 1 (tested on Linux with /dev/full); under cargo test the printing macros go through libtest's output capture; the CHANGELOG says watch stops at its next output"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-cli: a panic is reported as a please-report-it bug message; #1048 kept every non-pipe write error a panic",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794387460,
+      "digest": "a826962cf1a8adde0e54db9019e9fe17f39c4f9d88eb3e9a4374b935236f6664",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

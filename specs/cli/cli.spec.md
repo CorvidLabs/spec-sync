@@ -250,6 +250,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | Condition | Behavior |
 |-----------|----------|
 | Cannot determine cwd | Panics with "Cannot determine cwd" |
+| A reader closes stdout or stderr early (`specsync … \| head`) | Further output to that stream is dropped and the command exits with its own status, 0 or 1; it never panics. The crate-wide `println!`/`print!`/`eprintln!`/`eprint!` in `src/main.rs` handle `BrokenPipe`; any other write error still panics (#1036) |
 | Retired `--provider` or `--model` flag | Clap rejects the unknown argument |
 | Failed to write the canonical config, SDD policy, or versioned layout during `init` | Prints an actionable error and exits 1 |
 | Failed to create spec directory | Prints error to stderr and exits 1 |

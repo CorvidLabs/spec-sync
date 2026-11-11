@@ -1,6 +1,6 @@
 ---
 id: watch-test-helper-keeps-harness-hygiene-and-kills-the-child
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 184bf8893a20289a2e044a137a11d4828a558761
 ---

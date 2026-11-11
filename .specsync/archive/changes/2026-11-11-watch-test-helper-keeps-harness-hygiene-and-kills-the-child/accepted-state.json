@@ -7,11 +7,11 @@
   "title": "Watch test helper keeps harness hygiene and kills the child",
   "description": "watch test helper keeps harness hygiene and kills the child",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "184bf8893a20289a2e044a137a11d4828a558761",
   "created_at": 1794394751,
-  "updated_at": 1794394791,
+  "updated_at": 1794395039,
   "affected_specs": [],
   "affected_paths": [
     "tests/integration/watch.rs",

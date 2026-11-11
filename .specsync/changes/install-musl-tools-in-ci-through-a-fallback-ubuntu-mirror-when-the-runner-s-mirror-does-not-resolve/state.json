@@ -7,10 +7,11 @@
   "title": "Install musl-tools in CI through a fallback Ubuntu mirror when the runner's mirror does not resolve",
   "description": "Install musl-tools in CI through a fallback Ubuntu mirror when the runner's mirror does not resolve",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "ad8544e9da79725f499b38ae4d4b3a052be5f807",
   "created_at": 1794412902,
-  "updated_at": 1794413019,
+  "updated_at": 1794413098,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/ci.yml",

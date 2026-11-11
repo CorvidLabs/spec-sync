@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "watch-test-helper-keeps-harness-hygiene-and-kills-the-child",
+  "slug": "watch-test-helper-keeps-harness-hygiene-and-kills-the-child",
+  "title": "Watch test helper keeps harness hygiene and kills the child",
+  "description": "watch test helper keeps harness hygiene and kills the child",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "184bf8893a20289a2e044a137a11d4828a558761",
+  "created_at": 1794394751,
+  "updated_at": 1794395045,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/watch.rs",
+    "tests/integration/helpers.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "test-harness hardening from review; no contract change",
+  "acceptance_criteria": [
+    "watch_until inherits the specsync() env hygiene and kills the child on assert/panic paths too"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

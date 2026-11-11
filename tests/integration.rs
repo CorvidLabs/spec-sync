@@ -5,6 +5,9 @@ pub mod helpers;
 #[path = "integration/check.rs"]
 mod check;
 
+#[path = "integration/closed_stdout.rs"]
+mod closed_stdout;
+
 #[path = "integration/fix.rs"]
 mod fix;
 

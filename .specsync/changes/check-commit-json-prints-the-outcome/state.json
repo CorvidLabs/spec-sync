@@ -7,11 +7,10 @@
   "title": "Check commit json prints the outcome",
   "description": "check commit json prints the outcome",
   "kind": "bug_fix",
-  "state": "verifying",
-  "canonical_applied": true,
+  "state": "draft",
   "base_commit": "d93cad4615c3b1de5dfd0b2fa19425f06a2bbad6",
   "created_at": 1794383855,
-  "updated_at": 1794384216,
+  "updated_at": 1794385846,
   "affected_specs": [
     "cmd_change"
   ],

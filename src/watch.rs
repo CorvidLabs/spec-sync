@@ -662,6 +662,12 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>, for
     }
     println!("{} Press Ctrl+C to stop\n", ">>>".cyan());
 
+    // A watcher only reports, so once nobody reads its output it stops instead of running on
+    // unseen (#1036).
+    if crate::stdout_closed() {
+        return;
+    }
+
     // Event loop
     let mut last_run = Instant::now();
     while let Ok(event) = rx.recv() {
@@ -706,6 +712,9 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>, for
             "\n{} Watching for changes... (Ctrl+C to stop)",
             ">>>".cyan()
         );
+        if crate::stdout_closed() {
+            return;
+        }
     }
 }
 

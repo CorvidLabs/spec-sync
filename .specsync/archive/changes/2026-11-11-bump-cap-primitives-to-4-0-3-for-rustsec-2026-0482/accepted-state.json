@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "bump-cap-primitives-to-4-0-3-for-rustsec-2026-0482",
+  "slug": "bump-cap-primitives-to-4-0-3-for-rustsec-2026-0482",
+  "title": "Bump cap-primitives to 4.0.3 for RUSTSEC-2026-0482",
+  "description": "bump cap-primitives to 4.0.3 for RUSTSEC-2026-0482",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794388439,
+  "updated_at": 1794389232,
+  "affected_specs": [],
+  "affected_paths": [
+    "Cargo.lock"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "dependency security patch; no behavior or API change",
+  "acceptance_criteria": [
+    "cargo audit no longer reports RUSTSEC-2026-0482; the full suite passes unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

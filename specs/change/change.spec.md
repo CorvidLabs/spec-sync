@@ -1,6 +1,6 @@
 ---
 module: change
-version: 229
+version: 230
 status: active
 files:
   - src/change.rs
@@ -772,3 +772,4 @@ Acceptance Criteria
 | 2026-11-11 | a-failed-verification-records-the-findings-that-failed-it: A failed verification records the findings that failed it |
 | 2026-11-11 | inert-ignored-paths-disclosed-at-policy-load: Inert ignored paths disclosed at policy load |
 | 2026-11-11 | a-refused-check-records-its-refusal: A refused check records its refusal |
+| 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |

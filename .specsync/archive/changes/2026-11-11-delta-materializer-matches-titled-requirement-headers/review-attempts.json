@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "delta-materializer-matches-titled-requirement-headers",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "03639a9ae79c3d152fad433abc95482abb5146be",
+      "contract_digest": "63469579ab1969783e18cefba2b320aad26f6abc877af7651ffee1c25cb498b0",
+      "execution_digest": "228624c42b50c4dde2de8fd9741664108f6fbb856e83f52035b7d779532f2776",
+      "workspace_digest": "a00d5a0c53306ad39e60ea0704f289d47b6d761c928513c8fdf4250f3825923a",
+      "timestamp": 1794366048
+    }
+  ]
+}

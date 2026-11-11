@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "delta-materializer-matches-titled-requirement-headers",
+  "implementation_commit": "03639a9ae79c3d152fad433abc95482abb5146be",
+  "implementation_tree": "b09fd552b60652f5fbab75015c3bf620e26c6fcc",
+  "contract_digest": "63469579ab1969783e18cefba2b320aad26f6abc877af7651ffee1c25cb498b0",
+  "workspace_digest": "a00d5a0c53306ad39e60ea0704f289d47b6d761c928513c8fdf4250f3825923a",
+  "closing_digest": "796ea886ef61f7da72506b1f1a99cbaa462d0732186845e0dbd35c0fcf0281c3",
+  "review_digest": "2d0c46cf702921bb7684b816ec35577c8fe0fde754ce1fb89d9a477b9b7c530c",
+  "finalization_digest": "b423733da91de23afee7891e9fc4d5ccc556c9ad3687d1e3e9f6dd159c84b294",
+  "timestamp": 1794366134
+}

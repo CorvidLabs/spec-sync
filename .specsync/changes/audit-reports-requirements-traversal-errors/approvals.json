@@ -149,6 +149,30 @@
       "applied_modules": [
         "validator"
       ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "audit-reports-requirements-traversal-errors",
+      "actor": "kimi-code-t37b",
+      "reason": "READY policy (t370, 2026-11-11): no agent approval stands on new requirement text; the definition approval is Leif's gate",
+      "timestamp": 1794385842,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 3,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "validator",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-validator-046",
+          "content": "The duplicate-requirement-ID audit SHALL report a specs-tree traversal error as\nan audit error naming the path; it SHALL NOT silently skip a directory it\ncannot read.\n\n#### Acceptance Criteria\n\n- An unreadable subdirectory under the specs tree produces an audit error\n  naming the path.\n- A readable tree produces no traversal errors."
+        }
+      ],
+      "applied_modules": [
+        "validator"
+      ]
     }
   ]
 }

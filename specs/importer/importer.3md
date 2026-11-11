@@ -38,3 +38,13 @@ created. Live REST success remains an integration-only gate.
 - Jira Cloud uses email:token basic auth; Jira Server/DC uses bearer token
 - Confluence storage format is HTML-like, not markdown
 - Repository selection remains command-layer policy; the importer accepts a validated repository identifier and performs no Git or provider-subprocess discovery
+
+@plane z=5 label="Lesson: render_spec is two paths behind one entry"
+
+`render_spec` branches on `ImportedItem.preserved`: external imports (GitHub/Jira/Confluence)
+keep the fixed skeleton with `files: []` (and the command layer now warns that the gate will
+fail until `files` is filled in); local markdown imports carry a `PreservedSource` and re-render
+the source's own sections, scaffolding only what is missing. Frontmatter parsing reuses
+`parser::parse_frontmatter` / `strip_frontmatter` — never a hand-rolled `---` skip; the first
+attempt at that mistook the frontmatter fence for body text and discarded every declaration
+(#416).

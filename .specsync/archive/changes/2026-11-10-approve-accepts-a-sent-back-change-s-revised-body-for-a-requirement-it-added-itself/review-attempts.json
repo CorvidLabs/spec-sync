@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "approve-accepts-a-sent-back-change-s-revised-body-for-a-requirement-it-added-itself",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "cf7f52fba17f60e667e8917ff76171d8a0894702",
+      "contract_digest": "07e81072beb17bb51b643d8088fb4200b493027a3090d6d2cffc1d66a17c0b6f",
+      "execution_digest": "47e53b30c8cc28c09447daedb891e27abcee687644846b7a218a42a9be12d130",
+      "workspace_digest": "9d4f392d3236320f116c7f930b6980b169ed6cc16900ba1e69601f6129d52282",
+      "timestamp": 1794347100
+    }
+  ]
+}

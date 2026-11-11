@@ -10,6 +10,12 @@ cmd = "cargo test"
 [tasks.test-nextest]
 cmd = "cargo nextest run --no-fail-fast"
 
+# CI-11 (#614): the TOCTOU race guards tested in the profile we ship. The
+# rendezvous-driven integration tests stay debug-only; these unit tests replace the
+# root themselves, so they need no debug hook and run under `--release`.
+[tasks.test-release-guards]
+cmd = "cargo test --release --locked --bin specsync -- release_race_guard"
+
 # --all-targets lints the test code too, as CI does (CI-8, REQ-github-028, #608).
 [tasks.lint]
 cmd = "cargo clippy --all-targets -- -D warnings"
@@ -148,8 +154,8 @@ steps = ["check-types"]
 # immutable RC tag. Keep platform qualification here so local reproduction
 # and every hosted runner share one command surface.
 [lanes.release-candidate]
-description = "Immutable release-candidate qualification (tests under cargo-nextest + release build)"
-steps = ["test-nextest", "build"]
+description = "Immutable release-candidate qualification (tests under cargo-nextest, race guards under --release, release build)"
+steps = ["test-nextest", "test-release-guards", "build"]
 
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"

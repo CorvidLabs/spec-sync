@@ -1,0 +1,56 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794333500,
+      "digest": "e1d1862b4ebbd8782c9ee9605c5f5cba0859e1835fb3de07a19561940f97b389",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "generate-ownership-wording-matches-shipped-no-files-path",
+        "title": "Generate ownership wording matches shipped no-files path",
+        "description": "generate ownership wording matches shipped no-files path",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_scaffold",
+          "generator"
+        ],
+        "affected_paths": [
+          "specs/cmd_scaffold/",
+          "specs/generator/",
+          "src/generator.rs",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "REQ-generator-009 and REQ-cmd-scaffold-006 describe the shipped behavior: an all-owned candidate set takes the existing no-files path (spec written with files: [] plus the empty-files warning); new foo against an owned flat file is covered by a test; the requirements carry no contradiction about config.modules mappings"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "wording follows shipped behavior; no behavior change in this change",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_scaffold": "8bb1528160e5f5a04ad35ea64f0dd6150396481aa66ae336e3d3f78141d0cb27",
+        "generator": "5b3a6ace7ee5b37784bcc8bacddcdd99b2f6826d0cfe45efc63f7b5349f8bc11"
+      },
+      "approved_delta_bases": {
+        "cmd_scaffold: REQUIREMENT REQ-cmd-scaffold-006": "d1a519092c974bf6365f21205b2ce43eda9d3d8e66a3bfca86504684fab1758d",
+        "generator: REQUIREMENT REQ-generator-009": "56edcd74139333598013558f659a3e372cde58bb37c72634c74895242b356124"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794333562,
+      "digest": "a2c08bd4967e5b9ae21580bff02194faa47967f4652bf3f45353a519a4c9e3e6",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

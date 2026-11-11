@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "change-review-refuses-to-pass-a-change-finalize-would-refuse-on-ownership",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "c8ba3f51b4a44482941ef097b2bcb6207e5761f0",
+  "contract_digest": "499d20476ede2ffb01ee71c9eb85347277d1c96eaa68aa3e3584803ec150cdd0",
+  "execution_digest": "71ebd771ce92f72a8d9f22b2eea9e6024f6c62c4c7e7d7975941be02e93edd65",
+  "workspace_digest": "fcdc09b5d8e8ec9a53be81d2045c05827935314848dd064241692c06ca40b558",
+  "timestamp": 1794354183
+}

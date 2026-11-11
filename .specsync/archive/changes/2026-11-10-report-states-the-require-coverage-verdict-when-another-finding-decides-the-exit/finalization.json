@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "report-states-the-require-coverage-verdict-when-another-finding-decides-the-exit",
+  "implementation_commit": "5ecf1d78e6efbec2fd1db2f36928a8b296d4fbd8",
+  "implementation_tree": "2fa1457737e9f07012c6cccb68d69b0b70890381",
+  "contract_digest": "c3f6983ef099cdd51e2f75d062481b5173fa72d2c0bee6ea60f5cdebf9855901",
+  "workspace_digest": "164b47290486f5d4ac9037e2b1912b5062e3966d7d36189685d44b395b8b8fc5",
+  "closing_digest": "ad51eb1e231f32cc095743ca4126d3c09efd1d202de52373d52aa694e1b8e378",
+  "review_digest": "9c1b8324c8396154b6bd96bbeba3475517f319d8436801dde34756c8c36a7ada",
+  "finalization_digest": "9213e877adfd5a31934623f34aa8ffa0f2ce7385d004d990c6ec6511f8c7543e",
+  "timestamp": 1794348109
+}

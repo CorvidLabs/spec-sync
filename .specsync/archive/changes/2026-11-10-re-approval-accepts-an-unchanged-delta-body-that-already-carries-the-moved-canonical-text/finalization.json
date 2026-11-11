@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "re-approval-accepts-an-unchanged-delta-body-that-already-carries-the-moved-canonical-text",
+  "implementation_commit": "39fb7f5d750b21cc0c9b686d837f04c32f4174ee",
+  "implementation_tree": "b12385fc29be003ca48a0c7aaee5db4622a9844d",
+  "contract_digest": "abcbf038ea3bcfbd0a4a47656d8548c4a43973bd7b1ddd42b6ec976f5a6b6971",
+  "workspace_digest": "1137ac8bc8a8efeca6d899df3186755c31cb6a6350a027a0bd7cca02df4795e5",
+  "closing_digest": "bba20318d8ab042f99fbe8f13bcc33bcfb36b76b22def5d0621e1c7bcfda4dd6",
+  "review_digest": "c44cc380933429eb342fef2d204c7485584ae60e49113d597e2d21891cd98139",
+  "finalization_digest": "4a016e6813cb2051de3d8d4f0cd26698b814f4abda9f2e49c14dc12548175dbd",
+  "timestamp": 1794354554
+}

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 223
+version: 225
 status: active
 files:
   - src/change.rs
@@ -494,6 +494,8 @@ Acceptance Criteria
 
 ## Change Log
 
+| 2026-11-10 | v223: Ownership recovery follow-ups (#1011, #999 review): recognized reserved delivery metadata is no longer an approve-time ownership refusal (finalize already signs it `@exact:delivery`); owner recovery never prints a `change answer` command that cannot run as printed (comma/newline-bearing module names) or one built on a truncated spec listing, says when the 10,000-entry walk bound was hit, and renews the constraints answer that declaring owners clears; registry-registered canonical specs outside `specs_dir` join owner discovery; a declared directory scope is not file-level ownership-checked at approve (its descendants are checked at finalize). |
+
 | 2026-11-10 | v221: Retirement custody validation stops re-running the custodian's live freshness and re-deriving historical receipt classifications on every load — the deadlock that made the prescribed `change reopen` remedy unreachable once a custodian drifted (#1021). Custody holds while every retained path stays under its recorded signed owners in the custodian's authenticated evidence — its current acceptance, or its last accepted manifest while the custodian is in an audited post-acceptance reopen, so the roster keeps loading through the recovery window. Owner or path loss still refuses, and custodian staleness stays terminal-evidence data on the custodian's own record. |
 
 | 2026-11-09 | v217: Deadline-boundary review fixes (#1005): recheck the deadline after the final archive-introduction commit before caching, after the post-history HEAD reads, and count completed workspaces (including unreadable ones) in the final active-loading boundary (REQ-change-149). |
@@ -752,5 +754,6 @@ Acceptance Criteria
 | 2026-11-09 | the-corrupt-archive-recovery-step-names-summary-terminal-evidence-reason-the-field-change-status-json-actually-prints: The corrupt-archive recovery step names summary.terminal_evidence.reason, the field change status --json actually prints (#966) |
 | 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
 | 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
+| 2026-11-10 | fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec: Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes |
 | 2026-11-10 | change-answer-validates-question-keys-answers-and-actor-identity: reject unknown interview question keys, empty answers, unregistered affected specs, and malformed actor identities (#426) |
 | 2026-11-10 | every-actor-accepting-verb-normalizes-identity-the-same-way: Every actor-accepting verb normalizes identity the same way |

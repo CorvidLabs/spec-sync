@@ -19,6 +19,8 @@ CI-8 is captured from Leif's answer in the Herdr orc tab on 2026-11-06 ("A", rel
 
 CI-9 and CI-10 are captured from Leif's answer in the Herdr orc tab on 2026-11-06 ("Both A", relayed by orc t18). He chose the first of two wordings the agent proposed for each of #798 and #799. In #798, `Record attestation` skipped on every push to main because its implicit `success()` saw the PR-only review job skipped upstream. In #799, that review job's pull-request summary had no row for the preflight or the lifecycle gate, and called every skipped check "Not selected". Recorded by the ss-linux-arm64 Claude agent.
 
+CI-11 is captured as written from Leif's approval in the Herdr orc tab on 2026-11-06 (relayed by orc t18, "Capture as written") for issue #614. Recorded by k-ss-ci.
+
 ## Criteria
 
 - **CI-1**  The same check I run locally runs in my pipeline as a ready-made step, with nothing to build.
@@ -37,3 +39,4 @@ CI-9 and CI-10 are captured from Leif's answer in the Herdr orc tab on 2026-11-0
 - **CI-8**  When the pipeline says the code lints clean, that includes the tests.
 - **CI-9**  Every commit on main that passes its required checks gets its attestation recorded.
 - **CI-10**  The summary on a pull request never looks green when a check that gates it failed or was blocked.
+- **CI-11**  When I run the release tests, the race guards in the shipped profile are tested too.

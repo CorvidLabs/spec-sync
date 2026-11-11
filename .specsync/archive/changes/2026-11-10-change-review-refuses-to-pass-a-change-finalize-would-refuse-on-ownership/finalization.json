@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-review-refuses-to-pass-a-change-finalize-would-refuse-on-ownership",
+  "implementation_commit": "c8ba3f51b4a44482941ef097b2bcb6207e5761f0",
+  "implementation_tree": "afd40ddfc667aa11dc041df2c28478625e6a6fdc",
+  "contract_digest": "499d20476ede2ffb01ee71c9eb85347277d1c96eaa68aa3e3584803ec150cdd0",
+  "workspace_digest": "fcdc09b5d8e8ec9a53be81d2045c05827935314848dd064241692c06ca40b558",
+  "closing_digest": "456d1974440216a557a772b6203acdef86072eebbbfad87b17396c433b1e62bf",
+  "review_digest": "710b8f60315b7120d4789bdb675c3122ba7a4c664a2f8ee8408aed65772a7043",
+  "finalization_digest": "caef2238db7976d698c396cf95e43ee5014bab5fa0dc5fdb2d0d69425e8d9f38",
+  "timestamp": 1794354370
+}

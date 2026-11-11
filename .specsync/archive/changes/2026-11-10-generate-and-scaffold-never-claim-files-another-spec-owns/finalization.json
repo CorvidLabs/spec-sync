@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "generate-and-scaffold-never-claim-files-another-spec-owns",
+  "implementation_commit": "787a34a892f4445f9dae7c50e635bcb16731dbb7",
+  "implementation_tree": "0b69705d99247b4a96be8fee0b975f2967278a52",
+  "contract_digest": "49222cfa5cee3c44dc9172dfeaa8a139a02c4b3b6fc38b0792944199a57a1f76",
+  "workspace_digest": "1274272bf8aaa9723b9553ebd081aae43e402c1533e08e02b87b4c20f75e8a68",
+  "closing_digest": "21d26ee290d775ee0b120d00fac1608917ee7af18ef356fa28fcb3a02653b015",
+  "review_digest": "c69d9dea0b9d65781a1bfcdd8d93899af6117c008f42e083a745fb6fa497a5f6",
+  "finalization_digest": "8f3fce7a0adeb5598edad1d223d3b383cf79a39b17aca0612e2b1b8d2a8aac96",
+  "timestamp": 1794330111
+}

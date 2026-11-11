@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "report-states-the-require-coverage-verdict-when-another-finding-decides-the-exit",
+  "slug": "report-states-the-require-coverage-verdict-when-another-finding-decides-the-exit",
+  "title": "Report states the require-coverage verdict when another finding decides the exit",
+  "description": "report states the require-coverage verdict when another finding decides the exit",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "82c724703d5f6b89fe0a68dc672d4b1dbd8e41dc",
+  "created_at": 1794347803,
+  "updated_at": 1794348114,
+  "affected_specs": [
+    "cmd_report"
+  ],
+  "affected_paths": [
+    "src/commands/report.rs",
+    "tests/integration/regression_w1.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "COVERAGE-2 says a pipeline can refuse work when coverage falls below the bar, and REQ-cmd-report-003 keeps the staleness refusal; outside git the refusal pre-empted the --require-coverage gate so it never reported. This prints the gate's own verdict beside the refusal without changing any exit code or requirement",
+  "acceptance_criteria": [
+    "report --require-coverage N in a tree whose staleness cannot be measured still exits 1, and its text and markdown output state the coverage gate's verdict (met or not met, with the measured coverage) and name the findings that set the exit status; --require-coverage 0 reads met; a run where nothing pre-empts the gate prints exactly what it printed before"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "the staleness refusal is deliberate 6.0 behavior (REQ-cmd-report-003) and stays; JSON and CSV keep gating by exit code only, since a printed line would corrupt machine output",
+    "public_contract": "no"
+  }
+}

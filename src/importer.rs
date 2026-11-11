@@ -23,6 +23,33 @@ pub struct ImportedItem {
     pub issue_number: Option<u64>,
     /// Source system identifier.
     pub source_type: ImportSource,
+    /// Content preserved from a local markdown source, when the source is
+    /// itself a spec-like document. External importers leave this `None`.
+    pub preserved: Option<PreservedSource>,
+}
+
+/// Content preserved from a local markdown source file.
+#[derive(Debug, Clone)]
+pub struct PreservedSource {
+    /// Frontmatter `files` list — the source files the imported spec covers.
+    pub files: Vec<String>,
+    /// Frontmatter `depends_on` list, kept verbatim.
+    pub depends_on: Vec<String>,
+    /// Frontmatter `db_tables` list, kept verbatim.
+    pub db_tables: Vec<String>,
+    /// Frontmatter `implements` issue numbers, kept verbatim.
+    pub implements: Vec<u64>,
+    /// Frontmatter `version`, kept verbatim when declared.
+    pub version: Option<String>,
+    /// Frontmatter `status` when declared and not `draft` — recorded in the
+    /// import Change Log row; rendered specs are always `status: draft`.
+    pub source_status: Option<String>,
+    /// Existing `# ` title, kept verbatim when present.
+    pub title: Option<String>,
+    /// Text between the H1 and the first `## ` heading, kept verbatim.
+    pub lead_in: Option<String>,
+    /// Existing `## ` sections as `(title, body)`, in source order.
+    pub sections: Vec<(String, String)>,
 }
 
 /// Supported import sources.
@@ -31,6 +58,8 @@ pub enum ImportSource {
     GitHub,
     Jira,
     Confluence,
+    /// A local markdown file imported with `--from-dir`.
+    LocalDir,
 }
 
 impl std::fmt::Display for ImportSource {
@@ -39,29 +68,158 @@ impl std::fmt::Display for ImportSource {
             ImportSource::GitHub => write!(f, "GitHub"),
             ImportSource::Jira => write!(f, "Jira"),
             ImportSource::Confluence => write!(f, "Confluence"),
+            ImportSource::LocalDir => write!(f, "local directory"),
         }
     }
 }
 
 /// Render an `ImportedItem` into a spec markdown string.
 pub fn render_spec(item: &ImportedItem) -> String {
+    match &item.preserved {
+        Some(source) => render_spec_preserving(item, source),
+        None => render_spec_skeleton(item),
+    }
+}
+
+/// The canonical `##` sections of a rendered spec, in order, excluding the
+/// trailing Change Log.
+const CANONICAL_SECTIONS: &[&str] = &[
+    "Purpose",
+    "Public API",
+    "Invariants",
+    "Behavioral Examples",
+    "Error Cases",
+    "Dependencies",
+];
+
+/// Render an item whose source file was itself a spec-like markdown document:
+/// reuse every section the source already has and scaffold only what is missing.
+fn render_spec_preserving(item: &ImportedItem, source: &PreservedSource) -> String {
+    let implements_field = if !source.implements.is_empty() {
+        format!(
+            "[{}]",
+            source
+                .implements
+                .iter()
+                .map(u64::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    } else {
+        match item.issue_number {
+            Some(n) => format!("[{n}]"),
+            None => "[]".to_string(),
+        }
+    };
+
+    let yaml_list = |items: &[String]| -> String {
+        if items.is_empty() {
+            " []".to_string()
+        } else {
+            format!(
+                "\n{}",
+                items
+                    .iter()
+                    .map(|f| format!("  - {f}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        }
+    };
+    let files_field = yaml_list(&source.files);
+    let depends_field = yaml_list(&source.depends_on);
+    let db_tables_field = yaml_list(&source.db_tables);
+
+    let version = source.version.as_deref().unwrap_or("1");
+    let title = source
+        .title
+        .clone()
+        .unwrap_or_else(|| skeleton_title(&item.module_name));
+
+    let find = |name: &str| {
+        source
+            .sections
+            .iter()
+            .find(|(t, _)| t.eq_ignore_ascii_case(name))
+            .map(|(_, body)| body.as_str())
+    };
+
+    let mut out = format!(
+        "---\nmodule: {module}\nversion: {version}\nstatus: draft\nfiles:{files}\ndb_tables:{db_tables}\ndepends_on:{depends}\nimplements: {implements}\n---\n\n# {title}\n",
+        module = item.module_name,
+        files = files_field,
+        db_tables = db_tables_field,
+        depends = depends_field,
+        implements = implements_field,
+    );
+    if let Some(lead_in) = &source.lead_in {
+        let lead_in = lead_in.trim_matches('\n');
+        if !lead_in.is_empty() {
+            out.push_str(&format!("\n{lead_in}\n"));
+        }
+    }
+
+    for &name in CANONICAL_SECTIONS {
+        match find(name) {
+            Some(body) => {
+                out.push_str(&format!("\n## {name}\n{body}"));
+            }
+            None => {
+                out.push_str(&default_section(name, item));
+            }
+        }
+    }
+
+    // Source sections outside the canonical set are kept, in source order,
+    // ahead of the Change Log.
+    for (section_title, body) in &source.sections {
+        let canonical = CANONICAL_SECTIONS
+            .iter()
+            .any(|name| section_title.eq_ignore_ascii_case(name))
+            || section_title.eq_ignore_ascii_case("Change Log");
+        if !canonical {
+            out.push_str(&format!("\n## {section_title}\n{body}"));
+        }
+    }
+
+    let import_row = match &source.source_status {
+        Some(status) => format!(
+            "| {} | Imported from {}: {} (source status: {status}, re-drafted) |",
+            today(),
+            item.source_type,
+            item.source_url
+        ),
+        None => format!(
+            "| {} | Imported from {}: {} |",
+            today(),
+            item.source_type,
+            item.source_url
+        ),
+    };
+    match find("Change Log") {
+        Some(body) => {
+            let body = body.trim_end();
+            out.push_str(&format!("\n## Change Log\n\n{body}\n{import_row}\n"));
+        }
+        None => {
+            out.push_str(&format!(
+                "\n## Change Log\n\n| Date | Change |\n|------|--------|\n{import_row}\n"
+            ));
+        }
+    }
+
+    out
+}
+
+/// Render the fixed skeleton used for external sources that carry no
+/// preservable spec body.
+fn render_spec_skeleton(item: &ImportedItem) -> String {
     let implements_field = match item.issue_number {
         Some(n) => format!("[{n}]"),
         None => "[]".to_string(),
     };
 
-    let title = item
-        .module_name
-        .split('-')
-        .map(|w| {
-            let mut chars = w.chars();
-            match chars.next() {
-                Some(c) => c.to_uppercase().to_string() + chars.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
+    let title = skeleton_title(&item.module_name);
 
     let requirements_section = if item.requirements.is_empty() {
         "- Define requirements from the imported source before promoting this spec.".to_string()
@@ -149,8 +307,227 @@ implements: {implements}
     )
 }
 
+/// Title-case a slug-cased module name for the skeleton H1.
+fn skeleton_title(module_name: &str) -> String {
+    module_name
+        .split('-')
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The scaffold body for one canonical section the source did not carry,
+/// matching what `render_spec_skeleton` writes for the same section.
+fn default_section(name: &str, item: &ImportedItem) -> String {
+    match name {
+        "Purpose" => format!("\n## Purpose\n\n{}\n", item.purpose),
+        "Public API" => "\n## Public API\n\n### Exported Functions\n\n| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n\n### Exported Types\n\n| Type | Description |\n|------|-------------|\n".to_string(),
+        "Invariants" => {
+            let requirements = if item.requirements.is_empty() {
+                "- Define requirements from the imported source before promoting this spec."
+                    .to_string()
+            } else {
+                item.requirements
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| format!("{}. {r}", i + 1))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            format!("\n## Invariants\n\n{requirements}\n")
+        }
+        "Behavioral Examples" => "\n## Behavioral Examples\n\n### Scenario: Imported behavior\n\n- **Given** precondition\n- **When** action\n- **Then** result\n".to_string(),
+        "Error Cases" => "\n## Error Cases\n\n| Condition | Behavior |\n|-----------|----------|\n".to_string(),
+        "Dependencies" => "\n## Dependencies\n\n### Consumes\n\n| Module | What is used |\n|--------|-------------|\n\n### Consumed By\n\n| Module | What is used |\n|--------|-------------|\n".to_string(),
+        _ => format!("\n## {name}\n"),
+    }
+}
+
+/// Parse a local markdown file into an `ImportedItem`, preserving its
+/// frontmatter declarations and existing sections.
+///
+/// A file whose frontmatter declares `module` and a non-empty `files` list
+/// imports with those values intact; frontmatter-less fields fall back to
+/// derivation (title from the first `# ` heading, purpose from the first
+/// non-empty paragraph, module name from the filename). A parseable file with
+/// no `files` list imports as a draft the command layer warns about; only
+/// unreadable sources fail.
+pub fn import_local_markdown(filename: &str, content: &str) -> Result<ImportedItem, String> {
+    let parsed = crate::parser::parse_frontmatter(content);
+    let frontmatter = parsed.as_ref().map(|p| &p.frontmatter);
+
+    let module_name = match frontmatter.and_then(|f| f.module.clone()) {
+        Some(module) => module,
+        None => slugify(filename),
+    };
+    crate::commands::validate_module_name(&module_name)
+        .map_err(|error| format!("Unsafe module name for `{filename}`: {error}"))?;
+
+    let files = frontmatter.map(|f| f.files.clone()).unwrap_or_default();
+
+    let body = crate::parser::strip_frontmatter(content);
+    let title = body
+        .lines()
+        .find(|l| l.starts_with("# "))
+        .map(|l| l.trim_start_matches("# ").trim().to_string());
+
+    let (lead_in, sections) = parse_body_sections(body);
+
+    let purpose = sections
+        .iter()
+        .find(|(t, _)| t.eq_ignore_ascii_case("Purpose"))
+        .map(|(_, b)| b.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| {
+            lead_in
+                .as_deref()
+                .and_then(first_prose_line)
+                .or_else(|| title.clone())
+                .unwrap_or_else(|| module_name.clone())
+        });
+
+    Ok(ImportedItem {
+        module_name,
+        purpose,
+        requirements: extract_requirements_pub(content),
+        labels: Vec::new(),
+        source_url: filename.to_string(),
+        issue_number: None,
+        source_type: ImportSource::LocalDir,
+        preserved: Some(PreservedSource {
+            files,
+            depends_on: frontmatter
+                .map(|f| f.depends_on.clone())
+                .unwrap_or_default(),
+            db_tables: frontmatter.map(|f| f.db_tables.clone()).unwrap_or_default(),
+            implements: frontmatter
+                .map(|f| f.implements.clone())
+                .unwrap_or_default(),
+            version: frontmatter.and_then(|f| f.version.clone()),
+            source_status: frontmatter
+                .and_then(|f| f.status.clone())
+                .filter(|status| !status.eq_ignore_ascii_case("draft")),
+            title,
+            lead_in,
+            sections,
+        }),
+    })
+}
+
+/// Split a markdown body into the lead-in (text between the H1 and the first
+/// `## ` heading, when any) and its `## ` sections as `(title, body)` pairs,
+/// in order. A `## ` line inside a fenced code block is content, never a
+/// heading.
+fn parse_body_sections(body: &str) -> (Option<String>, Vec<(String, String)>) {
+    let mut lead_in: Option<String> = None;
+    let mut sections = Vec::new();
+    let mut current: Option<(String, String)> = None;
+    // CommonMark: a fence is a run of 3+ backticks or tildes; the closing
+    // fence uses the same character and is at least as long as the opening.
+    let mut fence: Option<(char, usize)> = None;
+    for line in body.lines() {
+        let trimmed = line.trim_start();
+        let marker = trimmed
+            .chars()
+            .next()
+            .filter(|c| *c == '`' || *c == '~')
+            .and_then(|c| {
+                let len = trimmed.chars().take_while(|ch| *ch == c).count();
+                (len >= 3).then_some((c, len))
+            });
+        if let Some((ch, len)) = marker {
+            match fence {
+                Some((open_ch, open_len)) if open_ch == ch && len >= open_len => fence = None,
+                None => fence = Some((ch, len)),
+                _ => {}
+            }
+        }
+        if fence.is_none()
+            && let Some(heading) = line.strip_prefix("## ")
+        {
+            if let Some(done) = current.take() {
+                sections.push(done);
+            }
+            current = Some((heading.trim().to_string(), String::new()));
+            continue;
+        }
+        match current.as_mut() {
+            Some((_, body_text)) => {
+                body_text.push_str(line);
+                body_text.push('\n');
+            }
+            None => {
+                // The H1 is the title, never lead-in prose; blank lines before
+                // it are not lead-in either, so they must not make the H1
+                // count as content.
+                if line.starts_with("# ") && lead_in.as_deref().is_none_or(|l| l.trim().is_empty())
+                {
+                    continue;
+                }
+                let lead = lead_in.get_or_insert_with(String::new);
+                lead.push_str(line);
+                lead.push('\n');
+            }
+        }
+    }
+    if let Some(done) = current {
+        sections.push(done);
+    }
+    (lead_in, sections)
+}
+
+/// The first line of actual prose in a markdown fragment: skips blank lines,
+/// headings, table rows, list items (bulleted, numbered with `.` or `)`, checkbox), and
+/// fenced code including its contents. Purpose prose is never structure.
+fn first_prose_line(text: &str) -> Option<String> {
+    let mut fence: Option<(char, usize)> = None;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        let marker = trimmed
+            .chars()
+            .next()
+            .filter(|c| *c == '`' || *c == '~')
+            .and_then(|c| {
+                let len = trimmed.chars().take_while(|ch| *ch == c).count();
+                (len >= 3).then_some((c, len))
+            });
+        if let Some((ch, len)) = marker {
+            match fence {
+                Some((open_ch, open_len)) if open_ch == ch && len >= open_len => fence = None,
+                None => fence = Some((ch, len)),
+                _ => {}
+            }
+            continue;
+        }
+        if fence.is_some() {
+            continue;
+        }
+        let numbered = trimmed
+            .find(|c: char| !c.is_ascii_digit())
+            .is_some_and(|i| {
+                i > 0 && (trimmed[i..].starts_with(". ") || trimmed[i..].starts_with(") "))
+            });
+        let structural = trimmed.is_empty()
+            || trimmed.starts_with('#')
+            || trimmed.starts_with('|')
+            || trimmed.starts_with("- ")
+            || trimmed.starts_with("* ")
+            || trimmed.starts_with("- [")
+            || numbered;
+        if !structural {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
+}
+
 fn today() -> String {
-    // Use a simple approach — read from system
     let output = std::process::Command::new("date")
         .args(["+%Y-%m-%d"])
         .output();
@@ -234,6 +611,7 @@ fn import_github_issue_details(
         source_url: details.issue.url,
         issue_number: Some(details.issue.number),
         source_type: ImportSource::GitHub,
+        preserved: None,
     })
 }
 
@@ -330,6 +708,7 @@ fn parse_jira_json(
         source_url: browse_url,
         issue_number: None,
         source_type: ImportSource::Jira,
+        preserved: None,
     })
 }
 
@@ -463,6 +842,7 @@ fn parse_confluence_json(
         source_url: page_url,
         issue_number: None,
         source_type: ImportSource::Confluence,
+        preserved: None,
     })
 }
 
@@ -676,6 +1056,7 @@ mod tests {
             source_url: "https://github.com/org/repo/issues/42".to_string(),
             issue_number: Some(42),
             source_type: ImportSource::GitHub,
+            preserved: None,
         };
         let spec = render_spec(&item);
         assert!(spec.contains("module: user-auth"));
@@ -697,6 +1078,7 @@ mod tests {
             source_url: "https://company.atlassian.net/wiki/pages/123".to_string(),
             issue_number: None,
             source_type: ImportSource::Confluence,
+            preserved: None,
         };
         let spec = render_spec(&item);
         assert!(spec.contains("module: data-pipeline"));
@@ -963,5 +1345,176 @@ mod tests {
         assert_eq!(format!("{}", ImportSource::GitHub), "GitHub");
         assert_eq!(format!("{}", ImportSource::Jira), "Jira");
         assert_eq!(format!("{}", ImportSource::Confluence), "Confluence");
+        assert_eq!(format!("{}", ImportSource::LocalDir), "local directory");
+    }
+
+    // ─── Local markdown import ─────────────────────────────────────────
+
+    #[test]
+    fn test_import_local_markdown_preserves_frontmatter_and_sections() {
+        let content = "---\nmodule: widget\nversion: 3\nstatus: draft\nfiles:\n  - src/widget.rs\n---\n\n# Widget Spec\n\n## Purpose\n\nThe original purpose text.\n\n## Invariants\n\n1. Widgets are immutable.\n";
+        let item = import_local_markdown("widget.spec", content).unwrap();
+        assert_eq!(item.module_name, "widget");
+        assert_eq!(item.purpose, "The original purpose text.");
+        assert_eq!(item.source_type, ImportSource::LocalDir);
+
+        let preserved = item.preserved.as_ref().unwrap();
+        assert_eq!(preserved.files, vec!["src/widget.rs".to_string()]);
+        assert_eq!(preserved.version.as_deref(), Some("3"));
+        assert_eq!(preserved.title.as_deref(), Some("Widget Spec"));
+
+        let spec = render_spec(&item);
+        assert!(spec.contains("module: widget"));
+        assert!(spec.contains("version: 3"));
+        assert!(spec.contains("  - src/widget.rs"));
+        assert!(spec.contains("The original purpose text."));
+        assert!(spec.contains("1. Widgets are immutable."));
+        assert!(!spec.contains("Confluence"));
+        assert!(spec.contains("Imported from local directory: widget.spec"));
+        // Missing canonical sections are scaffolded.
+        assert!(spec.contains("## Public API"));
+        assert!(spec.contains("## Error Cases"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_appends_to_existing_change_log() {
+        let content = "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Purpose\n\nWidget purpose.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Hand-written entry |\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let spec = render_spec(&item);
+        assert!(spec.contains("Hand-written entry"));
+        assert!(spec.contains("Imported from local directory"));
+        let hand_written = spec.find("Hand-written entry").unwrap();
+        let import_row = spec.find("Imported from local directory").unwrap();
+        assert!(hand_written < import_row);
+    }
+
+    #[test]
+    fn test_import_local_markdown_without_files_imports_as_warned_draft() {
+        let content = "# Design Doc\n\nSome prose about the design.\n";
+        let item = import_local_markdown("design", content).unwrap();
+        assert_eq!(item.module_name, "design");
+        let preserved = item.preserved.as_ref().unwrap();
+        assert!(preserved.files.is_empty());
+        let spec = render_spec(&item);
+        assert!(spec.contains("status: draft"));
+        assert!(spec.contains("files: []"));
+        assert!(spec.contains("Some prose about the design."));
+    }
+
+    #[test]
+    fn test_import_local_markdown_empty_files_list_is_not_an_error() {
+        let content =
+            "---\nmodule: widget\nfiles: []\n---\n\n# Widget\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        assert!(item.preserved.as_ref().unwrap().files.is_empty());
+    }
+
+    #[test]
+    fn test_import_local_markdown_fence_headings_stay_content() {
+        let content = "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Invariants\n\n1. Widgets are immutable.\n\n```text\n## Not a heading, inside a fence\n```\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let preserved = item.preserved.as_ref().unwrap();
+        assert_eq!(preserved.sections.len(), 2);
+        assert_eq!(preserved.sections[0].0, "Invariants");
+        assert!(
+            preserved.sections[0]
+                .1
+                .contains("## Not a heading, inside a fence")
+        );
+        let spec = render_spec(&item);
+        assert!(spec.contains("## Not a heading, inside a fence"));
+        // The fence content stays inside Invariants; no phantom section follows it.
+        assert_eq!(spec.matches("## Not a heading").count(), 1);
+    }
+
+    #[test]
+    fn test_import_local_markdown_without_h1_keeps_sections() {
+        let content = "---\nmodule: noh1\nfiles:\n  - src/a.rs\n---\n\n## Purpose\n\nNo H1 purpose text must survive.\n\n## Invariants\n\n1. Keep it.\n";
+        let item = import_local_markdown("noh1", content).unwrap();
+        let spec = render_spec(&item);
+        assert!(spec.contains("No H1 purpose text must survive."));
+        assert!(spec.contains("1. Keep it."));
+        assert!(!spec.contains("## Purpose\n\n## Purpose"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_purpose_fallback_never_takes_a_heading() {
+        let content = "---\nmodule: apifirst\nfiles:\n  - src/api.rs\n---\n\n# Api First\n\n## Public API\n\n| Function | Description |\n|----------|-------------|\n| `call` | Calls |\n";
+        let item = import_local_markdown("apifirst", content).unwrap();
+        assert_eq!(item.purpose, "Api First");
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("## Public API").count(), 1);
+        assert!(!spec.contains("## Purpose\n\n## Public API"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_long_fence_stays_content() {
+        let content = "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Invariants\n\n1. Immutable.\n\n````text\n```\n## Still content\n```\n````\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let preserved = item.preserved.as_ref().unwrap();
+        assert_eq!(preserved.sections.len(), 2);
+        assert!(preserved.sections[0].1.contains("## Still content"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_h1_appears_once_with_blank_line_after_frontmatter() {
+        // The usual layout — blank line between frontmatter and the title —
+        // must not duplicate the H1 into the lead-in.
+        let content = "---\nmodule: loose\nfiles:\n  - src/b.rs\n---\n\n# Loose\n\nLead para.\n\n## Purpose\n\nLoose purpose.\n";
+        let item = import_local_markdown("loose", content).unwrap();
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("# Loose\n").count(), 1, "{spec}");
+        assert!(spec.contains("Lead para."));
+        assert!(spec.contains("Loose purpose."));
+    }
+
+    #[test]
+    fn test_import_local_markdown_purpose_fallback_skips_numbered_and_fenced() {
+        let numbered = "---\nmodule: listy\nfiles:\n  - src/l.rs\n---\n\n# Listy\n\n## Invariants\n\n1. Keep it sorted.\n";
+        let item = import_local_markdown("listy", numbered).unwrap();
+        assert_eq!(item.purpose, "Listy");
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("1. Keep it sorted.").count(), 1, "{spec}");
+
+        let fenced = "---\nmodule: codey\nfiles:\n  - src/c.rs\n---\n\n# Codey\n\n```rust\nfn secret_internal()\n```\n";
+        let item = import_local_markdown("codey", fenced).unwrap();
+        assert_eq!(item.purpose, "Codey");
+        let spec = render_spec(&item);
+        assert!(spec.contains("```rust\nfn secret_internal()\n```"));
+        assert!(!spec.contains("## Purpose\n\nfn secret_internal()"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_purpose_fallback_skips_paren_numbered_lead_in() {
+        // CommonMark ordered lists may close the number with `)` as well as `.`.
+        let parens = "---\nmodule: parens\nfiles:\n  - src/p.rs\n---\n\n# Parens\n\n1) First item.\n2) Second item.\n";
+        let item = import_local_markdown("parens", parens).unwrap();
+        assert_eq!(item.purpose, "Parens");
+        let spec = render_spec(&item);
+        assert_eq!(spec.matches("1) First item.").count(), 1, "{spec}");
+    }
+
+    #[test]
+    fn test_import_local_markdown_preserves_lists_and_lead_in() {
+        let content = "---\nmodule: widget\nstatus: active\nfiles:\n  - src/widget.rs\ndepends_on:\n  - base\ndb_tables:\n  - widgets\nimplements: [41, 42]\n---\n\n# Widget\n\nA lead-in paragraph about the widget.\n\n## Purpose\n\nWidget purpose.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let spec = render_spec(&item);
+        assert!(spec.contains("depends_on:\n  - base"));
+        assert!(spec.contains("db_tables:\n  - widgets"));
+        assert!(spec.contains("implements: [41, 42]"));
+        assert!(spec.contains("A lead-in paragraph about the widget."));
+        // Imports are always re-drafted; the source status is recorded instead.
+        assert!(spec.contains("status: draft"));
+        assert!(!spec.contains("\nstatus: active\n"));
+        assert!(spec.contains("source status: active, re-drafted"));
+    }
+
+    #[test]
+    fn test_import_local_markdown_keeps_unknown_sections() {
+        let content = "---\nmodule: widget\nfiles:\n  - src/widget.rs\n---\n\n# Widget\n\n## Purpose\n\nWidget purpose.\n\n## Architecture Notes\n\nUses a double buffer.\n";
+        let item = import_local_markdown("widget", content).unwrap();
+        let spec = render_spec(&item);
+        assert!(spec.contains("## Architecture Notes"));
+        assert!(spec.contains("Uses a double buffer."));
     }
 }

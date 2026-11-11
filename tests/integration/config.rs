@@ -1256,6 +1256,98 @@ fn scaffold_auto_detects_single_source_file() {
     );
 }
 
+/// A file another spec already lists in `files:` is owned: generating a spec
+/// for its stem must not double-map it (#611).
+#[test]
+fn scaffold_never_claims_a_file_another_spec_owns() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/foo.rs"), "pub fn foo() {}").unwrap();
+    fs::write(root.join("src/bar.rs"), "pub fn bar() {}").unwrap();
+    fs::create_dir_all(root.join("specs/special")).unwrap();
+    fs::write(
+        root.join("specs/special/special.spec.md"),
+        valid_spec("special", &["src/foo.rs"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["scaffold", "foo", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No source files matched module 'foo'")
+            && stderr.contains("empty `files:` list"),
+        "an all-owned scaffold must print the empty-files warning (REQ-cmd-scaffold-006), got:\n{stderr}"
+    );
+
+    let spec = fs::read_to_string(root.join("specs/foo/foo.spec.md")).unwrap();
+    assert!(
+        !spec.contains("src/foo.rs"),
+        "scaffolded foo must not claim the owned src/foo.rs, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("files: []"),
+        "expected files: [], got:\n{spec}"
+    );
+
+    // An unowned flat file still scaffolds normally.
+    specsync()
+        .args(["scaffold", "bar", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let spec = fs::read_to_string(root.join("specs/bar/bar.spec.md")).unwrap();
+    assert!(spec.contains("src/bar.rs"));
+}
+
+/// The single-source fallback must not claim an owned file either (#611).
+#[test]
+fn scaffold_single_source_fallback_skips_an_owned_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}").unwrap();
+    fs::create_dir_all(root.join("specs/core")).unwrap();
+    fs::write(
+        root.join("specs/core/core.spec.md"),
+        valid_spec("core", &["src/lib.rs"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["scaffold", "greeter", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No source files matched module 'greeter'")
+            && stderr.contains("empty `files:` list"),
+        "the skipped fallback must print the empty-files warning, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("claiming the project's only source file"),
+        "the fallback must not announce a claim it did not make, got:\n{stderr}"
+    );
+
+    let spec = fs::read_to_string(root.join("specs/greeter/greeter.spec.md")).unwrap();
+    assert!(
+        !spec.contains("src/lib.rs"),
+        "the fallback must not claim the owned src/lib.rs, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("files: []"),
+        "expected files: [], got:\n{spec}"
+    );
+}
+
 /// `new`/`add-spec`/`scaffold` must refuse a module name that would escape the project
 /// (path traversal) rather than writing spec/companion files to an arbitrary location.
 #[test]
@@ -1923,5 +2015,45 @@ fn migrate_preserves_explicitly_empty_arrays() {
     assert!(
         migrated.contains("exclude_dirs = []"),
         "explicit empty exclude_dirs must be written:\n{migrated}"
+    );
+}
+
+/// `new` takes the same creation selection as scaffold: an owned flat file is
+/// never claimed (#611).
+#[test]
+fn new_never_claims_an_owned_flat_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/foo.rs"), "pub fn foo() {}").unwrap();
+    fs::create_dir_all(root.join("specs/special")).unwrap();
+    fs::write(
+        root.join("specs/special/special.spec.md"),
+        valid_spec("special", &["src/foo.rs"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["new", "foo", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("No source files matched module 'foo'")
+            && stderr.contains("empty `files:` list"),
+        "an all-owned new must print the empty-files warning, got:\n{stderr}"
+    );
+
+    let spec = fs::read_to_string(root.join("specs/foo/foo.spec.md")).unwrap();
+    assert!(
+        !spec.contains("src/foo.rs"),
+        "new foo must not claim the owned src/foo.rs, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("files: []"),
+        "expected files: [], got:\n{spec}"
     );
 }

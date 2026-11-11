@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 25
+version: 27
 status: stable
 files:
   - src/generator.rs
@@ -27,10 +27,10 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `generate_specs_for_unspecced_modules` | `root, report, config` | `GenerationOutcome` | Generate local template specs for all unspecced modules with progress output |
 | `generate_specs_for_unspecced_modules_paths` | `root, report, config` | `GenerationOutcome` | Generate local template specs without progress output for JSON/MCP callers |
 | `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
-| `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Confined source selection: authoritative explicit definitions, named directories, then flat or exact file matches |
+| `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Confined source selection: authoritative explicit definitions, named directories, then flat or exact file matches; files another spec already lists in `files:` are never claimed outside explicit `config.modules` mappings |
 | `find_module_source_files` | `dir: &Path, config: &SpecSyncConfig, root: &Path` | `Vec<String>` | Source files beneath a module directory, honoring configured extensions and exclusions; shared with spec validation so a directory in `files:` is corrected with exactly what generation would have written |
 | `generated_context_scaffold` | `module: &str` | `String` | The exact context companion this module would generate for `module`, with the `{module}` placeholder expanded; the single definition of what an unwritten scaffold looks like, so callers distinguishing recorded knowledge from an untouched template compare against real generated text rather than a placeholder that can never match |
-| `find_single_source_fallback` | `root, config` | `Option<String>` | The only distinct eligible file across confined exact-file/directory selections; overlap is deduplicated and zero, multiple or inconclusive candidates return `None` |
+| `find_single_source_fallback` | `root, config` | `Option<String>` | The only distinct eligible file across confined exact-file/directory selections; overlap is deduplicated and zero, multiple, owned or inconclusive candidates return `None` |
 | `find_new_module_sources` | `root: &Path, module_name: &str, config: &SpecSyncConfig` | `Vec<String>` | Root-relative creation sources with explicit mappings, combined directory/flat name matches and unambiguous fallback |
 | `module_spec_filename` | `module: &str` | `String` | Crate-private shared leaf filename for writing and recognizing scoped module specs |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
@@ -148,3 +148,5 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
 | 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-10 | generate-and-scaffold-never-claim-files-another-spec-owns: Generate and scaffold never claim files another spec owns |
+| 2026-11-10 | generate-ownership-wording-matches-shipped-no-files-path: Generate ownership wording matches shipped no-files path |

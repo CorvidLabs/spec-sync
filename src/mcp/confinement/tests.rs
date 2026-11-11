@@ -458,3 +458,27 @@ fn node_preflight_fails_closed_and_charges_entries_before_type_validation() {
     );
     assert_eq!(entries_seen, MAX_CONFINEMENT_ENTRIES);
 }
+
+/// CI-11, #614: `ConfinedReadRoot::revalidate_before_success` refuses a read root
+/// replaced after it was opened. The test swaps the directory itself, so it needs no
+/// debug-only rendezvous and runs under `cargo test --release` too.
+#[cfg(unix)]
+#[test]
+fn release_race_guard_mcp_read_root_refuses_a_replaced_directory() {
+    let temp = TempDir::new().unwrap();
+    let server = temp.path();
+    fs::create_dir(server.join("docs")).unwrap();
+    let server_directory = open_test_directory(server);
+    let confined = open_confined_read_root(&server_directory, Path::new("docs")).unwrap();
+    confined
+        .revalidate_before_success()
+        .expect("an unchanged read root revalidates");
+
+    fs::rename(server.join("docs"), server.join("docs-moved")).unwrap();
+    fs::create_dir(server.join("docs")).unwrap();
+
+    let error = confined
+        .revalidate_before_success()
+        .expect_err("a read root replaced after it was opened is refused");
+    assert!(error.contains("MCP read"), "{error}");
+}

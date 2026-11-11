@@ -9,6 +9,13 @@ artifact: testing
 project. It fails when the split is disabled. The existing recovery tests, whose unowned
 inputs are all modified, are unchanged.
 
+The same test covers names Git would C-quote by default (`core.quotePath`): a committed edit to
+`src/billing/tarifa-ñ.ts` and an untracked new `src/billing/recargo-é.ts` both keep the declare
+recovery. Each case fails when its Git call drops `-z` (the diff and the untracked-files arm). A
+record whose `base_commit` is absent, or is not a full commit id, classifies nothing: every owner
+keeps the declare recovery, and the value never reaches Git. That case fails when the base-commit
+gate is removed.
+
 ## Requirement evidence
 
 | Requirement | Evidence |

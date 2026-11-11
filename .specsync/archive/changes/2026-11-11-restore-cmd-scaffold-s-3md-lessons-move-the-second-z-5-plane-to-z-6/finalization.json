@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "restore-cmd-scaffold-s-3md-lessons-move-the-second-z-5-plane-to-z-6",
+  "implementation_commit": "a642b549d580a780381e2987ece7eb77f88359c2",
+  "implementation_tree": "d815481d34eb11095e6a72cfff15b07eab48c532",
+  "contract_digest": "8632a5def36ed1045f5570f2c03b2f01be6ab4e306af0362f70486b5b2e66630",
+  "workspace_digest": "31a3983fdf60ca5270ea811bfc8e38d6aa36b05253f45d38e99dc8ba9f329177",
+  "closing_digest": "296ff0c0da001b7677c3f65d5777cf5f58de512957f66ef898ef5bc4348ca1d6",
+  "review_digest": "c0d4381b43a1cfd42f1729d04f2dc851dbaaf64d658c60f9566201f4466c6e0b",
+  "finalization_digest": "77687b6a8279b9119d9d62ed2419538215ce5e7cf989c1b069abcfcc0667a96c",
+  "timestamp": 1794414272
+}

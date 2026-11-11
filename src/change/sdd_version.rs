@@ -2808,10 +2808,26 @@ fn clearable_list_answer(
     let values = split_values(answer);
     if values.is_empty() {
         return Err(format!(
-            "{question} answer names no value; answer `none` to clear it"
+            "{question} answer names no value; answer `[]` to clear it"
         ));
     }
     Ok(values)
+}
+
+/// A yes/no interview answer as `yes` or `no`. The spellings the correction ledger accepts
+/// (`y`, `true`, `1`, `n`, `false`, `0`, any case, padded) are stored as the choice they name;
+/// anything else is refused naming the choices before it is stored, where it used to fail later
+/// as a corrupt correction ledger (#1026 review).
+fn yes_no_answer(question: &str, answer: &str) -> Result<String, String> {
+    let trimmed = answer.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "yes" | "y" | "true" | "1" => Ok("yes".into()),
+        "no" | "n" | "false" | "0" => Ok("no".into()),
+        _ => Err(format!(
+            "{question} answer `{}` is not one of its choices; answer yes or no",
+            trimmed.escape_debug()
+        )),
+    }
 }
 
 /// Every interview question id `change answer` accepts. `next_questions` and
@@ -2870,6 +2886,9 @@ pub(crate) fn answer_question_with_snapshot(
             record.answers.remove("constraints");
         }
         "affected_paths" => {
+            if answer.trim() == "[]" {
+                return Err("affected_paths answer `[]` names no path; a change needs at least one path in scope".into());
+            }
             let values = split_values(answer);
             if values.is_empty() {
                 return Err("affected_paths answer names no path".into());
@@ -2896,15 +2915,17 @@ pub(crate) fn answer_question_with_snapshot(
             record.dependencies.dedup();
         }
         "public_contract" => {
-            record.answers.insert(question.into(), answer.into());
-            if is_yes(answer) {
+            let answer = yes_no_answer(question, answer)?;
+            record.answers.insert(question.into(), answer.clone());
+            if is_yes(&answer) {
                 add_artifact(&mut record, ArtifactKind::Requirements);
                 add_artifact(&mut record, ArtifactKind::Docs);
             }
         }
         "architecture_risk" => {
-            record.answers.insert(question.into(), answer.into());
-            if is_yes(answer) {
+            let answer = yes_no_answer(question, answer)?;
+            record.answers.insert(question.into(), answer.clone());
+            if is_yes(&answer) {
                 add_artifact(&mut record, ArtifactKind::Research);
                 add_artifact(&mut record, ArtifactKind::Design);
                 add_artifact(&mut record, ArtifactKind::Plan);
@@ -3776,7 +3797,7 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
     // names as known modules and the owner recovery checks (#1026 review).
     let known = known_module_names(root, &config.specs_dir);
     for module in modules {
-        if known.iter().any(|name| name == module) {
+        if module_has_canonical_spec(root, &config.specs_dir, module) {
             continue;
         }
         let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)
@@ -3809,13 +3830,57 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
                 portable_project_path(root, elsewhere)
             ));
         }
+        let known_clause = if known.is_empty() {
+            String::new()
+        } else {
+            format!(", or name one of the known modules: {}", known.join(", "))
+        };
+        // `None` or `NONE` is a module name, not the clearing keyword (#1026 review).
+        let clear_clause = if module.eq_ignore_ascii_case("none") {
+            "; to clear the list, answer exactly `none` or `[]`"
+        } else {
+            ""
+        };
         return Err(format!(
-            "affected spec `{module}` has no spec at `{expected}`; {}, or name one of the known modules: {}",
+            "affected spec `{module}` has no spec at `{expected}`; {}{known_clause}{clear_clause}",
             scaffold_hint(&specs_dir_conventional_path(&config.specs_dir, module), &expected, module),
-            known.join(", ")
         ));
     }
     Ok(())
+}
+
+/// Whether `module` has a spec at its canonical path with every component spelled exactly: the
+/// one rule `change answer affected_specs`, the owner hints and the printed owner answer share
+/// (#1026 review). A spec reached through a symlinked directory counts, as it does for
+/// verification; a case variant that only a case-insensitive filesystem resolves does not, because
+/// it fails on a case-sensitive one.
+fn module_has_canonical_spec(root: &Path, specs_dir: &str, module: &str) -> bool {
+    canonical_module_paths(root, specs_dir, module)
+        .is_ok_and(|(spec_path, _)| path_is_file_spelled_exactly(root, &spec_path))
+}
+
+/// `path.is_file()`, and every component of `path` below `root` names a directory entry exactly.
+fn path_is_file_spelled_exactly(root: &Path, path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let Ok(relative) = path.strip_prefix(root) else {
+        return true;
+    };
+    let mut parent = root.to_path_buf();
+    for component in relative.components() {
+        let std::path::Component::Normal(name) = component else {
+            return false;
+        };
+        let Ok(entries) = fs::read_dir(&parent) else {
+            return false;
+        };
+        if !entries.flatten().any(|entry| entry.file_name() == name) {
+            return false;
+        }
+        parent.push(name);
+    }
+    true
 }
 
 /// Names of every known spec module — registry entries plus modules discovered
@@ -3838,10 +3903,7 @@ fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
     }
     candidates
         .into_iter()
-        .filter(|module| {
-            canonical_module_paths(root, specs_dir, module)
-                .is_ok_and(|(spec_path, _)| spec_path.is_file())
-        })
+        .filter(|module| module_has_canonical_spec(root, specs_dir, module))
         .collect()
 }
 
@@ -5072,12 +5134,43 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         unowned.join(", "),
         hints.join("\n")
     );
-    if record.state == ChangeState::Draft
-        && let Some(answer) = declare_owners_answer(root, record, &unowned, &index)
-    {
-        message.push_str(&format!("\nOn this draft, declare them with {answer}."));
+    if record.state == ChangeState::Draft {
+        match declare_owners_answer(root, record, &unowned, &index) {
+            Some(answer) => message.push_str(&format!("\nOn this draft, declare them with {answer}.")),
+            None => {
+                if let Some(missing) = declared_modules_without_spec(root, record) {
+                    message.push_str(&format!("\n{missing}."));
+                }
+            }
+        }
     }
     Err(message)
+}
+
+/// The sentence naming every declared module with no spec at its canonical path, which keeps the
+/// owner recovery from printing an `affected_specs` answer (#1026 review); `None` when every
+/// declared module has its spec.
+fn declared_modules_without_spec(root: &Path, record: &ChangeRecord) -> Option<String> {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let missing: Vec<String> = record
+        .affected_specs
+        .iter()
+        .filter(|module| !module_has_canonical_spec(root, &specs_dir, module))
+        .map(|module| match canonical_module_paths(root, &specs_dir, module) {
+            Ok((spec_path, _)) => format!(
+                "`{module}` has no spec at `{}`",
+                portable_project_path(root, &spec_path)
+            ),
+            Err(_) => format!("`{module}` has no spec at its canonical path"),
+        })
+        .collect();
+    (!missing.is_empty()).then(|| {
+        format!(
+            "The declared {} {}, so no `affected_specs` answer is printed: create that spec, or drop the module from `affected_specs`",
+            if missing.len() == 1 { "module" } else { "modules" },
+            missing.join(" and ")
+        )
+    })
 }
 
 /// Every module that owns `path` and that `record` does not declare: modules whose configured
@@ -5154,11 +5247,16 @@ fn declare_owners_answer(
     {
         return None;
     }
-    // `change answer affected_specs` refuses any listed module with no spec at its canonical
-    // path (#426), and it re-checks every module in the answer, already-declared ones included.
-    // So no answer is printed while any of them lacks a spec; the per-path hints say which spec
-    // to create first (#1026 review).
-    if ensure_affected_specs_exist(root, &modules).is_err() {
+    // A declared module with no spec at its canonical path fails verification, and outside a
+    // project with no specs `change answer affected_specs` refuses it (#426). The answer re-lists
+    // every module, already-declared ones included, so no answer is printed while any of them
+    // lacks a spec; the per-path hints and `declared_modules_without_spec` say which spec to
+    // create first (#1026 review).
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    if modules
+        .iter()
+        .any(|module| !module_has_canonical_spec(root, &specs_dir, module))
+    {
         return None;
     }
     let mut guidance = String::new();
@@ -5222,8 +5320,11 @@ pub fn ownership_preflight_blocker(
                 shell_quote(&record.id)
             ),
             None => format!(
-                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and give each path an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module",
-                shell_quote(&record.id)
+                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and give each path an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module{}",
+                shell_quote(&record.id),
+                declared_modules_without_spec(root, record)
+                    .map(|missing| format!(". {missing}"))
+                    .unwrap_or_default()
             ),
         }
     };
@@ -5263,8 +5364,7 @@ fn ownership_hint(
         .collect();
     configured.sort();
     for module in configured {
-        let has_spec = canonical_module_paths(root, &config.specs_dir, module)
-            .is_ok_and(|(spec_path, _)| spec_path.is_file());
+        let has_spec = module_has_canonical_spec(root, &config.specs_dir, module);
         declare.push(if has_spec {
             format!(
                 "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",

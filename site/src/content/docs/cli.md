@@ -409,6 +409,16 @@ specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for checks before GitHub merges
 ```
 
+`change answer` checks an answer before it stores anything. An unknown question id is refused
+with the accepted ids. An empty answer, or one that names no value (`[]`, `,`), is refused.
+Answer exactly `none` or `[]` to clear `affected_specs` or `dependencies` (`[]` always clears;
+`none` is refused as ambiguous when a change or module is itself called `none`).
+`public_contract` and `architecture_risk` take `yes` or `no`. Every `affected_specs` module needs
+its spec at its canonical path, spelled exactly, unless the project has no specs yet; a module
+that exists only under `[modules]` in the config needs its spec first. An `--actor` is trimmed
+and refused when it holds a newline, a control character or an invisible character other than
+ZWNJ and ZWJ.
+
 For a separately created draft successor called `update-ui`, dependency and exact succession
 are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full
 `specsync.acceptance-entry.v1` digest of the accepted predecessor entry; `--spec` names its

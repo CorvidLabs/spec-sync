@@ -832,24 +832,41 @@ pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String>
     Ok(actor.to_string())
 }
 
-/// Characters an actor identity may not hold, exactly: control characters; the line and
-/// paragraph separators U+2028 and U+2029; the bidirectional marks U+061C, U+200E and U+200F;
-/// the embeddings and overrides U+202A to U+202E; the word joiner, invisible operators and
-/// isolates U+2060 to U+2069; and the zero-width space U+200B and byte-order mark U+FEFF.
-/// ZWNJ and ZWJ (U+200C, U+200D) stay allowed: they belong in names in several scripts.
+/// Characters an actor identity may not hold: control characters; the line and paragraph
+/// separators U+2028 and U+2029; and every format character (general category Cf) and
+/// default-ignorable code point as of Unicode 16.0, so no invisible character can make two
+/// actors that read the same compare different (#1026 review). ZWNJ and ZWJ (U+200C, U+200D)
+/// stay allowed: they belong in names in several scripts and in emoji sequences.
 fn actor_character_is_refused(c: char) -> bool {
     c.is_control()
         || matches!(
             c,
-            '\u{061C}'
+            '\u{00AD}'
+                | '\u{034F}'
+                | '\u{0600}'..='\u{0605}'
+                | '\u{061C}'
+                | '\u{06DD}'
+                | '\u{070F}'
+                | '\u{0890}'..='\u{0891}'
+                | '\u{08E2}'
+                | '\u{115F}'..='\u{1160}'
+                | '\u{17B4}'..='\u{17B5}'
+                | '\u{180B}'..='\u{180F}'
                 | '\u{200B}'
-                | '\u{200E}'
-                | '\u{200F}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202A}'..='\u{202E}'
-                | '\u{2060}'..='\u{2069}'
+                | '\u{200E}'..='\u{200F}'
+                | '\u{2028}'..='\u{202E}'
+                | '\u{2060}'..='\u{206F}'
+                | '\u{3164}'
+                | '\u{FE00}'..='\u{FE0F}'
                 | '\u{FEFF}'
+                | '\u{FFA0}'
+                | '\u{FFF0}'..='\u{FFFB}'
+                | '\u{110BD}'
+                | '\u{110CD}'
+                | '\u{13430}'..='\u{1343F}'
+                | '\u{1BCA0}'..='\u{1BCA3}'
+                | '\u{1D173}'..='\u{1D17A}'
+                | '\u{E0000}'..='\u{E0FFF}'
         )
 }
 

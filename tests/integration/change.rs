@@ -668,6 +668,10 @@ fn change_approve_trims_and_validates_actor_identity() {
         "Ada\u{202E}live",
         "Ada\u{200B}",
         "\u{FEFF}Ada",
+        // Every format and default-ignorable character, not only the bidi ones (#1026 review).
+        "Ada\u{00AD}X",
+        "Ada\u{E0041}\u{E0042}",
+        "Ada\u{3164}",
     ] {
         specsync()
             .args([
@@ -6752,6 +6756,7 @@ fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
     for (question, answer) in [
         ("acceptance_criteria", "[]"),
         ("affected_paths", ","),
+        ("affected_paths", "[]"),
         ("affected_specs", " , "),
         ("dependencies", ","),
     ] {
@@ -6770,6 +6775,25 @@ fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
 
     run(&["change", "answer", id, "affected_specs", "none"]).success();
     assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // `None` is a module name, so it is looked up, and the refusal says how to clear instead.
+    run(&["change", "answer", id, "affected_specs", "None"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "to clear the list, answer exactly `none` or `[]`",
+        ));
+    // A yes/no question takes yes or no: anything else is refused naming the choices and stores
+    // nothing (it used to fail as a corrupt correction ledger), and a recognised spelling is
+    // stored as the choice it names (#1026 review).
+    let before = state();
+    run(&["change", "answer", id, "public_contract", "maybe"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "public_contract answer `maybe` is not one of its choices; answer yes or no",
+        ))
+        .stderr(predicate::str::contains("correction ledger").not());
+    assert_eq!(state(), before, "a refused choice persists nothing");
+    run(&["change", "answer", id, "architecture_risk", " N "]).success();
+    assert_eq!(state()["answers"]["architecture_risk"], "no");
     // A case variant names the real module instead of a scaffold that would collide.
     run(&["change", "answer", id, "affected_specs", "AUTH"])
         .failure()

@@ -10,13 +10,14 @@
   "state": "draft",
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794364038,
-  "updated_at": 1794385835,
+  "updated_at": 1794396875,
   "affected_specs": [
     "change"
   ],
   "affected_paths": [
     "src/change/sdd_version.rs",
     "src/change/validate_loaded_change.rs",
+    "src/change/historical_definition_digest_matches.rs",
     "src/change_tests.rs",
     "src/change_tests/",
     "tests/"

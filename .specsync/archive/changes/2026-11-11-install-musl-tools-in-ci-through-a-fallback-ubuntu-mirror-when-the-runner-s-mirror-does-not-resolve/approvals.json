@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794413019,
+      "digest": "ff4b0743ea050858f57eb00eb7981a8639ca25c2221bec02812fb0abdd38d161",
+      "note": "Leif approved this CI fix himself on 2026-11-11 ('yes fix it!?', answering 'can I change that CI step to retry and fall back to a different server?'). The coordinator agent (claude-code-t370) checked it: package signature checks stay on, the backup mirrors are listed before Canonical's, and only the CI step, its script, its test and fledge.toml change. Built by claude-code-t38b.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "install-musl-tools-in-ci-through-a-fallback-ubuntu-mirror-when-the-runner-s-mirror-does-not-resolve",
+        "title": "Install musl-tools in CI through a fallback Ubuntu mirror when the runner's mirror does not resolve",
+        "description": "Install musl-tools in CI through a fallback Ubuntu mirror when the runner's mirror does not resolve",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/install-musl-tools.sh",
+          ".github/scripts/test-install-musl-tools.sh",
+          ".github/workflows/ci.yml",
+          "fledge.toml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "CI infrastructure only: the musl release-baseline jobs keep building and checking the same archives (REQ-github-025 unchanged); only how the runner obtains musl-tools changes, so no canonical spec or requirement changes",
+        "acceptance_criteria": [
+          "The ci.yml musl install step runs .github/scripts/install-musl-tools.sh and keeps its per-target env exports unchanged; with a stubbed apt-get whose runner mirror does not resolve, the script installs musl-tools through the fallback mirror list on the x86_64 mirror-list, arm64 ports and one-line sources layouts, leaves third-party sources alone, passes Acquire::Retries and Timeout to every apt-get call, and ends in ::error:: when every mirror fails or no Ubuntu source can be repointed; validate-action and the fledge musl-install-test task run that test"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794413421,
+      "digest": "ecb073d6fa170bff7e6333cf0e0917df190c6711bfb158ed36c92877412b688f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

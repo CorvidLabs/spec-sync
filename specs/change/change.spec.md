@@ -35,6 +35,7 @@ files:
   - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
   - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/titled_requirement_header_delta.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs

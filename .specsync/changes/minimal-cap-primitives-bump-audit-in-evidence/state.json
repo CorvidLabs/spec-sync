@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "minimal-cap-primitives-bump-audit-in-evidence",
+  "slug": "minimal-cap-primitives-bump-audit-in-evidence",
+  "title": "Minimal cap-primitives bump, audit in evidence",
+  "description": "minimal cap-primitives bump, audit in evidence",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "9f85c34f3fe08ea4e28074c228d6003725e2c295",
+  "created_at": 1794391084,
+  "updated_at": 1794391133,
+  "affected_specs": [],
+  "affected_paths": [
+    "Cargo.lock"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "redo of the lockfile edit per review: only cap-primitives' version+checksum change; cargo audit output is part of the evidence",
+  "acceptance_criteria": [
+    "Cargo.lock's diff vs main is exactly cap-primitives' version and checksum; cargo audit exits 0 at the head; tasks.md ticks only completed items"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794391103,
+      "digest": "74e59414a81f955d420844ce36e6cfa758851c448a407ae379192b517fe21cd9",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "minimal-cap-primitives-bump-audit-in-evidence",
+        "title": "Minimal cap-primitives bump, audit in evidence",
+        "description": "minimal cap-primitives bump, audit in evidence",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "redo of the lockfile edit per review: only cap-primitives' version+checksum change; cargo audit output is part of the evidence",
+        "acceptance_criteria": [
+          "Cargo.lock's diff vs main is exactly cap-primitives' version and checksum; cargo audit exits 0 at the head; tasks.md ticks only completed items"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

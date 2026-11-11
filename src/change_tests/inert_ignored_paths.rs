@@ -77,3 +77,15 @@ fn a_dot_slash_prefixed_entry_is_inert() {
     };
     assert_eq!(inert_ignored_paths(&policy, "specs"), vec!["./specs/"]);
 }
+
+#[test]
+fn a_dot_specs_dir_matches_nothing() {
+    // With specs_dir "." the root would be "./", which no trimmed entry starts with: the
+    // disclosure stays silent rather than declaring every entry inside a root-level specs
+    // tree inert (corvid-agent's nit on #1056).
+    let policy = SddPolicy {
+        ignored_paths: vec!["specs/".into()],
+        ..Default::default()
+    };
+    assert!(inert_ignored_paths(&policy, ".").is_empty());
+}

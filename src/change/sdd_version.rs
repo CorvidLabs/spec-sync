@@ -2784,6 +2784,10 @@ fn clearable_list_answer(
     question: &str,
     answer: &str,
 ) -> Result<Vec<String>, String> {
+    // `[]` can name no change or module, so it always clears.
+    if answer.trim() == "[]" {
+        return Ok(Vec::new());
+    }
     if answer.trim() == "none" {
         // A change or spec module may itself be called `none`; clearing the list would then
         // silently drop what the answer meant to name (#1026 review).
@@ -2796,7 +2800,7 @@ fn clearable_list_answer(
         };
         if named {
             return Err(format!(
-                "{question} answer `none` is ambiguous because something is named `none`: answer `none,` to name it, or answer the entries to keep; `none` cannot clear this list while that name exists"
+                "{question} answer `none` is ambiguous because something is named `none`: answer `none,` to name it, or answer the entries to keep; or answer `[]` to clear it"
             ));
         }
         return Ok(Vec::new());
@@ -3762,49 +3766,54 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
     // check entirely in a project whose specs all live in the registry).
     let registry = crate::registry::load_local_registry(root)
         .map_err(|error| format!("the spec registry cannot be read: {error}"))?;
-    let known = known_module_names(root, &config.specs_dir);
-    if known.is_empty() {
+    let spec_files = crate::validator::find_spec_files(&root.join(&config.specs_dir));
+    // Bootstrap, exactly as REQ-change-150 says: a project with no spec files and no registry
+    // entries cannot typo against an empty set, so the declaration is provisional there.
+    if spec_files.is_empty() && registry.as_ref().is_none_or(|registry| registry.specs.is_empty()) {
         return Ok(());
     }
+    // One rule: a module is accepted exactly when it is declarable, the same set the error
+    // names as known modules and the owner recovery checks (#1026 review).
+    let known = known_module_names(root, &config.specs_dir);
     for module in modules {
-        // Say why: a registry that cannot be read is not a typo, and a spec outside its
-        // canonical location is not a missing module.
+        if known.iter().any(|name| name == module) {
+            continue;
+        }
         let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)
             .map_err(|error| format!("affected spec `{module}` cannot be resolved: {error}"))?;
-        // An exact name match too: on a case-insensitive disk `AUTH` finds `specs/auth/auth.spec.md`,
-        // which Linux would refuse (#1026 review).
-        let registered_exact = registry
+        let expected = portable_project_path(root, &spec_path);
+        if let Some(actual) = known.iter().find(|name| name.eq_ignore_ascii_case(module)) {
+            return Err(format!(
+                "affected spec `{module}` is not a module; module names are case-sensitive, so name it as `{actual}`"
+            ));
+        }
+        let registered = registry
             .as_ref()
             .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
-        if !spec_path.is_file() || !(registered_exact || known.iter().any(|name| name == module)) {
-            let expected = portable_project_path(root, &spec_path);
-            let registered = registry
-                .as_ref()
-                .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
-            if let Some(actual) = known
-                .iter()
-                .find(|name| *name != module && name.eq_ignore_ascii_case(module))
-            {
-                return Err(format!(
-                    "affected spec `{module}` is not a module; module names are case-sensitive, so name it as `{actual}`"
-                ));
-            }
-            return Err(if registered {
-                format!(
-                    "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create the spec at that path or fix its registry entry"
-                )
-            } else if known.iter().any(|name| name == module) {
-                format!(
-                    "affected spec `{module}` has a spec, but not at its canonical path `{expected}`; move it there or register it in the spec registry"
-                )
-            } else {
-                format!(
-                    "affected spec `{module}` has no spec at `{expected}`; {}, or name one of the known modules: {}",
-                    scaffold_hint(&specs_dir_conventional_path(&config.specs_dir, module), &expected, module),
-                    known.join(", ")
-                )
-            });
+        if registered {
+            return Err(format!(
+                "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create the spec at that path or fix its registry entry"
+            ));
         }
+        // A spec that declares this module somewhere else is moved or registered, never
+        // duplicated by a scaffold at the canonical path.
+        if let Some(elsewhere) = spec_files.iter().find(|spec| {
+            fs::read_to_string(spec)
+                .ok()
+                .and_then(|content| crate::parser::parse_frontmatter(&content))
+                .and_then(|parsed| parsed.frontmatter.module)
+                .is_some_and(|declared| &declared == module)
+        }) {
+            return Err(format!(
+                "affected spec `{module}` has a spec at `{}`, but not at its canonical path `{expected}`; move it there or register it in the spec registry",
+                portable_project_path(root, elsewhere)
+            ));
+        }
+        return Err(format!(
+            "affected spec `{module}` has no spec at `{expected}`; {}, or name one of the known modules: {}",
+            scaffold_hint(&specs_dir_conventional_path(&config.specs_dir, module), &expected, module),
+            known.join(", ")
+        ));
     }
     Ok(())
 }
@@ -5149,11 +5158,7 @@ fn declare_owners_answer(
     // path (#426), and it re-checks every module in the answer, already-declared ones included.
     // So no answer is printed while any of them lacks a spec; the per-path hints say which spec
     // to create first (#1026 review).
-    let specs_dir = crate::config::load_config(root).specs_dir;
-    if modules.iter().any(|module| {
-        !canonical_module_paths(root, &specs_dir, module)
-            .is_ok_and(|(spec_path, _)| spec_path.is_file())
-    }) {
+    if ensure_affected_specs_exist(root, &modules).is_err() {
         return None;
     }
     let mut guidance = String::new();
@@ -5217,7 +5222,7 @@ pub fn ownership_preflight_blocker(
                 shell_quote(&record.id)
             ),
             None => format!(
-                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and give each path an owning spec: create the spec its hint names, or add the path to an existing spec's `files:` list, then declare that module",
                 shell_quote(&record.id)
             ),
         }

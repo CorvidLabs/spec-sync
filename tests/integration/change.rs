@@ -639,6 +639,14 @@ fn change_approve_trims_and_validates_actor_identity() {
     )
     .unwrap();
 
+    // An actor taken from Git is held to the same rule and says where it came from (#1026 review).
+    git(&["config", "user.name", "Ada\u{202E}x"]);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "approve", id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("taken from Git `user.name`"));
+    git(&["config", "user.name", "Test"]);
     // A newline-bearing actor is rejected before any ledger write (#426).
     specsync()
         .args([
@@ -6672,6 +6680,41 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
 
+/// #1026 review: the bootstrap exemption is exactly "no spec files and no registry entries". A
+/// project whose only declaration is a registry entry is checked, and a missing registered spec
+/// is named as registered.
+#[test]
+fn change_new_checks_affected_specs_when_only_the_registry_declares_modules() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/billing.rs"), "pub fn bill() {}\n").unwrap();
+    fs::write(
+        root.join("specsync-registry.toml"),
+        "name = \"proj\"\n\n[specs]\nbilling = \"specs/billing/billing.spec.md\"\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root_arg,
+            "change",
+            "new",
+            "Bill",
+            "--spec",
+            "billing",
+            "--path",
+            "src/billing.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "is registered at `specs/billing/billing.spec.md`, but no spec exists there",
+        ));
+}
+
 /// #1026 review: an answer that parses to no value is refused rather than silently clearing a
 /// list, and `none` clears the lists that may be empty.
 #[test]
@@ -6747,6 +6790,24 @@ fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
     run(&["change", "answer", id, "affected_specs", "none"])
         .failure()
         .stderr(predicate::str::contains("is ambiguous"));
+    // `[]` names nothing, so it clears even while something is named `none`.
+    run(&["change", "answer", id, "affected_specs", "[]"]).success();
+    assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // A spec that declares the module off its canonical path is moved or registered, never
+    // duplicated by a scaffold at the canonical path.
+    fs::create_dir_all(root.join("specs/pay")).unwrap();
+    fs::write(
+        root.join("specs/pay/main.spec.md"),
+        "---\nmodule: pay\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Pay\n",
+    )
+    .unwrap();
+    let refused = run(&["change", "answer", id, "affected_specs", "pay"]).failure();
+    let error = String::from_utf8_lossy(&refused.get_output().stderr).to_string();
+    assert!(
+        error.contains("has a spec at `specs/pay/main.spec.md`, but not at its canonical path")
+            && !error.contains("specsync new"),
+        "{error}"
+    );
     // A registered module whose spec file is missing is named as registered, not as moved.
     fs::write(
         root.join("specsync-registry.toml"),

@@ -1,4 +1,55 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794411142,
+      "digest": "6d6ea94969b33a22f0a4711f1ed58163be1e9c891255365a62056889eb3d22f6",
+      "note": "Leif approved this himself on 2026-11-11 after the coordinator agent (claude-code-t370) checked it was aligned and summarised it: an older SpecSync that rewrites a record keeps every field a newer one wrote, or refuses instead of dropping it. Covers the REQ-change-079 additions and invariant 57 at 2d1cf7b0.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote",
+        "title": "A lifecycle rewrite keeps the fields a newer specsync wrote",
+        "description": "a lifecycle rewrite keeps the fields a newer specsync wrote",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/change/doctor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/historical_reconciliation.rs",
+          "src/change/relayed_decision.rs",
+          "src/change/retirement.rs",
+          "src/change/sdd_version.rs",
+          "src/change/send_back.rs",
+          "src/change/unknown_members.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/unknown_members.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A lifecycle record or ledger SpecSync rewrites in place keeps every member it does not know, with its exact text, at the top level and inside entries the rewrite left unchanged, through send-back, answer, approve, check, review, ship and relay repair, and the audit stays clean"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-079 (CHG-0158 forward-compatibility valve): reading tolerates unknown fields and no digest changes; hi CHANGE-12.c (nothing recorded is lost) and CHANGE-13.h (an older SpecSync can still reopen and finish a change)",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "08d1208aed87091e67d6b6ce4954bdbfdf913295f63bf9fbc0f0af287e1aac9a"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-079": "6739946ebfb580bd1153e240501e219725dd47e9ded00fa1dd311d6d6432743e"
+      }
+    }
+  ],
   "reopenings": []
 }

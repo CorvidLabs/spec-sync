@@ -2,13 +2,13 @@
 
 ## Human authority
 
-Leif's task was to make the README, docs and Mermaid diagrams accurate. A read-only audit produced 22 findings at /Users/leif/Development/_CorvidLabs/_worktrees/ss-docs-findings.md, pinned originally to e6b1ce11. t18 received that report before fixes. On 2026-11-06 t18 relayed Leif's exact decision, “Capture all three”, approving DOCS-4, DOCS-5 and DOCS-5.a as proposed. Codex captured the exact sentences with fledge hi and recorded that relay in hi/docs.md. This is a relayed claim, not authenticated identity.
+Leif's task was to make the README, docs and Mermaid diagrams accurate. A read-only audit produced 22 findings in a local, uncommitted findings report, pinned originally to e6b1ce11. t18 received that report before fixes. On 2026-11-06 t18 relayed Leif's exact decision, “Capture all three”, approving DOCS-4, DOCS-5 and DOCS-5.a as proposed. Codex captured the exact sentences with fledge hi and recorded that relay in hi/docs.md. This is a relayed claim, not authenticated identity.
 
 Scope approval is pending: t18 explicitly requested `ready for approval <id> at <commit>` and will record Leif's approval. No native approval, test implementation, prose fix, push or PR is authorized by an agent label. Later implementation acceptance remains separate.
 
 ## Evidence and baseline
 
-Preparation base is main 7ae7245f97e7cfd66cd80ce39b611becb1095642. The branch was clean before fast-forward. Fledge built this checkout in Herdr t130. Audit commands used the separately built e6b1ce11 binary (hash and exact receipts retained in /private/tmp/ss-docs-audit-e6b1ce11/evidence). The audit covered 71 visible help pages, hidden accept help, selected disposable command/lifecycle fixtures, 51 external links and every Mermaid fence. All 11 diagrams were reviewed manually; offline CLI parser unavailable. No parser pass, full suite pass, deployment or cross-platform parity is claimed from that audit.
+Preparation base is main 7ae7245f97e7cfd66cd80ce39b611becb1095642. The branch was clean before fast-forward. Fledge built this checkout in Herdr t130. Audit commands used the separately built e6b1ce11 binary (hash and exact receipts kept locally, outside the repository). The audit covered 71 visible help pages, hidden accept help, selected disposable command/lifecycle fixtures, 51 external links and every Mermaid fence. All 11 diagrams were reviewed manually; offline CLI parser unavailable. No parser pass, full suite pass, deployment or cross-platform parity is claimed from that audit.
 
 ## Decisions and constraints
 

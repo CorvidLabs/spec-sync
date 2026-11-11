@@ -16,7 +16,7 @@ One documentation-focused PR resolves the audit's non-overlapping reference and 
 
 ## Protected hunks and dependencies
 
-Read-only diff inventory on main 7ae7245f is in /private/tmp/ss-docs-plan/prs. #912/#916/#910 are merged in this base. Preserve their installed behavior. Open PRs #900/#901/#903/#918/#920/#934/#935/#936/#941/#943/#944 were checked. Re-read live diffs before implementation and before review.
+A read-only diff inventory on main 7ae7245f was kept locally, outside the repository. #912/#916/#910 are merged in this base. Preserve their installed behavior. Open PRs #900/#901/#903/#918/#920/#934/#935/#936/#941/#943/#944 were checked. Re-read live diffs before implementation and before review.
 
 - README approval/authentication paragraph belongs to #900; CLI identity/relay paragraphs belong to #900 and read-timeout blocks to #918. Edits to other sections must not rewrite those lines.
 - Workflow task-gate material belongs to #903; no workflow.md edits are planned.

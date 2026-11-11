@@ -52,7 +52,7 @@ Original pinned build and selected lifecycle fixtures passed. All 11 diagrams we
 
 ## Full local lane result
 
-`PATH=/Users/leif/.cargo/bin:<pinned-Bun-directory>:$PATH fledge lanes run verify` passed
+`PATH=<rustup-cargo-bin>:<pinned-Bun-directory>:$PATH fledge lanes run verify` passed
 all seven configured steps in 18m53s. Rust/Clippy were 1.89.0, as pinned in
 `rust-toolchain.toml`: 2838 unit tests passed, 2 ignored; all 499 integration tests passed;
 release build, strict spec check, release-candidate, CI-gate and Linux-baseline guard tests

@@ -106,6 +106,57 @@ fn watch_errors_when_all_directories_missing() {
     );
 }
 
+
+/// #1040: run `specsync watch` until one of `markers` appears in its stdout, then kill it.
+/// The verdict is an event, not a duration — a fixed window flakes under load (#707's class).
+/// The generous upper bound exists only to bound a hung child.
+fn watch_until(root: &std::path::Path, markers: &[&str]) -> String {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+    let mut command = std::process::Command::new(specsync().get_program());
+    command.args(["watch", "--root"]).arg(root).stdout(Stdio::piped());
+    let mut child = command.spawn().expect("failed to spawn specsync watch");
+    let stdout = child.stdout.take().expect("stdout is piped");
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            let Ok(line) = line else { return };
+            if tx.send(line).is_err() {
+                return;
+            }
+        }
+    });
+    let deadline = std::time::Instant::now() + Duration::from_secs(120);
+    let mut collected = String::new();
+    loop {
+        let found = markers.iter().any(|marker| collected.contains(marker));
+        if found {
+            break;
+        }
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(line) => {
+                collected.push_str(&line);
+                collected.push('\n');
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "watch printed none of {markers:?} within the generous bound; got: {collected}"
+                );
+                if child.try_wait().unwrap().is_some() {
+                    panic!("watch exited before printing any of {markers:?}; got: {collected}");
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("watch closed stdout before printing any of {markers:?}; got: {collected}");
+            }
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    collected
+}
+
 #[test]
 fn watch_does_not_claim_a_pass_over_zero_specs() {
     // Second half of #577: disclosing the dropped directory is not enough if
@@ -123,13 +174,7 @@ fn watch_does_not_claim_a_pass_over_zero_specs() {
     )
     .unwrap();
 
-    let output = specsync()
-        .args(["watch", "--root"])
-        .arg(root)
-        .timeout(Duration::from_secs(5))
-        .output()
-        .expect("failed to run specsync watch");
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = watch_until(root, &["No specs were examined", "All checks passed!"]);
 
     assert!(
         !stdout.contains("All checks passed!"),
@@ -192,13 +237,7 @@ fn watch_still_reports_a_pass_over_a_real_spec_set() {
     )
     .unwrap();
 
-    let output = specsync()
-        .args(["watch", "--root"])
-        .arg(root)
-        .timeout(Duration::from_secs(5))
-        .output()
-        .expect("failed to run specsync watch");
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = watch_until(root, &["All checks passed!", "No specs were examined"]);
 
     assert!(
         stdout.contains("All checks passed!"),

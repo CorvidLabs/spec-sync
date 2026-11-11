@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794387650,
+      "commit": "46f55652649a72ddf5e1715938b504b96686566b",
+      "contract_digest": "a14efffc7cf7e8db5940f017e59bccc50a4c5095a00303de20f3706616af6d56",
+      "execution_digest": "d0cc6fda11cb37d294863c2681235049e13718ce6727c53efc5b3df33290c152",
+      "workspace_digest": "1aac7591a125cf5100794b6f9e004f9a93c1d822922a8aeaa1633bb426cdab9e",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec none",
+          "success": false,
+          "exit_code": 1
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794387784,
+      "commit": "46f55652649a72ddf5e1715938b504b96686566b",
+      "contract_digest": "1b2d777c0f4f2de2be1b7ba7023b9683d6d50f29f6cffcf88b6320da5337bda3",
+      "execution_digest": "e250034d4aeb14f345878b1f9d0d055fa8ed72a73686293123d382546faa02df",
+      "workspace_digest": "1aac7591a125cf5100794b6f9e004f9a93c1d822922a8aeaa1633bb426cdab9e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

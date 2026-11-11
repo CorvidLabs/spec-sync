@@ -105,6 +105,13 @@
         "where": "Leif's chat with corvid-agent, 2026-11-11 1:35 PM MST, choosing the coordinator's option (a) posted on #1059 (https://github.com/CorvidLabs/spec-sync/pull/1059#issuecomment-6806146884); his earlier coordinator-chat words were 'yes I approve 1059' (https://github.com/CorvidLabs/spec-sync/pull/1059#issuecomment-6800604769)",
         "recorded_by": "corvid-agent"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794430901,
+      "digest": "38b4e7e37d05457688789fd1b443665ca2a5aa7d0dd38d708e963ce528d175d0",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

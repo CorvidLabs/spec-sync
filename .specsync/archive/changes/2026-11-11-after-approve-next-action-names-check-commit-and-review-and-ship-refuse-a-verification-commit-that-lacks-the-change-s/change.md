@@ -1,6 +1,6 @@
 ---
 id: after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s
-state: verifying
+state: archived
 type: bug_fix
 base_commit: ad8544e9da79725f499b38ae4d4b3a052be5f807
 ---

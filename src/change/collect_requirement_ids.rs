@@ -2845,10 +2845,38 @@ fn markdown_block_matches(existing: &str, heading: &str, content: &str) -> bool 
             .to_string()
     }
     let existing = normalize(existing);
-    let Some(body) = existing.strip_prefix(&normalize(heading)) else {
+    let (header_line, body) = existing.split_once('\n').unwrap_or((&existing, ""));
+    if !requirement_heading_line_matches(header_line, &normalize(heading)) {
+        return false;
+    }
+    normalize(body) == normalize(content)
+}
+
+/// Whether `line` names the `heading` block: exactly the heading, or — for requirement blocks
+/// only — the heading plus a title suffix (`### REQ-cli-006 — Bound local input`, #1024). Every
+/// requirement *parser* takes the first whitespace-separated token and already tolerates the
+/// title; the materializer is the only place that writes blocks and was the outlier demanding
+/// exact equality. The character after the matched heading must be whitespace, so
+/// `### REQ-cli-006` never matches `### REQ-cli-0060`, and only a `### REQ-…` heading earns the
+/// tolerance at all, so the section key `Change Log` never matches `## Change Log Archive`.
+fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
+    let trimmed = line.trim_end();
+    if trimmed == heading {
+        return true;
+    }
+    let Some(id) = heading.strip_prefix("### REQ-") else {
         return false;
     };
-    normalize(body) == normalize(content)
+    let id_shape = id.split_once('-').is_some_and(|(module, number)| {
+        !module.is_empty()
+            && module.chars().all(|ch| ch.is_ascii_alphanumeric())
+            && !number.is_empty()
+            && number.chars().all(|ch| ch.is_ascii_digit())
+    });
+    id_shape
+        && trimmed
+            .strip_prefix(heading)
+            .is_some_and(|rest| rest.starts_with([' ', '\t']))
 }
 
 /// Byte range of the `heading` block in `source` — the heading line through to the next heading at
@@ -2874,7 +2902,7 @@ fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Ran
     }
     let start = lines
         .iter()
-        .position(|(_, line)| line.trim_end() == heading)?;
+        .position(|(_, line)| requirement_heading_line_matches(line, heading))?;
     let end = lines
         .iter()
         .skip(start + 1)

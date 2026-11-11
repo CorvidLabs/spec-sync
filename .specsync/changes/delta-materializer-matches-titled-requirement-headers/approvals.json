@@ -1,0 +1,131 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794361642,
+      "digest": "f7d8715b969f917c41ebddbc8c397f106450f618bb40c477f07a0c9b175889df",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-materializer-matches-titled-requirement-headers",
+        "title": "Delta materializer matches titled requirement headers",
+        "description": "delta materializer matches titled requirement headers",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta naming REQ-X-NNN applies to a canonical block headed '### REQ-X-NNN — Title', and the materialized tree verifies"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "50090069d87b0054b41a3a94ddcd02a27ddaa435f0575f5618bf3370cdf1e7b1"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794362165,
+      "digest": "63469579ab1969783e18cefba2b320aad26f6abc877af7651ffee1c25cb498b0",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-materializer-matches-titled-requirement-headers",
+        "title": "Delta materializer matches titled requirement headers",
+        "description": "delta materializer matches titled requirement headers",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta naming REQ-X-NNN applies to a canonical block headed '### REQ-X-NNN — Title', and the materialized tree verifies"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "50090069d87b0054b41a3a94ddcd02a27ddaa435f0575f5618bf3370cdf1e7b1"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794362195,
+      "digest": "63469579ab1969783e18cefba2b320aad26f6abc877af7651ffee1c25cb498b0",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-materializer-matches-titled-requirement-headers",
+        "title": "Delta materializer matches titled requirement headers",
+        "description": "delta materializer matches titled requirement headers",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta naming REQ-X-NNN applies to a canonical block headed '### REQ-X-NNN — Title', and the materialized tree verifies"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "50090069d87b0054b41a3a94ddcd02a27ddaa435f0575f5618bf3370cdf1e7b1"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "delta-materializer-matches-titled-requirement-headers",
+      "actor": "0xLeif",
+      "reason": "widen affected_paths to the test files the fix touches",
+      "timestamp": 1794362162,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    }
+  ]
+}

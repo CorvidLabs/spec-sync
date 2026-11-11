@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "delta-materializer-matches-titled-requirement-headers",
+  "slug": "delta-materializer-matches-titled-requirement-headers",
+  "title": "Delta materializer matches titled requirement headers",
+  "description": "delta materializer matches titled requirement headers",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794361568,
+  "updated_at": 1794365822,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests.rs",
+    "src/change_tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a MODIFIED delta naming REQ-X-NNN applies to a canonical block headed '### REQ-X-NNN — Title', and the materialized tree verifies"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

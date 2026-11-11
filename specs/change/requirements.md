@@ -1959,3 +1959,20 @@ Every comparison that decides whether an approval or correction history is curre
 - An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
 - A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 
+### REQ-change-150
+
+When a delta item targets a requirement whose canonical header carries a title
+suffix (`### REQ-<module>-<number> — Title`), the materializer SHALL match the
+block by its requirement id and apply the delta; the materialized block SHALL
+carry the canonical untitled header. Section deltas (`## ` targets) SHALL keep
+exact heading matching.
+
+#### Acceptance Criteria
+
+- A MODIFIED delta naming `REQ-x-NNN` applies to a canonical block headed
+  `### REQ-x-NNN — Any Title` and the result verifies.
+- The materialized header is `### REQ-x-NNN` (the title is normalized away),
+  so re-application converges.
+- A `## ` section delta whose key is a strict prefix of an existing section
+  heading does not match that section.
+

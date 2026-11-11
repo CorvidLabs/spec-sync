@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+  "slug": "merge-driver-keeps-a-one-sided-requirement-reorder",
+  "title": "Merge driver keeps a one-sided requirement reorder",
+  "description": "merge driver keeps a one-sided requirement reorder",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794367698,
+  "updated_at": 1794395492,
+  "affected_specs": [
+    "merge"
+  ],
+  "affected_paths": [
+    "src/merge_driver.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

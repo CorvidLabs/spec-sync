@@ -1,0 +1,139 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794367785,
+      "digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+        "title": "Merge driver keeps a one-sided requirement reorder",
+        "description": "merge driver keeps a one-sided requirement reorder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "merge"
+        ],
+        "affected_paths": [
+          "src/merge_driver.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "merge": "70cf6e730e66a860a0559108581e22945273f8b4e327276b4a46077fbbfec706"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794367857,
+      "digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+        "title": "Merge driver keeps a one-sided requirement reorder",
+        "description": "merge driver keeps a one-sided requirement reorder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "merge"
+        ],
+        "affected_paths": [
+          "src/merge_driver.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "merge": "768ab0530729831df1e121c452a8a567afc848348141b67407394704f81a5da7"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794379943,
+      "digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+        "title": "Merge driver keeps a one-sided requirement reorder",
+        "description": "merge driver keeps a one-sided requirement reorder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "merge"
+        ],
+        "affected_paths": [
+          "src/merge_driver.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "when one branch reorders existing requirement blocks and the other only adds or edits, the merge keeps the reorder; divergent reorders conflict"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "merge": "768ab0530729831df1e121c452a8a567afc848348141b67407394704f81a5da7"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+      "actor": "0xLeif",
+      "reason": "renumber the delta requirement to the next free id",
+      "timestamp": 1794367830,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+      "actor": "kimi-code-t37b",
+      "reason": "re-record approval under the 2026-11-10 attribution rule",
+      "timestamp": 1794379940,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    }
+  ]
+}

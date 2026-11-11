@@ -140,12 +140,42 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
     let mut content = pre.content;
 
     let base_ids: BTreeSet<&str> = base_blocks.iter().map(|block| block.id.as_str()).collect();
-    let mut order: Vec<String> = Vec::new();
-    for block in &base_blocks {
-        if !order.iter().any(|id| id == &block.id) {
-            order.push(block.id.clone());
-        }
-    }
+    // #874: the ancestor's order is the default, not the answer. A side that reordered the
+    // surviving blocks while the other kept the ancestor's order wins outright; two different
+    // reorders conflict rather than one silently prevailing.
+    let surviving_order = |blocks: &[ReqBlock]| -> Vec<String> {
+        blocks
+            .iter()
+            .filter(|block| base_ids.contains(block.id.as_str()))
+            .map(|block| block.id.clone())
+            .collect()
+    };
+    let base_order: Vec<String> = base_blocks.iter().map(|block| block.id.clone()).collect();
+    let ours_order = surviving_order(&ours_blocks);
+    let theirs_order = surviving_order(&theirs_blocks);
+    // Reorder detection applies only when both sides kept the same SET of surviving ids:
+    // a different set is a deletion, which the per-block rules below already judge.
+    let same_set = |a: &[String], b: &[String]| {
+        let mut a = a.to_vec();
+        let mut b = b.to_vec();
+        a.sort();
+        b.sort();
+        a == b
+    };
+    let mut order: Vec<String> = if !same_set(&ours_order, &base_order)
+        || !same_set(&theirs_order, &base_order)
+    {
+        base_order.clone()
+    } else if ours_order == theirs_order {
+        ours_order.clone()
+    } else if ours_order == base_order {
+        theirs_order.clone()
+    } else if theirs_order == base_order {
+        ours_order.clone()
+    } else {
+        clean = false;
+        base_order.clone()
+    };
     let mut added = Vec::new();
     for block in ours_blocks.iter().chain(theirs_blocks.iter()) {
         if !base_ids.contains(block.id.as_str()) && !added.iter().any(|id: &String| id == &block.id)
@@ -1483,6 +1513,67 @@ mod tests {
         assert!(
             merged.content.contains("version: \"7\"\n"),
             "{}",
+            merged.content
+        );
+    }
+
+    // #874: a one-sided reorder of existing requirement blocks is kept, not silently dropped.
+    #[test]
+    fn a_one_sided_requirement_reorder_is_kept() {
+        let one = "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
+        let two = "### REQ-cli-002\n\nThe system SHALL run.\n\nAcceptance Criteria\n- It runs.\n";
+        let three = "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
+        let doc = |blocks: &[&str]| {
+            let mut text = "---\nspec: cli.spec.md\n---\n\n# Requirements\n\n".to_string();
+            for block in blocks {
+                text.push_str(block);
+                text.push('\n');
+            }
+            text
+        };
+        let base = doc(&[one, two]);
+        // Ours swaps the two blocks; theirs only adds a third.
+        let ours = doc(&[two, one]);
+        let theirs = doc(&[one, two, three]);
+        let forward = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        let backward = merge_contract(&base, &theirs, &ours, "specs/cli/requirements.md");
+        assert!(forward.clean, "{}", forward.content);
+        assert!(backward.clean, "{}", backward.content);
+        let pos = |text: &str, needle: &str| text.find(needle).unwrap();
+        assert!(
+            pos(&forward.content, "REQ-cli-002") < pos(&forward.content, "REQ-cli-001"),
+            "the reorder is kept:\n{}",
+            forward.content
+        );
+        assert!(
+            pos(&forward.content, "REQ-cli-001") < pos(&forward.content, "REQ-cli-003"),
+            "the addition lands after the reordered blocks:\n{}",
+            forward.content
+        );
+        assert_eq!(forward.content, backward.content);
+    }
+
+    // #874: two different reorders conflict rather than one silently prevailing.
+    #[test]
+    fn divergent_requirement_reorders_conflict() {
+        let one = "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
+        let two = "### REQ-cli-002\n\nThe system SHALL run.\n\nAcceptance Criteria\n- It runs.\n";
+        let three = "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
+        let doc = |blocks: &[&str]| {
+            let mut text = "---\nspec: cli.spec.md\n---\n\n# Requirements\n\n".to_string();
+            for block in blocks {
+                text.push_str(block);
+                text.push('\n');
+            }
+            text
+        };
+        let base = doc(&[one, two, three]);
+        let ours = doc(&[two, one, three]);
+        let theirs = doc(&[three, one, two]);
+        let merged = merge_contract(&base, &ours, &theirs, "specs/cli/requirements.md");
+        assert!(
+            !merged.clean,
+            "divergent reorders must conflict:\n{}",
             merged.content
         );
     }

@@ -131,3 +131,16 @@ The git merge driver SHALL report a merge clean only when the result keeps every
 - A version comment added on one side survives; the same comment on both sides is kept; two different comments are a conflict; in either order (#876).
 - An ancestor change-log row at `u64::MAX` plus a new row on each side is a conflict, with no panic and no `0` row (#870).
 
+### REQ-merge-007
+
+When one side of a requirements merge reorders existing requirement blocks and
+the other side keeps the ancestor's order, the merge SHALL keep the reordered
+sequence. When both sides reorder differently, the merge SHALL be conflicted
+rather than silently choosing one ordering.
+
+#### Acceptance Criteria
+
+- A one-sided reorder survives the merge in either merge direction.
+- Divergent reorders produce a conflicted merge.
+- An unchanged-order merge stays byte-identical to today's output.
+

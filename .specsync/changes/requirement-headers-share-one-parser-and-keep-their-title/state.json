@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "requirement-headers-share-one-parser-and-keep-their-title",
+  "slug": "requirement-headers-share-one-parser-and-keep-their-title",
+  "title": "Requirement headers share one parser and keep their title",
+  "description": "requirement headers share one parser and keep their title",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "35e6f47ba4a12ba673230127905b3bc834445deb",
+  "created_at": 1794370404,
+  "updated_at": 1794375020,
+  "affected_specs": [
+    "change",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests.rs",
+    "src/change_tests/titled_requirement_header_delta.rs",
+    "src/validator/requirement_ids.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a MODIFIED delta applies to every header form the requirement parser accepts (multi-segment ids, punctuation, up to 3-space indent); the matched header line is written back unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

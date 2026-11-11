@@ -1,13 +1,10 @@
-// Issue #1024: a requirement whose canonical header carries a title suffix
-// (`### REQ-cli-006 — Bound local input`) is readable by every requirement
-// parser, which all take the first whitespace-separated token, but the delta
-// materializer matched headings by exact line equality, so a MODIFIED or
-// REMOVED delta naming the id failed with "cannot modify/remove missing
-// block". Requirement blocks now match by id and tolerate the title; `## `
-// section keys keep exact matching.
+// Issue #1024 (round 2, t384's review): a requirement whose canonical header carries a title
+// suffix (`### REQ-cli-006 — Bound local input`) or punctuation (`### REQ-x-001: Title`) is
+// readable by every requirement parser; the materializer now matches through the same shared
+// parser and writes the matched header line back unchanged, so the title survives.
 
-/// A MODIFIED delta lands on a titled requirement header, and the
-/// materialized block carries the canonical untitled header.
+/// A MODIFIED delta lands on a titled requirement header, and the matched header line —
+/// title included — is written back unchanged.
 #[test]
 fn a_modified_delta_matches_a_titled_requirement_header() {
     let source =
@@ -21,10 +18,69 @@ fn a_modified_delta_matches_a_titled_requirement_header() {
     )
     .unwrap();
     assert!(
-        modified.contains("### REQ-auth-001\n\nNew"),
-        "the title is normalized away so re-application converges: {modified}"
+        modified.contains("### REQ-auth-001 — One session per user\n\nNew"),
+        "the title is kept: {modified}"
     );
     assert!(modified.contains("### REQ-auth-002\n\nKeep"));
+}
+
+/// The same id rule the validators use: a multi-segment module id with a title.
+#[test]
+fn a_modified_delta_matches_a_hyphenated_module_id_with_a_title() {
+    let source = "# Requirements\n\n### REQ-cmd-change-012 — Titled\n\nOld\n";
+    let modified = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-cmd-change-012",
+        "New",
+        DeltaOperation::Modified,
+    )
+    .unwrap();
+    assert!(
+        modified.contains("### REQ-cmd-change-012 — Titled\n\nNew"),
+        "{modified}"
+    );
+}
+
+/// The parsers trim trailing punctuation from the id token, so a colon title matches too.
+#[test]
+fn a_modified_delta_matches_a_colon_title() {
+    let source = "# Requirements\n\n### REQ-auth-001: One session per user\n\nOld\n";
+    let modified = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "New",
+        DeltaOperation::Modified,
+    )
+    .unwrap();
+    assert!(
+        modified.contains("### REQ-auth-001: One session per user\n\nNew"),
+        "{modified}"
+    );
+}
+
+/// The parser's ATX rule applies: up to three spaces of indent match; four is indented code.
+#[test]
+fn a_header_indented_three_spaces_matches_and_four_does_not() {
+    let source = "# Requirements\n\n   ### REQ-auth-001 — Titled\n\nOld\n";
+    let modified = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "New",
+        DeltaOperation::Modified,
+    )
+    .unwrap();
+    assert!(modified.contains("   ### REQ-auth-001 — Titled\n\nNew"), "{modified}");
+
+    let code = "# Requirements\n\n    ### REQ-auth-001 — Titled\n\nOld\n";
+    let error = apply_markdown_block(code, "### ", "REQ-auth-001", "New", DeltaOperation::Modified)
+        .unwrap_err();
+    assert!(
+        error.contains("cannot modify/remove missing block `REQ-auth-001`"),
+        "four-space indent is indented code, not a heading: {error}"
+    );
 }
 
 /// A REMOVED delta removes a titled requirement block.
@@ -44,9 +100,7 @@ fn a_removed_delta_matches_a_titled_requirement_header() {
     assert!(removed.contains("### REQ-auth-002\n\nKeep"));
 }
 
-/// The block a titled match returns runs to the next heading, not to the end
-/// of the line, and the id token boundary holds: `REQ-auth-001` never matches
-/// `REQ-auth-0010`.
+/// The id token boundary holds: `REQ-auth-001` never matches `REQ-auth-0010`.
 #[test]
 fn a_titled_match_never_crosses_the_id_token_boundary() {
     let source = "# Requirements\n\n### REQ-auth-0010 — Another block\n\nOld\n";
@@ -62,6 +116,36 @@ fn a_titled_match_never_crosses_the_id_token_boundary() {
         error.contains("cannot modify/remove missing block `REQ-auth-001`"),
         "a longer id is not a titled match: {error}"
     );
+}
+
+/// An ADDED item whose id already exists behind a titled header with the same body converges
+/// instead of duplicating the block (t384's round-2 edge).
+#[test]
+fn an_added_delta_behind_a_titled_header_converges() {
+    let source = "# Requirements\n\n### REQ-auth-001 — One session\n\nSame body.\n";
+    let reapplied = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "Same body.",
+        DeltaOperation::Added,
+    )
+    .unwrap();
+    assert_eq!(
+        reapplied.matches("REQ-auth-001").count(),
+        1,
+        "no duplicate block: {reapplied}"
+    );
+    // A different body behind the title is a conflict, not a silent no-op.
+    let error = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "Different body.",
+        DeltaOperation::Added,
+    )
+    .unwrap_err();
+    assert!(error.contains("cannot add existing block"), "{error}");
 }
 
 /// `delta_item_is_applied` recognizes an already-applied delta whose canonical

@@ -2852,31 +2852,20 @@ fn markdown_block_matches(existing: &str, heading: &str, content: &str) -> bool 
     normalize(body) == normalize(content)
 }
 
-/// Whether `line` names the `heading` block: exactly the heading, or — for requirement blocks
-/// only — the heading plus a title suffix (`### REQ-cli-006 — Bound local input`, #1024). Every
-/// requirement *parser* takes the first whitespace-separated token and already tolerates the
-/// title; the materializer is the only place that writes blocks and was the outlier demanding
-/// exact equality. The character after the matched heading must be whitespace, so
-/// `### REQ-cli-006` never matches `### REQ-cli-0060`, and only a `### REQ-…` heading earns the
-/// tolerance at all, so the section key `Change Log` never matches `## Change Log Archive`.
+/// Whether `line` names the `heading` block: exactly the heading, or — for `### ` requirement
+/// targets only — any header form the shared requirement parser accepts for the same id
+/// (`### REQ-cmd-change-012 — Title`, `### REQ-x-001: Title`, up to three spaces of indent;
+/// #1024, t384's review). The parser owns the id rule (`REQ-<module>-<number>`, multi-segment
+/// module allowed), so the materializer never drifts from what every reader accepts. A `## `
+/// section key matches only exactly, so `Change Log` never matches `## Change Log Archive`.
 fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
-    let trimmed = line.trim_end();
-    if trimmed == heading {
+    if line.trim_end() == heading {
         return true;
     }
-    let Some(id) = heading.strip_prefix("### REQ-") else {
+    let Some(key) = heading.strip_prefix("### ") else {
         return false;
     };
-    let id_shape = id.split_once('-').is_some_and(|(module, number)| {
-        !module.is_empty()
-            && module.chars().all(|ch| ch.is_ascii_alphanumeric())
-            && !number.is_empty()
-            && number.chars().all(|ch| ch.is_ascii_digit())
-    });
-    id_shape
-        && trimmed
-            .strip_prefix(heading)
-            .is_some_and(|rest| rest.starts_with([' ', '\t']))
+    crate::validator::requirement_heading_id(line) == Some(key)
 }
 
 /// Byte range of the `heading` block in `source` — the heading line through to the next heading at
@@ -2961,7 +2950,16 @@ fn apply_markdown_block(
             .trim_end_matches(['\r', '\n'])
             .replace("\r\n", "\n")
             .replace('\n', line_ending);
-        format!("{heading}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
+        // A matched block keeps its own header line: a title suffix the parser accepted is
+        // the author's annotation, not drift to normalize away (#1024, t384's review).
+        // Convergence comes from the tolerant matcher, which reads the title back.
+        let header = block
+            .as_ref()
+            .and_then(|range| source[range.clone()].lines().next())
+            .map(str::trim_end)
+            .filter(|line| !line.is_empty())
+            .unwrap_or(&heading);
+        format!("{header}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
     };
     if let Some(range) = block {
         let mut output =

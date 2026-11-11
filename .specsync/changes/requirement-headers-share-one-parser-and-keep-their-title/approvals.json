@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794370595,
+      "digest": "09aea5e9a35a52140d7c45e3affd2c4bf0727a616b6b31750220d605633a6c4e",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "requirement-headers-share-one-parser-and-keep-their-title",
+        "title": "Requirement headers share one parser and keep their title",
+        "description": "requirement headers share one parser and keep their title",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/titled_requirement_header_delta.rs",
+          "src/validator/requirement_ids.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a MODIFIED delta applies to every header form the requirement parser accepts (multi-segment ids, punctuation, up to 3-space indent); the matched header line is written back unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "8c892b23d6de040ed07c1cb0b6b0baa8258ecf6ed048f0dbb840518e7e15a61e",
+        "validator": "97dd3cf0d44b7b36dfb6dbd994588013ac5a369e9b3c00c07643bd61409347f4"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-150": "5f46142a71995f1bc11ee98e685baf5a979bccd9c138874b9fd9fefd5be1fd2e"
+      }
+    }
+  ],
+  "reopenings": []
+}

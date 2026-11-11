@@ -1,6 +1,6 @@
 ---
 id: requirement-headers-share-one-parser-and-keep-their-title
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 35e6f47ba4a12ba673230127905b3bc834445deb
 ---

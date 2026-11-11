@@ -7,11 +7,11 @@
   "title": "Requirement headers share one parser and keep their title",
   "description": "requirement headers share one parser and keep their title",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "35e6f47ba4a12ba673230127905b3bc834445deb",
   "created_at": 1794370404,
-  "updated_at": 1794375028,
+  "updated_at": 1794375064,
   "affected_specs": [
     "change",
     "validator"

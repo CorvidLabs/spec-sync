@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "requirement-headers-share-one-parser-and-keep-their-title",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5659794e9d8b3caf2fadef3be123f57854c1e7d8",
+  "contract_digest": "09aea5e9a35a52140d7c45e3affd2c4bf0727a616b6b31750220d605633a6c4e",
+  "execution_digest": "50d14980d5be256ce173c030ca33e5ceb4fdb3b6636d65e770a10ffb2dbf8ba9",
+  "workspace_digest": "78d622aaa5209954ec4a9a38c3e46dc3767a3e57ba88a2c8d65c54d75ecd19e6",
+  "timestamp": 1794375035
+}

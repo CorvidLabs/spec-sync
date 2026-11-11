@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "requirement-headers-share-one-parser-and-keep-their-title",
+  "implementation_commit": "5659794e9d8b3caf2fadef3be123f57854c1e7d8",
+  "implementation_tree": "51c8107448952020e0773b674d313b6230a8697e",
+  "contract_digest": "09aea5e9a35a52140d7c45e3affd2c4bf0727a616b6b31750220d605633a6c4e",
+  "workspace_digest": "78d622aaa5209954ec4a9a38c3e46dc3767a3e57ba88a2c8d65c54d75ecd19e6",
+  "closing_digest": "4b0d94fe7d0d3ef82c818a3a9689994ed28b375ec1e1aa5096a9b39407c26dcd",
+  "review_digest": "d466dee7978a3fb4f64c05d78bc0b4eaa33d06b97fd232fee524bcc1f554509a",
+  "finalization_digest": "e883dfd7e91c870abbe3424f5dcc384c4b9a968ba844cd4873aca8f518ec4148",
+  "timestamp": 1794375064
+}

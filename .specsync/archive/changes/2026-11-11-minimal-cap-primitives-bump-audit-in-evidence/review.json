@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "minimal-cap-primitives-bump-audit-in-evidence",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a13c8bf4876c5698dea62286c38ce3c7a85a2098",
+  "contract_digest": "74e59414a81f955d420844ce36e6cfa758851c448a407ae379192b517fe21cd9",
+  "execution_digest": "f31919cb36a1bf15d071c171b047c35e8b430157ad2c294062aad0e46fd4eed2",
+  "workspace_digest": "b92b49ff453249728bb44bbf2aaf2fa975741ecda77823203526db301b6b6673",
+  "timestamp": 1794391833
+}

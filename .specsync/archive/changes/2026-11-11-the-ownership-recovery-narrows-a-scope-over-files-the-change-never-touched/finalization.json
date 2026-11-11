@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+  "implementation_commit": "f229aad986021436a2008933e179fa7d0e7d0fef",
+  "implementation_tree": "95da37c3aa1591ee3b69385826b1e47e518968e8",
+  "contract_digest": "7b29d241d9300a081bd1fb71f1f85c7313bb69d0128f7e63f8400c6c2c2656ce",
+  "workspace_digest": "e27640b33951301f291fb3fa97ec5aaa67bb74879c2ab25cbbc589db90526fc1",
+  "closing_digest": "4c903daed1cde4eebfccd3ddf58a6f3f5f60e364c82c41ac95837cdedc52ebee",
+  "review_digest": "4f20516e84d24b490901b1053c326bb7601c396662cfa9ed66d9642ff35289dd",
+  "finalization_digest": "e362bf47d8fde8d30ea8fb9bfe9a7e7ed37215a1518c60947c56cda72e8fbcbb",
+  "timestamp": 1794420023
+}

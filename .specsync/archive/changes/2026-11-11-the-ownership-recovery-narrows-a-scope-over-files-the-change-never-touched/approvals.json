@@ -326,6 +326,13 @@
         "change: REQUIREMENT REQ-change-053": "277feff623c5a222deb9cd7027225e5c622bc62a40b3c4fe4d06c018667c492b",
         "cmd_change: REQUIREMENT REQ-cmd-change-008": "2552933b1d3c09e6da16febf0aa16f0d13dc4314cc2ce9eabf44e810a2b53ec9"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794420023,
+      "digest": "4c903daed1cde4eebfccd3ddf58a6f3f5f60e364c82c41ac95837cdedc52ebee",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

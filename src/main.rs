@@ -112,6 +112,18 @@ fn stdout_closed() -> bool {
 /// output once that stream's reader has gone, and panic on any other write error.
 fn write_output_stream(stream: OutputStream, args: std::fmt::Arguments<'_>, newline: bool) {
     use std::io::Write;
+    // Under `cargo test` the standard macros print through libtest's output capture, so a passing
+    // unit test stays quiet; the closed-pipe handling matters only to the built binary, which the
+    // integration tests run (#1048 review).
+    if cfg!(test) {
+        match (stream, newline) {
+            (OutputStream::Stdout, true) => std::println!("{args}"),
+            (OutputStream::Stdout, false) => std::print!("{args}"),
+            (OutputStream::Stderr, true) => std::eprintln!("{args}"),
+            (OutputStream::Stderr, false) => std::eprint!("{args}"),
+        }
+        return;
+    }
     let (closed, name) = match stream {
         OutputStream::Stdout => (&STDOUT_CLOSED, "stdout"),
         OutputStream::Stderr => (&STDERR_CLOSED, "stderr"),

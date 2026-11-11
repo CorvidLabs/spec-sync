@@ -102,3 +102,28 @@ fn watch_stops_once_nobody_reads_its_output() {
     assert_eq!(status.code(), Some(0), "{stderr}");
     assert!(!stderr.contains("panicked"), "{stderr}");
 }
+
+/// The closed-pipe handling covers only a reader that has gone (#1048 review): any other write
+/// error still panics and is reported as a bug (exit 1), never dropped silently. Linux only:
+/// `/dev/full` fails every write with ENOSPC.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_write_error_other_than_a_closed_pipe_still_panics() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let full = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_specsync"))
+        .args(["--root", root.to_str().unwrap(), "check"])
+        .stdout(full)
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(
+        stderr.contains("failed printing to stdout") && stderr.contains("please report it"),
+        "{stderr}"
+    );
+}

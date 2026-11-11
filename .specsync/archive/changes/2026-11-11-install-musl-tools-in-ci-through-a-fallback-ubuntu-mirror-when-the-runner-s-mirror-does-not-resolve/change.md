@@ -1,6 +1,6 @@
 ---
 id: install-musl-tools-in-ci-through-a-fallback-ubuntu-mirror-when-the-runner-s-mirror-does-not-resolve
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ad8544e9da79725f499b38ae4d4b3a052be5f807
 ---

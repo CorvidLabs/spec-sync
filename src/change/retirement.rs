@@ -576,6 +576,23 @@ pub fn retire_change_with_source(
     source_kind: RetirementSourceKind,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
+    // A retirement already recorded resumes with exactly the actor its receipt holds, even one an
+    // older SpecSync accepted and `normalize_actor` would now refuse: recorded history is never
+    // re-judged (#1026 review). A new retirement takes a normalized actor.
+    let recorded_actor = load_change(root, id)
+        .ok()
+        .filter(|record| {
+            record.state == ChangeState::Retired
+                || find_change_dir(root, id).is_ok_and(|dir| {
+                    fs::symlink_metadata(dir.join(RETIREMENT_FILE)).is_ok()
+                })
+        })
+        .and_then(|record| retirement_record(root, &record).ok())
+        .map(|receipt| receipt.actor);
+    let actor = match recorded_actor {
+        Some(recorded) if recorded == actor => actor,
+        _ => normalize_actor(&actor, "retirement")?,
+    };
     for (text, flag, limit) in [
         (actor.as_str(), "--actor", 256),
         (reason.as_str(), "--reason", 4096),

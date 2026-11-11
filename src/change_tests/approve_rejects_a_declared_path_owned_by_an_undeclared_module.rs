@@ -2264,6 +2264,17 @@ fn batch_owner_corrections_append_transactionally_or_not_at_all() {
     );
     assert_eq!(fs::read(&state_path).unwrap(), before);
 
+    let refused = add_acceptance_owner_corrections(
+        root,
+        &record.id,
+        vec![("src/a.rs".into(), "current".into())],
+        "Release\u{200B}reviewer".into(),
+        "Batch repair".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
+    assert_eq!(fs::read(&state_path).unwrap(), before);
+
     record = add_acceptance_owner_corrections(
         root,
         &record.id,
@@ -2804,6 +2815,16 @@ fn refused_reopen_restores_the_archived_package() {
     assert!(archived.is_dir());
 
     // Delivery inputs are still current, so this reopen is refused on purpose.
+    // A bad actor is refused before the archived package moves (#1026 review).
+    for actor in ["Ada\nX", "  ", "Ada\u{202E}live"] {
+        let error = reopen_change(root, &record.id, actor.into(), "probe".into()).unwrap_err();
+        assert!(error.starts_with("reopen"), "{actor:?}: {error}");
+        assert!(
+            !error.contains("archive restored"),
+            "{actor:?}: refused before the archive moved, not moved and restored: {error}"
+        );
+        assert!(archived.is_dir(), "{actor:?}: the archive stays where it was");
+    }
     let error = reopen_change(root, &record.id, "Reopener".into(), "probe".into()).unwrap_err();
     assert!(error.contains("delivery inputs are current"), "{error}");
     assert!(error.contains("archive restored"), "{error}");
@@ -2909,6 +2930,17 @@ fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts()
     let original_approvals = serde_json::to_value(load_approvals(root, &record).unwrap()).unwrap();
     let prior_verification = load_verification(root, &record).unwrap();
 
+    // A bad correction actor is refused before any write (#1026 review).
+    let refused = correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release\nreviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
     let result = correct_interview_metadata(
         root,
         &record.id,

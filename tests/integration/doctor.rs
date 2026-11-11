@@ -682,6 +682,27 @@ fn assert_late_close_rejects_destination_symlink(component: &str, dangling: bool
             REASON,
         ],
     );
+    // A bad actor is refused before anything closes (#1026 review).
+    let before_refusal = tree(&root);
+    let refused = run_err(
+        &root,
+        &[
+            "doctor",
+            "--fix",
+            "--close-late",
+            ids[0],
+            "--actor",
+            "Leif\nX",
+            "--reason",
+            REASON,
+        ],
+    );
+    assert!(refused.contains("single line"), "{refused}");
+    assert_eq!(
+        tree(&root),
+        before_refusal,
+        "a refused late close writes nothing"
+    );
     let output = close_late(&root, &ids);
     let diagnostics = format!("dry-run:\n{}\nwrite:\n{}", text(&dry_run), text(&output));
     for (id, package) in ids.iter().zip(&packages) {

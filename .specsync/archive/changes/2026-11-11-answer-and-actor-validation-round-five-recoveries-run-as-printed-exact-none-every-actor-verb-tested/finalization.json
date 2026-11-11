@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+  "implementation_commit": "768027bfd088235eb7256de53839306923746b71",
+  "implementation_tree": "2ad646058390df8c9256dfbf6e5e52ee20130dc9",
+  "contract_digest": "6047474e937e55dfb0a3f06c5e827910d37ffda1c23d7928281be134d6b784c3",
+  "workspace_digest": "c45aec3e0b222f3b28900c39b721ee346ab5c6acd8e48328125f3334e935c423",
+  "closing_digest": "97d72ead0caad5f5f0691f73264a60cac8131c67616c1b646a183cbd2856fe5b",
+  "review_digest": "806390ee7b09c83b2005325b43b140e6a72464c695cf7424f05d08f9293b84ab",
+  "finalization_digest": "e7bbd6670ecac8afee6ac943128cc2da7bab452fc1f947607a5dd8cd9558d93e",
+  "timestamp": 1794423788
+}

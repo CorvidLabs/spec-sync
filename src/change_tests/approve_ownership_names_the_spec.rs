@@ -770,3 +770,285 @@ fn the_narrowing_answer_names_every_changed_path_in_scope_or_falls_back_to_the_p
         assert!(answer.contains("affected_paths '<path>,<path>'"), "{label}: {answer}");
     }
 }
+
+/// #1026 review: a module that owns a path only through `[modules.X] owns` and has no spec on
+/// disk is refused by `change answer affected_specs`, so the recovery scaffolds it first rather
+/// than printing an answer that fails as printed.
+#[test]
+fn ownership_recovery_scaffolds_a_configured_owner_with_no_spec_before_declaring_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.core]\nowns = [\"src/core/\"]\n",
+    )
+    .unwrap();
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    write_owned_source(root, "src/core/engine.ts");
+    let record = approve_ownership_record(root, &[], &["src/core/engine.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the module is undeclared, so approve still refuses");
+    assert!(
+        !error.contains("On this draft"),
+        "no answer is printed while the owner has no spec, since `change answer` would refuse it: {error}"
+    );
+    assert!(
+        error.contains("which has no spec yet; create that module's spec, then declare it"),
+        "the hint says to create the owner's spec first: {error}"
+    );
+}
+
+/// #1026 third and sixth reviews: the printed answer re-lists every module, so an
+/// already-declared module whose spec no longer exists blocks it too, and the refusal and the
+/// preflight recovery name that module's missing spec instead of leaving it to the next step.
+#[test]
+fn ownership_recovery_names_every_listed_module_that_has_no_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.core]\nowns = [\"src/core/\"]\n",
+    )
+    .unwrap();
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    ownership_spec(root, "auth", &["src/auth/login.ts"]);
+    write_owned_source(root, "src/core/engine.ts");
+    let record = approve_ownership_record(root, &["auth"], &["src/core/engine.ts"]);
+    // The declared module's spec disappears after it was declared.
+    fs::remove_dir_all(root.join("specs/auth")).unwrap();
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the path's owner is undeclared, so approve refuses");
+    assert!(
+        !error.contains("affected_specs 'auth,core'") && !error.contains("On this draft"),
+        "no answer is printed while a listed module (declared `auth` or new `core`) has no spec: {error}"
+    );
+    assert!(
+        error.contains("The declared module `auth` has no spec at `specs/auth/auth.spec.md`"),
+        "the refusal names the declared module whose spec is missing: {error}"
+    );
+
+    // The ship preflight's fallback recovery names it the same way.
+    let mut verifying = load_change(root, &record.id).unwrap();
+    verifying.state = ChangeState::Verifying;
+    save_change(root, &verifying).unwrap();
+    let (_, recovery) = ownership_preflight_blocker(root, &verifying)
+        .unwrap()
+        .expect("the configured owner `core` is still undeclared");
+    assert!(
+        recovery.contains("give each path an owning spec")
+            && recovery.contains("The declared module `auth` has no spec at `specs/auth/auth.spec.md`"),
+        "the fallback recovery names the missing declared spec: {recovery}"
+    );
+}
+
+/// #1026 sixth review: in a project with no specs at all, `change answer` accepts any module
+/// provisionally, but a declared module without a spec still fails verification. So the owner
+/// hint and the printed answer agree there too: create the spec first, and no answer is printed.
+#[test]
+fn the_owner_hint_and_the_printed_answer_agree_in_a_project_with_no_specs() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.core]\nowns = [\"src/core/\"]\n",
+    )
+    .unwrap();
+    write_owned_source(root, "src/core/engine.ts");
+    let record = approve_ownership_record(root, &[], &["src/core/engine.ts"]);
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the configured owner is undeclared, so approve refuses");
+    assert!(
+        error.contains("which has no spec yet; create that module's spec, then declare it")
+            && !error.contains("On this draft"),
+        "the hint and the (absent) answer agree: {error}"
+    );
+}
+
+/// #1026 sixth and seventh reviews: one predicate decides whether a module has its spec. A spec
+/// reached through a symlink is refused naming the symlink, as verification refuses it, and a
+/// case variant that a case-insensitive filesystem would resolve does not count.
+#[cfg(unix)]
+#[test]
+fn a_spec_behind_a_symlink_or_a_case_variant_is_not_the_modules_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    ownership_spec(root, "core", &["src/core/engine.ts"]);
+    let shared = root.join("shared/pay");
+    fs::create_dir_all(&shared).unwrap();
+    fs::write(
+        shared.join("pay.spec.md"),
+        "---\nmodule: pay\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Pay\n",
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(&shared, root.join("specs/pay")).unwrap();
+
+    assert!(module_has_canonical_spec(root, "specs", "core"));
+    assert!(!module_has_canonical_spec(root, "specs", "pay"), "verification refuses a symlinked spec");
+    assert!(!module_has_canonical_spec(root, "specs", "Core"), "a case variant never counts");
+    assert!(!module_has_canonical_spec(root, "specs", "ghost"));
+    let error = ensure_affected_specs_exist(root, &["pay".to_string()])
+        .expect_err("the symlinked spec is refused");
+    assert!(
+        error.contains("is reached through a symlink at `specs/pay/pay.spec.md`"),
+        "{error}"
+    );
+    let error = ensure_affected_specs_exist(root, &["Core".to_string()])
+        .expect_err("a case variant is refused");
+    assert!(error.contains("so name it as `core`"), "{error}");
+    let error = ensure_affected_specs_exist(root, &["None".to_string()])
+        .expect_err("`None` is a module name, not the clearing keyword");
+    assert!(
+        !error.contains("to clear the list"),
+        "the clearing hint belongs to `change answer`, not to `change new --spec`: {error}"
+    );
+}
+
+/// #1026 seventh review: only the module's own directory and file are held to an exact spelling.
+/// A specs directory whose case differs from the config, and a module name in another Unicode
+/// normalization form, are taken as the disk resolves them. Each case runs only where the disk
+/// resolves the variant (a case-insensitive or normalization-insensitive filesystem, as on macOS).
+#[test]
+fn a_spelling_difference_above_the_module_or_in_normalization_is_not_a_case_variant() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::create_dir_all(root.join("Specs/auth")).unwrap();
+    fs::write(
+        root.join("Specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Auth\n",
+    )
+    .unwrap();
+    if root.join("specs/auth/auth.spec.md").is_file() {
+        assert!(module_has_canonical_spec(root, "specs", "auth"));
+        ensure_affected_specs_exist(root, &["auth".to_string()])
+            .expect("the config's `specs` resolves to `Specs`, and the module is spelled exactly");
+    }
+    let decomposed = "cafe\u{301}";
+    let composed = "caf\u{e9}";
+    fs::create_dir_all(root.join(format!("Specs/{decomposed}"))).unwrap();
+    fs::write(
+        root.join(format!("Specs/{decomposed}/{decomposed}.spec.md")),
+        format!("---\nmodule: {decomposed}\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Cafe\n"),
+    )
+    .unwrap();
+    if root.join(format!("specs/{composed}/{composed}.spec.md")).is_file() {
+        assert!(
+            module_has_canonical_spec(root, "specs", composed),
+            "a normalization difference is not an ASCII case variant"
+        );
+    }
+}
+
+/// #1026 sixth review: the actor rule refuses every format character (Cf) and default-ignorable
+/// code point, the first and last of each range included, and keeps ZWNJ, ZWJ and ordinary
+/// non-ASCII names.
+#[test]
+fn the_actor_rule_refuses_every_invisible_character_but_zwnj_and_zwj() {
+    let refused = [
+        '\u{0000}', '\u{001F}', '\u{007F}', '\u{009F}', '\u{00AD}', '\u{034F}', '\u{0600}',
+        '\u{0605}', '\u{061C}', '\u{06DD}', '\u{070F}', '\u{0890}', '\u{0891}', '\u{08E2}',
+        '\u{115F}', '\u{1160}', '\u{17B4}', '\u{17B5}', '\u{180B}', '\u{180F}', '\u{200B}',
+        '\u{200E}', '\u{200F}', '\u{2028}', '\u{2029}', '\u{202A}', '\u{202E}', '\u{2060}',
+        '\u{2065}', '\u{206F}', '\u{3164}', '\u{FE00}', '\u{FE0F}', '\u{FEFF}', '\u{FFA0}',
+        '\u{FFF0}', '\u{FFFB}', '\u{110BD}', '\u{110CD}', '\u{13430}', '\u{1343F}',
+        '\u{1BCA0}', '\u{1BCA3}', '\u{1D173}', '\u{1D17A}', '\u{E0000}', '\u{E0001}',
+        '\u{E0041}', '\u{E007F}', '\u{E0100}', '\u{E01EF}', '\u{E0FFF}',
+    ];
+    for c in refused {
+        let actor = format!("Ada{c}X");
+        let error = normalize_actor(&actor, "approval").expect_err(&format!("U+{:04X}", c as u32));
+        assert!(error.contains("single line of visible text"), "U+{:04X}: {error}", c as u32);
+    }
+    for actor in [
+        "Ada\u{200C}X",
+        "Ada\u{200D}X",
+        "Zo\u{00EB} N\u{00FA}\u{00F1}ez",
+        "\u{674E}\u{96F7}",
+        "Ada \u{1F600}",
+        "O'Brien-Smith",
+        "\u{0645}\u{064A}\u{200C}\u{0631}",
+    ] {
+        assert_eq!(normalize_actor(&format!("  {actor} "), "approval").as_deref(), Ok(actor));
+    }
+}
+
+/// #1026 with #1037's split: when no declare answer can be printed because a declared module has
+/// no spec, the mixed declare-and-narrow recovery gives the modified inputs the same owning-spec
+/// guidance as the declare-only recovery, and names the declared module whose spec is missing.
+#[test]
+fn the_mixed_recovery_names_a_declared_module_whose_spec_is_missing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("work");
+    fs::create_dir_all(&root).unwrap();
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    write_lifecycle_test_policy(&root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.core]\nowns = [\"src/core/\"]\n",
+    )
+    .unwrap();
+    ownership_spec(&root, "auth", &["src/auth/login.ts"]);
+    ownership_spec(&root, "billing", &["src/billing/charge.ts"]);
+    for path in ["src/auth/login.ts", "src/core/engine.ts", "src/billing/charge.ts"] {
+        write_owned_source(&root, path);
+    }
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "seed"]);
+    let remote = temp.path().join("remote.git");
+    let output = std::process::Command::new("git")
+        .args(["init", "-q", "--bare", "--initial-branch=main"])
+        .arg(&remote)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    git(&["remote", "add", "origin", remote.to_str().unwrap()]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["remote", "set-head", "origin", "main"]);
+
+    let mut record = approve_ownership_record(
+        &root,
+        &["auth"],
+        &["src/core/engine.ts", "src/billing/charge.ts"],
+    );
+    record.base_commit = Some(git(&["rev-parse", "HEAD"]));
+    record.state = ChangeState::Verifying;
+    save_change(&root, &record).unwrap();
+    // The change edits engine.ts (owned by the undeclared `core`) and never touches charge.ts
+    // (owned by the undeclared `billing`); the declared `auth` then loses its spec.
+    fs::write(root.join("src/core/engine.ts"), "export const value = 2;\n").unwrap();
+    fs::remove_dir_all(root.join("specs/auth")).unwrap();
+
+    let (_, recovery) = ownership_preflight_blocker(&root, &record)
+        .unwrap()
+        .expect("core and billing are undeclared owners");
+    assert!(
+        recovery.contains("send it back once and rescope")
+            && recovery.contains("give src/core/engine.ts an owning spec")
+            && recovery
+                .contains("The declared module `auth` has no spec at `specs/auth/auth.spec.md`"),
+        "the modified input gets owning-spec guidance and the missing spec is named: {recovery}"
+    );
+    assert!(
+        !recovery.contains("affected_specs '"),
+        "no affected_specs answer is printed while a listed module has no spec: {recovery}"
+    );
+}

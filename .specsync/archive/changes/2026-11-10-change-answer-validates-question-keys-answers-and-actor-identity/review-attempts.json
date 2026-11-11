@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "change-answer-validates-question-keys-answers-and-actor-identity",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "3a513a010a67b4c69b827f93f453e7f5c90ceeb3",
+      "contract_digest": "b5f94ccad1713102cb5549c3b3d86a8831aadb6124f03658a06cb5bbdad53f6c",
+      "execution_digest": "ee167548543851915cadb16cb85157625c98c4f10e4af9df9bd72affba4b0cdb",
+      "workspace_digest": "b47cac33747a959ec97c41ab39b0f79b7dfdb936be9f9053cb55d6abfa549c48",
+      "timestamp": 1794331255
+    }
+  ]
+}

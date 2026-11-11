@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "every-actor-accepting-verb-normalizes-identity-the-same-way",
+  "slug": "every-actor-accepting-verb-normalizes-identity-the-same-way",
+  "title": "Every actor-accepting verb normalizes identity the same way",
+  "description": "every actor-accepting verb normalizes identity the same way",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "9ef1a373f316ae8b320f4ffc0b18bc31ed0cf9f2",
+  "created_at": 1794332913,
+  "updated_at": 1794333473,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "specs/change/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "send-back, reopen, correct and correct-owner reject actor names containing newlines or control characters and trim padding, exactly as approve/review do through resolve_actor"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "one shared helper; per-verb error wording keeps naming its verb",
+    "public_contract": "yes"
+  }
+}

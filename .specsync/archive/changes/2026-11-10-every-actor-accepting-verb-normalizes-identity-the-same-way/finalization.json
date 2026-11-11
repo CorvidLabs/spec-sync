@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "every-actor-accepting-verb-normalizes-identity-the-same-way",
+  "implementation_commit": "b001f287df14b99ca47b19e712044ca4ab6784ba",
+  "implementation_tree": "1f99821eccac367612129dcfc9f2836cca291ba1",
+  "contract_digest": "abbd1f97afd0825a4643ab31a83ee2ca8e883c3a452987399c0626a7ccf38ba4",
+  "workspace_digest": "af1beafe630b6082daab62a89a459fdb31b845c8f7246da41cfa0656fbc641e6",
+  "closing_digest": "214f47bc7a808adab3d70dad13ec87feb7d2acf8bf6c8b22148f7eb2b291a920",
+  "review_digest": "6580f509f812b6c2f7c715a3b7230205393d35fcf9345fc34052133a77322abd",
+  "finalization_digest": "c994e5fd4825bef33378d09c226a258e1fd0aa35314d6b2ebf4c86aa6226399f",
+  "timestamp": 1794333473
+}

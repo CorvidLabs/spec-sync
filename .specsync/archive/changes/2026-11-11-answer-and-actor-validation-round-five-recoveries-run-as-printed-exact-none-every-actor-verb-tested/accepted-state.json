@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+  "slug": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+  "title": "Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+  "description": "answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "1c07640aa5960c97c0d7fe9b7edb49aa42b8556b",
+  "created_at": 1794362162,
+  "updated_at": 1794423788,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/retirement.rs",
+    "src/change_tests/approve_ownership_names_the_spec.rs",
+    "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+    "src/change_tests/recovery_retirement.rs",
+    "src/change_tests/historical_reconciliation.rs",
+    "tests/integration/change.rs",
+    "tests/integration/doctor.rs",
+    "site/src/content/docs/cli.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "owner recovery scaffolds a configured owner with no spec before declaring it; empty constraints keep their none guidance; an exact none is refused as ambiguous when something is named none; registered-but-missing specs and unreadable registries get their own messages; zero-width and directional-mark characters are refused in actors; reopen, retire, correct, correct-owner, reconcile-history and the doctor late close each have a bad-actor test; REQ-change-150, invariant 56 and the lesson match"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md z=45 (#1011): a printed recovery command must run as printed",
+    "public_contract": "no"
+  }
+}

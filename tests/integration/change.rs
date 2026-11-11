@@ -6451,3 +6451,98 @@ fn passing_change_check_records_no_output_key() {
         "a passing record carries no output key: {raw}"
     );
 }
+// #839 (REQ-change-004): `change check --commit --json` must print one JSON document on
+// success — the run previously exited 0 with empty stdout, so a runner parsing the output got
+// nothing to parse.
+#[cfg(unix)]
+#[test]
+fn change_check_commit_json_prints_the_outcome() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--commit",
+            "--json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.trim().is_empty(),
+        "a successful --commit --json run must print its outcome"
+    );
+    let document: Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is one JSON document: {error}\n{stdout}"));
+    assert_eq!(document["change"], id, "{document}");
+    assert_eq!(document["verified"], true, "{document}");
+    assert_eq!(document["pushed"], false, "{document}");
+    assert!(
+        document["materialize_commit"].is_string() || document["materialize_commit"].is_null(),
+        "{document}"
+    );
+    assert!(
+        document["verification_commit"].is_string(),
+        "the verification commit is always recorded: {document}"
+    );
+    assert!(
+        document["configured_commands_not_run"].is_array(),
+        "the outcome document carries the same disclosure as every other JSON success: {document}"
+    );
+}
+
+// #839 (REQ-change-004, the change's refusal criterion): a refused `change check --commit
+// --json` run prints exactly one JSON error document on stdout and exits non-zero. A progress
+// line or a second document on stdout would make the output unparseable for a runner.
+#[test]
+fn change_check_commit_json_refusal_prints_one_error_document() {
+    let fixture = OpenTaskCli::new();
+    let id = fixture.id.clone();
+    fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
+    fixture.git(&["commit", "-am", "leave one task open"]);
+    let head_before = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap()
+        .stdout;
+
+    let output = fixture
+        .run(&["change", "check", &id, "--commit", "--json"])
+        .failure()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let mut documents = serde_json::Deserializer::from_str(&stdout).into_iter::<Value>();
+    let document = documents
+        .next()
+        .unwrap_or_else(|| panic!("a refused --commit --json run prints a document: {stdout:?}"))
+        .unwrap_or_else(|error| panic!("stdout starts with a JSON document: {error}\n{stdout}"));
+    // The streaming reader fails on any text before the document and yields Some for any
+    // text or second document after it, so this pins "one document, nothing else".
+    assert!(
+        documents.next().is_none(),
+        "stdout holds exactly one JSON document and nothing after it: {stdout:?}"
+    );
+    let error = document["error"]
+        .as_str()
+        .unwrap_or_else(|| panic!("the document carries an `error` string: {document}"));
+    assert!(
+        error.contains("tasks.md contains incomplete tasks"),
+        "the error names the refusal: {error}"
+    );
+    let head_after = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap()
+        .stdout;
+    assert_eq!(head_before, head_after, "a refused run commits nothing");
+}

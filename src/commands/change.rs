@@ -5552,6 +5552,11 @@ fn run_checked_commit(
         true,
     )?;
     disclose_left_out(&materialized.left_out, &mut disclosed, Some(&resolved));
+    let materialize_commit = if materialized.committed {
+        git_rev_parse(root, "HEAD").ok()
+    } else {
+        None
+    };
     say(if materialized.committed {
         "Committed the materialized spec."
     } else {
@@ -5577,6 +5582,11 @@ fn run_checked_commit(
         true,
     )?;
     disclose_left_out(&recorded.left_out, &mut disclosed, Some(&resolved));
+    let verification_commit = if recorded.committed {
+        git_rev_parse(root, "HEAD").ok()
+    } else {
+        None
+    };
     say("Committed the verification evidence.");
 
     if push {
@@ -5584,10 +5594,27 @@ fn run_checked_commit(
         say("Pushed.");
     }
     say("Verified, committed, and consistent with the committed tree.");
-    if !quiet {
-        print_configured_commands_not_run(root)?;
-        print_verification_ignored_lines(root);
+    if quiet {
+        // #839: a machine caller asked for JSON; the commit path must answer with one
+        // document, not silence (REQ-change-004).
+        println!(
+            "{}",
+            serde_json::json!({
+                "change": resolved,
+                "verified": true,
+                "materialize_commit": materialize_commit,
+                "verification_commit": verification_commit,
+                "pushed": push,
+                "left_out": disclosed,
+                // REQ-cmd-change-unrun-commands-001 (t384's option a for #839): the outcome
+                // document carries the same disclosure every other JSON success output does.
+                "configured_commands_not_run": configured_commands_not_run(root)?,
+            })
+        );
+        return Ok(());
     }
+    print_configured_commands_not_run(root)?;
+    print_verification_ignored_lines(root);
     Ok(())
 }
 

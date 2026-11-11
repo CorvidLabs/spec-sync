@@ -6279,3 +6279,46 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
+
+// #839 (REQ-change-004): `change check --commit --json` must print one JSON document on
+// success — the run previously exited 0 with empty stdout, so a runner parsing the output got
+// nothing to parse.
+#[cfg(unix)]
+#[test]
+fn change_check_commit_json_prints_the_outcome() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--commit",
+            "--json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.trim().is_empty(),
+        "a successful --commit --json run must print its outcome"
+    );
+    let document: Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is one JSON document: {error}\n{stdout}"));
+    assert_eq!(document["change"], id, "{document}");
+    assert_eq!(document["verified"], true, "{document}");
+    assert_eq!(document["pushed"], false, "{document}");
+    assert!(
+        document["materialize_commit"].is_string() || document["materialize_commit"].is_null(),
+        "{document}"
+    );
+    assert!(
+        document["verification_commit"].is_string(),
+        "the verification commit is always recorded: {document}"
+    );
+}

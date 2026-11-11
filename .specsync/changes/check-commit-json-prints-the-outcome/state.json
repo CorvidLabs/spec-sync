@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "check-commit-json-prints-the-outcome",
+  "slug": "check-commit-json-prints-the-outcome",
+  "title": "Check commit json prints the outcome",
+  "description": "check commit json prints the outcome",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794381961,
+  "updated_at": 1794382070,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "the --json path must answer with one document (REQ-change-004: equivalent human and machine workflows; cli invariant 5: --json switches all output to JSON) — the commit path printing nothing was the bug",
+  "acceptance_criteria": [
+    "change check --commit --json prints one JSON document with the change id, both commit ids, pushed and left_out; a refusal prints the JSON error document with a non-zero exit"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

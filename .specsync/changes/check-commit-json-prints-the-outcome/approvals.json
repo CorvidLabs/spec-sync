@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794382003,
+      "digest": "3e4162cad33d9a9d28f029ca0cb93ab375c38da818c99285cfd15d59cdc2174f",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-commit-json-prints-the-outcome",
+        "title": "Check commit json prints the outcome",
+        "description": "check commit json prints the outcome",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "the --json path must answer with one document (REQ-change-004: equivalent human and machine workflows; cli invariant 5: --json switches all output to JSON) — the commit path printing nothing was the bug",
+        "acceptance_criteria": [
+          "change check --commit --json prints one JSON document with the change id, both commit ids, pushed and left_out; a refusal prints the JSON error document with a non-zero exit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

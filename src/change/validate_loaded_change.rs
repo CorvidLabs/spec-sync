@@ -854,12 +854,19 @@ fn actor_character_is_refused(c: char) -> bool {
 }
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
+    let explicit = actor.is_some();
     let actor = actor
         .or_else(|| git_output(root, &["config", "user.name"]))
         .or_else(|| std::env::var("USER").ok())
         .or_else(|| std::env::var("USERNAME").ok())
         .ok_or_else(|| "approval actor is unknown; pass --actor <name>".to_string())?;
-    normalize_actor(&actor, "approval")
+    normalize_actor(&actor, "approval").map_err(|error| {
+        if explicit {
+            error
+        } else {
+            format!("{error} (taken from Git `user.name` or $USER; pass --actor <name>)")
+        }
+    })
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {

@@ -685,10 +685,12 @@ fn ownership_recovery_scaffolds_a_configured_owner_with_no_spec_before_declaring
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("the module is undeclared, so approve still refuses");
     assert!(
-        error.contains(
-            "create `core`'s spec at `specs/core/core.spec.md` listing src/core/engine.ts in its `files:`, then"
-        ),
-        "an owner with no spec is created at its exact path, listing the path, before it is declared: {error}"
+        !error.contains("On this draft"),
+        "no answer is printed while the owner has no spec, since `change answer` would refuse it: {error}"
+    );
+    assert!(
+        error.contains("which has no spec yet; create that module's spec, then declare it"),
+        "the hint says to create the owner's spec first: {error}"
     );
 }
 
@@ -713,9 +715,7 @@ fn ownership_recovery_names_every_listed_module_that_has_no_spec() {
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("the path's owner is undeclared, so approve refuses");
     assert!(
-        error.contains("affected_specs 'auth,core'")
-            && error.contains("create `auth`'s spec at `specs/auth/auth.spec.md`")
-            && error.contains("create `core`'s spec at `specs/core/core.spec.md`"),
-        "every listed module without a spec is named for creation: {error}"
+        !error.contains("affected_specs 'auth,core'") && !error.contains("On this draft"),
+        "no answer is printed while a listed module (declared `auth` or new `core`) has no spec: {error}"
     );
 }

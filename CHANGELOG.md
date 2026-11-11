@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-
 ### Added
 
 - Text `change check` (plain and `--commit`) and `change audit` now print one stderr note counting the verification commands they did not run, across top-level, component, and strict policy lists. Successful JSON check and audit output carries the same deduplicated list as `configured_commands_not_run`, or `[]` when nothing is configured. The disclosure never runs a command or changes a verdict (#893, SHIP-1.c.3, REQ-cmd-change-unrun-commands-001).

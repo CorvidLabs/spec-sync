@@ -2796,7 +2796,7 @@ fn clearable_list_answer(
         };
         if named {
             return Err(format!(
-                "{question} answer `none` is ambiguous: something is named `none`; name it as `none,` to declare it, or remove it to clear the list"
+                "{question} answer `none` is ambiguous because something is named `none`: answer `none,` to name it, or answer the entries to keep; `none` cannot clear this list while that name exists"
             ));
         }
         return Ok(Vec::new());
@@ -3781,6 +3781,14 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
             let registered = registry
                 .as_ref()
                 .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
+            if let Some(actual) = known
+                .iter()
+                .find(|name| *name != module && name.eq_ignore_ascii_case(module))
+            {
+                return Err(format!(
+                    "affected spec `{module}` is not a module; module names are case-sensitive, so name it as `{actual}`"
+                ));
+            }
             return Err(if registered {
                 format!(
                     "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create the spec at that path or fix its registry entry"
@@ -3804,19 +3812,28 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
 /// Names of every known spec module — registry entries plus modules discovered
 /// under the specs directory — for error messages that name the valid set.
 fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
-    let mut names: BTreeSet<String> = BTreeSet::new();
+    // Only names `affected_specs` would accept: a registry name whose spec exists, or a
+    // discovered spec whose stem is a module with that spec at its canonical path. A file stem
+    // that is not a module (`main` for a registry entry's `main.spec.md`) is not listed.
+    let mut candidates: BTreeSet<String> = BTreeSet::new();
     if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
         for (module, _) in &registry.specs {
-            names.insert(module.clone());
+            candidates.insert(module.clone());
         }
     }
     for spec in crate::validator::find_spec_files(&root.join(specs_dir)) {
         let filter = spec_filter_name(&spec);
         if !filter.is_empty() {
-            names.insert(filter);
+            candidates.insert(filter);
         }
     }
-    names.into_iter().collect()
+    candidates
+        .into_iter()
+        .filter(|module| {
+            canonical_module_paths(root, specs_dir, module)
+                .is_ok_and(|(spec_path, _)| spec_path.is_file())
+        })
+        .collect()
 }
 
 /// The `--spec` argument that selects this file.
@@ -5099,31 +5116,6 @@ fn listing_spec_is_canonical(root: &Path, specs_dir: &str, spec: &str, module: &
 /// newline-bearing module name cannot round-trip, and a listing that hit its walk bound may be
 /// missing the owner (#1011). When the record carries a constraints answer, the guidance renews
 /// it: answering `affected_specs` clears it.
-/// For every module in `modules` with no spec at its canonical path, the instruction to create
-/// that spec at that exact path listing `paths` in its `files:`, ending in ", then " so the
-/// declaring answer follows. Empty when every module has a spec.
-fn missing_spec_guidance(root: &Path, modules: &[String], paths: &[&str]) -> String {
-    let specs_dir = crate::config::load_config(root).specs_dir;
-    let missing: Vec<String> = modules
-        .iter()
-        .filter_map(|module| {
-            let (spec_path, _) = canonical_module_paths(root, &specs_dir, module).ok()?;
-            (!spec_path.is_file()).then(|| {
-                format!(
-                    "create `{module}`'s spec at `{}` listing {} in its `files:`",
-                    portable_project_path(root, &spec_path),
-                    paths.join(", ")
-                )
-            })
-        })
-        .collect();
-    if missing.is_empty() {
-        String::new()
-    } else {
-        format!("{}, then ", missing.join("; "))
-    }
-}
-
 fn declare_owners_answer(
     root: &Path,
     record: &ChangeRecord,
@@ -5155,9 +5147,16 @@ fn declare_owners_answer(
     }
     // `change answer affected_specs` refuses any listed module with no spec at its canonical
     // path (#426), and it re-checks every module in the answer, already-declared ones included.
-    // So each such module is named with the exact path its spec must be created at, listing
-    // these paths in `files:`; the answer runs as printed once those specs exist (#1026 review).
-    let mut guidance = missing_spec_guidance(root, &modules, paths);
+    // So no answer is printed while any of them lacks a spec; the per-path hints say which spec
+    // to create first (#1026 review).
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    if modules.iter().any(|module| {
+        !canonical_module_paths(root, &specs_dir, module)
+            .is_ok_and(|(spec_path, _)| spec_path.is_file())
+    }) {
+        return None;
+    }
+    let mut guidance = String::new();
     guidance.push_str(&format!(
         "`specsync change answer {} affected_specs {}`",
         shell_quote(&record.id),
@@ -5259,10 +5258,18 @@ fn ownership_hint(
         .collect();
     configured.sort();
     for module in configured {
-        declare.push(format!(
-            "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",
-            shell_word(module)
-        ));
+        let has_spec = canonical_module_paths(root, &config.specs_dir, module)
+            .is_ok_and(|(spec_path, _)| spec_path.is_file());
+        declare.push(if has_spec {
+            format!(
+                "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which this change does not declare; add `--spec {}`",
+                shell_word(module)
+            )
+        } else {
+            format!(
+                "the project configuration gives it to module `{module}` (`[modules.\"{module}\"] owns`), which has no spec yet; create that module's spec, then declare it"
+            )
+        });
     }
 
     for (spec, module) in index.listing(path) {

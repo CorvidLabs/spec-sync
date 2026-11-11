@@ -6727,6 +6727,12 @@ fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
 
     run(&["change", "answer", id, "affected_specs", "none"]).success();
     assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // A case variant names the real module instead of a scaffold that would collide.
+    run(&["change", "answer", id, "affected_specs", "AUTH"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "module names are case-sensitive, so name it as `auth`",
+        ));
     // An empty constraints answer keeps its own guidance.
     run(&["change", "answer", id, "constraints", "  "])
         .failure()

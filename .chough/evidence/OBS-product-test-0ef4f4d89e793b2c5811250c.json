@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "id": "OBS-product-test-0ef4f4d89e793b2c5811250c",
+  "criteria": [
+    "CHANGE-5"
+  ],
+  "requirements": [
+    "REQ-change-150"
+  ],
+  "contracts": [
+    "specs/change/change.spec.md"
+  ],
+  "kind": "product-test",
+  "outcome": "passed",
+  "environment": "local",
+  "summary": "5 new unit tests (titled MODIFIED/REMOVED apply, token boundary, section-key exactness, applied-behind-title) green; full suite 3009 unit + 584 integration, 0 failed; clippy --all-targets -D warnings clean; dogfooded on a chough clone: MODIFIED delta applied through '### REQ-cli-001 — Preserve user files' and check verified",
+  "artifacts": [],
+  "artifact_fingerprints": {},
+  "observed_at_unix_seconds": 1794366652,
+  "snapshot": {
+    "revision": "405b724bd561a49ae4ed51a967e8fa54986531fa",
+    "dirty": false,
+    "fingerprint": "0e2aa1f98d514286d3b7812f86f036f68413f392010e92c5f8ceb3a84943651d",
+    "content": "d5e1b6f0caf8531ac4ebe57006ba986a899be90761e74a49c1abb14194a00741"
+  },
+  "provenance": "unauthenticated observation; not proof of human approval, test execution, or deployment",
+  "method": "automated"
+}

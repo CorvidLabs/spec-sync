@@ -61,3 +61,25 @@ The run started at 3bfa1bdd; the only commit during it was 21c732a4 (contributor
 diagnostic receipts, no Rust/test/configuration changes). Chough case capture remains blocked
 by #941, which owns sibling checkpoint recovery. No human implementation acceptance, archived
 PR CI, merge or release is inferred from this local result.
+
+## Update after merging main (2026-11-11)
+
+Main was merged in at `85804be2` and the corrections in `c6368fae` followed: the HLD lifecycle
+diagram gained `Retired` and the `change retire` edge (#1018), `require_draft_files` moved to
+the top-level settings, the Spec Kit persistence link moved, the Windows and Trust guidance now
+states what ships and what SpecSync's own CI pins, and the raw `.chough` logs (local
+home-directory paths) and the hand-edited Chough skill copy were dropped. The sections above
+describe the 2026-11-06 head and stay as history.
+
+Run at `c6368fae` on macOS arm64 (rustc 1.89.0, Bun 1.4.0):
+
+- `bun test scripts/documentation-accuracy.test.ts`: 25 passed, 0 failed. All 11 maintained
+  Mermaid diagrams parse; HLD states match `ChangeState`, including `Retired`; send-back edges
+  match `SEND_BACK_STATES`. Before the `Retired` fix, the same test on a trial merge failed
+  exactly the state-correspondence check.
+- `cargo test --bin specsync agents::tests::`: 45 passed (REQ-agents-009).
+- `cargo test --test integration documented_workflows`: 4 passed.
+- `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`: clean. `hi check`: clean.
+
+The full `cargo test`, verify lane and site build run in hosted CI at the pushed head
+(coordinator rule, 2026-11-11); nothing merges unless it is green.

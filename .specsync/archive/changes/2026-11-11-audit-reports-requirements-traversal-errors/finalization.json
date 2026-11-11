@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "audit-reports-requirements-traversal-errors",
+  "implementation_commit": "6ab73f9421bde01e2c415727e7f34105b894f0e3",
+  "implementation_tree": "0d8aca1b83273ae2415555b7f73a77e7aaa1fc21",
+  "contract_digest": "0cba4aa1b56385e4542b5e1f6ca397e9c8102fce95c803c890ccf6ac4f5cc8bf",
+  "workspace_digest": "e99164fff9b9dfc16844dab2df7725f4c8b353089a996c17bf64e920fd33f35b",
+  "closing_digest": "a0022cbfcc3cf7168b79df47a8455e452f6023bb0cfa9e19811c193a8a722e01",
+  "review_digest": "0ef4025b048344b4737a4d9f33199a8dda954b7eb4b19f7bff97380aaf036475",
+  "finalization_digest": "400771cda4510d7ffc3771c6f96af5170f1489e4d9ccc9f1c30717b923e83a57",
+  "timestamp": 1794417671
+}

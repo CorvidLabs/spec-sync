@@ -1135,6 +1135,12 @@ fn export_table(block: &str) -> Option<(usize, usize)> {
     for line in block.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
+        // A line indented four or more spaces (or a tab) is content under CommonMark,
+        // never a fence delimiter or a table row (#768): check indentation before the
+        // fence state so `    ``` ` cannot open a phantom fence that hides the real table.
+        if line.starts_with("    ") || line.starts_with('\t') {
+            continue;
+        }
         let trimmed = line.trim_start();
         let marker = ['`', '~'].into_iter().find_map(|c| {
             let run = trimmed.chars().take_while(|ch| *ch == c).count();
@@ -1153,9 +1159,6 @@ fn export_table(block: &str) -> Option<(usize, usize)> {
                 continue;
             }
             (None, None) => {}
-        }
-        if line.starts_with("    ") || line.starts_with('\t') {
-            continue;
         }
         if line.starts_with("### ") {
             minor_headings.clear();

@@ -1,6 +1,9 @@
 
 fn commit_is_ancestor_of_head(root: &Path, commit: &str) -> bool {
-    if git_output(root, &["rev-parse", "--verify", commit]).is_none() {
+    // Its commits come from committed bootstrap records, so only a full commit id is looked up.
+    if !is_canonical_commit_id(commit)
+        || git_output(root, &["rev-parse", "--verify", commit]).is_none()
+    {
         return false;
     }
     crate::git_utils::status_without_inherited_output(
@@ -533,7 +536,8 @@ fn validate_sha256_digest(value: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn is_canonical_commit_id(value: &str) -> bool {
+/// Whether `value` is a full commit id as SpecSync records one: 40 lowercase hex digits (SHA-1).
+pub(crate) fn is_canonical_commit_id(value: &str) -> bool {
     value.len() == 40
         && value
             .bytes()
@@ -2845,10 +2849,27 @@ fn markdown_block_matches(existing: &str, heading: &str, content: &str) -> bool 
             .to_string()
     }
     let existing = normalize(existing);
-    let Some(body) = existing.strip_prefix(&normalize(heading)) else {
+    let (header_line, body) = existing.split_once('\n').unwrap_or((&existing, ""));
+    if !requirement_heading_line_matches(header_line, &normalize(heading)) {
+        return false;
+    }
+    normalize(body) == normalize(content)
+}
+
+/// Whether `line` names the `heading` block: exactly the heading, or — for `### ` requirement
+/// targets only — any header form the shared requirement parser accepts for the same id
+/// (`### REQ-cmd-change-012 — Title`, `### REQ-x-001: Title`, up to three spaces of indent;
+/// #1024, t384's review). The parser owns the id rule (`REQ-<module>-<number>`, multi-segment
+/// module allowed), so the materializer never drifts from what every reader accepts. A `## `
+/// section key matches only exactly, so `Change Log` never matches `## Change Log Archive`.
+fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
+    if line.trim_end() == heading {
+        return true;
+    }
+    let Some(key) = heading.strip_prefix("### ") else {
         return false;
     };
-    normalize(body) == normalize(content)
+    crate::validator::requirement_heading_id(line) == Some(key)
 }
 
 /// Byte range of the `heading` block in `source` — the heading line through to the next heading at
@@ -2874,7 +2895,7 @@ fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Ran
     }
     let start = lines
         .iter()
-        .position(|(_, line)| line.trim_end() == heading)?;
+        .position(|(_, line)| requirement_heading_line_matches(line, heading))?;
     let end = lines
         .iter()
         .skip(start + 1)
@@ -2933,7 +2954,16 @@ fn apply_markdown_block(
             .trim_end_matches(['\r', '\n'])
             .replace("\r\n", "\n")
             .replace('\n', line_ending);
-        format!("{heading}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
+        // A matched block keeps its own header line byte-for-byte (only the line ending's `\r`
+        // comes off): a title suffix the parser accepted is the author's annotation, not drift
+        // to normalize away (#1024, t384's review).
+        let header = block
+            .as_ref()
+            .and_then(|range| source[range.clone()].lines().next())
+            .map(|line| line.strip_suffix('\r').unwrap_or(line))
+            .filter(|line| !line.is_empty())
+            .unwrap_or(&heading);
+        format!("{header}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
     };
     if let Some(range) = block {
         let mut output =
@@ -2956,6 +2986,14 @@ fn apply_markdown_block(
 }
 
 fn markdown_heading_level(line: &str) -> Option<usize> {
+    // ATX headings may be indented by up to three spaces — four is indented code. The block-end
+    // scan must see the same headings the matcher sees (t384's round-2 review of #1039): an
+    // indented `### ` header ends the previous block exactly as an unindented one does.
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+    let line = &line[indent..];
     let level = line
         .chars()
         .take_while(|character| *character == '#')
@@ -5243,9 +5281,14 @@ fn build_semantic_succession_evidence(
             historical_reconciliation: None,
         });
     }
-    let base = record.base_commit.as_deref().ok_or_else(|| {
-        "semantic succession requires a definition-signed base commit".to_string()
-    })?;
+    let base = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+        .ok_or_else(|| {
+            "semantic succession requires a definition-signed base commit (a full commit id)"
+                .to_string()
+        })?;
     let ancestor = crate::git_utils::status_without_inherited_output(
         Command::new("git")
             .args(["merge-base", "--is-ancestor", base, "HEAD"])

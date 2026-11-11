@@ -1,0 +1,80 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794382115,
+      "digest": "f901a930a93a596d62fae60b4cea63c80e54afcd8b664cf8f7777c32d968ca05",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-151) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-torn-journal-assertion-update",
+        "title": "Cover the torn-journal assertion update",
+        "description": "cover the torn-journal assertion update",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "the round-2 message change required this assertion update; it rode the lifecycle commit undeclared (t384's non-blocking note) — this records ownership",
+        "acceptance_criteria": [
+          "the assertion edit is covered by a declared affected path"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794413390,
+      "digest": "f901a930a93a596d62fae60b4cea63c80e54afcd8b664cf8f7777c32d968ca05",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code (Kimi Code, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-torn-journal-assertion-update",
+        "title": "Cover the torn-journal assertion update",
+        "description": "cover the torn-journal assertion update",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "the round-2 message change required this assertion update; it rode the lifecycle commit undeclared (t384's non-blocking note) — this records ownership",
+        "acceptance_criteria": [
+          "the assertion edit is covered by a declared affected path"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794413770,
+      "digest": "58e549c0a6eb8750f4123a9fadff63538093cf701a838a8547afbd72a47d9c91",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

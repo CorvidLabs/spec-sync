@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+  "implementation_commit": "8cc1b3094d126222132c28041d8ab51dc76aca42",
+  "implementation_tree": "16ba3fc022edd799d5c17ee0ebee4573586f9118",
+  "contract_digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+  "workspace_digest": "cb784e3d2bd9d5d6b6cd3210877ffdaf42f4079a4e161ae1a41d5cdb1b56a5ab",
+  "closing_digest": "68912ae7fa660faaa8853ec020a7d1bbc055d9e0c4153443efbf92b150cc0b8c",
+  "review_digest": "29ee78f29967a8aa8eb12b4943bad8b0b5e372a5b51adf020d1424dbdcc6758b",
+  "finalization_digest": "f734a7be5718b945c097a1acb61030326d0656d977abdce14e7a0de8ec312da8",
+  "timestamp": 1794416381
+}

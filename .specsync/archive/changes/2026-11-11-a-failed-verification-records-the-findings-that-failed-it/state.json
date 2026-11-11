@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-failed-verification-records-the-findings-that-failed-it",
+  "slug": "a-failed-verification-records-the-findings-that-failed-it",
+  "title": "A failed verification records the findings that failed it",
+  "description": "a failed verification records the findings that failed it",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794383418,
+  "updated_at": 1794415221,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests.rs",
+    "src/change_tests/bounded_failure_output.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A failed verification command records a bounded output of the findings that failed it (errors, and warnings only under --strict), and a gate refusal records its refusal texts, so a recorded failure is classifiable without re-running it; passing records are byte-identical to before; the 4 KiB tail never splits a character and keeps the error that failed the check"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md #640 plane: optional-and-skipped is the only way to grow the ledger; passing records stay byte-identical",
+    "public_contract": "no"
+  }
+}

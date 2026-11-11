@@ -507,7 +507,11 @@ fn shallow_history_is_complete_for_change(
     record: &ChangeRecord,
     references: &[String],
 ) -> Result<bool, String> {
-    let Some(base) = record.base_commit.as_deref() else {
+    let Some(base) = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    else {
         return Ok(false);
     };
     let commit_object = format!("{base}^{{commit}}");
@@ -1832,6 +1836,9 @@ fn validate_finalization_evidence_with_review_binding(
     // A mismatched historical review is explicitly NOT accepted as current or ancestral.
     // The reopen-only caller retains it at its exact remote-default Git anchor instead.
     if implementation_commit_available && !recorded_workspace_mismatch {
+        if !is_canonical_commit_id(&review.implementation_commit) {
+            return Err("scoped review implementation commit is not a full commit id".into());
+        }
         let review_ancestor = run_git_bounded(
             root,
             &[
@@ -2221,6 +2228,11 @@ fn review_commit_currency(
     // rewrites `review.implementation_commit`, so `implementation_commit..HEAD` is not a range
     // and the walk below never runs at all. Reporting that as a pass is what #743 fixes;
     // reporting it as a violation would be the same lie with the sign flipped.
+    if !is_canonical_commit_id(&review.implementation_commit) {
+        return ScopedReviewCurrency::Unavailable(
+            "scoped review implementation commit is not a full commit id".into(),
+        );
+    }
     let ancestor = match run_scoped_review_git(
         root,
         &[
@@ -2713,8 +2725,15 @@ fn accept_change_with_gate(
         };
         // Missing and empty are the same evidence: nothing recorded the
         // implementation commit. Deleting the ledger used to skip the guard
-        // that emptying it tripped (#656).
-        if verification_adopted && attempts.attempts.is_empty() {
+        // that emptying it tripped (#656). A ledger holding only refusals
+        // (#847) has no recorded attempt either — refusals are not evidence
+        // the implementation commit was ever verified.
+        if verification_adopted
+            && attempts
+                .attempts
+                .iter()
+                .all(|attempt| attempt.refusal.is_some())
+        {
             return Err(
                 "verification attempt history cannot adopt the implementation commit".into(),
             );
@@ -4310,7 +4329,7 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
     }
     let policy_tree_path = git_repo_relative_path(root, POLICY_PATH)?;
     let object = format!("{reference}:{policy_tree_path}");
-    let Some(content) = git_output_allow_empty(root, &["show", &object]) else {
+    let Some(content) = git_output_allow_empty(root, &["show", "--end-of-options", &object]) else {
         return Ok(None);
     };
     serde_json::from_str(&content)
@@ -4440,7 +4459,10 @@ fn delivery_policy_is_covered(
     let base = pull_request_diff_base(root, records);
     let base_commit = comparison_base_commit(root, &base)
         .ok_or_else(|| "unable to resolve policy delivery base".to_string())?;
-    let mut changed: BTreeSet<String> = git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
+    let mut changed: BTreeSet<String> = git_output_allow_empty(
+        root,
+        &["diff", "--name-only", "--relative", "--end-of-options", &base],
+    )
         .ok_or_else(|| "unable to inspect policy delivery paths".to_string())?
         .lines()
         .map(str::to_string)
@@ -4546,7 +4568,7 @@ fn check_project_with_command_output(
         || root.join(ARCHIVE_PATH).is_dir()
         || git_repo_relative_path(root, POLICY_PATH)
             .ok()
-            .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", path.as_str()]))
+            .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", "--", path.as_str()]))
             .is_some();
     if !is_versioned_sdd {
         return SddCheckReport::default();
@@ -5145,7 +5167,7 @@ fn comparison_base_commit(root: &Path, comparison_base: &str) -> Option<String> 
         .next()
         .filter(|value| !value.is_empty())
         .unwrap_or(comparison_base);
-    git_output(root, &["merge-base", left, "HEAD"]).or_else(|| {
+    git_output(root, &["merge-base", "--end-of-options", left, "HEAD"]).or_else(|| {
         git_output(
             root,
             &["rev-parse", "--verify", &format!("{left}^{{commit}}")],
@@ -5199,8 +5221,10 @@ mod lesson_bundle_dash_tests {
                 command: format!("cargo test auth{dash}"),
                 success: true,
                 exit_code: Some(0),
+                output: None,
             }],
             requirement_ids: Vec::new(),
+            refusal: None,
         };
         write_json(
             &change_dir(root, &record.id).join("verification.json"),

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "journal-error-names-its-file-and-recovery",
+  "implementation_commit": "71e4afbb04ec9bcefe299e395c921637da672e67",
+  "implementation_tree": "bd2f9d3c88721beea7e6bf74d9d34355e043229d",
+  "contract_digest": "1eaeb2e2e7315e2648fda1485f8d843bd1d4b8fa7362704528bb2cdc867b9b7e",
+  "workspace_digest": "70ccb07a9c2b7c242d8c06f41a7e8c3dc0de0d644c7080450bdeff81bc403b12",
+  "closing_digest": "a32c4d4f0571c8bbaa8cd7136b31bb59be2e3c86adc2c2460e0afa1fe344dc96",
+  "review_digest": "c5652df50c93b219d06d9da92a992680a71370026d6056a5ff3dd9b4fc7b9ef9",
+  "finalization_digest": "8dba1784f0001d5c07eaf3f8bb5a14e7caf6bc5fc3b555c735d45b8ac0cef23f",
+  "timestamp": 1794374370
+}

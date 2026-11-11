@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-torn-journal-assertion-update",
+  "implementation_commit": "ef79eda1672a1dcb15daa520ab3e58435ee40c26",
+  "implementation_tree": "830a8965022df117d9eedf554d818047d8b24b63",
+  "contract_digest": "f901a930a93a596d62fae60b4cea63c80e54afcd8b664cf8f7777c32d968ca05",
+  "workspace_digest": "a2c116672ca8ce973abe0e9283ecc86d346df23833fc94aea721d2eeffa56951",
+  "closing_digest": "58e549c0a6eb8750f4123a9fadff63538093cf701a838a8547afbd72a47d9c91",
+  "review_digest": "f2d947573d9fbebf1253c72a9118f8f9a32383731631b38a5d5589df4e751493",
+  "finalization_digest": "3ed604f500e3f44051f1176776e2349bb3828e3839c2b05d8f408a8c1d0109d5",
+  "timestamp": 1794413770
+}

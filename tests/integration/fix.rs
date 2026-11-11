@@ -1469,3 +1469,48 @@ fn fix_backup_preserves_original_on_success() {
         "Backup should contain the original spec content before --fix modifications"
     );
 }
+
+// ─── #768: an indented fence marker is content, never a delimiter ─────────
+
+// REQ-cmd-check-017 / REQ-parser-004: a four-space-indented fence marker is
+// content under CommonMark; it must not open a phantom fence that hides the
+// real table (the row would duplicate on --fix). Red on main.
+#[test]
+fn fix_treats_an_indented_fence_marker_as_content() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        "### Exported Functions\n\n    ```not-a-fence\n\n| Export | Description |\n|--------|-------------|\n| `login` | Authenticates a user |\n",
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert_eq!(
+        updated.matches("| `login` |").count(),
+        1,
+        "login must not be duplicated:\n{updated}"
+    );
+    let login_pos = updated.find("| `login` |").unwrap();
+    let logout_pos = updated
+        .find("| `logout` |")
+        .unwrap_or_else(|| panic!("logout was added exactly once: {updated}"));
+    assert!(
+        logout_pos > login_pos,
+        "logout extends the real table, after login:\n{updated}"
+    );
+}

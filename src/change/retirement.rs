@@ -174,6 +174,9 @@ fn retirement_source(
         let default = remote_default_ref(root).ok_or_else(|| {
             "cannot authenticate inconsistent review without remote default".to_string()
         })?;
+        if !is_canonical_commit_id(anchor) {
+            return Err("retirement inconsistent review anchor is not a full commit id".into());
+        }
         ensure_git_ancestor(root, anchor, &default, "retirement inconsistent review")?;
         vec![anchor.clone()]
     } else {

@@ -815,6 +815,7 @@ fn accepted_changes_require_matching_closing_evidence() {
         passed: true,
         commands: Vec::new(),
         requirement_ids: Vec::new(),
+        refusal: None,
     };
     write_json(
         &change_dir(root, &record.id).join("verification.json"),
@@ -1152,7 +1153,7 @@ fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
     )
     .unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `src/lib.rs` (owner `change`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `src/lib.rs` (owner `change`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id, record.id
     );
     let stale_report = check_project(root);
@@ -1252,7 +1253,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
 
     fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `src/auth.rs` (owner `auth`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `src/auth.rs` (owner `auth`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         predecessor.id, successor.id, successor.id, predecessor.id
     );
     let stale_report = check_project(root);
@@ -1280,7 +1281,7 @@ fn stale_accepted_change_error_names_the_successor_rejected_for_failed_authentic
     )
     .unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its accepted evidence did not authenticate: accepted change has failed verification evidence; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its accepted evidence did not authenticate: accepted change has failed verification evidence; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         predecessor.id, successor.id, predecessor.id
     );
     let stale_report = check_project(root);
@@ -1947,7 +1948,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
 
     fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change, or supersede it from a later change under a module granted the path by `owns` in `.specsync/config.toml`",
+        "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change, or supersede it from a later change under a module granted the path by `owns` in `.specsync/config.toml`",
         record.id, record.id
     );
     let stale_report = check_project(root);

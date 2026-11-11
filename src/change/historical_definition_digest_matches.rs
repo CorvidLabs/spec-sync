@@ -1029,8 +1029,8 @@ pub fn correct_interview_metadata(
     let effective_definition = validate_correction_records(&record, &ledger.corrections)?;
     let dir = change_dir(root, &record.id);
     let mut prepared = vec![
-        (dir.join(CORRECTIONS_FILE), json_content(&ledger)?),
-        (dir.join("state.json"), json_content(&record)?),
+        (json_content_keeping_unknown_members(&dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
+        (json_content_keeping_unknown_members(&dir.join("state.json"), &record).map(|content| (dir.join("state.json"), content))?),
         (dir.join("change.md"), change_markdown_content(&record)),
     ];
     for artifact in &correction.added_artifacts {
@@ -2536,7 +2536,7 @@ pub fn record_scoped_review_with_relay(
         root,
         &[
             (scoped_review_path(root, &record), json_content(&review)?),
-            (attempts_path, json_content(&attempts)?),
+            (json_content_keeping_unknown_members(&attempts_path, &attempts).map(|content| (attempts_path, content))?),
         ],
     )?;
     Ok(review)
@@ -2641,7 +2641,8 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        prepared.push((approvals_path, json_content(&ledger)?));
+        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        prepared.push((approvals_path, approvals));
     } else {
         let actor = resolve_actor(root, actor)?;
         let stable_definition_digest = definition_digest(root, &record)?;
@@ -2687,7 +2688,8 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        prepared.push((approvals_path, json_content(&ledger)?));
+        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        prepared.push((approvals_path, approvals));
     }
     prepared.push((
         change_dir(root, &record.id).join("verification.json"),
@@ -2725,7 +2727,8 @@ fn accept_change_with_gate(
             );
         }
         attempts.attempts.push(verification.clone());
-        prepared.push((attempts_path, json_content(&attempts)?));
+        let attempts = json_content_keeping_unknown_members(&attempts_path, &attempts)?;
+        prepared.push((attempts_path, attempts));
     }
     if gate == "finalization" {
         let review = load_scoped_review(root, &record)?;
@@ -2763,10 +2766,9 @@ fn accept_change_with_gate(
     record.state = ChangeState::Accepted;
     record.canonical_applied = true;
     record.updated_at = now();
-    prepared.push((
-        change_dir(root, &record.id).join("state.json"),
-        json_content(&record)?,
-    ));
+    let state_path = change_dir(root, &record.id).join("state.json");
+    let state = json_content_keeping_unknown_members(&state_path, &record)?;
+    prepared.push((state_path, state));
     prepared.push((
         change_dir(root, &record.id).join("change.md"),
         change_markdown_content(&record),
@@ -3432,7 +3434,8 @@ fn archive_change_with_options(
     let finalize = if force_finalize_failure {
         Err("forced post-move archive finalization failure".to_string())
     } else {
-        json_content(&archived).and_then(|state| {
+        // The package has moved, so the archived state rewrites the state.json it carried.
+        json_content_keeping_unknown_members(&destination.join("state.json"), &archived).and_then(|state| {
             write_prepared_files(
                 root,
                 &[

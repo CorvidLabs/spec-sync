@@ -6279,3 +6279,214 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
+
+/// #1043, #434 (REQ-change-079): every lifecycle rewrite keeps the members a newer SpecSync wrote
+/// that this one does not know, at the top level and inside entries it did not change, through
+/// send-back, answer, approve, check, review and ship, and the audit stays clean.
+#[test]
+fn lifecycle_rewrites_keep_members_a_newer_specsync_wrote() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| -> String {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        let output = specsync().args(&full).output().unwrap();
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Archive a greeting",
+        "--kind",
+        "documentation",
+        "--path",
+        "docs/greeting.md",
+        "--no-spec-change",
+        "--rationale",
+        "Documentation-only behavior does not alter a technical contract",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The greeting is archived"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let dir = root.join(".specsync/changes").join(&id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("state.json")).unwrap()).unwrap();
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let artifact = artifact.as_str().unwrap();
+        let content = if artifact == "tasks" {
+            "# Tasks\n\n- [x] Archive the greeting.\n".to_string()
+        } else {
+            format!("# {artifact}\n\nComplete evidence for the greeting.\n")
+        };
+        fs::write(dir.join(format!("{artifact}.md")), content).unwrap();
+    }
+    // What a newer SpecSync would have written: a member appended to an object, with its exact
+    // text (a decimal and an integer past u64 must not be rounded).
+    let add_member = |path: &Path, object_end: &str, member: &str| {
+        let text = fs::read_to_string(path).unwrap();
+        let at = text.rfind(object_end).unwrap();
+        let mut text = text;
+        text.insert_str(at, member);
+        fs::write(path, text).unwrap();
+    };
+    const STATE_MEMBER: &str = "\"future_state\": {\n    \"ratio\": 2.50,\n    \"big\": 123456789012345678901234567890\n  }";
+    const LEDGER_MEMBER: &str = "\"future_ledger\": \"kept\"";
+    const APPROVAL_MEMBER: &str = "\"future_approval\": \"kept\"";
+    const ATTEMPT_MEMBER: &str = "\"future_attempt\": \"kept\"";
+    add_member(
+        &dir.join("state.json"),
+        "\n}",
+        &format!(",\n  {STATE_MEMBER}"),
+    );
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    add_member(
+        &dir.join("approvals.json"),
+        "\n}",
+        &format!(",\n  {LEDGER_MEMBER}"),
+    );
+    // The first approval's closing brace sits before the ledger's `send_backs` or end.
+    let approvals = fs::read_to_string(dir.join("approvals.json")).unwrap();
+    let first_close = approvals.find("\n    }").unwrap();
+    let mut approvals = approvals;
+    approvals.insert_str(first_close, &format!(",\n      {APPROVAL_MEMBER}"));
+    fs::write(dir.join("approvals.json"), approvals).unwrap();
+    fs::write(root.join("docs/greeting.md"), "# Greeting\n\nHello.\n").unwrap();
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "implement greeting (a newer SpecSync's records)",
+    ]);
+    run(&["change", "check", &id, "--commit"]);
+    let attempts = fs::read_to_string(dir.join("verification-attempts.json")).unwrap();
+    let first_close = attempts.find("\n    }").unwrap();
+    let mut attempts = attempts;
+    attempts.insert_str(first_close, &format!(",\n      {ATTEMPT_MEMBER}"));
+    fs::write(dir.join("verification-attempts.json"), attempts).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "a newer SpecSync's attempt record"]);
+
+    let kept = |file: &str, member: &str, when: &str| {
+        let text = fs::read_to_string(dir.join(file)).unwrap();
+        assert!(
+            text.contains(member),
+            "{when}: {file} lost {member}:\n{text}"
+        );
+    };
+    // Each rewrite keeps every member.
+    run(&[
+        "change",
+        "send-back",
+        &id,
+        "--actor",
+        "Scope owner",
+        "--reason",
+        "rescope",
+    ]);
+    kept("state.json", STATE_MEMBER, "send-back");
+    kept("approvals.json", LEDGER_MEMBER, "send-back");
+    kept("approvals.json", APPROVAL_MEMBER, "send-back");
+    run(&[
+        "change",
+        "answer",
+        &id,
+        "acceptance_criteria",
+        "The greeting is archived",
+    ]);
+    kept("state.json", STATE_MEMBER, "answer");
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    kept("approvals.json", LEDGER_MEMBER, "approve");
+    kept("approvals.json", APPROVAL_MEMBER, "approve");
+    run(&["change", "check", &id, "--commit"]);
+    kept("verification-attempts.json", ATTEMPT_MEMBER, "check");
+    kept("state.json", STATE_MEMBER, "check");
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    // No change-record finding (the throwaway repository has no remote, which doctor notes apart).
+    let doctor = run(&["doctor"]);
+    assert!(!doctor.contains("audit-error"), "{doctor}");
+    run(&["change", "ship", &id]);
+    let archived = fs::read_dir(root.join(".specsync/archive/changes"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| path.to_string_lossy().ends_with(&id))
+        .expect("archived package");
+    for (file, member) in [
+        ("state.json", STATE_MEMBER),
+        ("approvals.json", LEDGER_MEMBER),
+        ("approvals.json", APPROVAL_MEMBER),
+        ("verification-attempts.json", ATTEMPT_MEMBER),
+    ] {
+        let text = fs::read_to_string(archived.join(file)).unwrap();
+        assert!(
+            text.contains(member),
+            "ship: archived {file} lost {member}:\n{text}"
+        );
+    }
+    run(&["change", "audit", "--strict"]);
+}

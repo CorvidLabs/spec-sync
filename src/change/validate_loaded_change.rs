@@ -676,7 +676,7 @@ fn append_approval_with_relay(
         approved_delta_bases,
         relayed_by,
     });
-    write_json(
+    write_json_keeping_unknown_members(
         &change_dir(root, &record.id).join("approvals.json"),
         &ledger,
     )
@@ -912,7 +912,7 @@ fn record_verification_attempt(
                 change_dir(root, &record.id).join("verification.json"),
                 json_content(verification)?,
             ),
-            (history_path, json_content(&history)?),
+            (json_content_keeping_unknown_members(&history_path, &history).map(|content| (history_path, content))?),
         ],
     )
 }
@@ -2540,7 +2540,7 @@ fn validate_foreign_tree(root: &Path) -> Result<(), String> {
 }
 
 fn save_change(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    write_json(&change_dir(root, &record.id).join("state.json"), record)
+    write_json_keeping_unknown_members(&change_dir(root, &record.id).join("state.json"), record)
 }
 
 fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -4440,6 +4440,19 @@ fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     fs::write(path, json_content(value)?)
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+/// `write_json` for a lifecycle record or ledger rewritten in place: members a newer SpecSync
+/// wrote that this one does not know are kept (#1043, #434).
+fn write_json_keeping_unknown_members<Record>(path: &Path, value: &Record) -> Result<(), String>
+where
+    Record: Serialize + serde::de::DeserializeOwned,
+{
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(path, json_content_keeping_unknown_members(path, value)?)
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 

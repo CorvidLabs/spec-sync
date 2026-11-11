@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote",
+  "slug": "a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote",
+  "title": "A lifecycle rewrite keeps the fields a newer specsync wrote",
+  "description": "a lifecycle rewrite keeps the fields a newer specsync wrote",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794381262,
+  "updated_at": 1794381273,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change/unknown_members.rs",
+    "src/change/doctor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/historical_reconciliation.rs",
+    "src/change/relayed_decision.rs",
+    "src/change/retirement.rs",
+    "src/change/sdd_version.rs",
+    "src/change/send_back.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests.rs",
+    "src/change_tests/unknown_members.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A lifecycle record or ledger SpecSync rewrites in place keeps every member it does not know, with its exact text, at the top level and inside entries the rewrite left unchanged, through send-back, answer, approve, check, review, ship and relay repair, and the audit stays clean"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "REQ-change-079 (CHG-0158 forward-compatibility valve): reading tolerates unknown fields and no digest changes; hi CHANGE-12.c (nothing recorded is lost) and CHANGE-13.h (an older SpecSync can still reopen and finish a change)",
+    "public_contract": "yes"
+  }
+}

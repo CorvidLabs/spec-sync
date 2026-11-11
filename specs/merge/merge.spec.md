@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 14
+version: 13
 status: stable
 files:
   - src/merge.rs
@@ -184,4 +184,3 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | 2026-11-06 | retire-the-merge-empty-list-and-init-strict-default-contract-clauses: Retire the merge empty-list and init strict-default contract clauses |
 | 2026-11-07 | keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first: Keep a clean merge-driver result faithful to both sides: quote YAML-typed list items, end the change log at its first blank line, merge version comments three ways, and stop renumbering at u64::MAX (#870 #872 #875 #876) |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
-| 2026-11-11 | merge-driver-keeps-a-one-sided-requirement-reorder: Merge driver keeps a one-sided requirement reorder |

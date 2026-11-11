@@ -16,9 +16,11 @@
 // - the root is the same record or ledger before and after the rewrite;
 // - an array entry is matched to the new entry with the same known text, wherever it moved (an
 //   insertion, a removal or a sort shifts entries); an entry left unmatched in an array whose length
-//   did not change is the same record edited in place, as a relay repair edits one approval;
-// - an entry that holds unknown members and matches nothing (it was removed, or replaced in a way
-//   that cannot be told apart) makes the rewrite refuse rather than drop them.
+//   did not change is taken as the same record edited in place, as a relay repair edits one approval
+//   (a different record replacing an entry at the same position would be taken for that edit too;
+//   no lifecycle rewrite replaces an entry in place);
+// - an entry that holds unknown members and matches nothing (it was removed) makes the rewrite
+//   refuse rather than drop them.
 //
 // The result must parse back to exactly the new value; otherwise the write is refused rather than
 // losing anything silently. A file this binary writes afresh (a new `verification.json`, a new

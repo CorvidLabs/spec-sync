@@ -16,8 +16,9 @@ knows), and the new typed value.
 - The root is the same record or ledger before and after.
 - An array entry is matched to the new entry with the same known text, preferring the same position,
   so an insertion, a removal or a sort keeps every entry's members on that entry. An entry left
-  unmatched in an array whose length did not change is the same record edited in place (a relay
-  repair edits one approval), and keeps its members. An entry that holds unknown members and still
+  unmatched in an array whose length did not change is treated as the same record edited in place
+  (a relay repair edits one approval), and keeps its members. A different record replacing it at the
+  same position would inherit them; no lifecycle rewrite does that, and the acceptance line says so. An entry that holds unknown members and still
   matches nothing was removed or replaced: the rewrite is refused rather than dropping them.
 - Key tokens are copied byte for byte, so an escaped key keeps its exact text.
 - The output keeps the layout `serde_json::to_string_pretty` writes; known members keep their order.

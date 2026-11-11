@@ -101,7 +101,7 @@ fn an_older_specsync_appending_to_a_ledger_keeps_what_a_newer_one_wrote() {
 /// t384's review of #1044: an entry keeps its own members when the rewrite edits it in place (a
 /// relay repair edits one approval) and wherever an insertion or a removal moves it; an entry that
 /// holds members this SpecSync does not know and that the rewrite removes refuses the rewrite; and
-/// no record gains another record's members.
+/// a shifted entry never takes another entry's members.
 #[test]
 fn every_entry_keeps_its_own_members_or_the_rewrite_is_refused() {
     let temp = TempDir::new().unwrap();

@@ -6381,6 +6381,54 @@ fn failed_change_check_output_keeps_the_error_behind_many_warnings() {
     );
 }
 
+/// #1047 review: under `--strict` a check's warnings are failures, so a strict check failed
+/// only by warnings records those warnings as its output (REQ-change-153).
+#[cfg(unix)]
+#[test]
+fn failed_strict_change_check_output_records_the_warnings_that_failed_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    // Warnings only: undocumented exports, and no error.
+    let mut source = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    for index in 0..3 {
+        source.push_str(&format!(
+            "pub fn undocumented_export_number_{index}() {{}}\n"
+        ));
+    }
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--strict",
+        ])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("warning: ") && output.contains("undocumented_export_number_0"),
+        "a strict check failed by its warnings records them: {output}"
+    );
+}
+
 /// Passing command evidence omits `output`, so passing records serialize
 /// exactly as they did before the field existed (#640).
 #[cfg(unix)]

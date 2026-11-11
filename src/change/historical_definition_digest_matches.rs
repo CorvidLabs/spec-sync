@@ -2417,10 +2417,12 @@ fn work_paths_for_verification_commit(
     if !record.affected_specs.is_empty() {
         let specs_dir = crate::config::load_config(root).specs_dir;
         for module in &record.affected_specs {
-            let (spec, _) = canonical_module_paths(root, &specs_dir, module)?;
-            let relative = portable_project_path(root, &spec);
-            if !path_is_under_specsync(&relative) {
-                paths.insert(relative);
+            let (spec, requirements) = canonical_module_paths(root, &specs_dir, module)?;
+            for canonical in [spec, requirements] {
+                let relative = portable_project_path(root, &canonical);
+                if !path_is_under_specsync(&relative) {
+                    paths.insert(relative);
+                }
             }
         }
     }
@@ -2456,35 +2458,70 @@ fn ensure_verification_commit_contains_change_work(
     else {
         return Ok(());
     };
-    let paths = work_paths_for_verification_commit(root, record)?;
-    if !paths.is_empty() {
-        let mut args = vec!["diff", "--quiet", commit, "--"];
-        args.extend(paths.iter().map(String::as_str));
-        let status = crate::git_utils::status_without_inherited_output(
-            Command::new("git").args(&args).current_dir(root),
-        )
-        .map_err(|error| {
-            format!("failed to compare the verification commit to the working tree: {error}")
-        })?;
-        if status.code() == Some(1) {
-            return Err(verification_commit_lacks_work_error(&record.id, commit));
-        }
-        if !status.success() {
-            return Err(format!(
-                "failed to compare verification commit {commit} to the working tree"
-            ));
-        }
+    // A commit identity read from a change record reaches Git only as a full commit id, and
+    // only after `--end-of-options`, so a value shaped like an option or a ref name is never
+    // parsed as one (REQ-change-013, #1052).
+    if !is_canonical_commit_id(commit) {
+        return Err(format!(
+            "verification commit `{commit}` is not a full commit id; run `specsync change check {} --commit`",
+            record.id
+        ));
     }
-    // `git diff` does not see an untracked file, so an affected path that exists
-    // on disk but is absent from the verification commit is still missing work.
-    // `git show <commit>:<path>` names a repository-relative path, which is not
-    // always the project-relative affected path (REQ-change-128).
+    let paths = work_paths_for_verification_commit(root, record)?;
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut args = vec!["diff", "--quiet", "--end-of-options", commit, "--"];
+    args.extend(paths.iter().map(String::as_str));
+    let status = crate::git_utils::status_without_inherited_output(
+        Command::new("git").args(&args).current_dir(root),
+    )
+    .map_err(|error| {
+        format!("failed to compare the verification commit to the working tree: {error}")
+    })?;
+    if status.code() == Some(1) {
+        return Err(verification_commit_lacks_work_error(&record.id, commit));
+    }
+    if !status.success() {
+        return Err(format!(
+            "failed to compare verification commit {commit} to the working tree"
+        ));
+    }
+    // `git diff` does not see an untracked file, so a new file anywhere under an affected
+    // path — a file named directly or one inside a directory scope — is work the
+    // verification commit cannot contain. `.specsync/` evidence is exempt (invariant 42).
+    let mut untracked_args = vec!["ls-files", "--others", "--exclude-standard", "-z", "--"];
+    untracked_args.extend(paths.iter().map(String::as_str));
+    let output = run_git_bounded(root, &untracked_args, None, MAX_CHANGE_ARTIFACT_BYTES as usize)
+        .map_err(|error| format!("failed to list untracked files in the change's scope: {error}"))?;
+    if !output.status.success() {
+        return Err("failed to list untracked files in the change's scope".into());
+    }
+    let untracked: Vec<String> = nul_terminated_git_paths(&output.stdout, "untracked file list")?
+        .into_iter()
+        .filter(|path| !path_is_under_specsync(path))
+        .collect();
+    if !untracked.is_empty() {
+        // `change check --commit` commits tracked edits but never an untracked file, so the
+        // recovery names the `git add` that has to come first.
+        let mut listed: Vec<&str> = untracked.iter().take(10).map(String::as_str).collect();
+        if untracked.len() > listed.len() {
+            listed.push("…");
+        }
+        return Err(format!(
+            "verification commit {commit} does not contain the change's work: untracked file(s) in its affected paths: {}; `git add` the ones that belong to this delivery (move, delete, or .gitignore the rest), then run `specsync change check {} --commit`",
+            listed.join(", "),
+            record.id
+        ));
+    }
+    // A file staged after the commit but absent from it is still missing work. `git show
+    // <commit>:<path>` names a repository-relative path, which is not always the
+    // project-relative affected path (REQ-change-128).
     for path in &record.affected_paths {
         if path_is_under_specsync(path) {
             continue;
         }
-        let current = root.join(path);
-        if current.is_file() {
+        if root.join(path).is_file() {
             let git_path = git_repo_relative_path(root, path)?;
             if git_file_at_commit(root, commit, &git_path)?.is_none() {
                 return Err(verification_commit_lacks_work_error(&record.id, commit));

@@ -7610,13 +7610,26 @@ fn ss_status(root: &Path, args: &[&str]) -> std::process::Output {
 }
 
 fn ss535_no_spec_project() -> (TempDir, PathBuf, String) {
+    ss535_no_spec_project_with_scope("README.md", |root| {
+        fs::write(root.join("README.md"), "hello\n\nThe greeter says hello.\n").unwrap();
+    })
+}
+
+/// A no-spec documentation change scoped to `scope`, approved after `work` ran
+/// and left its result uncommitted.
+fn ss535_no_spec_project_with_scope(
+    scope: &str,
+    work: impl FnOnce(&Path),
+) -> (TempDir, PathBuf, String) {
     let temp = TempDir::new().unwrap();
     let root = temp.path().to_path_buf();
     git_ok(&root, &["init", "-q", "-b", "main"]);
     git_ok(&root, &["config", "user.email", "test@example.com"]);
     git_ok(&root, &["config", "user.name", "Test"]);
     fs::write(root.join("README.md"), "hello\n").unwrap();
-    git_ok(&root, &["add", "README.md"]);
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(root.join("docs/guide.md"), "# Guide\n").unwrap();
+    git_ok(&root, &["add", "README.md", "docs/guide.md"]);
     git_ok(&root, &["commit", "-q", "-m", "seed"]);
     ss_ok(&root, &["init"]);
     git_ok(&root, &["add", "--all"]);
@@ -7631,7 +7644,7 @@ fn ss535_no_spec_project() -> (TempDir, PathBuf, String) {
             "--kind",
             "documentation",
             "--path",
-            "README.md",
+            scope,
             "--no-spec-change",
             "--rationale",
             "Documentation only; no canonical spec changes",
@@ -7655,7 +7668,7 @@ fn ss535_no_spec_project() -> (TempDir, PathBuf, String) {
         )
         .unwrap();
     }
-    fs::write(root.join("README.md"), "hello\n\nThe greeter says hello.\n").unwrap();
+    work(&root);
     ss_ok(&root, &["change", "approve", id, "--actor", "Repro535"]);
     (temp, root, id.to_string())
 }
@@ -7772,6 +7785,128 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
         review["implementation_commit"].as_str().unwrap(),
         seed,
         "the passing review must not bind to the pre-change commit"
+    );
+}
+
+fn ss_output_text(output: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
+#[test]
+fn review_and_ship_refuse_an_untracked_file_under_a_directory_scope() {
+    // t384 on #1059: `git diff` does not see an untracked file, so a new file
+    // inside a directory scope passed review and ship while uncommitted.
+    let (_temp, root, id) = ss535_no_spec_project_with_scope("docs/", |root| {
+        fs::write(root.join("docs/new-note.md"), "A new note.\n").unwrap();
+    });
+    let seed = git_ok(&root, &["rev-parse", "HEAD"]);
+    ss_ok(&root, &["change", "check", &id]);
+    let workspace = root.join(".specsync/changes").join(&id);
+
+    let review = ss_status(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+    let review_text = ss_output_text(&review);
+    assert_ne!(
+        review.status.code(),
+        Some(0),
+        "review must refuse:\n{review_text}"
+    );
+    assert!(
+        review_text.contains(&seed)
+            && review_text.contains(&format!("specsync change check {id} --commit")),
+        "review refusal must name the verification commit and check --commit:\n{review_text}"
+    );
+    assert!(
+        !workspace.join("review.json").exists(),
+        "a refused review records nothing"
+    );
+
+    let ship = ss_status(&root, &["change", "ship", &id]);
+    let ship_text = ss_output_text(&ship);
+    assert_ne!(
+        ship.status.code(),
+        Some(0),
+        "ship must refuse:\n{ship_text}"
+    );
+    assert!(
+        ship_text.contains(&format!("specsync change check {id} --commit")),
+        "ship refusal must name check --commit:\n{ship_text}"
+    );
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_ne!(state["state"].as_str().unwrap_or(""), "archived", "{state}");
+    assert!(
+        git_ok(&root, &["status", "--porcelain", "--", "docs/"]).contains("docs/new-note.md"),
+        "the new note is still uncommitted"
+    );
+
+    assert!(
+        review_text.contains("docs/new-note.md") && review_text.contains("git add"),
+        "the refusal names the untracked file and the `git add` it needs:\n{review_text}"
+    );
+
+    // `check --commit` never commits an untracked file, so the author adds it;
+    // once a verification commit holds it, review proceeds.
+    git_ok(&root, &["add", "docs/new-note.md"]);
+    ss_ok(&root, &["change", "check", &id, "--commit"]);
+    assert_eq!(
+        git_ok(&root, &["show", "HEAD:docs/new-note.md"]),
+        "A new note."
+    );
+    ss_ok(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+}
+
+#[test]
+fn review_refuses_a_verification_commit_that_is_not_a_full_commit_id() {
+    // t384 on #1059: the recorded verification commit is used as a Git revision
+    // only when it is a full commit id, after `--end-of-options` (REQ-change-013).
+    let (_temp, root, id) = ss535_no_spec_project();
+    ss_ok(&root, &["change", "check", &id, "--commit"]);
+    let workspace = root.join(".specsync/changes").join(&id);
+    let path = workspace.join("verification.json");
+    let original = fs::read_to_string(&path).unwrap();
+    let head = git_ok(&root, &["rev-parse", "HEAD"]);
+    let short = head[..12].to_string();
+    for value in ["--not-a-commit", "-x", short.as_str(), "HEAD", "main"] {
+        let mut verification: Value = serde_json::from_str(&original).unwrap();
+        verification["commit"] = Value::String(value.to_string());
+        fs::write(&path, serde_json::to_string_pretty(&verification).unwrap()).unwrap();
+        let review = ss_status(
+            &root,
+            &["change", "review", &id, "--reviewer", "Independent535"],
+        );
+        let text = ss_output_text(&review);
+        assert_ne!(
+            review.status.code(),
+            Some(0),
+            "{value}: review must refuse:\n{text}"
+        );
+        assert!(
+            text.contains("is not a full commit id"),
+            "{value}: the refusal names the bad commit identity:\n{text}"
+        );
+        assert!(
+            !text.contains("failed to compare"),
+            "{value}: the value never reaches git diff:\n{text}"
+        );
+        assert!(
+            !workspace.join("review.json").exists(),
+            "{value}: nothing recorded"
+        );
+    }
+    fs::write(&path, original).unwrap();
+    ss_ok(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
     );
 }
 

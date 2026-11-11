@@ -49,6 +49,62 @@
         "change: REQUIREMENT REQ-change-132": "f0ba715e749e7ffeff8a1985823d4afa55416c054ad2d3be6cd575a4414b21d9",
         "cmd_change: SPEC SECTION Contract": "da3f6b943aa469da8f8ce6fb997cfe020d7d4f4c7b2e58de3245317eb098cc26"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794430039,
+      "digest": "066102e0423f45371054198aa4364ebc6397baa871d757f1cfba877caa6100ab",
+      "note": "Definition approval re-recorded as 0xLeif at Leif's explicit instruction, once, for #1059 only. Replaces the earlier corvid-agent record that cited the 8:55 AM conditional authorization. cmd_change delta Contract item 13 rebased onto main's #839 wording. Recorded by corvid-agent.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s",
+        "title": "After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work",
+        "description": "After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "specs/change/testing.md",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+          "src/change_tests/verification_ignored_paths.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After approve, status and show name specsync change check <id> --commit. change review and change ship refuse when the verification commit does not contain the change's work, and do not bind a review to a commit that lacks that work."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "src/commands/change.rs is owned solely by cmd_change, so this change declares that module. cmd_change already delegates next_action policy to the change module; this change does not add a cmd_change requirement.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "8107704fc60460ddb1b2bc4d1d60e405e9b6158f2d9fa8fabb4bfe0164be4b05",
+        "cmd_change": "4927f35e12b9573270ef8beaaf3c1e958e572cbd51f162902773e76f282c2b23"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-132": "f0ba715e749e7ffeff8a1985823d4afa55416c054ad2d3be6cd575a4414b21d9",
+        "cmd_change: SPEC SECTION Contract": "1831b4d1e0cbf3f80acfbf58e1d69418c5aeb6c5bff9f012f92732634df1ab26"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Push the fixes on #1059 and record the approval as 0xLeif",
+        "where": "Leif's chat with corvid-agent, 2026-11-11 1:35 PM MST, choosing the coordinator's option (a) posted on #1059 (https://github.com/CorvidLabs/spec-sync/pull/1059#issuecomment-6806146884); his earlier coordinator-chat words were 'yes I approve 1059' (https://github.com/CorvidLabs/spec-sync/pull/1059#issuecomment-6800604769)",
+        "recorded_by": "corvid-agent"
+      }
     }
   ],
   "reopenings": []

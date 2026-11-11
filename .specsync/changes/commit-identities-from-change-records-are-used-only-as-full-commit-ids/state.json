@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "commit-identities-from-change-records-are-used-only-as-full-commit-ids",
+  "slug": "commit-identities-from-change-records-are-used-only-as-full-commit-ids",
+  "title": "Commit identities from change records are used only as full commit ids",
+  "description": "commit identities from change records are used only as full commit ids",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794386342,
+  "updated_at": 1794386402,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/retirement.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests.rs",
+    "src/change_tests/commit_identity_guards.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes behavior match REQ-change-013 (persisted workspace values are validated before use); the change spec only lists a new test file",
+  "acceptance_criteria": [
+    "A change's base commit, verification and scoped-review commits, and bootstrap and reopening anchors read from records reach Git as revisions only when they are full commit ids, after --end-of-options; a recorded base that is not one makes the coverage gate fall back to the no-record base instead of failing"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-013: reject untrusted or corrupt persisted workspace identity before using it; specsync diff already passes its base after --end-of-options",
+    "public_contract": "no"
+  }
+}

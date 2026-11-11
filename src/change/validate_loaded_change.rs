@@ -985,7 +985,8 @@ fn uncovered_meaningful_paths(
     {
         return Ok(Vec::new());
     }
-    let mut args = vec!["diff", "--name-only", "--relative"];
+    // The base is a revision, so it follows `--end-of-options`, as in `specsync diff`.
+    let mut args = vec!["diff", "--name-only", "--relative", "--end-of-options"];
     let base = pull_request_diff_base(root, records);
     args.push(&base);
     let output = git_output_allow_empty(root, &args)
@@ -1173,10 +1174,13 @@ fn remote_default_ref(root: &Path) -> Option<String> {
 }
 
 fn recorded_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
+    // A change's `base_commit` is persisted workspace state (REQ-change-013): only a full commit
+    // id is used as the diff base; any other value falls back to the base used when no change
+    // records one.
     records
         .iter()
         .filter_map(|record| record.base_commit.clone())
-        .next()
+        .find(|base| is_canonical_commit_id(base))
         .unwrap_or_else(|| {
             // `HEAD~1` does not resolve in a repository whose first commit is
             // also its only one, and the resulting `git diff` failure reported
@@ -3803,6 +3807,9 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
     let Some(commit) = evidence.commit.as_deref() else {
         return git_output(root, &["rev-parse", "HEAD"]).is_none();
     };
+    if !is_canonical_commit_id(commit) {
+        return false;
+    }
     crate::git_utils::status_without_inherited_output(
         Command::new("git")
             .args(["merge-base", "--is-ancestor", commit, "HEAD"])

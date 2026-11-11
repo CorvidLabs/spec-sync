@@ -6279,3 +6279,101 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
+
+/// A change's recorded `base_commit` is used as the coverage diff base only when it is a full commit
+/// id (REQ-change-013); any other value falls back to the base used when no change records one, so
+/// the coverage gate still inspects the changed paths.
+#[test]
+fn coverage_uses_a_changes_recorded_base_only_when_it_is_a_full_commit_id() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": true,
+  "meaningful_paths": ["src/"],
+  "ignored_paths": [".specsync/", "specs/"],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        super::helpers::valid_spec("auth", &["src/auth.rs"]),
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "base"]);
+    let root_arg = root.to_str().unwrap();
+    specsync()
+        .args([
+            "--root",
+            root_arg,
+            "change",
+            "new",
+            "Tune auth",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--no-spec-change",
+            "--rationale",
+            "internal",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let state_path = root.join(".specsync/changes/tune-auth/state.json");
+    let mut state: Value = serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    state["base_commit"] = Value::String("--not-a-commit".into());
+    fs::write(
+        &state_path,
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+    )
+    .unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "record"]);
+    fs::write(root.join("src/auth.rs"), "pub fn auth() { }\n").unwrap();
+    git(&["commit", "-q", "-am", "edit"]);
+
+    // No remote and no CI base, so the gate would fall back to the change's recorded base.
+    let output = specsync()
+        .args(["--root", root_arg, "change", "audit", "--strict"])
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !text.contains("unable to inspect"),
+        "a recorded base that is not a full commit id is not used as the diff base: {text}"
+    );
+}

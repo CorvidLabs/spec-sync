@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-code-t37f",
+      "timestamp": 1794386390,
+      "digest": "11c61209d0e24d3886fe1749da2bed9806dcfa4f769012561a5fb2c17247bc42",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by claude-code (Claude Opus 5.5, hc t37f). Makes behavior match REQ-change-013; no requirement text.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "commit-identities-from-change-records-are-used-only-as-full-commit-ids",
+        "title": "Commit identities from change records are used only as full commit ids",
+        "description": "commit identities from change records are used only as full commit ids",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/retirement.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/commit_identity_guards.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Makes behavior match REQ-change-013 (persisted workspace values are validated before use); the change spec only lists a new test file",
+        "acceptance_criteria": [
+          "A change's base commit, verification and scoped-review commits, and bootstrap and reopening anchors read from records reach Git as revisions only when they are full commit ids, after --end-of-options; a recorded base that is not one makes the coverage gate fall back to the no-record base instead of failing"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-013: reject untrusted or corrupt persisted workspace identity before using it; specsync diff already passes its base after --end-of-options",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

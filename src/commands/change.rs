@@ -1385,7 +1385,13 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 .and_then(|value| value.as_str())
                 .map(str::to_owned);
             match commit {
-                Some(commit) if commit.len() == 40 => {
+                // A full lowercase hex commit id, as SpecSync records it; nothing else reaches git.
+                Some(commit)
+                    if commit.len() == 40
+                        && commit
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) =>
+                {
                     let present = git_commit_present(root, &commit)?;
                     let ancestor = if present {
                         git_is_ancestor(root, &commit, "HEAD")?

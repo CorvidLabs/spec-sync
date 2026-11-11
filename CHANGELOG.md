@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Commit identities read from change records (a change's base commit, verification and scoped-review commits, bootstrap and reopening anchors) are used as Git revisions only when they are full commit ids, and revisions follow `--end-of-options`. A recorded base that is not a commit id no longer breaks the coverage gate: it falls back to the base used when no change records one (REQ-change-013).
 - A corrupt archive whose package still matches the commit that archived it now says to restore what `summary.terminal_evidence.reason` names in `change status --json`, the path the field really has there. The step named `terminal_evidence.reason`, which is not in that JSON (#966, REQ-change-093).
 - A timed-out read's resume command runs exactly as printed. Arguments with shell metacharacters are single-quoted, and when the deadline came from `SPECSYNC_TIMEOUT` the command clears it, so it no longer times out again in the same shell (REQ-cmd-change-036, #923, #953).
 - Approval refusals and text/JSON `change status` now name the same runnable `change answer` command for a draft. A single choice prints literally (`constraints none`, with the option to name constraining lessons or principles) rather than as shell-unsafe `<none>`; scope questions keep their specific placeholders, and a draft missing both specs and paths is refused for specs first, matching the interview order (#958, REQ-change-133, REQ-cmd-change-answer-hint-001).

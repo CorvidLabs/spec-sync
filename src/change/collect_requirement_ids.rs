@@ -1,6 +1,9 @@
 
 fn commit_is_ancestor_of_head(root: &Path, commit: &str) -> bool {
-    if git_output(root, &["rev-parse", "--verify", commit]).is_none() {
+    // Its commits come from committed bootstrap records, so only a full commit id is looked up.
+    if !is_canonical_commit_id(commit)
+        || git_output(root, &["rev-parse", "--verify", commit]).is_none()
+    {
         return false;
     }
     crate::git_utils::status_without_inherited_output(
@@ -5243,9 +5246,14 @@ fn build_semantic_succession_evidence(
             historical_reconciliation: None,
         });
     }
-    let base = record.base_commit.as_deref().ok_or_else(|| {
-        "semantic succession requires a definition-signed base commit".to_string()
-    })?;
+    let base = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+        .ok_or_else(|| {
+            "semantic succession requires a definition-signed base commit (a full commit id)"
+                .to_string()
+        })?;
     let ancestor = crate::git_utils::status_without_inherited_output(
         Command::new("git")
             .args(["merge-base", "--is-ancestor", base, "HEAD"])

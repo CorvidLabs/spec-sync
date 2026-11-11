@@ -106,7 +106,6 @@ fn watch_errors_when_all_directories_missing() {
     );
 }
 
-
 /// #1040: run `specsync watch` until one of `markers` appears in its stdout, then kill it.
 /// The verdict is an event, not a duration — a fixed window flakes under load (#707's class).
 /// The generous upper bound exists only to bound a hung child.
@@ -114,7 +113,10 @@ fn watch_until(root: &std::path::Path, markers: &[&str]) -> String {
     use std::io::{BufRead, BufReader};
     use std::process::Stdio;
     let mut command = std::process::Command::new(specsync().get_program());
-    command.args(["watch", "--root"]).arg(root).stdout(Stdio::piped());
+    command
+        .args(["watch", "--root"])
+        .arg(root)
+        .stdout(Stdio::piped());
     let mut child = command.spawn().expect("failed to spawn specsync watch");
     let stdout = child.stdout.take().expect("stdout is piped");
     let (tx, rx) = std::sync::mpsc::channel();

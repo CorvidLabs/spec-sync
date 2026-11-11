@@ -28,8 +28,7 @@
     ".specsync/version"
   ],
   "ignored_paths": [
-    ".specsync/",
-    "specs/"
+    ".specsync/"
   ],
   "verification_commands": [],
   "component_verification_commands": {

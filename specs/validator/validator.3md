@@ -136,3 +136,6 @@ existing selected file may be omitted.
 
 @plane z=10 label="Lesson (#862)"
 A merge of two branches can leave the same `### REQ-...` heading twice in one `requirements.md`. `check` reads the sibling requirements file and fails, and the error names the ID. A fenced copy of the heading is an example, not a second requirement. This did not loosen coverage, conflict, or export checks.
+
+@plane z=11 label="filter_map(Result::ok) is a silent verdict (#873)"
+The duplicate-ID walk dropped traversal errors with `filter_map(Result::ok)`, so an unreadable directory made audit pass over requirements files it never read — the release's most-repeated defect shape, an empty category read as a verdict, one level down in a filesystem walk. Unreadable files were already errors; an unreadable directory is the same fact at one higher level of the tree. If a check cannot reach its input, the check must say so.

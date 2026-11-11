@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "journal-read-errors-name-the-file-and-a-quoted-recovery",
+  "implementation_commit": "bcfd9c3271db222cb1571730f676884efdb95a1b",
+  "implementation_tree": "57aa75231c38c7cd92f357f8d3c101f1a6c4001c",
+  "contract_digest": "b6ac9c119ce343ba1d563521406a15f2bfd209d7eb74220f612c91963995e782",
+  "workspace_digest": "3d03311452e52c9dcdad4111859b7743d2551ab1fc16d071b757b48d7f9b7a42",
+  "closing_digest": "49fe5b6b2ae30b5e8a09d6b76dd03f79b722363f062d4059c8338bb59e1a4b34",
+  "review_digest": "ce877d583b7491565a3907535160ce3dca217b2b08635246b2d7678d65370d3b",
+  "finalization_digest": "c7f4d750b1c6fc0db0624c434c0ddc1dcf128930f6f54dbdc994361048b1e65a",
+  "timestamp": 1794377814
+}

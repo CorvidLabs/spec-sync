@@ -1972,3 +1972,85 @@ Every comparison that decides whether an approval or correction history is curre
 - An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
 - A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
 
+### REQ-change-151
+
+A transaction journal that cannot be read or parsed SHALL be reported with its
+file path and a command that sets it aside. Every printed `change reopen`
+remediation SHALL include `--actor` and `--reason`.
+
+#### Acceptance Criteria
+
+- A corrupt `.specsync/change-transaction.json` produces an error naming the
+  file and the set-aside recovery.
+- A non-UTF-8 journal is reported the same way.
+- The printed recovery command runs verbatim in a project whose path contains
+  a space.
+- Every printed `specsync change reopen <id>` remediation includes
+  `--actor <name> --reason <text>`.
+
+### REQ-change-152
+
+When a delta item targets a requirement whose canonical header carries a title
+suffix (`### REQ-<module>-<number> — Title`, `### REQ-x-001: Title`), the
+materializer SHALL match the block by the shared requirement-heading parser —
+accepting every form the parser accepts, including multi-segment module ids
+and up to three spaces of indent — and the block-end scan SHALL apply the same
+ATX indent rule, so a matched indented block ends at the next heading. The
+materialized block SHALL keep the matched header line unchanged. Section
+deltas (`## ` targets) SHALL keep exact heading matching.
+
+#### Acceptance Criteria
+
+- A MODIFIED delta applies to a titled header, including a hyphenated module
+  id (`REQ-cmd-change-012 — Title`) and a colon title (`REQ-x-001: Title`).
+- A MODIFIED or REMOVED on an indented titled header leaves the following
+  indented requirement block intact.
+- The matched header line is preserved byte-for-byte in the materialized
+  tree, and re-application converges.
+- A `## ` section delta whose key is a strict prefix of an existing section
+  heading does not match that section.
+
+### REQ-change-153
+
+Failed verification command evidence SHALL carry a bounded `output` field with the findings that failed it, so a recorded failure is classifiable without re-running the command.
+
+Acceptance Criteria
+- `CommandEvidence` gains `output: Option<String>`, serde-defaulted and omitted when `None`; passing records serialize byte-identically to before.
+- A failed scoped spec↔code check records in `output` the findings that failed it, bounded to the last 4 KiB: its errors, and its warnings only when `--strict` made them failures, so an error followed by many warnings is still recorded.
+- A gate-refusal evidence entry records the refusal texts the same way.
+- Records written by an older binary parse without error.
+- The 4 KiB bound never splits a multi-byte character: findings over the bound keep a tail that starts on a character boundary, and on a line boundary when one falls inside the tail, after a leading `…` line, so a large non-ASCII failure is recorded instead of panicking.
+- A cut tail starts on a line boundary only when one falls near the cut and text follows it; output with no finding text is not recorded.
+
+### REQ-change-155
+
+When an `ignored_paths` entry covers only paths that are always meaningful —
+the configured specs tree, or an SDD policy file named directly — the policy
+loader SHALL print a note on stderr naming the inert entry and the file to
+edit. An entry that also covers other files (such as `.specsync/`, which
+covers the change workspaces) SHALL NOT be named. Newly written default
+policies SHALL NOT include an inert entry.
+
+#### Acceptance Criteria
+
+- A policy listing `specs/` prints the note at load; the note names the entry
+  and `.specsync/sdd.json`.
+- The default policy's `ignored_paths` no longer contains `specs/`.
+- `.specsync/` produces no note.
+
+### REQ-change-154
+
+A `change check` refused on grounds in the change's own workspace — open
+tasks or missing requirement evidence — SHALL append an attempt with
+`passed: false` and the refusal reason to the change's
+`verification-attempts.json`, so a reader can see the check was tried and why
+it failed. A refusal SHALL NOT write `verification.json`, change the recorded
+state, or discard earlier attempts. A gate failure about another change's
+module records nothing, as before.
+
+#### Acceptance Criteria
+
+- A tasks-gate refusal leaves one `passed: false` attempt naming the reason.
+- `verification.json` is absent (or unchanged) after a refusal.
+- The refusal's exit code and stderr text are unchanged.
+

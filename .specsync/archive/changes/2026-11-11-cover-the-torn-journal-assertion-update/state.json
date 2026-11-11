@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "cover-the-torn-journal-assertion-update",
+  "slug": "cover-the-torn-journal-assertion-update",
+  "title": "Cover the torn-journal assertion update",
+  "description": "cover the torn-journal assertion update",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "f7d234568795a17862a371c2ab1107cb9d5e16e1",
+  "created_at": 1794382100,
+  "updated_at": 1794413773,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "the round-2 message change required this assertion update; it rode the lifecycle commit undeclared (t384's non-blocking note) — this records ownership",
+  "acceptance_criteria": [
+    "the assertion edit is covered by a declared affected path"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "check-commit-json-prints-the-outcome",
+  "implementation_commit": "40654d17ea1dd7f3a43db6369ffcc5dd51c4f175",
+  "implementation_tree": "89032d675978f32413f3f8ee59620b4c58582ed5",
+  "contract_digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+  "workspace_digest": "188ac74375552a46781eb49994b5c71be86f20b87c7e25a4ef9e27f458591e42",
+  "closing_digest": "9e3eaa30666ae0500debe90ee41e0f44550200d01354882a384b6086db406028",
+  "review_digest": "239121123376d9b38cf4ccdb19433eb80cea27180e5b52d4a11e28151498c58e",
+  "finalization_digest": "eed692c3642df3fd5356ef5d4759a1f3b244560576689b20412e3404e44ac827",
+  "timestamp": 1794415763
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-closed-output-never-crashes-specsync-or-hides-its-exit-status",
+  "slug": "a-closed-output-never-crashes-specsync-or-hides-its-exit-status",
+  "title": "A closed output never crashes specsync or hides its exit status",
+  "description": "a closed output never crashes specsync or hides its exit status",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794384575,
+  "updated_at": 1794385350,
+  "affected_specs": [
+    "cli",
+    "watch"
+  ],
+  "affected_paths": [
+    "src/main.rs",
+    "src/watch.rs",
+    "tests/integration.rs",
+    "tests/integration/closed_stdout.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes behavior match REQ-cli (exit 0 on success, 1 on errors); the specs gain only error-case rows",
+  "acceptance_criteria": [
+    "With its stdout (or stderr) reader gone, specsync drops further output to that stream and exits with the command's own status, 0 or 1, never a panic or exit 101; watch stops once nobody reads its output; any other write error still panics"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-cli exit codes: 0 on success, 1 on errors; a panic is a reported bug",
+    "public_contract": "no"
+  }
+}

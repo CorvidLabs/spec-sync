@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "watch-outcome-tests-wait-for-the-verdict-line",
+  "slug": "watch-outcome-tests-wait-for-the-verdict-line",
+  "title": "Watch outcome tests wait for the verdict line",
+  "description": "watch outcome tests wait for the verdict line",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794387596,
+  "updated_at": 1794388848,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/watch.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "test-only change; no module contract moves (watch spec's missing sections are pre-existing and out of scope)",
+  "acceptance_criteria": [
+    "the zero-specs watch test and its control wait for the verdict line instead of a fixed 5s window"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

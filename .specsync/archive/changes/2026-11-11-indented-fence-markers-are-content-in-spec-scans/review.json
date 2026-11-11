@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "indented-fence-markers-are-content-in-spec-scans",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "707dfcf63fce28feee67558a9304f5c5846d6972",
+  "contract_digest": "a020babe8c27723ec1acba35d6c1d4daeeacdeec08e0487cea7c5edd58bc6836",
+  "execution_digest": "7170e50b814fbf858115f062d7918d8d58400ae788103ab99cc00559c80ee274",
+  "workspace_digest": "1d9037b6597a9ed4195139f45955e6d33103619a8baa2915c4403d4ca954c1ac",
+  "timestamp": 1794386608
+}

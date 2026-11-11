@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "indented-fence-markers-are-content-in-spec-scans",
+  "implementation_commit": "707dfcf63fce28feee67558a9304f5c5846d6972",
+  "implementation_tree": "59560f4de2873e92b09df9a883a0a06c1fd57cc1",
+  "contract_digest": "a020babe8c27723ec1acba35d6c1d4daeeacdeec08e0487cea7c5edd58bc6836",
+  "workspace_digest": "1d9037b6597a9ed4195139f45955e6d33103619a8baa2915c4403d4ca954c1ac",
+  "closing_digest": "31c4f44ac729ba6176d478485dd7b9c26fdfa4a19ef4aa36c7b2a32d1f0e03cd",
+  "review_digest": "2f61cac2654a1688287db5ba1b5fe76b6e896540d25ec7b70a3df81caa413bb3",
+  "finalization_digest": "4ae2161befe83d9a9b561e5188bbbe1615c8189b2bcc20553fcabef08685a657",
+  "timestamp": 1794386641
+}

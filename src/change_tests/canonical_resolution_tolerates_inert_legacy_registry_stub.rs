@@ -984,6 +984,7 @@ fn overlapping_changes_cannot_lend_archive_attribution() {
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
+            refusal: None,
         };
         write_json(
             &change_dir(root, &record.id).join("verification.json"),

@@ -815,6 +815,7 @@ fn accepted_changes_require_matching_closing_evidence() {
         passed: true,
         commands: Vec::new(),
         requirement_ids: Vec::new(),
+        refusal: None,
     };
     write_json(
         &change_dir(root, &record.id).join("verification.json"),

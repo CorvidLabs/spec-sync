@@ -875,13 +875,12 @@ fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationR
         .map_err(|error| format!("invalid verification evidence: {error}"))
 }
 
-fn record_verification_attempt(
+fn load_verification_attempt_ledger(
     root: &Path,
     record: &ChangeRecord,
-    verification: &VerificationRecord,
-) -> Result<(), String> {
+) -> Result<(std::path::PathBuf, VerificationAttemptLedger), String> {
     let history_path = change_dir(root, &record.id).join("verification-attempts.json");
-    let mut history = if history_path.exists() {
+    let history = if history_path.exists() {
         let content = fs::read_to_string(&history_path)
             .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
         let history: VerificationAttemptLedger = serde_json::from_str(&content)
@@ -904,6 +903,15 @@ fn record_verification_attempt(
             attempts: Vec::new(),
         }
     };
+    Ok((history_path, history))
+}
+
+fn record_verification_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<(), String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
     history.attempts.push(verification.clone());
     write_prepared_files(
         root,
@@ -915,6 +923,33 @@ fn record_verification_attempt(
             (history_path, json_content(&history)?),
         ],
     )
+}
+
+/// Record that a check was refused before verification could start, so a reader can see the
+/// attempt and its reason (#847). Appends to the attempts ledger ONLY: `verification.json`
+/// holds the last completed verification and a refusal must never overwrite it, and the
+/// change's recorded state is untouched.
+pub(crate) fn record_refused_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    reason: &str,
+) -> Result<(), String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
+    history.attempts.push(VerificationRecord {
+        timestamp: now(),
+        commit: git_output(root, &["rev-parse", "HEAD"]),
+        contract_digest: String::new(),
+        execution_digest: None,
+        workspace_digest: String::new(),
+        acceptance_input_digest: None,
+        acceptance_manifest: None,
+        semantic_succession: None,
+        passed: false,
+        commands: Vec::new(),
+        requirement_ids: Vec::new(),
+        refusal: Some(reason.to_string()),
+    });
+    write_prepared_files(root, &[(history_path, json_content(&history)?)])
 }
 
 /// The coverage gate is the first hard failure most projects meet, and the way

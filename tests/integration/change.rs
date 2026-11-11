@@ -6279,3 +6279,45 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
 }
+
+// #847 (REQ-change-152): a check refused before verification records the refusal, so a reader
+// can see the check was tried and why it failed.
+#[cfg(unix)]
+#[test]
+fn a_refused_check_records_the_refusal_as_an_attempt() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    // Reopen the task so the tasks gate refuses before verification starts.
+    let tasks_path = root.join(format!(".specsync/changes/{id}/tasks.md"));
+    let tasks = fs::read_to_string(&tasks_path).unwrap();
+    fs::write(&tasks_path, tasks.replace("- [x]", "- [ ]")).unwrap();
+
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("incomplete tasks"), "{stderr}");
+
+    // The refusal was recorded: one passed:false attempt carrying the reason.
+    let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
+    let attempts: Value = serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap())
+        .expect("the refusal left an attempts ledger");
+    let entries = attempts["attempts"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{attempts}");
+    assert_eq!(entries[0]["passed"], false, "{attempts}");
+    assert!(
+        entries[0]["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("incomplete tasks")),
+        "the attempt carries the refusal reason: {attempts}"
+    );
+    // And it did not pose as completed verification.
+    assert!(
+        !root.join(format!(".specsync/changes/{id}/verification.json")).exists(),
+        "a refusal never writes verification.json"
+    );
+}

@@ -5206,6 +5206,7 @@ mod lesson_bundle_dash_tests {
                 exit_code: Some(0),
             }],
             requirement_ids: Vec::new(),
+            refusal: None,
         };
         write_json(
             &change_dir(root, &record.id).join("verification.json"),

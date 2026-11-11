@@ -7,11 +7,11 @@
   "title": "Identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists",
   "description": "identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "b7c48a4b945ffebda99940ff6b379896083bc73f",
   "created_at": 1794359638,
-  "updated_at": 1794359728,
+  "updated_at": 1794361327,
   "affected_specs": [
     "change"
   ],

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6c579737224dccc753f35c53a42104c6d11500fb",
+  "contract_digest": "85ff76b0939555f8d701f1a88df364623ee3e392bbcc2dce0952aad462f44705",
+  "execution_digest": "814dc9d799fc1d32e5c6d37e931bf30066359056b06f5b7e945fbccfa42f81ca",
+  "workspace_digest": "ee987ed15c3b4a65b2ae458cd932328a034e1f18f6860c9228fae810151ef634",
+  "timestamp": 1794361242
+}

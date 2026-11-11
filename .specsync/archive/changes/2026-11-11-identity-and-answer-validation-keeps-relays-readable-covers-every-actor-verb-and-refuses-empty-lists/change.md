@@ -1,6 +1,6 @@
 ---
 id: identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists
-state: implementing
+state: archived
 type: bug_fix
 base_commit: b7c48a4b945ffebda99940ff6b379896083bc73f
 ---

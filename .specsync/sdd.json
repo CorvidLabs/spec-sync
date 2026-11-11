@@ -51,6 +51,7 @@
     ],
     "hooks": ["cargo test hooks::tests::"],
     "ignore": ["cargo test ignore::tests::"],
+    "merge": ["cargo test merge_driver"],
     "schema": ["cargo test schema::tests::"],
     "validator": ["cargo test validator::tests::"]
   },

@@ -32,6 +32,38 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1794407735,
+      "commit": "54c048473829f4f311609de476c37c1cadaf7eb5",
+      "contract_digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+      "execution_digest": "310dca4e220798797b1e43ed2fc5dae7112e31b09976b4503b92b44961cfbf5e",
+      "workspace_digest": "c56c238ead482a93cedc28e1a695828123d592d6d508676bf2ba9f6548d6714b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794407814,
+      "commit": "54c048473829f4f311609de476c37c1cadaf7eb5",
+      "contract_digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+      "execution_digest": "310dca4e220798797b1e43ed2fc5dae7112e31b09976b4503b92b44961cfbf5e",
+      "workspace_digest": "c56c238ead482a93cedc28e1a695828123d592d6d508676bf2ba9f6548d6714b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

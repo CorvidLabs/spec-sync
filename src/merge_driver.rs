@@ -171,7 +171,6 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
             .map(|block| block.id.clone())
             .collect()
     };
-    let base_order: Vec<String> = base_blocks.iter().map(|block| block.id.clone()).collect();
     let mut order: Vec<String> = if ours_common == theirs_common {
         surviving_order(&ours_blocks)
     } else if ours_common == base_common {
@@ -179,8 +178,10 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
     } else if theirs_common == base_common {
         surviving_order(&ours_blocks)
     } else {
-        clean = false;
-        base_order.clone()
+        // Two different reorders: no per-block sequence can hold both, so hand the whole
+        // document to the text merge, which writes <<<<<<< markers with each side's order
+        // under its own label (the duplicate-ID guard above does the same).
+        return merge_text_region(ancestor, ours, theirs);
     };
     // The winning side's sequence may omit ids the loser kept (a winner-side deletion is
     // judged per-block below, never by absence from the sequence).
@@ -1631,6 +1632,11 @@ mod tests {
         assert!(
             !merged.clean,
             "divergent reorders must conflict:\n{}",
+            merged.content
+        );
+        assert!(
+            merged.content.contains("<<<<<<<"),
+            "a conflict holds both sides under their own labels:\n{}",
             merged.content
         );
     }

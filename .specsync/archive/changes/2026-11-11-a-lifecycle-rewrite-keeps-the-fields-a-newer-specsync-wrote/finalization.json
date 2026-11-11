@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote",
+  "implementation_commit": "0af6bada3b51e4b908ff9c901479c6cd34854107",
+  "implementation_tree": "682b1521e93f15c95f0501ad5c1b6da14464afad",
+  "contract_digest": "6d6ea94969b33a22f0a4711f1ed58163be1e9c891255365a62056889eb3d22f6",
+  "workspace_digest": "a808b308428e55d4db62fc2b796c56fc6d9a859fb74a3b24dd126bba84ff43b3",
+  "closing_digest": "78e149df1314354a2cdf88d0e381424138090f3a9b3efe434f65d38737d63308",
+  "review_digest": "a426f442a972edac19ad4be4fd4f2b31df0d9f72a51b2da111e47c8fb3b187e1",
+  "finalization_digest": "e0159a3c325acbe9cfb9b1ecedc69a7590fbd3a58db380c49db2bec44c1bc9cf",
+  "timestamp": 1794425975
+}

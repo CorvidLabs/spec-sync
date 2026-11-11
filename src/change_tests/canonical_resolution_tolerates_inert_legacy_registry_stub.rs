@@ -886,7 +886,10 @@ fn bootstrap_records_exempt_only_newly_created_protected_paths() {
 
 #[test]
 fn uncovered_paths_error_names_the_escape_hatch_and_ignore_precedence() {
-    let policy = SddPolicy::default();
+    // The default policy no longer carries the inert `specs/` entry (#676); set it
+    // explicitly to test the precedence note.
+    let mut policy = SddPolicy::default();
+    policy.ignored_paths.push("specs/".into());
     let message = uncovered_paths_error(
         &policy,
         &["src/lib.rs".to_string(), "specs/zzz/note.md".to_string()],
@@ -984,6 +987,7 @@ fn overlapping_changes_cannot_lend_archive_attribution() {
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
+            refusal: None,
         };
         write_json(
             &change_dir(root, &record.id).join("verification.json"),
@@ -3594,6 +3598,62 @@ fn emptying_verification_attempts_refuses_adopted_finalization() {
     );
 }
 
+/// #847 + t384's review of #1057: a ledger holding only refusals has no recorded attempt,
+/// so it must not satisfy the adoption guard either.
+#[test]
+fn a_refusal_only_attempts_ledger_refuses_adopted_finalization() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "commit.gpgsign", "false"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_change(root, Some(&record.id)).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement approved change"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+
+    // Replace the real attempts with one refusal-only entry, the shape #847 writes.
+    let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+    fs::write(
+        &attempts_path,
+        "{\"schema_version\":1,\"attempts\":[{\"timestamp\":1,\"commit\":null,\"contract_digest\":\"\",\"workspace_digest\":\"\",\"passed\":false,\"commands\":[],\"requirement_ids\":[],\"refusal\":\"tasks.md contains incomplete tasks\"}]}\n",
+    )
+    .unwrap();
+
+    git(&[
+        "commit",
+        "--allow-empty",
+        "-m",
+        "move HEAD after verification",
+    ]);
+
+    let error = accept_change_with_gate(root, &record.id, None, None, "finalization", true, false)
+        .expect_err("a refusal-only ledger must not adopt HEAD");
+    assert!(
+        error.contains("cannot adopt the implementation commit"),
+        "expected refusal-only adoption refusal, got {error}"
+    );
+}
+
 #[test]
 fn verifying_change_refuses_to_recreate_a_missing_attempts_ledger() {
     let temp = TempDir::new().unwrap();
@@ -3715,6 +3775,45 @@ fn interview_complete_bugfix(root: &Path, module: &str) -> ChangeRecord {
         .insert("architecture_risk".into(), "no".into());
     save_change(root, &record).unwrap();
     record
+}
+
+// Verifies REQ-change-150: `change answer` accepts every id the interview advertises.
+#[test]
+fn every_advertised_interview_question_is_answerable() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "---\nspec: auth.spec.md\n---\n\n## Notes\n\nKeep the lock around the write.\n",
+    )
+    .unwrap();
+    let complete = interview_complete_bugfix(root, "auth");
+    let mut advertised: Vec<String> = next_questions_for(root, &complete)
+        .into_iter()
+        .map(|question| question.id)
+        .collect();
+    assert_eq!(advertised, ["constraints"]);
+
+    let mut fresh = complete.clone();
+    fresh.acceptance_criteria.clear();
+    fresh.affected_specs.clear();
+    fresh.affected_paths.clear();
+    fresh.no_spec_change = false;
+    fresh.answers.clear();
+    let asked: Vec<String> = next_questions(&fresh)
+        .into_iter()
+        .map(|question| question.id)
+        .collect();
+    assert_eq!(asked.len(), 5, "{asked:?}");
+    advertised.extend(asked);
+
+    for id in &advertised {
+        assert!(
+            INTERVIEW_QUESTION_IDS.contains(&id.as_str()),
+            "`{id}` is advertised but `change answer` would refuse it"
+        );
+    }
 }
 
 // Verifies REQ-change-104.

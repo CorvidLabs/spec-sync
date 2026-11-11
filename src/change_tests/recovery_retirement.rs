@@ -83,6 +83,16 @@ fn recovery_retirement_positive_custody_and_child_route() {
     let old_dir = find_change_dir(root, &old.id).unwrap();
     let before =
         archive_workspace_snapshot(root, &old_dir, &portable_project_path(root, &old_dir)).unwrap();
+    let refused = retire_change(
+        root,
+        &old.id,
+        "Synthetic\noperator".into(),
+        "Obsolete Hatch intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic test authority, not a real human decision".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
     let retired = retire_change(
         root,
         &old.id,
@@ -477,6 +487,58 @@ fn recovery_retirement_rename_failure_keeps_a_complete_resumable_receipt() {
     {
         assert_eq!(after.get(path), Some(entry), "{path} bytes/mode changed");
     }
+    assert!(validate_retirement(root, &retired).is_ok());
+}
+
+/// #1026 seventh review: an interrupted retirement whose receipt holds an actor an older
+/// SpecSync accepted (an interior zero-width space, which `normalize_actor` now refuses) resumes
+/// with exactly that actor: recorded history is not re-judged. A new actor is still checked.
+#[test]
+fn recovery_retirement_resumes_with_the_actor_its_receipt_recorded() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let dir = find_change_dir(root, &old.id).unwrap();
+    RETIREMENT_TEST_FAIL_MOVE.with(|value| value.set(true));
+    let attempted = retire_change(
+        root,
+        &old.id,
+        "Synthetic operator".into(),
+        "Obsolete".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+    );
+    RETIREMENT_TEST_FAIL_MOVE.with(|value| value.set(false));
+    assert!(attempted.is_err());
+    // As an older SpecSync recorded it, digest included.
+    let older_actor = "Synthetic\u{200B}operator";
+    let receipt_path = dir.join(RETIREMENT_FILE);
+    let mut receipt: RetirementRecord =
+        serde_json::from_slice(&fs::read(&receipt_path).unwrap()).unwrap();
+    receipt.actor = older_actor.into();
+    receipt.digest = retirement_digest(&receipt).unwrap();
+    fs::write(&receipt_path, json_content(&receipt).unwrap()).unwrap();
+    assert!(normalize_actor(older_actor, "retirement").is_err());
+
+    let refused = retire_change(
+        root,
+        &old.id,
+        "Ada\u{200B}".into(),
+        "Obsolete".into(),
+        replacement.id.clone(),
+        "Synthetic authority".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line of visible text"), "{refused}");
+    let retired = retire_change(
+        root,
+        &old.id,
+        older_actor.into(),
+        "Obsolete".into(),
+        replacement.id,
+        "Synthetic authority".into(),
+    )
+    .expect("the recorded retirement resumes with its own actor");
     assert!(validate_retirement(root, &retired).is_ok());
 }
 

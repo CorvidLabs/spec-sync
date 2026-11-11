@@ -823,6 +823,19 @@ Acceptance Criteria
   than omitting an owner. A recovery that replaces `affected_specs` says the
   constraints answer must be renewed before approval. Owner discovery includes
   registry-registered canonical specs outside the specs directory.
+- The ship preflight and review owner recovery declares owners only for unowned
+  inputs the change modified (differing from the merge base with the remote
+  default branch, or untracked, and not covered by another active change); an
+  unowned input it never modified is named
+  with a recovery that narrows `affected_paths` instead, since its owner has nothing
+  to approve in this change (#1000). Approve's own ownership refusal is unchanged.
+  Without a full commit id as the change's base commit, a merge base with the
+  remote default branch, a readable set of active changes, or a complete spec
+  listing, every input keeps the declare recovery, and the base commit is never
+  passed to Git. So does every input once the change's own commits have reached
+  the remote default branch: when HEAD is that merge base although the change
+  has commits past its base, or when the merge base already holds the change's
+  own workspace.
 
 ### REQ-change-054
 
@@ -1084,7 +1097,7 @@ Acceptance Criteria
 
 ### REQ-change-079
 
-Evidence persisted to disk SHALL be readable by a reader that does not recognise every field it carries, and a change recording an unrecognised workflow version SHALL be reported as written by a newer SpecSync rather than as an invalid change state.
+Evidence persisted to disk SHALL be readable by a reader that does not recognise every field it carries, and a change recording an unrecognised workflow version SHALL be reported as written by a newer SpecSync rather than as an invalid change state. A lifecycle record or ledger that SpecSync rewrites in place SHALL keep every member it does not recognise, so a record a newer SpecSync wrote loses nothing when an older one updates it.
 
 Acceptance Criteria
 - Evidence carrying a field this reader does not know is parsed rather than rejected, so an evidence shape can be extended within a major version without breaking installations already deployed.
@@ -1092,6 +1105,8 @@ Acceptance Criteria
 - The spec and source hash cache continues to reject a shape it cannot understand, because it is untracked and rebuilt from scratch on any parse failure, so discarding one costs nothing and cannot lose evidence. A file that is committed and shared is evidence regardless of what it holds, and is tolerated.
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
+- A rewrite in place of `state.json`, `approvals.json`, `verification-attempts.json`, `review-attempts.json`, `corrections.json`, a relay repair's `review.json`, the archived `state.json` or the change-sequence ledger keeps each member this SpecSync does not know, with its exact text (key and value): members of the root, and members of each array entry, matched to the new entry with the same known content wherever an insertion, a removal or a sort moves it; otherwise, in an array whose length the rewrite did not change, an entry is matched to the entry at the same position, which counts as the same record edited in place (no lifecycle rewrite replaces an entry in place with another record). A moved entry never takes another entry's members, and a record written afresh takes none.
+- The kept members change nothing this SpecSync reads and no digest. A rewrite that cannot keep them, including one that removes an entry holding them, is refused, naming the file and the entries or members, instead of dropping them.
 
 ### REQ-change-088
 
@@ -1965,6 +1980,103 @@ Every comparison that decides whether an approval or correction history is curre
 - Because no digest and no gate reads a relay, a repair stales no approval, verification or review.
 - An archived change is refused, writing nothing, naming `git checkout HEAD -- <archived package>`, because finalize commits the archive and `HEAD` holds every original. A damaged relay read from an archived package keeps naming `git checkout HEAD -- <file>`.
 - A file that is not JSON is refused, writing nothing: the refusal names `git checkout HEAD -- <file>` when `HEAD` holds the file, and otherwise says that no copy of it exists.
+
+### REQ-change-150
+
+Interview answers and identity strings SHALL be validated before they are persisted. `change answer` SHALL reject a question key outside the interview set `change answer` accepts, SHALL reject an empty or whitespace-only answer and an answer that parses to no value (`[]` for acceptance criteria; only commas or blanks for the comma-separated lists), and SHALL reject an `affected_specs` entry whose module has no spec at its canonical path (the module's own directory and file spelled exactly, so a variant differing only in ASCII case is refused, and a spec reached through a symlink is refused naming the symlink), unless the project has no spec files and no registry entries; `change new --spec` applies the same rule. A yes/no question (`public_contract`, `architecture_risk`) SHALL take only yes or no, or a spelling the correction ledger reads as one (`y`, `true`, `1`, `n`, `false`, `0`, any case), stored as the choice it names; any other answer SHALL be refused naming the choices and store nothing. An `affected_paths` answer of `[]` SHALL be refused as naming no path. An exact `none` or `[]` SHALL clear `affected_specs` and `dependencies`; `none` SHALL be refused as ambiguous when a change or module is itself named `none`, while `[]` always clears. A module whose spec declares it off its canonical path SHALL be refused naming that spec and saying to move or register it, never suggesting a scaffold that would duplicate it. An owner recovery SHALL NOT print an `affected_specs` answer naming a module with no spec at its canonical path, even in a project with no specs, because verification refuses a declared module without its spec; the hint for a configured owner with no spec says to create its spec first, and approve's ownership refusal and the ship preflight's fallback recovery name each declared module whose spec is missing. A case variant of a module name SHALL be refused naming the module. Actor identity strings SHALL be trimmed and rejected when empty after trimming or when they contain control characters, the line and paragraph separators U+2028 and U+2029, or any format character (general category Cf) or default-ignorable code point as of Unicode 16.0; ZWNJ U+200C and ZWJ U+200D stay allowed. This SHALL hold on approve, reopen, send-back, correct, correct-owner, reconcile-history, retire and the doctor late close through one shared `normalize_actor`, and on review through its stricter reviewer-claim check. A relayed approval's decider SHALL be trimmed the same way as the actor it must match.
+
+Acceptance Criteria
+- An unknown question key exits 1, stores nothing in `state.json`, and the error lists the accepted question ids; this covers a hyphen/underscore typo such as `acceptance-criteria`.
+- An empty or whitespace-only answer, or one that parses to no value (`[]`, `,`), exits 1 and stores nothing; `none` clears `affected_specs` and `dependencies`.
+- An `affected_specs` answer naming a module with no spec at its canonical path exits 1, names that path and `specsync new <module>` or the known modules; an unreadable registry is reported as such.
+- An `--actor` value with leading or trailing whitespace is stored trimmed; one that is empty after trimming or holds a refused character exits 1 before any ledger write, for explicit, Git- and environment-derived actors.
+- A relayed approval with a padded `--actor` records the same trimmed name as actor and decider, and `change status` reads it.
+- An empty `constraints` answer says to answer `none`; an unreadable registry is reported instead of skipping the check; a registered module whose spec file is missing is named as registered.
+- Each actor-accepting verb (reopen before moving an archive, retire, correct, correct-owner, reconcile-history, the doctor late close) refuses a bad actor and writes nothing.
+- `public_contract maybe` exits 1 naming yes and no and stores nothing; ` N ` is stored as `no`; `affected_paths []` exits 1.
+- A declared module whose spec is missing is named in approve's ownership refusal and in the ship preflight's fallback recovery, and no `affected_specs` answer is printed while any listed module lacks its spec.
+
+### REQ-change-151
+
+A transaction journal that cannot be read or parsed SHALL be reported with its
+file path and a command that sets it aside. Every printed `change reopen`
+remediation SHALL include `--actor` and `--reason`.
+
+#### Acceptance Criteria
+
+- A corrupt `.specsync/change-transaction.json` produces an error naming the
+  file and the set-aside recovery.
+- A non-UTF-8 journal is reported the same way.
+- The printed recovery command runs verbatim in a project whose path contains
+  a space.
+- Every printed `specsync change reopen <id>` remediation includes
+  `--actor <name> --reason <text>`.
+
+### REQ-change-152
+
+When a delta item targets a requirement whose canonical header carries a title
+suffix (`### REQ-<module>-<number> — Title`, `### REQ-x-001: Title`), the
+materializer SHALL match the block by the shared requirement-heading parser —
+accepting every form the parser accepts, including multi-segment module ids
+and up to three spaces of indent — and the block-end scan SHALL apply the same
+ATX indent rule, so a matched indented block ends at the next heading. The
+materialized block SHALL keep the matched header line unchanged. Section
+deltas (`## ` targets) SHALL keep exact heading matching.
+
+#### Acceptance Criteria
+
+- A MODIFIED delta applies to a titled header, including a hyphenated module
+  id (`REQ-cmd-change-012 — Title`) and a colon title (`REQ-x-001: Title`).
+- A MODIFIED or REMOVED on an indented titled header leaves the following
+  indented requirement block intact.
+- The matched header line is preserved byte-for-byte in the materialized
+  tree, and re-application converges.
+- A `## ` section delta whose key is a strict prefix of an existing section
+  heading does not match that section.
+
+### REQ-change-153
+
+Failed verification command evidence SHALL carry a bounded `output` field with the findings that failed it, so a recorded failure is classifiable without re-running the command.
+
+Acceptance Criteria
+- `CommandEvidence` gains `output: Option<String>`, serde-defaulted and omitted when `None`; passing records serialize byte-identically to before.
+- A failed scoped spec↔code check records in `output` the findings that failed it, bounded to the last 4 KiB: its errors, and its warnings only when `--strict` made them failures, so an error followed by many warnings is still recorded.
+- A gate-refusal evidence entry records the refusal texts the same way.
+- Records written by an older binary parse without error.
+- The 4 KiB bound never splits a multi-byte character: findings over the bound keep a tail that starts on a character boundary, and on a line boundary when one falls inside the tail, after a leading `…` line, so a large non-ASCII failure is recorded instead of panicking.
+- A cut tail starts on a line boundary only when one falls near the cut and text follows it; output with no finding text is not recorded.
+
+### REQ-change-155
+
+When an `ignored_paths` entry covers only paths that are always meaningful —
+the configured specs tree, or an SDD policy file named directly — the policy
+loader SHALL print a note on stderr naming the inert entry and the file to
+edit. An entry that also covers other files (such as `.specsync/`, which
+covers the change workspaces) SHALL NOT be named. Newly written default
+policies SHALL NOT include an inert entry.
+
+#### Acceptance Criteria
+
+- A policy listing `specs/` prints the note at load; the note names the entry
+  and `.specsync/sdd.json`.
+- The default policy's `ignored_paths` no longer contains `specs/`.
+- `.specsync/` produces no note.
+
+### REQ-change-154
+
+A `change check` refused on grounds in the change's own workspace — open
+tasks or missing requirement evidence — SHALL append an attempt with
+`passed: false` and the refusal reason to the change's
+`verification-attempts.json`, so a reader can see the check was tried and why
+it failed. A refusal SHALL NOT write `verification.json`, change the recorded
+state, or discard earlier attempts. A gate failure about another change's
+module records nothing, as before.
+
+#### Acceptance Criteria
+
+- A tasks-gate refusal leaves one `passed: false` attempt naming the reason.
+- `verification.json` is absent (or unchanged) after a refusal.
+- The refusal's exit code and stderr text are unchanged.
 
 ### REQ-change-156
 

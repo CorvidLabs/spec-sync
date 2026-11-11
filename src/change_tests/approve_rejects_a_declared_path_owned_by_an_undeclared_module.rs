@@ -815,6 +815,7 @@ fn accepted_changes_require_matching_closing_evidence() {
         passed: true,
         commands: Vec::new(),
         requirement_ids: Vec::new(),
+        refusal: None,
     };
     write_json(
         &change_dir(root, &record.id).join("verification.json"),
@@ -1152,7 +1153,7 @@ fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
     )
     .unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `src/lib.rs` (owner `change`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `src/lib.rs` (owner `change`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id, record.id
     );
     let stale_report = check_project(root);
@@ -1252,7 +1253,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
 
     fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `src/auth.rs` (owner `auth`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `src/auth.rs` (owner `auth`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         predecessor.id, successor.id, successor.id, predecessor.id
     );
     let stale_report = check_project(root);
@@ -1280,7 +1281,7 @@ fn stale_accepted_change_error_names_the_successor_rejected_for_failed_authentic
     )
     .unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its accepted evidence did not authenticate: accepted change has failed verification evidence; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its accepted evidence did not authenticate: accepted change has failed verification evidence; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         predecessor.id, successor.id, predecessor.id
     );
     let stale_report = check_project(root);
@@ -1947,7 +1948,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
 
     fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change, or supersede it from a later change under a module granted the path by `owns` in `.specsync/config.toml`",
+        "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change, or supersede it from a later change under a module granted the path by `owns` in `.specsync/config.toml`",
         record.id, record.id
     );
     let stale_report = check_project(root);
@@ -2261,6 +2262,17 @@ fn batch_owner_corrections_append_transactionally_or_not_at_all() {
             || failed.contains("outside the original affected path scope"),
         "{failed}"
     );
+    assert_eq!(fs::read(&state_path).unwrap(), before);
+
+    let refused = add_acceptance_owner_corrections(
+        root,
+        &record.id,
+        vec![("src/a.rs".into(), "current".into())],
+        "Release\u{200B}reviewer".into(),
+        "Batch repair".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
     assert_eq!(fs::read(&state_path).unwrap(), before);
 
     record = add_acceptance_owner_corrections(
@@ -2803,6 +2815,16 @@ fn refused_reopen_restores_the_archived_package() {
     assert!(archived.is_dir());
 
     // Delivery inputs are still current, so this reopen is refused on purpose.
+    // A bad actor is refused before the archived package moves (#1026 review).
+    for actor in ["Ada\nX", "  ", "Ada\u{202E}live"] {
+        let error = reopen_change(root, &record.id, actor.into(), "probe".into()).unwrap_err();
+        assert!(error.starts_with("reopen"), "{actor:?}: {error}");
+        assert!(
+            !error.contains("archive restored"),
+            "{actor:?}: refused before the archive moved, not moved and restored: {error}"
+        );
+        assert!(archived.is_dir(), "{actor:?}: the archive stays where it was");
+    }
     let error = reopen_change(root, &record.id, "Reopener".into(), "probe".into()).unwrap_err();
     assert!(error.contains("delivery inputs are current"), "{error}");
     assert!(error.contains("archive restored"), "{error}");
@@ -2908,6 +2930,17 @@ fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts()
     let original_approvals = serde_json::to_value(load_approvals(root, &record).unwrap()).unwrap();
     let prior_verification = load_verification(root, &record).unwrap();
 
+    // A bad correction actor is refused before any write (#1026 review).
+    let refused = correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release\nreviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
     let result = correct_interview_metadata(
         root,
         &record.id,

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-answer-validates-question-keys-answers-and-actor-identity",
+  "implementation_commit": "3a513a010a67b4c69b827f93f453e7f5c90ceeb3",
+  "implementation_tree": "09983f222ac062d278fbbf1229a8a4a90a133446",
+  "contract_digest": "b5f94ccad1713102cb5549c3b3d86a8831aadb6124f03658a06cb5bbdad53f6c",
+  "workspace_digest": "b47cac33747a959ec97c41ab39b0f79b7dfdb936be9f9053cb55d6abfa549c48",
+  "closing_digest": "a677d7dacfb15ebb796832cc184e2a8ae1395fed3bc3d1702f53c505edab0312",
+  "review_digest": "06bc0b0566eeb6abb24399fe9b088a5a226a1e98694f263acf256057291ec2b7",
+  "finalization_digest": "7c6afde7d938433dbc99d7989050ea3b8ffc59a6f1c8d36a939ea6bfa3868541",
+  "timestamp": 1794331318
+}

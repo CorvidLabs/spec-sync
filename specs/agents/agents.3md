@@ -49,3 +49,11 @@ copies whose bytes still match their recorded digest and reports customized
 ones as conflicts. Regenerate the repository's tracked command assets and
 `.specsync/agent-artifacts.json` with the built binary, never by hand, so the
 parity tests compare against real installer output.
+
+@plane z=7 label="Native ship already commits the archive"
+Verified: failing-first commit 355f1d69 rejected the tracked instruction to manually commit after
+ship. The disposable lifecycle probe in the documentation audit observed finalize creating its
+own archive commit. Template version 8 now says so explicitly; regenerate managed skills and
+the digest manifest with the built installer, and preserve both the native-commit assertion and
+the existing push-the-archive-tip assertion. Scope: generated closeout advice, not a change to
+lifecycle behavior or evidence of human acceptance.

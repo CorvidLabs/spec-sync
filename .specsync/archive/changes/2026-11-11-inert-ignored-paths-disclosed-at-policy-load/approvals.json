@@ -1,0 +1,214 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794365475,
+      "digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+        "title": "Inert ignored paths disclosed at policy load",
+        "description": "inert ignored paths disclosed at policy load",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/sdd.json",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a policy whose ignored_paths lists the specs tree or a protected policy file prints a load-time note naming the inert entry and its removal; adopt no longer writes the inert specs/ entry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "db7fef91abf379494475c30f1ec2ce775d41bc863cd871a191d6cd71607b69c5"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794379853,
+      "digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-153) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+        "title": "Inert ignored paths disclosed at policy load",
+        "description": "inert ignored paths disclosed at policy load",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/sdd.json",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a policy whose ignored_paths lists the specs tree or a protected policy file prints a load-time note naming the inert entry and its removal; adopt no longer writes the inert specs/ entry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "db7fef91abf379494475c30f1ec2ce775d41bc863cd871a191d6cd71607b69c5"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794385488,
+      "digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-155) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+        "title": "Inert ignored paths disclosed at policy load",
+        "description": "inert ignored paths disclosed at policy load",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/sdd.json",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a policy whose ignored_paths lists the specs tree or a protected policy file prints a load-time note naming the inert entry and its removal; adopt no longer writes the inert specs/ entry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "6da8d11b184a960fe883ea0f4fad0d4cf7e509af26f759a447c506e7503fe374"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794416165,
+      "digest": "cf8cb03604b4c8e0b28c56403c6ec36c306ef899c2edf37a8f5ecd20ffb5f00d",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+        "title": "Inert ignored paths disclosed at policy load",
+        "description": "inert ignored paths disclosed at policy load",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/sdd.json",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a policy whose ignored_paths lists the specs tree or a protected policy file prints a load-time note naming the inert entry and its removal; adopt no longer writes the inert specs/ entry"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "6da8d11b184a960fe883ea0f4fad0d4cf7e509af26f759a447c506e7503fe374"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794416381,
+      "digest": "68912ae7fa660faaa8853ec020a7d1bbc055d9e0c4153443efbf92b150cc0b8c",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+      "actor": "kimi-code-t37b",
+      "reason": "re-record approval under the 2026-11-10 attribution rule with the correct note",
+      "timestamp": 1794379844,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+      "actor": "kimi-code-t37b",
+      "reason": "renumber to the coordinator allocation (155)",
+      "timestamp": 1794385479,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "inert-ignored-paths-disclosed-at-policy-load",
+      "actor": "kimi-code-t37b",
+      "reason": "READY policy (t370, 2026-11-11): no agent approval stands on new requirement text; the definition approval is Leif's gate",
+      "timestamp": 1794385839,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 3,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    }
+  ]
+}

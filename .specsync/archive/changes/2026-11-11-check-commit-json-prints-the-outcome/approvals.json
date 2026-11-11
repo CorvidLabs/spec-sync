@@ -1,0 +1,168 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794384034,
+      "digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+      "note": "Agent approval to carry the lifecycle; the REQ-cmd-change-unrun-commands-001 rewording (retiring the pinned empty-output clause) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-commit-json-prints-the-outcome",
+        "title": "Check commit json prints the outcome",
+        "description": "check commit json prints the outcome",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "4daaf09353d5438b4ca737b97e821b665044a4768f55f96f61f8d269a2f4697b"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794384057,
+      "digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+      "note": "Agent approval to carry the lifecycle; the REQ-cmd-change-unrun-commands-001 rewording (retiring the pinned empty-output clause) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-commit-json-prints-the-outcome",
+        "title": "Check commit json prints the outcome",
+        "description": "check commit json prints the outcome",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "4daaf09353d5438b4ca737b97e821b665044a4768f55f96f61f8d269a2f4697b"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794415564,
+      "digest": "a3ef47005ca24642e0fdfed39fa17865fa958bbeee27b1e8aabb42493f64f399",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-commit-json-prints-the-outcome",
+        "title": "Check commit json prints the outcome",
+        "description": "check commit json prints the outcome",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --commit --json prints one JSON outcome document carrying change, both commit ids, pushed, left_out, and configured_commands_not_run; a refusal prints the JSON error document with a non-zero exit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "4daaf09353d5438b4ca737b97e821b665044a4768f55f96f61f8d269a2f4697b"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-unrun-commands-001": "1d7dc675b7ae4568f2b6beaf0c6084018c6f3c0d190f6c1ebf25903b42ab1110"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794415763,
+      "digest": "9e3eaa30666ae0500debe90ee41e0f44550200d01354882a384b6086db406028",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "check-commit-json-prints-the-outcome",
+      "actor": "kimi-code-t37b",
+      "reason": "t370 ruled #1042 READY-track: retiring item 13's clause is requirement text; re-record with the READY note",
+      "timestamp": 1794382543,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true
+    },
+    {
+      "schema_version": 1,
+      "change_id": "check-commit-json-prints-the-outcome",
+      "actor": "kimi-code-t37b",
+      "reason": "READY policy (t370, 2026-11-11): no agent approval stands on new requirement text; the definition approval is Leif's gate",
+      "timestamp": 1794385846,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "cmd_change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-cmd-change-unrun-commands-001",
+          "content": "Text `change check` (plain and `--commit`) and `change audit` SHALL disclose configured verification commands they did not run, and their successful JSON output SHALL expose the same commands as a top-level `configured_commands_not_run` list beside `verification` or `report`. The disclosure SHALL NOT change a command's verdict or execute a configured command (SHIP-1.c.3).\n\nAcceptance Criteria\n- With one or more configured commands, text prints one stderr line beginning `note: .specsync/sdd.json configures N verification command(s) that SpecSync did not run`, using singular `command` for N=1 and plural `commands` otherwise, and includes the words `to stop this note`; stdout is unchanged.\n- JSON includes every configured command once, in policy order: `verification_commands`, `component_verification_commands` by module, then `strict_verification_commands`. With none configured, the key is present as `[]`, including when `verification` is null.\n- Plain and committed text checks and text audit use the same note. JSON check and audit carry the same ordered list. `change check --commit --json` prints its outcome document, carrying the same list (#839).\n- The disclosure never changes exit status and never spawns a configured command.\n- SpecSync's own `.specsync/sdd.json` empties only `verification_commands`; all 13 component modules and all 3 strict commands remain configured and are disclosed rather than removed to silence the note.",
+          "previous_content": "Text `change check` (plain and `--commit`) and `change audit` SHALL disclose configured verification commands they did not run, and their successful JSON output SHALL expose the same commands as a top-level `configured_commands_not_run` list beside `verification` or `report`. The disclosure SHALL NOT change a command's verdict or execute a configured command (SHIP-1.c.3).\n\nAcceptance Criteria\n- With one or more configured commands, text prints one stderr line beginning `note: .specsync/sdd.json configures N verification command(s) that SpecSync did not run`, using singular `command` for N=1 and plural `commands` otherwise, and includes the words `to stop this note`; stdout is unchanged.\n- JSON includes every configured command once, in policy order: `verification_commands`, `component_verification_commands` by module, then `strict_verification_commands`. With none configured, the key is present as `[]`, including when `verification` is null.\n- Plain and committed text checks and text audit use the same note. JSON check and audit carry the same ordered list. `change check --commit --json` gains no success document, preserving #839.\n- The disclosure never changes exit status and never spawns a configured command.\n- SpecSync's own `.specsync/sdd.json` empties only `verification_commands`; all 13 component modules and all 3 strict commands remain configured and are disclosed rather than removed to silence the note."
+        }
+      ],
+      "applied_modules": [
+        "cmd_change"
+      ]
+    }
+  ]
+}

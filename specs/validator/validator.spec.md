@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 48
+version: 50
 status: stable
 files:
   - src/validator.rs
@@ -57,6 +57,7 @@ instead of a false success.
 | `SourceSnapshot` | `Present(Vec<u8>)`, `Missing`, `Rejected`, `Unreadable` | — | Capability-confined observation of a mapped source |
 | `validate_spec_content_with_sources` | `spec_path, content, root, schema_tables, schema_columns, config, sources: &HashMap<String, SourceSnapshot>` | `ValidationResult` | Validate supplied spec bytes and supplied mapped-source observations without ambient spec/source reopening |
 | `validate_local_dependency` | Shared confined dependency verdict |
+| `requirement_heading_id` | `line: &str` | `Option<&str>` | The requirement id a `### ` heading names (title suffix, trailing punctuation and up to three spaces of indent tolerated); the one parser every reader and the delta materializer share |
 
 ## Invariants
 
@@ -108,6 +109,8 @@ instead of a false success.
     reachability checks around recursion.
 22. Configured source-root selection stores stable identities without retaining every root handle;
     traversal reopens, identity-checks, consumes, and releases each root sequentially.
+23. The duplicate-requirement-ID audit reports a specs-tree traversal error as an audit error naming the path; a directory it cannot read is never silently skipped (REQ-validator-046, #873).
+24. Requirement-heading identity is decided by one shared parser, `requirement_heading_id`, which the delta materializer reuses: a header form the validator accepts — title suffix, punctuation after the id, a multi-segment module id, up to three spaces of indent — is a form the materializer matches (REQ-validator-047, #1024).
 
 
 - Checked coverage retains manifest module source paths in its report from the same retained manifest observation used for module attribution. Degraded discovery leaves this mapping empty.
@@ -325,3 +328,5 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-11-05 | v47 / #862: `check` refuses a requirements file that contains the same requirement ID twice and names that ID |
 | 2026-11-05 | merge-two-finalized-changes-to-one-module-without-a-spec-conflict: Merge two finalized changes to one module without a spec conflict |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
+| 2026-11-11 | delta-materializer-matches-and-keeps-titled-requirement-headers: Delta materializer matches and keeps titled requirement headers |
+| 2026-11-11 | audit-reports-requirements-traversal-errors: Audit reports requirements traversal errors |

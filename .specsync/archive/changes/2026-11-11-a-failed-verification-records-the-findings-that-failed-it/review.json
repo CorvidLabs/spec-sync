@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "a-failed-verification-records-the-findings-that-failed-it",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "af911335a6f1a239f8709a1c42f01fdef97122d4",
+  "contract_digest": "3e5238212e8de68077553f1adf9f0f40569a0609532386ca7f3e04cf04879c2f",
+  "execution_digest": "edbe19581ad77df49a1edc6dc2093be098283a20c54bc912bad7d696ff470dde",
+  "workspace_digest": "ea58cb05bf22d19ca9ddfc4161804a79a55dae4f8bd15abf451e4b7266690cea",
+  "timestamp": 1794415192
+}

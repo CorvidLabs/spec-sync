@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "merge-driver-keeps-a-one-sided-requirement-reorder",
+  "implementation_commit": "fbdd2f484998fcc37cc4c7d70c2b699928a65d53",
+  "implementation_tree": "979cfa5dc92df1d7c608a95ff6a7c339614abef3",
+  "contract_digest": "3c1230116130bd091107e610c57abf3780c118bccab5b3f531b9b2e9b501e48f",
+  "workspace_digest": "eb33a3461640f52e900c11ef01b0c8f66175c154ce13ffd74825bed868b42b70",
+  "closing_digest": "46ff96aae7f4ac0735fcc1e166089a817c0c6ad2ce96bc88dcdafb355c68262e",
+  "review_digest": "30a757509a6c2ad63a2b1e1bbff43ceb1c029760e666765635eb7e152d67f231",
+  "finalization_digest": "957685767bd817185bff5b7fb59d92c52e75a4ba06943ddd4b4bad0670f54c63",
+  "timestamp": 1794412169
+}

@@ -7,24 +7,31 @@ Read `docs/ci-confidence.md` ("Tag authority" and "What has actually run") first
 
 Shape of the lane: an annotated `vX.Y.Z-rc.N` tag push **qualifies** a candidate on Ubuntu and
 macOS (`REQUIRED_PLATFORMS` in `validate-release-candidate.py`). A later `workflow_dispatch`
-**promotes** that exact candidate: mints `vX.Y.Z`, builds five binaries, creates the GitHub
+**promotes** that exact candidate: mints `vX.Y.Z`, builds six binaries, creates the GitHub
 release. crates.io and Homebrew are manual and come after.
+
+As checked on 2026-11-06, GitHub Latest and the Homebrew formula identify **6.2.0**.
+The published `v6.2.0` release has five archives (ten archive/checksum assets); the sixth,
+Linux aarch64 musl, is configured on current main for a future release. Do not infer published
+assets from the current build matrix, or crates.io availability from GitHub or Homebrew.
 
 ## 6.0.0 ship record (2026-09-09)
 
 `promote` **did execute** for `v6.0.0` on 2026-09-09.
 [Release run 34418860417](https://github.com/CorvidLabs/spec-sync/actions/runs/34418860417)
 created annotated `v6.0.0` at `b9ff32310181b796cc617406ff9298c533ebeb15` (qualified as
-`v6.0.0-rc.18`) and published the GitHub Release. crates.io serves 6.0.0. GitHub Latest is
-`v6.0.0`. Homebrew serves **6.0.0**. The floating `v6` tag is published at a commit whose
+`v6.0.0-rc.18`) and published the GitHub Release. At the time of this ship record, crates.io,
+GitHub Latest and Homebrew served **6.0.0**. The floating `v6` tag was published at a commit whose
 `action.yml` default is `6.0.0` (not at tag `v6.0.0`). The immutable `@v6.0.0` Action tag still
 defaults omitted `version` to `6.0.0-rc.14`; consumers using that tag must pass
-`version: '6.0.0'`. `uses: CorvidLabs/spec-sync@v6` with omitted `version` downloads `6.0.0`.
+`version: '6.0.0'` to select that binary. Floating-tag defaults must be checked at the resolved
+revision; this historical record does not establish their current value.
 
 Do not cut another 6.0.0 candidate and do not re-dispatch `promote` for 6.0.0. Sections 1-4 and
-6 are how to cut the **next** release. Examples use `6.0.1` / `v6.0.1-rc.1`; substitute the
-version in `Cargo.toml`. Section 5's Homebrew bump to **6.0.0** has landed; the formula now
-tracks the published stable.
+6 describe the release procedure. Examples retain `6.0.1` / `v6.0.1-rc.1` as illustrative
+placeholders, not a release to cut now: substitute the next unallocated version and candidate
+number, matching `Cargo.toml`. The historical Homebrew bump to **6.0.0** landed; subsequent
+releases have superseded it.
 
 ## 1. Preconditions
 
@@ -55,11 +62,11 @@ URL), the `trust.yml` pin and mirror, exact-head checkouts in `spec-check`/`trus
 `ci.yml` `vscode-extension`, and `pages.yml` `build`, and nowhere else.
 
 - Consumer pins (#647). `action.yml` at a consumer's own `uses:` ref decides the binary: with no
-  explicit `version:` input the wrapper uses that revision's embedded default, which is `latest`
-  for the `@v4` / `@v4.5.0` wrappers and `6.0.0` for `@v6.0.0` and `@main`. Publishing a
-  non-prerelease repoints `releases/latest`, so every consumer on an old wrapper without an
-  explicit `version:` moves with it. Before promoting a new version, confirm each known consumer
-  passes an explicit `version:`:
+  explicit `version:` input the wrapper uses that revision's embedded default: `latest` for
+  `@v4` / `@v4.5.0`, `6.0.0-rc.14` for immutable `@v6.0.0`, and `6.1.2` for immutable
+  `@v6.2.0`. Current main defaults to `6.2.0`. Publishing a non-prerelease moves
+  `releases/latest`; only wrappers whose selected input is `latest` follow it automatically.
+  Before promoting a new version, confirm each known consumer passes an explicit `version:`:
 
 ```bash
 for r in corvid-account podo-web podo-android raven; do
@@ -70,10 +77,10 @@ for r in corvid-account podo-web podo-android raven; do
 done
 ```
 
-`v6.0.0` is published (2026-09-09). Known consumers that still pin `6.0.0-rc.12` or Trust
-`v1.2.0-rc.4` should move to Trust 1.2.0 / SpecSync `version: "6.0.0"`. None should float
-`latest`. The `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`;
-consumers must pass `version: '6.0.0'` until they consume a later Action tag.
+For current 6.2.0 adoption, select the `@v6.2.0` wrapper and explicitly set
+`version: '6.2.0'`. With Trust `v1.2.1` (the version SpecSync's own `trust.yml` pins), set
+`specsync-version: '6.2.0'` to override its embedded `6.0.0` default. Inspect each consumer; do not infer its selected binary from its
+wrapper tag or let a release gate float on `latest`.
 
 ## 2. Cut the candidate
 
@@ -116,7 +123,7 @@ gh api repos/CorvidLabs/spec-sync/commits/<sha>/check-runs \
 
 A pushed RC tag creates **no** GitHub release and no binaries. If testers need an installable
 candidate, create a pre-release by hand, then dispatch `rc-assets.yml`, which refuses anything
-that is not an existing published pre-release and attaches the same five archives `build`
+that is not an existing published pre-release and attaches the same six archives `build`
 produces. Optional; a candidate can go straight to promotion. `--verify-tag` is required: without
 it, a mistyped or missing tag makes `gh release create` mint that tag from the default branch,
 and the ruleset then makes the unqualified tag permanent.
@@ -201,7 +208,7 @@ gh release download v6.0.1 -p 'specsync-macos-aarch64.tar.gz*' -D /tmp/specsync-
 (cd /tmp/specsync-6 && shasum -a 256 -c specsync-macos-aarch64.tar.gz.sha256)
 ```
 
-crates.io already serves 6.0.0. For a later patch, publish from the tagged tree. `Cargo.toml` `include`
+Check crates.io separately, then publish the new version from the tagged tree. `Cargo.toml` `include`
 limits the package to `src/`, `Cargo.toml`, `Cargo.lock`, `README.md`, `CHANGELOG.md`, `LICENSE`.
 Publishing is permanent; a version can only be yanked.
 
@@ -211,8 +218,8 @@ cargo publish --dry-run --locked
 cargo publish --locked
 ```
 
-Homebrew tap (`github.com/CorvidLabs/homebrew-tap`, `Formula/spec-sync.rb`) serves **6.0.0**
-as of homebrew-tap#27. For the next release, bump the formula to the GitHub Release that already
+Homebrew tap (`github.com/CorvidLabs/homebrew-tap`, `Formula/spec-sync.rb`) identifies **6.2.0**
+as checked on 2026-11-06. For the next release, bump the formula to the GitHub Release that already
 exists: `version` -> the new version and the four `sha256`
 values (macOS arm/intel, Linux arm/intel), taken from the `.sha256` sidecars of
 `specsync-macos-aarch64`, `specsync-macos-x86_64`, `specsync-linux-aarch64`,
@@ -228,10 +235,10 @@ patch ships, bump the formula to that Cargo version, not back to 6.0.0.
 Changelog `## [6.0.0] - 2026-09-09` is dated. For the next patch, add `## [6.0.1]` (or similar)
 on `main` before tagging.
 
-Floating major tag. `release.yml` creates only `vX.Y.Z`. Annotated `v6` is published and points
-at a commit whose `action.yml` default is `6.0.0`. **Do not** retarget `v6` at `v6.0.0`: that
-immutable tag still embeds omitted-input default `6.0.0-rc.14`. After a later patch, move `v6`
-only to a commit whose Action default matches the new stable:
+Floating major tag. `release.yml` creates only `vX.Y.Z`. Inspect `action.yml` at the resolved
+`v6` commit before relying on its omitted-input default. Neither immutable `v6.0.0` nor
+`v6.2.0` embeds its corresponding stable binary version (`6.0.0-rc.14` and `6.1.2`, respectively).
+Move `v6` only to a commit whose Action default matches the intended stable:
 
 ```bash
 git fetch origin --tags

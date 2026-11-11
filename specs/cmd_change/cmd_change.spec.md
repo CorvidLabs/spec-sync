@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 82
+version: 84
 status: active
 files:
   - src/commands/change.rs
@@ -37,7 +37,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
     integrity after acquiring the persistence lock and render from the returned validated snapshot,
     so neither rendering failure nor a lock-wait race can conceal a mutation that already took effect.
 12. Status and check render a non-empty `verification_ignored_paths` list in text and status JSON with the standing note that SpecSync cannot tell whether project tests or CI read those files, render nothing extra when the list is absent or empty, and ship-status names an invalid entry as a blocker.
-13. Text `change check` (plain and `--commit`) and a passing text `change audit` print one stderr note counting the verification commands configured in `.specsync/sdd.json` that they did not run — `verification_commands` first, then `component_verification_commands` by module, then `strict_verification_commands`, each command once — and JSON check and a passing JSON audit carry the same deduplicated list as top-level `configured_commands_not_run` (`[]` when none is configured). The disclosure never spawns a configured command and never changes a verdict or exit status; `change check --commit --json` gains no field because that path has no JSON success output (REQ-cmd-change-unrun-commands-001).
+13. Text `change check` (plain and `--commit`) and a passing text `change audit` print one stderr note counting the verification commands configured in `.specsync/sdd.json` that they did not run — `verification_commands` first, then `component_verification_commands` by module, then `strict_verification_commands`, each command once — and JSON check and a passing JSON audit carry the same deduplicated list as top-level `configured_commands_not_run` (`[]` when none is configured). The disclosure never spawns a configured command and never changes a verdict or exit status; `change check --commit --json` prints its own outcome document, which carries the same list (REQ-change-004, REQ-cmd-change-unrun-commands-001, #839).
 
 ## Public API
 
@@ -215,6 +215,8 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is: Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893) |
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
+| 2026-11-11 | check-commit-json-prints-the-outcome: Check commit json prints the outcome |
+| 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |
 | 2026-11-11 | after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s: After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work |
 
 ## Audited nonacceptance retirement

@@ -99,6 +99,14 @@ fn historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_
     .unwrap();
     let normal = finalize_change(root, &successor.id).unwrap_err();
     assert!(normal.contains("definition-signed base tree"), "{normal}");
+    let refused = enable_historical_reconciliation(
+        root,
+        &successor.id,
+        "Fixture\nmigration owner".into(),
+        "Acknowledge unproven history, preserving the original receipt.".into(),
+    )
+    .unwrap_err();
+    assert!(refused.contains("single line"), "{refused}");
     enable_historical_reconciliation(
         root,
         &successor.id,

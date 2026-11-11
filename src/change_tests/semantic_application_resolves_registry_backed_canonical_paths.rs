@@ -709,6 +709,46 @@ fn missing_requirement_evidence_is_distinct_from_missing_semantic_evidence() {
     assert!(!error.contains("verification command"), "{error}");
 }
 
+// #847 (REQ-change-154): the missing-requirement-evidence refusal also records itself — one
+// `passed: false` attempt carrying the reason, and no verification.json posing as a pass.
+#[test]
+fn missing_requirement_evidence_refusal_records_the_attempt() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_section_only_record(
+        root,
+        "## ADDED\n### REQUIREMENT REQ-auth-009\n\nSessions SHALL expire after their bound.\n\n\
+         Acceptance Criteria\n- A session older than its bound is refused.\n",
+    );
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+    assert!(
+        error.contains("no requirement evidence for REQ-auth-009"),
+        "{error}"
+    );
+
+    let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+    let ledger: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&attempts_path).expect("the refusal left an attempts ledger"),
+    )
+    .unwrap();
+    let attempts = ledger["attempts"].as_array().unwrap();
+    assert_eq!(attempts.len(), 1, "{ledger}");
+    assert_eq!(attempts[0]["passed"], false, "{ledger}");
+    assert!(
+        attempts[0]["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("no requirement evidence for REQ-auth-009")),
+        "the attempt carries the refusal reason: {ledger}"
+    );
+    assert!(
+        !change_dir(root, &record.id).join("verification.json").exists(),
+        "a refusal never writes verification.json"
+    );
+}
+
 const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
 
 #[test]
@@ -959,7 +999,7 @@ fn mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully()
         CreateChangeRequest {
             description: "Declare one resolvable and one missing module".into(),
             kind: ChangeKind::BugFix,
-            affected_specs: vec!["other".into(), "absent".into()],
+            affected_specs: vec!["other".into()],
             affected_paths: vec!["src/".into()],
             requested_artifacts: Vec::new(),
             no_spec_change: true,
@@ -967,6 +1007,10 @@ fn mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully()
         },
     )
     .unwrap();
+    // A module can go missing after the declaration (deleted spec, stale
+    // branch) — the deeper scope check is the TOCTOU guard for exactly that,
+    // so the fixture removes it after creation rather than declaring it.
+    record.affected_specs.push("absent".into());
     record.acceptance_criteria = vec!["Mixed scope is recorded honestly".into()];
 
     let scope = scoped_spec_files(root, &record, &crate::config::load_config(root));
@@ -2322,7 +2366,7 @@ fn torn_canonical_transaction_journal_fails_closed() {
     write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
 
     let error = acquire_project_lock(root).err().unwrap();
-    assert!(error.contains("transaction journal integrity"));
+    assert!(error.contains("invalid transaction journal at"));
     assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
     assert!(root.join(TRANSACTION_PATH).exists());
 }
@@ -3190,16 +3234,15 @@ fn workspace_digest_rejects_non_utf8_paths_instead_of_lossy_aliasing() {
 
 #[test]
 fn recorded_base_uses_oldest_change_order_not_hash_order() {
+    // Full commit ids: a recorded base that is not one is never used (REQ-change-013).
+    let oldest = "f".repeat(40);
     let mut first = completed_record(TempDir::new().unwrap().path());
-    first.base_commit = Some("ffffffff".into());
+    first.base_commit = Some(oldest.clone());
     let mut second = first.clone();
     second.id = "CHG-0002-second".into();
-    second.base_commit = Some("00000000".into());
+    second.base_commit = Some("0".repeat(40));
     let temp = TempDir::new().unwrap();
-    assert_eq!(
-        recorded_diff_base(temp.path(), &[first, second]),
-        "ffffffff"
-    );
+    assert_eq!(recorded_diff_base(temp.path(), &[first, second]), oldest);
 }
 
 #[test]
@@ -3539,9 +3582,18 @@ fn semantic_application_rejects_unsafe_registry_paths() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     fs::create_dir_all(root.join(".specsync")).unwrap();
+    // Create the change against a safe registry; an unsafe mapping can only
+    // appear afterwards (a hand edit, a bad merge), which is the TOCTOU the
+    // application layer must still refuse.
     fs::write(
         root.join(".specsync/registry.toml"),
-        "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"../../outside/auth.spec.md\"\n",
+        "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
     )
     .unwrap();
     let record = create_change(
@@ -3555,6 +3607,12 @@ fn semantic_application_rejects_unsafe_registry_paths() {
             no_spec_change: false,
             rationale: None,
         },
+    )
+    .unwrap();
+    // The unsafe mapping arrives after the declaration.
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"../../outside/auth.spec.md\"\n",
     )
     .unwrap();
     fs::write(

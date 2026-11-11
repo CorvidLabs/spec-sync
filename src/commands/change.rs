@@ -1387,7 +1387,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 .and_then(|value| value.as_str())
                 .map(str::to_owned);
             match commit {
-                Some(commit) if commit.len() == 40 => {
+                // Only a full commit id, as SpecSync records it, reaches git.
+                Some(commit) if crate::change::is_canonical_commit_id(&commit) => {
                     let present = git_commit_present(root, &commit)?;
                     let ancestor = if present {
                         git_is_ancestor(root, &commit, "HEAD")?
@@ -3813,6 +3814,28 @@ if the floor call is removed from this function"
         );
     }
 
+    /// Give a fixture repository a remote default branch at its current commit, so the
+    /// ownership recovery can tell this branch's work from untouched files (#1000, #1037).
+    fn with_remote_default(root: &Path) {
+        let remote = root.parent().unwrap().join("remote.git");
+        // The remote's HEAD names `main` whatever `init.defaultBranch` says, so a clone of it
+        // checks out the pushed tree on stock git too (#1037 review).
+        let status = std::process::Command::new("git")
+            .args([
+                "init",
+                "-q",
+                "--bare",
+                "--initial-branch=main",
+                remote.to_str().unwrap(),
+            ])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        git_in(root, &["remote", "add", "origin", remote.to_str().unwrap()]);
+        git_in(root, &["push", "-q", "origin", "main"]);
+        git_in(root, &["remote", "set-head", "origin", "main"]);
+    }
+
     /// A git project with a committed base tree, ready for a change to be driven through it.
     fn git_project_fixture(root: &Path) {
         git_in(root, &["init", "-b", "main"]);
@@ -3884,6 +3907,413 @@ if the floor call is removed from this function"
             Err(error) => panic!("review: {error}"),
         }
         id
+    }
+
+    /// #1000: an unowned input the change never modified is in scope only because the prefix is
+    /// wider than the work, so the recovery says to narrow `affected_paths` instead of declaring
+    /// that owner; a modified unowned input keeps the declare-the-owner recovery.
+    #[test]
+    fn the_ownership_recovery_narrows_a_scope_over_files_the_change_never_touched() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+            ("tarifa", "src/billing/tarifa-ñ.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(&root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        // A modified file whose name is not ASCII: git C-quotes it unless asked for raw names.
+        fs::write(root.join("src/billing/tarifa-ñ.ts"), "const rate = 3;\n").unwrap();
+        // A new file the change adds that no spec lists: it needs a `files:` entry, not a module.
+        fs::write(root.join("src/billing/helper.ts"), "const help = 1;\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "implement"]);
+        change::check_change(&root, Some(&id)).expect("check");
+
+        let record = change::load_change(&root, &id).unwrap();
+        let (blocker, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("both billing files are unowned by the declared modules");
+        assert!(
+            blocker.contains("src/billing/charge.ts") && blocker.contains("src/billing/ledger.ts"),
+            "{blocker}"
+        );
+        assert!(
+            recovery
+                .contains("src/billing/ledger.ts is not modified by this change since its base")
+                && recovery.contains(
+                "affected_paths 'src/billing/charge.ts,src/billing/helper.ts,src/billing/tarifa-ñ.ts'"
+            ),
+            "the untouched file asks for a narrower scope: {recovery}"
+        );
+        assert!(
+            recovery.contains("affected_specs 'billing,tarifa'") && !recovery.contains("ledger'"),
+            "every modified file's owner is declared, including a non-ASCII one: {recovery}"
+        );
+        assert!(
+            !recovery.contains("tarifa-ñ.ts is not modified")
+                && !blocker.contains("tarifa-ñ.ts: owned by"),
+            "a modified non-ASCII file is not narrowed out: {recovery}"
+        );
+        assert_eq!(
+            recovery.matches("change send-back").count(),
+            1,
+            "one send-back rescopes both sets in the same draft: {recovery}"
+        );
+        assert!(
+            recovery.contains("and add src/billing/helper.ts to its owning spec's `files:` list"),
+            "the mixed recovery keeps the files: repair for a modified file no spec lists: {recovery}"
+        );
+        assert!(
+            blocker.contains("src/billing/ledger.ts: owned by `ledger`, but not modified"),
+            "the untouched hint still names its owner: {blocker}"
+        );
+        assert!(
+            blocker.contains("src/billing/ledger.ts: owned by `ledger`, but not modified by this change since its base"),
+            "the blocker hint for an untouched file agrees with the recovery: {blocker}"
+        );
+
+        // A base commit that is not a full commit id is never handed to Git: a value shaped
+        // like an option writes nothing. Without a usable base, as without any base, nothing is
+        // classified untouched, so ledger.ts keeps the declare recovery too.
+        let probe = root.join("probe-output.txt");
+        let mut tampered = record.clone();
+        tampered.base_commit = Some(format!("--output={}", probe.display()));
+        let mut baseless = record.clone();
+        baseless.base_commit = None;
+        for unusable in [&tampered, &baseless] {
+            let (_, recovery) = change::ownership_preflight_blocker(&root, unusable)
+                .unwrap()
+                .expect("still unowned");
+            assert!(
+                !recovery.contains("not modified by this change")
+                    && recovery.contains("affected_specs 'billing,ledger,tarifa'"),
+                "without a usable base every owner is declared: {recovery}"
+            );
+        }
+        assert!(
+            !probe.exists(),
+            "the record's base_commit never became a Git option"
+        );
+
+        // A file the change adds and has not committed yet is its work too (the untracked-files
+        // arm), non-ASCII name included: it stays in the narrowed scope, and only ledger.ts is
+        // narrowed out.
+        fs::write(root.join("src/billing/recargo-é.ts"), "const fee = 1;\n").unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("still unowned");
+        assert!(
+            recovery.contains("(src/billing/ledger.ts is not modified by this change since its base")
+                && recovery.contains(
+                    "affected_paths 'src/billing/charge.ts,src/billing/helper.ts,src/billing/recargo-é.ts,src/billing/tarifa-ñ.ts'"
+                ),
+            "an untracked file the change adds is not narrowed out: {recovery}"
+        );
+        fs::remove_file(root.join("src/billing/recargo-é.ts")).unwrap();
+
+        // An untouched file whose owner the answer already declares is fixed by that answer,
+        // so it is not narrowed out as well.
+        let mut billing = fs::read_to_string(root.join("specs/billing/billing.spec.md")).unwrap();
+        billing = billing.replace(
+            "  - src/billing/charge.ts\n",
+            "  - src/billing/charge.ts\n  - src/billing/ledger.ts\n",
+        );
+        fs::write(root.join("specs/billing/billing.spec.md"), billing).unwrap();
+        fs::remove_dir_all(root.join("specs/ledger")).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("billing's files are still undeclared");
+        assert!(
+            !recovery.contains("not modified by this change"),
+            "declaring billing already covers ledger.ts: {recovery}"
+        );
+    }
+
+    /// #1000: when every unowned input is untouched (the edited file's owner is declared), the
+    /// recovery only narrows the scope: one send-back, then the quoted `affected_paths` answer.
+    #[test]
+    fn the_ownership_recovery_only_narrows_when_every_unowned_input_is_untouched() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        fs::write(root.join("src/billing/notes.md"), "notes\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges only".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["billing".into()],
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(&root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        // The change also deletes a file in its scope: the narrowed scope must still name it, or
+        // the shipped change fails the meaningful-path audit, `change audit --strict` (#1037
+        // review).
+        git_in(&root, &["rm", "-q", "src/billing/notes.md"]);
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "implement"]);
+        // Someone else edits ledger.ts on the default branch, and this branch merges it: the
+        // upstream edit is not this change's work, so ledger.ts stays untouched (#1037 review).
+        let upstream = temp.path().join("upstream");
+        let remote = temp.path().join("remote.git");
+        let status = std::process::Command::new("git")
+            .args([
+                "clone",
+                "-q",
+                remote.to_str().unwrap(),
+                upstream.to_str().unwrap(),
+            ])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        git_in(&upstream, &["config", "user.email", "u@example.com"]);
+        git_in(&upstream, &["config", "user.name", "U"]);
+        fs::write(upstream.join("src/billing/ledger.ts"), "const rate = 3;\n").unwrap();
+        git_in(&upstream, &["commit", "-q", "-am", "upstream ledger edit"]);
+        git_in(&upstream, &["push", "-q", "origin", "main"]);
+        git_in(&root, &["fetch", "-q", "origin"]);
+        git_in(&root, &["merge", "-q", "--no-edit", "origin/main"]);
+        change::check_change(&root, Some(&id)).expect("check");
+
+        let record = change::load_change(&root, &id).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("ledger.ts is in scope and unowned by the declared module");
+        assert!(
+            recovery
+                .starts_with("src/billing/ledger.ts is not modified by this change since its base"),
+            "{recovery}"
+        );
+        assert!(
+            recovery.contains("affected_paths 'src/billing/charge.ts,src/billing/notes.md'")
+                && !recovery.contains("declare the owners")
+                && recovery.matches("change send-back").count() == 1,
+            "narrow only, with one send-back: {recovery}"
+        );
+    }
+
+    /// #1037 review: a file another active change on the branch covers is that change's work. The
+    /// first change is told to narrow it out of its scope, not to declare its owner.
+    #[test]
+    fn the_ownership_recovery_leaves_a_sibling_changes_file_to_that_change() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
+        let sibling = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Fix the ledger rounding".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["ledger".into()],
+                affected_paths: vec!["src/billing/ledger.ts".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal ledger details".into()),
+            },
+        )
+        .expect("create the sibling draft");
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges only".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["billing".into()],
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(&root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        fs::write(root.join("src/billing/ledger.ts"), "const rate = 3;\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "implement both"]);
+
+        let record = change::load_change(&root, &id).unwrap();
+        let (_, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("ledger.ts is in this change's scope and unowned by its declared module");
+        assert!(
+            recovery.contains("affected_paths 'src/billing/charge.ts'")
+                && !recovery.contains("declare the owners")
+                && !recovery.contains("affected_specs"),
+            "the sibling `{}` covers ledger.ts, so this change narrows it out: {recovery}",
+            sibling.id
+        );
+    }
+
+    /// #1037 review: a change whose `src/billing/` scope edits `charge.ts` (owned by the declared
+    /// `billing`) and `ledger.ts` (owned by the undeclared `ledger`), committing its records with
+    /// the code when `commit_records`. Returns the temp dir, the project root and the change id.
+    fn edited_owner_fixture(commit_records: bool) -> (tempfile::TempDir, PathBuf, String) {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        with_remote_default(&root);
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["billing".into()],
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        approve_and_implement_fixture(&root, &record.id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        fs::write(root.join("src/billing/ledger.ts"), "const rate = 2;\n").unwrap();
+        git_in(&root, &["add", if commit_records { "." } else { "src" }]);
+        git_in(&root, &["commit", "-m", "implement both"]);
+        (temp, root, record.id)
+    }
+
+    /// The edited `ledger.ts` keeps the declare recovery and is never called untouched.
+    fn assert_declares_ledger(root: &Path, id: &str, when: &str) {
+        let record = change::load_change(root, id).unwrap();
+        let (blocker, recovery) = change::ownership_preflight_blocker(root, &record)
+            .unwrap()
+            .expect("ledger.ts is edited and unowned by the declared module");
+        assert!(
+            recovery.contains("affected_specs 'billing,ledger'")
+                && !recovery.contains("not modified by this change")
+                && !blocker.contains("not modified by this change"),
+            "{when}: the edited ledger.ts keeps the declare recovery: {recovery}"
+        );
+    }
+
+    /// #1037 review: once the change's own commits are on the remote default branch (it merged
+    /// with the change still active, the documented recovery state), the merge base no longer
+    /// separates its work from upstream work. Nothing is classified then, so a file the change
+    /// edited is never called untouched: not when HEAD is the merge base, and not after a later
+    /// local commit on top, as a recovery `change check --commit` on the default branch makes.
+    #[test]
+    fn the_ownership_recovery_declares_every_owner_once_the_change_reached_the_default_branch() {
+        let (_temp, root, id) = edited_owner_fixture(true);
+        assert_declares_ledger(&root, &id, "before the work reaches the default branch");
+
+        // The branch merges with the change still active: origin/main is HEAD.
+        git_in(&root, &["push", "-q", "origin", "HEAD:main"]);
+        git_in(&root, &["fetch", "-q", "origin"]);
+        assert_declares_ledger(&root, &id, "with HEAD at the merge base");
+
+        // A later local commit on top: the merge base holds the change's own workspace.
+        fs::write(root.join("NOTES.md"), "recovery notes\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(
+            &root,
+            &["commit", "-m", "recovery commit on the default branch"],
+        );
+        assert_declares_ledger(&root, &id, "after a local commit past the merge base");
+    }
+
+    /// #1037 review: the same holds when the change's records were never committed, so the
+    /// merge base cannot hold them: HEAD at the merge base past the change's base is enough.
+    #[test]
+    fn the_ownership_recovery_declares_every_owner_when_head_is_the_merge_base_past_the_base() {
+        let (_temp, root, id) = edited_owner_fixture(false);
+        assert_declares_ledger(&root, &id, "before the work reaches the default branch");
+        git_in(&root, &["push", "-q", "origin", "HEAD:main"]);
+        git_in(&root, &["fetch", "-q", "origin"]);
+        assert_declares_ledger(
+            &root,
+            &id,
+            "with HEAD at the merge base and the records uncommitted",
+        );
     }
 
     /// Codex P2 on #999: the recovery repairs every unowned input, not only the ones a module
@@ -5564,6 +5994,11 @@ fn run_checked_commit(
         true,
     )?;
     disclose_left_out(&materialized.left_out, &mut disclosed, Some(&resolved));
+    let materialize_commit = if materialized.committed {
+        git_rev_parse(root, "HEAD").ok()
+    } else {
+        None
+    };
     say(if materialized.committed {
         "Committed the materialized spec."
     } else {
@@ -5589,6 +6024,11 @@ fn run_checked_commit(
         true,
     )?;
     disclose_left_out(&recorded.left_out, &mut disclosed, Some(&resolved));
+    let verification_commit = if recorded.committed {
+        git_rev_parse(root, "HEAD").ok()
+    } else {
+        None
+    };
     say("Committed the verification evidence.");
 
     if push {
@@ -5596,10 +6036,27 @@ fn run_checked_commit(
         say("Pushed.");
     }
     say("Verified, committed, and consistent with the committed tree.");
-    if !quiet {
-        print_configured_commands_not_run(root)?;
-        print_verification_ignored_lines(root);
+    if quiet {
+        // #839: a machine caller asked for JSON; the commit path must answer with one
+        // document, not silence (REQ-change-004).
+        println!(
+            "{}",
+            serde_json::json!({
+                "change": resolved,
+                "verified": true,
+                "materialize_commit": materialize_commit,
+                "verification_commit": verification_commit,
+                "pushed": push,
+                "left_out": disclosed,
+                // REQ-cmd-change-unrun-commands-001 (t384's option a for #839): the outcome
+                // document carries the same disclosure every other JSON success output does.
+                "configured_commands_not_run": configured_commands_not_run(root)?,
+            })
+        );
+        return Ok(());
     }
+    print_configured_commands_not_run(root)?;
+    print_verification_ignored_lines(root);
     Ok(())
 }
 

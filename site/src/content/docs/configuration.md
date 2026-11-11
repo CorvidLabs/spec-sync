@@ -83,6 +83,7 @@ All keys use `snake_case`. `specsync migrate` preserves explicit empty arrays an
 | `exclude_patterns` | string[] | common test globs | Additive source exclusions |
 | `source_extensions` | string[] | all supported | Restrict source discovery |
 | `include_extensionless` | boolean | `false` | Add files without a filename extension to source discovery |
+| `require_draft_files` | boolean | `false` | Require files mapped by draft specs to exist. When `false`, a draft may name a planned source file that does not exist yet and gets a notice instead of an error |
 | `export_level` | `member` or `type` | `member` | Public-symbol validation depth |
 | `parse_mode` | `regex` or `ast` | `regex` | Extraction strategy where AST support exists |
 | `enforcement` | `warn`, `enforce-new`, or `strict` | `strict` | Default failure policy. `strict` exits 1 on any validation error; `warn` reports and exits 0 |
@@ -127,6 +128,12 @@ The `[rules]` table controls spec-quality constraints:
 | `min_invariants` | Set the minimum invariant count |
 | `max_spec_size_kb` | Warn on oversized specs |
 | `require_depends_on` | Require explicit dependencies |
+
+`require_draft_files` is a top-level setting (see Core options), not a `[rules]` key: placed
+under `[rules]` it is ignored with an "unknown rule" warning. Missing source files remain errors
+for non-draft specs. Drafts skip required-section and
+API-symbol validation; review specs skip API-symbol validation and may omit Public API.
+Other scaffold warnings can still fail `check --strict`.
 
 ## Maturity lifecycle guards
 

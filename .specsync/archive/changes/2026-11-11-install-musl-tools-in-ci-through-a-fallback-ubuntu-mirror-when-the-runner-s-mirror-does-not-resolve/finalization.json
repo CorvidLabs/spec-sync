@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "install-musl-tools-in-ci-through-a-fallback-ubuntu-mirror-when-the-runner-s-mirror-does-not-resolve",
+  "implementation_commit": "ff1f8d1c97e7a50f060efdd9d6535504b54803bd",
+  "implementation_tree": "abdb94c9c80ab557519c13a5d43173631dc179a3",
+  "contract_digest": "ff4b0743ea050858f57eb00eb7981a8639ca25c2221bec02812fb0abdd38d161",
+  "workspace_digest": "71e7e374adb9489868b5b1f79f9ced9d1a580d2d5a3c37a88580ae00a0712643",
+  "closing_digest": "ecb073d6fa170bff7e6333cf0e0917df190c6711bfb158ed36c92877412b688f",
+  "review_digest": "0888ff70ba06d3171d64d542e51fe992cf23952e84d90385fc8966f2eb96d483",
+  "finalization_digest": "dd4a3eef7d03ef88d72a4250a462f42d6d04593bc1c6718a363024c04804981c",
+  "timestamp": 1794413422
+}

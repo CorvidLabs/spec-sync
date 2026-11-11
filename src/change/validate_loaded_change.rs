@@ -191,7 +191,7 @@ fn stale_input_remediation_reason(
 ) -> String {
     if rejected_successors.is_empty() {
         return format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         );
     }
@@ -217,7 +217,7 @@ fn stale_input_remediation_reason(
         )
     } else {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         )
     }
@@ -229,7 +229,7 @@ fn stale_input_remediation_reason(
 /// wherever the configuration can grant it.
 fn exact_only_input_remediation_reason(record: &ChangeRecord, path: &str) -> String {
     let mut reason = format!(
-        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
+        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id
     );
     if ownership_is_configurable(path) {
@@ -676,7 +676,7 @@ fn append_approval_with_relay(
         approved_delta_bases,
         relayed_by,
     });
-    write_json(
+    write_json_keeping_unknown_members(
         &change_dir(root, &record.id).join("approvals.json"),
         &ledger,
     )
@@ -815,13 +815,76 @@ fn definition_approval_pair_id(
     digest.finish()
 }
 
+/// Trim an actor identity and reject names that cannot live in an append-only
+/// ledger: empty after trimming, or containing newlines or control characters.
+/// Every `--actor`-accepting verb uses this before any ledger write (#426).
+pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String> {
+    let actor = value.trim();
+    if actor.is_empty() {
+        return Err(format!("{verb} requires a non-empty human actor passed with --actor"));
+    }
+    if actor.chars().any(actor_character_is_refused) {
+        return Err(format!(
+            "{verb} actor `{}` must be a single line of visible text; newlines, control characters and invisible or direction-changing characters are not allowed",
+            actor.escape_debug()
+        ));
+    }
+    Ok(actor.to_string())
+}
+
+/// Characters an actor identity may not hold: control characters; the line and paragraph
+/// separators U+2028 and U+2029; and every format character (general category Cf) and
+/// default-ignorable code point as of Unicode 16.0 (#1026 review). ZWNJ and ZWJ (U+200C, U+200D)
+/// stay allowed because names in several scripts and emoji sequences need them, so two actors
+/// can still read alike and differ by one of those, by a no-break space or by Unicode
+/// normalization: this refuses the invisible formatting characters, not every look-alike.
+fn actor_character_is_refused(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c,
+            '\u{00AD}'
+                | '\u{034F}'
+                | '\u{0600}'..='\u{0605}'
+                | '\u{061C}'
+                | '\u{06DD}'
+                | '\u{070F}'
+                | '\u{0890}'..='\u{0891}'
+                | '\u{08E2}'
+                | '\u{115F}'..='\u{1160}'
+                | '\u{17B4}'..='\u{17B5}'
+                | '\u{180B}'..='\u{180F}'
+                | '\u{200B}'
+                | '\u{200E}'..='\u{200F}'
+                | '\u{2028}'..='\u{202E}'
+                | '\u{2060}'..='\u{206F}'
+                | '\u{3164}'
+                | '\u{FE00}'..='\u{FE0F}'
+                | '\u{FEFF}'
+                | '\u{FFA0}'
+                | '\u{FFF0}'..='\u{FFFB}'
+                | '\u{110BD}'
+                | '\u{110CD}'
+                | '\u{13430}'..='\u{1343F}'
+                | '\u{1BCA0}'..='\u{1BCA3}'
+                | '\u{1D173}'..='\u{1D17A}'
+                | '\u{E0000}'..='\u{E0FFF}'
+        )
+}
+
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
-    actor
+    let explicit = actor.is_some();
+    let actor = actor
         .or_else(|| git_output(root, &["config", "user.name"]))
         .or_else(|| std::env::var("USER").ok())
         .or_else(|| std::env::var("USERNAME").ok())
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| "approval actor is unknown; pass --actor <name>".to_string())
+        .ok_or_else(|| "approval actor is unknown; pass --actor <name>".to_string())?;
+    normalize_actor(&actor, "approval").map_err(|error| {
+        if explicit {
+            error
+        } else {
+            format!("{error} (taken from Git `user.name` or $USER; pass --actor <name>)")
+        }
+    })
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
@@ -875,13 +938,12 @@ fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationR
         .map_err(|error| format!("invalid verification evidence: {error}"))
 }
 
-fn record_verification_attempt(
+fn load_verification_attempt_ledger(
     root: &Path,
     record: &ChangeRecord,
-    verification: &VerificationRecord,
-) -> Result<(), String> {
+) -> Result<(std::path::PathBuf, VerificationAttemptLedger), String> {
     let history_path = change_dir(root, &record.id).join("verification-attempts.json");
-    let mut history = if history_path.exists() {
+    let history = if history_path.exists() {
         let content = fs::read_to_string(&history_path)
             .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
         let history: VerificationAttemptLedger = serde_json::from_str(&content)
@@ -904,6 +966,15 @@ fn record_verification_attempt(
             attempts: Vec::new(),
         }
     };
+    Ok((history_path, history))
+}
+
+fn record_verification_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<(), String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
     history.attempts.push(verification.clone());
     write_prepared_files(
         root,
@@ -912,9 +983,36 @@ fn record_verification_attempt(
                 change_dir(root, &record.id).join("verification.json"),
                 json_content(verification)?,
             ),
-            (history_path, json_content(&history)?),
+            (json_content_keeping_unknown_members(&history_path, &history).map(|content| (history_path, content))?),
         ],
     )
+}
+
+/// Record that a check was refused before verification could start, so a reader can see the
+/// attempt and its reason (#847). Appends to the attempts ledger ONLY: `verification.json`
+/// holds the last completed verification and a refusal must never overwrite it, and the
+/// change's recorded state is untouched.
+pub(crate) fn record_refused_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    reason: &str,
+) -> Result<(), String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
+    history.attempts.push(VerificationRecord {
+        timestamp: now(),
+        commit: git_output(root, &["rev-parse", "HEAD"]),
+        contract_digest: String::new(),
+        execution_digest: None,
+        workspace_digest: String::new(),
+        acceptance_input_digest: None,
+        acceptance_manifest: None,
+        semantic_succession: None,
+        passed: false,
+        commands: Vec::new(),
+        requirement_ids: Vec::new(),
+        refusal: Some(reason.to_string()),
+    });
+    write_prepared_files(root, &[(history_path, json_content(&history)?)])
 }
 
 /// The coverage gate is the first hard failure most projects meet, and the way
@@ -985,7 +1083,8 @@ fn uncovered_meaningful_paths(
     {
         return Ok(Vec::new());
     }
-    let mut args = vec!["diff", "--name-only", "--relative"];
+    // The base is a revision, so it follows `--end-of-options`, as in `specsync diff`.
+    let mut args = vec!["diff", "--name-only", "--relative", "--end-of-options"];
     let base = pull_request_diff_base(root, records);
     args.push(&base);
     let output = git_output_allow_empty(root, &args)
@@ -1173,10 +1272,13 @@ fn remote_default_ref(root: &Path) -> Option<String> {
 }
 
 fn recorded_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
+    // The oldest change's `base_commit` is the diff base. It is persisted workspace state
+    // (REQ-change-013), so it is used only when it is a full commit id; any other value falls back
+    // to the base used when no change records one, never to a later change's base.
     records
         .iter()
-        .filter_map(|record| record.base_commit.clone())
-        .next()
+        .find_map(|record| record.base_commit.clone())
+        .filter(|base| is_canonical_commit_id(base))
         .unwrap_or_else(|| {
             // `HEAD~1` does not resolve in a repository whose first commit is
             // also its only one, and the resulting `git diff` failure reported
@@ -2540,7 +2642,7 @@ fn validate_foreign_tree(root: &Path) -> Result<(), String> {
 }
 
 fn save_change(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    write_json(&change_dir(root, &record.id).join("state.json"), record)
+    write_json_keeping_unknown_members(&change_dir(root, &record.id).join("state.json"), record)
 }
 
 fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -3803,6 +3905,9 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
     let Some(commit) = evidence.commit.as_deref() else {
         return git_output(root, &["rev-parse", "HEAD"]).is_none();
     };
+    if !is_canonical_commit_id(commit) {
+        return false;
+    }
     crate::git_utils::status_without_inherited_output(
         Command::new("git")
             .args(["merge-base", "--is-ancestor", commit, "HEAD"])
@@ -4308,7 +4413,7 @@ fn split_values(value: &str) -> Vec<String> {
 fn acceptance_criteria_values(value: &str) -> Result<Vec<String>, String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Ok(Vec::new());
+        return Err("acceptance_criteria answer must not be empty".into());
     }
     if matches!(
         serde_json::from_str::<serde_json::Value>(trimmed),
@@ -4440,6 +4545,19 @@ fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     fs::write(path, json_content(value)?)
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+/// `write_json` for a lifecycle record or ledger rewritten in place: members a newer SpecSync
+/// wrote that this one does not know are kept (#1043, #434).
+fn write_json_keeping_unknown_members<Record>(path: &Path, value: &Record) -> Result<(), String>
+where
+    Record: Serialize + serde::de::DeserializeOwned,
+{
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(path, json_content_keeping_unknown_members(path, value)?)
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 

@@ -507,7 +507,11 @@ fn shallow_history_is_complete_for_change(
     record: &ChangeRecord,
     references: &[String],
 ) -> Result<bool, String> {
-    let Some(base) = record.base_commit.as_deref() else {
+    let Some(base) = record
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    else {
         return Ok(false);
     };
     let commit_object = format!("{base}^{{commit}}");
@@ -942,12 +946,7 @@ pub fn correct_interview_metadata(
     if !record.canonical_applied {
         return Err("accepted metadata correction requires canonical application evidence".into());
     }
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err(
-            "metadata correction requires a non-empty human actor passed with --actor".into(),
-        );
-    }
+    let actor = normalize_actor(&actor, "metadata correction")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err("metadata correction requires a non-empty reason passed with --reason".into());
@@ -1009,7 +1008,7 @@ pub fn correct_interview_metadata(
         original_value,
         prior_effective_value,
         corrected_value,
-        actor: actor.into(),
+        actor,
         reason: reason.into(),
         timestamp: now(),
         prior_view_digest: effective.view_digest,
@@ -1029,8 +1028,8 @@ pub fn correct_interview_metadata(
     let effective_definition = validate_correction_records(&record, &ledger.corrections)?;
     let dir = change_dir(root, &record.id);
     let mut prepared = vec![
-        (dir.join(CORRECTIONS_FILE), json_content(&ledger)?),
-        (dir.join("state.json"), json_content(&record)?),
+        (json_content_keeping_unknown_members(&dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
+        (json_content_keeping_unknown_members(&dir.join("state.json"), &record).map(|content| (dir.join("state.json"), content))?),
         (dir.join("change.md"), change_markdown_content(&record)),
     ];
     for artifact in &correction.added_artifacts {
@@ -1837,6 +1836,9 @@ fn validate_finalization_evidence_with_review_binding(
     // A mismatched historical review is explicitly NOT accepted as current or ancestral.
     // The reopen-only caller retains it at its exact remote-default Git anchor instead.
     if implementation_commit_available && !recorded_workspace_mismatch {
+        if !is_canonical_commit_id(&review.implementation_commit) {
+            return Err("scoped review implementation commit is not a full commit id".into());
+        }
         let review_ancestor = run_git_bounded(
             root,
             &[
@@ -2226,6 +2228,11 @@ fn review_commit_currency(
     // rewrites `review.implementation_commit`, so `implementation_commit..HEAD` is not a range
     // and the walk below never runs at all. Reporting that as a pass is what #743 fixes;
     // reporting it as a violation would be the same lie with the sign flipped.
+    if !is_canonical_commit_id(&review.implementation_commit) {
+        return ScopedReviewCurrency::Unavailable(
+            "scoped review implementation commit is not a full commit id".into(),
+        );
+    }
     let ancestor = match run_scoped_review_git(
         root,
         &[
@@ -2642,7 +2649,7 @@ pub fn record_scoped_review_with_relay(
         root,
         &[
             (scoped_review_path(root, &record), json_content(&review)?),
-            (attempts_path, json_content(&attempts)?),
+            (json_content_keeping_unknown_members(&attempts_path, &attempts).map(|content| (attempts_path, content))?),
         ],
     )?;
     Ok(review)
@@ -2747,7 +2754,8 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        prepared.push((approvals_path, json_content(&ledger)?));
+        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        prepared.push((approvals_path, approvals));
     } else {
         let actor = resolve_actor(root, actor)?;
         let stable_definition_digest = definition_digest(root, &record)?;
@@ -2793,7 +2801,8 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        prepared.push((approvals_path, json_content(&ledger)?));
+        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        prepared.push((approvals_path, approvals));
     }
     prepared.push((
         change_dir(root, &record.id).join("verification.json"),
@@ -2824,14 +2833,22 @@ fn accept_change_with_gate(
         };
         // Missing and empty are the same evidence: nothing recorded the
         // implementation commit. Deleting the ledger used to skip the guard
-        // that emptying it tripped (#656).
-        if verification_adopted && attempts.attempts.is_empty() {
+        // that emptying it tripped (#656). A ledger holding only refusals
+        // (#847) has no recorded attempt either — refusals are not evidence
+        // the implementation commit was ever verified.
+        if verification_adopted
+            && attempts
+                .attempts
+                .iter()
+                .all(|attempt| attempt.refusal.is_some())
+        {
             return Err(
                 "verification attempt history cannot adopt the implementation commit".into(),
             );
         }
         attempts.attempts.push(verification.clone());
-        prepared.push((attempts_path, json_content(&attempts)?));
+        let attempts = json_content_keeping_unknown_members(&attempts_path, &attempts)?;
+        prepared.push((attempts_path, attempts));
     }
     if gate == "finalization" {
         let review = load_scoped_review(root, &record)?;
@@ -2869,10 +2886,9 @@ fn accept_change_with_gate(
     record.state = ChangeState::Accepted;
     record.canonical_applied = true;
     record.updated_at = now();
-    prepared.push((
-        change_dir(root, &record.id).join("state.json"),
-        json_content(&record)?,
-    ));
+    let state_path = change_dir(root, &record.id).join("state.json");
+    let state = json_content_keeping_unknown_members(&state_path, &record)?;
+    prepared.push((state_path, state));
     prepared.push((
         change_dir(root, &record.id).join("change.md"),
         change_markdown_content(&record),
@@ -3542,7 +3558,8 @@ fn archive_change_with_options(
     let finalize = if force_finalize_failure {
         Err("forced post-move archive finalization failure".to_string())
     } else {
-        json_content(&archived).and_then(|state| {
+        // The package has moved, so the archived state rewrites the state.json it carried.
+        json_content_keeping_unknown_members(&destination.join("state.json"), &archived).and_then(|state| {
             write_prepared_files(
                 root,
                 &[
@@ -4425,7 +4442,7 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
     }
     let policy_tree_path = git_repo_relative_path(root, POLICY_PATH)?;
     let object = format!("{reference}:{policy_tree_path}");
-    let Some(content) = git_output_allow_empty(root, &["show", &object]) else {
+    let Some(content) = git_output_allow_empty(root, &["show", "--end-of-options", &object]) else {
         return Ok(None);
     };
     serde_json::from_str(&content)
@@ -4555,7 +4572,10 @@ fn delivery_policy_is_covered(
     let base = pull_request_diff_base(root, records);
     let base_commit = comparison_base_commit(root, &base)
         .ok_or_else(|| "unable to resolve policy delivery base".to_string())?;
-    let mut changed: BTreeSet<String> = git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
+    let mut changed: BTreeSet<String> = git_output_allow_empty(
+        root,
+        &["diff", "--name-only", "--relative", "--end-of-options", &base],
+    )
         .ok_or_else(|| "unable to inspect policy delivery paths".to_string())?
         .lines()
         .map(str::to_string)
@@ -4661,7 +4681,7 @@ fn check_project_with_command_output(
         || root.join(ARCHIVE_PATH).is_dir()
         || git_repo_relative_path(root, POLICY_PATH)
             .ok()
-            .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", path.as_str()]))
+            .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", "--", path.as_str()]))
             .is_some();
     if !is_versioned_sdd {
         return SddCheckReport::default();
@@ -5260,7 +5280,7 @@ fn comparison_base_commit(root: &Path, comparison_base: &str) -> Option<String> 
         .next()
         .filter(|value| !value.is_empty())
         .unwrap_or(comparison_base);
-    git_output(root, &["merge-base", left, "HEAD"]).or_else(|| {
+    git_output(root, &["merge-base", "--end-of-options", left, "HEAD"]).or_else(|| {
         git_output(
             root,
             &["rev-parse", "--verify", &format!("{left}^{{commit}}")],
@@ -5314,8 +5334,10 @@ mod lesson_bundle_dash_tests {
                 command: format!("cargo test auth{dash}"),
                 success: true,
                 exit_code: Some(0),
+                output: None,
             }],
             requirement_ids: Vec::new(),
+            refusal: None,
         };
         write_json(
             &change_dir(root, &record.id).join("verification.json"),

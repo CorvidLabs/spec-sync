@@ -45,6 +45,11 @@ fn acceptance_entry_digest_at_commit(
     predecessor_id: &str,
     path: &str,
 ) -> Result<String, String> {
+    if !is_canonical_commit_id(commit) {
+        return Err(format!(
+            "succession base `{commit}` for predecessor `{predecessor_id}` is not a full commit id"
+        ));
+    }
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
@@ -53,6 +58,7 @@ fn acceptance_entry_digest_at_commit(
                 "worktree",
                 "add",
                 "--detach",
+                "--end-of-options",
                 tree.to_string_lossy().as_ref(),
                 commit,
             ])
@@ -95,7 +101,12 @@ fn semantic_tuple_transition_is_valid(
     pending: Option<&PendingArchiveClose<'_>>,
     memo: &mut AcceptedInputValidationMemo,
 ) -> Result<bool, String> {
-    let Some(base) = successor.base_commit.as_deref() else {
+    // Only a full commit id is a base commit: any other recorded value cannot satisfy the tuple.
+    let Some(base) = successor
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    else {
         return Ok(false);
     };
     let historical = historical_reconciliation_anchor(successor)?.is_some();
@@ -2205,6 +2216,7 @@ fn reconstruct_legacy_at_anchor(
                 "worktree",
                 "add",
                 "--detach",
+                "--end-of-options",
                 tree.to_string_lossy().as_ref(),
                 anchor,
             ])
@@ -5129,7 +5141,7 @@ fn validate_accepted_inputs_recursive(
             .as_deref()
             .ok_or_else(|| {
                 format!(
-                    "accepted change is missing current delivery-input evidence; run `specsync change reopen {}` to record fresh acceptance evidence",
+                    "accepted change is missing current delivery-input evidence; run `specsync change reopen {} --actor <name> --reason <text>` to record fresh acceptance evidence",
                     record.id
                 )
             })?;
@@ -5158,7 +5170,7 @@ fn validate_accepted_inputs_recursive(
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
                 format!(
-                    "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {}` to re-verify the accepted change",
+                    "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
                     expected.path, record.id
                 )
             })?;

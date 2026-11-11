@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists",
+  "slug": "identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists",
+  "title": "Identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists",
+  "description": "identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b7c48a4b945ffebda99940ff6b379896083bc73f",
+  "created_at": 1794359638,
+  "updated_at": 1794361327,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/retirement.rs",
+    "src/change/doctor.rs",
+    "src/change/historical_reconciliation.rs",
+    "tests/integration/change.rs",
+    "tests/integration/relayed_decision.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a relayed approval with a padded actor stays readable; retire, doctor late close, reopen and reconcile-history normalize actors before any write and reopen does so before moving an archive; Unicode line separators and bidi overrides are refused in actors; empty-list answers are refused and none clears affected_specs and dependencies; affected_specs refusals name the canonical path or the unreadable registry; REQ-change-150, invariant 52 and the lesson match the code"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "change.3md z=44: committed records are not re-judged under newer rules, so the reconcile-history check moves to the write path",
+    "public_contract": "no"
+  }
+}

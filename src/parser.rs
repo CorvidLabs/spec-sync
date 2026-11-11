@@ -787,11 +787,19 @@ pub(crate) fn blank_fenced_code(body: &str) -> String {
     for line in body.split_inclusive('\n') {
         let content = line.strip_suffix('\n').unwrap_or(line);
         let had_newline = line.ends_with('\n');
+        // A line indented four or more spaces (or a tab) is content under CommonMark, never
+        // a fence delimiter (#768): an indented ``` must not open a phantom fence. Inside an
+        // open fence it is blanked as content, like every other fenced line.
+        let indented = content.starts_with("    ") || content.starts_with('\t');
         let trimmed = content.trim_start();
-        let marker = ['`', '~'].into_iter().find_map(|c| {
-            let run = trimmed.chars().take_while(|ch| *ch == c).count();
-            (run >= 3).then_some((c, run))
-        });
+        let marker = if indented {
+            None
+        } else {
+            ['`', '~'].into_iter().find_map(|c| {
+                let run = trimmed.chars().take_while(|ch| *ch == c).count();
+                (run >= 3).then_some((c, run))
+            })
+        };
         let blank_line = |out: &mut String| {
             out.extend(std::iter::repeat_n(' ', content.len()));
             if had_newline {
@@ -1829,6 +1837,34 @@ Something
             blanked.matches("`ghost`").count(),
             0,
             "blank_fenced_code must remove fenced rows"
+        );
+    }
+
+    // #768 (REQ-parser-004): a line indented four or more spaces, or by a tab, is content under
+    // CommonMark, never a fence delimiter. Both sides of the rule, directly on the scanner.
+    #[test]
+    fn blank_fenced_code_treats_indented_fence_markers_as_content() {
+        // Outside a fence an indented marker opens nothing: the table after it stays visible.
+        for indent in ["    ", "\t"] {
+            let body = format!("{indent}```\n| `real` | |\n");
+            assert_eq!(
+                blank_fenced_code(&body),
+                body,
+                "an indented fence marker outside a fence is content: {body:?}"
+            );
+        }
+        // Inside an open fence an indented line is blanked like any fenced line, and an indented
+        // marker does not close the fence: the row after it is still fenced.
+        let body = "```\n    ```\n| `ghost` | |\n```\n| `real` | |\n";
+        let blanked = blank_fenced_code(body);
+        assert_eq!(blanked.len(), body.len());
+        assert!(
+            !blanked.contains("```") && !blanked.contains("`ghost`"),
+            "the indented marker and the row after it stay inside the fence: {blanked:?}"
+        );
+        assert!(
+            blanked.ends_with("| `real` | |\n"),
+            "the real closing fence ends the block: {blanked:?}"
         );
     }
 

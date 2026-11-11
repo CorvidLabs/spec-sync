@@ -337,8 +337,412 @@ fn verification_freshness_status_and_check_are_environment_independent() {
 }
 
 #[test]
+fn change_answer_rejects_unknown_question_key_and_persists_nothing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "nonexistent_question",
+            "x",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown interview question"));
+
+    // A hyphen/underscore typo fails the same way (#426).
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "acceptance-criteria",
+            "typo",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown interview question"));
+
+    // Nothing was persisted.
+    let state: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/state.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(state["answers"], serde_json::json!({}));
+}
+
+#[test]
+fn change_answer_rejects_empty_and_whitespace_answers() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    for question in ["acceptance_criteria", "affected_paths", "public_contract"] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                "   ",
+            ])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("must not be empty"));
+    }
+
+    // A real answer still works.
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "acceptance_criteria",
+            "Passkeys enroll",
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn change_new_and_answer_reject_unregistered_affected_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "nosuch",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("has no spec at").and(predicate::str::contains(
+                "scaffold it first with `specsync new",
+            )),
+        );
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "answer",
+            id,
+            "affected_specs",
+            "nosuch",
+        ])
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("has no spec at").and(predicate::str::contains(
+                "scaffold it first with `specsync new",
+            )),
+        )
+        .stderr(predicate::str::contains("auth"));
+}
+
+#[test]
+fn change_approve_trims_and_validates_actor_identity() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-m", "seed"]);
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Add passkeys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Passkeys enroll"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+    fs::create_dir_all(root.join(format!(".specsync/changes/{id}/deltas"))).unwrap();
+    fs::write(
+        root.join(format!(".specsync/changes/{id}/deltas/auth.md")),
+        "## ADDED\n\n### REQUIREMENT REQ-auth-900\n\nThe system SHALL hold.\n\nAcceptance Criteria\n- holds.\n",
+    )
+    .unwrap();
+
+    // An actor taken from Git is held to the same rule and says where it came from (#1026 review).
+    git(&["config", "user.name", "Ada\u{202E}x"]);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "approve", id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("taken from Git `user.name`"));
+    git(&["config", "user.name", "Test"]);
+    // A newline-bearing actor is rejected before any ledger write (#426).
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "\n  padded\nactor  ",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("single line"));
+    // A Unicode line separator or a bidirectional override reorders or breaks the printed line
+    // just as a newline does, so it is refused the same way (#1026 review).
+    for actor in [
+        "Ada\u{2028}Evil",
+        "Ada\u{202E}live",
+        "Ada\u{200B}",
+        "\u{FEFF}Ada",
+        // Every format and default-ignorable character, not only the bidi ones (#1026 review).
+        "Ada\u{00AD}X",
+        "Ada\u{E0041}\u{E0042}",
+        "Ada\u{3164}",
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "approve",
+                id,
+                "--actor",
+                actor,
+            ])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("single line"));
+    }
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ledger["approvals"], serde_json::json!([]));
+
+    // Padding is trimmed before it reaches the append-only ledger.
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "  Reviewer  ",
+        ])
+        .assert()
+        .success();
+    let ledger: Value = serde_json::from_slice(
+        &fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ledger["approvals"][0]["actor"], "Reviewer");
+
+    // Every actor-accepting verb applies the same rule: a newline actor is
+    // rejected before any ledger write, here through send-back (#426 round 2).
+    let before = fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "send-back",
+            id,
+            "--actor",
+            "Ada\nInjected",
+            "--reason",
+            "probe",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("single line"));
+    let after = fs::read(root.join(format!(".specsync/changes/{id}/approvals.json"))).unwrap();
+    assert_eq!(before, after, "the ledger is untouched by a rejected actor");
+}
+
+#[test]
 fn change_new_json_returns_state_and_interview() {
     let temp = TempDir::new().unwrap();
+    fs::create_dir_all(temp.path().join("specs/auth")).unwrap();
+    fs::write(
+        temp.path().join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
     let output = specsync()
         .args([
             "--root",
@@ -1560,7 +1964,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
             "accepted change verification is stale for current delivery inputs",
         ))
         .stderr(predicate::str::contains(
-            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen update-review-instructions` to re-verify the accepted change",
+            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen update-review-instructions --actor <name> --reason <text>` to re-verify the accepted change",
         ));
     let output = specsync()
         .args([
@@ -4550,6 +4954,14 @@ fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
     );
     assert_eq!(first["commands"][1]["command"], gate_entry.as_str());
     assert_eq!(first["commands"][1]["success"], false);
+    // The gate-refusal entry carries the refusal texts, not just an exit code
+    // (#640, REQ-change-153 AC3).
+    let gate_output = first["commands"][1]["output"].as_str().unwrap_or_default();
+    assert!(
+        gate_output.contains("effective contract `auth`")
+            && gate_output.contains("undocumented_probe"),
+        "the gate refusal records its texts in output: {first}"
+    );
 
     run(&["change", "check", id, "--commit"]).failure();
     assert_eq!(
@@ -6278,6 +6690,881 @@ fn change_list_past_its_timeout_stops_while_loading_active_changes() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["error"], "timeout");
     assert_eq!(report["phase"], "active change loading", "{report}");
+}
+
+/// A failed verification records the findings that failed it, so a flake and a
+/// regression are classifiable from the artifact alone (#640).
+#[cfg(unix)]
+#[test]
+fn failed_change_check_records_findings_in_command_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    // Break the scoped spec: a listed source file does not exist.
+    let spec_path = root.join("specs/lib/lib.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replace("  - src/lib.rs", "  - src/lib.rs\n  - src/gone.rs"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("gone.rs"),
+        "the failed command evidence names the missing file, got: {output}"
+    );
+}
+
+/// #1027 review: a non-strict check fails on its errors, not its warnings, so the bounded
+/// `output` is built from what failed. An error followed by enough warnings to fill 4 KiB is
+/// still recorded, rather than pushed out of the tail by findings that did not fail anything.
+#[cfg(unix)]
+#[test]
+fn failed_change_check_output_keeps_the_error_behind_many_warnings() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    let spec_path = root.join("specs/lib/lib.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replace("  - src/lib.rs", "  - src/lib.rs\n  - src/gone.rs"),
+    )
+    .unwrap();
+    let mut source = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    for index in 0..150 {
+        source.push_str(&format!(
+            "pub fn undocumented_export_number_{index}() {{}}\n"
+        ));
+    }
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("gone.rs"),
+        "the error that failed the check is recorded: {output}"
+    );
+    assert!(
+        !output.contains("warning: "),
+        "a non-strict check is not failed by its warnings, so they are not its output: {output}"
+    );
+}
+
+/// #1047 review: under `--strict` a check's warnings are failures, so a strict check failed
+/// only by warnings records those warnings as its output (REQ-change-153).
+#[cfg(unix)]
+#[test]
+fn failed_strict_change_check_output_records_the_warnings_that_failed_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    // Warnings only: undocumented exports, and no error.
+    let mut source = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    for index in 0..3 {
+        source.push_str(&format!(
+            "pub fn undocumented_export_number_{index}() {{}}\n"
+        ));
+    }
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--strict",
+        ])
+        .assert()
+        .failure();
+
+    let attempts: Value = serde_json::from_str(
+        &fs::read_to_string(
+            root.join(format!(".specsync/changes/{id}/verification-attempts.json")),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let attempt = attempts["attempts"].as_array().unwrap().last().unwrap();
+    let command = &attempt["commands"][0];
+    assert_eq!(command["success"], false);
+    let output = command["output"].as_str().unwrap_or("");
+    assert!(
+        output.contains("warning: ") && output.contains("undocumented_export_number_0"),
+        "a strict check failed by its warnings records them: {output}"
+    );
+}
+
+/// Passing command evidence omits `output`, so passing records serialize
+/// exactly as they did before the field existed (#640).
+#[cfg(unix)]
+#[test]
+fn passing_change_check_records_no_output_key() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .success();
+
+    let raw =
+        fs::read_to_string(root.join(format!(".specsync/changes/{id}/verification.json"))).unwrap();
+    assert!(
+        !raw.contains("\"output\""),
+        "a passing record carries no output key: {raw}"
+    );
+}
+// #839 (REQ-change-004): `change check --commit --json` must print one JSON document on
+// success — the run previously exited 0 with empty stdout, so a runner parsing the output got
+// nothing to parse.
+#[cfg(unix)]
+#[test]
+fn change_check_commit_json_prints_the_outcome() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+            "--commit",
+            "--json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.trim().is_empty(),
+        "a successful --commit --json run must print its outcome"
+    );
+    let document: Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is one JSON document: {error}\n{stdout}"));
+    assert_eq!(document["change"], id, "{document}");
+    assert_eq!(document["verified"], true, "{document}");
+    assert_eq!(document["pushed"], false, "{document}");
+    assert!(
+        document["materialize_commit"].is_string() || document["materialize_commit"].is_null(),
+        "{document}"
+    );
+    assert!(
+        document["verification_commit"].is_string(),
+        "the verification commit is always recorded: {document}"
+    );
+    assert!(
+        document["configured_commands_not_run"].is_array(),
+        "the outcome document carries the same disclosure as every other JSON success: {document}"
+    );
+}
+
+// #839 (REQ-change-004, the change's refusal criterion): a refused `change check --commit
+// --json` run prints exactly one JSON error document on stdout and exits non-zero. A progress
+// line or a second document on stdout would make the output unparseable for a runner.
+#[test]
+fn change_check_commit_json_refusal_prints_one_error_document() {
+    let fixture = OpenTaskCli::new();
+    let id = fixture.id.clone();
+    fixture.set_tasks(OPEN_TASKS_ONE_OPEN);
+    fixture.git(&["commit", "-am", "leave one task open"]);
+    let head_before = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap()
+        .stdout;
+
+    let output = fixture
+        .run(&["change", "check", &id, "--commit", "--json"])
+        .failure()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let mut documents = serde_json::Deserializer::from_str(&stdout).into_iter::<Value>();
+    let document = documents
+        .next()
+        .unwrap_or_else(|| panic!("a refused --commit --json run prints a document: {stdout:?}"))
+        .unwrap_or_else(|error| panic!("stdout starts with a JSON document: {error}\n{stdout}"));
+    // The streaming reader fails on any text before the document and yields Some for any
+    // text or second document after it, so this pins "one document, nothing else".
+    assert!(
+        documents.next().is_none(),
+        "stdout holds exactly one JSON document and nothing after it: {stdout:?}"
+    );
+    let error = document["error"]
+        .as_str()
+        .unwrap_or_else(|| panic!("the document carries an `error` string: {document}"));
+    assert!(
+        error.contains("tasks.md contains incomplete tasks"),
+        "the error names the refusal: {error}"
+    );
+    let head_after = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&fixture.root)
+        .output()
+        .unwrap()
+        .stdout;
+    assert_eq!(head_before, head_after, "a refused run commits nothing");
+}
+// #676 (REQ-change-155): an ignored_paths entry whose whole coverage is always meaningful is
+// disclosed at policy load, on stderr, with the file to edit — not three verbs later at audit.
+#[cfg(unix)]
+#[test]
+fn an_inert_ignored_paths_entry_is_disclosed_at_policy_load() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    policy["ignored_paths"] = serde_json::json!([".specsync/", "specs/"]);
+    fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+    // `change status` loads the policy (the briefing reads the principles file); `change list`
+    // only reads the roster and never loads it.
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "status", &id])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ignored_paths entry `specs/` is inert"),
+        "the note names the inert entry: {stderr}"
+    );
+    assert!(
+        stderr.contains(".specsync/sdd.json"),
+        "the note names the file to edit: {stderr}"
+    );
+    assert!(
+        !stderr.contains("`.specsync/` is inert"),
+        "the .specsync/ entry does real work and stays silent: {stderr}"
+    );
+}
+// #847 (REQ-change-154): a check refused before verification records the refusal, so a reader
+// can see the check was tried and why it failed.
+#[cfg(unix)]
+#[test]
+fn a_refused_check_records_the_refusal_as_an_attempt() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    // Reopen the task so the tasks gate refuses before verification starts.
+    let tasks_path = root.join(format!(".specsync/changes/{id}/tasks.md"));
+    let tasks = fs::read_to_string(&tasks_path).unwrap();
+    fs::write(&tasks_path, tasks.replace("- [x]", "- [ ]")).unwrap();
+
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    let expected_line = format!(
+        "error: tasks.md contains incomplete tasks: finish the 1 open task in \
+         `.specsync/changes/{id}/tasks.md` (line 3: \"Complete verification preparation.\") \
+         and mark it `[x]`, then re-run `specsync change check {id}`"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        stderr.lines().last(),
+        Some(expected_line.as_str()),
+        "the refusal names the gate, the task and the re-run verbatim: {stderr}"
+    );
+
+    // The refusal was recorded: one passed:false attempt carrying the reason.
+    let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
+    let attempts: Value = serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap())
+        .expect("the refusal left an attempts ledger");
+    let entries = attempts["attempts"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{attempts}");
+    assert_eq!(entries[0]["passed"], false, "{attempts}");
+    assert!(
+        entries[0]["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("incomplete tasks")),
+        "the attempt carries the refusal reason: {attempts}"
+    );
+    // And it did not pose as completed verification.
+    assert!(
+        !root
+            .join(format!(".specsync/changes/{id}/verification.json"))
+            .exists(),
+        "a refusal never writes verification.json"
+    );
+}
+
+// #847 (REQ-change-154): a refusal after a completed verification preserves the recorded
+// verification byte for byte and only appends the refusal to the attempts ledger.
+#[cfg(unix)]
+#[test]
+fn a_refusal_preserves_the_prior_verification_and_attempts() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let id = change_ready_to_verify(root, &[]);
+    // A completed check records verification.json and a passed attempt.
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .success();
+    let verification_path = root.join(format!(".specsync/changes/{id}/verification.json"));
+    let attempts_path = root.join(format!(".specsync/changes/{id}/verification-attempts.json"));
+    let verification_before = fs::read_to_string(&verification_path)
+        .expect("the completed check wrote verification.json");
+    let attempts_before: Value = serde_json::from_str(
+        &fs::read_to_string(&attempts_path).expect("the completed check left an attempts ledger"),
+    )
+    .unwrap();
+    let passed_before = attempts_before["attempts"].as_array().unwrap().len();
+    assert!(passed_before >= 1, "{attempts_before}");
+
+    // Reopen the task so the next check is refused at the tasks gate.
+    let tasks_path = root.join(format!(".specsync/changes/{id}/tasks.md"));
+    let tasks = fs::read_to_string(&tasks_path).unwrap();
+    fs::write(&tasks_path, tasks.replace("- [x]", "- [ ]")).unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+        .assert()
+        .code(1);
+
+    // The completed verification is untouched and the refusal only appended.
+    assert_eq!(
+        fs::read_to_string(&verification_path).unwrap(),
+        verification_before,
+        "a refusal never overwrites the recorded verification"
+    );
+    let attempts_after: Value =
+        serde_json::from_str(&fs::read_to_string(&attempts_path).unwrap()).unwrap();
+    let entries = attempts_after["attempts"].as_array().unwrap();
+    assert_eq!(entries.len(), passed_before + 1, "{attempts_after}");
+    assert_eq!(
+        entries[..passed_before],
+        attempts_before["attempts"].as_array().unwrap()[..],
+        "the prior attempts are preserved: {attempts_after}"
+    );
+    let refusal = &entries[passed_before];
+    assert_eq!(refusal["passed"], false, "{attempts_after}");
+    assert!(
+        refusal["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("incomplete tasks")),
+        "the appended attempt carries the refusal reason: {attempts_after}"
+    );
+}
+
+/// A change's recorded `base_commit` is used as the coverage diff base only when it is a full commit
+/// id (REQ-change-013); any other value falls back to the base used when no change records one, so
+/// the coverage gate still inspects the changed paths.
+#[test]
+fn coverage_uses_a_changes_recorded_base_only_when_it_is_a_full_commit_id() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": true,
+  "meaningful_paths": ["src/"],
+  "ignored_paths": [".specsync/", "specs/"],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        super::helpers::valid_spec("auth", &["src/auth.rs"]),
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "base"]);
+    let root_arg = root.to_str().unwrap();
+    specsync()
+        .args([
+            "--root",
+            root_arg,
+            "change",
+            "new",
+            "Tune auth",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--no-spec-change",
+            "--rationale",
+            "internal",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let state_path = root.join(".specsync/changes/tune-auth/state.json");
+    let mut state: Value = serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    state["base_commit"] = Value::String("--not-a-commit".into());
+    fs::write(
+        &state_path,
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+    )
+    .unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "record"]);
+    fs::write(root.join("src/auth.rs"), "pub fn auth() { }\n").unwrap();
+    git(&["commit", "-q", "-am", "edit"]);
+
+    // No remote and no CI base, so the gate would fall back to the change's recorded base.
+    let output = specsync()
+        .args(["--root", root_arg, "change", "audit", "--strict"])
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !text.contains("unable to inspect"),
+        "a recorded base that is not a full commit id is not used as the diff base: {text}"
+    );
+}
+
+/// #1026 review: the bootstrap exemption is exactly "no spec files and no registry entries". A
+/// project whose only declaration is a registry entry is checked, and a missing registered spec
+/// is named as registered.
+#[test]
+fn change_new_checks_affected_specs_when_only_the_registry_declares_modules() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/billing.rs"), "pub fn bill() {}\n").unwrap();
+    fs::write(
+        root.join("specsync-registry.toml"),
+        "name = \"proj\"\n\n[specs]\nbilling = \"specs/billing/billing.spec.md\"\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root_arg,
+            "change",
+            "new",
+            "Bill",
+            "--spec",
+            "billing",
+            "--path",
+            "src/billing.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "is registered at `specs/billing/billing.spec.md`, but no spec exists there",
+        ));
+}
+
+/// #1026 review: an answer that parses to no value is refused rather than silently clearing a
+/// list, and `none` clears the lists that may be empty.
+#[test]
+fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    super::helpers::write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    run(&[
+        "change",
+        "new",
+        "Add passkeys",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    let id = "add-passkeys";
+    let state = || -> Value {
+        serde_json::from_str(
+            &fs::read_to_string(root.join(format!(".specsync/changes/{id}/state.json"))).unwrap(),
+        )
+        .unwrap()
+    };
+    for (question, answer) in [
+        ("acceptance_criteria", "[]"),
+        ("affected_paths", ","),
+        ("affected_paths", "[]"),
+        ("affected_specs", " , "),
+        ("dependencies", ","),
+    ] {
+        let before = state();
+        run(&["change", "answer", id, question, answer])
+            .failure()
+            .stderr(predicate::str::contains("names no"));
+        assert_eq!(
+            state(),
+            before,
+            "{question} {answer:?} must persist nothing"
+        );
+    }
+    run(&["change", "answer", id, "dependencies", "none"]).success();
+    assert_eq!(state()["dependencies"], serde_json::json!([]));
+
+    run(&["change", "answer", id, "affected_specs", "none"]).success();
+    assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // `None` is a module name, so it is looked up, and the refusal says how to clear instead.
+    run(&["change", "answer", id, "affected_specs", "None"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "to clear the list, answer exactly `none` or `'[]'`",
+        ));
+    // A yes/no question takes yes or no: anything else is refused naming the choices and stores
+    // nothing (it used to fail as a corrupt correction ledger), and a recognised spelling is
+    // stored as the choice it names (#1026 review).
+    let before = state();
+    run(&["change", "answer", id, "public_contract", "maybe"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "public_contract answer `maybe` is not one of its choices; answer yes or no",
+        ))
+        .stderr(predicate::str::contains("correction ledger").not());
+    assert_eq!(state(), before, "a refused choice persists nothing");
+    run(&["change", "answer", id, "architecture_risk", " N "]).success();
+    assert_eq!(state()["answers"]["architecture_risk"], "no");
+    // A case variant names the real module instead of a scaffold that would collide.
+    run(&["change", "answer", id, "affected_specs", "AUTH"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "module names are case-sensitive, so name it as `auth`",
+        ));
+    // An empty constraints answer keeps its own guidance.
+    run(&["change", "answer", id, "constraints", "  "])
+        .failure()
+        .stderr(predicate::str::contains("answer none if none apply"));
+    // A module literally named `none` makes `none` ambiguous, so it is refused, not a silent clear.
+    fs::create_dir_all(root.join("specs/none")).unwrap();
+    fs::write(
+        root.join("specs/none/none.spec.md"),
+        "---\nmodule: none\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# None\n",
+    )
+    .unwrap();
+    run(&["change", "answer", id, "affected_specs", "none"])
+        .failure()
+        .stderr(predicate::str::contains("is ambiguous"));
+    // `[]` names nothing, so it clears even while something is named `none`.
+    run(&["change", "answer", id, "affected_specs", "[]"]).success();
+    assert_eq!(state()["affected_specs"], serde_json::json!([]));
+    // A spec that declares the module off its canonical path is moved or registered, never
+    // duplicated by a scaffold at the canonical path.
+    fs::create_dir_all(root.join("specs/pay")).unwrap();
+    fs::write(
+        root.join("specs/pay/main.spec.md"),
+        "---\nmodule: pay\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Pay\n",
+    )
+    .unwrap();
+    let refused = run(&["change", "answer", id, "affected_specs", "pay"]).failure();
+    let error = String::from_utf8_lossy(&refused.get_output().stderr).to_string();
+    assert!(
+        error.contains("has a spec at `specs/pay/main.spec.md`, but not at its canonical path")
+            && !error.contains("specsync new"),
+        "{error}"
+    );
+    // A registered module whose spec file is missing is named as registered, not as moved.
+    fs::write(
+        root.join("specsync-registry.toml"),
+        "name = \"proj\"\n\n[specs]\nbilling = \"specs/billing/main.spec.md\"\n",
+    )
+    .unwrap();
+    run(&["change", "answer", id, "affected_specs", "billing"])
+        .failure()
+        .stderr(predicate::str::contains(
+            "affected spec `billing` is registered at `specs/billing/main.spec.md`, but no spec exists there",
+        ));
+}
+
+/// #1043, #434 (REQ-change-079): every lifecycle rewrite keeps the members a newer SpecSync wrote
+/// that this one does not know, at the top level and inside entries it did not change, through
+/// send-back, answer, approve, check, review and ship, and the audit stays clean.
+#[test]
+fn lifecycle_rewrites_keep_members_a_newer_specsync_wrote() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| -> String {
+        let mut full = vec!["--root", root.to_str().unwrap()];
+        full.extend_from_slice(args);
+        let output = specsync().args(&full).output().unwrap();
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let created: Value = serde_json::from_str(&run(&[
+        "--json",
+        "change",
+        "new",
+        "Archive a greeting",
+        "--kind",
+        "documentation",
+        "--path",
+        "docs/greeting.md",
+        "--no-spec-change",
+        "--rationale",
+        "Documentation-only behavior does not alter a technical contract",
+    ]))
+    .unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The greeting is archived"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", &id, question, answer]);
+    }
+    let dir = root.join(".specsync/changes").join(&id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("state.json")).unwrap()).unwrap();
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let artifact = artifact.as_str().unwrap();
+        let content = if artifact == "tasks" {
+            "# Tasks\n\n- [x] Archive the greeting.\n".to_string()
+        } else {
+            format!("# {artifact}\n\nComplete evidence for the greeting.\n")
+        };
+        fs::write(dir.join(format!("{artifact}.md")), content).unwrap();
+    }
+    // What a newer SpecSync would have written: a member appended to an object, with its exact
+    // text (a decimal and an integer past u64 must not be rounded).
+    let add_member = |path: &Path, object_end: &str, member: &str| {
+        let text = fs::read_to_string(path).unwrap();
+        let at = text.rfind(object_end).unwrap();
+        let mut text = text;
+        text.insert_str(at, member);
+        fs::write(path, text).unwrap();
+    };
+    const STATE_MEMBER: &str = "\"future_state\": {\n    \"ratio\": 2.50,\n    \"big\": 123456789012345678901234567890\n  }";
+    const LEDGER_MEMBER: &str = "\"future_ledger\": \"kept\"";
+    const APPROVAL_MEMBER: &str = "\"future_approval\": \"kept\"";
+    const ATTEMPT_MEMBER: &str = "\"future_attempt\": \"kept\"";
+    add_member(
+        &dir.join("state.json"),
+        "\n}",
+        &format!(",\n  {STATE_MEMBER}"),
+    );
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    add_member(
+        &dir.join("approvals.json"),
+        "\n}",
+        &format!(",\n  {LEDGER_MEMBER}"),
+    );
+    // The first approval's closing brace sits before the ledger's `send_backs` or end.
+    let approvals = fs::read_to_string(dir.join("approvals.json")).unwrap();
+    let first_close = approvals.find("\n    }").unwrap();
+    let mut approvals = approvals;
+    approvals.insert_str(first_close, &format!(",\n      {APPROVAL_MEMBER}"));
+    fs::write(dir.join("approvals.json"), approvals).unwrap();
+    fs::write(root.join("docs/greeting.md"), "# Greeting\n\nHello.\n").unwrap();
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "implement greeting (a newer SpecSync's records)",
+    ]);
+    run(&["change", "check", &id, "--commit"]);
+    let attempts = fs::read_to_string(dir.join("verification-attempts.json")).unwrap();
+    let first_close = attempts.find("\n    }").unwrap();
+    let mut attempts = attempts;
+    attempts.insert_str(first_close, &format!(",\n      {ATTEMPT_MEMBER}"));
+    fs::write(dir.join("verification-attempts.json"), attempts).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "a newer SpecSync's attempt record"]);
+
+    let kept = |file: &str, member: &str, when: &str| {
+        let text = fs::read_to_string(dir.join(file)).unwrap();
+        assert!(
+            text.contains(member),
+            "{when}: {file} lost {member}:\n{text}"
+        );
+    };
+    // Each rewrite keeps every member.
+    run(&[
+        "change",
+        "send-back",
+        &id,
+        "--actor",
+        "Scope owner",
+        "--reason",
+        "rescope",
+    ]);
+    kept("state.json", STATE_MEMBER, "send-back");
+    kept("approvals.json", LEDGER_MEMBER, "send-back");
+    kept("approvals.json", APPROVAL_MEMBER, "send-back");
+    run(&[
+        "change",
+        "answer",
+        &id,
+        "acceptance_criteria",
+        "The greeting is archived",
+    ]);
+    kept("state.json", STATE_MEMBER, "answer");
+    run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    kept("approvals.json", LEDGER_MEMBER, "approve");
+    kept("approvals.json", APPROVAL_MEMBER, "approve");
+    run(&["change", "check", &id, "--commit"]);
+    kept("verification-attempts.json", ATTEMPT_MEMBER, "check");
+    kept("state.json", STATE_MEMBER, "check");
+    run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Independent reviewer",
+    ]);
+    // No change-record finding (the throwaway repository has no remote, which doctor notes apart).
+    let doctor = run(&["doctor"]);
+    assert!(!doctor.contains("audit-error"), "{doctor}");
+    run(&["change", "ship", &id]);
+    let archived = fs::read_dir(root.join(".specsync/archive/changes"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| path.to_string_lossy().ends_with(&id))
+        .expect("archived package");
+    for (file, member) in [
+        ("state.json", STATE_MEMBER),
+        ("approvals.json", LEDGER_MEMBER),
+        ("approvals.json", APPROVAL_MEMBER),
+        ("verification-attempts.json", ATTEMPT_MEMBER),
+    ] {
+        let text = fs::read_to_string(archived.join(file)).unwrap();
+        assert!(
+            text.contains(member),
+            "ship: archived {file} lost {member}:\n{text}"
+        );
+    }
+    run(&["change", "audit", "--strict"]);
 }
 
 // REQ-change-156 / REQ-change-157 / #535: after approve, the guided next

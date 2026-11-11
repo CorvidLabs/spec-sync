@@ -275,10 +275,7 @@ pub fn send_back_change(
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(&record, &SEND_BACK_STATES, "send the change back for re-scoping")?;
-    let actor = actor.trim();
-    if actor.is_empty() {
-        return Err("send-back requires a non-empty human actor passed with --actor".into());
-    }
+    let actor = normalize_actor(&actor, "send-back")?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err("send-back requires a non-empty reason passed with --reason".into());
@@ -309,14 +306,16 @@ pub fn send_back_change(
     write_prepared_files(
         root,
         &[
-            (
-                change_dir(root, &record.id).join("approvals.json"),
-                json_content(&ledger)?,
-            ),
-            (
-                change_dir(root, &record.id).join("state.json"),
-                json_content(&record)?,
-            ),
+            {
+                let path = change_dir(root, &record.id).join("approvals.json");
+                let content = json_content_keeping_unknown_members(&path, &ledger)?;
+                (path, content)
+            },
+            {
+                let path = change_dir(root, &record.id).join("state.json");
+                let content = json_content_keeping_unknown_members(&path, &record)?;
+                (path, content)
+            },
             (
                 change_dir(root, &record.id).join("change.md"),
                 change_markdown_content(&record),

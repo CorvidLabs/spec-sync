@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794394772,
+      "digest": "20cd6f20ac2837f1b74933a6dda42037b91ffb4108d385675790e1ba031795c3",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by kimi-code (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "watch-test-helper-keeps-harness-hygiene-and-kills-the-child",
+        "title": "Watch test helper keeps harness hygiene and kills the child",
+        "description": "watch test helper keeps harness hygiene and kills the child",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "tests/integration/helpers.rs",
+          "tests/integration/watch.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "test-harness hardening from review; no contract change",
+        "acceptance_criteria": [
+          "watch_until inherits the specsync() env hygiene and kills the child on assert/panic paths too"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

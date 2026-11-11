@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-recorded-base-order-test-uses-full-commit-ids",
+  "slug": "the-recorded-base-order-test-uses-full-commit-ids",
+  "title": "The recorded base order test uses full commit ids",
+  "description": "the recorded base order test uses full commit ids",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "f3605f2c9a97af46d8f0cdf0aa46825b70acf1c2",
+  "created_at": 1794389691,
+  "updated_at": 1794389730,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Test fixture follow-up to the full-commit-id rule (REQ-change-013); no spec text",
+  "acceptance_criteria": [
+    "recorded_base_uses_oldest_change_order_not_hash_order builds its records with full commit ids, so it still proves the oldest change's base is used once only full commit ids are accepted"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-013: only a full commit id is used as a recorded base",
+    "public_contract": "no"
+  }
+}

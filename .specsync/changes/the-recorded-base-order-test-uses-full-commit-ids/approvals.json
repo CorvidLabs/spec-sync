@@ -1,0 +1,39 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-code-t37f",
+      "timestamp": 1794389712,
+      "digest": "2f095240aa0d3ca4cc3147b83218c549d4bbbb02c49f6bfc0d4550f05b644618",
+      "note": "Approved under Leif's standing bug-fix rule (coordinator chat, 2026-11-10): bug fixes may run the full lifecycle and squash-merge when CI is green and threads are resolved. Recorded by claude-code (Claude Opus 5.5, hc t37f). Test-fixture follow-up to #1052.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-recorded-base-order-test-uses-full-commit-ids",
+        "title": "The recorded base order test uses full commit ids",
+        "description": "the recorded base order test uses full commit ids",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test fixture follow-up to the full-commit-id rule (REQ-change-013); no spec text",
+        "acceptance_criteria": [
+          "recorded_base_uses_oldest_change_order_not_hash_order builds its records with full commit ids, so it still proves the oldest change's base is used once only full commit ids are accepted"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-013: only a full commit id is used as a recorded base",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

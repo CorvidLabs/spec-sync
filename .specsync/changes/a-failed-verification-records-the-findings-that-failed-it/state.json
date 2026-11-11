@@ -7,10 +7,11 @@
   "title": "A failed verification records the findings that failed it",
   "description": "a failed verification records the findings that failed it",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
   "created_at": 1794383418,
-  "updated_at": 1794383429,
+  "updated_at": 1794414932,
   "affected_specs": [
     "change"
   ],

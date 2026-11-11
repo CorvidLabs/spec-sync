@@ -1,4 +1,45 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794414907,
+      "digest": "3e5238212e8de68077553f1adf9f0f40569a0609532386ca7f3e04cf04879c2f",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-failed-verification-records-the-findings-that-failed-it",
+        "title": "A failed verification records the findings that failed it",
+        "description": "a failed verification records the findings that failed it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests.rs",
+          "src/change_tests/bounded_failure_output.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A failed verification command records a bounded output of the findings that failed it (errors, and warnings only under --strict), and a gate refusal records its refusal texts, so a recorded failure is classifiable without re-running it; passing records are byte-identical to before; the 4 KiB tail never splits a character and keeps the error that failed the check"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md #640 plane: optional-and-skipped is the only way to grow the ledger; passing records stay byte-identical",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "407ea35e71b7d1b962c08ff7132c2aa2e42be766c419a4f68e33a2bccf15c16d"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

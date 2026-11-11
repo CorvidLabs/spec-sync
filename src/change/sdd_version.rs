@@ -2800,7 +2800,7 @@ fn clearable_list_answer(
         };
         if named {
             return Err(format!(
-                "{question} answer `none` is ambiguous because something is named `none`: answer `none,` to name it, or answer the entries to keep; or answer `[]` to clear it"
+                "{question} answer `none` is ambiguous because something is named `none`: answer `none,` to name it, or answer the entries to keep; or answer `'[]'` to clear it"
             ));
         }
         return Ok(Vec::new());
@@ -2808,7 +2808,7 @@ fn clearable_list_answer(
     let values = split_values(answer);
     if values.is_empty() {
         return Err(format!(
-            "{question} answer names no value; answer `[]` to clear it"
+            "{question} answer names no value; answer `'[]'` to clear it"
         ));
     }
     Ok(values)
@@ -2880,7 +2880,14 @@ pub(crate) fn answer_question_with_snapshot(
                 crate::commands::validate_module_name(module)
                     .map_err(|error| format!("invalid affected spec: {error}"))?;
             }
-            ensure_affected_specs_exist(root, &values)?;
+            ensure_affected_specs_exist(root, &values).map_err(|error| {
+                // `None` or `NONE` is a module name, not the clearing keyword (#1026 review).
+                if values.iter().any(|module| module.eq_ignore_ascii_case("none")) {
+                    format!("{error}; to clear the list, answer exactly `none` or `'[]'`")
+                } else {
+                    error
+                }
+            })?;
             record.affected_specs = values;
             // The lessons those specs carry may have changed, so the previous citation is stale.
             record.answers.remove("constraints");
@@ -3803,6 +3810,11 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)
             .map_err(|error| format!("affected spec `{module}` cannot be resolved: {error}"))?;
         let expected = portable_project_path(root, &spec_path);
+        if spec_path.is_file() && path_traverses_symlink(root, &spec_path) {
+            return Err(format!(
+                "affected spec `{module}` is reached through a symlink at `{expected}`, and SpecSync does not follow symlinks into specs; put the spec there as a regular file"
+            ));
+        }
         if let Some(actual) = known.iter().find(|name| name.eq_ignore_ascii_case(module)) {
             return Err(format!(
                 "affected spec `{module}` is not a module; module names are case-sensitive, so name it as `{actual}`"
@@ -3835,52 +3847,69 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         } else {
             format!(", or name one of the known modules: {}", known.join(", "))
         };
-        // `None` or `NONE` is a module name, not the clearing keyword (#1026 review).
-        let clear_clause = if module.eq_ignore_ascii_case("none") {
-            "; to clear the list, answer exactly `none` or `[]`"
-        } else {
-            ""
-        };
         return Err(format!(
-            "affected spec `{module}` has no spec at `{expected}`; {}{known_clause}{clear_clause}",
+            "affected spec `{module}` has no spec at `{expected}`; {}{known_clause}",
             scaffold_hint(&specs_dir_conventional_path(&config.specs_dir, module), &expected, module),
         ));
     }
     Ok(())
 }
 
-/// Whether `module` has a spec at its canonical path with every component spelled exactly: the
-/// one rule `change answer affected_specs`, the owner hints and the printed owner answer share
-/// (#1026 review). A spec reached through a symlinked directory counts, as it does for
-/// verification; a case variant that only a case-insensitive filesystem resolves does not, because
-/// it fails on a case-sensitive one.
+/// Whether `module` has a spec at its canonical path: the one rule `change answer
+/// affected_specs`, the owner hints and the printed owner answer share (#1026 review).
+///
+/// - A spec reached through a symlink is not one: verification refuses to traverse it.
+/// - A conventional path must spell the module's own directory and file exactly. A case variant
+///   that a case-insensitive disk resolves fails on a case-sensitive one, so an entry differing
+///   only in ASCII case does not count. The specs directory above it, a registered path, and a
+///   difference in Unicode normalization (macOS matches either form) are taken as the disk
+///   resolves them.
 fn module_has_canonical_spec(root: &Path, specs_dir: &str, module: &str) -> bool {
-    canonical_module_paths(root, specs_dir, module)
-        .is_ok_and(|(spec_path, _)| path_is_file_spelled_exactly(root, &spec_path))
-}
-
-/// `path.is_file()`, and every component of `path` below `root` names a directory entry exactly.
-fn path_is_file_spelled_exactly(root: &Path, path: &Path) -> bool {
-    if !path.is_file() {
+    let Ok((spec_path, _)) = canonical_module_paths(root, specs_dir, module) else {
+        return false;
+    };
+    if !spec_path.is_file() || path_traverses_symlink(root, &spec_path) {
         return false;
     }
+    let registered = matches!(
+        crate::registry::load_local_registry(root),
+        Ok(Some(registry)) if registry.specs.iter().any(|(name, _)| name == module)
+    );
+    registered
+        || spec_path
+            .parent()
+            .is_none_or(|directory| entry_is_not_an_ascii_case_variant(directory) && entry_is_not_an_ascii_case_variant(&spec_path))
+}
+
+/// Whether some component of `path` below `root` is a symlink.
+fn path_traverses_symlink(root: &Path, path: &Path) -> bool {
     let Ok(relative) = path.strip_prefix(root) else {
+        return false;
+    };
+    let mut current = root.to_path_buf();
+    relative.components().any(|component| {
+        current.push(component);
+        fs::symlink_metadata(&current).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    })
+}
+
+/// False when `path`'s directory holds an entry differing from its name only in ASCII case and
+/// none spelled exactly: the disk resolved a case variant.
+fn entry_is_not_an_ascii_case_variant(path: &Path) -> bool {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
         return true;
     };
-    let mut parent = root.to_path_buf();
-    for component in relative.components() {
-        let std::path::Component::Normal(name) = component else {
-            return false;
-        };
-        let Ok(entries) = fs::read_dir(&parent) else {
-            return false;
-        };
-        if !entries.flatten().any(|entry| entry.file_name() == name) {
-            return false;
-        }
-        parent.push(name);
-    }
-    true
+    let Ok(entries) = fs::read_dir(parent) else {
+        return true;
+    };
+    let names: Vec<std::ffi::OsString> = entries.flatten().map(|entry| entry.file_name()).collect();
+    names.iter().any(|entry| entry == name)
+        || !names.iter().any(|entry| {
+            entry
+                .to_str()
+                .zip(name.to_str())
+                .is_some_and(|(entry, name)| entry != name && entry.eq_ignore_ascii_case(name))
+        })
 }
 
 /// Names of every known spec module — registry entries plus modules discovered

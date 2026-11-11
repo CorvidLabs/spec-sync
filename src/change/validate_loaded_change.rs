@@ -834,9 +834,10 @@ pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String>
 
 /// Characters an actor identity may not hold: control characters; the line and paragraph
 /// separators U+2028 and U+2029; and every format character (general category Cf) and
-/// default-ignorable code point as of Unicode 16.0, so no invisible character can make two
-/// actors that read the same compare different (#1026 review). ZWNJ and ZWJ (U+200C, U+200D)
-/// stay allowed: they belong in names in several scripts and in emoji sequences.
+/// default-ignorable code point as of Unicode 16.0 (#1026 review). ZWNJ and ZWJ (U+200C, U+200D)
+/// stay allowed because names in several scripts and emoji sequences need them, so two actors
+/// can still read alike and differ by one of those, by a no-break space or by Unicode
+/// normalization: this refuses the invisible formatting characters, not every look-alike.
 fn actor_character_is_refused(c: char) -> bool {
     c.is_control()
         || matches!(

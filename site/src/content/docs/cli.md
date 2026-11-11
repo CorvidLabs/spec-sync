@@ -410,12 +410,15 @@ specsync change finalize add-passkeys
 ```
 
 `change answer` checks an answer before it stores anything. An unknown question id is refused
-with the accepted ids. An empty answer, or one that names no value (`[]`, `,`), is refused.
-Answer exactly `none` or `[]` to clear `affected_specs` or `dependencies` (`[]` always clears;
-`none` is refused as ambiguous when a change or module is itself called `none`).
-`public_contract` and `architecture_risk` take `yes` or `no`. Every `affected_specs` module needs
-its spec at its canonical path, spelled exactly, unless the project has no specs yet; a module
-that exists only under `[modules]` in the config needs its spec first. An `--actor` is trimmed
+with the accepted ids. An empty answer is refused, and so is a list answer that names nothing:
+`,` for `affected_specs`, `affected_paths` or `dependencies`, `[]` for `acceptance_criteria` or
+`affected_paths`. Answer exactly `none` or `'[]'` to clear `affected_specs` or `dependencies`
+(`'[]'` always clears; `none` is refused as ambiguous when a change or module is itself called
+`none`; quote `'[]'`, because zsh reads a bare `[]` as a pattern). `public_contract` and
+`architecture_risk` take `yes` or `no`. Every `affected_specs` module needs its spec at its
+canonical path, with the module's directory and file spelled exactly and no symlink on the way,
+unless the project has no specs yet. A new module's spec must exist before the module is
+declared, including a module that so far exists only under `[modules]` in the config. An `--actor` is trimmed
 and refused when it holds a newline, a control character or an invisible character other than
 ZWNJ and ZWJ.
 

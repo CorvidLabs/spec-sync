@@ -6779,7 +6779,7 @@ fn change_answer_refuses_empty_lists_and_none_clears_optional_lists() {
     run(&["change", "answer", id, "affected_specs", "None"])
         .failure()
         .stderr(predicate::str::contains(
-            "to clear the list, answer exactly `none` or `[]`",
+            "to clear the list, answer exactly `none` or `'[]'`",
         ));
     // A yes/no question takes yes or no: anything else is refused naming the choices and stores
     // nothing (it used to fail as a corrupt correction ledger), and a recognised spelling is

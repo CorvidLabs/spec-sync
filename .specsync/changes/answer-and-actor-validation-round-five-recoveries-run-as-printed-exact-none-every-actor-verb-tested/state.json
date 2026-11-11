@@ -11,13 +11,14 @@
   "canonical_applied": true,
   "base_commit": "1c07640aa5960c97c0d7fe9b7edb49aa42b8556b",
   "created_at": 1794362162,
-  "updated_at": 1794376197,
+  "updated_at": 1794381261,
   "affected_specs": [
     "change"
   ],
   "affected_paths": [
     "src/change/sdd_version.rs",
     "src/change/validate_loaded_change.rs",
+    "src/change/retirement.rs",
     "src/change_tests/approve_ownership_names_the_spec.rs",
     "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
     "src/change_tests/recovery_retirement.rs",

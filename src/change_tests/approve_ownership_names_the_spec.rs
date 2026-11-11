@@ -762,12 +762,12 @@ fn the_owner_hint_and_the_printed_answer_agree_in_a_project_with_no_specs() {
     );
 }
 
-/// #1026 sixth review: one predicate decides whether a module has its spec. A spec reached
-/// through a symlinked directory counts, as it does for verification, and a case variant that a
-/// case-insensitive filesystem would resolve does not.
+/// #1026 sixth and seventh reviews: one predicate decides whether a module has its spec. A spec
+/// reached through a symlink is refused naming the symlink, as verification refuses it, and a
+/// case variant that a case-insensitive filesystem would resolve does not count.
 #[cfg(unix)]
 #[test]
-fn a_module_has_its_spec_through_a_symlink_but_never_through_a_case_variant() {
+fn a_spec_behind_a_symlink_or_a_case_variant_is_not_the_modules_spec() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     write_lifecycle_test_policy(root);
@@ -782,17 +782,60 @@ fn a_module_has_its_spec_through_a_symlink_but_never_through_a_case_variant() {
     std::os::unix::fs::symlink(&shared, root.join("specs/pay")).unwrap();
 
     assert!(module_has_canonical_spec(root, "specs", "core"));
-    assert!(module_has_canonical_spec(root, "specs", "pay"), "a symlinked spec directory counts");
+    assert!(!module_has_canonical_spec(root, "specs", "pay"), "verification refuses a symlinked spec");
     assert!(!module_has_canonical_spec(root, "specs", "Core"), "a case variant never counts");
     assert!(!module_has_canonical_spec(root, "specs", "ghost"));
-    ensure_affected_specs_exist(root, &["pay".to_string()])
-        .expect("the symlinked spec is accepted, as verification accepts it");
+    let error = ensure_affected_specs_exist(root, &["pay".to_string()])
+        .expect_err("the symlinked spec is refused");
+    assert!(
+        error.contains("is reached through a symlink at `specs/pay/pay.spec.md`"),
+        "{error}"
+    );
     let error = ensure_affected_specs_exist(root, &["Core".to_string()])
         .expect_err("a case variant is refused");
     assert!(error.contains("so name it as `core`"), "{error}");
     let error = ensure_affected_specs_exist(root, &["None".to_string()])
         .expect_err("`None` is a module name, not the clearing keyword");
-    assert!(error.contains("to clear the list, answer exactly `none` or `[]`"), "{error}");
+    assert!(
+        !error.contains("to clear the list"),
+        "the clearing hint belongs to `change answer`, not to `change new --spec`: {error}"
+    );
+}
+
+/// #1026 seventh review: only the module's own directory and file are held to an exact spelling.
+/// A specs directory whose case differs from the config, and a module name in another Unicode
+/// normalization form, are taken as the disk resolves them. Each case runs only where the disk
+/// resolves the variant (a case-insensitive or normalization-insensitive filesystem, as on macOS).
+#[test]
+fn a_spelling_difference_above_the_module_or_in_normalization_is_not_a_case_variant() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::create_dir_all(root.join("Specs/auth")).unwrap();
+    fs::write(
+        root.join("Specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Auth\n",
+    )
+    .unwrap();
+    if root.join("specs/auth/auth.spec.md").is_file() {
+        assert!(module_has_canonical_spec(root, "specs", "auth"));
+        ensure_affected_specs_exist(root, &["auth".to_string()])
+            .expect("the config's `specs` resolves to `Specs`, and the module is spelled exactly");
+    }
+    let decomposed = "cafe\u{301}";
+    let composed = "caf\u{e9}";
+    fs::create_dir_all(root.join(format!("Specs/{decomposed}"))).unwrap();
+    fs::write(
+        root.join(format!("Specs/{decomposed}/{decomposed}.spec.md")),
+        format!("---\nmodule: {decomposed}\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Cafe\n"),
+    )
+    .unwrap();
+    if root.join(format!("specs/{composed}/{composed}.spec.md")).is_file() {
+        assert!(
+            module_has_canonical_spec(root, "specs", composed),
+            "a normalization difference is not an ASCII case variant"
+        );
+    }
 }
 
 /// #1026 sixth review: the actor rule refuses every format character (Cf) and default-ignorable

@@ -44,6 +44,51 @@
       "approved_delta_bases": {
         "change: REQUIREMENT REQ-change-150": "dfdb809181a6a6d7ba42281c736c0f3e8418e3f1e47810cc16a711c9a3f89a4f"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794364956,
+      "digest": "3f784aa5eecace1ff6a05f7c5bea36f03120bb2cc7c3fe83c640b51315f781e1",
+      "note": "Re-approved by the Claude worker under Leif's standing bug-fix rule after the third independent review of #1026: the REQ-change-150 delta now names the exact refused code points and the exact-path recovery.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested",
+        "title": "Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+        "description": "answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/approve_ownership_names_the_spec.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/historical_reconciliation.rs",
+          "src/change_tests/recovery_retirement.rs",
+          "tests/integration/change.rs",
+          "tests/integration/doctor.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "owner recovery scaffolds a configured owner with no spec before declaring it; empty constraints keep their none guidance; an exact none is refused as ambiguous when something is named none; registered-but-missing specs and unreadable registries get their own messages; zero-width and directional-mark characters are refused in actors; reopen, retire, correct, correct-owner, reconcile-history and the doctor late close each have a bad-actor test; REQ-change-150, invariant 52 and the lesson match"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "change.3md z=45 (#1011): a printed recovery command must run as printed",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "76880a0d6bb875c3b9752c0fc65468cba8f54447ef0bf9433b762cb76834e76d"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-150": "897dfa8676b81b279ada57d2a9e58c1a3c18026448ef33021b972bcc21d0fd72"
+      }
     }
   ],
   "reopenings": []

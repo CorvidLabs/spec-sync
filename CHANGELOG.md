@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
 ### Added
 
 - Text `change check` (plain and `--commit`) and `change audit` now print one stderr note counting the verification commands they did not run, across top-level, component, and strict policy lists. Successful JSON check and audit output carries the same deduplicated list as `configured_commands_not_run`, or `[]` when nothing is configured. The disclosure never runs a command or changes a verdict (#893, SHIP-1.c.3, REQ-cmd-change-unrun-commands-001).
@@ -32,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `change answer` refuses unknown question keys, empty answers and answers that parse to no value; `none` clears `affected_specs` and `dependencies`; `affected_specs` (and `change new --spec`) must name a module with a spec at its canonical path, unless the project has no specs (#426).
+- Every actor-accepting lifecycle verb trims `--actor` and refuses control characters, line separators, bidi marks/overrides/isolates, U+200B and U+FEFF before writing anything; a relayed approval's decider is trimmed like its actor (#426).
 - A corrupt archive whose package still matches the commit that archived it now says to restore what `summary.terminal_evidence.reason` names in `change status --json`, the path the field really has there. The step named `terminal_evidence.reason`, which is not in that JSON (#966, REQ-change-093).
 - A timed-out read's resume command runs exactly as printed. Arguments with shell metacharacters are single-quoted, and when the deadline came from `SPECSYNC_TIMEOUT` the command clears it, so it no longer times out again in the same shell (REQ-cmd-change-036, #923, #953).
 - Approval refusals and text/JSON `change status` now name the same runnable `change answer` command for a draft. A single choice prints literally (`constraints none`, with the option to name constraining lessons or principles) rather than as shell-unsafe `<none>`; scope questions keep their specific placeholders, and a draft missing both specs and paths is refused for specs first, matching the interview order (#958, REQ-change-133, REQ-cmd-change-answer-hint-001).

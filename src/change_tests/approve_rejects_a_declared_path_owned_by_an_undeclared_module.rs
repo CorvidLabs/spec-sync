@@ -2818,6 +2818,10 @@ fn refused_reopen_restores_the_archived_package() {
     for actor in ["Ada\nX", "  ", "Ada\u{202E}live"] {
         let error = reopen_change(root, &record.id, actor.into(), "probe".into()).unwrap_err();
         assert!(error.starts_with("reopen"), "{actor:?}: {error}");
+        assert!(
+            !error.contains("archive restored"),
+            "{actor:?}: refused before the archive moved, not moved and restored: {error}"
+        );
         assert!(archived.is_dir(), "{actor:?}: the archive stays where it was");
     }
     let error = reopen_change(root, &record.id, "Reopener".into(), "probe".into()).unwrap_err();

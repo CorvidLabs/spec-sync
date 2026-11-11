@@ -3733,6 +3733,21 @@ struct ScopedSpecs {
     unresolved: Vec<String>,
 }
 
+/// The conventional spec path `specsync new <module>` writes.
+fn specs_dir_conventional_path(specs_dir: &str, module: &str) -> String {
+    format!("{}/{module}/{module}.spec.md", specs_dir.trim_end_matches('/'))
+}
+
+/// How to create a missing spec at `expected`: `specsync new` only when it would write exactly
+/// that path and accept the name; otherwise, create the spec at that path.
+fn scaffold_hint(conventional: &str, expected: &str, module: &str) -> String {
+    if conventional == expected && crate::commands::validate_scaffold_module_name(module).is_ok() {
+        format!("scaffold it first with `specsync new {}`", shell_word(module))
+    } else {
+        format!("create its spec at `{expected}` first")
+    }
+}
+
 /// Refuse affected-spec declarations that name no spec on disk, whether the
 /// module is registered or conventional — a change cannot affect a spec that
 /// does not exist, and the typo surfaces at declaration, not at
@@ -3756,14 +3771,19 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         // canonical location is not a missing module.
         let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)
             .map_err(|error| format!("affected spec `{module}` cannot be resolved: {error}"))?;
-        if !spec_path.is_file() {
+        // An exact name match too: on a case-insensitive disk `AUTH` finds `specs/auth/auth.spec.md`,
+        // which Linux would refuse (#1026 review).
+        let registered_exact = registry
+            .as_ref()
+            .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
+        if !spec_path.is_file() || !(registered_exact || known.iter().any(|name| name == module)) {
             let expected = portable_project_path(root, &spec_path);
             let registered = registry
                 .as_ref()
                 .is_some_and(|registry| registry.specs.iter().any(|(name, _)| name == module));
             return Err(if registered {
                 format!(
-                    "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create it with `specsync new {module}` or fix its registry entry"
+                    "affected spec `{module}` is registered at `{expected}`, but no spec exists there; create the spec at that path or fix its registry entry"
                 )
             } else if known.iter().any(|name| name == module) {
                 format!(
@@ -3771,7 +3791,8 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
                 )
             } else {
                 format!(
-                    "affected spec `{module}` has no spec at `{expected}`; scaffold it first with `specsync new {module}`, or name one of the known modules: {}",
+                    "affected spec `{module}` has no spec at `{expected}`; {}, or name one of the known modules: {}",
+                    scaffold_hint(&specs_dir_conventional_path(&config.specs_dir, module), &expected, module),
                     known.join(", ")
                 )
             });
@@ -5078,6 +5099,31 @@ fn listing_spec_is_canonical(root: &Path, specs_dir: &str, spec: &str, module: &
 /// newline-bearing module name cannot round-trip, and a listing that hit its walk bound may be
 /// missing the owner (#1011). When the record carries a constraints answer, the guidance renews
 /// it: answering `affected_specs` clears it.
+/// For every module in `modules` with no spec at its canonical path, the instruction to create
+/// that spec at that exact path listing `paths` in its `files:`, ending in ", then " so the
+/// declaring answer follows. Empty when every module has a spec.
+fn missing_spec_guidance(root: &Path, modules: &[String], paths: &[&str]) -> String {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let missing: Vec<String> = modules
+        .iter()
+        .filter_map(|module| {
+            let (spec_path, _) = canonical_module_paths(root, &specs_dir, module).ok()?;
+            (!spec_path.is_file()).then(|| {
+                format!(
+                    "create `{module}`'s spec at `{}` listing {} in its `files:`",
+                    portable_project_path(root, &spec_path),
+                    paths.join(", ")
+                )
+            })
+        })
+        .collect();
+    if missing.is_empty() {
+        String::new()
+    } else {
+        format!("{}, then ", missing.join("; "))
+    }
+}
+
 fn declare_owners_answer(
     root: &Path,
     record: &ChangeRecord,
@@ -5107,26 +5153,11 @@ fn declare_owners_answer(
     {
         return None;
     }
-    // `change answer affected_specs` refuses a module with no spec on disk (#426), so a module
-    // that owns the path only through `[modules.X] owns` or a registry entry is scaffolded first;
-    // otherwise the printed answer would fail as printed (#1026 review).
-    let specs_dir = crate::config::load_config(root).specs_dir;
-    let unscaffolded: Vec<&String> = modules[before..]
-        .iter()
-        .filter(|module| {
-            !canonical_module_paths(root, &specs_dir, module)
-                .is_ok_and(|(spec_path, _)| spec_path.is_file())
-        })
-        .collect();
-    let scaffold = unscaffolded
-        .iter()
-        .map(|module| format!("`specsync new {}`", shell_quote(module)))
-        .collect::<Vec<_>>();
-    let mut guidance = if scaffold.is_empty() {
-        String::new()
-    } else {
-        format!("scaffold {} first with {}, then ", unscaffolded.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", "), scaffold.join(" and "))
-    };
+    // `change answer affected_specs` refuses any listed module with no spec at its canonical
+    // path (#426), and it re-checks every module in the answer, already-declared ones included.
+    // So each such module is named with the exact path its spec must be created at, listing
+    // these paths in `files:`; the answer runs as printed once those specs exist (#1026 review).
+    let mut guidance = missing_spec_guidance(root, &modules, paths);
     guidance.push_str(&format!(
         "`specsync change answer {} affected_specs {}`",
         shell_quote(&record.id),

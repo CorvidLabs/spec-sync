@@ -11,3 +11,4 @@ artifact: tasks
 - [x] Refuse zero-width and directional-mark characters in actors
 - [x] Bad-actor tests for reopen, retire, correct, correct-owner, reconcile-history and the doctor late close
 - [x] REQ-change-150 delta, invariant 52 and the lesson
+- [x] Third-review round: every listed module's missing spec named at its exact path; specsync new only when it writes that path; exact refused code points (ZWNJ/ZWJ allowed); exact-case module match; reopen test proves no move; CHANGELOG

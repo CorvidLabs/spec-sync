@@ -832,14 +832,19 @@ pub(crate) fn normalize_actor(value: &str, verb: &str) -> Result<String, String>
     Ok(actor.to_string())
 }
 
-/// Characters an actor identity may not hold: control characters, the Unicode line and
-/// paragraph separators, the bidirectional marks, overrides and isolates that reorder printed
-/// text, and zero-width or invisible characters that let two identities look identical.
+/// Characters an actor identity may not hold, exactly: control characters; the line and
+/// paragraph separators U+2028 and U+2029; the bidirectional marks U+061C, U+200E and U+200F;
+/// the embeddings and overrides U+202A to U+202E; the word joiner, invisible operators and
+/// isolates U+2060 to U+2069; and the zero-width space U+200B and byte-order mark U+FEFF.
+/// ZWNJ and ZWJ (U+200C, U+200D) stay allowed: they belong in names in several scripts.
 fn actor_character_is_refused(c: char) -> bool {
     c.is_control()
         || matches!(
             c,
-            '\u{200B}'..='\u{200F}'
+            '\u{061C}'
+                | '\u{200B}'
+                | '\u{200E}'
+                | '\u{200F}'
                 | '\u{2028}'
                 | '\u{2029}'
                 | '\u{202A}'..='\u{202E}'

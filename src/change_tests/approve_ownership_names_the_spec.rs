@@ -685,7 +685,37 @@ fn ownership_recovery_scaffolds_a_configured_owner_with_no_spec_before_declaring
     let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
         .expect_err("the module is undeclared, so approve still refuses");
     assert!(
-        error.contains("scaffold `core` first with `specsync new 'core'`, then"),
-        "an owner with no spec is scaffolded before it is declared: {error}"
+        error.contains(
+            "create `core`'s spec at `specs/core/core.spec.md` listing src/core/engine.ts in its `files:`, then"
+        ),
+        "an owner with no spec is created at its exact path, listing the path, before it is declared: {error}"
+    );
+}
+
+/// #1026 third review: the printed answer re-checks every listed module, so an already-declared
+/// module whose spec no longer exists is named for creation too, not only the new owner.
+#[test]
+fn ownership_recovery_names_every_listed_module_that_has_no_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.core]\nowns = [\"src/core/\"]\n",
+    )
+    .unwrap();
+    ownership_spec(root, "billing", &["src/billing/charge.ts"]);
+    ownership_spec(root, "auth", &["src/auth/login.ts"]);
+    write_owned_source(root, "src/core/engine.ts");
+    let record = approve_ownership_record(root, &["auth"], &["src/core/engine.ts"]);
+    // The declared module's spec disappears after it was declared.
+    fs::remove_dir_all(root.join("specs/auth")).unwrap();
+    let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+        .expect_err("the path's owner is undeclared, so approve refuses");
+    assert!(
+        error.contains("affected_specs 'auth,core'")
+            && error.contains("create `auth`'s spec at `specs/auth/auth.spec.md`")
+            && error.contains("create `core`'s spec at `specs/core/core.spec.md`"),
+        "every listed module without a spec is named for creation: {error}"
     );
 }

@@ -43,10 +43,11 @@ pub fn enable_historical_reconciliation(
     write_prepared_files(
         root,
         &[
-            (
-                change_dir(root, id).join("state.json"),
-                json_content(&record)?,
-            ),
+            {
+                let path = change_dir(root, id).join("state.json");
+                let content = json_content_keeping_unknown_members(&path, &record)?;
+                (path, content)
+            },
             (
                 change_dir(root, id).join("change.md"),
                 change_markdown_content(&record),

@@ -983,7 +983,7 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
             write_json(&plan.destination.join(LATE_CLOSE_RECORD), &plan.record)?;
         }
         if ledger_changed && let Some(ledger) = &ledger {
-            write_json(&ledger_path, ledger)?;
+            write_json_keeping_unknown_members(&ledger_path, ledger)?;
         }
         Ok(())
     };

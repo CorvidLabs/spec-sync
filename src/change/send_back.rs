@@ -306,14 +306,16 @@ pub fn send_back_change(
     write_prepared_files(
         root,
         &[
-            (
-                change_dir(root, &record.id).join("approvals.json"),
-                json_content(&ledger)?,
-            ),
-            (
-                change_dir(root, &record.id).join("state.json"),
-                json_content(&record)?,
-            ),
+            {
+                let path = change_dir(root, &record.id).join("approvals.json");
+                let content = json_content_keeping_unknown_members(&path, &ledger)?;
+                (path, content)
+            },
+            {
+                let path = change_dir(root, &record.id).join("state.json");
+                let content = json_content_keeping_unknown_members(&path, &record)?;
+                (path, content)
+            },
             (
                 change_dir(root, &record.id).join("change.md"),
                 change_markdown_content(&record),

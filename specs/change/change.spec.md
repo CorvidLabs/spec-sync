@@ -1,6 +1,6 @@
 ---
 module: change
-version: 231
+version: 232
 status: active
 files:
   - src/change.rs
@@ -15,6 +15,7 @@ files:
   - src/change/relayed_decision.rs
   - src/change/sdd_version.rs
   - src/change/send_back.rs
+  - src/change/unknown_members.rs
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
@@ -41,6 +42,7 @@ files:
   - src/change_tests/titled_requirement_header_delta.rs
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
+  - src/change_tests/unknown_members.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/lifecycle-validation-limits.json
@@ -374,6 +376,7 @@ Acceptance Criteria
 54. An `ignored_paths` entry whose coverage is entirely always-meaningful — the configured specs tree, or an SDD policy file named directly — is inert, and the policy loader says so on stderr at load, once per process, naming the entry and the file to edit; an entry that also covers other files (`.specsync/` covers the change workspaces) stays silent, and a newly written default policy carries no inert entry (#676, REQ-change-155).
 55. A `change check` refused on grounds in the change's own workspace — open tasks or missing requirement evidence — records the refusal as a `passed: false` entry carrying its reason in the change's `verification-attempts.json`, so a reader can see the check was tried and why it failed; a gate failure about another change's module records nothing. A refusal never writes `verification.json` and never moves the recorded state (#847, REQ-change-154).
 56. Interview answers and identity strings are validated before they are persisted: `change answer` refuses a question key outside the accepted interview set naming the accepted ids, refuses an empty answer or one that parses to no value (`none` clears `affected_specs` and `dependencies`), refuses a yes/no answer that is not yes or no (recognised spellings are stored as the choice they name) and an `affected_paths` answer of `[]`, and refuses an `affected_specs` entry whose module has no spec at its canonical path, its own directory and file spelled exactly and reached without a symlink (unless the project has no spec files and no registry entries; `change new --spec` likewise), naming the path and how to create the spec; an exact `none` or `[]` clears the optional lists (`none` is refused as ambiguous when something is named `none`); a spec declaring the module off its canonical path is named with move-or-register advice; owner recoveries print no `affected_specs` answer naming a module without its spec (not even in a project with no specs), say to create a missing spec first, and name each declared module whose spec is missing; a case variant of a module name is refused naming the module. Actor identity strings are trimmed and refused when empty or holding control characters, the separators U+2028/U+2029, or any format (Cf) or default-ignorable code point as of Unicode 16.0 (ZWNJ and ZWJ are allowed), before any ledger write: through one shared `normalize_actor` on approve, reopen, send-back, correct, correct-owner, reconcile-history, retire and the doctor late close, and through the stricter reviewer-claim check on review. A relayed approval's decider is trimmed like its actor (#426, REQ-change-150).
+57. A lifecycle record or ledger that SpecSync rewrites in place (`state.json`, `approvals.json`, `verification-attempts.json`, `review-attempts.json`, `corrections.json`, a relay repair's `review.json`, the archived `state.json` and the change-sequence ledger) keeps every member it does not know, with its exact key and value text: members of the root, and members of each array entry, matched by known content wherever the rewrite moves it, otherwise by position in an array of unchanged length, which counts as the same record edited in place (no lifecycle rewrite replaces an entry in place); a moved entry never takes another entry's members. The kept members change nothing this SpecSync reads and every digest is unchanged; a rewrite that cannot keep them, including one that removes an entry holding them, is refused instead of dropping them (#1043, #434, REQ-change-079).
 58. Failed verification command evidence carries a bounded `output` of the findings that failed it (errors, and warnings only under `--strict`), so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-153).
 
 ## Behavioral Examples
@@ -779,3 +782,4 @@ Acceptance Criteria
 | 2026-11-10 | every-actor-accepting-verb-normalizes-identity-the-same-way: Every actor-accepting verb normalizes identity the same way |
 | 2026-11-11 | identity-and-answer-validation-keeps-relays-readable-covers-every-actor-verb-and-refuses-empty-lists: Identity and answer validation keeps relays readable, covers every actor verb and refuses empty lists |
 | 2026-11-11 | answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested: Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested |
+| 2026-11-11 | a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote: A lifecycle rewrite keeps the fields a newer specsync wrote |

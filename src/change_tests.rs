@@ -46,3 +46,4 @@ include!("change_tests/titled_requirement_header_delta.rs");
 include!("change_tests/bounded_failure_output.rs");
 include!("change_tests/inert_ignored_paths.rs");
 include!("change_tests/commit_identity_guards.rs");
+include!("change_tests/unknown_members.rs");

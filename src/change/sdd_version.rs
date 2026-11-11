@@ -996,6 +996,11 @@ pub struct ChangeRecord {
 // `bytes_match_canonical_json`, a round-trip byte-equality gate strictly stronger than this
 // attribute. An added field survives `from_slice` and then fails the byte comparison. See
 // `a_baseline_is_still_frozen_by_its_canonical_byte_gate`.
+//
+// Tolerance is the READ side only. On its own it made the failure silent: a typed rewrite then
+// dropped every field it had tolerated. The WRITE side is `json_content_keeping_unknown_members`
+// (unknown_members.rs): a record or ledger rewritten in place keeps the members this binary does
+// not know (#1043, #434).
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AcceptanceOwnerCorrection {
@@ -2423,7 +2428,7 @@ pub fn floor_sequence_ledger_to_committed(root: &Path) -> Result<Option<(u64, u6
         }
     }
     collisions.sort_by_key(|collision| collision.sequence);
-    write_json(
+    write_json_keeping_unknown_members(
         &root.join(SEQUENCE_PATH),
         &ChangeSequenceLedger {
             schema_version: 1,
@@ -3564,10 +3569,9 @@ fn materialize_change_deltas_inner(
     record.canonical_applied = true;
     record.state = ChangeState::Implementing;
     record.updated_at = now();
-    prepared.push((
-        change_dir(root, &record.id).join("state.json"),
-        json_content(&record)?,
-    ));
+    let state_path = change_dir(root, &record.id).join("state.json");
+    let state = json_content_keeping_unknown_members(&state_path, &record)?;
+    prepared.push((state_path, state));
     prepared.push((
         change_dir(root, &record.id).join("change.md"),
         change_markdown_content(&record),
@@ -4530,14 +4534,16 @@ fn reopen_unarchived_change(
     write_prepared_files(
         root,
         &[
-            (
-                change_dir(root, &record.id).join("approvals.json"),
-                json_content(&ledger)?,
-            ),
-            (
-                change_dir(root, &record.id).join("state.json"),
-                json_content(&record)?,
-            ),
+            {
+                let path = change_dir(root, &record.id).join("approvals.json");
+                let content = json_content_keeping_unknown_members(&path, &ledger)?;
+                (path, content)
+            },
+            {
+                let path = change_dir(root, &record.id).join("state.json");
+                let content = json_content_keeping_unknown_members(&path, &record)?;
+                (path, content)
+            },
             (
                 change_dir(root, &record.id).join("change.md"),
                 change_markdown_content(&record),
@@ -5122,7 +5128,7 @@ pub fn add_acceptance_owner_corrections(
     write_prepared_files(
         root,
         &[
-            (dir.join("state.json"), json_content(&record)?),
+            (json_content_keeping_unknown_members(&dir.join("state.json"), &record).map(|content| (dir.join("state.json"), content))?),
             (dir.join("change.md"), change_markdown_content(&record)),
         ],
     )?;

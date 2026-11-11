@@ -639,7 +639,8 @@ pub fn retire_change_with_source(
         if current == change_dir(root, id) {
             write_prepared_files(
                 root,
-                &[(current.join("state.json"), json_content(&record)?)],
+                &[(json_content_keeping_unknown_members(&current.join("state.json"), &record)
+                    .map(|content| (current.join("state.json"), content))?)],
             )?;
             finish_retirement_move(root, &current, &receipt)?;
         }
@@ -709,7 +710,7 @@ pub fn retire_change_with_source(
     write_prepared_files(
         root,
         &[
-            (source.join("state.json"), json_content(&record)?),
+            (json_content_keeping_unknown_members(&source.join("state.json"), &record).map(|content| (source.join("state.json"), content))?),
             (source.join(RETIREMENT_FILE), encoded_receipt),
         ],
     )?;

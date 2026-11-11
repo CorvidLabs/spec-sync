@@ -704,18 +704,22 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
                 )
             }
         };
+        // A repair rewrites the same file, so members a newer SpecSync wrote stay (#1043).
         let content = if name == "approvals.json" {
-            json_content(
+            json_content_keeping_unknown_members(
+                &file.path,
                 &serde_json::from_value::<ApprovalLedger>(file.current.clone())
                     .map_err(unreadable)?,
             )?
         } else if name == SCOPED_REVIEW_ATTEMPTS_FILE {
-            json_content(
+            json_content_keeping_unknown_members(
+                &file.path,
                 &serde_json::from_value::<ScopedReviewAttemptLedger>(file.current.clone())
                     .map_err(unreadable)?,
             )?
         } else {
-            json_content(
+            json_content_keeping_unknown_members(
+                &file.path,
                 &serde_json::from_value::<ScopedReviewRecord>(file.current.clone())
                     .map_err(unreadable)?,
             )?

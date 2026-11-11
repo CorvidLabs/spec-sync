@@ -9,8 +9,7 @@ pub const SUBSTANTIVE_PLAN: &str = "# Plan\n\n## Approach\n\nDo the work.\n\n## 
 /// integration test builds on, so a raw-std caller (like watch_until) inherits the same
 /// hygiene instead of re-deriving it.
 pub fn specsync_std() -> std::process::Command {
-    let mut cmd =
-        std::process::Command::new(assert_cmd::cargo::cargo_bin("specsync"));
+    let mut cmd = std::process::Command::new(assert_cmd::cargo::cargo_bin("specsync"));
     cmd.env_remove("GITHUB_EVENT_NAME");
     cmd.env_remove("GITHUB_BASE_REF");
     for (key, _) in std::env::vars() {

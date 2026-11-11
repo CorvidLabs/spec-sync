@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "indented-fence-markers-are-content-in-spec-scans",
+  "slug": "indented-fence-markers-are-content-in-spec-scans",
+  "title": "Indented fence markers are content in spec scans",
+  "description": "indented fence markers are content in spec scans",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794385328,
+  "updated_at": 1794385936,
+  "affected_specs": [
+    "cmd_check",
+    "parser"
+  ],
+  "affected_paths": [
+    "src/commands/check.rs",
+    "src/parser.rs",
+    "tests/integration/fix.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-cmd-check-017 and REQ-parser-004 already require CommonMark content treatment of indented markers; the scanners disagreed",
+  "acceptance_criteria": [
+    "a spec with a 4-space-indented fence marker before its export table has its exports read and --fix adds each undocumented export exactly once to the real table"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

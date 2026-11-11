@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "other-write-errors-still-panic-and-test-output-stays-captured",
+  "implementation_commit": "5113eb51b60bb6ce819488697f08c0aed784ba73",
+  "implementation_tree": "c7725c9121480441d58b918116c31bf52139d90b",
+  "contract_digest": "15c3e470416e19dcb76adf7d59f2116e135b924477ec71961c7460cb0de8901f",
+  "workspace_digest": "1402154d1115aca56aa29d250bd1d83fa8bdd996e74e6bce27251f4a88051af5",
+  "closing_digest": "a826962cf1a8adde0e54db9019e9fe17f39c4f9d88eb3e9a4374b935236f6664",
+  "review_digest": "6e40bdf7838ce3ed846b396a32dbecb689ec1fb1b75cca980e8b63fc78885709",
+  "finalization_digest": "49588bbf1afe3232a23109deccaa396711a84da450276bb6b72565f6a0d2066a",
+  "timestamp": 1794387461
+}

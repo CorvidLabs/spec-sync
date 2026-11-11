@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "a-closed-output-never-crashes-specsync-or-hides-its-exit-status",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "83eb01103c77e20d2e92c9b16196d84bb99b7fc8",
+  "contract_digest": "242a2be178ac52e221fffc79ab76742bd9e11a29eb3896ba617e30be6326f69c",
+  "execution_digest": "3ad81334170cb91a00ce2326bed718d5e5e02785d3f505d85914f5149612c8b6",
+  "workspace_digest": "6c0640e19016601fbe017ab5f05e26a589efbd4d15e0d9d5c7380eb465fc09d1",
+  "timestamp": 1794385307
+}

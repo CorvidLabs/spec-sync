@@ -192,7 +192,12 @@ no declared module owns SHALL be a blocker naming the path, the module that owns
 it, and the recovery (`specsync change send-back <id>`, then
 `specsync change answer <id> affected_specs <modules>`); `change ship-status`
 SHALL report the same blocker and SHALL NOT report the change ready to finalize
-(#986, #956).
+(#986, #956). An unowned input the change has not modified since its base
+commit SHALL instead be named with a narrowing recovery
+(`specsync change send-back <id>`, then
+`specsync change answer <id> affected_paths <paths>` naming only what the change
+edits), because declaring its owner would pull an untouched module into the
+change (#1000).
 
 Optional orchestration flags after a successful finalize (or for already-archived
 changes):
@@ -220,6 +225,9 @@ Acceptance Criteria
   module owns is not ready: `change ship-status` names the blocker and the
   recovery, `change ship --dry-run` exits non-zero, and running the named
   recovery ships it (#986, #956).
+- When a directory scope covers an unowned file the change never modified, the
+  recovery names that file and says to narrow `affected_paths`; a modified
+  unowned file in the same scope keeps the declare-the-owner recovery (#1000).
 
 ### REQ-cmd-change-009
 

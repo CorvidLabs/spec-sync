@@ -823,6 +823,10 @@ Acceptance Criteria
   than omitting an owner. A recovery that replaces `affected_specs` says the
   constraints answer must be renewed before approval. Owner discovery includes
   registry-registered canonical specs outside the specs directory.
+- Owner recovery declares owners only for unowned inputs the change modified
+  since its base commit; an unowned input it never modified is named with a
+  recovery that narrows `affected_paths` instead, since its owner has nothing to
+  approve in this change (#1000).
 
 ### REQ-change-054
 

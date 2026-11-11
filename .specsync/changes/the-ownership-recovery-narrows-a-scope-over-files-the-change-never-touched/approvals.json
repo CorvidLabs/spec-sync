@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794357104,
+      "digest": "e28349e767e821996b777f7aef4a0df5d5caf2373f0b244325e64ce7e72d318a",
+      "note": "Leif directed on 2026-11-10 (relayed by coordinator t370) that #1000 be reworked to fit #1028 under his rule; recorded by the Claude worker. Scope: the ownership recovery narrows affected_paths for unowned inputs the change never modified; REQ-cmd-change-008 and REQ-change-053 updated to say so.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched",
+        "title": "The ownership recovery narrows a scope over files the change never touched",
+        "description": "the ownership recovery narrows a scope over files the change never touched",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status, ship preflight and the review refusal name an unowned production input the change never modified since its base commit with a recovery that narrows affected_paths, and keep the declare-the-owner recovery only for unowned inputs the change modified; without a base commit or git every input keeps the declare recovery"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "#1011: a printed recovery command must run as printed, so the narrowing command keeps a <paths> placeholder; approve keeps skipping directory scopes (#1028)",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7bc9c597d30130b09bb1f35f9d76debe5aece2f9a96d163d4cf9cb2846a9f02a",
+        "cmd_change": "6b71844787124335228ce81e5512bd2e491ed239a436e8d61c6fb9490ee53ade"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-053": "12d95eabe89f9419fc3b958d7b267010a46d7d10c39121c226dc06741ca82f61",
+        "cmd_change: REQUIREMENT REQ-cmd-change-008": "96273ac84069efd1ddc832219b6791a09cafc73fdd35e172bd039e3f539943d9"
+      }
+    }
+  ],
+  "reopenings": []
+}

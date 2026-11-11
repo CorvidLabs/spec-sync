@@ -5007,35 +5007,23 @@ pub fn ownership_preflight_blocker(
         .iter()
         .map(|path| format!("{path}: {}", ownership_hint(root, record, path, &index)))
         .collect();
-    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
-    // entry in the spec that should own it.
-    let unclaimed: Vec<&str> = paths
+    // An unowned input the change never modified since its base is in scope only because a
+    // path prefix is wider than the work, and declaring its owner would pull an untouched module
+    // into the change: the recovery for it is a narrower scope (#1000). Without a base commit or
+    // Git, nothing is classified as untouched and the declare recovery covers every path.
+    let changed = files_changed_since_base(root, record);
+    let (touched, untouched): (Vec<&str>, Vec<&str>) = paths
         .iter()
         .copied()
-        .filter(|path| undeclared_owning_modules(root, record, path, &index).is_empty())
-        .collect();
-    let recovery = if index.truncated {
-        format!(
-            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
-            shell_quote(&record.id)
-        )
-    } else {
-        match declare_owners_answer(root, record, &paths, &index) {
-            Some(answer) if !unclaimed.is_empty() => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
-                shell_quote(&record.id),
-                unclaimed.join(", ")
-            ),
-            Some(answer) => format!(
-                "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
-                shell_quote(&record.id)
-            ),
-            None => format!(
-                "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
-                shell_quote(&record.id)
-            ),
-        }
-    };
+        .partition(|path| changed.as_ref().is_none_or(|changed| changed.contains(*path)));
+    let mut recoveries = Vec::new();
+    if !touched.is_empty() {
+        recoveries.push(declare_owners_recovery(root, record, &touched, &index));
+    }
+    if !untouched.is_empty() {
+        recoveries.push(narrow_scope_recovery(record, &untouched));
+    }
+    let recovery = recoveries.join("; ");
     Ok(Some((
         format!(
             "finalize would refuse production source no declared module owns: {}",
@@ -5043,6 +5031,82 @@ pub fn ownership_preflight_blocker(
         ),
         recovery,
     )))
+}
+
+/// The recovery that declares the owners of unowned inputs the change modified.
+fn declare_owners_recovery(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> String {
+    // Paths no undeclared module claims are not fixed by declaring one; each needs a `files:`
+    // entry in the spec that should own it.
+    let unclaimed: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| undeclared_owning_modules(root, record, path, index).is_empty())
+        .collect();
+    if index.truncated {
+        return format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"`; the spec listing exceeded its 10,000-entry walk bound, so owner discovery is incomplete — check which spec should own each path by hand and add it to that spec's `files:` list",
+            shell_quote(&record.id)
+        );
+    }
+    match declare_owners_answer(root, record, paths, index) {
+        Some(answer) if !unclaimed.is_empty() => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, and add {} to its owning spec's `files:` list, then approve, check and review again",
+            shell_quote(&record.id),
+            unclaimed.join(", ")
+        ),
+        Some(answer) => format!(
+            "send it back and declare the owners: `specsync change send-back {} --actor <name> --reason \"declare the owning modules\"`, then {answer}, then approve, check and review again",
+            shell_quote(&record.id)
+        ),
+        None => format!(
+            "send it back with `specsync change send-back {} --actor <name> --reason \"<why>\"` and add each path to its owning spec's `files:` list",
+            shell_quote(&record.id)
+        ),
+    }
+}
+
+/// The recovery for unowned inputs the change never modified: narrow `affected_paths` to the
+/// files and directories the change edits instead of declaring their owners (#1000).
+fn narrow_scope_recovery(record: &ChangeRecord, untouched: &[&str]) -> String {
+    const SHOWN: usize = 5;
+    let mut named = untouched
+        .iter()
+        .take(SHOWN)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if untouched.len() > SHOWN {
+        named.push_str(&format!(" and {} more", untouched.len() - SHOWN));
+    }
+    format!(
+        "{named} {} not modified by this change since its base, so its `affected_paths` scope is wider than the work: narrow it instead of declaring those owners — `specsync change send-back {} --actor <name> --reason \"narrow affected_paths\"`, then `specsync change answer {} affected_paths <paths>` naming only the files and directories the change edits, then approve, check and review again",
+        if untouched.len() == 1 { "is" } else { "are" },
+        shell_quote(&record.id),
+        shell_quote(&record.id)
+    )
+}
+
+/// Every project-relative path the working tree has changed since the change's base commit,
+/// committed or not, plus untracked files. `None` without a base commit or when Git cannot say.
+fn files_changed_since_base(root: &Path, record: &ChangeRecord) -> Option<BTreeSet<String>> {
+    let base = record.base_commit.as_deref()?;
+    let mut changed = BTreeSet::new();
+    for args in [
+        vec!["diff", "--name-only", "--relative", base],
+        vec!["ls-files", "--others", "--exclude-standard"],
+    ] {
+        changed.extend(
+            git_output_allow_empty(root, &args)?
+                .lines()
+                .map(str::to_string),
+        );
+    }
+    Some(changed)
 }
 
 /// Names what to change for one unowned affected path.

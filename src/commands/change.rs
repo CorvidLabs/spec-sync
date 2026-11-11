@@ -3874,6 +3874,70 @@ if the floor call is removed from this function"
         id
     }
 
+    /// #1000: an unowned input the change never modified is in scope only because the prefix is
+    /// wider than the work, so the recovery says to narrow `affected_paths` instead of declaring
+    /// that owner; a modified unowned input keeps the declare-the-owner recovery.
+    #[test]
+    fn the_ownership_recovery_narrows_a_scope_over_files_the_change_never_touched() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        git_project_fixture(&root);
+        for (module, file) in [
+            ("billing", "src/billing/charge.ts"),
+            ("ledger", "src/billing/ledger.ts"),
+        ] {
+            fs::create_dir_all(root.join(format!("specs/{module}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{module}/{module}.spec.md")),
+                format!("---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - {file}\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"),
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            fs::write(root.join(file), "const rate = 1;\n").unwrap();
+        }
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "billing and ledger"]);
+        let record = change::create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Tune billing charges".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["src/billing/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Internal billing details".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(&root, &id);
+        fs::write(root.join("src/billing/charge.ts"), "const rate = 2;\n").unwrap();
+        git_in(&root, &["add", "."]);
+        git_in(&root, &["commit", "-m", "implement"]);
+        change::check_change(&root, Some(&id)).expect("check");
+
+        let record = change::load_change(&root, &id).unwrap();
+        let (blocker, recovery) = change::ownership_preflight_blocker(&root, &record)
+            .unwrap()
+            .expect("both billing files are unowned by the declared modules");
+        assert!(
+            blocker.contains("src/billing/charge.ts") && blocker.contains("src/billing/ledger.ts"),
+            "{blocker}"
+        );
+        assert!(
+            recovery
+                .contains("src/billing/ledger.ts is not modified by this change since its base")
+                && recovery.contains("affected_paths <paths>"),
+            "the untouched file asks for a narrower scope: {recovery}"
+        );
+        assert!(
+            recovery.contains("affected_specs 'billing'") && !recovery.contains("ledger'"),
+            "only the modified file's owner is declared: {recovery}"
+        );
+    }
+
     /// Codex P2 on #999: the recovery repairs every unowned input, not only the ones a module
     /// claims: `billing` is declared by the answer, and the path no module owns is named for a
     /// `files:` entry.

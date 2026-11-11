@@ -1,6 +1,6 @@
 ---
 module: change
-version: 223
+version: 224
 status: active
 files:
   - src/change.rs
@@ -753,3 +753,4 @@ Acceptance Criteria
 | 2026-11-09 | the-workflow-v1-cutoff-check-finds-an-archive-by-the-record-it-holds-not-only-by-a-directory-name-ending-in-its-id: The workflow-v1 cutoff check finds an archive by the record it holds, not only by a directory name ending in its id |
 | 2026-11-10 | keep-retired-custody-valid-across-audited-custodian-drift-so-the-recorded-reopen-remedy-stays-reachable: Keep retired custody valid across audited custodian drift so the recorded reopen remedy stays reachable |
 | 2026-11-10 | fix-the-ownership-recovery-follow-ups-from-the-999-review-comma-module-names-reserved-delivery-paths-at-no-spec: Fix the ownership recovery follow-ups from the #999 review: comma module names, reserved delivery paths at no-spec approval, listing-bound silence, constraints renewal, registry specs, and directory scopes |
+| 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |

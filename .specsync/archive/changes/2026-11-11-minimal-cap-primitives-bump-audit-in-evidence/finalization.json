@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "minimal-cap-primitives-bump-audit-in-evidence",
+  "implementation_commit": "a13c8bf4876c5698dea62286c38ce3c7a85a2098",
+  "implementation_tree": "8532034a38dd575bf73bf4d31b0366573e21dce9",
+  "contract_digest": "74e59414a81f955d420844ce36e6cfa758851c448a407ae379192b517fe21cd9",
+  "workspace_digest": "b92b49ff453249728bb44bbf2aaf2fa975741ecda77823203526db301b6b6673",
+  "closing_digest": "ce7e032297b8f666e0054f7083f73c71ad6184477be8d181b7488f3a4457de88",
+  "review_digest": "7cd5c2b2f8808d215a75d2dc614b62f9b1e05996681cfa39f9d20ae9380e5b0c",
+  "finalization_digest": "85a1042f6e9fa262d50bc92ee51acedecd2784f43c08021c52db198f38679dea",
+  "timestamp": 1794391876
+}

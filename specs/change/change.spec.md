@@ -1,6 +1,6 @@
 ---
 module: change
-version: 228
+version: 229
 status: active
 files:
   - src/change.rs
@@ -769,3 +769,4 @@ Acceptance Criteria
 | 2026-11-11 | delta-materializer-matches-and-keeps-titled-requirement-headers: Delta materializer matches and keeps titled requirement headers |
 | 2026-11-11 | a-failed-verification-records-the-findings-that-failed-it: A failed verification records the findings that failed it |
 | 2026-11-11 | inert-ignored-paths-disclosed-at-policy-load: Inert ignored paths disclosed at policy load |
+| 2026-11-11 | a-refused-check-records-its-refusal: A refused check records its refusal |

@@ -159,6 +159,47 @@
         "change": "807b745a379369ab3fa173f13dcb35558df4e6e66250fef9e2e848d132a128bf"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794416690,
+      "digest": "caed9f0531b71fb0e89ff585d27a867cb5dbb5741eba85e46b557db73f7c1373",
+      "note": "Leif approved in the coordinator chat on 2026-11-11, after reading the coordinator one-line summary of each of the seven changes (#1041, #1042, #1046, #1047, #1049, #1056, #1057): \"yes I approve all if we are aligned\". Recorded by kimi-code-t37b (Kimi, hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-refused-check-records-its-refusal",
+        "title": "A refused check records its refusal",
+        "description": "a refused check records its refusal",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a change check refused before verification appends a passed:false attempt with the reason to verification-attempts.json; verification.json is untouched"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "807b745a379369ab3fa173f13dcb35558df4e6e66250fef9e2e848d132a128bf"
+      },
+      "approved_delta_bases": {}
     }
   ],
   "reopenings": [],

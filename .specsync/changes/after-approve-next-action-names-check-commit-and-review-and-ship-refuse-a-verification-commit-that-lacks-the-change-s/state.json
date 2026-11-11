@@ -7,12 +7,14 @@
   "title": "After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work",
   "description": "After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "ad8544e9da79725f499b38ae4d4b3a052be5f807",
   "created_at": 1794408991,
-  "updated_at": 1794409004,
+  "updated_at": 1794414179,
   "affected_specs": [
-    "change"
+    "change",
+    "cmd_change"
   ],
   "affected_paths": [
     "specs/change/requirements.md",
@@ -44,7 +46,7 @@
   "dependencies": [],
   "answers": {
     "architecture_risk": "yes",
-    "constraints": "none",
+    "constraints": "src/commands/change.rs is owned solely by cmd_change, so this change declares that module. cmd_change already delegates next_action policy to the change module; this change does not add a cmd_change requirement.",
     "public_contract": "yes"
   }
 }

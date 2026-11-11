@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 81
+version: 82
 status: active
 files:
   - src/commands/change.rs
@@ -24,7 +24,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 
 1. Every operation delegates domain policy to the change module.
 2. Errors render consistently and exit non-zero.
-3. Every status projection provides exactly one concrete next action on the `new → approve → check → review → finalize → GitHub merge` path.
+3. Every status projection provides exactly one concrete next action on the `new → approve → check --commit → review → finalize → GitHub merge` path.
 4. Supersede records an explicit digest-bound predecessor/path/module obligation before definition approval.
 5. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
 6. Correct-owner renders one persisted exact canonical-owner correction and directs the user to definition reapproval.
@@ -215,6 +215,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-07 | print-a-single-choice-interview-answer-literally-in-the-approval-refusal-so-the-named-change-answer-command-runs-as: Print a single-choice interview answer literally in the approval refusal, so the named change answer command runs as printed (#958) |
 | 2026-11-07 | change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is: Change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893) |
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
+| 2026-11-11 | after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s: After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work |
 
 ## Audited nonacceptance retirement
 

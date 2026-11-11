@@ -2991,7 +2991,7 @@ fn current_workflow_scope_approval_survives_execution_detail_changes() {
     assert!(!verification_is_current(root, &record, &verification));
     assert_eq!(
         summarize_change(root, &record).next_action,
-        format!("run `specsync change check {}`", record.id)
+        format!("run `specsync change check {} --commit`", record.id)
     );
 }
 

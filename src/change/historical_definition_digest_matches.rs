@@ -2379,6 +2379,111 @@ fn validate_verification_for_commit_binding(
     // an ancestor of the implementation, is a history-trust question rather than a content
     // one. It is also what made squash-merged changes permanently unfinalizable: the squash
     // discards the recorded commit, so the ancestry check could never pass again.
+    //
+    Ok(())
+}
+
+fn path_is_under_specsync(path: &str) -> bool {
+    let path = path.trim_start_matches("./");
+    path == ".specsync" || path.starts_with(".specsync/")
+}
+
+fn verification_commit_lacks_work_error(id: &str, commit: &str) -> String {
+    format!(
+        "verification commit {commit} does not contain the change's work; run `specsync change check {id} --commit`"
+    )
+}
+
+/// Paths whose current contents must be present on the recorded verification
+/// commit: the change's `affected_paths`, and any canonical specs it
+/// materialized. `.specsync/` is excluded (REQ-change-157, invariant 42).
+fn work_paths_for_verification_commit(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<String>, String> {
+    let mut paths = BTreeSet::new();
+    for path in &record.affected_paths {
+        if !path_is_under_specsync(path) {
+            paths.insert(path.clone());
+        }
+    }
+    if !record.affected_specs.is_empty() {
+        let specs_dir = crate::config::load_config(root).specs_dir;
+        for module in &record.affected_specs {
+            let (spec, _) = canonical_module_paths(root, &specs_dir, module)?;
+            let relative = portable_project_path(root, &spec);
+            if !path_is_under_specsync(&relative) {
+                paths.insert(relative);
+            }
+        }
+    }
+    Ok(paths.into_iter().collect())
+}
+
+/// Whether the recorded verification commit contains the change's work
+/// (REQ-change-157). Used by review, finalize, and ship-status.
+pub(crate) fn recorded_verification_commit_contains_change_work(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    let verification = load_verification(root, record)?;
+    ensure_verification_commit_contains_change_work(root, record, &verification)
+}
+
+/// Refuse review and ship when the recorded verification commit does not
+/// contain the change's work (REQ-change-157). Uncommitted `.specsync/`
+/// evidence alone does not trigger this.
+fn ensure_verification_commit_contains_change_work(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<(), String> {
+    // Bare `change check` records HEAD when the project is a Git repository, which
+    // is the #535 case this gate exists to catch. A record with no commit (a
+    // non-Git fixture, or evidence that predates the field) has nothing to
+    // compare, and the other finalize/review gates still apply.
+    let Some(commit) = verification
+        .commit
+        .as_deref()
+        .filter(|commit| !commit.is_empty())
+    else {
+        return Ok(());
+    };
+    let paths = work_paths_for_verification_commit(root, record)?;
+    if !paths.is_empty() {
+        let mut args = vec!["diff", "--quiet", commit, "--"];
+        args.extend(paths.iter().map(String::as_str));
+        let status = crate::git_utils::status_without_inherited_output(
+            Command::new("git").args(&args).current_dir(root),
+        )
+        .map_err(|error| {
+            format!("failed to compare the verification commit to the working tree: {error}")
+        })?;
+        if status.code() == Some(1) {
+            return Err(verification_commit_lacks_work_error(&record.id, commit));
+        }
+        if !status.success() {
+            return Err(format!(
+                "failed to compare verification commit {commit} to the working tree"
+            ));
+        }
+    }
+    // `git diff` does not see an untracked file, so an affected path that exists
+    // on disk but is absent from the verification commit is still missing work.
+    // `git show <commit>:<path>` names a repository-relative path, which is not
+    // always the project-relative affected path (REQ-change-128).
+    for path in &record.affected_paths {
+        if path_is_under_specsync(path) {
+            continue;
+        }
+        let current = root.join(path);
+        if current.is_file() {
+            let git_path = git_repo_relative_path(root, path)?;
+            if git_file_at_commit(root, commit, &git_path)?.is_none() {
+                return Err(verification_commit_lacks_work_error(&record.id, commit));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -2483,6 +2588,7 @@ pub fn record_scoped_review_with_relay(
     validate_verification_for_commit_binding(root, &record, &verification, true).map_err(|error| {
         format!("scoped review cannot bind stale verification ({error}); run `specsync change check` first")
     })?;
+    ensure_verification_commit_contains_change_work(root, &record, &verification)?;
     let attempts_path = scoped_review_attempts_path(root, &record);
     let previous_review = attempts_path
         .exists()
@@ -2811,6 +2917,10 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     }
     if record.state == ChangeState::Verifying {
+        // REQ-change-157: ship and finalize refuse a verification commit that
+        // lacks the change's work, before acceptance writes anything.
+        let verification = load_verification(root, &record)?;
+        ensure_verification_commit_contains_change_work(root, &record, &verification)?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
     } else {
         let verification = load_verification(root, &record)?;
@@ -4121,7 +4231,7 @@ fn summarize_change_with_effective(
                 format!("run `specsync change approve {} --actor <name>`", record.id)
             }
             ChangeState::Approved => {
-                format!("run `specsync change check {}`", record.id)
+                format!("run `specsync change check {} --commit`", record.id)
             }
             ChangeState::Implementing if !artifacts_complete => {
                 format!(
@@ -4134,7 +4244,7 @@ fn summarize_change_with_effective(
                 format!("run `specsync change approve {} --actor <name>`", record.id)
             }
             ChangeState::Implementing => {
-                format!("run `specsync change check {}`", record.id)
+                format!("run `specsync change check {} --commit`", record.id)
             }
             ChangeState::Verifying if !artifacts_complete => {
                 format!(
@@ -4153,7 +4263,7 @@ fn summarize_change_with_effective(
                 )
             }
             ChangeState::Verifying if !verification_current => {
-                format!("run `specsync change check {}`", record.id)
+                format!("run `specsync change check {} --commit`", record.id)
             }
             ChangeState::Verifying if !scoped_review_current => {
                 format!(

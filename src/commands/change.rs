@@ -1305,9 +1305,11 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
         {
             format!("run `specsync change approve {id} --actor <name>`")
         }
-        ChangeState::Approved | ChangeState::Implementing => {
-            open_tasks_first(root, record, format!("run `specsync change check {id}`"))
-        }
+        ChangeState::Approved | ChangeState::Implementing => open_tasks_first(
+            root,
+            record,
+            format!("run `specsync change check {id} --commit`"),
+        ),
         ChangeState::Verifying => open_tasks_first(
             root,
             record,
@@ -1462,6 +1464,11 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     } else {
         None
     };
+    let verification_work = if verification_commit.is_some() && verification_present {
+        change::recorded_verification_commit_contains_change_work(root, record)
+    } else {
+        Ok(())
+    };
     if matches!(
         record.state,
         ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
@@ -1485,6 +1492,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 "verification evidence is stale for the current tree; re-run change check --commit before review/finalize"
                     .to_string(),
             );
+        } else if let Err(error) = &verification_work {
+            blockers.push(error.clone());
         }
         if record.state == ChangeState::Verifying {
             // Three outcomes, three sentences. A DECIDED negative is a blocker, matching the
@@ -1555,7 +1564,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // `review_present`: only a review that was loaded AND agreed with this tree may count,
     // and an unavailable answer is not a satisfied one (#694's standard, applied to the one
     // caller that violated it).
-    let verification_current = change::recorded_verification_is_current(root, record);
+    let verification_current =
+        change::recorded_verification_is_current(root, record) && verification_work.is_ok();
     let ready_to_finalize = record.state == ChangeState::Verifying
         && verification_present
         && verification_current
@@ -1590,6 +1600,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         change::upstream_archive_message(&record.id, upstream)
     } else if let Some(recovery) = &ownership_recovery {
         recovery.clone()
+    } else if verification_work.is_err() {
+        format!("run `specsync change check {} --commit`", record.id)
     } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
     } else if matches!(
@@ -4295,7 +4307,7 @@ if the floor call is removed from this function"
             let record = change::load_change(root, &id).expect("load");
             assert_eq!(
                 text_mode_next_action(root, &record),
-                format!("run `specsync change check {id}`")
+                format!("run `specsync change check {id} --commit`")
             );
         }
     }

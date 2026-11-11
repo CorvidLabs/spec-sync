@@ -181,3 +181,54 @@ fn a_section_key_never_matches_a_titled_section_heading() {
         "a section heading with a suffix is not a match: {error}"
     );
 }
+
+/// t384's round-3 finding: an indented header ends the matched block too. A MODIFIED on an
+/// indented header must not run through (and delete) the next indented requirement.
+#[test]
+fn an_indented_header_ends_the_matched_block() {
+    let source = "# Requirements\n\n   ### REQ-auth-001 — One\n\nOld\n\n   ### REQ-auth-002 — Two\n\nKeep\n";
+    let modified = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "New",
+        DeltaOperation::Modified,
+    )
+    .unwrap();
+    assert!(
+        modified.contains("   ### REQ-auth-002 — Two\n\nKeep"),
+        "the next indented requirement survives: {modified}"
+    );
+    assert!(modified.contains("   ### REQ-auth-001 — One\n\nNew"));
+
+    let removed = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "",
+        DeltaOperation::Removed,
+    )
+    .unwrap();
+    assert!(
+        removed.contains("   ### REQ-auth-002 — Two\n\nKeep"),
+        "REMOVED does not eat the next block: {removed}"
+    );
+}
+
+/// The kept header line is byte-for-byte, trailing spaces included (the AC says so).
+#[test]
+fn the_kept_header_keeps_its_trailing_spaces() {
+    let source = "# Requirements\n\n### REQ-auth-001 — Titled   \n\nOld\n";
+    let modified = apply_markdown_block(
+        source,
+        "### ",
+        "REQ-auth-001",
+        "New",
+        DeltaOperation::Modified,
+    )
+    .unwrap();
+    assert!(
+        modified.contains("### REQ-auth-001 — Titled   \n\nNew"),
+        "trailing spaces survive: {modified:?}"
+    );
+}

@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794380446,
+      "digest": "ea8df38dc0e38160f098461cebd2179333932c1beb4ef2257e9f3d08186b79b7",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-150, REQ-validator-047, invariant 52) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "indented-headers-end-requirement-blocks",
+        "title": "Indented headers end requirement blocks",
+        "description": "indented headers end requirement blocks",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests/titled_requirement_header_delta.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "round 2's matcher fix let indented headers match but the block-end scan still required column 0; this restores the contract REQ-change-150 already states",
+        "acceptance_criteria": [
+          "a MODIFIED or REMOVED on an indented titled header leaves the following indented requirement block intact"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

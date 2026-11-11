@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "indented-headers-end-requirement-blocks",
+  "slug": "indented-headers-end-requirement-blocks",
+  "title": "Indented headers end requirement blocks",
+  "description": "indented headers end requirement blocks",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "e04fb1e36d44197efa32c229322b28a925a7c5ea",
+  "created_at": 1794380408,
+  "updated_at": 1794380471,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests/titled_requirement_header_delta.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "round 2's matcher fix let indented headers match but the block-end scan still required column 0; this restores the contract REQ-change-150 already states",
+  "acceptance_criteria": [
+    "a MODIFIED or REMOVED on an indented titled header leaves the following indented requirement block intact"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

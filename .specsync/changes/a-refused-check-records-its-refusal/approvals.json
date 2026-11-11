@@ -1,0 +1,215 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794364096,
+      "digest": "f5595baedc05609b76c42c10d2a6b9b0bef06f11cd011c18f35e0aebac52cb18",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-refused-check-records-its-refusal",
+        "title": "A refused check records its refusal",
+        "description": "a refused check records its refusal",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a change check refused before verification appends a passed:false attempt with the reason to verification-attempts.json; verification.json is untouched"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "937df02adb14635f42afe9681282eb9f08f78854519199616808d30b018f769d"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794379798,
+      "digest": "f5595baedc05609b76c42c10d2a6b9b0bef06f11cd011c18f35e0aebac52cb18",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-152) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-refused-check-records-its-refusal",
+        "title": "A refused check records its refusal",
+        "description": "a refused check records its refusal",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a change check refused before verification appends a passed:false attempt with the reason to verification-attempts.json; verification.json is untouched"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "937df02adb14635f42afe9681282eb9f08f78854519199616808d30b018f769d"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794380155,
+      "digest": "f5595baedc05609b76c42c10d2a6b9b0bef06f11cd011c18f35e0aebac52cb18",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-152) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-refused-check-records-its-refusal",
+        "title": "A refused check records its refusal",
+        "description": "a refused check records its refusal",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a change check refused before verification appends a passed:false attempt with the reason to verification-attempts.json; verification.json is untouched"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "5b908a04bada89cedc5c2153efa1754fff113748e175fc4927026f931e888a9d"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "kimi-code-t37b",
+      "timestamp": 1794385426,
+      "digest": "f5595baedc05609b76c42c10d2a6b9b0bef06f11cd011c18f35e0aebac52cb18",
+      "note": "Agent approval to carry the lifecycle; the new requirement text (REQ-change-154) awaits Leif's decision at merge and is not covered by the bug-fix rule. Recorded by kimi-code (hc t37b).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-refused-check-records-its-refusal",
+        "title": "A refused check records its refusal",
+        "description": "a refused check records its refusal",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a change check refused before verification appends a passed:false attempt with the reason to verification-attempts.json; verification.json is untouched"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "807b745a379369ab3fa173f13dcb35558df4e6e66250fef9e2e848d132a128bf"
+      },
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "a-refused-check-records-its-refusal",
+      "actor": "kimi-code-t37b",
+      "reason": "re-record approval under the 2026-11-10 attribution rule with the correct note",
+      "timestamp": 1794379788,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "a-refused-check-records-its-refusal",
+      "actor": "kimi-code-t37b",
+      "reason": "narrow scope: only workspace-grounded refusals record; an unattributed gate failure about another change's module must not (control test)",
+      "timestamp": 1794380147,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "a-refused-check-records-its-refusal",
+      "actor": "kimi-code-t37b",
+      "reason": "renumber to the coordinator allocation (154)",
+      "timestamp": 1794385416,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 3,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    },
+    {
+      "schema_version": 1,
+      "change_id": "a-refused-check-records-its-refusal",
+      "actor": "kimi-code-t37b",
+      "reason": "READY policy (t370, 2026-11-11): no agent approval stands on new requirement text; the definition approval is Leif's gate",
+      "timestamp": 1794385835,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 4,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    }
+  ]
+}

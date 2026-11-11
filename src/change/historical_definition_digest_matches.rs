@@ -2718,8 +2718,15 @@ fn accept_change_with_gate(
         };
         // Missing and empty are the same evidence: nothing recorded the
         // implementation commit. Deleting the ledger used to skip the guard
-        // that emptying it tripped (#656).
-        if verification_adopted && attempts.attempts.is_empty() {
+        // that emptying it tripped (#656). A ledger holding only refusals
+        // (#847) has no recorded attempt either — refusals are not evidence
+        // the implementation commit was ever verified.
+        if verification_adopted
+            && attempts
+                .attempts
+                .iter()
+                .all(|attempt| attempt.refusal.is_some())
+        {
             return Err(
                 "verification attempt history cannot adopt the implementation commit".into(),
             );
@@ -5207,6 +5214,7 @@ mod lesson_bundle_dash_tests {
                 output: None,
             }],
             requirement_ids: Vec::new(),
+            refusal: None,
         };
         write_json(
             &change_dir(root, &record.id).join("verification.json"),

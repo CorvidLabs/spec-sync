@@ -1471,6 +1471,11 @@ pub struct VerificationRecord {
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
+    /// Why a check was refused before verification started (#847). Present only on attempts
+    /// that never ran the gate; absent from every record written before the field existed, so
+    /// historical ledgers stay valid and an older binary drops it on rewrite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -3418,7 +3423,11 @@ fn materialize_change_deltas_inner(
     ensure_approved_delta_bases_current(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
-    ensure_tasks_complete(root, &record, rerun)?;
+    if let Err(error) = ensure_tasks_complete(root, &record, rerun) {
+        // #847: a refusal before verification still leaves a record of itself.
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
+    }
     // `canonical_applied` records that materialization RAN, never that it ran for the delta on
     // disk now. Re-approving a corrected delta satisfies every gate above — the guard directly
     // above asks whether the delta matches its approval, and a new approval signs the new body —
@@ -3617,13 +3626,21 @@ fn verify_change_locked(
     // `specsync change audit` run this same gate and report the suppressions.
     // A verdict about a module this change declares is a spec↔code verdict about this change,
     // so it is held and recorded as part of the attempt below. Every other gate failure is
-    // still refused before any attempt is recorded.
+    // refused without running the gate, and the refusal records itself as a `passed: false`
+    // attempt carrying its reason, so a reader can see the check was tried and why it failed
+    // (#847).
     let gate = validate_effective_contracts(root, &records);
     let (gate_refusals, unattributed) = gate.split_for_declared(&record.affected_specs);
     if !unattributed.is_empty() {
+        // A gate failure about another change's module is not a verdict about this change,
+        // so unlike the workspace-grounded refusals below it records no attempt (#847 keeps
+        // the control at semantic_application_resolves_registry_backed_canonical_paths.rs).
         return Err(gate.error_text().unwrap_or_else(|| unattributed.join("; ")));
     }
-    ensure_tasks_complete(root, &record, rerun)?;
+    if let Err(error) = ensure_tasks_complete(root, &record, rerun) {
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
+    }
     // Evidence completeness is markdown in the change workspace. Fail it before
     // the spec↔code pass so a missing testing.md row is not a 18-minute suite.
     let requirement_ids = collect_requirement_ids(root, &record)?;
@@ -3632,10 +3649,12 @@ fn verify_change_locked(
     let acceptance_evidence_present =
         acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
     if !acceptance_evidence_present || !missing_evidence.is_empty() {
-        return Err(format!(
+        let error = format!(
             "verification cannot start: {}",
             evidence_gap_detail(&record, acceptance_evidence_present, &missing_evidence)
-        ));
+        );
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
     }
     let (sync, mut findings) = evaluate_spec_code_sync(root, &record, strict)?;
     let mut commands = vec![sync];
@@ -3671,6 +3690,7 @@ fn verify_change_locked(
         passed,
         commands,
         requirement_ids,
+        refusal: None,
     };
     record_verification_attempt(root, &record, &verification)?;
     record.state = ChangeState::Verifying;

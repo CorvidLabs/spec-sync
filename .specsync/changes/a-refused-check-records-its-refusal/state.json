@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-refused-check-records-its-refusal",
+  "slug": "a-refused-check-records-its-refusal",
+  "title": "A refused check records its refusal",
+  "description": "a refused check records its refusal",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "46f55652649a72ddf5e1715938b504b96686566b",
+  "created_at": 1794364038,
+  "updated_at": 1794396875,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests.rs",
+    "src/change_tests/",
+    "tests/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a change check refused before verification appends a passed:false attempt with the reason to verification-attempts.json; verification.json is untouched"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

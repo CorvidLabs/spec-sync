@@ -765,3 +765,6 @@ A failed CommandEvidence used to carry only command/success/exit_code — a flak
 
 @plane z=49 label="Disclose an override where the conflict lives (#676)"
 The always-meaningful override for policy files and the specs tree was correct and disclosed only at audit — three verbs after the reader believed their `ignored_paths` entry worked. Worse, the default policy wrote one such inert entry (`specs/`) itself, so adoption seeded the confusion. The rule that keeps the disclosure honest: warn only when an entry's ENTIRE coverage is inert, so `.specsync/` — which really does ignore the change workspaces — stays silent, and stop writing the inert entry. A warning without a remedy is noise; this one names the entry and the file to edit.
+
+@plane z=50 label="A refusal is a result worth recording (#847)"
+A check refused before verification exited 1 and left nothing behind, so the next reader — a human or Chough's `next` — could not distinguish "never tried" from "tried and refused". The attempts ledger is exactly the place for that fact, but the refusal belongs there only: `verification.json` is the last completed verification, and letting a refusal overwrite it would launder "we never ran" into "the latest evidence". Record the refusal as a `passed: false` attempt with its reason, and leave every byte of completed evidence untouched.

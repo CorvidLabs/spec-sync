@@ -162,20 +162,19 @@ fn merge_requirements(ancestor: &str, ours: &str, theirs: &str) -> MergeContract
         b.sort();
         a == b
     };
-    let mut order: Vec<String> = if !same_set(&ours_order, &base_order)
-        || !same_set(&theirs_order, &base_order)
-    {
-        base_order.clone()
-    } else if ours_order == theirs_order {
-        ours_order.clone()
-    } else if ours_order == base_order {
-        theirs_order.clone()
-    } else if theirs_order == base_order {
-        ours_order.clone()
-    } else {
-        clean = false;
-        base_order.clone()
-    };
+    let mut order: Vec<String> =
+        if !same_set(&ours_order, &base_order) || !same_set(&theirs_order, &base_order) {
+            base_order.clone()
+        } else if ours_order == theirs_order {
+            ours_order.clone()
+        } else if ours_order == base_order {
+            theirs_order.clone()
+        } else if theirs_order == base_order {
+            ours_order.clone()
+        } else {
+            clean = false;
+            base_order.clone()
+        };
     let mut added = Vec::new();
     for block in ours_blocks.iter().chain(theirs_blocks.iter()) {
         if !base_ids.contains(block.id.as_str()) && !added.iter().any(|id: &String| id == &block.id)
@@ -1520,9 +1519,11 @@ mod tests {
     // #874: a one-sided reorder of existing requirement blocks is kept, not silently dropped.
     #[test]
     fn a_one_sided_requirement_reorder_is_kept() {
-        let one = "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
+        let one =
+            "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
         let two = "### REQ-cli-002\n\nThe system SHALL run.\n\nAcceptance Criteria\n- It runs.\n";
-        let three = "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
+        let three =
+            "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
         let doc = |blocks: &[&str]| {
             let mut text = "---\nspec: cli.spec.md\n---\n\n# Requirements\n\n".to_string();
             for block in blocks {
@@ -1556,9 +1557,11 @@ mod tests {
     // #874: two different reorders conflict rather than one silently prevailing.
     #[test]
     fn divergent_requirement_reorders_conflict() {
-        let one = "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
+        let one =
+            "### REQ-cli-001\n\nThe system SHALL start.\n\nAcceptance Criteria\n- It starts.\n";
         let two = "### REQ-cli-002\n\nThe system SHALL run.\n\nAcceptance Criteria\n- It runs.\n";
-        let three = "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
+        let three =
+            "### REQ-cli-003\n\nThe system SHALL stop.\n\nAcceptance Criteria\n- It stops.\n";
         let doc = |blocks: &[&str]| {
             let mut text = "---\nspec: cli.spec.md\n---\n\n# Requirements\n\n".to_string();
             for block in blocks {

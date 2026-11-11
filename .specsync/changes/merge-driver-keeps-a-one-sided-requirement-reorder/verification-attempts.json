@@ -36,6 +36,24 @@
       "requirement_ids": [
         "REQ-merge-007"
       ]
+    },
+    {
+      "timestamp": 1794395698,
+      "commit": "91dac605add957b464dbd9ff237dfc479a0ac598",
+      "contract_digest": "da5ae67e76916e432fe80135bcc9dc9df901213d8d07e990ec2065966e376304",
+      "execution_digest": "b923eeee5459aaca086ff3c2d2f07b4b444efc86160c4a380c387ed21b38e741",
+      "workspace_digest": "56b2ff59e94b3132bdddcaba96195fca0471be185e891b87d4dca77be12e4e6f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-merge-007"
+      ]
     }
   ]
 }

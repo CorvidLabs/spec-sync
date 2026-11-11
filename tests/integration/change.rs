@@ -6317,7 +6317,9 @@ fn a_refused_check_records_the_refusal_as_an_attempt() {
     );
     // And it did not pose as completed verification.
     assert!(
-        !root.join(format!(".specsync/changes/{id}/verification.json")).exists(),
+        !root
+            .join(format!(".specsync/changes/{id}/verification.json"))
+            .exists(),
         "a refusal never writes verification.json"
     );
 }

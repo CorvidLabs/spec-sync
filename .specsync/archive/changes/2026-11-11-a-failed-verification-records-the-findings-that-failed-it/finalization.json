@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-failed-verification-records-the-findings-that-failed-it",
+  "implementation_commit": "af911335a6f1a239f8709a1c42f01fdef97122d4",
+  "implementation_tree": "5deeff934f68dc6c791adf318c0db7cdf14ac7b8",
+  "contract_digest": "3e5238212e8de68077553f1adf9f0f40569a0609532386ca7f3e04cf04879c2f",
+  "workspace_digest": "ea58cb05bf22d19ca9ddfc4161804a79a55dae4f8bd15abf451e4b7266690cea",
+  "closing_digest": "27278e89ecc850a4d2b240d8adee2708c203f1c44bd7dc53ad7d46f14042954b",
+  "review_digest": "bc255ff2ece79094033faf239167ebb5521fe07536fed5ac8c06751c6fbaae39",
+  "finalization_digest": "50ca3b4957a72d1eb0124b22845e47b717c1d380cd52929011dd8692cbbbb804",
+  "timestamp": 1794415217
+}

@@ -95,6 +95,25 @@
         "REQ-change-053",
         "REQ-cmd-change-008"
       ]
+    },
+    {
+      "timestamp": 1794365863,
+      "commit": "be806f2835bdeac9e61a434e79f4e93170952c02",
+      "contract_digest": "e28349e767e821996b777f7aef4a0df5d5caf2373f0b244325e64ce7e72d318a",
+      "execution_digest": "acf3c37949df1960f3199e70ecc080416805359622e692f16b3e68acba9a051d",
+      "workspace_digest": "537c7072bbad323eaab625da255cbec2e780e218a2793aec02520b2c7ff7211a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-053",
+        "REQ-cmd-change-008"
+      ]
     }
   ]
 }

@@ -80,6 +80,13 @@
         "change": "e2f2d871032760f78402cd99a1f08e7b71c9724fd0f55d758ccd08c68337cc67"
       },
       "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794374370,
+      "digest": "a32c4d4f0571c8bbaa8cd7136b31bb59be2e3c86adc2c2460e0afa1fe344dc96",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

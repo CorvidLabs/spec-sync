@@ -1,4 +1,39 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794414078,
+      "digest": "8632a5def36ed1045f5570f2c03b2f01be6ab4e306af0362f70486b5b2e66630",
+      "note": "Leif approved this bug fix himself on 2026-11-11 after the coordinator agent's (claude-code-t370) summary: moves cmd_scaffold.3md's duplicate z=5 plane to z=6 so its lessons load again (#1060). Prepared by claude-code-t37j.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "restore-cmd-scaffold-s-3md-lessons-move-the-second-z-5-plane-to-z-6",
+        "title": "Restore cmd_scaffold's 3md lessons: move the second z=5 plane to z=6",
+        "description": "Restore cmd_scaffold's 3md lessons: move the second z=5 plane to z=6",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_scaffold"
+        ],
+        "affected_paths": [
+          "specs/cmd_scaffold/cmd_scaffold.3md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A duplicate z makes threemd refuse the file, so cmd_scaffold's lessons silently fall back to context.md. Renumbering one plane restores the existing lesson source; no contract or requirement text changes.",
+        "acceptance_criteria": [
+          "specs/cmd_scaffold/cmd_scaffold.3md has unique plane positions (z=0 to z=6) and parses, so a change briefing for cmd_scaffold reads its lessons from cmd_scaffold.3md instead of falling back to context.md; check --strict still passes"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Lesson planes are append-only: keep every plane's text and order and change only the duplicate z position; threemd requires unique plane positions",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

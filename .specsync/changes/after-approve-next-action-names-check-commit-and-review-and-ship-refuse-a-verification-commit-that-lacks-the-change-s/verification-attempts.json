@@ -45,6 +45,26 @@
         "REQ-change-156",
         "REQ-change-157"
       ]
+    },
+    {
+      "timestamp": 1794414181,
+      "commit": "fcd37f4cddcf39f2d6d9acbc9d06d3436057be03",
+      "contract_digest": "066102e0423f45371054198aa4364ebc6397baa871d757f1cfba877caa6100ab",
+      "execution_digest": "8478d65806f02f6de8e72f5b13d768c5b19c76bbd60fde5ba4717ea2224bb546",
+      "workspace_digest": "15909359d52dd6df1ede0f14d1a4e2201f3e3d6c38affa5331631de6b1e0a589",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-132",
+        "REQ-change-156",
+        "REQ-change-157"
+      ]
     }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "watch-outcome-tests-wait-for-the-verdict-line",
+  "implementation_commit": "4f443aa1eab3506bbb5242078c477d00de3bf79b",
+  "implementation_tree": "639cf50fae39ccfff2df372a9da8454afd7a8e6e",
+  "contract_digest": "1b2d777c0f4f2de2be1b7ba7023b9683d6d50f29f6cffcf88b6320da5337bda3",
+  "workspace_digest": "ffa18c32f5ebf565a16b80c50994a4fe220a9575e21608a18f0790e42800e623",
+  "closing_digest": "3a5d7518b98e4d4568f7e5242ff3f8b416f761e7711586af1beb0b95036aa9b5",
+  "review_digest": "67a1cbf681dfc2d2c792e3feb788e3b29bdfa66952a2152ecf9babaefb96f2c7",
+  "finalization_digest": "82e0fc98feab6de0bfa3438a17562d0ece1d537e73206cb110cbb57154125efa",
+  "timestamp": 1794388848
+}

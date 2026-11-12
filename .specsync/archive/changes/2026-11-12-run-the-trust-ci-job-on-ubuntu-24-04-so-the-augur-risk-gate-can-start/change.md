@@ -1,6 +1,6 @@
 ---
 id: run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start
-state: implementing
+state: archived
 type: bug_fix
 base_commit: b2ec548ff9fba5f9308a3c7fc61cc853ecd3d0dd
 ---

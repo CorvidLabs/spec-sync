@@ -7,11 +7,11 @@
   "title": "Run the trust CI job on ubuntu-24.04 so the augur risk gate can start",
   "description": "Run the trust CI job on ubuntu-24.04 so the augur risk gate can start",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "b2ec548ff9fba5f9308a3c7fc61cc853ecd3d0dd",
   "created_at": 1794438443,
-  "updated_at": 1794442440,
+  "updated_at": 1794442686,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/trust.yml"

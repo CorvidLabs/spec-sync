@@ -1,0 +1,43 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-101cf1e5175bdaa595940cc9",
+    "head": "EVT-81ffbdaa117b14b2358a0eeb",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "Released SpecSync 6.2.0 refuses a change that holds a relayed approval, review or correction, with its 'written by a newer SpecSync' message, instead of rewriting it and dropping relayed_by: 6.3.0 records such a change at workflow version 3 (#1064, Leif's option (a))",
+  "intent_scope": "",
+  "modules": [
+    "change"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of",
+  "references": {
+    "criteria": [],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Authorization: Leif decided #1064 as option (a), his word 'A', relayed by hc t370 on 2026-11-11: 6.3.0 must stop released 6.2.0 from rewriting a change record that carries a relayed decision, rather than letting it silently drop relayed_by. The requirement wording goes to t370 for alignment and Leif runs the approve command; this agent does not approve it.",
+    "rejected: option (b), accepting the limit and documenting it, because Leif chose (a)",
+    "decided: gate only changes that hold a relayed decision, because raising every new change would lock 6.2.0 out of every repository 6.3.0 touches; measured: one v3 change already gates 6.2.0's change lifecycle repo-wide (research.md)",
+    "decided: a relay on a workflow-v1 change is refused, because v1 cannot be raised to the gated version"
+  ],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Native definition approval of #1064 by Leif (wording aligned by t370)"
+  ],
+  "run_consents": [],
+  "next_action": "Implement REQ-change-158 while the approval is pending"
+}

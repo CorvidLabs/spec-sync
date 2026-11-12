@@ -11,4 +11,4 @@ artifact: tasks
 - [x] test-validate-release-candidate.py candidate anchors at 6.3.0
 - [x] CHANGELOG [6.3.0] section, Security entry and links
 - [x] docs/releases/6.3.0.md
-- [ ] Merge main after #1067 so the relay-gate entry and upgrade note are in the 6.3.0 section
+- [x] Merge main after #1067 so the relay-gate entry and upgrade note are in the 6.3.0 section

@@ -29,13 +29,17 @@
     "Native definition approval: Leif ran 'specsync change approve' himself (actor 0xLeif, 'definition approved (approved)'), relayed by hc t370 on 2026-11-11; the PR stays 'do not merge' until Leif's explicit go for the tag"
   ],
   "open_questions": [],
-  "completed": [],
-  "observations": [],
+  "completed": [
+    "Merged main (#1067) into the 6.3.0 preparation; release notes updated; last task checked"
+  ],
+  "observations": [
+    "OBS-structural-a1f553d651e876c963f0b38a"
+  ],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
     "Leif's explicit go for the 6.3.0 tag and merge (relayed by t370)"
   ],
   "run_consents": [],
-  "next_action": "When #1067 merges: merge main, check the last task, change check --commit, t384 review and ship, push"
+  "next_action": "change check --commit with main's build, then t384 review and ship; stays do-not-merge until Leif's go"
 }

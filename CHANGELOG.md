@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-11-12
+
 ### Added
 
 - Text `change check` (plain and `--commit`) and `change audit` now print one stderr note counting the verification commands they did not run, across top-level, component, and strict policy lists. Successful JSON check and audit output carries the same deduplicated list as `configured_commands_not_run`, or `[]` when nothing is configured. The disclosure never runs a command or changes a verdict (#893, SHIP-1.c.3, REQ-cmd-change-unrun-commands-001).
@@ -15,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A static `specsync-linux-aarch64-musl` download. It starts on any ARM64 Linux, including Alpine and systems below the glibc floor, as `specsync-linux-x86_64-musl` already does for x86_64 (#882).
 - `change approve` and `change review` record an optional relayed decision when an agent records a decision a person made elsewhere: `--words`, `--where` and `--recorded-by` store `relayed_by` (`decided_by`, `words`, `where`, `recorded_by`, the shape Chough uses), with `decided_by` taken from `--actor` or `--reviewer`. `change status` shows each approval and review as a recorded claim, with any relay and the line "a relayed claim, not authenticated". The relay is covered by no digest, and the finalization review digest leaves it out (#633). A change that holds a relayed decision is recorded at workflow version 3, which SpecSync 6.2.0 and older refuse with "was written by a newer SpecSync" instead of rewriting the change and dropping `relayed_by`; version 3 is workflow v2 in every other way, and raising it stales no approval, verification or review. Once a repository records one relayed decision, every machine that runs change commands there needs SpecSync 6.3.0 or later; check-only uses (the GitHub Action and Trust pinned at 6.2.0) keep working. Relays on legacy workflow-v1 (portable 5.0.1) changes are not gated, and approve and review say so. A CI job proves it with the real 6.2.0 binary (REQ-change-158, #1064).
 - `specsync change repair-relays <id>` repairs a damaged relayed decision in an active change, whether or not its file is committed. It puts each damaged `relayed_by` back from the last commit or from its twin review record, and with no copy removes only that `relayed_by`, never an approval, a review attempt or a verdict. A damaged relay in an active change now names this command instead of `git checkout HEAD`, which could not restore a review file between `change review` and `change ship`; an archived package keeps `git checkout HEAD` (#904).
+
+- `specsync change retire <id>` retires an obsolete change that was reopened under audit, without accepting it. It keeps the old package and its failures, needs an independently accepted replacement and the source of the retirement decision, and records an explicit nonacceptance. A retired change satisfies no dependency and no succession (#1018).
 
 ### Changed
 
@@ -29,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The release-candidate qualification lane runs the unchanged test set under a checksum-pinned `cargo-nextest` (#861).
 
 - Advance the main Action binary default to published 6.2.0 after supported-platform asset and Action checks. Immutable `@v6.2.0` remains at its qualified candidate SHA with default 6.1.2; select `version: '6.2.0'` explicitly with that tag. Current install, migration, adoption and site guidance name 6.2.0.
+
+- Reference and contributor docs and the HLD lifecycle diagrams match current behaviour, including `change retire`, `send-back`, native archive commits, the six release downloads, and the Windows and Trust guidance. CI checks every maintained Mermaid block, and checks the lifecycle states and send-back transitions against the source (#964).
 
 ### Fixed
 
@@ -77,6 +83,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Linux glibc downloads, `specsync-linux-x86_64` and `specsync-linux-aarch64`, start on glibc 2.35 or newer: Ubuntu 22.04, Debian 12 and newer, which includes GitHub's `ubuntu-22.04` and `ubuntu-22.04-arm` runners. Through 6.2.0 they were linked on `ubuntu-latest`, and the weak Rust std symbols `pidfd_spawnp` and `pidfd_getpid` then demanded `GLIBC_2.39`, so they stopped before `--version` on Debian 12 and Ubuntu 22.04. Both release workflows now build them natively on Ubuntu 22.04. Before upload, every packaged Linux archive must start offline in pinned `ubuntu:22.04` and `debian:12-slim` containers (the musl ones also in Debian 11 and Alpine) and check a small project, so a download that would not start is never released. The `linux-baseline` CI job builds and checks the same archives, and it requires the check to reject the published v6.2.0 ARM64 archive (#882).
 - When the change-sequence ledger is frozen, `change status` (text and JSON `next_action` and `handoff`) and `change ship-status` give the freeze remediation first, even for a change already archived on the remote default; the upstream-archive rebase step no longer outranks it (#908).
 - Archived workflow-version history and the read-cache invalidation walk anchor repository-relative pathspecs at the repository root (`:(top,glob)` / `:(top,literal)`). A project that lives in a subdirectory of its Git repository sees that history, so a workflow-version downgrade restored by a later commit is still refused, live and from the cache (#851). A project directory whose name holds glob characters, such as `app[1]`, matches itself: the dated-archive pattern escapes the directory, and history reads of a path that is absent at a commit are not mistaken for an empty file.
+
+- SpecSync no longer hangs waiting on a pipe after a Git child process exits (#854, #855).
+- After `change approve`, `change status` and `change show` name `specsync change check <id> --commit` as the next step, not a bare `change check`. `change review` and `change ship` refuse a recorded verification whose commit lacks the change's own work, and bind no review to it (REQ-change-156, REQ-change-157, #535).
+- The merge driver keeps more of what each side wrote. Parallel edits of one module spec merge without a conflict (#865). A requirement reorder made on one side only is kept, and different reorders on the two sides conflict (#874). The driver installs when `specs_dir` is the repository root (#871).
+- `check` treats an indented fence marker as content, so it no longer hides the table that follows it (#768).
+- `generate`, `scaffold` and `new` never claim a file that another spec already owns (#611).
+- `coverage` lists unspecced modules in a stable sorted order (#612). `deps` reports one missing dependency as one error (#606). `report` states the `--require-coverage` verdict when staleness decides the exit (#605).
+- `import --from-dir` keeps the source spec's frontmatter, sections and files (#416).
+- `change approve` accepts a sent-back change's revised body for a requirement it added itself (#1001), and re-approval accepts an unchanged delta body that already carries the moved canonical text (#975).
+- Ownership recovery: the follow-ups from the #999 review cover comma-separated module names, reserved delivery paths at no-spec approval, a silent listing bound, constraints renewal, registry specs and directory scopes (#1011). For an unowned production input the change never modified since its base commit, `change ship-status`, the ship preflight and a refused review now suggest narrowing `affected_paths`; declaring an owner is suggested only for inputs the change modified (#1037).
+- A retired change's custody stays valid across an audited custodian drift, so the recorded reopen remedy stays reachable (#1021).
+- A corrupt or unreadable change-transaction journal names its file and how to set it aside, and the recovery runs as printed even in a project whose path holds a space. Every printed `change reopen` remediation carries `--actor` and `--reason` (#433).
+- A MODIFIED delta applies to every requirement header form the parser accepts (a title after the id, punctuation, multi-segment ids, up to three spaces of indent). The matched header line is written back unchanged, and an indented requirement block that follows it survives (#1024).
+- A failed verification command records a bounded output of the findings that failed it: errors, plus warnings under `--strict`. A gate refusal records its refusal text, so a recorded failure can be classified without re-running it. Passing records are byte-identical to before (#640).
+- A `change check` refused before verification appends a `passed: false` attempt with its reason to `verification-attempts.json`; `verification.json` is untouched (#847).
+- `change check --commit --json` prints one JSON outcome document with the change, both commit ids, `pushed`, `left_out` and `configured_commands_not_run`; a refusal prints the JSON error document and exits non-zero (#839).
+- A policy whose `ignored_paths` lists the specs tree or a protected policy file prints a note at load time naming the inert entry and saying to remove it, and `adopt` no longer writes the inert `specs/` entry (#676).
+- `change audit` reports an unreadable directory under `specs/` as an error naming the path, instead of skipping it (#873).
+
+### Security
+
+- `cap-primitives` is updated to 4.0.3 for RUSTSEC-2026-0482 (CVSS 9). On macOS, a spec or source path ending in a slash could follow a symlink out of the project during SpecSync's capability-confined reads, so a hostile repository could make SpecSync read a file outside it. 6.2.0 shipped the affected 4.0.2 (#1054).
 
 ## [6.2.0] - 2026-11-05
 
@@ -3763,7 +3791,8 @@ Published from candidate `v6.1.2-rc.2` (d08d2746), qualified on Ubuntu and macOS
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.2.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.3.0...HEAD
+[6.3.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.2.0...v6.3.0
 [6.2.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.2...v6.2.0
 [6.1.2]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.1...v6.1.2
 [6.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.1

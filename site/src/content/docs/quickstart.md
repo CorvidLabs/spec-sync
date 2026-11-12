@@ -271,9 +271,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.2.0
+      - uses: CorvidLabs/spec-sync@v6.3.0
         with:
-          version: '6.2.0'
+          version: '6.3.0'
           strict: true
           require-coverage: 80
 ```

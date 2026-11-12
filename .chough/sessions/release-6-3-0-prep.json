@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-084f08ad85fb8d5ce70f6c0d",
-    "head": "EVT-01bc6160a07636dafca1e8b1",
+    "head": "EVT-8acfd71c8db57b0a3222787f",
     "legacy": null
   },
   "schema_version": 2,
@@ -25,7 +25,8 @@
   "decisions": [
     "Authorization: Leif (coordinator chat, 2026-11-12, relayed by hc t370): 'yes chough 0.6.0 ships with spec-sync 6.3.0'. t370 assigned this release-prep PR as task 2, marked 'Do not merge until Leif says go'. No tag, release, publish or workflow dispatch without Leif's explicit go. The native definition approval is Leif's own command.",
     "decided: 6.3.0, not 6.2.1, because main adds commands since v6.2.0 (doctor, retire, repair-relays, relayed decisions, --timeout, aarch64 musl)",
-    "rejected: moving the action.yml default, PUBLISHED_ACTION_DEFAULT or current-install guidance to 6.3.0 in this PR, because validate-release-version.py requires them to stay at published 6.2.0 until after publication"
+    "rejected: moving the action.yml default, PUBLISHED_ACTION_DEFAULT or current-install guidance to 6.3.0 in this PR, because validate-release-version.py requires them to stay at published 6.2.0 until after publication",
+    "Native definition approval: Leif ran 'specsync change approve' himself (actor 0xLeif, 'definition approved (approved)'), relayed by hc t370 on 2026-11-11; the PR stays 'do not merge' until Leif's explicit go for the tag"
   ],
   "open_questions": [],
   "completed": [],
@@ -33,8 +34,8 @@
   "bugs": [],
   "blockers": [],
   "awaiting_human": [
-    "Native definition approval of the 6.3.0 preparation by Leif"
+    "Leif's explicit go for the 6.3.0 tag and merge (relayed by t370)"
   ],
   "run_consents": [],
-  "next_action": "After Leif approves and #1067 merges: merge main, check --commit, t384 review and ship; the PR waits for Leif's go"
+  "next_action": "When #1067 merges: merge main, check the last task, change check --commit, t384 review and ship, push"
 }

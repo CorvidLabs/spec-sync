@@ -1,0 +1,43 @@
+{
+  "history_cursor": {
+    "cycle": "CYC-c79ba68999a0560ef1a34fdd",
+    "head": "EVT-070f51245de0628c674144f9",
+    "legacy": null
+  },
+  "schema_version": 2,
+  "objective": "After the published v6.3.0 GitHub release, the main Action wrapper's omitted-input default, PUBLISHED_ACTION_DEFAULT, the Action docs default row and current install/migration/adoption/security guidance name 6.3.0, as #867 did for 6.2.0; floating v6 and immutable tags untouched",
+  "intent_scope": "",
+  "modules": [
+    "github"
+  ],
+  "stage": {
+    "current": "plan",
+    "status": "active",
+    "callers": [],
+    "iteration": 1
+  },
+  "native_change": "advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0",
+  "references": {
+    "criteria": [],
+    "requirements": [],
+    "cases": [],
+    "design": [],
+    "files": []
+  },
+  "decisions": [
+    "Authorization: Leif's go for 6.3.0 (relayed by hc t370, 2026-11-12); t370 asked for this post-publication defaults PR after verifying v6.3.0 is Latest. Native definition approval: per t370 (aligned wording) or Leif; this agent does not approve.",
+    "decided: follow #867's shape (bug_fix, github spec Purpose through one SpecSection delta, immutable @v6.3.0 documented as embedding 6.2.0) because it is the 6.2.0 precedent",
+    "decided: merge only after crates.io 6.3.0 is published, because the install guidance states crates.io serves 6.3.0; cargo publish is on hold for Leif",
+    "rejected: moving floating v6 in this change because it is a separate force-push decision for Leif after consumer checks"
+  ],
+  "open_questions": [],
+  "completed": [],
+  "observations": [],
+  "bugs": [],
+  "blockers": [],
+  "awaiting_human": [
+    "Native definition approval (aligned github Purpose wording) by t370 or Leif"
+  ],
+  "run_consents": [],
+  "next_action": "After approval: change check --commit with main's build, t384 review and ship; merge after crates.io 6.3.0 is published"
+}

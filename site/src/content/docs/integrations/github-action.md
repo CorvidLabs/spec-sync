@@ -20,14 +20,14 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 ---
 
-The stable GitHub `6.2.0` binary is published. The immutable `@v6.2.0` examples
-explicitly select it because that tag's embedded default remains `6.1.2`.
+The stable GitHub `6.3.0` binary is published. The immutable `@v6.3.0` examples
+explicitly select it because that tag's embedded default remains `6.2.0`.
 
 ## Inputs
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.2.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
+| `version` | `6.3.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -36,7 +36,7 @@ explicitly select it because that tag's embedded default remains `6.1.2`.
 | `lifecycle-enforce` | `false` | Run lifecycle enforcement after the strict spec check |
 | `require-archived` | `false` | Run the archive gate first. Fails before downloading or running anything when an SDD change under `.specsync/changes/` is still open. Repositories without `.specsync/changes/` pass. Needs `python3` on the runner |
 | `archive-gate-only` | `false` | Run only the archive gate (implies `require-archived`) and skip the download, spec check and comment. Use it in a first job that every other job `needs:` |
-| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and `pull-requests: write`. The wrapper on `main` after #886 falls back to the job summary on HTTP 403; immutable `@v6.2.0` does not include that fallback |
+| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and `pull-requests: write`. `@v6.3.0` and later fall back to the job summary on HTTP 403 (#886); immutable `@v6.2.0` and earlier do not |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments. Override if using a PAT for cross-repo access |
 
 ---
@@ -63,9 +63,9 @@ jobs:
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6.3.0` with
+Pin both the Action ref and its binary version. The YAML examples pin `@v6.3.0` with
 `version: '6.3.0'`. This separately verified main wrapper defaults to the published
-`6.2.0` binary; the immutable `@v6.2.0` tag retains default `6.1.2`.
+`6.3.0` binary; the immutable `@v6.3.0` tag retains default `6.2.0`.
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.3.0
@@ -76,11 +76,11 @@ Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6
 
 Always pass `version: '6.0.0'` with `@v6.0.0`. That tag's composite Action still embeds
 default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version` on
-that tag downloads the RC binary. Immutable `@v6.2.0` retains default `6.1.2`;
-explicitly pass `version: '6.2.0'` with it for the 6.2.0 stable binary. This later main
-wrapper defaults to `6.2.0` after actual stable asset and supported-platform Action
+that tag downloads the RC binary. Immutable `@v6.3.0` retains default `6.2.0`;
+explicitly pass `version: '6.3.0'` with it for the 6.3.0 stable binary. This later main
+wrapper defaults to `6.3.0` after actual stable asset and supported-platform Action
 checks. Floating `@v6` advances only after consumer checks of this exact wrapper
-commit. Neither immutable `@v6.2.0` nor `@v6.0.0` is retargeted.
+commit. Neither immutable `@v6.3.0` nor `@v6.0.0` is retargeted.
 
 ---
 
@@ -185,11 +185,11 @@ jobs:
 - If `comment: 'true'`, also runs `specsync comment`
 - Posts the markdown output as a PR comment (or updates an existing SpecSync comment)
 - Requires `pull-requests: write` permission and the `pull_request` event trigger
-- The wrapper on `main` after [#886](https://github.com/CorvidLabs/spec-sync/pull/886) handles
+- `@v6.3.0` and later ([#886](https://github.com/CorvidLabs/spec-sync/pull/886)) handle
   GitHub's HTTP 403 refusal (for example, a read-only fork PR token) by warning about the missing
   permission and writing the result to the job summary. The check result is unchanged; other
-  comment errors fail the step. This fallback is **not in immutable `@v6.2.0`**, used in the
-  examples above: a refused comment still fails that wrapper. Binary `version:` does not change
+  comment errors fail the step. The fallback is in immutable `@v6.3.0`, used in the examples
+  above; it is **not in `@v6.2.0` or earlier**, where a refused comment still fails the wrapper. Binary `version:` does not change
   the wrapper's behavior; its `uses:` revision does.
 
 **Custom token (e.g., for private registries or cross-repo refs):**
@@ -242,7 +242,7 @@ jobs:
 ```yaml
 - name: Install specsync
   run: |
-    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.2.0/specsync-linux-x86_64.tar.gz | tar xz
+    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.3.0/specsync-linux-x86_64.tar.gz | tar xz
     sudo mv specsync-linux-x86_64 /usr/local/bin/specsync
 
 - name: Spec check

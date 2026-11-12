@@ -19,7 +19,7 @@ Gate through `workflow_version`, the one field released 6.2.0 already refuses. A
 
 1. Anchor, load and history rules for version 3; the `== 2` site becomes `>= 2`.
 2. Execution digest reads 3 as 2.
-3. Raise points in approve and review, the v1 refusal, and the `state.json` write helper.
+3. Raise points in approve and review, the v1 note, and the `state.json` write helper.
 4. Unit tests in `src/change_tests/` and integration tests in `tests/integration/relayed_decision.rs`.
 5. `.github/scripts/test-relay-gate-compat.sh`: pinned 6.2.0 against records this build wrote. Run it as a fledge task and in the CI `closed-late-compat` job.
 6. Spec: invariant 60, Change Log, version; a lesson plane in `change.3md`; docs in `workflow.md` and `README.md`; a CHANGELOG entry.

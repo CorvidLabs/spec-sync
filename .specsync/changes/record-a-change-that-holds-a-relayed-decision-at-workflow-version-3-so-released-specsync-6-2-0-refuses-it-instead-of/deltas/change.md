@@ -16,19 +16,20 @@ reads the difference.
 
 #### Acceptance Criteria
 
-- `change approve` with a relayed decision, including a `--portable-5-0-1`
-  pair and an accepted definition refresh, and `change review` with a relayed
-  decision write the change's `state.json` at workflow version 3 before they
-  write the relay, so an interrupted command never leaves a relayed decision on
-  a version-2 change.
+- `change approve` with a relayed decision, including an accepted definition
+  refresh, and `change review` with a relayed decision write the change's
+  `state.json` at workflow version 3 before they write the relay, so an
+  interrupted command never leaves a relayed decision on a version-2 change.
 - Any other rewrite of a version-2 change's `state.json` raises it to 3 when
   its `approvals.json`, `review.json`, `review-attempts.json` or
   `corrections.json` holds a `relayed_by`. A change archived before this
   version is not edited, and keeps version 2 until such a rewrite.
 - A change with no relayed decision stays at workflow version 2, and
   `change new` creates the same version it does today.
-- A relayed decision on a workflow-v1 change is refused before anything is
-  written, because a version-1 change cannot be raised to 3.
+- A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps
+  version 1, because raising it would change its workflow; a relayed decision
+  recorded on one is not gated, and `change approve` and `change review` print
+  a note saying that SpecSync 6.2.0 and older can still drop it.
 - Workflow version 3 is valid only with origin 2. The workflow-version history
   check accepts one transition, 2 to 3 with the origin unchanged, between
   commits and between `HEAD` and the working tree. It still refuses 3 back to

@@ -10,7 +10,7 @@ artifact: testing
 | Relayed approve on a v2 change | `state.json` is at version 3 with origin 2, and approval and digest are as before |
 | Relayed review on a v2 change after `check --commit` | `state.json` at 3; the earlier verification still binds; `ship` archives with version 3 in `state.json` and `accepted-state.json` |
 | Approve and review without a relay | version stays 2, bytes as today |
-| Relay on a workflow-v1 change | refused, nothing written |
+| Relay on a workflow-v1 change, including a `--portable-5-0-1` pair | recorded, version stays 1, and approve and review print the note that 6.2.0 and older can still drop it |
 | History: 2 to 3 | accepted between commits and between `HEAD` and the working tree |
 | History: 3 to 2, origin changed, (3, None) | refused |
 | A rewrite of a v2 change whose ledgers hold a relay | raises it to 3 |

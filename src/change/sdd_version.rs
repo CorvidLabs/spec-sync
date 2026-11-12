@@ -4553,8 +4553,13 @@ fn reopen_unarchived_change(
                 (path, content)
             },
             {
-                let path = change_dir(root, &record.id).join("state.json");
-                let content = json_content_keeping_unknown_members(&path, &record)?;
+                let workspace = change_dir(root, &record.id);
+                let path = workspace.join("state.json");
+                // A reopened change that holds a relay stays gated (REQ-change-158).
+                let content = json_content_keeping_unknown_members(
+                    &path,
+                    relay_gated_record(&workspace, &record).as_ref(),
+                )?;
                 (path, content)
             },
             (

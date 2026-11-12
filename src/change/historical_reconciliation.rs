@@ -44,8 +44,13 @@ pub fn enable_historical_reconciliation(
         root,
         &[
             {
-                let path = change_dir(root, id).join("state.json");
-                let content = json_content_keeping_unknown_members(&path, &record)?;
+                let workspace = change_dir(root, id);
+                let path = workspace.join("state.json");
+                // A reconciled change that holds a relay stays gated (REQ-change-158).
+                let content = json_content_keeping_unknown_members(
+                    &path,
+                    relay_gated_record(&workspace, &record).as_ref(),
+                )?;
                 (path, content)
             },
             (

@@ -35,15 +35,17 @@
   ],
   "open_questions": [],
   "completed": [
-    "Implemented REQ-change-158: version-3 load, anchor and history rules; execution digest reads 3 as 2; approve and review raise before writing a relay; every state.json writer goes through relay_gated_record; v1 note; tests; compat script wired into CI and fledge; spec invariant 60, testing entry, change.3md z=52, docs, CHANGELOG"
+    "Implemented REQ-change-158: version-3 load, anchor and history rules; execution digest reads 3 as 2; approve and review raise before writing a relay; every state.json writer goes through relay_gated_record; v1 note; tests; compat script wired into CI and fledge; spec invariant 60, testing entry, change.3md z=52, docs, CHANGELOG",
+    "Gated the reopen and reconcile-history state writers per t384's review; pinned approve's raise-first order with a test"
   ],
   "observations": [
     "OBS-product-test-0a420027c9d8c62111fb1a7b",
-    "OBS-product-test-ce78f3720e9d6d6ae3c9b0a4"
+    "OBS-product-test-ce78f3720e9d6d6ae3c9b0a4",
+    "OBS-product-test-fe53b2b5d957d92866b57094"
   ],
   "bugs": [],
   "blockers": [],
   "awaiting_human": [],
   "run_consents": [],
-  "next_action": "change check --commit, then claude-code-t384 reviews and ships; push, open the PR, request corvid-agent"
+  "next_action": "change check --commit, push, then claude-code-t384 re-reviews and ships"
 }

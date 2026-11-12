@@ -1408,3 +1408,106 @@ fn a_relayed_approval_on_a_workflow_v1_change_keeps_version_1_and_says_it_is_not
     assert_eq!(project.versions(), (1, Some(1)));
     assert_eq!(project.last_approval()["relayed_by"], expected_relay(WORDS));
 }
+
+/// DISCRIMINATOR for REQ-change-158 (any other rewrite raises), through `change reopen`, the
+/// writer #1067's review found ungated: an archived workflow-v2 change whose ledger holds a relay
+/// at version 2, as the archives a build from before the gate wrote do, comes back from
+/// `change reopen` at version 3, because reopen rewrites its `state.json`.
+#[test]
+fn reopening_an_archived_change_whose_ledger_holds_a_relay_raises_it() {
+    let project = Project::ready_to_approve();
+    project
+        .run(&["change", "approve", ID, "--actor", ACTOR])
+        .success();
+    project.implemented_and_checked();
+    project
+        .run(&["change", "review", ID, "--reviewer", ACTOR])
+        .success();
+    project.run(&["change", "finalize", ID]).success();
+    let archive = project.archive_dir();
+    assert_eq!(
+        Project::versions_at(&archive.join("state.json")),
+        (2, Some(2))
+    );
+
+    // The archived definition approval gains the relay a pre-gate build would have written.
+    let approvals_path = archive.join("approvals.json");
+    let mut approvals: Value = serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+    let definition = approvals["approvals"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|approval| approval["gate"] == "definition")
+        .unwrap();
+    definition["relayed_by"] = expected_relay(WORDS);
+    fs::write(
+        &approvals_path,
+        serde_json::to_string_pretty(&approvals).unwrap() + "\n",
+    )
+    .unwrap();
+    project.write(
+        "src/auth.rs",
+        "// Authentication module, revised after shipping.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-m", "a pre-gate relay, then a delivery edit"]);
+    assert_eq!(
+        Project::versions_at(&archive.join("state.json")),
+        (2, Some(2))
+    );
+
+    project
+        .run(&[
+            "change",
+            "reopen",
+            ID,
+            "--actor",
+            ACTOR,
+            "--reason",
+            "The shipped module changed",
+        ])
+        .success();
+    assert_eq!(project.state(), "verifying");
+    assert_eq!(project.versions(), (3, Some(2)));
+}
+
+/// GUARD for REQ-change-158 (the raise comes first): approve writes `state.json` at version 3
+/// before it appends the relayed approval, so an approve that fails at the append leaves a change
+/// an older SpecSync refuses rather than one at version 2. #1067's review found nothing pinned
+/// that order. The append is made to fail by a read-only `approvals.json`.
+#[cfg(unix)]
+#[test]
+fn a_relayed_approve_that_fails_at_the_append_has_already_raised_the_change() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = Project::ready_to_approve();
+    let approvals = project.approvals_path();
+    let before = fs::read(&approvals).unwrap();
+    fs::set_permissions(&approvals, fs::Permissions::from_mode(0o444)).unwrap();
+    if fs::write(&approvals, &before).is_ok() {
+        // Running as a user that writes read-only files (root): the append cannot be failed.
+        fs::set_permissions(&approvals, fs::Permissions::from_mode(0o644)).unwrap();
+        return;
+    }
+    project
+        .run(&[
+            "change",
+            "approve",
+            ID,
+            "--actor",
+            ACTOR,
+            "--words",
+            WORDS,
+            "--where",
+            WHERE,
+            "--recorded-by",
+            AGENT,
+        ])
+        .failure();
+    fs::set_permissions(&approvals, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(
+        fs::read(&approvals).unwrap(),
+        before,
+        "no approval was appended"
+    );
+    assert_eq!(project.versions(), (3, Some(2)));
+}

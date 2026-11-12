@@ -1,6 +1,6 @@
 ---
 module: change
-version: 235
+version: 234
 status: active
 files:
   - src/change.rs
@@ -787,5 +787,4 @@ Acceptance Criteria
 | 2026-11-11 | answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested: Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested |
 | 2026-11-11 | a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote: A lifecycle rewrite keeps the fields a newer specsync wrote |
 | 2026-11-11 | after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s: After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work |
-| 2026-11-11 | record-a-change-that-holds-a-relayed-decision-at-workflow-version-3: A change that holds a relayed decision is recorded at workflow version 3, so released 6.2.0 refuses it instead of dropping `relayed_by` (REQ-change-158, invariant 60, #1064) |
 | 2026-11-12 | record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of: Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by |

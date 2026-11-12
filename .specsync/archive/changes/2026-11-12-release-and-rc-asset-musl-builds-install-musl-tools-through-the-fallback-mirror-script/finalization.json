@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script",
+  "implementation_commit": "5708bd3d76c1a173dd96ffb66b7eab74e2bc4132",
+  "implementation_tree": "f0232bcd9782045db18e95032bb7269d2a02893c",
+  "contract_digest": "df7be9253fc42b8add4fb3f5d8350ac425576aa3102e90d3120b7b7d48e36dd9",
+  "workspace_digest": "e8f707421cef0599bae1a23a06a101b17c153b55edc61ba3a254681e83c8c5c6",
+  "closing_digest": "7881c2aeeb54854d54642acac1644af16257eed953e193999ed492608641eab1",
+  "review_digest": "f27e93191017a8e491a9f696157bc3da339f6dba33e546b54d8e3edaadccc4af",
+  "finalization_digest": "6ba74a3fc45e2c0a5d14cfe0fe91ef3cc01b7b6603307edf7dcb7e305c6cfe96",
+  "timestamp": 1794447610
+}

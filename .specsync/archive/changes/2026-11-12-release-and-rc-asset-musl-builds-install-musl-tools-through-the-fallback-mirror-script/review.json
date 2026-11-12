@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5708bd3d76c1a173dd96ffb66b7eab74e2bc4132",
+  "contract_digest": "df7be9253fc42b8add4fb3f5d8350ac425576aa3102e90d3120b7b7d48e36dd9",
+  "execution_digest": "88c32e789ca48ead14c1eb6bef7384e73ccbbeb460d857de654a9ca4089338fa",
+  "workspace_digest": "e8f707421cef0599bae1a23a06a101b17c153b55edc61ba3a254681e83c8c5c6",
+  "timestamp": 1794447585
+}

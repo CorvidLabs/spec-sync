@@ -1,6 +1,6 @@
 ---
 id: record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4eed6e8dccc14ecf9fccf76b549d7e2fda8390e7
 ---

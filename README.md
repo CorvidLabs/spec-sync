@@ -44,9 +44,9 @@ brew install CorvidLabs/tap/spec-sync
 ### GitHub Action
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.2.0
+- uses: CorvidLabs/spec-sync@v6.3.0
   with:
-    version: '6.2.0'
+    version: '6.3.0'
     strict: 'true'
     require-coverage: '100'
 ```
@@ -62,9 +62,9 @@ its actual consumer checks pass; the immutable `@v6.2.0` ref is never moved here
 Minimal immutable configuration:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.2.0
+- uses: CorvidLabs/spec-sync@v6.3.0
   with:
-    version: '6.2.0'
+    version: '6.3.0'
 ```
 
 ### Pre-built binaries

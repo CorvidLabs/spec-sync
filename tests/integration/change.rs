@@ -4770,7 +4770,7 @@ fn status_json_and_text_report_an_edited_approved_delta() {
             .clone();
         serde_json::from_slice(&output).unwrap()
     };
-    let check_next = format!("run `specsync change check {id}`");
+    let check_next = format!("run `specsync change check {id} --commit`");
     let current = status_json();
     assert_eq!(current["summary"]["approval_valid"], true, "{current}");
     assert_eq!(current["summary"]["next_action"], check_next.as_str());
@@ -4978,7 +4978,7 @@ fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
     .unwrap();
     assert_eq!(
         status["summary"]["next_action"],
-        format!("run `specsync change check {id}`").as_str(),
+        format!("run `specsync change check {id} --commit`").as_str(),
         "{status}"
     );
 
@@ -5156,7 +5156,7 @@ impl VerificationIgnoredCli {
             fixture.git(&["commit", "-m", "list another tool's records"]);
             assert_eq!(
                 fixture.next_action(),
-                format!("run `specsync change check {id}`"),
+                format!("run `specsync change check {id} --commit`"),
                 "editing the list stales verification"
             );
         }
@@ -5540,7 +5540,7 @@ fn absent_list_keeps_issue_825_behaviour() {
     fixture.write(".chough/evidence/obs.json", "{\"observed\":true}\n");
     assert_eq!(
         fixture.next_action(),
-        format!("run `specsync change check {id}`")
+        format!("run `specsync change check {id} --commit`")
     );
     let status = fixture.status_json();
     assert!(
@@ -5574,7 +5574,7 @@ fn absent_list_keeps_issue_825_behaviour() {
     fixture.git(&["commit", "-m", "commit the record instead"]);
     assert_eq!(
         fixture.next_action(),
-        format!("run `specsync change check {id}`")
+        format!("run `specsync change check {id} --commit`")
     );
 }
 
@@ -6400,7 +6400,7 @@ fn open_task_gate_refuses_and_names_the_command_that_recovers() {
         !fixture.workspace().join("verification.json").exists(),
         "a refused check records no verification"
     );
-    let check_next = format!("then run `specsync change check {id}`");
+    let check_next = format!("then run `specsync change check {id} --commit`");
     fixture.assert_next_names_open_task_then(&check_next, &check_next);
 
     // Tick the box and run exactly what the refusal named.
@@ -7565,4 +7565,377 @@ fn lifecycle_rewrites_keep_members_a_newer_specsync_wrote() {
         );
     }
     run(&["change", "audit", "--strict"]);
+}
+
+// REQ-change-156 / REQ-change-157 / #535: after approve, the guided next
+// action names `change check --commit`, and review and ship refuse a
+// verification commit that does not contain the change's work.
+fn git_ok(root: &Path, args: &[&str]) -> String {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {} failed: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
+
+fn ss_ok(root: &Path, args: &[&str]) -> String {
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap()])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "specsync {} failed\nstdout:\n{}\nstderr:\n{}",
+        args.join(" "),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+fn ss_status(root: &Path, args: &[&str]) -> std::process::Output {
+    specsync()
+        .args(["--root", root.to_str().unwrap()])
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+fn ss535_no_spec_project() -> (TempDir, PathBuf, String) {
+    ss535_no_spec_project_with_scope("README.md", |root| {
+        fs::write(root.join("README.md"), "hello\n\nThe greeter says hello.\n").unwrap();
+    })
+}
+
+/// A no-spec documentation change scoped to `scope`, approved after `work` ran
+/// and left its result uncommitted.
+fn ss535_no_spec_project_with_scope(
+    scope: &str,
+    work: impl FnOnce(&Path),
+) -> (TempDir, PathBuf, String) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().to_path_buf();
+    git_ok(&root, &["init", "-q", "-b", "main"]);
+    git_ok(&root, &["config", "user.email", "test@example.com"]);
+    git_ok(&root, &["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "hello\n").unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(root.join("docs/guide.md"), "# Guide\n").unwrap();
+    git_ok(&root, &["add", "README.md", "docs/guide.md"]);
+    git_ok(&root, &["commit", "-q", "-m", "seed"]);
+    ss_ok(&root, &["init"]);
+    git_ok(&root, &["add", "--all"]);
+    git_ok(&root, &["commit", "-q", "-m", "init specsync"]);
+    let id = "document-the-greeter";
+    ss_ok(
+        &root,
+        &[
+            "change",
+            "new",
+            "Document the greeter",
+            "--kind",
+            "documentation",
+            "--path",
+            scope,
+            "--no-spec-change",
+            "--rationale",
+            "Documentation only; no canonical spec changes",
+        ],
+    );
+    for (question, answer) in [
+        ("acceptance_criteria", "The README describes the greeter"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        ss_ok(&root, &["change", "answer", id, question, answer]);
+    }
+    let workspace = root.join(".specsync/changes").join(id);
+    let record: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    for artifact in record["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        fs::write(
+            workspace.join(format!("{name}.md")),
+            "# Complete\n\nThe README documents the greeter.\n",
+        )
+        .unwrap();
+    }
+    work(&root);
+    ss_ok(&root, &["change", "approve", id, "--actor", "Repro535"]);
+    (temp, root, id.to_string())
+}
+
+fn next_action_json(root: &Path, id: &str) -> String {
+    let output = ss_status(root, &["--json", "change", "status", id]);
+    assert!(
+        output.status.success(),
+        "status failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    value["summary"]["next_action"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+#[test]
+fn after_approve_next_action_names_check_commit() {
+    let (_temp, root, id) = ss535_no_spec_project();
+    let expected = format!("run `specsync change check {id} --commit`");
+    assert_eq!(next_action_json(&root, &id), expected);
+    let show = ss_ok(&root, &["change", "show", &id]);
+    assert!(
+        show.contains(&format!("specsync change check {id} --commit")),
+        "show must name check --commit:\n{show}"
+    );
+    assert!(
+        !show.contains(&format!("specsync change check {id}`"))
+            || show.contains(&format!("specsync change check {id} --commit")),
+        "show must not name a bare check as the next command:\n{show}"
+    );
+    let status = ss_ok(&root, &["change", "status", &id]);
+    assert!(
+        status.contains(&format!("specsync change check {id} --commit")),
+        "status must name check --commit:\n{status}"
+    );
+}
+
+#[test]
+fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
+    let (_temp, root, id) = ss535_no_spec_project();
+    let seed = git_ok(&root, &["rev-parse", "HEAD"]);
+    ss_ok(&root, &["change", "check", &id]);
+    let workspace = root.join(".specsync/changes").join(&id);
+    let verification: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        verification["commit"].as_str().unwrap(),
+        seed,
+        "bare check binds verification to HEAD, which lacks the work"
+    );
+
+    let review = ss_status(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+    assert_ne!(review.status.code(), Some(0), "review must refuse");
+    let review_err = format!(
+        "{}{}",
+        String::from_utf8_lossy(&review.stdout),
+        String::from_utf8_lossy(&review.stderr)
+    );
+    assert!(
+        review_err.contains(&seed)
+            && review_err.contains(&format!("specsync change check {id} --commit")),
+        "review refusal must name the verification commit and check --commit:\n{review_err}"
+    );
+    assert!(
+        !workspace.join("review.json").exists(),
+        "a refused review records nothing"
+    );
+
+    let ship = ss_status(&root, &["change", "ship", &id]);
+    assert_ne!(ship.status.code(), Some(0), "ship must refuse");
+    let ship_err = format!(
+        "{}{}",
+        String::from_utf8_lossy(&ship.stdout),
+        String::from_utf8_lossy(&ship.stderr)
+    );
+    assert!(
+        ship_err.contains(&seed)
+            && ship_err.contains(&format!("specsync change check {id} --commit")),
+        "ship refusal must name the verification commit and check --commit:\n{ship_err}"
+    );
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_ne!(
+        state["state"].as_str().unwrap_or(""),
+        "archived",
+        "a refused ship must leave the change unarchived: {state}"
+    );
+
+    // After check --commit records verification against a commit that contains
+    // the work, review and ship may proceed. The only uncommitted files then
+    // are under `.specsync/` (invariant 42) and must not retrigger the refusal.
+    ss_ok(&root, &["change", "check", &id, "--commit"]);
+    let committed = git_ok(&root, &["rev-parse", "HEAD"]);
+    assert_ne!(committed, seed, "check --commit must record a new commit");
+    assert_eq!(
+        git_ok(&root, &["show", "HEAD:README.md"]),
+        "hello\n\nThe greeter says hello."
+    );
+    ss_ok(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+    assert!(workspace.join("review.json").exists());
+    let review: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("review.json")).unwrap()).unwrap();
+    assert_ne!(
+        review["implementation_commit"].as_str().unwrap(),
+        seed,
+        "the passing review must not bind to the pre-change commit"
+    );
+}
+
+fn ss_output_text(output: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
+#[test]
+fn review_and_ship_refuse_an_untracked_file_under_a_directory_scope() {
+    // t384 on #1059: `git diff` does not see an untracked file, so a new file
+    // inside a directory scope passed review and ship while uncommitted.
+    let (_temp, root, id) = ss535_no_spec_project_with_scope("docs/", |root| {
+        fs::write(root.join("docs/new-note.md"), "A new note.\n").unwrap();
+    });
+    let seed = git_ok(&root, &["rev-parse", "HEAD"]);
+    ss_ok(&root, &["change", "check", &id]);
+    let workspace = root.join(".specsync/changes").join(&id);
+
+    let review = ss_status(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+    let review_text = ss_output_text(&review);
+    assert_ne!(
+        review.status.code(),
+        Some(0),
+        "review must refuse:\n{review_text}"
+    );
+    assert!(
+        review_text.contains(&seed)
+            && review_text.contains(&format!("specsync change check {id} --commit")),
+        "review refusal must name the verification commit and check --commit:\n{review_text}"
+    );
+    assert!(
+        !workspace.join("review.json").exists(),
+        "a refused review records nothing"
+    );
+
+    let ship = ss_status(&root, &["change", "ship", &id]);
+    let ship_text = ss_output_text(&ship);
+    assert_ne!(
+        ship.status.code(),
+        Some(0),
+        "ship must refuse:\n{ship_text}"
+    );
+    assert!(
+        ship_text.contains(&format!("specsync change check {id} --commit")),
+        "ship refusal must name check --commit:\n{ship_text}"
+    );
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_ne!(state["state"].as_str().unwrap_or(""), "archived", "{state}");
+    assert!(
+        git_ok(&root, &["status", "--porcelain", "--", "docs/"]).contains("docs/new-note.md"),
+        "the new note is still uncommitted"
+    );
+
+    assert!(
+        review_text.contains("docs/new-note.md") && review_text.contains("git add"),
+        "the refusal names the untracked file and the `git add` it needs:\n{review_text}"
+    );
+
+    // `check --commit` never commits an untracked file, so the author adds it;
+    // once a verification commit holds it, review proceeds.
+    git_ok(&root, &["add", "docs/new-note.md"]);
+    ss_ok(&root, &["change", "check", &id, "--commit"]);
+    assert_eq!(
+        git_ok(&root, &["show", "HEAD:docs/new-note.md"]),
+        "A new note."
+    );
+    ss_ok(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+}
+
+#[test]
+fn review_refuses_a_verification_commit_that_is_not_a_full_commit_id() {
+    // t384 on #1059: the recorded verification commit is used as a Git revision
+    // only when it is a full commit id, after `--end-of-options` (REQ-change-013).
+    let (_temp, root, id) = ss535_no_spec_project();
+    ss_ok(&root, &["change", "check", &id, "--commit"]);
+    let workspace = root.join(".specsync/changes").join(&id);
+    let path = workspace.join("verification.json");
+    let original = fs::read_to_string(&path).unwrap();
+    let head = git_ok(&root, &["rev-parse", "HEAD"]);
+    let short = head[..12].to_string();
+    for value in ["--not-a-commit", "-x", short.as_str(), "HEAD", "main"] {
+        let mut verification: Value = serde_json::from_str(&original).unwrap();
+        verification["commit"] = Value::String(value.to_string());
+        fs::write(&path, serde_json::to_string_pretty(&verification).unwrap()).unwrap();
+        let review = ss_status(
+            &root,
+            &["change", "review", &id, "--reviewer", "Independent535"],
+        );
+        let text = ss_output_text(&review);
+        assert_ne!(
+            review.status.code(),
+            Some(0),
+            "{value}: review must refuse:\n{text}"
+        );
+        assert!(
+            text.contains("is not a full commit id"),
+            "{value}: the refusal names the bad commit identity:\n{text}"
+        );
+        assert!(
+            !text.contains("failed to compare"),
+            "{value}: the value never reaches git diff:\n{text}"
+        );
+        assert!(
+            !workspace.join("review.json").exists(),
+            "{value}: nothing recorded"
+        );
+    }
+    fs::write(&path, original).unwrap();
+    ss_ok(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+}
+
+#[test]
+fn uncommitted_specsync_evidence_alone_does_not_refuse_review() {
+    let (_temp, root, id) = ss535_no_spec_project();
+    ss_ok(&root, &["change", "check", &id, "--commit"]);
+    // Review, then leave review.json uncommitted, then confirm a second
+    // status/show still works and a finalize/ship is not refused for
+    // uncommitted `.specsync/` evidence.
+    ss_ok(
+        &root,
+        &["change", "review", &id, "--reviewer", "Independent535"],
+    );
+    let status = git_ok(&root, &["status", "--porcelain"]);
+    assert!(
+        status.lines().any(|line| line.contains(".specsync/")),
+        "review evidence should still be uncommitted:\n{status}"
+    );
+    assert!(
+        !status.lines().any(|line| line.contains("README.md")),
+        "the affected path must already be committed:\n{status}"
+    );
+    let ship = ss_status(&root, &["change", "ship", &id]);
+    assert_eq!(
+        ship.status.code(),
+        Some(0),
+        "uncommitted .specsync/ evidence alone must not refuse ship\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&ship.stdout),
+        String::from_utf8_lossy(&ship.stderr)
+    );
 }

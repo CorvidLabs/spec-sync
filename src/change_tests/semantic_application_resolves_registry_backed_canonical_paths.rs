@@ -1456,7 +1456,7 @@ fn a_gate_refusal_appends_a_failed_attempt_after_a_recorded_pass() {
     assert!(!load_verification(root, &verifying).unwrap().passed);
     assert_eq!(
         summarize_change(root, &verifying).next_action,
-        format!("run `specsync change check {}`", record.id),
+        format!("run `specsync change check {} --commit`", record.id),
         "a recorded refusal supersedes the pass, so status names check, not review"
     );
 }
@@ -4262,7 +4262,7 @@ fn assert_status_reports_a_current_approval(root: &Path, id: &str) {
     let record = load_change(root, id).unwrap();
     let summary = summarize_change(root, &record);
     assert!(summary.approval_valid, "{summary:?}");
-    assert_eq!(summary.next_action, format!("run `specsync change check {id}`"));
+    assert_eq!(summary.next_action, format!("run `specsync change check {id} --commit`"));
     assert_ne!(summary.handoff.readiness, HandoffReadiness::NotYet);
     assert!(
         serde_json::to_value(&summary)
@@ -4463,7 +4463,7 @@ fn editing_the_plan_after_approval_keeps_approval_valid() {
     assert!(summary.approval_valid, "{summary:?}");
     assert_eq!(
         summary.next_action,
-        format!("run `specsync change check {}`", record.id),
+        format!("run `specsync change check {} --commit`", record.id),
         "a plan edit stales verification, not approval"
     );
 }

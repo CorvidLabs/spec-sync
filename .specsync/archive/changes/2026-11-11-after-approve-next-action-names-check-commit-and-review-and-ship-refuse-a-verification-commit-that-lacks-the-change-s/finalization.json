@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s",
+  "implementation_commit": "51f39a18c7edf3163a219541a2af4c760bf4d6d6",
+  "implementation_tree": "d8fae85d2025c22bdd708dfb5de63d8c0021c375",
+  "contract_digest": "066102e0423f45371054198aa4364ebc6397baa871d757f1cfba877caa6100ab",
+  "workspace_digest": "4716f96aa05b4bdef47fe3de6653b1034a1673e1f383363aee668eb2b95f774a",
+  "closing_digest": "38b4e7e37d05457688789fd1b443665ca2a5aa7d0dd38d708e963ce528d175d0",
+  "review_digest": "5a5d88ac2e6588fea8c6ac3f7bf4096c0166c3b15c3b8e148049e5204cfab85c",
+  "finalization_digest": "6aac32a91eae2d5a32f956da24ccf4412996a1dae870b1c4c2cc6fce66908134",
+  "timestamp": 1794430901
+}

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 83
+version: 84
 status: active
 files:
   - src/commands/change.rs
@@ -24,7 +24,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 
 1. Every operation delegates domain policy to the change module.
 2. Errors render consistently and exit non-zero.
-3. Every status projection provides exactly one concrete next action on the `new → approve → check → review → finalize → GitHub merge` path.
+3. Every status projection provides exactly one concrete next action on the `new → approve → check --commit → review → finalize → GitHub merge` path.
 4. Supersede records an explicit digest-bound predecessor/path/module obligation before definition approval.
 5. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
 6. Correct-owner renders one persisted exact canonical-owner correction and directs the user to definition reapproval.
@@ -217,6 +217,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-09 | retire-obsolete-reopened-obligations-without-acceptance-and-diagnose-frozen-canonical-conflicts: Retire obsolete reopened obligations without acceptance and diagnose frozen canonical conflicts |
 | 2026-11-11 | check-commit-json-prints-the-outcome: Check commit json prints the outcome |
 | 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |
+| 2026-11-11 | after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s: After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work |
 
 ## Audited nonacceptance retirement
 

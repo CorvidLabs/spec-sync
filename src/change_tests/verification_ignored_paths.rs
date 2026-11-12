@@ -478,7 +478,7 @@ fn entry_overlapping_declared_affected_paths_is_refused_for_that_change() {
     assert!(next.contains("affected path `.chough/`"), "{next}");
     // The verified change declares `src/`, so the same list leaves it alone: the `sdd.json` edit
     // stales its verification as any policy edit does, and it re-verifies and is reviewed.
-    assert_eq!(vip_next_action(&root, &id), format!("run `specsync change check {id}`"));
+    assert_eq!(vip_next_action(&root, &id), format!("run `specsync change check {id} --commit`"));
     check_change(&root, Some(&id)).unwrap();
     assert_eq!(vip_next_action(&root, &id), vip_review_next(&id));
     record_scoped_review(&root, &id, "Independent reviewer".into()).unwrap();
@@ -617,7 +617,7 @@ fn unlisted_paths_still_stale_verification() {
     assert!(vip_verification_current(&root, &id));
     vip_write(&root, ".chough", "a file named like the entry\n");
     assert!(!vip_verification_current(&root, &id), "a file named .chough");
-    assert_eq!(vip_next_action(&root, &id), format!("run `specsync change check {id}`"));
+    assert_eq!(vip_next_action(&root, &id), format!("run `specsync change check {id} --commit`"));
 }
 
 // DISCRIMINATOR. The descendant walk is unchanged: a commit after the review that touches only

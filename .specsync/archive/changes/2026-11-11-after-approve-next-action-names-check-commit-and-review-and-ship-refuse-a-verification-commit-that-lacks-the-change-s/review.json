@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s",
+  "reviewer": "claude-code-t384",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "51f39a18c7edf3163a219541a2af4c760bf4d6d6",
+  "contract_digest": "066102e0423f45371054198aa4364ebc6397baa871d757f1cfba877caa6100ab",
+  "execution_digest": "29fd4bd69faf57e37cc982854b33907c0ba1e634cedc0af590704b3745a636e6",
+  "workspace_digest": "4716f96aa05b4bdef47fe3de6653b1034a1673e1f383363aee668eb2b95f774a",
+  "timestamp": 1794430871
+}

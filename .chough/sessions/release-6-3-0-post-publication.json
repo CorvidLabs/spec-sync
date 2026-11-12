@@ -31,7 +31,9 @@
     "rejected: moving floating v6 in this change because it is a separate force-push decision for Leif after consumer checks"
   ],
   "open_questions": [],
-  "completed": [],
+  "completed": [
+    "Fixed corvid-agent's three stale 6.2.0 lines on #1069 (action.yml version description, SECURITY.md wrapper default, MIGRATION.md confirm/Homebrew/writer lines); deltas unchanged"
+  ],
   "observations": [],
   "bugs": [],
   "blockers": [],

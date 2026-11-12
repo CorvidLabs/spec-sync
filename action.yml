@@ -6,7 +6,7 @@ branding:
 
 inputs:
   version:
-    description: 'SpecSync release to download (e.g. "6.3.0"). Pin an exact published release with assets; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only. This main wrapper defaults to published 6.2.0 after supported-platform asset and Action checks. The immutable @v6.2.0 tag retains default 6.1.2; pass version: "6.2.0" with that tag for its new binary. Floating @v6 advances only after checks of this wrapper commit. The immutable @v6.0.0 Action tag still embeds default 6.0.0-rc.14, so always pass version: "6.0.0" when using that tag.'
+    description: 'SpecSync release to download (e.g. "6.3.0"). Pin an exact published release with assets; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only. This main wrapper defaults to published 6.3.0 after supported-platform asset and Action checks. The immutable @v6.3.0 tag retains default 6.2.0; pass version: "6.3.0" with that tag for its new binary. Floating @v6 advances only after checks of this wrapper commit. The immutable @v6.0.0 Action tag still embeds default 6.0.0-rc.14, so always pass version: "6.0.0" when using that tag.'
     required: false
     default: '6.3.0'
   download-base-url:

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script",
+  "slug": "release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script",
+  "title": "Release and RC-asset musl builds install musl-tools through the fallback-mirror script",
+  "description": "Release and RC-asset musl builds install musl-tools through the fallback-mirror script",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "4eed6e8dccc14ecf9fccf76b549d7e2fda8390e7",
+  "created_at": 1794447143,
+  "updated_at": 1794447154,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    ".github/workflows/rc-assets.yml",
+    ".github/scripts/test-install-musl-tools.sh"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Release workflow infrastructure only: the release and RC-asset musl builds keep producing and checking the same archives (REQ-github-025 unchanged); only how those runners obtain musl-tools changes, matching ci.yml since #1061, so no canonical spec or requirement changes",
+  "acceptance_criteria": [
+    "The release.yml build job and the rc-assets.yml build job install musl-tools for their musl rows by running .github/scripts/install-musl-tools.sh, as ci.yml does, and keep their per-target env exports unchanged; no bare apt-get install of musl-tools remains in ci.yml, release.yml or rc-assets.yml, which test-install-musl-tools.sh asserts; no job in either release workflow runs augur or a CorvidLabs/trust gate, so none of them gets the ubuntu-24.04 pin"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

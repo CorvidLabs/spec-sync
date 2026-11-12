@@ -202,10 +202,14 @@ grep -q '^::error::musl-tools did not install, and no Ubuntu archive source' "$t
     fail "unknown: no ::error:: says there was nothing to repoint"
 [[ ! -e "$tmp/unknown/apt/specsync-fallback-mirrors.txt" ]] || fail "unknown: wrote a fallback mirror list"
 
-# 7. CI runs this script for the musl targets instead of a bare apt-get.
-ci="$root/.github/workflows/ci.yml"
-grep -q '^          \.github/scripts/install-musl-tools\.sh$' "$ci" ||
-    fail "ci.yml does not run .github/scripts/install-musl-tools.sh"
-! grep -q 'apt-get install -y musl-tools' "$ci" || fail "ci.yml still installs musl-tools with a bare apt-get"
+# 7. CI and both release workflows run this script for the musl targets instead of a bare
+# apt-get: the release build and the RC asset build hit the same mirror outage as CI.
+for workflow in ci.yml release.yml rc-assets.yml; do
+    file="$root/.github/workflows/$workflow"
+    grep -q '^          \.github/scripts/install-musl-tools\.sh$' "$file" ||
+        fail "$workflow does not run .github/scripts/install-musl-tools.sh"
+    ! grep -q 'apt-get install -y musl-tools' "$file" ||
+        fail "$workflow still installs musl-tools with a bare apt-get"
+done
 
 echo "install-musl-tools ok"

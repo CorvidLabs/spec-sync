@@ -1,4 +1,38 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794447322,
+      "digest": "df7be9253fc42b8add4fb3f5d8350ac425576aa3102e90d3120b7b7d48e36dd9",
+      "note": "Leif approved this bug fix himself on 2026-11-11 after the coordinator agent's (claude-code-t370) summary: the release and RC-asset musl builds install musl-tools through the fallback-mirror script, as ci.yml does since #1061; no release job runs augur, so no 24.04 pin. Prepared by claude-code-t38c.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script",
+        "title": "Release and RC-asset musl builds install musl-tools through the fallback-mirror script",
+        "description": "Release and RC-asset musl builds install musl-tools through the fallback-mirror script",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/test-install-musl-tools.sh",
+          ".github/workflows/rc-assets.yml",
+          ".github/workflows/release.yml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Release workflow infrastructure only: the release and RC-asset musl builds keep producing and checking the same archives (REQ-github-025 unchanged); only how those runners obtain musl-tools changes, matching ci.yml since #1061, so no canonical spec or requirement changes",
+        "acceptance_criteria": [
+          "The release.yml build job and the rc-assets.yml build job install musl-tools for their musl rows by running .github/scripts/install-musl-tools.sh, as ci.yml does, and keep their per-target env exports unchanged; no bare apt-get install of musl-tools remains in ci.yml, release.yml or rc-assets.yml, which test-install-musl-tools.sh asserts; no job in either release workflow runs augur or a CorvidLabs/trust gate, so none of them gets the ubuntu-24.04 pin"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
   "reopenings": []
 }

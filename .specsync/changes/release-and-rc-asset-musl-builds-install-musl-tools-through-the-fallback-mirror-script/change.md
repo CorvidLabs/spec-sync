@@ -1,6 +1,6 @@
 ---
 id: release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 4eed6e8dccc14ecf9fccf76b549d7e2fda8390e7
 ---

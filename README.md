@@ -51,7 +51,7 @@ brew install CorvidLabs/tap/spec-sync
     require-coverage: '100'
 ```
 
-Use the explicit `@v6.2.0` Action and binary pins shown above for release gates.
+After publication use the explicit `@v6.3.0` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
 when using that older tag. This main wrapper's omitted-input default is published
 `6.2.0`, following supported-platform asset and Action checks. The immutable

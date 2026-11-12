@@ -30,7 +30,8 @@
   ],
   "open_questions": [],
   "completed": [
-    "Merged main (#1067) into the 6.3.0 preparation; release notes updated; last task checked"
+    "Merged main (#1067) into the 6.3.0 preparation; release notes updated; last task checked",
+    "README release-gate sentence now names @v6.3.0 'after publication', as #859 phrased it for 6.2.0 (t384 review of #1068 at b5aa36fa)"
   ],
   "observations": [
     "OBS-structural-a1f553d651e876c963f0b38a"

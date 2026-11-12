@@ -47,6 +47,13 @@
       "approved_delta_bases": {
         "github: SPEC SECTION Purpose": "18309ba9b822fa635838473b240b82780d5733e9c2b373f769552d6e3d0a8cbb"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794493420,
+      "digest": "21b1bd5e0d6311f365483f040a4a5ec9db69dd298889de7656d04bea483aa228",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 module: github
-version: 55
+version: 56
 status: stable
 files:
   - src/github.rs
@@ -18,9 +18,9 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
 contract: immutable exact-version refs and a verified floating major compatibility ref. This
-later main wrapper defaults to the qualified published `6.2.0` binary after stable
-asset and supported-platform Action checks. Immutable `@v6.2.0` remains on the
-qualified candidate SHA with default `6.1.2`; pass explicit `version: '6.2.0'` for
+later main wrapper defaults to the qualified published `6.3.0` binary after stable
+asset and supported-platform Action checks. Immutable `@v6.3.0` remains on the
+qualified candidate SHA with default `6.2.0`; pass explicit `version: '6.3.0'` for
 the new stable binary. Floating `@v6` advances only after actual consumer checks
 of this separate wrapper commit. The published `@v6.0.0` Action tag still embeds
 default `6.0.0-rc.14` and is not
@@ -260,3 +260,4 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 | 2026-11-07 | record-the-attestation-on-every-green-push-to-main-and-keep-the-pull-request-summary-red-when-a-gate-failed-or-was: Record the attestation on every green push to main, and keep the pull request summary red when a gate failed or was blocked |
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
 | 2026-11-09 | v54: The clippy-all-targets guard splits shell commands at control operators before validating flags and holds all five linting lanes (`check`, `pre-commit`, `verify`, `ci`, `repo`) to the `lint` task (CI-8, REQ-github-028, #1007 review). |
+| 2026-11-12 | advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0: Advance the Action default and current guidance to published SpecSync 6.3.0 |

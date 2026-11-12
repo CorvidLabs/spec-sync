@@ -1,0 +1,60 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794493116,
+      "digest": "7f8a0900cc0cf81df25e531a841e85196876e7522fa40a79da5c2079581e3193",
+      "note": "Leif approved this change himself on 2026-11-12 after the coordinator agent's (claude-code-t370) summary: advance the published Action default and current guidance to 6.3.0 after publication, as #867 did for 6.2.0. Prepared by claude-code-t38c.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0",
+        "title": "Advance the Action default and current guidance to published SpecSync 6.3.0",
+        "description": "Advance the Action default and current guidance to published SpecSync 6.3.0",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/releases/6.3.0.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After the published v6.3.0 GitHub release (Latest, twelve assets; promoted from candidate v6.3.0-rc.1 at b87bbd88, qualified on Ubuntu and macos-15 in run 43162493255), the main Action wrapper's omitted-input default moves to 6.3.0: the action.yml version default and description, PUBLISHED_ACTION_DEFAULT in validate-release-version.py, and the version default row in the Action docs; composite runtime script bytes and the CI and Trust candidate mirrors are unchanged. Immutable v6.3.0 and RC refs stay at b87bbd88 with embedded default 6.2.0, and the docs say to pass version '6.3.0' with @v6.3.0; the immutable v6.0.0 caveat is kept. The github spec Purpose changes through one SpecSection delta. Current guidance (README install and pin text, SECURITY.md, MIGRATION.md, docs/ADOPTING.md, the site index, the Action docs' published-binary, comment-fallback and manual-download text) names published 6.3.0; historical release text is unchanged. CHANGELOG gains an Unreleased entry and docs/releases/6.3.0.md records publication. validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass, and the pre-push gate passes. The PR merges only after crates.io serves 6.3.0; floating v6 moves only on Leif's separate decision."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Honor specs/github/github.3md Monotonic Action promotion and Hermetic release guards: keep immutable candidate and tag identities, unchanged Action shell scripts and explicit CI and Trust candidate mirrors; floating v6 moves only after actual omitted-input consumer checks at the merged wrapper commit.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "fa20ebbe1cb6223d22e2cc731a536770209852e93a26b7248fc3be337f9ade92"
+      },
+      "approved_delta_bases": {
+        "github: SPEC SECTION Purpose": "18309ba9b822fa635838473b240b82780d5733e9c2b373f769552d6e3d0a8cbb"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794493420,
+      "digest": "21b1bd5e0d6311f365483f040a4a5ec9db69dd298889de7656d04bea483aa228",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

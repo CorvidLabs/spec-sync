@@ -49,6 +49,6 @@ SpecSync is a local CLI tool and GitHub Action. The primary security concerns ar
 
 ## Security Best Practices for Users
 
-- Pin SpecSync in CI to the exact published release tag and binary version. Use `v6.2.0` with `version: '6.2.0'` (the README form) or a commit SHA. A floating major ref (`uses: CorvidLabs/spec-sync@v6`) is the compatibility channel; the current main wrapper defaults to published `6.2.0`. Avoid `version: latest`
+- Pin SpecSync in CI to the exact published release tag and binary version. Use `v6.3.0` with `version: '6.3.0'` (the README form) or a commit SHA. A floating major ref (`uses: CorvidLabs/spec-sync@v6`) is the compatibility channel; the current main wrapper defaults to published `6.3.0`. Avoid `version: latest`
 - Review spec files from untrusted sources before running validation
 - Remote cross-project validation is opt-in; only pass `resolve --remote` or `resolve --verify` when network-backed reference checks are required

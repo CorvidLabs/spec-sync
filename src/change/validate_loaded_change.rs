@@ -2642,7 +2642,11 @@ fn validate_foreign_tree(root: &Path) -> Result<(), String> {
 }
 
 fn save_change(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    write_json_keeping_unknown_members(&change_dir(root, &record.id).join("state.json"), record)
+    let workspace = change_dir(root, &record.id);
+    // A change whose ledgers hold a relayed decision is written at the relay-gated version
+    // (REQ-change-158), whichever command rewrites it.
+    let record = relay_gated_record(&workspace, record);
+    write_json_keeping_unknown_members(&workspace.join("state.json"), record.as_ref())
 }
 
 fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -2865,7 +2869,7 @@ fn validate_loaded_change(
 ) -> Result<(), String> {
     validate_change_id(&record.id)
         .map_err(|error| format!("invalid change state {}: {error}", state_path.display()))?;
-    if !matches!(record.workflow_version, 1 | 2) {
+    if !matches!(record.workflow_version, 1 | 2 | RELAY_GATED_WORKFLOW_VERSION) {
         // A version this binary does not know means the record was written by a NEWER
         // SpecSync, not that it is corrupt. Reporting it as an "invalid change state" made
         // those two indistinguishable, so the operator's correct action — upgrade — was the
@@ -2910,10 +2914,12 @@ fn validate_loaded_change(
 
 fn validate_workflow_version_anchor(record: &ChangeRecord) -> Result<(), String> {
     match (record.workflow_version, record.workflow_origin_version) {
-        (1, None | Some(1)) | (2, Some(2)) => Ok(()),
-        (2, None) => {
-            Err("workflow-v2 state is missing its immutable workflow_origin_version anchor".into())
-        }
+        // A relay-gated change is a workflow-v2 change, so its origin stays 2 (REQ-change-158).
+        (1, None | Some(1)) | (2, Some(2)) | (RELAY_GATED_WORKFLOW_VERSION, Some(2)) => Ok(()),
+        (2 | RELAY_GATED_WORKFLOW_VERSION, None) => Err(format!(
+            "workflow-v{} state is missing its immutable workflow_origin_version anchor",
+            record.workflow_version
+        )),
         (version, Some(origin)) => Err(format!(
             "workflow version {version} conflicts with immutable origin {origin}"
         )),
@@ -2927,7 +2933,12 @@ fn validate_workflow_version_anchor(record: &ChangeRecord) -> Result<(), String>
 
 fn validate_historical_workflow_version_anchor(record: &ChangeRecord) -> Result<(), String> {
     match (record.workflow_version, record.workflow_origin_version) {
-        (1, None | Some(1)) | (2, None | Some(2)) => Ok(()),
+        (1, None | Some(1)) | (2, None | Some(2)) | (RELAY_GATED_WORKFLOW_VERSION, Some(2)) => Ok(()),
+        // The gate postdates the origin anchor, so a relay-gated record always carries one.
+        (RELAY_GATED_WORKFLOW_VERSION, None) => Err(
+            "relay-gated workflow-v3 state is missing its immutable workflow_origin_version anchor"
+                .into(),
+        ),
         (version, Some(origin)) => Err(format!(
             "workflow version {version} conflicts with immutable origin {origin}"
         )),
@@ -3614,17 +3625,12 @@ fn validate_workflow_version_history_uncached(
         };
         let committed: ChangeRecord = serde_json::from_slice(&bytes)
             .map_err(|error| format!("invalid committed workflow-version state: {error}"))?;
-        if committed.workflow_version != record.workflow_version
-            || !matches!(
-                (
-                    committed.workflow_origin_version,
-                    record.workflow_origin_version,
-                ),
-                (previous, current) if previous == current
-                    || (previous.is_none()
-                        && current == Some(record.workflow_version))
-            )
-        {
+        // The working tree may be one lawful move ahead of `HEAD`: a relayed review raises the
+        // change to the relay-gated version, and nothing is committed before `change ship`.
+        if !workflow_version_move_is_lawful(
+            (committed.workflow_version, committed.workflow_origin_version),
+            (record.workflow_version, record.workflow_origin_version),
+        ) {
             return Err(
                 "workflow version or immutable creation anchor changed from committed state".into(),
             );
@@ -3824,14 +3830,10 @@ fn validate_workflow_version_transition(
     let Some((_, previous_version, previous_origin)) = previous else {
         return Ok(());
     };
-    if current_version != previous_version
-        || !matches!(
-            (previous_origin, current_origin),
-            (previous, current)
-                if previous == current
-                    || (previous.is_none() && *current == Some(*current_version))
-        )
-    {
+    if !workflow_version_move_is_lawful(
+        (*previous_version, *previous_origin),
+        (*current_version, *current_origin),
+    ) {
         return Err(format!(
             "workflow-version history changed immutable identity from {previous_version}/{previous_origin:?} to {current_version}/{current_origin:?}"
         ));

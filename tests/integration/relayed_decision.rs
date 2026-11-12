@@ -89,6 +89,32 @@ impl Project {
             .clone()
     }
 
+    /// `(workflow_version, workflow_origin_version)` of the state file at `path`; an omitted
+    /// version is the legacy 1.
+    fn versions_at(path: &std::path::Path) -> (u64, Option<u64>) {
+        let state: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        (
+            state
+                .get("workflow_version")
+                .map_or(1, |value| value.as_u64().unwrap()),
+            state
+                .get("workflow_origin_version")
+                .map(|value| value.as_u64().unwrap()),
+        )
+    }
+
+    fn versions(&self) -> (u64, Option<u64>) {
+        Self::versions_at(&self.workspace().join("state.json"))
+    }
+
+    /// Rewrite the active `state.json` with `workflow_version` set to `version`.
+    fn set_workflow_version(&self, version: u64) {
+        let path = self.workspace().join("state.json");
+        let mut state: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        state["workflow_version"] = serde_json::json!(version);
+        fs::write(&path, serde_json::to_string_pretty(&state).unwrap() + "\n").unwrap();
+    }
+
     fn state(&self) -> String {
         let state: Value =
             serde_json::from_slice(&fs::read(self.workspace().join("state.json")).unwrap())
@@ -98,6 +124,12 @@ impl Project {
 
     /// A draft change with a complete definition, ready for `change approve`.
     fn ready_to_approve() -> Self {
+        Self::ready_to_approve_under_policy(2)
+    }
+
+    /// `ready_to_approve` in a project whose SDD policy is `policy_version`: 1 opens a
+    /// workflow-v1 change, 2 a workflow-v2 one.
+    fn ready_to_approve_under_policy(policy_version: u32) -> Self {
         let temp = TempDir::new().unwrap();
         let root = temp.path().to_path_buf();
         let project = Self { _temp: temp, root };
@@ -112,7 +144,7 @@ impl Project {
         project.write(
             ".specsync/sdd.json",
             &serde_json::to_string_pretty(&serde_json::json!({
-                "version": 2,
+                "version": policy_version,
                 "enabled": true,
                 "require_change_for_meaningful_files": false,
                 "meaningful_paths": ["src/", ".specsync/sdd.json"],
@@ -1194,4 +1226,288 @@ fn a_relayed_approval_with_a_padded_actor_records_one_decider_and_stays_readable
     assert_eq!(approval["relayed_by"]["decided_by"], ACTOR, "{approval}");
     project.run(&["change", "status", ID]).success();
     assert_eq!(project.status_json()["summary"]["approval_valid"], true);
+}
+
+// ─── #1064, REQ-change-158: a change that holds a relayed decision is workflow version 3 ────────
+//
+// Released 6.2.0 drops `relayed_by` when it rewrites a change, and refuses only a `state.json`
+// whose workflow version it does not know. So a relayed decision raises the change to version 3,
+// the gated form of workflow v2. `.github/scripts/test-relay-gate-compat.sh` runs the real 6.2.0
+// binary against these records; these tests pin what this binary writes and reads.
+
+const NEWER_SPECSYNC: &str = "was written by a newer SpecSync";
+
+/// DISCRIMINATOR for REQ-change-158: a relayed approval writes version 3 with origin 2, and a
+/// plain approval of the same change keeps version 2, byte for byte what it wrote before.
+#[test]
+fn a_relayed_approval_raises_the_change_to_workflow_version_3_and_a_plain_one_does_not() {
+    let plain = Project::ready_to_approve();
+    plain
+        .run(&["change", "approve", ID, "--actor", ACTOR])
+        .success();
+    assert_eq!(plain.versions(), (2, Some(2)));
+
+    let relayed = Project::ready_to_approve();
+    relayed.approve_relayed();
+    assert_eq!(relayed.versions(), (3, Some(2)));
+    relayed.run(&["change", "status", ID]).success();
+    assert_eq!(relayed.status_json()["summary"]["approval_valid"], true);
+}
+
+/// DISCRIMINATOR for REQ-change-158 (no digest reads the version): a relayed review raises a
+/// change that was approved, verified and committed at version 2. The verification recorded at
+/// version 2 still binds, finalize archives the change, and the archive keeps version 3 in both
+/// `state.json` and `accepted-state.json`.
+#[test]
+fn a_relayed_review_raises_the_change_and_its_earlier_verification_still_binds_through_finalize() {
+    let project = Project::ready_to_approve();
+    project
+        .run(&["change", "approve", ID, "--actor", ACTOR])
+        .success();
+    project.implemented_and_checked();
+    assert_eq!(project.versions(), (2, Some(2)));
+
+    project.review_relayed();
+    assert_eq!(project.versions(), (3, Some(2)));
+
+    // Finalize refuses a stale verification or review, so success is the proof they still bind.
+    project.run(&["change", "finalize", ID]).success();
+    let archive = project.archive_dir();
+    for file in ["state.json", "accepted-state.json"] {
+        assert_eq!(
+            Project::versions_at(&archive.join(file)),
+            (3, Some(2)),
+            "{file}"
+        );
+    }
+    // Finalize commits the archive itself; commit only what it may have left.
+    let status = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&project.root)
+        .output()
+        .unwrap();
+    if !status.stdout.is_empty() {
+        project.git(&["add", "--all"]);
+        project.git(&["commit", "-m", "archive"]);
+    }
+    project.run(&["change", "status", ID]).success();
+    project.run(&["change", "audit"]).success();
+}
+
+/// GUARD for REQ-change-158: the history allows only the raise. Putting a relay-gated change
+/// back to version 2 is refused in the working tree, and in a commit even after a later commit
+/// restores it, as any workflow-version downgrade is; a version-3 state without its origin
+/// anchor is refused too.
+#[test]
+fn a_relay_gated_change_cannot_be_lowered_back_to_workflow_version_2() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-m", "approve with a relay"]);
+    let state_file = format!(".specsync/changes/{ID}/state.json");
+
+    project.set_workflow_version(2);
+    let error = project.refusal(&["change", "status", ID]);
+    assert!(error.contains("changed from committed state"), "{error}");
+    project.git(&["checkout", "HEAD", "--", &state_file]);
+    project.run(&["change", "status", ID]).success();
+
+    let path = project.workspace().join("state.json");
+    let mut state: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    state
+        .as_object_mut()
+        .unwrap()
+        .remove("workflow_origin_version");
+    fs::write(&path, serde_json::to_string_pretty(&state).unwrap() + "\n").unwrap();
+    let error = project.refusal(&["change", "status", ID]);
+    assert!(
+        error.contains("missing its immutable workflow_origin_version anchor"),
+        "{error}"
+    );
+    project.git(&["checkout", "HEAD", "--", &state_file]);
+
+    project.set_workflow_version(2);
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-m", "lower the version"]);
+    for _restored in [false, true] {
+        let error = project.refusal(&["change", "status", ID]);
+        assert!(
+            error.contains("workflow-version history changed immutable identity"),
+            "{error}"
+        );
+        project.git(&["revert", "--no-edit", "HEAD"]);
+    }
+}
+
+/// GUARD for REQ-change-079 with REQ-change-158: version 3 is known now, and a version above it
+/// is still reported as written by a newer SpecSync.
+#[test]
+fn a_workflow_version_above_3_is_still_written_by_a_newer_specsync() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.set_workflow_version(4);
+    let error = project.refusal(&["change", "status", ID]);
+    assert!(error.contains(NEWER_SPECSYNC), "{error}");
+    assert!(error.contains("workflow version 4"), "{error}");
+}
+
+/// DISCRIMINATOR for REQ-change-158 (any other rewrite raises): a relayed approval left at
+/// version 2, as a build from before the gate wrote it, is raised by the next rewrite of
+/// `state.json`, here a send-back, because its approvals ledger still holds the relay.
+#[test]
+fn the_next_rewrite_raises_a_change_whose_ledger_already_holds_a_relay() {
+    let project = Project::ready_to_approve();
+    project.approve_relayed();
+    project.set_workflow_version(2);
+    assert_eq!(project.versions(), (2, Some(2)));
+
+    project
+        .run(&[
+            "change",
+            "send-back",
+            ID,
+            "--actor",
+            ACTOR,
+            "--reason",
+            "Rescope the module",
+        ])
+        .success();
+    assert_eq!(project.versions(), (3, Some(2)));
+}
+
+/// DISCRIMINATOR for REQ-change-158 (workflow v1): a workflow-v1 change keeps version 1 when it
+/// takes a relayed approval, because raising it would change its workflow; the relay is
+/// recorded, and approve says on stderr that 6.2.0 and older can still drop it.
+#[test]
+fn a_relayed_approval_on_a_workflow_v1_change_keeps_version_1_and_says_it_is_not_gated() {
+    let project = Project::ready_to_approve_under_policy(1);
+    assert_eq!(project.versions(), (1, Some(1)));
+    let output = project
+        .run(&[
+            "change",
+            "approve",
+            ID,
+            "--actor",
+            ACTOR,
+            "--words",
+            WORDS,
+            "--where",
+            WHERE,
+            "--recorded-by",
+            AGENT,
+        ])
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("is a workflow-v1 change"), "{stderr}");
+    assert!(
+        stderr.contains("SpecSync 6.2.0 and older can still drop `relayed_by`"),
+        "{stderr}"
+    );
+    assert_eq!(project.versions(), (1, Some(1)));
+    assert_eq!(project.last_approval()["relayed_by"], expected_relay(WORDS));
+}
+
+/// DISCRIMINATOR for REQ-change-158 (any other rewrite raises), through `change reopen`, the
+/// writer #1067's review found ungated: an archived workflow-v2 change whose ledger holds a relay
+/// at version 2, as the archives a build from before the gate wrote do, comes back from
+/// `change reopen` at version 3, because reopen rewrites its `state.json`.
+#[test]
+fn reopening_an_archived_change_whose_ledger_holds_a_relay_raises_it() {
+    let project = Project::ready_to_approve();
+    project
+        .run(&["change", "approve", ID, "--actor", ACTOR])
+        .success();
+    project.implemented_and_checked();
+    project
+        .run(&["change", "review", ID, "--reviewer", ACTOR])
+        .success();
+    project.run(&["change", "finalize", ID]).success();
+    let archive = project.archive_dir();
+    assert_eq!(
+        Project::versions_at(&archive.join("state.json")),
+        (2, Some(2))
+    );
+
+    // The archived definition approval gains the relay a pre-gate build would have written.
+    let approvals_path = archive.join("approvals.json");
+    let mut approvals: Value = serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+    let definition = approvals["approvals"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|approval| approval["gate"] == "definition")
+        .unwrap();
+    definition["relayed_by"] = expected_relay(WORDS);
+    fs::write(
+        &approvals_path,
+        serde_json::to_string_pretty(&approvals).unwrap() + "\n",
+    )
+    .unwrap();
+    project.write(
+        "src/auth.rs",
+        "// Authentication module, revised after shipping.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-m", "a pre-gate relay, then a delivery edit"]);
+    assert_eq!(
+        Project::versions_at(&archive.join("state.json")),
+        (2, Some(2))
+    );
+
+    project
+        .run(&[
+            "change",
+            "reopen",
+            ID,
+            "--actor",
+            ACTOR,
+            "--reason",
+            "The shipped module changed",
+        ])
+        .success();
+    assert_eq!(project.state(), "verifying");
+    assert_eq!(project.versions(), (3, Some(2)));
+}
+
+/// GUARD for REQ-change-158 (the raise comes first): approve writes `state.json` at version 3
+/// before it appends the relayed approval, so an approve that fails at the append leaves a change
+/// an older SpecSync refuses rather than one at version 2. #1067's review found nothing pinned
+/// that order. The append is made to fail by a read-only `approvals.json`.
+#[cfg(unix)]
+#[test]
+fn a_relayed_approve_that_fails_at_the_append_has_already_raised_the_change() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = Project::ready_to_approve();
+    let approvals = project.approvals_path();
+    let before = fs::read(&approvals).unwrap();
+    fs::set_permissions(&approvals, fs::Permissions::from_mode(0o444)).unwrap();
+    if fs::write(&approvals, &before).is_ok() {
+        // Running as a user that writes read-only files (root): the append cannot be failed.
+        fs::set_permissions(&approvals, fs::Permissions::from_mode(0o644)).unwrap();
+        return;
+    }
+    project
+        .run(&[
+            "change",
+            "approve",
+            ID,
+            "--actor",
+            ACTOR,
+            "--words",
+            WORDS,
+            "--where",
+            WHERE,
+            "--recorded-by",
+            AGENT,
+        ])
+        .failure();
+    fs::set_permissions(&approvals, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(
+        fs::read(&approvals).unwrap(),
+        before,
+        "no approval was appended"
+    );
+    assert_eq!(project.versions(), (3, Some(2)));
 }

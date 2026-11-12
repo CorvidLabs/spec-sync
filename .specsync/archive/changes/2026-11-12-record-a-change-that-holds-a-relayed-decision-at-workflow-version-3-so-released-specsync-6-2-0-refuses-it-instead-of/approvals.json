@@ -1,0 +1,58 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794448860,
+      "digest": "334d4cbae86dda3344a0e05c13622da5b1658111f9c52bfc50e2f7d9cfcfc122",
+      "note": "Leif approved this change himself on 2026-11-11 after the coordinator agent's (claude-code-t370) summary: 6.3.0 records any change that holds a relayed decision at workflow version 3, so released 6.2.0 refuses it instead of silently dropping relayed_by; legacy workflow-v1 (portable 5.0.1) changes are not gated and approve/review say so (his choice (a) on #1064). Prepared by claude-code-t38c.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of",
+        "title": "Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by",
+        "description": "Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-relay-gate-compat.sh",
+          ".github/workflows/ci.yml",
+          "CHANGELOG.md",
+          "README.md",
+          "fledge.toml",
+          "site/src/content/docs/workflow.md",
+          "specs/change/",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration/relayed_decision.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A change that holds a relayed approval, review or correction is recorded at workflow version 3 (origin 2, every digest unchanged), so the real SpecSync 6.2.0 release binary refuses it with 'was written by a newer SpecSync (workflow version 3); upgrade specsync to read it' and changes nothing, as REQ-change-158 states"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "specs/change/change.3md z=34 (compare a record the way its digest reads it: the version raise is outside every digest, so every currency, integrity and succession comparison reads version 3 as 2) and z=31 (an old binary that cannot parse a record refuses the repository's change lifecycle; here that refusal is the point)",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "6a288c4bc06a9688b7e10067f2ab9324bb3c64f218d620943bdf9a293a35731a"
+      },
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794453929,
+      "digest": "7bda3d26bc23aefe8761e16a7c5093c4db2b782ee8632dd1aa715de37ceba729",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

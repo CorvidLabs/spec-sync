@@ -7,10 +7,10 @@
   "title": "Advance the Action default and current guidance to published SpecSync 6.3.0",
   "description": "Advance the Action default and current guidance to published SpecSync 6.3.0",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "b87bbd88efea06ffd9474af02018240f24300419",
   "created_at": 1794465771,
-  "updated_at": 1794465793,
+  "updated_at": 1794493116,
   "affected_specs": [
     "github"
   ],

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start",
+  "implementation_commit": "57d0f6489ab3002c07484230e614a4151ddaedcb",
+  "implementation_tree": "fdae224eafc5e7adab66c4f1a354ad417e3c927c",
+  "contract_digest": "245870a2cca71b438a8abd23ebd00a47491d86a9416c28113379ea13fab41638",
+  "workspace_digest": "dd642476b2a7b39fd97d92abdd35add84a6016d4a6a1b72293f4d0f6e8ac0c28",
+  "closing_digest": "bf8927311bee25bbe15635ab02609d4b0defedc46a0ad50481afcdb537a6d995",
+  "review_digest": "2e19004847eff41a7f946349eeaa9632d7268ad0264ba6490834e68cd12e2b7b",
+  "finalization_digest": "4cfb15b3dfd358badd53b52fcb3e1893780d8d734edbf15fb67f3ea3e0fb866b",
+  "timestamp": 1794442682
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start",
+  "slug": "run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start",
+  "title": "Run the trust CI job on ubuntu-24.04 so the augur risk gate can start",
+  "description": "Run the trust CI job on ubuntu-24.04 so the augur risk gate can start",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "b2ec548ff9fba5f9308a3c7fc61cc853ecd3d0dd",
+  "created_at": 1794438443,
+  "updated_at": 1794442436,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/trust.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "CI runner pin only; no canonical spec changes. ubuntu-latest is rolling to 26.04, whose libxml2 has SONAME libxml2.so.16, and the prebuilt augur binary the Trust gate runs needs libxml2.so.2 (CorvidLabs/augur#59)",
+  "acceptance_criteria": [
+    "The trust CI job runs on an ubuntu-24.04 runner, so the CorvidLabs Trust gate's augur risk step starts (no libxml2.so.2 exit-127), while every other job's runner is unchanged; the workflow comments name CorvidLabs/augur#59 as the reason and the revert condition"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

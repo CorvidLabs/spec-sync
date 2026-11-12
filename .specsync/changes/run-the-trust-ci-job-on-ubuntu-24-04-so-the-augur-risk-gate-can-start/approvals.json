@@ -1,0 +1,36 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794442380,
+      "digest": "245870a2cca71b438a8abd23ebd00a47491d86a9416c28113379ea13fab41638",
+      "note": "Leif approved this CI fix himself on 2026-11-11 ('let's try to get that last spec sync PR merged'), after the coordinator agent's (claude-code-t370) summary: pin the trust CI job to ubuntu-24.04 until augur ships a build that runs on Ubuntu 26.04 (CorvidLabs/augur#59). Prepared by kimi-code-t37b.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start",
+        "title": "Run the trust CI job on ubuntu-24.04 so the augur risk gate can start",
+        "description": "Run the trust CI job on ubuntu-24.04 so the augur risk gate can start",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/trust.yml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "CI runner pin only; no canonical spec changes. ubuntu-latest is rolling to 26.04, whose libxml2 has SONAME libxml2.so.16, and the prebuilt augur binary the Trust gate runs needs libxml2.so.2 (CorvidLabs/augur#59)",
+        "acceptance_criteria": [
+          "The trust CI job runs on an ubuntu-24.04 runner, so the CorvidLabs Trust gate's augur risk step starts (no libxml2.so.2 exit-127), while every other job's runner is unchanged; the workflow comments name CorvidLabs/augur#59 as the reason and the revert condition"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    }
+  ],
+  "reopenings": []
+}

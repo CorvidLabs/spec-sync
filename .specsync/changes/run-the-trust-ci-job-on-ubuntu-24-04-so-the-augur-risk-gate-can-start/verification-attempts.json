@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794442411,
+      "commit": "b2ec548ff9fba5f9308a3c7fc61cc853ecd3d0dd",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 2 open tasks in `.specsync/changes/run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start/tasks.md` (line 12: \"Confirm the PR's trust run shows 'Image: ubuntu-24.04' and passes\"; line 13: \"After merge, watch one main-branch trust run for the same\") and mark each one `[x]`, then re-run `specsync change check run-the-trust-ci-job-on-ubuntu-24-04-so-the-augur-risk-gate-can-start --commit`"
+    },
+    {
+      "timestamp": 1794442433,
+      "commit": "b2ec548ff9fba5f9308a3c7fc61cc853ecd3d0dd",
+      "contract_digest": "245870a2cca71b438a8abd23ebd00a47491d86a9416c28113379ea13fab41638",
+      "execution_digest": "6ca3244f2c2c00bd3936bea7cf13b28116bb8a58fad4c7b12da2af9cfdcea897",
+      "workspace_digest": "04eb9e8f9f5629a0adc6a39554b7954beb57685b6cf6441aedce8bd17416be62",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

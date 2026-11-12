@@ -29,7 +29,11 @@ jobs:
   trust:
     name: trust
     needs: archive
-    runs-on: ubuntu-latest
+    # Pin to 24.04 while ubuntu-latest rolls over to 26.04: 26.04 ships libxml2
+    # under the new SONAME libxml2.so.16, and the prebuilt augur binary the Trust
+    # gate's risk step runs still needs libxml2.so.2 (exit 127 there).
+    # Revert to ubuntu-latest once CorvidLabs/augur#59 ships a fixed binary.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

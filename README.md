@@ -202,7 +202,12 @@ reviewer may be that same person. Actor/reviewer labels, relayed decisions and s
 declarations are claims, not authenticated identity; configure hosted checks and signed provenance
 policy separately when authentication is required. An agent that records a decision a person made
 elsewhere adds `--words "<their exact words>" --where "<where and when>" --recorded-by "<agent>"`
-to `change approve` or `change review`, and `change status` shows it as a relayed claim.
+to `change approve` or `change review`, and `change status` shows it as a relayed claim. Such a
+change is recorded at workflow version 3, so SpecSync 6.2.0 and older refuse it instead of dropping
+the relay: once a repository records one relayed decision, every machine that runs change commands
+there needs SpecSync 6.3.0 or later, while check-only uses (the Action and Trust pinned at 6.2.0)
+keep working. Relays on legacy workflow-v1 (portable 5.0.1) changes are not gated, and approve and
+review say so.
 `change check` materializes approved deltas and records scoped structural verification; it does
 not execute project tests. `finalize` archives the package on the same PR. Merge only after
 all active changes on the PR are archived. Use `change status` for eligible recovery, including

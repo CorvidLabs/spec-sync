@@ -544,6 +544,11 @@ jobs:
           set -euo pipefail
           cargo build --release
           .github/scripts/test-closed-late-compat.sh target/release/specsync
+      - name: Released 6.2.0 refuses a change that holds a relayed decision (REQ-change-158, #1064)
+        shell: bash
+        # The real 6.2.0 release binary, pinned by sha256 in the script, must refuse a change this
+        # build gated at workflow version 3 and change nothing; without the gate it drops relayed_by.
+        run: .github/scripts/test-relay-gate-compat.sh target/release/specsync
 
   linux-baseline:
     name: Linux release baseline (${{ matrix.artifact }})

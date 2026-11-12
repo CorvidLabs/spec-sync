@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of",
+  "slug": "record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of",
+  "title": "Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by",
+  "description": "Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "4eed6e8dccc14ecf9fccf76b549d7e2fda8390e7",
+  "created_at": 1794448079,
+  "updated_at": 1794453929,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "specs/change/",
+    "src/change/",
+    "src/change_tests/",
+    "src/change_tests.rs",
+    "tests/integration/relayed_decision.rs",
+    ".github/scripts/test-relay-gate-compat.sh",
+    ".github/workflows/ci.yml",
+    "fledge.toml",
+    "CHANGELOG.md",
+    "README.md",
+    "site/src/content/docs/workflow.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A change that holds a relayed approval, review or correction is recorded at workflow version 3 (origin 2, every digest unchanged), so the real SpecSync 6.2.0 release binary refuses it with 'was written by a newer SpecSync (workflow version 3); upgrade specsync to read it' and changes nothing, as REQ-change-158 states"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "specs/change/change.3md z=34 (compare a record the way its digest reads it: the version raise is outside every digest, so every currency, integrity and succession comparison reads version 3 as 2) and z=31 (an old binary that cannot parse a record refuses the repository's change lifecycle; here that refusal is the point)",
+    "public_contract": "yes"
+  }
+}

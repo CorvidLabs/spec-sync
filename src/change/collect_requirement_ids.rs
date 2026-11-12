@@ -3752,6 +3752,9 @@ fn definition_digest_for_correction_count(
     canonical_record.canonical_applied = false;
     canonical_record.correction_count = correction_count;
     canonical_record.updated_at = 0;
+    // The relay gate is outside every digest: a relay-gated change hashes as the workflow-v2
+    // change it is, so raising it stales nothing already recorded (REQ-change-158).
+    canonical_record.workflow_version = digest_workflow_version(canonical_record.workflow_version);
     let mut record_bytes = serde_json::to_vec(&canonical_record)
         .map_err(|error| format!("failed to hash change state: {error}"))?;
     if explicit_false {

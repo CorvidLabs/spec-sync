@@ -312,8 +312,12 @@ pub fn send_back_change(
                 (path, content)
             },
             {
-                let path = change_dir(root, &record.id).join("state.json");
-                let content = json_content_keeping_unknown_members(&path, &record)?;
+                let workspace = change_dir(root, &record.id);
+                let path = workspace.join("state.json");
+                let content = json_content_keeping_unknown_members(
+                    &path,
+                    relay_gated_record(&workspace, &record).as_ref(),
+                )?;
                 (path, content)
             },
             (

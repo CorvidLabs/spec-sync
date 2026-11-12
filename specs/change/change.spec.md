@@ -1,6 +1,6 @@
 ---
 module: change
-version: 233
+version: 234
 status: active
 files:
   - src/change.rs
@@ -380,6 +380,7 @@ Acceptance Criteria
 57. A lifecycle record or ledger that SpecSync rewrites in place (`state.json`, `approvals.json`, `verification-attempts.json`, `review-attempts.json`, `corrections.json`, a relay repair's `review.json`, the archived `state.json` and the change-sequence ledger) keeps every member it does not know, with its exact key and value text: members of the root, and members of each array entry, matched by known content wherever the rewrite moves it, otherwise by position in an array of unchanged length, which counts as the same record edited in place (no lifecycle rewrite replaces an entry in place); a moved entry never takes another entry's members. The kept members change nothing this SpecSync reads and every digest is unchanged; a rewrite that cannot keep them, including one that removes an entry holding them, is refused instead of dropping them (#1043, #434, REQ-change-079).
 58. Failed verification command evidence carries a bounded `output` of the findings that failed it (errors, and warnings only under `--strict`), so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-153).
 59. After definition approval, the guided next action for an approved or implementing change names `specsync change check <id> --commit`. `change review` and `change ship` refuse when the recorded verification commit does not contain the change's own work — the current contents of its `affected_paths` and any canonical specs it materialized — and they do not record a review bound to such a commit. Uncommitted files under `.specsync/` alone do not trigger that refusal (#535, REQ-change-156, REQ-change-157).
+60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
 
 ## Behavioral Examples
 
@@ -786,3 +787,4 @@ Acceptance Criteria
 | 2026-11-11 | answer-and-actor-validation-round-five-recoveries-run-as-printed-exact-none-every-actor-verb-tested: Answer and actor validation round five: recoveries run as printed, exact none, every actor verb tested |
 | 2026-11-11 | a-lifecycle-rewrite-keeps-the-fields-a-newer-specsync-wrote: A lifecycle rewrite keeps the fields a newer specsync wrote |
 | 2026-11-11 | after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s: After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work |
+| 2026-11-12 | record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of: Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by |

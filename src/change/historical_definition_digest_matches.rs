@@ -1029,7 +1029,7 @@ pub fn correct_interview_metadata(
     let dir = change_dir(root, &record.id);
     let mut prepared = vec![
         (json_content_keeping_unknown_members(&dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
-        (json_content_keeping_unknown_members(&dir.join("state.json"), &record).map(|content| (dir.join("state.json"), content))?),
+        (json_content_keeping_unknown_members(&dir.join("state.json"), relay_gated_record(&dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
         (dir.join("change.md"), change_markdown_content(&record)),
     ];
     for artifact in &correction.added_artifacts {
@@ -1715,10 +1715,10 @@ fn collapsed_scoped_review_archive_is_terminal(
     let review_digest = scoped_review_digest(&review)?;
     Ok(state.id == record.id
         && state.state == ChangeState::Archived
-        && state.workflow_version == 2
+        && state.workflow_version >= 2
         && accepted.id == record.id
         && accepted.state == ChangeState::Accepted
-        && accepted.workflow_version == 2
+        && accepted.workflow_version >= 2
         && finalization.schema_version == 2
         && finalization.change_id == record.id
         && finalization.contract_digest == review.contract_digest
@@ -2592,7 +2592,7 @@ pub fn record_scoped_review_with_relay(
         )?;
     }
     let _lock = acquire_project_lock(root)?;
-    let record = load_change(root, id)?;
+    let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     // Refused before anything is written, so the change stays `verifying` (REQ-change-129).
@@ -2682,13 +2682,26 @@ pub fn record_scoped_review_with_relay(
         relayed_by,
     };
     attempts.reviews.push(review.clone());
-    write_prepared_files(
-        root,
-        &[
-            (scoped_review_path(root, &record), json_content(&review)?),
-            (json_content_keeping_unknown_members(&attempts_path, &attempts).map(|content| (attempts_path, content))?),
-        ],
-    )?;
+    let mut prepared = Vec::with_capacity(3);
+    // A workflow-v2 change is raised to the relay-gated version, with `state.json` first in the
+    // same write as the review, so the relay never lands on a change SpecSync 6.2.0 would rewrite
+    // and strip (REQ-change-158). No digest reads the version, so the verification this review
+    // binds stays current. A workflow-v1 change keeps its version and says so below.
+    let relayed_on_workflow_v1 = review.relayed_by.is_some() && record.workflow_version < 2;
+    if review.relayed_by.is_some() && raise_for_relayed_decision(&mut record) {
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let state = json_content_keeping_unknown_members(&state_path, &record)?;
+        prepared.push((state_path, state));
+    }
+    prepared.push((scoped_review_path(root, &record), json_content(&review)?));
+    prepared.push(
+        json_content_keeping_unknown_members(&attempts_path, &attempts)
+            .map(|content| (attempts_path, content))?,
+    );
+    write_prepared_files(root, &prepared)?;
+    if relayed_on_workflow_v1 {
+        eprintln!("{}", ungated_relay_note(&record.id));
+    }
     Ok(review)
 }
 
@@ -2924,7 +2937,10 @@ fn accept_change_with_gate(
     record.canonical_applied = true;
     record.updated_at = now();
     let state_path = change_dir(root, &record.id).join("state.json");
-    let state = json_content_keeping_unknown_members(&state_path, &record)?;
+    let state = json_content_keeping_unknown_members(
+        &state_path,
+        relay_gated_record(&change_dir(root, &record.id), &record).as_ref(),
+    )?;
     prepared.push((state_path, state));
     prepared.push((
         change_dir(root, &record.id).join("change.md"),
@@ -3596,7 +3612,11 @@ fn archive_change_with_options(
         Err("forced post-move archive finalization failure".to_string())
     } else {
         // The package has moved, so the archived state rewrites the state.json it carried.
-        json_content_keeping_unknown_members(&destination.join("state.json"), &archived).and_then(|state| {
+        json_content_keeping_unknown_members(
+            &destination.join("state.json"),
+            relay_gated_record(&destination, &archived).as_ref(),
+        )
+        .and_then(|state| {
             write_prepared_files(
                 root,
                 &[

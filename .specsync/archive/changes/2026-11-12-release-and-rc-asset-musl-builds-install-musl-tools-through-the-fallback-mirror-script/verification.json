@@ -1,0 +1,52 @@
+{
+  "timestamp": 1794447376,
+  "commit": "5708bd3d76c1a173dd96ffb66b7eab74e2bc4132",
+  "contract_digest": "df7be9253fc42b8add4fb3f5d8350ac425576aa3102e90d3120b7b7d48e36dd9",
+  "execution_digest": "88c32e789ca48ead14c1eb6bef7384e73ccbbeb460d857de654a9ca4089338fa",
+  "workspace_digest": "e8f707421cef0599bae1a23a06a101b17c153b55edc61ba3a254681e83c8c5c6",
+  "acceptance_input_digest": "a246719bcedfff4d13ea5d0e8c851308d0029b7ea483cb28b72f147fd90f44d5",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/scripts/test-install-musl-tools.sh",
+        "kind": "file",
+        "mode": 33261,
+        "payload_digest": "45c1cd47afd24148674a0d8a95372c17b00d1fe423ca136a5a0f62960b569ea2",
+        "entry_digest": "0f11184896fbeeeb2de51e7b3ea9acd64b02a55ac02eee695000d638dbd6774b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/rc-assets.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f8788abbdf8bd9eb7ce4e886c29edb46c21ae480972b387d235fda57eecf940b",
+        "entry_digest": "c2287917f89e92da573551db6489668876567159ca03192394659a7cbeba3261",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/release.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "79b325a305ac07796a0b3b3d4f6f01f5e8e7b14609af0fa46dc60d8515682040",
+        "entry_digest": "e76996f82c0732944a865945ed4dc7928e7d2c3d4749994a1391c85a308e002d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

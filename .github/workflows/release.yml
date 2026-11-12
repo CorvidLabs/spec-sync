@@ -777,8 +777,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
+          # Retries, then falls back to other Ubuntu mirrors when the runner's stops resolving
+          # (run 43037386037); .github/scripts/test-install-musl-tools.sh tests the fallback.
+          .github/scripts/install-musl-tools.sh
           # musl-gcc compiles the tree-sitter grammars' C code for the host architecture.
           case "$TARGET" in
             x86_64-unknown-linux-musl)

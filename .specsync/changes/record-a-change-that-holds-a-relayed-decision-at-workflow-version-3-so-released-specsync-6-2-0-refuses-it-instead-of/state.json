@@ -7,10 +7,10 @@
   "title": "Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by",
   "description": "Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "4eed6e8dccc14ecf9fccf76b549d7e2fda8390e7",
   "created_at": 1794448079,
-  "updated_at": 1794448309,
+  "updated_at": 1794448860,
   "affected_specs": [
     "change"
   ],

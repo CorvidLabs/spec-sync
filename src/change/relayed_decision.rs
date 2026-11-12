@@ -736,3 +736,131 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
         repairs,
     })
 }
+
+// Workflow version 3: a workflow-v2 change that holds a relayed decision (#1064, REQ-change-158).
+//
+// Released 6.2.0 reads approvals and reviews through typed structs that ignore unknown fields and
+// writes them back on every lifecycle rewrite, so it drops `relayed_by` and exits 0. The one thing
+// it already refuses is a `state.json` whose `workflow_version` is not 1 or 2, with "was written
+// by a newer SpecSync". So a change that holds a relay is recorded at version 3. Every workflow-v2
+// rule applies to it unchanged, its immutable origin stays 2, and every digest reads 3 as 2, so
+// the raise never stales an approval, a verification or a review. A 6.2.0 install then refuses
+// the change (and, because it lists every change, the repository's change lifecycle) instead of
+// stripping the relay; `specsync check` is unaffected.
+
+/// The workflow version of a workflow-v2 change that holds a relayed decision (REQ-change-158).
+const RELAY_GATED_WORKFLOW_VERSION: u32 = 3;
+
+/// The decision ledgers a relayed decision can live in, directly or embedded in a correction.
+const RELAY_LEDGER_FILES: [&str; 4] = [
+    "approvals.json",
+    SCOPED_REVIEW_FILE,
+    SCOPED_REVIEW_ATTEMPTS_FILE,
+    CORRECTIONS_FILE,
+];
+
+/// The workflow version every digest and workflow rule reads: a relay-gated change is
+/// workflow v2.
+fn digest_workflow_version(version: u32) -> u32 {
+    if version == RELAY_GATED_WORKFLOW_VERSION {
+        2
+    } else {
+        version
+    }
+}
+
+/// Whether `bytes`, one of a change's decision ledgers, holds a `relayed_by` member anywhere.
+fn ledger_holds_relay(bytes: &[u8]) -> bool {
+    fn holds(value: &serde_json::Value) -> bool {
+        match value {
+            serde_json::Value::Object(members) => {
+                members.contains_key("relayed_by") || members.values().any(holds)
+            }
+            serde_json::Value::Array(items) => items.iter().any(holds),
+            _ => false,
+        }
+    }
+    match serde_json::from_slice::<serde_json::Value>(bytes) {
+        Ok(value) => holds(&value),
+        // A ledger that does not parse is refused by the reader that owns it. For the gate, the
+        // key anywhere in its text is enough to fail closed.
+        Err(_) => {
+            let key = b"\"relayed_by\"";
+            bytes.windows(key.len()).any(|window| window == key)
+        }
+    }
+}
+
+/// Whether the change package in `workspace` holds a relayed decision in any decision ledger.
+fn workspace_holds_relayed_decision(workspace: &Path) -> bool {
+    RELAY_LEDGER_FILES.iter().any(|name| {
+        fs::read(workspace.join(name)).is_ok_and(|bytes| ledger_holds_relay(&bytes))
+    })
+}
+
+/// Whether the `state.json` in `workspace` already records the relay-gated version.
+fn workspace_state_is_relay_gated(workspace: &Path) -> bool {
+    fs::read(workspace.join("state.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|state| state.get("workflow_version")?.as_u64())
+        == Some(u64::from(RELAY_GATED_WORKFLOW_VERSION))
+}
+
+/// `record` as its `state.json` is written in `workspace` (REQ-change-158). A workflow-v2 change
+/// is written at the relay-gated version when its ledgers hold a relayed decision, or when the
+/// file it replaces already records that version, so a command holding a copy read before the
+/// raise never lowers it. Every other record is written as it is.
+fn relay_gated_record<'record>(
+    workspace: &Path,
+    record: &'record ChangeRecord,
+) -> Cow<'record, ChangeRecord> {
+    if record.workflow_version == 2
+        && (workspace_holds_relayed_decision(workspace) || workspace_state_is_relay_gated(workspace))
+    {
+        let mut raised = record.clone();
+        raised.workflow_version = RELAY_GATED_WORKFLOW_VERSION;
+        Cow::Owned(raised)
+    } else {
+        Cow::Borrowed(record)
+    }
+}
+
+/// Raise a workflow-v2 `record` that is about to carry a relayed decision to the relay-gated
+/// version, in memory. Returns whether it moved, so the caller writes `state.json` before the
+/// relay.
+fn raise_for_relayed_decision(record: &mut ChangeRecord) -> bool {
+    if record.workflow_version == 2 {
+        record.workflow_version = RELAY_GATED_WORKFLOW_VERSION;
+        return true;
+    }
+    false
+}
+
+/// The note `change approve` and `change review` print after recording a relayed decision on a
+/// workflow-v1 change. A version-1 change keeps version 1 (a `--portable-5-0-1` pair needs it,
+/// so old binaries can read the pair), so its relay is not gated (REQ-change-158).
+fn ungated_relay_note(id: &str) -> String {
+    format!(
+        "note: `{id}` is a workflow-v1 change, so it keeps workflow version 1 and its relayed \
+         decision is not gated: SpecSync 6.2.0 and older can still drop `relayed_by` when they \
+         rewrite this change (REQ-change-158)"
+    )
+}
+
+/// Whether the workflow-version history may move from `previous` to `current`: unchanged, an
+/// omitted origin anchored to the same version, or the one raise REQ-change-158 allows, from
+/// workflow v2 to the relay-gated version with the origin kept at 2. Lowering it never is.
+fn workflow_version_move_is_lawful(
+    (previous_version, previous_origin): (u32, Option<u32>),
+    (current_version, current_origin): (u32, Option<u32>),
+) -> bool {
+    if previous_version == current_version {
+        return previous_origin == current_origin
+            || (previous_origin.is_none() && current_origin == Some(current_version));
+    }
+    previous_version == 2
+        && current_version == RELAY_GATED_WORKFLOW_VERSION
+        && matches!(previous_origin, None | Some(2))
+        && current_origin == Some(2)
+}

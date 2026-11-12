@@ -1,7 +1,7 @@
 {
   "history_cursor": {
     "cycle": "CYC-101cf1e5175bdaa595940cc9",
-    "head": "EVT-81ffbdaa117b14b2358a0eeb",
+    "head": "EVT-9d4ed7e21f70156f56e9b6cd",
     "legacy": null
   },
   "schema_version": 2,
@@ -11,7 +11,7 @@
     "change"
   ],
   "stage": {
-    "current": "plan",
+    "current": "test",
     "status": "active",
     "callers": [],
     "iteration": 1
@@ -30,16 +30,20 @@
     "decided: gate only changes that hold a relayed decision, because raising every new change would lock 6.2.0 out of every repository 6.3.0 touches; measured: one v3 change already gates 6.2.0's change lifecycle repo-wide (research.md)",
     "decided: a relay on a workflow-v1 change is refused, because v1 cannot be raised to the gated version",
     "decided: a workflow-v1 change (which a --portable-5-0-1 pair requires) keeps version 1 and approve/review print a note that 6.2.0 and older can still drop its relay, because the portable pair exists so old binaries can read it and REQ-change-relayed-decision-001 keeps it; t370 chose 'fix 1+2' (coordinator, 2026-11-11) before Leif approved",
-    "rejected: refusing relays on workflow-v1 changes (this agent's first delta) because it contradicted the portable line in the same delta and REQ-change-relayed-decision-001"
+    "rejected: refusing relays on workflow-v1 changes (this agent's first delta) because it contradicted the portable line in the same delta and REQ-change-relayed-decision-001",
+    "Native definition approval: Leif ran 'specsync change approve' himself (actor 0xLeif, 'definition approved (approved)'), relayed by hc t370 on 2026-11-11, after t370 aligned the wording and chose fix 1+2"
   ],
   "open_questions": [],
-  "completed": [],
-  "observations": [],
+  "completed": [
+    "Implemented REQ-change-158: version-3 load, anchor and history rules; execution digest reads 3 as 2; approve and review raise before writing a relay; every state.json writer goes through relay_gated_record; v1 note; tests; compat script wired into CI and fledge; spec invariant 60, testing entry, change.3md z=52, docs, CHANGELOG"
+  ],
+  "observations": [
+    "OBS-product-test-0a420027c9d8c62111fb1a7b",
+    "OBS-product-test-ce78f3720e9d6d6ae3c9b0a4"
+  ],
   "bugs": [],
   "blockers": [],
-  "awaiting_human": [
-    "Native definition approval of #1064 by Leif (wording aligned by t370)"
-  ],
+  "awaiting_human": [],
   "run_consents": [],
-  "next_action": "Implement REQ-change-158 while the approval is pending"
+  "next_action": "change check --commit, then claude-code-t384 reviews and ships; push, open the PR, request corvid-agent"
 }

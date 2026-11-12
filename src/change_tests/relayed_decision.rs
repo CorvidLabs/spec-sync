@@ -1381,3 +1381,91 @@ fn pr1014_succession_precision_rejects_a_reopening_prefix_edit() {
 fn pr1014_succession_precision_rejects_a_superseded_approval_edit() {
     pr1014_succession_precision_discriminator(Pr1014SuccessionPrecisionField::SupersededApproval);
 }
+
+// ─── #1064, REQ-change-158: the relay gate's own rules ──────────────────────────────────────
+
+/// DISCRIMINATOR for REQ-change-158: the history may raise a workflow-v2 change to the
+/// relay-gated version with its origin kept at 2, and nothing else moves the version.
+#[test]
+fn only_the_relay_gate_raise_moves_the_workflow_version() {
+    let lawful = [
+        ((1, None), (1, None)),
+        ((1, None), (1, Some(1))),
+        ((2, None), (2, Some(2))),
+        ((2, Some(2)), (2, Some(2))),
+        ((2, Some(2)), (3, Some(2))),
+        ((2, None), (3, Some(2))),
+        ((3, Some(2)), (3, Some(2))),
+    ];
+    for (previous, current) in lawful {
+        assert!(workflow_version_move_is_lawful(previous, current), "{previous:?} -> {current:?}");
+    }
+    let unlawful = [
+        ((3, Some(2)), (2, Some(2))),
+        ((2, Some(2)), (3, Some(3))),
+        ((2, Some(2)), (3, None)),
+        ((1, Some(1)), (3, Some(2))),
+        ((1, None), (2, Some(2))),
+        ((2, Some(2)), (1, Some(1))),
+        ((3, Some(2)), (4, Some(2))),
+        ((2, Some(1)), (3, Some(2))),
+    ];
+    for (previous, current) in unlawful {
+        assert!(!workflow_version_move_is_lawful(previous, current), "{previous:?} -> {current:?}");
+    }
+}
+
+/// GUARD for REQ-change-158 and REQ-change-079: a relay-gated record is valid only with origin
+/// 2, and the digest reads it as the workflow-v2 change it is.
+#[test]
+fn a_relay_gated_record_needs_origin_2_and_digests_as_workflow_v2() {
+    let mut record = minimal_archived_record("gate-it", vec!["README.md".into()]);
+    record.workflow_version = RELAY_GATED_WORKFLOW_VERSION;
+    record.workflow_origin_version = Some(2);
+    assert!(validate_workflow_version_anchor(&record).is_ok());
+    assert!(validate_historical_workflow_version_anchor(&record).is_ok());
+    for origin in [None, Some(1), Some(3)] {
+        record.workflow_origin_version = origin;
+        assert!(validate_workflow_version_anchor(&record).is_err(), "{origin:?}");
+        assert!(validate_historical_workflow_version_anchor(&record).is_err(), "{origin:?}");
+    }
+    assert_eq!(digest_workflow_version(RELAY_GATED_WORKFLOW_VERSION), 2);
+    assert_eq!(digest_workflow_version(2), 2);
+    assert_eq!(digest_workflow_version(1), 1);
+    assert_eq!(digest_workflow_version(4), 4);
+}
+
+/// DISCRIMINATOR for REQ-change-158 (any rewrite raises): a relay anywhere in a decision ledger,
+/// embedded in a correction or in a ledger that no longer parses, counts; a ledger without one
+/// does not, and neither does the word in a value.
+#[test]
+fn a_relay_anywhere_in_a_decision_ledger_gates_the_change() {
+    let embedded = serde_json::json!({
+        "schema_version": 1,
+        "corrections": [{"superseded_definition_approval": {"actor": "Ada", "relayed_by": relay_json()}}],
+    });
+    assert!(ledger_holds_relay(embedded.to_string().as_bytes()));
+    assert!(ledger_holds_relay(br#"{"approvals": [{"relayed_by": {"decided_by": "Ada""#));
+    assert!(!ledger_holds_relay(br#"{"approvals": [{"actor": "Ada", "note": "relayed_by is a word here"}]}"#));
+    assert!(!ledger_holds_relay(br#"{"reviews": []}"#));
+
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path();
+    let mut record = minimal_archived_record("gate-it", vec!["README.md".into()]);
+    record.workflow_version = 2;
+    record.workflow_origin_version = Some(2);
+    assert_eq!(relay_gated_record(workspace, &record).workflow_version, 2);
+    fs::write(workspace.join(CORRECTIONS_FILE), embedded.to_string()).unwrap();
+    assert_eq!(relay_gated_record(workspace, &record).workflow_version, 3);
+    fs::remove_file(workspace.join(CORRECTIONS_FILE)).unwrap();
+    fs::write(workspace.join("state.json"), r#"{"workflow_version": 3}"#).unwrap();
+    assert_eq!(
+        relay_gated_record(workspace, &record).workflow_version,
+        3,
+        "a copy read before the raise never lowers the file it replaces"
+    );
+    record.workflow_version = 1;
+    record.workflow_origin_version = Some(1);
+    fs::write(workspace.join(CORRECTIONS_FILE), embedded.to_string()).unwrap();
+    assert_eq!(relay_gated_record(workspace, &record).workflow_version, 1);
+}

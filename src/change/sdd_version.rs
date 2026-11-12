@@ -3361,6 +3361,13 @@ pub fn approve_definition_with_relay(
     validate_delta_files(root, &record)?;
     validate_declared_path_ownership(root, &record)?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
+    // A workflow-v2 change is raised to the relay-gated version, and `state.json` written,
+    // before the relay is, so an interrupted approve never leaves a relay that SpecSync 6.2.0
+    // could drop (REQ-change-158). A workflow-v1 change keeps its version and says so below.
+    let relayed_on_workflow_v1 = relayed_by.is_some() && record.workflow_version < 2;
+    if relayed_by.is_some() && raise_for_relayed_decision(&mut record) {
+        save_change(root, &record)?;
+    }
     if portable_v501 {
         append_portable_definition_approval_v501_with_relay(root, &record, actor, note, relayed_by)?;
     } else {
@@ -3377,6 +3384,9 @@ pub fn approve_definition_with_relay(
     record.updated_at = now();
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
+    if relayed_on_workflow_v1 {
+        eprintln!("{}", ungated_relay_note(&record.id));
+    }
     Ok(record)
 }
 
@@ -3570,7 +3580,10 @@ fn materialize_change_deltas_inner(
     record.state = ChangeState::Implementing;
     record.updated_at = now();
     let state_path = change_dir(root, &record.id).join("state.json");
-    let state = json_content_keeping_unknown_members(&state_path, &record)?;
+    let state = json_content_keeping_unknown_members(
+        &state_path,
+        relay_gated_record(&change_dir(root, &record.id), &record).as_ref(),
+    )?;
     prepared.push((state_path, state));
     prepared.push((
         change_dir(root, &record.id).join("change.md"),
@@ -5128,7 +5141,7 @@ pub fn add_acceptance_owner_corrections(
     write_prepared_files(
         root,
         &[
-            (json_content_keeping_unknown_members(&dir.join("state.json"), &record).map(|content| (dir.join("state.json"), content))?),
+            (json_content_keeping_unknown_members(&dir.join("state.json"), relay_gated_record(&dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
             (dir.join("change.md"), change_markdown_content(&record)),
         ],
     )?;

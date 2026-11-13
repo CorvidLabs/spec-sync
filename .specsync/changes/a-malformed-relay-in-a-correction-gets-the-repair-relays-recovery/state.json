@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-malformed-relay-in-a-correction-gets-the-repair-relays-recovery",
+  "slug": "a-malformed-relay-in-a-correction-gets-the-repair-relays-recovery",
+  "title": "A malformed relay in a correction gets the repair-relays recovery",
+  "description": "A malformed relay in a correction gets the repair-relays recovery",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "5d89b2b22a363eda96c8684ba513b07ab2d0a206",
+  "created_at": 1794551456,
+  "updated_at": 1794552908,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/relayed_decision.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes the correction ledger's read match REQ-change-relayed-decision-001 and REQ-change-relay-repair-001: a damaged relay is refused with its recovery, repair-relays for an active change and git checkout HEAD for an archived one. load_correction_ledger reported a bare invalid correction ledger.",
+  "acceptance_criteria": [
+    "A malformed relayed_by in an approval a corrections.json correction embeds, or one naming someone other than that approval's actor, is refused naming specsync change repair-relays <id> for an active change, and git checkout HEAD -- <file> for an archived one; repair-relays then fixes it and the ledger reads (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

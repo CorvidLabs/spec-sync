@@ -1660,3 +1660,57 @@ fn a_nested_repair_names_its_place() {
     );
     assert_eq!(repair(SCOPED_REVIEW_FILE, None).place(), "review.json");
 }
+
+/// #973 (REQ-change-relayed-decision-001, REQ-change-relay-repair-001): a malformed relay in an
+/// approval a `corrections.json` correction embeds, or one naming someone other than that
+/// approval's actor, is refused with the recovery a damaged relay anywhere else gets,
+/// `repair-relays` for an active change, and that repair then fixes it.
+#[test]
+fn a_malformed_correction_relay_is_refused_with_its_recovery() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release reviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap();
+    let record = load_change(root, &record.id).unwrap();
+    let path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    value["corrections"][0]["superseded_definition_approval"]["relayed_by"] =
+        serde_json::Value::Null;
+    fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+
+    let error = load_correction_ledger(root, &record).unwrap_err();
+    assert!(error.contains("relayed_by"), "{error}");
+    assert!(
+        error.contains(&format!("specsync change repair-relays -- '{}'", record.id)),
+        "{error}"
+    );
+
+    let report = repair_relayed_decisions(root, &record.id).unwrap();
+    assert_eq!(report.repairs.len(), 1, "{report:?}");
+    load_correction_ledger(root, &record).unwrap();
+
+    // A well-formed relay naming someone other than the approval's actor gets the same recovery.
+    let mut value: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    value["corrections"][0]["superseded_definition_approval"]["relayed_by"] =
+        serde_json::json!({"decided_by": "Mallory", "words": "w", "where": "x", "recorded_by": "a"});
+    fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+    let error = load_correction_ledger(root, &record).unwrap_err();
+    assert!(error.contains("says `Mallory` decided"), "{error}");
+    assert!(
+        error.contains(&format!("specsync change repair-relays -- '{}'", record.id)),
+        "{error}"
+    );
+    repair_relayed_decisions(root, &record.id).unwrap();
+    load_correction_ledger(root, &record).unwrap();
+}

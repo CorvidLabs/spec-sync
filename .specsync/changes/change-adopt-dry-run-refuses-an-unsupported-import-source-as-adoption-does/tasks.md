@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first integration test: adopt --source bogus refuses with and without --dry-run, and neither writes sdd.json
 - [x] Validate the import source in adopt's dry-run branch before returning the plan
-- [ ] Targeted adopt tests, fmt and clippy
+- [x] Targeted adopt tests, fmt and clippy

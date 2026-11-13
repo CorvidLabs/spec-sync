@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-delivery-blob-deadline-bounds-each-git-read-not-the-manifest-work-between-reads",
+  "slug": "the-delivery-blob-deadline-bounds-each-git-read-not-the-manifest-work-between-reads",
+  "title": "The delivery blob deadline bounds each Git read, not the manifest work between reads",
+  "description": "The delivery blob deadline bounds each Git read, not the manifest work between reads",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794579616,
+  "updated_at": 1794579625,
+  "affected_specs": [
+    "change",
+    "git_utils"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/git_utils.rs",
+    "src/change_tests/fast_finalize.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-144 keeps the Git read deadline unchanged, and the whole-scope read it replaced bounded only Git's own I/O; the delivery blob stream armed one deadline for its whole life, so the acceptance manifest's config, owner and manifest work between reads counted against Git (#991)",
+  "acceptance_criteria": [
+    "a delivery blob stream whose caller spends longer than the Git deadline between two reads still reads the second blob; a read that Git itself stalls past the deadline is still killed and reported as a deadline failure"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "the per-object bound, the path-count bound and the 120 s Git read deadline are unchanged; the acceptance manifest and input digest stay byte-identical",
+    "public_contract": "no"
+  }
+}

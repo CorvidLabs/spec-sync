@@ -4847,6 +4847,11 @@ struct DeliveryBlobStream {
 
 impl DeliveryBlobStream {
     fn open(root: &Path) -> Result<Self, String> {
+        Self::open_with_deadline(root, GIT_COMMAND_DEADLINE)
+    }
+
+    /// `open` with a Git deadline other than `GIT_COMMAND_DEADLINE`, which tests shorten.
+    fn open_with_deadline(root: &Path, deadline: std::time::Duration) -> Result<Self, String> {
         let mut command = configured_git_command(root);
         command
             .args(["cat-file", "--batch"])
@@ -4870,7 +4875,7 @@ impl DeliveryBlobStream {
         let expired = Arc::clone(&timed_out);
         let watchdog = std::thread::spawn(move || {
             if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
-                until_finished.recv_timeout(GIT_COMMAND_DEADLINE)
+                until_finished.recv_timeout(deadline)
             {
                 expired.store(true, Ordering::Release);
                 if let Ok(mut child) = watched.lock() {

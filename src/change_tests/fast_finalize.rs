@@ -228,3 +228,32 @@ fn raven_sized_finalize_benchmark() {
         quiet_git(root, &["commit", "-m", "archive change"]);
     }
 }
+
+// #991 (REQ-change-144): the delivery blob stream's Git deadline bounds each Git read, not the
+// whole stream. The acceptance manifest does config, owner and manifest work between reads, and a
+// large scope's work must not get the batch child killed while Git itself answers promptly.
+#[test]
+fn the_delivery_blob_deadline_bounds_each_read_not_the_work_between_reads() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("a.txt"), "alpha\n").unwrap();
+    fs::write(root.join("b.txt"), "beta\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "two blobs"]);
+    let a = quiet_git(root, &["rev-parse", "HEAD:a.txt"]);
+    let b = quiet_git(root, &["rev-parse", "HEAD:b.txt"]);
+
+    let mut stream =
+        DeliveryBlobStream::open_with_deadline(root, std::time::Duration::from_millis(300))
+            .unwrap();
+    assert_eq!(stream.read("a.txt", &a).unwrap(), b"alpha\n");
+    // Manifest work between two reads, longer than one read's deadline.
+    std::thread::sleep(std::time::Duration::from_millis(700));
+    assert_eq!(
+        stream.read("b.txt", &b).expect("the deadline killed the reader between reads"),
+        b"beta\n"
+    );
+}

@@ -1,4 +1,49 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794547336,
+      "digest": "312c25d7faa003c68c83304514a4ad819b99eda3e3d68d8e9b3e57b26773d26e",
+      "note": "Leif approved this fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: the build fingerprint also frames target, profile and features, so a build for another configuration never replays this build's cached results. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-build-fingerprint-frames-the-compile-configuration-as-well-as-the-sources",
+        "title": "The build fingerprint frames the compile configuration as well as the sources",
+        "description": "The build fingerprint frames the compile configuration as well as the sources",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          "build.rs",
+          "src/build_fingerprint.rs",
+          "src/hash_cache.rs",
+          "src/main.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-hash-cache-005 and REQ-change-134 say a cached result is replayed only by the build that recorded it, and CHECK-1.d says a remembered result never hides a failure the running build would report; two builds of one tree for another target, profile or feature set shared one fingerprint (#981)",
+        "acceptance_criteria": [
+          "build.rs frames TARGET, PROFILE, OPT_LEVEL, DEBUG and every CARGO_CFG_* and CARGO_FEATURE_* variable into SPECSYNC_BUILD_FINGERPRINT and records them as SPECSYNC_BUILD_CONFIGURATION; two configurations of one tree frame differently, and the same configuration frames the same whatever else is set"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync internal fixes. The output is the same; they're just faster or safer. Approve their scope?', he selected \"#955 shared copy\", \"#938 one ledger check\", \"#921 faster change correct\" and \"#981 cache per build\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:55Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

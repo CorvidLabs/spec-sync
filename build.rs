@@ -5,6 +5,9 @@
 //! every source and manifest that can change what SpecSync decides is compiled in as
 //! `SPECSYNC_BUILD_FINGERPRINT`, so a cache entry is replayed only by the build that wrote it.
 
+#[path = "src/build_fingerprint.rs"]
+mod build_fingerprint;
+
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -45,9 +48,23 @@ fn main() {
         hasher.update((bytes.len() as u64).to_le_bytes());
         hasher.update(&bytes);
     }
+    // The compile configuration is part of the build: another target, profile or feature set of
+    // the same tree is another build, so it never replays this one's cached results (#981).
+    let configuration = build_fingerprint::configuration_frames(std::env::vars());
+    hasher.update(b"configuration");
+    for (name, value) in &configuration {
+        hasher.update((name.len() as u64).to_le_bytes());
+        hasher.update(name.as_bytes());
+        hasher.update((value.len() as u64).to_le_bytes());
+        hasher.update(value.as_bytes());
+    }
     println!(
         "cargo:rustc-env=SPECSYNC_BUILD_FINGERPRINT={:x}",
         hasher.finalize()
+    );
+    println!(
+        "cargo:rustc-env=SPECSYNC_BUILD_CONFIGURATION={}",
+        build_fingerprint::configuration_record(&configuration)
     );
     // A directory is scanned recursively for any modification.
     println!("cargo:rerun-if-changed=src");

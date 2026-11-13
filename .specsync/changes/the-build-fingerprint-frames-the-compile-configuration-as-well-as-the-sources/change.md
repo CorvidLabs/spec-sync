@@ -1,6 +1,6 @@
 ---
 id: the-build-fingerprint-frames-the-compile-configuration-as-well-as-the-sources
-state: draft
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---
@@ -14,6 +14,7 @@ The build fingerprint frames the compile configuration as well as the sources
 ## Affected Canonical Specs
 
 - `hash_cache`
+- `cli`
 
 ## Acceptance Criteria
 

@@ -39,6 +39,8 @@ macro_rules! eprint {
 
 mod agents;
 mod archive;
+#[cfg(test)]
+mod build_fingerprint;
 mod change;
 mod changelog;
 mod cli;

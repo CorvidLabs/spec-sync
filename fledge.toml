@@ -46,6 +46,11 @@ cmd = "python3 .github/scripts/test-linux-baseline.py"
 [tasks.musl-install-test]
 cmd = "bash .github/scripts/test-install-musl-tools.sh"
 
+# One owner per expensive suite (REQ-github-006, #493): trust-lifecycle runs no test, lint, clippy
+# or verify step, and the verify lane stays the full local suite.
+[tasks.ci-lane-ownership-test]
+cmd = "python3 .github/scripts/test-ci-lane-ownership.py"
+
 # Every pull request starts CI: ci.yml has no path filter, and .chough-only and scripts-only
 # changes classify into a lane that reports the Required CI gate (CI-6, #941).
 [tasks.ci-trigger-paths-test]

@@ -1,4 +1,49 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794548686,
+      "digest": "657af2918ba4131421b9797fdf6cb4b90f32d91e9f9b1f2da35d4828d64d77a7",
+      "note": "Leif chose to build #493 himself on 2026-11-13. This change adds no contract text: REQ-github-006 already states the one-owner rule, and this publishes its guide and makes it an executable test; the coordinator (t370) said #493 goes ahead as designed. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "publish-the-ci-confidence-guide-on-the-site-and-test-that-each-suite-has-one-owner",
+        "title": "Publish the CI confidence guide on the site and test that each suite has one owner",
+        "description": "Publish the CI confidence guide on the site and test that each suite has one owner",
+        "kind": "documentation",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-ci-lane-ownership.py",
+          ".github/workflows/ci.yml",
+          "docs/ci-confidence.md",
+          "fledge.toml",
+          "site/src/content/docs/ci-confidence.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-github-006 already requires one authoritative workflow per expensive suite, a trust-lifecycle lane without cargo test, clippy or verify, and lanes.verify as the full local suite; this publishes the guide that explains it and makes the rule an executable test (#493)",
+        "acceptance_criteria": [
+          "the CI confidence guide is a site page under Reference and docs/ci-confidence.md points to it; test-ci-lane-ownership.py passes on the repository and fails when test, lint, verify or a cargo test task is added to trust-lifecycle, when the Trust lifecycle runs another lane, or when verify drops its tests"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync features (set 2): which should the fleet build?', he selected all three: \"#423 easier supersede\", \"#428 refuse edited approvals\" and \"#493 CI guide on the site\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T03:49Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

@@ -387,6 +387,8 @@ jobs:
         run: python3 .github/scripts/test-linux-baseline.py
       - name: Test the musl toolchain install falls back to another Ubuntu mirror
         run: bash .github/scripts/test-install-musl-tools.sh
+      - name: Test that each CI suite has one owner
+        run: python3 .github/scripts/test-ci-lane-ownership.py
       - name: Test that every pull request starts CI
         run: python3 .github/scripts/test-ci-trigger-paths.py
       - name: Test the attestation condition and the pull request summary

@@ -1120,7 +1120,43 @@ fn archive_introduction_listings_bounded(
     if uncached.len() < 2 {
         return Some(BTreeMap::new());
     }
-    let mut input = uncached.join("\n").into_bytes();
+    // A listing over the output bound is split in halves until each part fits, so the Git
+    // processes grow with what the listing holds, not with the number of archive-introducing
+    // commits (#942, REQ-change-135). A single commit over the bound is left out, so the caller
+    // reads that one on its own, as before.
+    let mut listings = BTreeMap::new();
+    let mut pending: Vec<&[&str]> = vec![uncached.as_slice()];
+    while let Some(part) = pending.pop() {
+        match archive_introduction_listing_part(root, part, history_pathspec, max_bytes) {
+            Ok(part_listings) => listings.extend(part_listings),
+            Err(ListingPartError::OverBound) if part.len() > 1 => {
+                let (first, second) = part.split_at(part.len() / 2);
+                pending.push(second);
+                pending.push(first);
+            }
+            Err(ListingPartError::OverBound) => {}
+            Err(ListingPartError::Failed) => return None,
+        }
+    }
+    Some(listings)
+}
+
+/// Why one `diff-tree --stdin` part of the archive-introduction listing gave no answer.
+enum ListingPartError {
+    /// Its output passed the bound; a smaller part may fit.
+    OverBound,
+    /// Git failed for another reason.
+    Failed,
+}
+
+/// What each commit of `part` added under `history_pathspec`, from one `diff-tree --stdin`.
+fn archive_introduction_listing_part(
+    root: &Path,
+    part: &[&str],
+    history_pathspec: &str,
+    max_bytes: usize,
+) -> Result<BTreeMap<String, Vec<String>>, ListingPartError> {
+    let mut input = part.join("\n").into_bytes();
     input.push(b'\n');
     let output = run_git_bounded(
         root,
@@ -1140,12 +1176,18 @@ fn archive_introduction_listings_bounded(
         Some(input),
         max_bytes,
     )
-    .ok()?;
+    .map_err(|error| {
+        if error.ends_with("output exceeds deterministic bounds") {
+            ListingPartError::OverBound
+        } else {
+            ListingPartError::Failed
+        }
+    })?;
     if !output.status.success() {
-        return None;
+        return Err(ListingPartError::Failed);
     }
-    let wanted: BTreeSet<&str> = uncached.iter().copied().collect();
-    let mut listings: BTreeMap<String, Vec<String>> = uncached
+    let wanted: BTreeSet<&str> = part.iter().copied().collect();
+    let mut listings: BTreeMap<String, Vec<String>> = part
         .iter()
         .map(|commit| ((*commit).to_string(), Vec::new()))
         .collect();
@@ -1161,10 +1203,12 @@ fn archive_introduction_listings_bounded(
             current = Some(token.to_string());
             continue;
         }
-        let listing = listings.get_mut(current.as_ref()?)?;
+        let Some(listing) = current.as_ref().and_then(|commit| listings.get_mut(commit)) else {
+            return Err(ListingPartError::Failed);
+        };
         if !listing.iter().any(|path| path == entry) {
             listing.push(entry.to_string());
         }
     }
-    Some(listings)
+    Ok(listings)
 }

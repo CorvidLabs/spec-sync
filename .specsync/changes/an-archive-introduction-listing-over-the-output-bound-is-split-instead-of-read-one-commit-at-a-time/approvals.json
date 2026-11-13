@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794578492,
+      "digest": "037aa07897503aa1467a922adcfb07e84aa34c7f15e987ae2f72257c54e14374",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: an archive-introduction listing over the output bound is split in halves instead of read one commit at a time. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "an-archive-introduction-listing-over-the-output-bound-is-split-instead-of-read-one-commit-at-a-time",
+        "title": "An archive-introduction listing over the output bound is split instead of read one commit at a time",
+        "description": "An archive-introduction listing over the output bound is split instead of read one commit at a time",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/read_cache.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-135 says the Git processes a cold archived change status spawns SHALL NOT grow with the number of commits that introduced archives; a combined diff-tree listing over the output bound fell back to one diff-tree per commit (#942)",
+        "acceptance_criteria": [
+          "with an output bound below the combined listing, archive_introduction_listings splits it in halves until each part fits, returns listings equal to the unbounded ones, and spawns fewer Git processes than archive-introducing commits; a single commit over the bound is still read on its own"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Three SpecSync bug fixes, each matching what the spec already says. Approve their scope?', he selected \"#887 retry failed git\" and \"#942 split big lists\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:01Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

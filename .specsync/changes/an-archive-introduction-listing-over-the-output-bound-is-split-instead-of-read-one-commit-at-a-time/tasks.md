@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Red-first unit test with a lowered bound (plus the bound-parameter refactor)
-- [ ] Split an over-bound listing in halves; leave an over-bound single commit to its own read
+- [x] Split an over-bound listing in halves; leave an over-bound single commit to its own read
 - [ ] Targeted fast-archived-read tests, fmt and clippy

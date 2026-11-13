@@ -1,6 +1,6 @@
 ---
 id: an-archive-introduction-listing-over-the-output-bound-is-split-instead-of-read-one-commit-at-a-time
-state: draft
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

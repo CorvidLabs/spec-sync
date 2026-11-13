@@ -611,8 +611,8 @@ mod tests {
     /// set never replays this build's cached results. `build.rs` records what it framed.
     #[test]
     fn the_build_fingerprint_frames_the_compile_configuration() {
-        let configuration = option_env!("SPECSYNC_BUILD_CONFIGURATION")
-            .expect("build.rs records the compile configuration it frames into the fingerprint");
+        // `build.rs` records what it framed; before #981 it recorded nothing.
+        let configuration = env!("SPECSYNC_BUILD_CONFIGURATION");
         for name in ["TARGET=", "PROFILE=", "OPT_LEVEL=", "DEBUG="] {
             assert!(
                 configuration

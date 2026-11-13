@@ -1004,11 +1004,7 @@ fn print_relay_repairs(report: &change::RelayRepairReport) {
         report.change
     );
     for repair in &report.repairs {
-        let place = match repair.file.as_str() {
-            "approvals.json" => format!("approvals.json approval {}", repair.record),
-            "review-attempts.json" => format!("review-attempts.json attempt {}", repair.record),
-            other => other.to_string(),
-        };
+        let place = repair.place();
         match &repair.from {
             Some(from) => println!("  {place}: put back from {from}"),
             None => println!(

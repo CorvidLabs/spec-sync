@@ -1469,3 +1469,194 @@ fn a_relay_anywhere_in_a_decision_ledger_gates_the_change() {
     fs::write(workspace.join(CORRECTIONS_FILE), embedded.to_string()).unwrap();
     assert_eq!(relay_gated_record(workspace, &record).workflow_version, 1);
 }
+
+/// A verification record for a synthetic reopening, as a refused attempt records one.
+fn synthetic_prior_verification() -> VerificationRecord {
+    VerificationRecord {
+        timestamp: 0,
+        commit: None,
+        contract_digest: String::new(),
+        execution_digest: None,
+        workspace_digest: String::new(),
+        acceptance_input_digest: None,
+        acceptance_manifest: None,
+        semantic_succession: None,
+        passed: false,
+        commands: Vec::new(),
+        requirement_ids: Vec::new(),
+        refusal: Some("synthetic".into()),
+    }
+}
+
+/// Commit everything under `root` in a fresh repository, so `HEAD` holds every ledger.
+fn commit_project(root: &Path) {
+    for args in [
+        vec!["init", "-q"],
+        vec!["add", "-A"],
+        vec![
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-q",
+            "-m",
+            "project",
+        ],
+    ] {
+        let output = std::process::Command::new("git")
+            .args(&args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+/// #998 (REQ-change-relay-repair-001): a damaged relay nested in a reopening's
+/// `superseded_approval` is put back from the same place in `approvals.json` at `HEAD`, the
+/// file's bytes then equal the committed file, and the report names the nested record.
+#[test]
+fn repair_puts_back_a_damaged_reopening_relay_from_head() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    approve_definition_with_relay(
+        root,
+        &record.id,
+        Some("Ada".into()),
+        None,
+        false,
+        Some(relay("Ada")),
+    )
+    .unwrap();
+    let record = load_change(root, &record.id).unwrap();
+    let mut ledger = load_approvals(root, &record).unwrap();
+    ledger.reopenings.push(ReopenRecord {
+        schema_version: 1,
+        change_id: record.id.clone(),
+        actor: "Ada".into(),
+        reason: "Synthetic reopening".into(),
+        timestamp: now(),
+        from_state: ChangeState::Accepted,
+        to_state: ChangeState::Verifying,
+        superseded_approval: ledger.approvals.last().unwrap().clone(),
+        prior_verification: synthetic_prior_verification(),
+        stale_acceptance_input_digest: "0".repeat(64),
+        current_acceptance_input_digest: "1".repeat(64),
+        stale_evidence_cause: None,
+        recorded_review_mismatch_anchor: None,
+    });
+    let path = change_dir(root, &record.id).join("approvals.json");
+    write_json(&path, &ledger).unwrap();
+    commit_project(root);
+    let committed = fs::read(&path).unwrap();
+    let mut value: serde_json::Value = serde_json::from_slice(&committed).unwrap();
+    value["reopenings"][0]["superseded_approval"]["relayed_by"]["decided_by"] =
+        serde_json::json!("Mallory");
+    fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+
+    let report = repair_relayed_decisions(root, &record.id).unwrap();
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["repairs"].as_array().map(Vec::len), Some(1), "{json:#}");
+    let repair = &json["repairs"][0];
+    assert_eq!(repair["file"], "approvals.json", "{json:#}");
+    assert_eq!(repair["record"], 1, "{json:#}");
+    assert_eq!(repair["within"], "superseded_approval", "{json:#}");
+    assert_eq!(repair["action"], "put_back", "{json:#}");
+    assert_eq!(repair["from"], "HEAD", "{json:#}");
+    assert_eq!(fs::read(&path).unwrap(), committed, "the committed bytes are back");
+    load_approvals(root, &record).unwrap();
+}
+
+/// #998 and #1020 item 2 (REQ-change-relay-repair-001): a damaged relay in an approval a
+/// correction embeds, with no committed copy, is removed; the correction, its other approval and
+/// that approval's clean relay stay.
+#[test]
+fn repair_removes_a_damaged_correction_relay_with_no_committed_copy() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release reviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap();
+    let path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    let closing_actor = value["corrections"][0]["superseded_closing_approval"]["actor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    value["corrections"][0]["superseded_definition_approval"]["relayed_by"] =
+        serde_json::json!({"decided_by": "Mallory", "words": "w", "where": "x", "recorded_by": "a"});
+    let clean = serde_json::json!({
+        "decided_by": closing_actor, "words": "w", "where": "x", "recorded_by": "a"
+    });
+    value["corrections"][0]["superseded_closing_approval"]["relayed_by"] = clean.clone();
+    fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+
+    let report = repair_relayed_decisions(root, &record.id).unwrap();
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["repairs"].as_array().map(Vec::len), Some(1), "{json:#}");
+    let repair = &json["repairs"][0];
+    assert_eq!(repair["file"], CORRECTIONS_FILE, "{json:#}");
+    assert_eq!(repair["record"], 1, "{json:#}");
+    assert_eq!(repair["within"], "superseded_definition_approval", "{json:#}");
+    assert_eq!(repair["action"], "removed", "{json:#}");
+    assert_eq!(repair["removed"]["decided_by"], "Mallory", "{json:#}");
+
+    let after: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    let corrections = after["corrections"].as_array().unwrap();
+    assert_eq!(corrections.len(), 1);
+    assert!(corrections[0]["superseded_definition_approval"]
+        .get("relayed_by")
+        .is_none());
+    assert_eq!(corrections[0]["superseded_closing_approval"]["relayed_by"], clean);
+}
+
+/// #998 (REQ-cmd-change-relay-repair-001): the printed place names a record nested in a
+/// reopening or a correction.
+#[test]
+fn a_nested_repair_names_its_place() {
+    let repair = |file: &str, within: Option<&str>| RelayRepair {
+        file: file.into(),
+        record: 2,
+        within: within.map(String::from),
+        action: "removed".into(),
+        from: None,
+        removed: None,
+    };
+    assert_eq!(
+        repair("approvals.json", None).place(),
+        "approvals.json approval 2"
+    );
+    assert_eq!(
+        repair("approvals.json", Some("superseded_approval")).place(),
+        "approvals.json reopening 2 superseded approval"
+    );
+    assert_eq!(
+        repair(CORRECTIONS_FILE, Some("superseded_definition_approval")).place(),
+        "corrections.json correction 2 definition approval"
+    );
+    assert_eq!(
+        repair(CORRECTIONS_FILE, Some("superseded_closing_approval")).place(),
+        "corrections.json correction 2 closing approval"
+    );
+    assert_eq!(
+        repair(SCOPED_REVIEW_ATTEMPTS_FILE, None).place(),
+        "review-attempts.json attempt 2"
+    );
+    assert_eq!(repair(SCOPED_REVIEW_FILE, None).place(), "review.json");
+}

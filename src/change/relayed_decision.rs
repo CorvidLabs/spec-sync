@@ -330,11 +330,29 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
 pub struct RelayRepair {
     pub file: String,
     pub record: usize,
+    /// The record nested in the `record`-th entry that holds the relay, when it is not that entry
+    /// itself: a reopening's `superseded_approval`, or a correction's embedded approval.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub within: Option<String>,
     pub action: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<serde_json::Value>,
+}
+
+impl RelayRepair {
+    /// Where the repaired record sits, as `change repair-relays` prints it
+    /// (REQ-cmd-change-relay-repair-001).
+    pub fn place(&self) -> String {
+        match self.file.as_str() {
+            "approvals.json" => format!("approvals.json approval {}", self.record),
+            SCOPED_REVIEW_ATTEMPTS_FILE => {
+                format!("{SCOPED_REVIEW_ATTEMPTS_FILE} attempt {}", self.record)
+            }
+            other => other.to_string(),
+        }
+    }
 }
 
 /// What `repair_relayed_decisions` did to one change: empty `repairs` means nothing was damaged
@@ -672,6 +690,7 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             repairs.push(RelayRepair {
                 file: file.name.into(),
                 record: index + 1,
+                within: None,
                 action: action.into(),
                 from,
                 removed,

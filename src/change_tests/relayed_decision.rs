@@ -435,6 +435,57 @@ fn every_review_attempt_relay_must_name_its_reviewer() {
     assert!(error.contains(SCOPED_REVIEW_ATTEMPTS_FILE), "{error}");
 }
 
+/// #974: `change status` and `change show` project the claims through `recorded_claims`, which
+/// checks every review attempt's relay as `load_scoped_review` does. An earlier attempt whose
+/// relay names someone else, or is malformed, is refused with the recovery guidance, while the
+/// latest review alone stays valid; a review with no attempt history still shows its claims.
+#[test]
+fn recorded_claims_refuse_a_damaged_earlier_review_attempt_relay() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    let workspace = change_dir(root, &record.id);
+    let mut latest = review_record(Some(relay("Ada")));
+    latest.change_id = record.id.clone();
+    fs::write(
+        workspace.join(SCOPED_REVIEW_FILE),
+        json_content(&latest).unwrap(),
+    )
+    .unwrap();
+    // No attempt history: the latest review's claim is shown.
+    let claims = recorded_claims(root, &record).unwrap();
+    assert!(
+        claims.iter().any(|claim| claim.gate == "review" && claim.name == "Ada"),
+        "{claims:?}"
+    );
+
+    let mut earlier = latest.clone();
+    earlier.verdict = ScopedReviewVerdict::Block;
+    earlier.relayed_by = Some(relay("Mallory"));
+    let attempts = ScopedReviewAttemptLedger {
+        schema_version: 1,
+        reviews: vec![earlier, latest],
+    };
+    let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
+    fs::write(&attempts_path, json_content(&attempts).unwrap()).unwrap();
+    let error = recorded_claims(root, &record).unwrap_err();
+    assert!(error.contains("says `Mallory` decided"), "{error}");
+    assert!(error.contains(SCOPED_REVIEW_ATTEMPTS_FILE), "{error}");
+    assert!(
+        error.contains(&format!("specsync change repair-relays -- '{}'", record.id)),
+        "{error}"
+    );
+
+    // A malformed relay in the earlier attempt is refused the same way.
+    let text = fs::read_to_string(&attempts_path).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    value["reviews"][0]["relayed_by"] = serde_json::Value::Null;
+    fs::write(&attempts_path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+    let error = recorded_claims(root, &record).unwrap_err();
+    assert!(error.contains("relayed_by"), "{error}");
+    assert!(error.contains("repair-relays"), "{error}");
+}
+
 /// DISCRIMINATOR for the #900 review: an older 6.x binary that records the next attempt drops
 /// `relayed_by` from the earlier ones, and that rewrite is not read as removed evidence. Any
 /// other edit to a committed attempt still is.

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-archive-check-sees-the-default-branch-s-history-so-it-never-tells-a-stale-copy-of-an-upstream-archive-to-ship",
+  "slug": "the-archive-check-sees-the-default-branch-s-history-so-it-never-tells-a-stale-copy-of-an-upstream-archive-to-ship",
+  "title": "The Archive check sees the default branch's history, so it never tells a stale copy of an upstream archive to ship",
+  "description": "The Archive check sees the default branch's history, so it never tells a stale copy of an upstream archive to ship",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794543503,
+  "updated_at": 1794543538,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    ".github/scripts/test-required-ci-gate.py"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-cmd-change-029 says archive-readiness.sh, which the Archive check runs, SHALL NOT name change ship for a copy the remote default already archived; the Archive jobs checked out one commit, so the script could not see the default branch and still named ship (#965)",
+  "acceptance_criteria": [
+    "the Archive jobs in ci.yml and trust.yml check out full history before the archive gate, and test-required-ci-gate.py fails when a job that runs the gate on the repository checks out a single commit; the archive gate script itself still never fetches"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

@@ -3807,6 +3807,34 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
 }
 
+/// What `change reopen` would find in an accepted or archived change's own evidence (#922).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AcceptedEvidenceState {
+    /// The change-scoped accepted evidence still holds; unrelated project drift does not stale it.
+    Current,
+    /// The accepted evidence is stale, which is the case `change reopen` re-verifies.
+    Stale,
+    /// `verification.json` cannot be loaded, or the archive fails its integrity check. `change
+    /// reopen` refuses both, so the evidence has to be restored from Git history first.
+    Unreadable,
+}
+
+/// The accepted-evidence state of an accepted or archived change, from the change-scoped
+/// comparison `change reopen` makes rather than the whole-project verification digest (#922).
+pub(crate) fn accepted_evidence_state(root: &Path, record: &ChangeRecord) -> AcceptedEvidenceState {
+    if load_verification(root, record).is_err() {
+        return AcceptedEvidenceState::Unreadable;
+    }
+    match terminal_evidence_summary(root, record).validity {
+        TerminalEvidenceValidity::Exact
+        | TerminalEvidenceValidity::SuccessorCovered
+        | TerminalEvidenceValidity::AuthenticatedHistory
+        | TerminalEvidenceValidity::HistoricalTransitionUnproven => AcceptedEvidenceState::Current,
+        TerminalEvidenceValidity::CorruptHistory => AcceptedEvidenceState::Unreadable,
+        TerminalEvidenceValidity::Stale => AcceptedEvidenceState::Stale,
+    }
+}
+
 /// Terminal evidence for one archived record inside a read scope.
 ///
 /// An archived record's verdict depends only on its own package and history, never on the other

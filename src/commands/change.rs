@@ -1565,8 +1565,14 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // `review_present`: only a review that was loaded AND agreed with this tree may count,
     // and an unavailable answer is not a satisfied one (#694's standard, applied to the one
     // caller that violated it).
-    let verification_current =
-        change::recorded_verification_is_current(root, record) && verification_work.is_ok();
+    // An accepted or archived change's product evidence is the change-scoped accepted evidence
+    // `change reopen` compares, not the whole-project digest every unrelated edit moves (#922).
+    let accepted_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+        .then(|| change::accepted_evidence_state(root, record));
+    let verification_current = match accepted_evidence {
+        Some(state) => state == change::AcceptedEvidenceState::Current,
+        None => change::recorded_verification_is_current(root, record) && verification_work.is_ok(),
+    };
     let ready_to_finalize = record.state == ChangeState::Verifying
         && verification_present
         && verification_current
@@ -1581,6 +1587,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         verification_current,
         review_status,
         ready_to_finalize,
+        accepted_evidence,
     );
 
     let current_stage = stages
@@ -2160,7 +2167,10 @@ impl ShipReviewStatus {
 /// The product-tip action, named only as a command whose state guard admits the change's state
 /// (#690, REQ-cmd-change-033). `check` refuses a draft and an accepted or archived change, so
 /// those get the step their own state machine takes: approve, or reopen the stale evidence.
-fn product_stage_action(record: &ChangeRecord) -> String {
+fn product_stage_action(
+    record: &ChangeRecord,
+    accepted_evidence: Option<change::AcceptedEvidenceState>,
+) -> String {
     let id = record.id.as_str();
     match record.state {
         ChangeState::Retired => {
@@ -2170,6 +2180,15 @@ fn product_stage_action(record: &ChangeRecord) -> String {
         ChangeState::Draft => format!(
             "run `specsync change approve {id} --actor <name>` once the definition is complete; `change check` refuses a draft"
         ),
+        // `change reopen` loads `verification.json` and authenticates the archive first, so it
+        // refuses unreadable evidence; that is restored from Git history instead (#922).
+        ChangeState::Accepted | ChangeState::Archived
+            if accepted_evidence == Some(change::AcceptedEvidenceState::Unreadable) =>
+        {
+            format!(
+                "restore this change's `verification.json` and archived package from trusted Git history (`specsync change status {id}` names the restore): evidence that cannot be read cannot be reopened"
+            )
+        }
         ChangeState::Accepted | ChangeState::Archived => format!(
             "run `specsync change reopen {id} --actor <name> --reason <text>`; the verification is no longer current for this content and `change check` refuses an accepted or archived change"
         ),
@@ -2187,6 +2206,7 @@ fn ship_stages(
     verification_current: bool,
     review: ShipReviewStatus,
     ready_to_finalize: bool,
+    accepted_evidence: Option<change::AcceptedEvidenceState>,
 ) -> Vec<serde_json::Value> {
     let id = record.id.as_str();
     let verified = verification_present && verification_current && verification_commit.is_some();
@@ -2208,11 +2228,11 @@ fn ship_stages(
         "status": if product_done { "done" } else { "current" },
         "sha": verification_commit,
         "action": if retired {
-            product_stage_action(record)
+            product_stage_action(record, accepted_evidence)
         } else if product_done {
             "product verification evidence is current for this content".to_string()
         } else {
-            product_stage_action(record)
+            product_stage_action(record, accepted_evidence)
         },
     }));
 
@@ -3766,6 +3786,8 @@ if the floor call is removed from this function"
                 false,
                 ShipReviewStatus::Missing,
                 false,
+                matches!(state, ChangeState::Accepted | ChangeState::Archived)
+                    .then_some(change::AcceptedEvidenceState::Stale),
             );
             let product = stages
                 .iter()

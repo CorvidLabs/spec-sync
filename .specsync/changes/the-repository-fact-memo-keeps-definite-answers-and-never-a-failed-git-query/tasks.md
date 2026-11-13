@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test: a failed fact is not memoized; a definite absence is
 - [x] Memoize only successes and definite absences; quiet forms in remote_default_ref
-- [ ] git_utils tests, and the REQ-change-127 spawn-ceiling test, fmt and clippy
+- [x] git_utils tests, and the REQ-change-127 spawn-ceiling test, fmt and clippy

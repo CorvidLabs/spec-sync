@@ -420,7 +420,10 @@ with the accepted ids. An empty answer is refused, and so is a list answer that 
 `affected_paths`. Answer exactly `none` or `'[]'` to clear `affected_specs` or `dependencies`
 (`'[]'` always clears; `none` is refused as ambiguous when a change or module is itself called
 `none`; quote `'[]'`, because zsh reads a bare `[]` as a pattern). `public_contract` and
-`architecture_risk` take `yes` or `no`. Every `affected_specs` module needs its spec at its
+`architecture_risk` take `yes` or `no`. `no_spec_change` takes only `no`: it declares that a
+change created with `--no-spec-change` changes specs after all, and drops its rationale. Like
+every answer it needs a draft, so send an approved change back first; the next approval then
+needs a delta for each affected spec. Every `affected_specs` module needs its spec at its
 canonical path, with the module's directory and file spelled exactly and no symlink on the way,
 unless the project has no specs yet. A new module's spec must exist before the module is
 declared, including a module that so far exists only under `[modules]` in the config. An `--actor` is trimmed

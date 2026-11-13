@@ -192,6 +192,10 @@ specsync change approve add-passkeys --actor "Ada Reviewer"
 specsync change check add-passkeys --commit
 ```
 
+A change created with `--no-spec-change` that turns out to change a spec takes the same route:
+send it back, run `specsync change answer <id> no_spec_change no`, write a delta for each
+affected spec, and approve again.
+
 The person and the reason are appended to `approvals.json` under `send_backs`. The definition
 approval recorded before the send-back is kept but no longer counts, so the new scope needs a
 fresh `change approve`, even when it did not change. A committed send-back cannot be deleted to

@@ -2940,6 +2940,7 @@ const INTERVIEW_QUESTION_IDS: &[&str] = &[
     "public_contract",
     "architecture_risk",
     "constraints",
+    "no_spec_change",
 ];
 
 pub(crate) fn answer_question_with_snapshot(
@@ -3037,6 +3038,27 @@ pub(crate) fn answer_question_with_snapshot(
                 add_artifact(&mut record, ArtifactKind::Tasks);
                 add_artifact(&mut record, ArtifactKind::Testing);
             }
+        }
+        "no_spec_change" => {
+            // Only `no` is answerable: it declares that a change created with
+            // `--no-spec-change` changes specs after all, once a send-back has returned it to
+            // draft (REQ-change-160). Declaring no spec change needs a rationale, which only
+            // `change new` records.
+            if is_yes(&yes_no_answer(question, answer)?) {
+                return Err(format!(
+                    "`no_spec_change yes` needs a rationale; only `specsync change new \
+                     --no-spec-change --rationale <why>` records one. Answer `no` to declare \
+                     that `{id}` changes specs"
+                ));
+            }
+            if !record.no_spec_change {
+                return Err(format!(
+                    "`{id}` already declares that it changes specs; there is no \
+                     no_spec_change to clear"
+                ));
+            }
+            record.no_spec_change = false;
+            record.no_spec_change_rationale = None;
         }
         "constraints" => {
             let answer = answer.trim();

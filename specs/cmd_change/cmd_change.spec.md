@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 84
+version: 85
 status: active
 files:
   - src/commands/change.rs
@@ -218,6 +218,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-11 | check-commit-json-prints-the-outcome: Check commit json prints the outcome |
 | 2026-11-11 | the-ownership-recovery-narrows-a-scope-over-files-the-change-never-touched: The ownership recovery narrows a scope over files the change never touched |
 | 2026-11-11 | after-approve-next-action-names-check-commit-and-review-and-ship-refuse-a-verification-commit-that-lacks-the-change-s: After approve, next_action names check --commit, and review and ship refuse a verification commit that lacks the change's work |
+| 2026-11-13 | repair-relays-also-repairs-relays-nested-in-reopenings-and-corrections: Repair-relays also repairs relays nested in reopenings and corrections |
 
 ## Audited nonacceptance retirement
 

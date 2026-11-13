@@ -13,8 +13,14 @@
 //    no commit between them touched that change's active or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
 //    stored, so a refusal is always re-derived.
 
-const READ_CACHE_SCHEMA: u32 = 1;
+// Schema 2 keeps whether an introduced package had an `approvals.json`, not its bytes (#850).
+const READ_CACHE_SCHEMA: u32 = 2;
 const READ_CACHE_FILE: &str = "specsync/read-cache-v1.json";
+/// The most archive-introduction entries the persistent cache keeps; the least recently used go
+/// first (#850).
+const MAX_CACHED_ARCHIVE_INTRODUCTIONS: usize = 4096;
+/// A cache file larger than this is not loaded, so the next write starts the cache fresh (#850).
+const MAX_READ_CACHE_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct PersistentReadCache {
@@ -25,8 +31,13 @@ struct PersistentReadCache {
     workflow_history: BTreeMap<String, WorkflowHistoryCacheEntry>,
     /// `<commit>\n<archive pathspec>` to the archived packages that commit introduced. A commit
     /// and its parents are immutable, so this needs no invalidation beyond the build identity.
+    /// At most `MAX_CACHED_ARCHIVE_INTRODUCTIONS` entries are kept.
     #[serde(default)]
-    archive_introductions: BTreeMap<String, Vec<CachedArchiveIntroduction>>,
+    archive_introductions: BTreeMap<String, CachedArchiveIntroductions>,
+    /// Advances on every write; an archive introduction is stamped with it when a command that
+    /// writes the cache used that entry, so the least recently used entry is dropped first.
+    #[serde(default)]
+    clock: u64,
     /// Keys of legacy-baseline introduction proofs that passed (see
     /// `legacy_introductions_cache_key`). A key digests every input of the proof that is not an
     /// immutable commit, so it never names a different verdict. Only passes are stored.
@@ -39,11 +50,21 @@ struct PersistentReadCache {
     workflow_v1_at_cutoff: BTreeSet<String>,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+struct CachedArchiveIntroductions {
+    /// The cache clock when a command that wrote the cache last used this entry.
+    #[serde(default)]
+    last_used: u64,
+    packages: Vec<CachedArchiveIntroduction>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct CachedArchiveIntroduction {
     id: String,
     directory: String,
-    approvals: Option<String>,
+    /// Whether the introducing commit holds the package's `approvals.json`. Its bytes are read
+    /// from that commit when they are compared, never kept here (#850).
+    approvals: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -67,6 +88,9 @@ struct PersistentReadCacheFrame {
     /// `HEAD` resolved once, to a full commit id, when the frame loaded. Every invalidation walk
     /// and every stamp in this scope uses this id, never the moving symbolic `HEAD`.
     head: Option<String>,
+    /// Archive-introduction keys this scope read or stored, stamped as recently used when the
+    /// cache is written (#850).
+    used_introductions: BTreeSet<String>,
 }
 
 fn archive_index_in_scope(root: &Path, id: &str) -> Option<Vec<PathBuf>> {
@@ -468,12 +492,16 @@ fn with_persistent_read_cache<Value>(
             repo_prefix: prefix.clone(),
             workflow_history: BTreeMap::new(),
             archive_introductions: BTreeMap::new(),
+            clock: 0,
             legacy_introductions: BTreeSet::new(),
             workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
             .path
             .as_ref()
+            .filter(|path| {
+                fs::metadata(path).is_ok_and(|metadata| metadata.len() <= MAX_READ_CACHE_FILE_BYTES)
+            })
             .and_then(|path| fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice::<PersistentReadCache>(&bytes).ok())
             .filter(|cache| {
@@ -714,7 +742,9 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     let (Some(path), Some(cache)) = (frame.path.as_ref(), frame.loaded.as_ref()) else {
         return;
     };
-    let Ok(bytes) = serde_json::to_vec(cache) else {
+    let mut cache = cache.clone();
+    bound_archive_introductions(&mut cache, &frame.used_introductions);
+    let Ok(bytes) = serde_json::to_vec(&cache) else {
         return;
     };
     if let Some(parent) = path.parent()
@@ -735,6 +765,33 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     }
 }
 
+/// Stamps the archive introductions this scope used with a new clock value, then drops the least
+/// recently used entries beyond `MAX_CACHED_ARCHIVE_INTRODUCTIONS` (#850). Ties go by key.
+fn bound_archive_introductions(cache: &mut PersistentReadCache, used: &BTreeSet<String>) {
+    cache.clock = cache.clock.saturating_add(1);
+    for key in used {
+        if let Some(entry) = cache.archive_introductions.get_mut(key) {
+            entry.last_used = cache.clock;
+        }
+    }
+    let excess = cache
+        .archive_introductions
+        .len()
+        .saturating_sub(MAX_CACHED_ARCHIVE_INTRODUCTIONS);
+    if excess == 0 {
+        return;
+    }
+    let mut by_age: Vec<(u64, String)> = cache
+        .archive_introductions
+        .iter()
+        .map(|(key, entry)| (entry.last_used, key.clone()))
+        .collect();
+    by_age.sort();
+    for (_, key) in by_age.into_iter().take(excess) {
+        cache.archive_introductions.remove(&key);
+    }
+}
+
 /// Whether `commit`'s tree has an entry at the repository-relative `path`, read from tree objects
 /// only, so it answers even when the blob itself is unavailable. `None` when Git cannot say.
 fn commit_tree_lists_path(root: &Path, commit: &str, path: &str) -> Option<bool> {
@@ -752,8 +809,8 @@ fn commit_tree_lists_path(root: &Path, commit: &str, path: &str) -> Option<bool>
     })
 }
 
-/// One archived package a commit introduced: `(id, directory, approvals bytes)`.
-type ArchivePackageIntroduction = (String, String, Option<Vec<u8>>);
+/// One archived package a commit introduced: `(id, directory, approvals ledger)`.
+type ArchivePackageIntroduction = (String, String, IntroducedApprovals);
 
 /// The archived packages `commit` added under `history_pathspec`, as `(id, directory, approvals)`.
 /// Reads the persistent cache inside a read scope, and stores a result only when every Git call
@@ -767,19 +824,25 @@ fn archive_introductions_at_commit(
 ) -> Result<Vec<ArchivePackageIntroduction>, String> {
     let key = format!("{commit}\n{history_pathspec}");
     if let Some(Some(cached)) = with_persistent_read_cache(root, |_, frame| {
-        frame
+        let cached = frame
             .loaded
             .as_ref()
-            .and_then(|cache| cache.archive_introductions.get(&key).cloned())
+            .and_then(|cache| cache.archive_introductions.get(&key).cloned());
+        if cached.is_some() {
+            frame.used_introductions.insert(key.clone());
+        }
+        cached
     }) {
         return Ok(cached
+            .packages
             .into_iter()
             .map(|entry| {
-                (
-                    entry.id,
-                    entry.directory,
-                    entry.approvals.map(String::into_bytes),
-                )
+                let approvals = if entry.approvals {
+                    IntroducedApprovals::Committed
+                } else {
+                    IntroducedApprovals::Absent
+                };
+                (entry.id, entry.directory, approvals)
             })
             .collect());
     }
@@ -791,30 +854,29 @@ fn archive_introductions_at_commit(
         listed,
     )?;
     if conclusive {
-        let cached: Option<Vec<CachedArchiveIntroduction>> = introduced
+        let packages = introduced
             .iter()
-            .map(|(id, directory, approvals)| {
-                let approvals = match approvals {
-                    Some(bytes) => Some(String::from_utf8(bytes.clone()).ok()?),
-                    None => None,
-                };
-                Some(CachedArchiveIntroduction {
-                    id: id.clone(),
-                    directory: directory.clone(),
-                    approvals,
-                })
+            .map(|(id, directory, approvals)| CachedArchiveIntroduction {
+                id: id.clone(),
+                directory: directory.clone(),
+                approvals: *approvals != IntroducedApprovals::Absent,
             })
             .collect();
-        if let Some(cached) = cached {
-            with_persistent_read_cache(root, |_, frame| {
-                if frame.path.is_some()
-                    && let Some(cache) = frame.loaded.as_mut()
-                {
-                    cache.archive_introductions.insert(key, cached);
-                    frame.dirty = true;
-                }
-            });
-        }
+        with_persistent_read_cache(root, |_, frame| {
+            if frame.path.is_some()
+                && let Some(cache) = frame.loaded.as_mut()
+            {
+                cache.archive_introductions.insert(
+                    key.clone(),
+                    CachedArchiveIntroductions {
+                        last_used: 0,
+                        packages,
+                    },
+                );
+                frame.used_introductions.insert(key);
+                frame.dirty = true;
+            }
+        });
     }
     Ok(introduced)
 }
@@ -927,6 +989,7 @@ fn archive_introductions_from_listing(
                 None
             }
         };
+        let approvals = approvals.map_or(IntroducedApprovals::Absent, IntroducedApprovals::Read);
         introduced.push((archived.id, directory.to_string(), approvals));
     }
     Ok((introduced, conclusive))

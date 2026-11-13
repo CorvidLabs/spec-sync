@@ -1934,13 +1934,16 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
 type IntroducedLedgers = BTreeMap<String, Vec<(String, Option<Vec<u8>>)>>;
 
 /// The approvals ledger each introduction in `index` committed, per change id.
-fn introduced_ledgers(_root: &Path, index: &ArchiveIntroductionIndex) -> IntroducedLedgers {
+fn introduced_ledgers(root: &Path, index: &ArchiveIntroductionIndex) -> IntroducedLedgers {
     index
         .iter()
         .map(|(id, introductions)| {
             let ledgers = introductions
                 .iter()
-                .map(|introduction| (introduction.commit.clone(), introduction.approvals.clone()))
+                .map(|introduction| {
+                    let ledger = introduction.committed_ledger(root).unwrap();
+                    (introduction.commit.clone(), ledger)
+                })
                 .collect();
             (id.clone(), ledgers)
         })
@@ -1999,19 +2002,23 @@ fn the_read_cache_keeps_at_most_4096_archive_introductions() {
     for commit in 0..4097 {
         cache.archive_introductions.insert(
             format!("{commit:040x}\n:(top,literal).specsync/archive/changes"),
-            Vec::new(),
+            CachedArchiveIntroductions::default(),
         );
     }
+    // Key 0 sorts first, so it would be dropped first; this command used it, so it must be kept.
+    let used = format!("{:040x}\n:(top,literal).specsync/archive/changes", 0);
     let frame = PersistentReadCacheFrame {
         path: Some(path.clone()),
         loaded: Some(cache),
         dirty: true,
+        used_introductions: BTreeSet::from([used.clone()]),
         ..PersistentReadCacheFrame::default()
     };
     flush_persistent_read_cache(&frame);
     let written: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     let kept = written["archive_introductions"].as_object().unwrap();
     assert!(kept.len() <= 4096, "the read cache kept {} archive introductions", kept.len());
+    assert!(kept.contains_key(&used), "the entry this command used was dropped");
 }
 
 #[test]

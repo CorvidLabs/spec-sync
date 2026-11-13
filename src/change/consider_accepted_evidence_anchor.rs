@@ -2496,7 +2496,44 @@ fn consider_accepted_evidence_anchor(
 struct ArchiveIntroduction {
     commit: String,
     directory: String,
-    approvals: Option<Vec<u8>>,
+    approvals: IntroducedApprovals,
+}
+
+/// The approvals ledger an archived package committed when it was introduced.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum IntroducedApprovals {
+    /// Its bytes, read by this command.
+    Read(Vec<u8>),
+    /// The package committed one, which the persistent read cache records without its bytes;
+    /// they are read from the introducing commit when compared (#850).
+    Committed,
+    /// The package committed none.
+    Absent,
+}
+
+impl ArchiveIntroduction {
+    /// The approvals ledger this introduction committed, read from its commit when only its
+    /// presence is known.
+    fn committed_ledger(&self, root: &Path) -> Result<Option<Vec<u8>>, String> {
+        match &self.approvals {
+            IntroducedApprovals::Read(bytes) => Ok(Some(bytes.clone())),
+            IntroducedApprovals::Absent => Ok(None),
+            IntroducedApprovals::Committed => {
+                let object = format!("{}:{}/approvals.json", self.commit, self.directory);
+                let output = run_git_bounded(
+                    root,
+                    &["show", object.as_str(), "--"],
+                    None,
+                    MAX_CHANGE_ARTIFACT_BYTES as usize,
+                )
+                .map_err(|error| format!("failed to read archived approvals `{object}`: {error}"))?;
+                if !output.status.success() {
+                    return Err(format!("failed to read archived approvals `{object}`"));
+                }
+                Ok(Some(output.stdout))
+            }
+        }
+    }
 }
 
 type ArchiveIntroductionIndex = BTreeMap<String, Vec<ArchiveIntroduction>>;
@@ -2932,11 +2969,20 @@ fn admissible_archive_introductions(
     let Some(candidates) = index.get(&record.id) else {
         return Ok(Vec::new());
     };
+    // An earlier ledger is compared only when the change entered history more than once.
+    let ledgers = if candidates.len() > 1 {
+        candidates
+            .iter()
+            .map(|candidate| candidate.committed_ledger(root))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        Vec::new()
+    };
     let mut admissible = Vec::new();
     for candidate in candidates {
-        let superseded = candidates.iter().any(|earlier| {
+        let superseded = candidates.iter().zip(&ledgers).any(|(earlier, ledger)| {
             earlier.commit != candidate.commit
-                && ledger_succession(earlier.approvals.as_deref(), current_approvals)
+                && ledger_succession(ledger.as_deref(), current_approvals)
                     == LedgerSuccession::NotASuccessor
                 && ensure_git_ancestor(
                     root,
@@ -2965,13 +3011,18 @@ fn closing_ledger_extends_all_introductions(
     current_approvals: &[u8],
 ) -> Result<bool, String> {
     let index = archive_introduction_index(root)?;
-    Ok(index.get(&record.id).is_some_and(|introductions| {
-        !introductions.is_empty()
-            && introductions.iter().all(|introduction| {
-                ledger_succession(introduction.approvals.as_deref(), current_approvals)
-                    == LedgerSuccession::LawfulSuccessor
-            })
-    }))
+    let Some(introductions) = index.get(&record.id).filter(|found| !found.is_empty()) else {
+        return Ok(false);
+    };
+    for introduction in introductions {
+        let ledger = introduction.committed_ledger(root)?;
+        if ledger_succession(ledger.as_deref(), current_approvals)
+            != LedgerSuccession::LawfulSuccessor
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// True when `anchor` lies in the history that produced one of `introductions`.

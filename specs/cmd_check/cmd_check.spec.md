@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 35
+version: 36
 status: stable
 files:
   - src/commands/check.rs
@@ -165,3 +165,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |
 | 2026-11-01 | keep-check-fix-export-rows-in-the-table-that-already-holds-documented-exports-768-case-1: Keep check --fix export rows in the table that already holds documented exports (#768 case 1) |
+| 2026-11-13 | check-reports-a-module-s-3md-lesson-file-that-does-not-parse: Check reports a module's .3md lesson file that does not parse |

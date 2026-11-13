@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 50
+version: 51
 status: stable
 files:
   - src/validator.rs
@@ -233,6 +233,7 @@ degrades. This does not admit arbitrary configured files as exact Cargo targets.
 | Condition | Behavior |
 |-----------|----------|
 | Spec file unreadable | Error: "Cannot read spec" |
+| A `<module>.3md` beside the spec cannot be read or does not parse as 3md | Warning naming the file, the parser's error and that `context.md` is used for its lessons instead, so `check --strict` fails (REQ-cmd-check-018) |
 | Pre-read snapshot passed to `validate_spec_content` | Validates those exact bytes without opening `spec_path` or adjacent companions |
 | Supplied source is `Missing`, `Rejected`, or `Unreadable` | Reports the corresponding mapped-source validation outcome without ambient fallback |
 | Missing frontmatter delimiters | Error: "Missing or malformed YAML frontmatter" |
@@ -330,3 +331,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
 | 2026-11-11 | delta-materializer-matches-and-keeps-titled-requirement-headers: Delta materializer matches and keeps titled requirement headers |
 | 2026-11-11 | audit-reports-requirements-traversal-errors: Audit reports requirements traversal errors |
+| 2026-11-13 | check-reports-a-module-s-3md-lesson-file-that-does-not-parse: Check reports a module's .3md lesson file that does not parse |

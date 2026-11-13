@@ -36,15 +36,14 @@ fn run(root: &Path, args: &[&str]) -> (bool, String) {
     (output.status.success(), text)
 }
 
-/// An adopted project with one draft change, committed.
-fn draft_project() -> (TempDir, PathBuf) {
+/// An adopted project with one approved change.
+fn approved_project() -> (TempDir, PathBuf) {
     let temp = TempDir::new().unwrap();
     let root = temp.path().to_path_buf();
     git(&root, &["init", "-q", "-b", "main"]);
     git(&root, &["config", "user.email", "test@example.com"]);
     git(&root, &["config", "user.name", "Test"]);
-    fs::create_dir_all(root.join("src")).unwrap();
-    fs::write(root.join("src/lib.rs"), "pub fn probe() {}\n").unwrap();
+    fs::write(root.join("README.md"), "# probe\n").unwrap();
     assert!(run(&root, &["init"]).0);
     assert!(run(&root, &["change", "adopt"]).0);
     git(&root, &["add", "--all"]);
@@ -61,10 +60,31 @@ fn draft_project() -> (TempDir, PathBuf) {
             "--rationale",
             "probe",
             "--path",
-            "src/lib.rs",
+            "README.md",
         ],
     );
     assert!(created, "{text}");
+    for (question, answer) in [
+        ("acceptance_criteria", "the probe reads"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+        ("constraints", "none"),
+    ] {
+        let (answered, text) = run(&root, &["change", "answer", ID, question, answer]);
+        assert!(answered, "{question}: {text}");
+    }
+    for artifact in ["context", "tasks", "testing"] {
+        let path = change_file(&root, &format!("{artifact}.md"));
+        if path.exists() {
+            fs::write(
+                &path,
+                format!("---\nchange: {ID}\nartifact: {artifact}\n---\n\n# Probe\n\nProbe text.\n"),
+            )
+            .unwrap();
+        }
+    }
+    let (approved, text) = run(&root, &["change", "approve", ID, "--actor", "Probe"]);
+    assert!(approved, "{text}");
     (temp, root)
 }
 
@@ -80,7 +100,7 @@ fn edit_json(path: &Path, edit: impl FnOnce(&mut Value)) {
 
 #[test]
 fn a_type_error_in_approvals_names_the_file() {
-    let (_temp, root) = draft_project();
+    let (_temp, root) = approved_project();
     edit_json(&change_file(&root, "approvals.json"), |value| {
         value["approvals"] = Value::String("soon".into());
     });
@@ -100,7 +120,7 @@ fn a_type_error_in_approvals_names_the_file() {
 
 #[test]
 fn a_state_file_from_a_newer_specsync_is_refused_with_the_newer_specsync_message() {
-    let (_temp, root) = draft_project();
+    let (_temp, root) = approved_project();
     edit_json(&change_file(&root, "state.json"), |value| {
         value["schema_version"] = Value::from(99);
     });
@@ -115,7 +135,7 @@ fn a_state_file_from_a_newer_specsync_is_refused_with_the_newer_specsync_message
 
 #[test]
 fn a_verification_attempt_history_from_a_newer_specsync_is_refused_by_audit_and_status() {
-    let (_temp, root) = draft_project();
+    let (_temp, root) = approved_project();
     fs::write(
         change_file(&root, "verification-attempts.json"),
         format!(r#"{{"schema_version": 99, "change_id": "{ID}", "attempts": []}}"#),

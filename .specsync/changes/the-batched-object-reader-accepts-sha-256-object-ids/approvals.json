@@ -1,4 +1,45 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794541902,
+      "digest": "f604c7b007faf5c4d8c8496ffdf70e179aae9901bf15cef5e3ae33c994894a9e",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: in SHA-256 repositories, reads at a full commit id now use the one cat-file --batch reader instead of a git process each. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-batched-object-reader-accepts-sha-256-object-ids",
+        "title": "The batched object reader accepts SHA-256 object ids",
+        "description": "The batched object reader accepts SHA-256 object ids",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "git_utils"
+        ],
+        "affected_paths": [
+          "src/git_utils.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-git-utils-010 requires committed blob and tree reads at a fixed commit to be served by one cat-file --batch child; in a SHA-256 repository a read at a full 64-character commit id fell back to its own git show (#985)",
+        "acceptance_criteria": [
+          "in a repository initialized with --object-format=sha256, show and ls-tree reads at a full 64-character commit id are answered by the one cat-file --batch child, byte for byte equal to per-file reads, and a missing path still reads as absent"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Two SpecSync bug fixes, each matching what the spec already says: approve their scope?', he selected both: \"#937 status order\" and \"#985 SHA-256 repos\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T03:49Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

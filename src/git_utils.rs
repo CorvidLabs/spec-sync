@@ -1317,10 +1317,13 @@ fn batched_revision(
     Some(head)
 }
 
-/// Whether a revision is safe to hand to `cat-file --batch` in place of `ls-tree`/`show`.
+/// Whether a revision is safe to hand to `cat-file --batch` in place of `ls-tree`/`show`: `HEAD`,
+/// or a full object id in either object format (40 hex characters for SHA-1, 64 for SHA-256,
+/// #985). `cat-file --batch` reads both.
 fn batchable_revision(revision: &str) -> bool {
     revision == "HEAD"
-        || (revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        || (matches!(revision.len(), 40 | 64)
+            && revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
 }
 
 /// Whether a path names exactly one entry for `ls-tree` and `<rev>:<path>` alike.

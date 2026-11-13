@@ -2878,10 +2878,15 @@ fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
 /// Extracted so that applying an item and asking whether an item is ALREADY applied read the same
 /// block out of the same scan. Two answers derived from two scans is how a tree and the record of
 /// it drift apart, which is the whole subject of #741.
+///
+/// A heading inside fenced code is quoted text, as the shared requirement reader treats it
+/// (REQ-change-152, #1050): it neither starts nor ends a block. The scan reads a fence-blanked
+/// copy, which keeps every byte offset, so the range still indexes `source`.
 fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Range<usize>> {
+    let scanned = crate::parser::blank_fenced_code(source);
     let mut lines = Vec::new();
     let mut offset = 0;
-    for raw in source.split_inclusive('\n') {
+    for raw in scanned.split_inclusive('\n') {
         let line = raw
             .strip_suffix('\n')
             .unwrap_or(raw)
@@ -2890,8 +2895,8 @@ fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Ran
         lines.push((offset, line));
         offset += raw.len();
     }
-    if offset < source.len() {
-        lines.push((offset, &source[offset..]));
+    if offset < scanned.len() {
+        lines.push((offset, &scanned[offset..]));
     }
     let start = lines
         .iter()

@@ -1,9 +1,0 @@
-at ad8f63a8 + round-4 tests
-FAIL: test_the_scoped_review_waits_for_and_reports_every_product_job (__main__.RequiredGateContractTests.test_the_scoped_review_waits_for_and_reports_every_product_job)
-FAILED (failures=1)
-test change::tests::a_failed_late_close_rollback_keeps_the_record_in_the_stranded_package ... FAILED
-test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2901 filtered out; finished in 0.01s
-test doctor::close_late_all_is_refused_while_a_change_is_named_all ... FAILED
-test doctor::an_ambiguous_live_id_is_reported_before_its_closed_late_record ... FAILED
-test doctor::close_late_all_takes_no_delivery_evidence_read ... FAILED
-test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 547 filtered out; finished in 28.08s

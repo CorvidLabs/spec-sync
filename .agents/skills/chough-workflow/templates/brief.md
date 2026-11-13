@@ -4,7 +4,7 @@ For the next session. Links point to the living sources; this brief summarizes t
 and does not replace them.
 
 - Objective and stage: <from `chough next`>
-- Native change and state: <id, state, as reported by `specsync change status`>
+- Native change and state: <id, state, as reported by `chough change status`>
 - Intent: <HI IDs with one-line meaning>
 - Requirements and cases: <REQ and TC IDs>
 - Design: <prototype path and approval state>

@@ -11,6 +11,9 @@
 
 * { box-sizing: border-box; }
 
+/* The state switcher hides panels with `hidden`; keep them hidden over project display rules. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: var(--font-display, system-ui, sans-serif);

@@ -12,6 +12,11 @@ does not authorize a version bump, tag, publication, deployment or live-health j
 - a standing project setting, recorded with `chough pref set release standing
   --source "<their words>"` only when a human asked for it.
 
+Ask before the move into done. With release authorized then, the session stays open
+for it (`kept_open`) and archives itself at the move from release into done. A
+decision still to come, such as approval to publish, is a gate that holds release
+(`--holds release`), so build, test and accept keep moving.
+
 ## Doing the work
 
 Use the project's actual version, artifact and delivery commands (for example the

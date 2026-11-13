@@ -1,7 +1,7 @@
 # <Surface> prototype companion
 
 Canonical prototype: `index.html` and `styles.css` in this folder. Earlier versions
-are in Git history and library snapshots; there is no other current version.
+are in Git history; there is no other current version.
 
 Status: <draft | awaiting human approval | approved on <date> by <human>>
 

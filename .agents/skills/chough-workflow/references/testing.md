@@ -19,10 +19,25 @@ meaningful omission and record test debt in the native `testing.md`.
 | copy-localization | Visible text or locale behavior changed | Deterministic string assertions plus reviewer notes |
 | design-qa | Visuals or interactions changed | Rendered comparison with the canonical prototype at the target viewports and states |
 
+SpecSync's `specsync change check` (which `chough change check` runs) refuses until the
+change's `.specsync/changes/<id>/testing.md` names every requirement its deltas add or
+modify, saying "no requirement evidence for <ID>". Give each one a row of that file's
+`## Requirement evidence` table, naming the test or check that shows it:
+
+```markdown
+## Requirement evidence
+
+| Requirement | Evidence |
+|---|---|
+| REQ-shipping-004 | `tests/shipping.rs`: an order of exactly fifty dollars ships free |
+```
+
 ## Definitions are not observations
 
-Definitions live in `.chough/cases/<module>.cases.toml` (profile `chough-testing/1`,
-see [the template](../templates/cases.toml)). Each new case has a curated stable ID
+Definitions live in `.chough/cases/<module>.cases.toml`, or for one change's cases
+in a file of their own, `.chough/cases/<module>.<part>.cases.toml`, so parallel
+branches never edit one file (profile `chough-testing/1`, see
+[the template](../templates/cases.toml)). Each new case has a curated stable ID
 `TC-<module>-<title-slug>`, with lowercase ASCII letters and digits in nonempty runs
 separated by single hyphens. The complete ID stays within the module-aware 100-byte
 bound, and duplicate IDs are refused globally. Exact legacy `TC-<module>-NNNN` cases
@@ -67,10 +82,14 @@ Chough, in order, rather than after the fact.
 ## Execute honestly
 
 - Automated: `chough cases run <ID> --environment <env>` runs the binding without a
-  shell and records an automatic `OBS-<slug>-<24-lowercase-hex>` observation with
-  the captured log at exactly `.chough/artifacts/<observation-id>.log`. An optional
-  `--observation-id` accepts only the new OBS form. An old-style ID supplied for a
-  new write is refused with a remedy to omit the ID for automatic allocation.
+  shell and records one evidence entry in the session's `evidence/` folder, named
+  `<date>-<case slug>` (same-day runs get a short random suffix). The entry keeps the
+  exact command, the SHA-256 of the captured output and, for a failure, the key
+  failing lines: at most 20 lines and 2 KiB, escape codes removed, any leaked path or
+  credential redacted. The raw output goes to `.chough/local/logs/<evidence id>.log`,
+  which is never committed, and to CI's own logs when CI runs it. An optional
+  `--observation-id` must be a date and slug name not yet used; an old-style ID
+  supplied for a new write is refused with a remedy to omit it.
   `cargo-test` passes only when exactly one test ran and passed; a filter matching
   nothing is `not-run`. A validator refusing to load or run a definition is not a
   behavioral `not-run` observation: run the bound regression directly when failure
@@ -91,16 +110,16 @@ Chough, in order, rather than after the fact.
   the declared variables, not their values, and always state that inherited
   variables were not recorded.
 - `expect_output` and the `cargo-test` count read the output with complete terminal
-  escape sequences (colours, hyperlinks) removed, while the artifact keeps the raw
+  escape sequences (colours, hyperlinks) removed, while the raw log keeps the raw
   bytes. Write fragments as the visible text; a fragment containing ESC is refused.
 - Manual or agent-assisted: `chough cases record <ID> --method manual --verdict 1=pass
-  --verdict 2=fail … --summary "…" --artifact <screenshot>` gives a verdict for every
+  --verdict 2=fail … --summary "…" --artifact <file>` gives a verdict for every
   expected outcome; any fail makes the observation failed. Like `cases run`, it
-  allocates an OBS ID with a random 96-bit suffix when `--observation-id` is omitted
-  and exits 3 when the outcome is not passed. Direct `chough evidence add [ID]` also
-  allocates when ID is omitted and applies the same explicit new-form and old-style
-  omit-ID rules. Stored legacy observations remain readable and linkable without
-  migration.
+  names the entry when `--observation-id` is omitted and exits 3 when the outcome is
+  not passed. Direct `chough evidence add [ID]` names its entry the same way and
+  applies the same rules; for a manual failure, `--failing-lines "<text>"` keeps the
+  key failing lines within the same bounds, and `--screenshot <path>` commits one key
+  screenshot (below). IDs from before 0.6.0 stay readable and linkable as aliases.
 
 A failing case stays failed even when every other case passes. Do not rerun until
 it passes and report only the pass. Capture the failure with
@@ -112,24 +131,30 @@ limits. Magpie can run real commands, but its generic mode judges exit codes and
 records skipped steps as passes; bind a Magpie run only through `command` with an
 `expect_output` assertion, and only where it is installed.
 
-## Artifacts
+## Artifacts and screenshots
 
-Artifacts stay inside the project; there are no external artifact paths. Keep
-screenshots and other large files small. One may be ignored by Git: the observation
-keeps its fingerprint, and a clone without the file reads `stale-artifact`, never
-passed. Do not use Git LFS for them while SpecSync `change check` refuses tracked LFS
-files (CorvidLabs/spec-sync#789).
+Raw logs are never committed. A file outside the project, given by its absolute path
+with `--artifact`, is fingerprinted in place (SHA-256, at most 64 MiB) and never
+copied. Its path stays in `.chough/local/external-artifacts.toml` under a neutral
+`ext-<hex>` ID, and the committed entry holds only that ID and the fingerprint. On
+that machine freshness re-reads the file as `current` or `changed`; elsewhere it reads
+`external, not checkable here`, which is neither a pass nor stale. A missing path, a
+directory, a symlink or a file over the bound is refused.
 
-## Retention
+A session may commit at most 5 small key screenshots beside their evidence entries,
+each with `chough evidence add … --screenshot <path>` (add `--case <ID>` for a manual
+case check): PNG or JPEG, at most 512 KiB each and 2 MiB in all, with their metadata
+stripped.
+Chough cannot see what an image shows, so check every screenshot for personal
+information (names, emails, paths, tokens, private messages) before adding it, and
+crop or blur what does not belong. Record a larger image by fingerprint with
+`--artifact` instead. At finish the screenshots move beside the archived story. Do not
+use Git LFS for them while SpecSync `change check` refuses tracked LFS files
+(CorvidLabs/spec-sync#789).
 
-Routine reruns are prunable; proof that something still references is not.
-`chough evidence prune` previews eligible and protected observation sets with reasons
-and bytes, and changes nothing. It protects what the checkpoint, a bug, an active
-native change or the most recent archived one lists, non-routine records, the newest
-3 automated runs and the newest failure per case and environment, validation failures
-and boundary passes, and anything younger than 14 days. Apply only with `--apply` under
-`chough consent grant retention --source "<their words>"`, or when a human set
-`chough pref set retention auto --source …` (default `off`), which also prunes after
-`cases run` and `validate run`. Removals are logged in `.chough/pruned.jsonl`. Never
-delete evidence by hand, and never report a `pruned` or `unavailable` observation as
-passed.
+## No retention to manage
+
+0.6.0 retires evidence retention. An evidence entry lives in its session and becomes
+a receipt in the archived story at finish; nothing is trimmed by count or age. Never
+delete evidence by hand. An observation the 0.6.0 migration removed reads `removed`,
+naming the migration receipt, and never counts as passed: rerun the case instead.

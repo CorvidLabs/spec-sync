@@ -345,12 +345,22 @@ impl RelayRepair {
     /// Where the repaired record sits, as `change repair-relays` prints it
     /// (REQ-cmd-change-relay-repair-001).
     pub fn place(&self) -> String {
-        match self.file.as_str() {
-            "approvals.json" => format!("approvals.json approval {}", self.record),
-            SCOPED_REVIEW_ATTEMPTS_FILE => {
-                format!("{SCOPED_REVIEW_ATTEMPTS_FILE} attempt {}", self.record)
+        let record = self.record;
+        match (self.file.as_str(), self.within.as_deref()) {
+            ("approvals.json", Some("superseded_approval")) => {
+                format!("approvals.json reopening {record} superseded approval")
             }
-            other => other.to_string(),
+            ("approvals.json", _) => format!("approvals.json approval {record}"),
+            (CORRECTIONS_FILE, Some("superseded_definition_approval")) => {
+                format!("{CORRECTIONS_FILE} correction {record} definition approval")
+            }
+            (CORRECTIONS_FILE, Some("superseded_closing_approval")) => {
+                format!("{CORRECTIONS_FILE} correction {record} closing approval")
+            }
+            (SCOPED_REVIEW_ATTEMPTS_FILE, _) => {
+                format!("{SCOPED_REVIEW_ATTEMPTS_FILE} attempt {record}")
+            }
+            (other, _) => other.to_string(),
         }
     }
 }
@@ -368,8 +378,8 @@ pub struct RelayRepairReport {
 struct RelayLedgerFile {
     name: &'static str,
     path: PathBuf,
-    /// The array holding the records, or `None` when the file is one record (`review.json`).
-    records_key: Option<&'static str>,
+    /// Where the file's relayed records sit.
+    locations: &'static [RelayLocation],
     /// The field `decided_by` must equal: an approval's `actor`, a review's `reviewer`.
     decider_key: &'static str,
     /// The project path, for refusals.
@@ -379,6 +389,50 @@ struct RelayLedgerFile {
     current: serde_json::Value,
     committed: Option<serde_json::Value>,
 }
+
+/// Where relayed records sit in one ledger file (REQ-change-relay-repair-001): each entry of the
+/// array `records_key` (or the whole file, for `review.json`), or the record `within` each entry.
+#[derive(Clone, Copy)]
+struct RelayLocation {
+    records_key: Option<&'static str>,
+    within: Option<&'static str>,
+}
+
+/// `approvals.json`: each approval, and each reopening's superseded approval (#998).
+const APPROVAL_RELAY_LOCATIONS: [RelayLocation; 2] = [
+    RelayLocation {
+        records_key: Some("approvals"),
+        within: None,
+    },
+    RelayLocation {
+        records_key: Some("reopenings"),
+        within: Some("superseded_approval"),
+    },
+];
+
+/// `corrections.json`: the two approvals each correction embeds (#998, #1020).
+const CORRECTION_RELAY_LOCATIONS: [RelayLocation; 2] = [
+    RelayLocation {
+        records_key: Some("corrections"),
+        within: Some("superseded_definition_approval"),
+    },
+    RelayLocation {
+        records_key: Some("corrections"),
+        within: Some("superseded_closing_approval"),
+    },
+];
+
+/// `review-attempts.json`: each attempt.
+const ATTEMPT_RELAY_LOCATIONS: [RelayLocation; 1] = [RelayLocation {
+    records_key: Some("reviews"),
+    within: None,
+}];
+
+/// `review.json`: the file is one record.
+const REVIEW_RELAY_LOCATIONS: [RelayLocation; 1] = [RelayLocation {
+    records_key: None,
+    within: None,
+}];
 
 /// Whether the reader refuses `record`'s relay: a shape it cannot read, or a `decided_by` that is
 /// not the record's own actor or reviewer.
@@ -439,29 +493,33 @@ fn relay_ledger_len(value: &serde_json::Value, key: Option<&str>) -> usize {
     }
 }
 
-fn relay_ledger_record<'a>(
-    value: &'a serde_json::Value,
-    key: Option<&str>,
+fn relay_ledger_record(
+    value: &serde_json::Value,
+    location: RelayLocation,
     index: usize,
-) -> Option<&'a serde_json::Value> {
-    match key {
-        Some(key) => value.get(key)?.as_array()?.get(index),
-        None => (index == 0).then_some(value),
+) -> Option<&serde_json::Value> {
+    let entry = match location.records_key {
+        Some(key) => value.get(key)?.as_array()?.get(index)?,
+        None => (index == 0).then_some(value)?,
+    };
+    match location.within {
+        Some(field) => entry.get(field),
+        None => Some(entry),
     }
 }
 
-fn relay_ledger_record_mut<'a>(
-    value: &'a mut serde_json::Value,
-    key: Option<&str>,
+fn relay_ledger_record_mut(
+    value: &mut serde_json::Value,
+    location: RelayLocation,
     index: usize,
-) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
-    match key {
-        Some(key) => value
-            .get_mut(key)?
-            .as_array_mut()?
-            .get_mut(index)?
-            .as_object_mut(),
-        None => value.as_object_mut(),
+) -> Option<&mut serde_json::Map<String, serde_json::Value>> {
+    let entry = match location.records_key {
+        Some(key) => value.get_mut(key)?.as_array_mut()?.get_mut(index)?,
+        None => value,
+    };
+    match location.within {
+        Some(field) => entry.get_mut(field)?.as_object_mut(),
+        None => entry.as_object_mut(),
     }
 }
 
@@ -577,10 +635,11 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
         ));
     }
     let mut files = Vec::new();
-    for (name, records_key, decider_key) in [
-        ("approvals.json", Some("approvals"), "actor"),
-        (SCOPED_REVIEW_ATTEMPTS_FILE, Some("reviews"), "reviewer"),
-        (SCOPED_REVIEW_FILE, None, "reviewer"),
+    for (name, locations, decider_key) in [
+        ("approvals.json", &APPROVAL_RELAY_LOCATIONS[..], "actor"),
+        (CORRECTIONS_FILE, &CORRECTION_RELAY_LOCATIONS[..], "actor"),
+        (SCOPED_REVIEW_ATTEMPTS_FILE, &ATTEMPT_RELAY_LOCATIONS[..], "reviewer"),
+        (SCOPED_REVIEW_FILE, &REVIEW_RELAY_LOCATIONS[..], "reviewer"),
     ] {
         let path = workspace.join(name);
         if !path.exists() {
@@ -614,7 +673,7 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
         files.push(RelayLedgerFile {
             name,
             path,
-            records_key,
+            locations,
             decider_key,
             shown,
             has_committed_copy,
@@ -639,11 +698,11 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
     let mut repairs = Vec::new();
     let mut prepared = Vec::new();
     for file in &mut files {
-        let count = relay_ledger_len(&file.current, file.records_key);
         let mut repaired = false;
+        for location in file.locations {
+        let count = relay_ledger_len(&file.current, location.records_key);
         for index in 0..count {
-            let Some(record_value) =
-                relay_ledger_record(&file.current, file.records_key, index).cloned()
+            let Some(record_value) = relay_ledger_record(&file.current, *location, index).cloned()
             else {
                 continue;
             };
@@ -653,8 +712,11 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             let committed = file
                 .committed
                 .as_ref()
-                .and_then(|committed| relay_ledger_record(committed, file.records_key, index));
-            let twin = if file.name == SCOPED_REVIEW_FILE {
+                .and_then(|committed| relay_ledger_record(committed, *location, index));
+            // Only the review files have twins: `review.json` and the last attempt.
+            let twin = if location.within.is_some() {
+                None
+            } else if file.name == SCOPED_REVIEW_FILE {
                 attempt_twin.as_ref().map(|(attempt, position)| {
                     (
                         attempt,
@@ -675,7 +737,7 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
                     original_relay_in(&record_value, Some(twin), file.decider_key)
                         .map(|relay| (relay, name))
                 });
-            let object = relay_ledger_record_mut(&mut file.current, file.records_key, index)
+            let object = relay_ledger_record_mut(&mut file.current, *location, index)
                 .ok_or_else(|| format!("{} record {} is not an object", file.name, index + 1))?;
             let damaged = object.remove("relayed_by");
             let (action, from, removed) = match original {
@@ -690,12 +752,13 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             repairs.push(RelayRepair {
                 file: file.name.into(),
                 record: index + 1,
-                within: None,
+                within: location.within.map(String::from),
                 action: action.into(),
                 from,
                 removed,
             });
             repaired = true;
+        }
         }
         // Every ledger must read, repaired or not, before anything is written (#995 review), so a
         // repair never reports success while the change still cannot be read.
@@ -728,6 +791,12 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             json_content_keeping_unknown_members(
                 &file.path,
                 &serde_json::from_value::<ApprovalLedger>(file.current.clone())
+                    .map_err(unreadable)?,
+            )?
+        } else if name == CORRECTIONS_FILE {
+            json_content_keeping_unknown_members(
+                &file.path,
+                &serde_json::from_value::<CorrectionLedger>(file.current.clone())
                     .map_err(unreadable)?,
             )?
         } else if name == SCOPED_REVIEW_ATTEMPTS_FILE {

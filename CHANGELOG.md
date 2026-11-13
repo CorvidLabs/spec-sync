@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `specsync change repair-relays` also repairs a damaged relayed decision nested in an `approvals.json` reopening's superseded approval or in either approval a `corrections.json` correction embeds, and names those places, as `approvals.json reopening <n> superseded approval` and `corrections.json correction <n> definition approval` or `closing approval`, with `within` in `--json` (#998, #1020).
+
 ### Changed
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.

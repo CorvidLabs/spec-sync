@@ -36,11 +36,7 @@ observations:
   - OBS-product-test-a44413a32a903e5b908007e8
 bugs: [BUG-late-close-follows-destination-symlinks-outside-the-project-69c842b5326c22b0c1dbafd3]
 blockers: []
-waiting_on_human:
-  - gate: "Leif review of #994 at the final full SHA after local and hosted gates; old review does not cover this P1 implementation"
-    holds: test
-    drives: none
-    opened: 2026-11-07T06:51:41Z
+waiting_on_human: []
 run_consents: []
 next: "Use <redacted:home-path> for final receipts. While full verify is pending, wait for orc t19f to release the slot after #967; then run verify, fresh branch-build strict audit, pre-push and Trust/provenance checks on the final clean SHA. Push only through applicable gates, update the P1 thread from actual evidence, and stop at fresh Leif review; never approve, review, merge or alter archived packages."
 ---
@@ -127,3 +123,6 @@ specsync doctor: report every change problem with its fix; close merged-but-unar
 - 2026-11-07T06:51:41Z · gate-opened · test → test · Leif review of #994 at the final full SHA after local and hosted gates; old review does not cover this P1 implementation ^t-9e8d47
   - native_change: add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync
   - revision: 9532a256b4b2e6c39fee88e39ebb212bb3125e18
+- 2026-11-13T04:45:37Z · gate-closed · test → test · Leif review of #994 at the final full SHA after local and hosted gates; old review does not cover this P1 implementation ^t-31e082
+  - native_change: add-specsync-doctor-to-report-every-change-problem-with-its-fix-and-close-merged-changes-late-where-older-specsync
+  - revision: 131f31af6dd3c60b8b9f370ca7e67ac498f91158

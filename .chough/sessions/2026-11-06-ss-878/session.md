@@ -19,11 +19,7 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a (#878 PR), queued for Leif's morning via the orc t18; then change ship with no commit in between
-    holds: build
-    drives: none
-    opened: 2026-11-06T07:40:13Z
+waiting_on_human: []
 run_consents: []
 next: "After the relayed review: specsync change ship reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a, push the archive tip, wait for CI, merge pinned when green and unblocked"
 ---
@@ -70,3 +66,6 @@ S6 change 2 (#878): a cached validation snapshot or read-cache verdict is reused
 - 2026-11-06T07:40:13Z · gate-opened · build → build · Implementation review of reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a (#878 PR), queued for Leif's morning via the orc t18; then change ship with no commit in between ^t-1e355c
   - native_change: reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a
   - revision: 189541394115d6d90fdcc2b4c9c5fb892c1c4dd7
+- 2026-11-13T04:45:37Z · gate-closed · build → build · Implementation review of reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a (#878 PR), queued for Leif's morning via the orc t18; then change ship with no commit in between ^t-9f8897
+  - native_change: reuse-a-cached-validation-snapshot-or-read-cache-verdict-only-in-the-build-that-wrote-it-so-a-stale-pass-cannot-hide-a
+  - revision: 131f31af6dd3c60b8b9f370ca7e67ac498f91158

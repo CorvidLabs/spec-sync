@@ -29,11 +29,7 @@ observations:
 bugs: [BUG-cannot-tell-status-recovery-loses-selected-project-root-11cb6d86442c49424dda6f96]
 blockers:
   - Chough plan-to-build refuses native-archived for the existing package; post-archive recovery follow-up is explicitly authorized by orc t19f. Preserve archive; do not fabricate lifecycle records.
-waiting_on_human:
-  - gate: "Fresh implementation review of PR #967 at its final verified pushed head"
-    holds: plan
-    drives: approve
-    opened: 2026-11-07T06:51:36Z
+waiting_on_human: []
 run_consents: []
 next: "Fresh Leif implementation review of PR #967 remains the human gate, owned by orc t19f. Final rebuilt audit/pre-push/Trust, separate truthful Attest, exact pushed head, hosted CI and thread receipts are in <redacted:home-path>. Complete those hard gates before reporting ready; then stop. No worker approval/review, archive rewrite, merge or next issue."
 ---
@@ -80,3 +76,6 @@ Finish PR #967 recovery commands and verified evidence to the human review gate
 - 2026-11-07T06:51:36Z · gate-opened · plan → plan · Fresh implementation review of PR #967 at its final verified pushed head ^t-c5bf97
   - native_change: stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent
   - revision: 23fffcedee001dac6ede47e89ffe912b819b4552
+- 2026-11-13T04:45:37Z · gate-closed · plan → plan · Fresh implementation review of PR #967 at its final verified pushed head ^t-ca906e
+  - native_change: stop-review-and-finalize-when-the-upstream-archive-cannot-be-read-instead-of-reading-it-as-absent
+  - revision: 131f31af6dd3c60b8b9f370ca7e67ac498f91158

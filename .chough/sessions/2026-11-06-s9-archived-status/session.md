@@ -19,11 +19,7 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Native approval of archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout
-    holds: intent
-    drives: none
-    opened: 2026-11-06T05:44:18Z
+waiting_on_human: []
 run_consents: []
 next: Native approval by Leif, then build test-first
 ---
@@ -49,3 +45,6 @@ Archived change status within SPEED-1.a budgets, plus actionable read timeouts (
 - 2026-11-06T05:44:18Z · gate-opened · intent → intent · Native approval of archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout ^t-13df81
   - native_change: archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout
   - revision: cd8cab5e1789246f6f3a4bf6733b33d301d3ca4b
+- 2026-11-13T04:45:37Z · gate-closed · intent → intent · Native approval of archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout ^t-5aa1eb
+  - native_change: archived-change-status-no-longer-walks-history-per-archive-or-per-workflow-v1-change-and-read-commands-take-a-timeout
+  - revision: 131f31af6dd3c60b8b9f370ca7e67ac498f91158

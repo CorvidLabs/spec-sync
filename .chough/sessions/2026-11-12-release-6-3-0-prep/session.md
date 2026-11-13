@@ -19,11 +19,7 @@ files: []
 observations: [OBS-structural-a1f553d651e876c963f0b38a]
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Leif's explicit go for the 6.3.0 tag and merge (relayed by t370)
-    holds: plan
-    drives: approve
-    opened: 2026-11-12T03:04:44Z
+waiting_on_human: []
 run_consents: []
 next: change check --commit with main's build, then t384 review and ship; stays do-not-merge until Leif's go
 ---
@@ -68,3 +64,6 @@ SpecSync 6.3.0 release preparation on main: version 6.3.0 in every place RELEASI
 - 2026-11-12T03:04:44Z · gate-opened · plan → plan · Leif's explicit go for the 6.3.0 tag and merge (relayed by t370) ^t-e8732a
   - native_change: prepare-specsync-6-3-0-package-metadata-and-release-handoff
   - revision: f1cddac740896debeab7c83d36a9dbd7a12091ea
+- 2026-11-13T04:45:37Z · gate-closed · plan → plan · Leif's explicit go for the 6.3.0 tag and merge (relayed by t370) ^t-ae96b7
+  - native_change: prepare-specsync-6-3-0-package-metadata-and-release-handoff
+  - revision: 131f31af6dd3c60b8b9f370ca7e67ac498f91158

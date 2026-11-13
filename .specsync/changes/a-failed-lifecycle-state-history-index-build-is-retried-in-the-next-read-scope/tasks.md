@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test with a test-only failing-build hook: a failed build is not retried in its scope and is rebuilt in the next scope at the same HEAD
 - [x] Keep only built indexes in the per-thread slot; remember a failed build in the read scope
-- [ ] Targeted fast-archived-read tests, fmt and clippy
+- [x] Targeted fast-archived-read tests, fmt and clippy

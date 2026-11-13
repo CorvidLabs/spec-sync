@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-documented-workflow-test-needs-an-instruction-to-run-the-verify-lane-before-the-human-review",
+  "slug": "the-documented-workflow-test-needs-an-instruction-to-run-the-verify-lane-before-the-human-review",
+  "title": "The documented-workflow test needs an instruction to run the verify lane before the human review",
+  "description": "The documented-workflow test needs an instruction to run the verify lane before the human review",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794555143,
+  "updated_at": 1794555147,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/documented_workflows.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "A test-only fix: the documented-workflow test counted any prose naming the verify lane as running it, and checked the order only at change review, so a page that no longer taught verify-then-review could still pass (DOCS-2). No spec or requirement text changes.",
+  "acceptance_criteria": [
+    "The documented-workflow test fails when the README's verify-lane line is reworded so it no longer tells the reader to run the lane, and when the human-review line is moved above it; the README and landing page as written pass (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

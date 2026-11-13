@@ -87,6 +87,11 @@ fn documented_steps(block: &str) -> Vec<Step> {
     steps
 }
 
+/// True when a prose step tells the reader to run the verify lane.
+fn runs_the_verify_lane(prose: &str) -> bool {
+    prose.to_ascii_lowercase().contains("verify lane")
+}
+
 /// True when a prose step tells the reader to wait for, or watch, CI or the checks.
 fn tells_reader_to_wait_for_ci(prose: &str) -> bool {
     let words: Vec<String> = prose
@@ -516,7 +521,7 @@ impl Project {
                              verify, review and finalize locally, then push and wait for CI.",
                             gate.message
                         );
-                    } else if lower.contains("verify lane") {
+                    } else if runs_the_verify_lane(prose) {
                         // The fixture's lane: its structural check, which must pass on the tip
                         // the reader is about to have reviewed. The fixture has no product test
                         // suite, and SpecSync itself never runs or observes a project lane.
@@ -1014,4 +1019,70 @@ fn approve_refusals_for_a_draft_created_without_scope_name_the_scope_answers() {
             "a draft without scope must be told to answer `{question}`; named {named:?}"
         );
     }
+}
+
+/// The README's verified change workflow, with one prose step rewritten by `edit`.
+fn readme_steps_with(edit: impl FnOnce(&mut Vec<Step>)) -> Vec<Step> {
+    let mut steps = documented_steps(&documented_block(
+        "README.md",
+        "## Verified change workflow",
+    ));
+    edit(&mut steps);
+    steps
+}
+
+/// Whether following `steps` from the README's fixture fails, as a page that no longer teaches
+/// verify-then-review must.
+fn readme_steps_are_refused(steps: &[Step]) -> bool {
+    let project = Project::readme_auth_module();
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        project.follow(
+            "README (mutated)",
+            steps,
+            &Delta {
+                operation: "MODIFIED",
+                requirement: "REQ-auth-001",
+            },
+        );
+    }))
+    .is_err()
+}
+
+fn prose_position(steps: &[Step], needle: &str) -> usize {
+    steps
+        .iter()
+        .position(|step| matches!(step, Step::Prose(prose) if prose.contains(needle)))
+        .unwrap_or_else(|| panic!("the README block has no `# ...{needle}...` line"))
+}
+
+/// #959, first gap: a prose line that merely mentions the verify lane does not count as running
+/// it. Rewording the README's line to `# skip the verify lane ...` must fail the workflow test.
+#[test]
+fn a_prose_line_that_only_mentions_the_verify_lane_does_not_run_it() {
+    let steps = readme_steps_with(|steps| {
+        let at = prose_position(steps, "verify lane");
+        steps[at] = Step::Prose(
+            "skip the verify lane; CI does not test a tip whose change is still open".into(),
+        );
+    });
+    assert!(
+        readme_steps_are_refused(&steps),
+        "a page that tells the reader to skip the verify lane still passed"
+    );
+}
+
+/// #959, second gap: the human implementation review is an ordering event. Moving the
+/// `# after the human implementation review` line above the verify-lane line must fail.
+#[test]
+fn the_human_review_must_come_after_the_verify_lane() {
+    let steps = readme_steps_with(|steps| {
+        let verify = prose_position(steps, "verify lane");
+        let review = prose_position(steps, "human implementation review");
+        let line = steps.remove(review);
+        steps.insert(verify, line);
+    });
+    assert!(
+        readme_steps_are_refused(&steps),
+        "a page that puts the human review before the verify lane still passed"
+    );
 }

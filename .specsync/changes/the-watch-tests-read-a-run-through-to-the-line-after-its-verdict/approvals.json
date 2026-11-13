@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794544686,
+      "digest": "d7136a2b4894a0e43e66af343659742aaf5c12e5de9f2014f08ba2ddbfa2efd2",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-watch-tests-read-a-run-through-to-the-line-after-its-verdict",
+        "title": "The watch tests read a run through to the line after its verdict",
+        "description": "The watch tests read a run through to the line after its verdict",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "tests/integration/watch.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A test-only fix: watch_until stopped at the first verdict marker, so a later line of the same run, such as a contradicting warning, was never in the output the watch tests judge. No spec or requirement text changes.",
+        "acceptance_criteria": [
+          "watch_until stops only once a verdict marker is followed by the line watch prints after each run (Watching for changes in: after the first, Watching for changes... after later ones); a unit test on sample output fails on the verdict alone and passes with the line after it (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "SpecSync #1055 watch tests",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T04:37Z, relayed by claude-code-t370. Asked: 'Approve these two?' Option text: 'Test only: the watch tests read the whole run, not just the first verdict line.'",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "the-watch-tests-read-a-run-through-to-the-line-after-its-verdict",
+  "slug": "the-watch-tests-read-a-run-through-to-the-line-after-its-verdict",
+  "title": "The watch tests read a run through to the line after its verdict",
+  "description": "The watch tests read a run through to the line after its verdict",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794542851,
+  "updated_at": 1794544686,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/watch.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "A test-only fix: watch_until stopped at the first verdict marker, so a later line of the same run, such as a contradicting warning, was never in the output the watch tests judge. No spec or requirement text changes.",
+  "acceptance_criteria": [
+    "watch_until stops only once a verdict marker is followed by the line watch prints after each run (Watching for changes in: after the first, Watching for changes... after later ones); a unit test on sample output fails on the verdict alone and passes with the line after it (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

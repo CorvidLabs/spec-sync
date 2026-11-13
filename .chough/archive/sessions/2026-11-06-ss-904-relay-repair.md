@@ -6,25 +6,16 @@ objective: "spec-sync#904: a damaged relayed_by refusal names one recovery that 
 intent_scope: CHANGE
 modules: [change]
 stage: plan
-stage_status: paused
+stage_status: archived
 iteration: 1
-callers: []
 native_change: repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed
-pr: ""
 criteria: [CHANGE-13.e, CHANGE-13.f, CHANGE-13.g]
 requirements:
   - REQ-change-relay-repair-001
   - REQ-cmd-change-relay-repair-001
   - REQ-cli-args-relay-repair-001
-cases: []
-design: []
-files: []
-observations: []
-bugs: []
-blockers: []
-waiting_on_human: []
-run_consents: []
-next: "PARKED by orc t18 until #900 is done. On resume: merge #900/main, fledge lanes run pre-push, then send 'ready for approval repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed at <commit>' to orc t18; no PR until #900 lands"
+closed: 2026-11-13
+outcome: done
 ---
 # spec-sync#904: a damaged relayed_by refusal names one recovery that works whether or not the file is committed (specsync change repair-relays), never removing an approval or review attempt
 
@@ -47,6 +38,10 @@ spec-sync#904: a damaged relayed_by refusal names one recovery that works whethe
 - Rejected: refusing when no copy of the original survives (leaves the change unreadable; the only way out would erase review files or hand-edit)
 
 ## What was verified
+
+## Bugs
+
+None.
 
 ## Open threads
 
@@ -72,3 +67,11 @@ spec-sync#904: a damaged relayed_by refusal names one recovery that works whethe
 - 2026-11-06T13:25:55Z · pause · plan → plan · Orc t18: park #904 until #900 is done (open-PR work first) ^t-75b609
   - native_change: repair-a-damaged-relayed-decision-with-one-command-whether-or-not-it-is-committed
   - revision: 5f069712ad798995a09f43bd13f66c7f948e291c
+
+Closed 2026-11-13: done.
+
+## Receipts
+
+```yaml
+receipts: []
+```

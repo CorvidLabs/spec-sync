@@ -6,22 +6,11 @@ objective: "G-merge-render (#870 #872 #875 #876): a merge the driver calls clean
 intent_scope: MERGE
 modules: [merge]
 stage: intent
-stage_status: active
+stage_status: archived
 iteration: 1
-callers: []
 native_change: keep-a-clean-merge-driver-result-faithful-to-both-sides-quote-yaml-typed-list-items-end-the-change-log-at-its-first
-pr: ""
-criteria: []
-requirements: []
-cases: []
-design: []
-files: []
-observations: []
-bugs: []
-blockers: []
-waiting_on_human: []
-run_consents: []
-next: "Wait for archive-tip CI, then merge PR #1006 at the merge-queue turn"
+closed: 2026-11-13
+outcome: done
 ---
 # G-merge-render (#870 #872 #875 #876): a merge the driver calls clean keeps what both sides wrote and meant, or leaves a conflict (MERGE-5, REQ-merge-006)
 
@@ -42,6 +31,10 @@ G-merge-render (#870 #872 #875 #876): a merge the driver calls clean keeps what 
 
 ## What was verified
 
+## Bugs
+
+None.
+
 ## Open threads
 
 ## Timeline
@@ -57,3 +50,11 @@ G-merge-render (#870 #872 #875 #876): a merge the driver calls clean keeps what 
     - words: Yes to all 3 (Recommended)
     - where: Moshi question from orc t18, 2026-11-06, reviewing #1006 at 6c7d4583
     - recorded_by: k-ss-testgaps
+
+Closed 2026-11-13: done.
+
+## Receipts
+
+```yaml
+receipts: []
+```

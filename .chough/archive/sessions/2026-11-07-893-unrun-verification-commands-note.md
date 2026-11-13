@@ -6,22 +6,14 @@ objective: change check and change audit say plainly when sdd.json configures ve
 intent_scope: SHIP
 modules: [change, cmd_change]
 stage: build
-stage_status: active
+stage_status: archived
 iteration: 1
-callers: []
 native_change: change-check-and-change-audit-say-plainly-when-sdd-json-configures-verification-commands-they-did-not-run-so-a-pass-is
-pr: ""
 criteria: [SHIP-1.c.3]
 requirements: [REQ-change-023, REQ-cmd-change-unrun-commands-001]
-cases: []
-design: []
-files: []
 observations: [OBS-product-test-693137d491cd153adf290ec2]
-bugs: []
-blockers: []
-waiting_on_human: []
-run_consents: []
-next: "Awaiting Leif's implementation review of #893 at c194dd7efff9fc7f108756718abf8de501b4b03f via orc t19f; tree frozen"
+closed: 2026-11-13
+outcome: done
 ---
 # change check and change audit say plainly when sdd.json configures verification commands they did not run, so a pass is not read as the project's tests passing (#893)
 
@@ -46,7 +38,11 @@ change check and change audit say plainly when sdd.json configures verification 
 
 ## What was verified
 
-- [Failing first on main b3ca5f97 (implementation unchanged): change_check_notes_the_configured_commands_it_did_not_run, change_check_commit_notes_the_configured_commands_it_did_not_run and change_audit_notes_the_configured_commands_it_did_not_run find no note on stderr; an_empty_policy_gets_no_note_about_unrun_commands finds no configured_commands_not_run list in JSON; this_repository_configures_no_verification_command finds the 4 verification_commands in .specsync/sdd.json. Pins proposed REQ-cmd-change-unrun-commands-001 (not yet in a native change).](evidence/2026-11-07-failing-first-on-main-b3ca5f97-implementation-unchanged-change.md)
+- Failing first on main b3ca5f97 (implementation unchanged): change_check_notes_the_configured_commands_it_did_not_run, change_check_commit_notes_the_configured_commands_it_did_not_run and change_audit_notes_the_configured_commands_it_did_not_run find no note on stderr; an_empty_policy_gets_no_note_about_unrun_commands finds no configured_commands_not_run list in JSON; this_repository_configures_no_verification_command finds the 4 verification_commands in .specsync/sdd.json. Pins proposed REQ-cmd-change-unrun-commands-001 (not yet in a native change). ^2026-11-07-failing-first-on-main-b3ca5f97-implementation-unchanged-change
+
+## Bugs
+
+None.
 
 ## Open threads
 
@@ -90,3 +86,19 @@ change check and change audit say plainly when sdd.json configures verification 
     - words: approve
     - where: Direct Leif reply to orc t19f ONE-item #893 implementation acceptance / draft PR1016 on 2026-11-07; native scoped PASS recorded as 0xLeif at exact cbfb99d0c68914ac12bf99c4f6417b9a2df6e602 by orc t19f; relayed by orc t19f
     - recorded_by: k-ss893 (kimi-code/k3)
+
+Closed 2026-11-13: done.
+
+## Receipts
+
+```yaml
+receipts:
+  - id: 2026-11-07-failing-first-on-main-b3ca5f97-implementation-unchanged-change
+    aliases: OBS-product-test-693137d491cd153adf290ec2
+    claim: "Failing first on main b3ca5f97 (implementation unchanged): change_check_notes_the_configured_commands_it_did_not_run, change_check_commit_notes_the_configured_commands_it_did_not_run and change_audit_notes_the_configured_commands_it_did_not_run find no note on stderr; an_empty_policy_gets_no_note_about_unrun_commands finds no configured_commands_not_run list in JSON; this_repository_configures_no_verification_command finds the 4 verification_commands in .specsync/sdd.json. Pins proposed REQ-cmd-change-unrun-commands-001 (not yet in a native change)."
+    result: failed
+    revision: b3ca5f97aa9c07b09ab6bfd8d7eece28f2c30f79
+    environment: local
+    content: 785db9ce9980bcac9f53094b96e39e4da490c27994b823db798d801cce82b82a
+    observed: 2026-11-07T02:53:55Z
+```

@@ -3,25 +3,14 @@ kind: session
 id: 2026-11-12-release-workflows-musl
 aliases: [release-workflows-musl]
 objective: "The release and RC-asset musl builds install musl-tools through .github/scripts/install-musl-tools.sh, as ci.yml does since #1061, so a runner mirror outage cannot stop a promoted release from publishing; release/rc jobs that run augur or a CorvidLabs/trust gate on ubuntu-latest get the ubuntu-24.04 pin (#1065, augur#59)"
-intent_scope: ""
 modules: [github]
 stage: test
-stage_status: active
+stage_status: archived
 iteration: 1
-callers: []
 native_change: release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script
-pr: ""
-criteria: []
-requirements: []
-cases: []
-design: []
-files: []
 observations: [OBS-product-test-8534f714410eba1bf11854c1]
-bugs: []
-blockers: []
-waiting_on_human: []
-run_consents: []
-next: specsync change check --commit, then claude-code-t384 records the native review and ships; push the archive tip
+closed: 2026-11-13
+outcome: done
 ---
 # The release and RC-asset musl builds install musl-tools through .github/scripts/install-musl-tools.sh, as ci.yml does since #1061, so a runner mirror outage cannot stop a promoted release from publishing; release/rc jobs that run augur or a CorvidLabs/trust gate on ubuntu-latest get the ubuntu-24.04 pin (#1065, augur#59)
 
@@ -43,7 +32,11 @@ The release and RC-asset musl builds install musl-tools through .github/scripts/
 
 ## What was verified
 
-- [macOS 26, working tree on origin/main 4eed6e8d plus this change: 'fledge run musl-install-test' passed every case, and its workflow guard now finds .github/scripts/install-musl-tools.sh, with no bare 'apt-get install -y musl-tools', in ci.yml, release.yml and rc-assets.yml. Negative controls: putting back origin/main's release.yml, then rc-assets.yml, each failed the test ('<workflow> does not run .github/scripts/install-musl-tools.sh', exit 1). test-linux-baseline.py, test-validate-release-candidate.py, test-required-ci-gate.py, test-ci-trigger-paths.py, validate-workflow-runtime-pins.py and validate-release-version.py exit 0. shellcheck is clean on the test; actionlint is clean on release.yml; rc-assets.yml reports only the SC2012 info in its attach job, which origin/main also reports.](evidence/2026-11-12-macos-26-working-tree-on-origin-main-4eed6e8d-plus-this-change.md)
+- macOS 26, working tree on origin/main 4eed6e8d plus this change: 'fledge run musl-install-test' passed every case, and its workflow guard now finds .github/scripts/install-musl-tools.sh, with no bare 'apt-get install -y musl-tools', in ci.yml, release.yml and rc-assets.yml. Negative controls: putting back origin/main's release.yml, then rc-assets.yml, each failed the test ('<workflow> does not run .github/scripts/install-musl-tools.sh', exit 1). test-linux-baseline.py, test-validate-release-candidate.py, test-required-ci-gate.py, test-ci-trigger-paths.py, validate-workflow-runtime-pins.py and validate-release-version.py exit 0. shellcheck is clean on the test; actionlint is clean on release.yml; rc-assets.yml reports only the SC2012 info in its attach job, which origin/main also reports. ^2026-11-12-macos-26-working-tree-on-origin-main-4eed6e8d-plus-this-change
+
+## Bugs
+
+None.
 
 ## Open threads
 
@@ -69,3 +62,19 @@ The release and RC-asset musl builds install musl-tools through .github/scripts/
   - native_change: release-and-rc-asset-musl-builds-install-musl-tools-through-the-fallback-mirror-script
   - gate: native:approved
   - revision: 3f7c082ad55a97a47e7d0e397d5d3accb097bbff
+
+Closed 2026-11-13: done.
+
+## Receipts
+
+```yaml
+receipts:
+  - id: 2026-11-12-macos-26-working-tree-on-origin-main-4eed6e8d-plus-this-change
+    aliases: OBS-product-test-8534f714410eba1bf11854c1
+    claim: "macOS 26, working tree on origin/main 4eed6e8d plus this change: 'fledge run musl-install-test' passed every case, and its workflow guard now finds .github/scripts/install-musl-tools.sh, with no bare 'apt-get install -y musl-tools', in ci.yml, release.yml and rc-assets.yml. Negative controls: putting back origin/main's release.yml, then rc-assets.yml, each failed the test ('<workflow> does not run .github/scripts/install-musl-tools.sh', exit 1). test-linux-baseline.py, test-validate-release-candidate.py, test-required-ci-gate.py, test-ci-trigger-paths.py, validate-workflow-runtime-pins.py and validate-release-version.py exit 0. shellcheck is clean on the test; actionlint is clean on release.yml; rc-assets.yml reports only the SC2012 info in its attach job, which origin/main also reports."
+    result: passed
+    revision: 4eed6e8dccc14ecf9fccf76b549d7e2fda8390e7
+    environment: local
+    content: 2aa81a2cd2b36daf7f24729a3e9eb5cb7de3089f29c1fef701ae30671881971b
+    observed: 2026-11-12T01:33:33Z
+```

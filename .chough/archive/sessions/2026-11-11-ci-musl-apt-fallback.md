@@ -6,22 +6,12 @@ objective: "The musl release-baseline CI jobs install musl-tools even when the r
 intent_scope: CI
 modules: [github]
 stage: accept
-stage_status: active
+stage_status: archived
 iteration: 1
-callers: []
 native_change: install-musl-tools-in-ci-through-a-fallback-ubuntu-mirror-when-the-runner-s-mirror-does-not-resolve
-pr: ""
 criteria: [CI-7, INSTALL-1.c]
-requirements: []
-cases: []
-design: []
-files: []
-observations: []
-bugs: []
-blockers: []
-waiting_on_human: []
-run_consents: []
-next: Commit, specsync change check --commit, then claude-code-t384 records the native review and ships; push the archive tip and open the PR
+closed: 2026-11-13
+outcome: done
 ---
 # The musl release-baseline CI jobs install musl-tools even when the runner's Ubuntu mirror stops resolving: apt retries, then falls back to other Ubuntu mirrors, and fails with ::error:: only when every mirror fails (run 43037386037)
 
@@ -39,6 +29,10 @@ The musl release-baseline CI jobs install musl-tools even when the runner's Ubun
 - Native definition approval: the classifier blocked the agent's approve, so Leif ran 'specsync change approve' himself (actor 0xLeif) on 2026-11-11, relayed by hc t370; t370 checked signature checks stay on and backup mirrors come before Canonical's.
 
 ## What was verified
+
+## Bugs
+
+None.
 
 ## Open threads
 
@@ -62,3 +56,11 @@ The musl release-baseline CI jobs install musl-tools even when the runner's Ubun
   - native_change: install-musl-tools-in-ci-through-a-fallback-ubuntu-mirror-when-the-runner-s-mirror-does-not-resolve
   - gate: native:approved
   - revision: ad8544e9da79725f499b38ae4d4b3a052be5f807
+
+Closed 2026-11-13: done.
+
+## Receipts
+
+```yaml
+receipts: []
+```

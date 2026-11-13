@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "the-delta-materializer-skips-fenced-examples-when-it-matches-a-requirement-block",
+  "slug": "the-delta-materializer-skips-fenced-examples-when-it-matches-a-requirement-block",
+  "title": "The delta materializer skips fenced examples when it matches a requirement block",
+  "description": "The delta materializer skips fenced examples when it matches a requirement block",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794540786,
+  "updated_at": 1794541105,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests.rs",
+    "src/change_tests/fenced_requirement_example_delta.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes the materializer match REQ-change-152, which has it match a block by the shared requirement-heading reader; that reader treats a fenced example as quoted text, never a requirement. The change spec only lists the new test file.",
+  "acceptance_criteria": [
+    "A MODIFIED delta for a requirement whose header also appears in a fenced example above it replaces the real block and keeps the example byte for byte; a heading inside a fenced example within the real block does not end the block (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

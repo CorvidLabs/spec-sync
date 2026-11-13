@@ -2185,3 +2185,31 @@ fn hashes_without_snapshots_revalidate_instead_of_going_silent() {
         "a hash-only cache must re-validate rather than report a clean skip: {recovered_json:#}"
     );
 }
+
+/// #877 (REQ-validator-045): `check` refuses a requirement ID repeated in the module's legacy
+/// `{module}.req.md` companion, as it does in `requirements.md`, naming the ID and the file.
+#[test]
+fn check_refuses_a_duplicate_requirement_id_in_a_legacy_req_md() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(
+        root.join("specs/auth/auth.req.md"),
+        "### REQ-auth-001\n\nOne.\n\n### REQ-auth-001\n\nTwo.\n",
+    )
+    .unwrap();
+    let output = specsync()
+        .args(["check", "--force", "--root"])
+        .arg(&root)
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains("REQ-auth-001") && text.contains("specs/auth/auth.req.md"),
+        "{text}"
+    );
+}

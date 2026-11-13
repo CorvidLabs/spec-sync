@@ -272,6 +272,32 @@ One.
         assert!(errors[0].contains("REQ-live-001"), "{errors:?}");
     }
 
+    /// #877 (REQ-change-125): a legacy `{module}.req.md` companion is a requirements file too,
+    /// as the hash cache and the merge driver already read it, so the project audit names an
+    /// ID it repeats.
+    #[test]
+    fn a_legacy_req_md_companion_is_scanned_for_duplicate_ids() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        let dir = root.join("specs/auth");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("auth.spec.md"),
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles: []\n---\n\n# auth\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("auth.req.md"),
+            "### REQ-auth-001\n\nOne.\n\n### REQ-auth-001\n\nTwo.\n",
+        )
+        .unwrap();
+        let errors = duplicate_requirement_id_errors(root);
+        assert_eq!(
+            errors,
+            vec!["requirement ID `REQ-auth-001` appears 2 times in specs/auth/auth.req.md"]
+        );
+    }
+
     /// #873: an unreadable subdirectory under the specs tree is an audit error naming the
     /// path, never a silent skip.
     #[cfg(unix)]

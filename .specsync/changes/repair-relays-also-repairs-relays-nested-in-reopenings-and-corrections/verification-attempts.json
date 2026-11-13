@@ -69,6 +69,25 @@
         "REQ-change-relay-repair-001",
         "REQ-cmd-change-relay-repair-001"
       ]
+    },
+    {
+      "timestamp": 1794551383,
+      "commit": "dfe94ccaa63e66a389d396a27af30e7fd4ea3655",
+      "contract_digest": "6b1e35e26febe4d9e62e47d5ba41f8c7c3116b598c7628d4e86910a3899c63b3",
+      "execution_digest": "31471be943f17a9f2b0c2022aa04a14d8965b2583cf2f7eb5ec7e86c6c902ad3",
+      "workspace_digest": "f6cd622ce86c068ca47ad0f31b5b58e0aff27f67f2e86b7a594d637fdbb82089",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-relay-repair-001",
+        "REQ-cmd-change-relay-repair-001"
+      ]
     }
   ]
 }

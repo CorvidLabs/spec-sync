@@ -1,6 +1,0 @@
---- stdout ---
-
---- stderr ---
-error: no test target named `specsync` in default-run packages
-help: available test targets:
-    integration

@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794541829,
+      "digest": "98eff60ad8f9d2535368fa73be85deaa7169b30de278ebd813963beaf61c31df",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: text change status now names a frozen change ledger before the verification_ignored_paths repair, matching JSON. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair",
+        "title": "Text change status names a sequence-ledger freeze before the verification_ignored_paths repair",
+        "description": "Text change status names a sequence-ledger freeze before the verification_ignored_paths repair",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/commands/change.rs",
+          "tests/integration/archived_upstream.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-cmd-change-034 requires text change status to name its next action matching JSON status, and REQ-change-138 orders JSON next_action as a sequence-ledger freeze, then a verification_ignored_paths refusal; text named the policy repair first (#937)",
+        "acceptance_criteria": [
+          "with a frozen sequence ledger and an invalid verification_ignored_paths entry, text change status Next names the freeze, as JSON next_action does; without a freeze, text Next still names the verification_ignored_paths repair"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Two SpecSync bug fixes, each matching what the spec already says: approve their scope?', he selected both: \"#937 status order\" and \"#985 SHA-256 repos\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T03:49Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

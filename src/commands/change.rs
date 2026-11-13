@@ -1259,6 +1259,12 @@ fn print_change_text_answers(record: &ChangeRecord) {
 /// `approval_current_for_guidance` returns.
 fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
     let id = record.id.as_str();
+    // A project-wide sequence-ledger freeze blocks every verb, so it comes first, in the same
+    // order as JSON status: before the `verification_ignored_paths` repair and the upstream
+    // archive (REQ-change-138, REQ-cmd-change-034, #908, #937).
+    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
+        return remediation;
+    }
     // The same refusal every later verb would give, named before any state-local step
     // (REQ-change-115). It carries entry paths and rule text only, never a digest.
     if record.state != ChangeState::Archived
@@ -1267,11 +1273,6 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
         return format!(
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
-    }
-    // A project-wide sequence-ledger freeze blocks every verb, so it outranks the upstream
-    // archive, in the same order as JSON status (#908, REQ-cmd-change-034).
-    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
-        return remediation;
     }
     // After the project-wide refusals above, in the same order as JSON status: an archive of
     // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).

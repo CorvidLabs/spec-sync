@@ -139,6 +139,14 @@ and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. That comm
 the move as `chore(lifecycle): archive <id>`. Run `review` and `finalize` (or `ship`)
 consecutively without an intervening commit. Push the archive commit and wait for required
 checks. Never merge while a change on that PR remains active.
+
+`change finalize` and `change ship` archive only approvals that history holds. Before writing
+anything, they refuse a change whose `approvals.json` is not committed or differs from `HEAD`,
+and name `git checkout HEAD -- <file>` to restore it. They also refuse when a committed version of
+that file does not extend the one committed before it, keeping every earlier approval and reopen
+event in order and unchanged, and they name the commit that rewrote it. A relay is not compared,
+because `change repair-relays` may put one back or remove it. `change check --commit` commits the
+approvals, so the usual flow is unaffected.
 GitHub protection and required workflows enforce hosted review and provenance policy where
 configured; the local reviewer label alone does not supply that authentication.
 

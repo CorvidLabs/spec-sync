@@ -2754,6 +2754,11 @@ fn accept_change_with_gate(
             );
         }
     }
+    // #428: finalize archives only approvals that history holds. Asked after the review, which is
+    // the more basic refusal, and before anything below writes.
+    if gate == "finalization" {
+        ensure_approvals_ledger_held_by_history(root, &record)?;
+    }
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     validate_delta_files(root, &record)?;
@@ -3003,6 +3008,139 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // completed archival, so this is best-effort.
     let _ = write_lesson_bundle(root, &record, &archive);
     Ok(archive)
+}
+
+/// Refuses a change whose `approvals.json` is not the version committed at `HEAD`, or whose
+/// committed versions do not each extend the version committed before them along `HEAD`'s
+/// first-parent history: every earlier approval and reopen event kept, in order and unchanged.
+/// `relayed_by` is not compared, because `change repair-relays` may put a relay back or remove it
+/// (REQ-change-relay-repair-001). A version deleted by a commit, as an archive move does, is
+/// skipped, so a reopened change's ledger is compared with the one before its archive (#428).
+fn ensure_approvals_ledger_held_by_history(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
+    let relative = git_repo_relative_path(root, &display)?;
+    let working = fs::read(root.join(&display))
+        .map_err(|error| format!("failed to read {display}: {error}"))?;
+    let committed = |commit: &str| -> Result<Option<Vec<u8>>, String> {
+        let object = format!("{commit}:{relative}");
+        let output = run_git_bounded(
+            root,
+            &["show", object.as_str(), "--"],
+            None,
+            MAX_CHANGE_ARTIFACT_BYTES as usize,
+        )
+        .map_err(|error| format!("failed to read `{object}`: {error}"))?;
+        if output.status.success() {
+            return Ok(Some(output.stdout));
+        }
+        match commit_tree_lists_path(root, commit, &relative) {
+            Some(false) => Ok(None),
+            _ => Err(format!("failed to read `{object}`")),
+        }
+    };
+    match committed("HEAD")? {
+        None => {
+            return Err(format!(
+                "`{display}` is not committed; finalize archives only approvals that history \
+                 holds. Commit it with the change (`specsync change check {} --commit` commits \
+                 it), then finalize again",
+                record.id
+            ));
+        }
+        Some(at_head) if at_head != working => {
+            return Err(format!(
+                "`{display}` differs from the version committed at HEAD; finalize archives only \
+                 approvals that history holds. Restore it with `git checkout HEAD -- {display}`, \
+                 then finalize again"
+            ));
+        }
+        Some(_) => {}
+    }
+    let pathspec = format!(":(top,literal){relative}");
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let output = run_git_bounded(
+        root,
+        &[
+            "log",
+            "--first-parent",
+            "--no-renames",
+            "--format=%H",
+            max_count.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .map_err(|error| format!("failed to read the history of {display}: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("failed to read the history of {display}"));
+    }
+    let history = String::from_utf8_lossy(&output.stdout);
+    let mut commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "the history of {display} exceeds the deterministic {MAX_TRUSTED_HISTORY_COMMITS}-commit bound"
+        ));
+    }
+    commits.reverse();
+    let short = |commit: &str| commit[..12.min(commit.len())].to_string();
+    let mut earlier: Option<(String, serde_json::Value)> = None;
+    for commit in commits {
+        let Some(bytes) = committed(commit)? else {
+            continue;
+        };
+        let ledger: serde_json::Value = serde_json::from_slice(&bytes).map_err(|error| {
+            format!("`{display}` as committed in {} does not read: {error}", short(commit))
+        })?;
+        if let Some((earlier_commit, earlier_ledger)) = &earlier
+            && let Some(why) = approvals_ledger_rewrite(earlier_ledger, &ledger)
+        {
+            return Err(format!(
+                "`{display}` as committed in {} rewrites the approvals ledger committed in {}: \
+                 {why}. Approvals are append-only; restore the records it changed from {} and \
+                 commit them, then finalize again",
+                short(commit),
+                short(earlier_commit),
+                short(earlier_commit)
+            ));
+        }
+        earlier = Some((commit.to_string(), ledger));
+    }
+    Ok(())
+}
+
+/// Why `newer` does not extend `older`, or `None` when it keeps every approval and reopen event
+/// `older` recorded, in order and unchanged apart from `relayed_by` (#428).
+fn approvals_ledger_rewrite(older: &serde_json::Value, newer: &serde_json::Value) -> Option<String> {
+    let without_relay = |record: &serde_json::Value| {
+        let mut record = record.clone();
+        if let Some(members) = record.as_object_mut() {
+            members.remove("relayed_by");
+        }
+        record
+    };
+    for member in ["approvals", "reopenings"] {
+        let records = |ledger: &serde_json::Value| {
+            ledger
+                .get(member)
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        };
+        let (before, after) = (records(older), records(newer));
+        for (index, record) in before.iter().enumerate() {
+            match after.get(index) {
+                None => return Some(format!("it drops `{member}[{index}]`")),
+                Some(kept) if without_relay(kept) != without_relay(record) => {
+                    return Some(format!("it changes `{member}[{index}]`"));
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    None
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {

@@ -277,6 +277,53 @@ fn correction_digests_leave_embedded_relays_out() {
     );
 }
 
+/// #972: the decider-mismatch error shows both names with control characters escaped, on write
+/// and on read, so a relayed `decided_by` holding an escape sequence or a newline cannot move the
+/// cursor or recolour the terminal it is printed on.
+#[test]
+fn the_decider_mismatch_error_escapes_both_names() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, RELAY_DELTA);
+    let error = approve_definition_with_relay(
+        root,
+        &record.id,
+        Some("Ada".into()),
+        None,
+        false,
+        Some(relay("Eve\u{1b}[2J\nX")),
+    )
+    .unwrap_err();
+    assert!(!error.contains('\u{1b}'), "a raw escape on write: {error:?}");
+    assert!(error.contains("Eve\\u{1b}[2J\\nX"), "{error:?}");
+
+    approve_definition_with_relay(
+        root,
+        &record.id,
+        Some("Ada".into()),
+        None,
+        false,
+        Some(relay("Ada")),
+    )
+    .unwrap();
+    let path = change_dir(root, &record.id).join("approvals.json");
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(
+        &path,
+        text.replacen(
+            "\"decided_by\": \"Ada\"",
+            "\"decided_by\": \"Mal\\u001b[31mlory\\nX\"",
+            1,
+        ),
+    )
+    .unwrap();
+    let record = load_change(root, &record.id).unwrap();
+    let error = load_approvals(root, &record).unwrap_err();
+    assert!(!error.contains('\u{1b}'), "a raw escape on read: {error:?}");
+    assert!(!error.contains("lory\nX"), "a raw newline on read: {error:?}");
+    assert!(error.contains("says `Mal\\u{1b}[31mlory\\nX` decided"), "{error:?}");
+}
+
 /// DISCRIMINATOR for the #900 review (P2): one record names one decider on read as on write. A
 /// hand-edited relay naming someone other than the approval's actor is refused, naming the
 /// active change's recovery, `repair-relays` (#904), which `repair_relayed_decisions` then runs.

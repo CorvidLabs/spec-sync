@@ -7,10 +7,11 @@
   "title": "The upstream archive lookup reads tree entries as bytes and knows an archive HEAD already holds after an upstream rename",
   "description": "The upstream archive lookup reads tree entries as bytes and knows an archive HEAD already holds after an upstream rename",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
   "created_at": 1794543782,
-  "updated_at": 1794544969,
+  "updated_at": 1794546820,
   "affected_specs": [
     "change"
   ],

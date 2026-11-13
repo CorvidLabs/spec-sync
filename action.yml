@@ -9,6 +9,10 @@ inputs:
     description: 'SpecSync release to download (e.g. "6.3.0"). Pin an exact published release with assets; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only. This main wrapper defaults to published 6.3.0 after supported-platform asset and Action checks. The immutable @v6.3.0 tag retains default 6.2.0; pass version: "6.3.0" with that tag for its new binary. Floating @v6 advances only after checks of this wrapper commit. The immutable @v6.0.0 Action tag still embeds default 6.0.0-rc.14, so always pass version: "6.0.0" when using that tag.'
     required: false
     default: '6.3.0'
+  expected-sha256:
+    description: "Pinned SHA-256 of the release archive, one '<platform>=<sha256>' line per platform (for example 'linux-x86_64=...'). When set, the Action refuses an archive whose digest differs, or a platform with no line, before extracting it."
+    required: false
+    default: ''
   download-base-url:
     description: 'Optional trusted release mirror URL (primarily for enterprise mirrors and release validation)'
     required: false
@@ -97,6 +101,8 @@ runs:
       env:
         SPECSYNC_VERSION: ${{ inputs.version }}
         SPECSYNC_DOWNLOAD_BASE_URL: ${{ inputs.download-base-url }}
+        SPECSYNC_EXPECTED_SHA256: ${{ inputs.expected-sha256 }}
+        VERIFY_RELEASE_DIGEST: ${{ github.action_path }}/.github/scripts/verify-release-digest.sh
       run: |
         set -euo pipefail
 
@@ -149,6 +155,9 @@ runs:
         shasum -a 256 -c "${ARCHIVE}.sha256"
         echo "::notice::Checksum verified"
         cd -
+        # The sidecar comes from the same release as the archive; a digest the consumer pinned
+        # does not (#476).
+        bash "$VERIFY_RELEASE_DIGEST" "${INSTALL_DIR}/${ARCHIVE}" "${OS}-${ARCH}" "$SPECSYNC_EXPECTED_SHA256"
 
         tar xz -C "$INSTALL_DIR" -f "${INSTALL_DIR}/${ARCHIVE}"
         mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}" "${INSTALL_DIR}/specsync"

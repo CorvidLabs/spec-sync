@@ -29,6 +29,7 @@ explicitly select it because that tag's embedded default remains `6.2.0`.
 |:------|:--------|:------------|
 | `version` | `6.3.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
+| `expected-sha256` | `''` | Pinned SHA-256 of the release archive, one `<platform>=<sha256>` line per platform (`linux-x86_64`, `linux-aarch64`, `macos-x86_64`, `macos-aarch64`). When set, an archive whose digest differs, or a platform with no line, is refused before extraction |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
 | `root` | `.` | Project root directory |
@@ -62,6 +63,19 @@ jobs:
 ```
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
+
+Because the archive and its `.sha256` come from the same release, a release that replaced both would still pass that check. To pin the exact binary your workflow runs, commit its digest in the workflow with `expected-sha256`, one line per platform you run on:
+
+```yaml
+- uses: CorvidLabs/spec-sync@<commit>
+  with:
+    version: "6.3.0"
+    expected-sha256: |
+      linux-x86_64=<sha256 of specsync-linux-x86_64.tar.gz>
+      macos-aarch64=<sha256 of specsync-macos-aarch64.tar.gz>
+```
+
+A digest that differs, a platform with no line, a platform named twice or a malformed line each fail the step before anything is extracted.
 
 Pin both the Action ref and its binary version. The YAML examples pin `@v6.3.0` with
 `version: '6.3.0'`. This separately verified main wrapper defaults to the published

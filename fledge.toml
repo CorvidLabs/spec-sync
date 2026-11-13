@@ -46,6 +46,11 @@ cmd = "python3 .github/scripts/test-linux-baseline.py"
 [tasks.musl-install-test]
 cmd = "bash .github/scripts/test-install-musl-tools.sh"
 
+# The Action's pinned release digest (#476, REQ-github-031): a matching digest passes; a different
+# one, a platform with no line, a duplicate and a malformed line are each refused.
+[tasks.release-digest-test]
+cmd = "bash .github/scripts/test-verify-release-digest.sh"
+
 # Every pull request starts CI: ci.yml has no path filter, and .chough-only and scripts-only
 # changes classify into a lane that reports the Required CI gate (CI-6, #941).
 [tasks.ci-trigger-paths-test]

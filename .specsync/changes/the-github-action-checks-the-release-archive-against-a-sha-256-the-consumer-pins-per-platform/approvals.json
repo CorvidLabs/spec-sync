@@ -1,4 +1,52 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794546578,
+      "digest": "3daea24e79a84c19356646aa6dedde324d3d7e6a92a2855e1d8db14329ce31c8",
+      "note": "Leif chose to build #476 and its one-checksum-per-platform shape himself on 2026-11-13. The REQ-github-031 wording was checked by the coordinator claude-code-t370 against his picks and judged aligned. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-github-action-checks-the-release-archive-against-a-sha-256-the-consumer-pins-per-platform",
+        "title": "The GitHub Action checks the release archive against a SHA-256 the consumer pins per platform",
+        "description": "The GitHub Action checks the release archive against a SHA-256 the consumer pins per platform",
+        "kind": "feature",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-verify-release-digest.sh",
+          ".github/scripts/verify-release-digest.sh",
+          ".github/workflows/ci.yml",
+          "action.yml",
+          "fledge.toml",
+          "site/src/content/docs/integrations/github-action.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "with expected-sha256 set, a matching archive installs and a mismatched digest, a missing or duplicated platform line, or a malformed line fails before extraction naming the cause; with it empty the Action installs as before; the .sha256 sidecar is still checked"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "f81f97e4817698f7308de4bd74d9845d7f5723fb33b5997b79808b06c08f62fe"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync features (set 1): which should the fleet build?', he selected all four, including \"#476 Action checksum\" (option text: 'The GitHub Action takes an expected checksum you commit, and stops if a swapped release doesn't match.'). Design choice A (#476): he chose \"One per platform (Recommended)\" (option text: 'The input takes one checksum per platform, one per line.').",
+        "where": "coordinator chat (Claude Code, hc t370): feature pick 2026-11-13T03:49Z, design choice 2026-11-13T04:04Z; both relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

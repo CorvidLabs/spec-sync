@@ -6,6 +6,6 @@ artifact: tasks
 # Tasks
 
 - [x] Red: the digest script test fails with no script
-- [ ] The verify script, action.yml wiring, Fledge task and CI step
-- [ ] Docs on the Action page
-- [ ] Script test, action safety tests and runtime pin check
+- [x] The verify script, action.yml wiring, Fledge task and CI step
+- [x] Docs on the Action page
+- [x] Script test, action safety tests and runtime pin check

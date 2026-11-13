@@ -1,6 +1,6 @@
 ---
 id: the-github-action-checks-the-release-archive-against-a-sha-256-the-consumer-pins-per-platform
-state: draft
+state: approved
 type: feature
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

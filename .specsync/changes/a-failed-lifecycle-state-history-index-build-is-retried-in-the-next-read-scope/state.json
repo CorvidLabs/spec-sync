@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-failed-lifecycle-state-history-index-build-is-retried-in-the-next-read-scope",
+  "slug": "a-failed-lifecycle-state-history-index-build-is-retried-in-the-next-read-scope",
+  "title": "A failed lifecycle-state history index build is retried in the next read scope",
+  "description": "A failed lifecycle-state history index build is retried in the next read scope",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794541595,
+  "updated_at": 1794541602,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests/fast_archived_reads.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-140 builds one lifecycle-state history index per command and falls back per archive only when it cannot be built; a failed build was remembered per thread, so every later read scope at the same HEAD skipped the build (#982)",
+  "acceptance_criteria": [
+    "after one failed lifecycle-state history build, the same read scope does not retry it and still falls back per archive, and the next read scope at the same HEAD builds the index; a built index is still reused across scopes at the same HEAD; verdicts are unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

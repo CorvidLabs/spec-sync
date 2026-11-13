@@ -392,6 +392,37 @@ fn cold_archived_status_git_processes_do_not_grow_with_archives() {
     );
 }
 
+// #982 (REQ-change-140): a lifecycle-state history index that failed to build is remembered for
+// its own read scope only. The next read scope at the same HEAD builds it again, so a long-lived
+// caller is not left on the per-archive fallback after one transient Git failure.
+#[test]
+fn a_failed_lifecycle_state_history_build_is_retried_in_the_next_read_scope() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    finalized_archived_change(root);
+
+    fail_lifecycle_state_history_builds(1);
+    {
+        let _scope = begin_change_read_scope(root);
+        assert!(
+            lifecycle_state_history(root).is_none(),
+            "the build the test fails answers nothing"
+        );
+        assert!(
+            lifecycle_state_history(root).is_none(),
+            "a failed build is not retried within its own read scope"
+        );
+    }
+    {
+        let _scope = begin_change_read_scope(root);
+        assert!(
+            lifecycle_state_history(root).is_some(),
+            "a later read scope at the same HEAD builds the index again"
+        );
+    }
+}
+
 // REQ-change-135: one `diff-tree --stdin` lists exactly what the per-commit reads list,
 // including a merge commit that brings an archive in.
 #[test]

@@ -4727,6 +4727,32 @@ struct LifecycleStateHistory {
 #[cfg(test)]
 thread_local! {
     static LIFECYCLE_STATE_HISTORY_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// How many of this thread's next lifecycle-state history builds fail, as a transient Git
+    /// failure would (#982).
+    static LIFECYCLE_STATE_HISTORY_FAILING_BUILDS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
+/// Make this thread's next `builds` lifecycle-state history builds fail.
+#[cfg(test)]
+fn fail_lifecycle_state_history_builds(builds: usize) {
+    LIFECYCLE_STATE_HISTORY_FAILING_BUILDS.with(|count| count.set(builds));
+}
+
+/// Whether this build is one a test asked to fail, counting it off.
+fn lifecycle_state_history_build_fails_for_test() -> bool {
+    #[cfg(test)]
+    {
+        LIFECYCLE_STATE_HISTORY_FAILING_BUILDS.with(|count| {
+            let failing = count.get();
+            count.set(failing.saturating_sub(1));
+            failing > 0
+        })
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
 }
 
 /// Run `body` with the lifecycle-state history index turned off on this thread, so it takes the
@@ -4782,7 +4808,11 @@ fn lifecycle_state_history(root: &Path) -> Option<std::rc::Rc<LifecycleStateHist
     if let Some(known) = known {
         return known;
     }
-    let built = build_lifecycle_state_history(root, &head).map(std::rc::Rc::new);
+    let built = if lifecycle_state_history_build_fails_for_test() {
+        None
+    } else {
+        build_lifecycle_state_history(root, &head).map(std::rc::Rc::new)
+    };
     LIFECYCLE_STATE_HISTORY.with(|slot| {
         *slot.borrow_mut() = Some((root.to_path_buf(), head, built.clone()));
     });

@@ -10,9 +10,9 @@ module: change
 
 Every error SpecSync reports while reading one of a change's lifecycle files (`state.json`,
 `approvals.json`, `verification.json`, `verification-attempts.json`, `review.json`,
-`review-attempts.json`, `corrections.json`, `finalization.json` or `accepted-state.json`) SHALL
-name that file's path, whatever the cause: the file cannot be read, is not JSON, holds a value of
-the wrong type, or lacks a field (#434).
+`review-attempts.json`, `corrections.json`, `finalization.json` or
+`accepted-state.json`) SHALL name that file's path, whatever the cause: the file cannot be read,
+is not JSON, holds a value of the wrong type, or lacks a field (#434).
 
 #### Acceptance Criteria
 

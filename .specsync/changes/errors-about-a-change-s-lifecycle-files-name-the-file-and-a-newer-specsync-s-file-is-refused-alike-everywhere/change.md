@@ -1,6 +1,6 @@
 ---
 id: errors-about-a-change-s-lifecycle-files-name-the-file-and-a-newer-specsync-s-file-is-refused-alike-everywhere
-state: draft
+state: approved
 type: feature
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

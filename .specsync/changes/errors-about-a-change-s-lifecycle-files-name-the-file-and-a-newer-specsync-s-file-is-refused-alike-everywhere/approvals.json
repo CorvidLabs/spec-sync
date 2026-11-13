@@ -1,4 +1,51 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794578556,
+      "digest": "660994fb3a282183e5cf1b043b3d7158096ffe5b209517a8f5196287227edadb",
+      "note": "Leif chose to build #434 himself on 2026-11-13. The REQ-change-164 and REQ-change-165 wording was checked by the coordinator claude-code-t370 against his pick and judged aligned (coordinator relay, 2026-11-13); only its line breaks changed afterwards, so the validator sees SHALL. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "errors-about-a-change-s-lifecycle-files-name-the-file-and-a-newer-specsync-s-file-is-refused-alike-everywhere",
+        "title": "Errors about a change's lifecycle files name the file, and a newer SpecSync's file is refused alike everywhere",
+        "description": "Errors about a change's lifecycle files name the file, and a newer SpecSync's file is refused alike everywhere",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/relayed_decision.rs",
+          "src/change/validate_loaded_change.rs",
+          "tests/integration.rs",
+          "tests/integration/lifecycle_file_errors.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a type error in approvals.json, or any lifecycle file, is reported with that file's path by change status, change audit and change check; a state.json or verification-attempts.json with a newer schema_version is refused by change status and change audit with the one newer-SpecSync message naming the file; files at supported versions read as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "37818a4299a1599b4b758396d4d159aa5addb94395492044487c46cb3c34eb20"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync #434: every error about a broken change file names the file (e.g. approvals.json), and a file from a newer SpecSync is refused the same way everywhere, audit included. Build it?', he chose \"Yes (Recommended)\" (option text: 'Small feature, clearer errors.').",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:39Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

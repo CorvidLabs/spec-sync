@@ -2209,6 +2209,35 @@ fn validate_spec_content_internal(
                 .errors
                 .extend(duplicate_requirement_errors_in(&text, &relative));
         }
+        // #1060 (REQ-cmd-check-018): a lesson file that does not parse is reported, never silently
+        // ignored. Lifecycle reads still fall back to `context.md` and never fail (REQ-change-106).
+        if let Some(dir) = spec_path.parent()
+            && let Some(module) = spec_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .and_then(|name| name.strip_suffix(".spec.md"))
+        {
+            let layers = dir.join(format!("{module}.3md"));
+            if layers.is_file() {
+                let shown = |path: &Path| {
+                    path.strip_prefix(root)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                };
+                let problem = match fs::read_to_string(&layers) {
+                    Ok(text) => threemd::parse(&text).err().map(|error| error.to_string()),
+                    Err(error) => Some(error.to_string()),
+                };
+                if let Some(problem) = problem {
+                    result.warnings.push(format!(
+                        "{} does not parse as 3md ({problem}); its lessons are not read, and {} is used instead",
+                        shown(&layers),
+                        shown(&dir.join("context.md"))
+                    ));
+                }
+            }
+        }
     }
 
     let config_hint = config

@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542255,
+      "digest": "4519c9e8e3521cbcb335cb144a8e4f2e55412a8ddb147dc490c616318d9d3e59",
+      "note": "The coordinator agent claude-code-t370 checked this change's REQ-cli-003 and Purpose wording against Leif's pick and found it aligned (hc, 2026-11-13): read-only doctor still reports under a verification run, while doctor --fix refuses like other writers. Recorded by claude-code-t38c (Claude Opus 5.5, hc t38c).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "doctor-fix-refuses-under-an-inherited-verification-context-and-read-only-doctor-still-reports",
+        "title": "Doctor --fix refuses under an inherited verification context, and read-only doctor still reports",
+        "description": "doctor --fix refuses under an inherited verification context, and read-only doctor still reports",
+        "kind": "feature",
+        "affected_specs": [
+          "cli"
+        ],
+        "affected_paths": [
+          "src/main.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "doctor --fix, with or without --dry-run or --close-late, refuses under an inherited SPECSYNC_VERIFICATION_CONTEXT with the one recursion diagnostic and exit 1; doctor without --fix gives the same output and exit status with the marker as without it (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "ce3ce5c5918f96be10b90d84196fee03a37958af4f3f18ba365e1306c0a1ec20"
+      },
+      "approved_delta_bases": {
+        "cli: REQUIREMENT REQ-cli-003": "09e5c1901786f40fce5c04f40df7525077b72f949bf7e18e52fb10c43272fad2",
+        "cli: SPEC SECTION Purpose": "e16025ceb5be3e064b5f6e6166695e7e81309b38e94311b75b4d4d3ba288c2bb"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "#997 doctor recursion guard",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:28Z, relayed by claude-code-t370. Asked: 'SpecSync backlog: which of these smaller changes should the fleet build? Each needs a little new requirement wording.' He selected all four, this one among them.",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

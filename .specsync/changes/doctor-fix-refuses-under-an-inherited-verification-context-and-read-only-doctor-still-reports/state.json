@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "doctor-fix-refuses-under-an-inherited-verification-context-and-read-only-doctor-still-reports",
+  "slug": "doctor-fix-refuses-under-an-inherited-verification-context-and-read-only-doctor-still-reports",
+  "title": "Doctor --fix refuses under an inherited verification context, and read-only doctor still reports",
+  "description": "doctor --fix refuses under an inherited verification context, and read-only doctor still reports",
+  "kind": "feature",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794541912,
+  "updated_at": 1794542255,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "src/main.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "doctor --fix, with or without --dry-run or --close-late, refuses under an inherited SPECSYNC_VERIFICATION_CONTEXT with the one recursion diagnostic and exit 1; doctor without --fix gives the same output and exit status with the marker as without it (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

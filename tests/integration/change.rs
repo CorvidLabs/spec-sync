@@ -2727,6 +2727,71 @@ fn indirect_recursive_lifecycle_subcommands_fail_once_with_context() {
     }
 }
 
+/// #997 (REQ-cli-003): `doctor --fix`, which writes lifecycle state, refuses under an inherited
+/// verification context like every other lifecycle writer, with or without `--dry-run` or
+/// `--close-late`, with one diagnostic. Read-only `doctor` still reports there, exactly as it
+/// does without the marker (Leif's decision, 2026-11-06).
+#[test]
+fn indirect_recursive_lifecycle_doctor_fix_fails_once_and_plain_doctor_reports() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+
+    for args in [
+        vec!["--root", root_arg, "doctor", "--fix"],
+        vec!["--root", root_arg, "doctor", "--fix", "--dry-run"],
+        vec![
+            "--root",
+            root_arg,
+            "doctor",
+            "--fix",
+            "--close-late",
+            "some-change",
+            "--actor",
+            "Ada",
+            "--reason",
+            "merged long ago",
+        ],
+    ] {
+        let stderr = specsync()
+            .env("SPECSYNC_VERIFICATION_CONTEXT", "fledge run verify")
+            .args(&args)
+            .assert()
+            .failure()
+            .get_output()
+            .stderr
+            .clone();
+        let stderr = String::from_utf8(stderr).unwrap();
+        assert_eq!(
+            stderr.matches("recursive lifecycle verification").count(),
+            1,
+            "{args:?}: {stderr}"
+        );
+        assert!(stderr.contains("fledge run verify"), "{args:?}: {stderr}");
+    }
+
+    let plain = |marked: bool| {
+        let mut command = specsync();
+        if marked {
+            command.env("SPECSYNC_VERIFICATION_CONTEXT", "fledge run verify");
+        } else {
+            command.env_remove("SPECSYNC_VERIFICATION_CONTEXT");
+        }
+        command
+            .args(["--root", root_arg, "doctor"])
+            .output()
+            .unwrap()
+    };
+    let (marked, unmarked) = (plain(true), plain(false));
+    let stderr = String::from_utf8_lossy(&marked.stderr);
+    assert!(
+        !stderr.contains("recursive lifecycle verification"),
+        "read-only doctor must still report: {stderr}"
+    );
+    assert_eq!(marked.status.code(), unmarked.status.code(), "{stderr}");
+    assert_eq!(marked.stdout, unmarked.stdout);
+}
+
 // Verifies REQ-cli-003 at the contract level (#911, SHIP-1.c.1, SHIP-1.c.2).
 //
 // Honest label: CONTRACT PIN. The two tests above pin the guard's behavior; this fails when the cli

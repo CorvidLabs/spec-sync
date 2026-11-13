@@ -1,4 +1,47 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794578490,
+      "digest": "dded905c22e341435a93a7cbe4e5ff497486335ca18808d32a42a55d2fbaa1bd",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: a failed git query is no longer remembered for the rest of a command; definite answers (unset key, absent ref) still are, so the speed ceiling holds. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-repository-fact-memo-keeps-definite-answers-and-never-a-failed-git-query",
+        "title": "The repository-fact memo keeps definite answers and never a failed git query",
+        "description": "The repository-fact memo keeps definite answers and never a failed git query",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "git_utils"
+        ],
+        "affected_paths": [
+          "src/change/validate_loaded_change.rs",
+          "src/git_utils.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-git-utils-009 says a failed git query SHALL NOT be memoized and a failure is retried on the next read; note_repository_git memoized every exit code. An unset config key (exit 1) and an absent ref read with -q or --quiet (exit 1) are definite answers, not failures, which keeps REQ-change-127's spawn ceiling (#887)",
+        "acceptance_criteria": [
+          "a git query that fails (for example rev-parse --verify HEAD exiting 128 before any commit) is not memoized and is asked again on the next read; an unset config key and an absent ref read through symbolic-ref -q or rev-parse --verify --quiet are memoized; eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci stays within REQ-change-127's ceiling"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Three SpecSync bug fixes, each matching what the spec already says. Approve their scope?', he selected \"#887 retry failed git\" and \"#942 split big lists\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:01Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

@@ -1,6 +1,6 @@
 ---
 id: the-repository-fact-memo-keeps-definite-answers-and-never-a-failed-git-query
-state: draft
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

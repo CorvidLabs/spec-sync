@@ -855,6 +855,7 @@ fn is_repository_fact(args: &[&str]) -> bool {
             | ["for-each-ref", ..]
             | ["show-ref", ..]
             | ["symbolic-ref", "--short", _]
+            | ["symbolic-ref", "-q", "--short", _]
             | ["symbolic-ref", "-q", _]
             | ["symbolic-ref", _]
     ) || is_config_read(args)
@@ -954,7 +955,10 @@ pub(crate) fn note_repository_git(
         invalidate_repository_facts();
         return;
     }
-    if !is_repository_fact(args) || discovery_ceiling_is_set() || output.status.code().is_none() {
+    if !is_repository_fact(args)
+        || discovery_ceiling_is_set()
+        || !(output.status.success() || is_definite_absence(args, output.status.code()))
+    {
         return;
     }
     let key: (&'static str, Vec<String>) = (
@@ -972,6 +976,19 @@ pub(crate) fn note_repository_git(
             frame.facts.insert(key.clone(), output.clone());
         }
     });
+}
+
+/// Whether a nonzero exit is a definite answer rather than a failure, and so a fact worth keeping
+/// for the command: `git config` lookups exit 1 when the key is unset, and `symbolic-ref -q` and
+/// `rev-parse --verify --quiet` exit 1 when the ref is absent. Any other nonzero exit is a failed
+/// query, which is never memoized, so the next read asks git again (REQ-git-utils-009, #887).
+fn is_definite_absence(args: &[&str], code: Option<i32>) -> bool {
+    code == Some(1)
+        && (is_config_read(args)
+            || matches!(args, ["symbolic-ref", "-q", ..])
+            || (args.first() == Some(&"rev-parse")
+                && args.contains(&"--verify")
+                && args.contains(&"--quiet")))
 }
 
 /// Forget every memoized repository fact on this thread: something outside the fact rules ran,

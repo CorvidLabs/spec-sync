@@ -1259,15 +1259,19 @@ fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
 }
 
 fn remote_default_ref(root: &Path) -> Option<String> {
+    // The quiet forms exit 1 for an absent ref, a definite answer the fact memo keeps, where the
+    // loud forms exit 128 like a failure, which it must not keep (REQ-git-utils-009, #887).
     if let Some(remote_default) = git_output(
         root,
-        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        &["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"],
     ) {
         return Some(remote_default);
     }
     ["origin/main", "origin/master"]
         .into_iter()
-        .find(|candidate| git_output(root, &["rev-parse", "--verify", candidate]).is_some())
+        .find(|candidate| {
+            git_output(root, &["rev-parse", "--verify", "--quiet", candidate]).is_some()
+        })
         .map(str::to_string)
 }
 

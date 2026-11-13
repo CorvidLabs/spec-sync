@@ -3807,6 +3807,18 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
 }
 
+/// Whether an archived change's scoped review is settled by its finalization: finalize required a
+/// current review to archive the change, and the archive still authenticates, so ship-status never
+/// asks for another review of an archived change, which `change review` refuses (#1038).
+pub(crate) fn archived_review_is_settled_by_finalize(root: &Path, record: &ChangeRecord) -> bool {
+    record.state == ChangeState::Archived
+        && matches!(
+            terminal_evidence_summary(root, record).validity,
+            TerminalEvidenceValidity::AuthenticatedHistory
+                | TerminalEvidenceValidity::HistoricalTransitionUnproven
+        )
+}
+
 /// Terminal evidence for one archived record inside a read scope.
 ///
 /// An archived record's verdict depends only on its own package and history, never on the other

@@ -1,4 +1,47 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794545475,
+      "digest": "4a1c7a98094c553bf49cff0999aa75b445e2282ba028bee150b686d36d190437",
+      "note": "Leif classed #1038 a bug fix and chose its behaviour himself on 2026-11-13. This change reports an archived change's review as done by finalize with no re-review, and classifies a re-archive tip that removes its own package files as archive_only, as CI does. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+        "title": "Ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+        "description": "ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-cmd-change-007's tip class mirrors CI's archive-only lane, which counts the archived change's own package paths as archive work; SHIP-9.a names the one command when it is not time, never a review that refuses. Leif classed #1038 a bug fix on 2026-11-13: for an archived change, report the review as done by finalize and suggest nothing",
+        "acceptance_criteria": [
+          "on an archived change whose archive authenticates, ship-status reports review_currency current with a finalize reason, a done review stage and no change review suggestion; an archive commit that also removes the archived change's own package files is archive_only, and another change's package beside it is product"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync #1038: ship-status on an already-archived change says the review is stale and suggests a review that's refused. How to treat it?', he chose \"Bug fix (Recommended)\" (option text: 'For an archived change, report the review as done by finalize and suggest nothing.').",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:39Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

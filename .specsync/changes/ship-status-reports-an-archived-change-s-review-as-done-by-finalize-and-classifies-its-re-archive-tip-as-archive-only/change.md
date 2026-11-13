@@ -1,6 +1,6 @@
 ---
 id: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
-state: draft
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

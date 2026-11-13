@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now",
+  "slug": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now",
+  "title": "An in-flight change that declares a shared input covers an accepted change for now",
+  "description": "An in-flight change that declares a shared input covers an accepted change for now",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "bb7682a78033aa06146baa638c44b241b6b937e1",
+  "created_at": 1794587118,
+  "updated_at": 1794587142,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/historical_reconciliation.rs",
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/retirement.rs",
+    "src/change/doctor.rs",
+    "src/change_tests/provisional_coverage.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "site/src/content/docs/workflow.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "an accepted change whose signed input an approved later change declaring its module and path has edited reads provisionally-covered naming that change; audit warns instead of failing; it archives with coverage.json naming the covering change; with no such change it is stale and audit fails as before"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "a provisionally covered change neither covers another change nor replaces one in a retirement; reopen stays allowed; archived integrity is unchanged",
+    "public_contract": "yes"
+  }
+}

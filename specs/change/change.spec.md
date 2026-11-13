@@ -32,6 +32,7 @@ files:
   - src/change_tests/fast_finalize.rs
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests/open_task_gate.rs
+  - src/change_tests/provisional_coverage.rs
   - src/change_tests/recorded_review_recovery.rs
   - src/change_tests/recovery_retirement.rs
   - src/change_tests/relayed_decision.rs

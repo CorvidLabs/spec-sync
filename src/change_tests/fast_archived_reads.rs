@@ -1925,3 +1925,118 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+// #850: the persistent read cache stays bounded. An archive-introduction entry records whether the
+// package had an `approvals.json`, not its bytes; the cache keeps at most 4096 introduction
+// entries; and a cache file over 8 MiB is not loaded, so the next write starts it fresh.
+
+/// Each introducing commit with the approvals ledger it committed, per change id.
+type IntroducedLedgers = BTreeMap<String, Vec<(String, Option<Vec<u8>>)>>;
+
+/// The approvals ledger each introduction in `index` committed, per change id.
+fn introduced_ledgers(_root: &Path, index: &ArchiveIntroductionIndex) -> IntroducedLedgers {
+    index
+        .iter()
+        .map(|(id, introductions)| {
+            let ledgers = introductions
+                .iter()
+                .map(|introduction| (introduction.commit.clone(), introduction.approvals.clone()))
+                .collect();
+            (id.clone(), ledgers)
+        })
+        .collect()
+}
+
+/// The archive-introduction index built afresh: a commit that touches no archive moves `HEAD`, so
+/// the in-memory index misses while every archive introduction stays the same. With `scoped`, the
+/// build reads and fills the persistent read cache.
+fn rebuilt_archive_introduction_index(root: &Path, scoped: bool) -> Arc<ArchiveIntroductionIndex> {
+    let marker = root.join("rebuild-marker.txt");
+    let count = fs::read_to_string(&marker).map_or(0, |text| text.len());
+    fs::write(&marker, "x".repeat(count + 1)).unwrap();
+    quiet_git(root, &["add", "rebuild-marker.txt"]);
+    quiet_git(root, &["commit", "-m", "move HEAD"]);
+    let _scope = scoped.then(|| begin_change_read_scope(root));
+    archive_introduction_index(root).unwrap()
+}
+
+#[test]
+fn the_read_cache_holds_no_approvals_bytes_and_reads_them_back_unchanged() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    finalized_archived_change(root);
+    finalized_archived_change(root);
+    let live = introduced_ledgers(root, &rebuilt_archive_introduction_index(root, false));
+    assert_eq!(live.len(), 2, "{live:?}");
+    assert!(
+        live.values().flatten().all(|(_, ledger)| ledger.is_some()),
+        "every archived package committed an approvals ledger: {live:?}"
+    );
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
+    let cold = introduced_ledgers(root, &rebuilt_archive_introduction_index(root, true));
+    assert_eq!(cold, live);
+    let cache = fs::read_to_string(persistent_read_cache_path(root).unwrap()).unwrap();
+    assert!(
+        cache.contains("archive_introductions") && !cache.contains("approved_scope"),
+        "the read cache stores approvals.json bytes inline:\n{cache}"
+    );
+    let warm = introduced_ledgers(root, &rebuilt_archive_introduction_index(root, true));
+    assert_eq!(warm, live, "a cached introduction must read back the same ledger");
+}
+
+#[test]
+fn the_read_cache_keeps_at_most_4096_archive_introductions() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("read-cache.json");
+    let mut cache = PersistentReadCache {
+        schema: READ_CACHE_SCHEMA,
+        specsync_version: read_cache_build_identity(),
+        ..PersistentReadCache::default()
+    };
+    for commit in 0..4097 {
+        cache.archive_introductions.insert(
+            format!("{commit:040x}\n:(top,literal).specsync/archive/changes"),
+            Vec::new(),
+        );
+    }
+    let frame = PersistentReadCacheFrame {
+        path: Some(path.clone()),
+        loaded: Some(cache),
+        dirty: true,
+        ..PersistentReadCacheFrame::default()
+    };
+    flush_persistent_read_cache(&frame);
+    let written: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let kept = written["archive_introductions"].as_object().unwrap();
+    assert!(kept.len() <= 4096, "the read cache kept {} archive introductions", kept.len());
+}
+
+#[test]
+fn a_read_cache_file_over_8_mib_starts_fresh() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let path = persistent_read_cache_path(root).expect("the read cache is enabled");
+    let oversized = PersistentReadCache {
+        schema: READ_CACHE_SCHEMA,
+        specsync_version: read_cache_build_identity(),
+        repo_prefix: git_repo_prefix(root).unwrap_or_default(),
+        legacy_introductions: (0..90_000).map(|key| format!("{key:0>100}")).collect(),
+        ..PersistentReadCache::default()
+    };
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, serde_json::to_vec(&oversized).unwrap()).unwrap();
+    assert!(fs::metadata(&path).unwrap().len() > 8 * 1024 * 1024);
+    let _scope = begin_change_read_scope(root);
+    let loaded = with_persistent_read_cache(root, |_, frame| {
+        frame
+            .loaded
+            .as_ref()
+            .map(|cache| cache.legacy_introductions.len())
+    })
+    .flatten();
+    assert_eq!(loaded, Some(0), "a cache file over 8 MiB was loaded");
+}

@@ -1,4 +1,102 @@
 {
-  "approvals": [],
-  "reopenings": []
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542620,
+      "digest": "4bea866a722ec4e0e3891936e202a77b95ca2c31aeb12821d799dae9987c45c8",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: a failed lifecycle-state history index build is retried in the next read scope instead of being remembered per thread. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-failed-lifecycle-state-history-index-build-is-retried-in-the-next-read-scope",
+        "title": "A failed lifecycle-state history index build is retried in the next read scope",
+        "description": "A failed lifecycle-state history index build is retried in the next read scope",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-140 builds one lifecycle-state history index per command and falls back per archive only when it cannot be built; a failed build was remembered per thread, so every later read scope at the same HEAD skipped the build (#982)",
+        "acceptance_criteria": [
+          "after one failed lifecycle-state history build, the same read scope does not retry it and still falls back per archive, and the next read scope at the same HEAD builds the index; a built index is still reused across scopes at the same HEAD; verdicts are unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Four more SpecSync bug fixes (each matches the spec, with failing tests written). Approve their scope?', he selected all four: \"#990 odd folder names\", \"#475 clean JSON\", \"#432 adopt dry run\" and \"#982 retry history index\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794544610,
+      "digest": "daf3aa918d8190fde5c9eb416623a81d494308fd332e0cb3b9204ec93e406a05",
+      "note": "Re-approval after a send-back under Leif's file-list rule. What the change does is unchanged. Added file: src/change/sdd_version.rs (one read-scope field that remembers a failed build for that scope only). Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-failed-lifecycle-state-history-index-build-is-retried-in-the-next-read-scope",
+        "title": "A failed lifecycle-state history index build is retried in the next read scope",
+        "description": "A failed lifecycle-state history index build is retried in the next read scope",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-140 builds one lifecycle-state history index per command and falls back per archive only when it cannot be built; a failed build was remembered per thread, so every later read scope at the same HEAD skipped the build (#982)",
+        "acceptance_criteria": [
+          "after one failed lifecycle-state history build, the same read scope does not retry it and still falls back per archive, and the next read scope at the same HEAD builds the index; a built index is still reused across scopes at the same HEAD; verdicts are unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Original approval: asked 'Four more SpecSync bug fixes (each matches the spec, with failing tests written). Approve their scope?', he selected all four: \"#990 odd folder names\", \"#475 clean JSON\", \"#432 adopt dry run\" and \"#982 retry history index\". File-list rule: asked 'Standing rule? Sometimes an approved change turns out to touch a few more files than its list says, for example old tests that pin the printed text. The work itself is unchanged. May agents send it back and re-approve it under your original words, with a note listing the added files, instead of asking you each time? It's happening now for SpecSync #929-931 and #982.', he chose \"Yes, standing rule (Recommended)\" (option text: 'Only when what the change does stays the same. Anything that changes its meaning still comes to you.').",
+        "where": "coordinator chat (Claude Code, hc t370): original approval 2026-11-13T04:03Z, file-list rule 2026-11-13T04:35Z; both relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "a-failed-lifecycle-state-history-index-build-is-retried-in-the-next-read-scope",
+      "actor": "0xLeif",
+      "reason": "Only the file list grows; what the change does is unchanged: the fix also adds one field to the read-scope struct in src/change/sdd_version.rs. Sent back under Leif's FILE-LIST RULE (coordinator chat, Claude Code hc t370, 2026-11-13T04:35Z, relayed by claude-code-t370): he chose \"Yes, standing rule (Recommended)\" ('Only when what the change does stays the same. Anything that changes its meaning still comes to you.'). Recorded by claude-code-t38p (Claude Opus 5.5, hc t38p).",
+      "timestamp": 1794544604,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    }
+  ]
 }

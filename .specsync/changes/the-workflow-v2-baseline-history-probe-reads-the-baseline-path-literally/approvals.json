@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794545179,
+      "digest": "917db1e001a0d1a04179f1e1c295b5155e5044dbdc21b38b625e03e6b33fb213",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: a project folder named like ':(exclude)app' no longer makes SpecSync think its baseline file was deleted. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-workflow-v2-baseline-history-probe-reads-the-baseline-path-literally",
+        "title": "The workflow-v2 baseline history probe reads the baseline path literally",
+        "description": "The workflow-v2 baseline history probe reads the baseline path literally",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A baseline that was never committed is absent, not deleted; the reachable-history probe passed the baseline path as a plain pathspec, so a project directory named like pathspec magic read as an exclude and reported the baseline deleted. The module's other history queries are literal top-level pathspecs (#851, #990) (#1074)",
+        "acceptance_criteria": [
+          "in a project directory named :(exclude)app with no committed baseline, the reachable-history probe answers false and reading the baseline gives none instead of reporting it deleted"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync bug fixes from lane B (failing tests ready). Approve their scope?', he selected all three: \"#965 CI archive check\", \"#945 + #961 (one PR)\" and \"#1074 + #1075 (new)\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:39Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

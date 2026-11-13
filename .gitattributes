@@ -26,3 +26,6 @@ specs/**/requirements.md merge=specsync
 # The Markdown preview also joins a single newline into a space and glues the
 # planes into one paragraph. Plain text keeps each plane on its own line.
 *.3md linguist-language=Text
+.chough/bugs/*.md merge=chough-bug
+knowledge/index.md merge=chough-generated
+knowledge/journal/feed.xml merge=chough-generated

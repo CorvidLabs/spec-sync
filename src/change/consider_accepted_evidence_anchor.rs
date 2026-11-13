@@ -3764,7 +3764,51 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
 enum AcceptedInputValidity {
     Exact,
     SuccessorCovered,
+    /// Some changed input is covered only by an in-flight later change (#657).
+    ProvisionallyCovered,
     HistoricallyReconciled,
+}
+
+/// The first approved, implementing or verifying change created after `record` that declares
+/// `owner` and a scope covering `path`. It covers that changed input of `record` until it is
+/// accepted, when the successor walk takes over; it must itself prove currency to be accepted,
+/// so the obligation is deferred, not dropped (#657).
+fn in_flight_coverer(
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> Option<String> {
+    records
+        .values()
+        .filter(|candidate| {
+            candidate.id != record.id
+                && matches!(
+                    candidate.state,
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                )
+                && happens_after(candidate, record)
+                && candidate.affected_specs.iter().any(|module| module == owner)
+                && candidate
+                    .affected_paths
+                    .iter()
+                    .any(|scope| path_matches_scope(path, scope))
+        })
+        .map(|candidate| candidate.id.clone())
+        .min()
+}
+
+/// The sentence for an accepted change whose changed inputs in-flight changes cover for now.
+fn provisional_coverage_reason(record: &ChangeRecord, covered: &[(String, String)]) -> String {
+    let listed = covered
+        .iter()
+        .map(|(path, change)| format!("`{path}` by in-flight `{change}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "delivery inputs of `{}` changed after acceptance and are covered for now: {listed}; each covering change closes it when accepted, and if it is closed instead the input is stale again",
+        record.id
+    )
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
@@ -3967,6 +4011,13 @@ fn terminal_evidence_summary_with_validation_state(
                 TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
             }
         },
+        Ok(AcceptedInputValidity::ProvisionallyCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::ProvisionallyCovered,
+            reason: Some(provisional_coverage_reason(
+                record,
+                memo.provisional.get(&record.id).map_or(&[][..], Vec::as_slice),
+            )),
+        },
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
         Err(reason) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
@@ -3977,15 +4028,19 @@ fn terminal_evidence_summary_with_validation_state(
 
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+        .map(|_| ())
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they
 /// archive, judged against the structural roster (REQ-change-124): every gate on `record` is the
 /// same, and only the other archives' own Git history is left to `change audit --strict`.
+///
+/// Returns each changed input an in-flight later change covers for now, as `(path, change)`, so
+/// the archive can record which change covered it (#657).
 fn ensure_archiving_closing_approval_valid(
     root: &Path,
     record: &ChangeRecord,
-) -> Result<(), String> {
+) -> Result<Vec<(String, String)>, String> {
     ensure_closing_approval_valid_against(root, record, &list_all_changes_structural(root)?)
 }
 
@@ -3993,11 +4048,11 @@ fn ensure_closing_approval_valid_against(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
-) -> Result<(), String> {
+) -> Result<Vec<(String, String)>, String> {
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)
-        .map(|_| ())
+    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)?;
+    Ok(memo.provisional.remove(&record.id).unwrap_or_default())
 }
 
 /// `pending` is the closing token of `archive_change_with_options`, forwarded so the package that
@@ -5167,6 +5222,7 @@ fn validate_accepted_inputs_recursive(
             .collect();
         let mut successor_covered = false;
         let mut historically_reconciled = false;
+        let mut provisional: Vec<(String, String)> = Vec::new();
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
                 format!(
@@ -5242,6 +5298,11 @@ fn validate_accepted_inputs_recursive(
                     &mut rejected_successors,
                     &mut historically_reconciled,
                 ) {
+                    if let Some(coverer) = in_flight_coverer(records, record, &expected.path, owner)
+                    {
+                        provisional.push((expected.path.clone(), coverer));
+                        continue;
+                    }
                     return Err(stale_input_remediation_reason(
                         record,
                         &expected.path,
@@ -5251,6 +5312,11 @@ fn validate_accepted_inputs_recursive(
                 }
                 successor_covered = true;
             }
+        }
+        if !provisional.is_empty() {
+            provisional.dedup();
+            memo.provisional.insert(record.id.clone(), provisional);
+            return Ok(AcceptedInputValidity::ProvisionallyCovered);
         }
         Ok(if historically_reconciled {
             AcceptedInputValidity::HistoricallyReconciled

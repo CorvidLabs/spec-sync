@@ -241,6 +241,8 @@ Do not add legacy `accept` to this workflow-v2 sequence.
 The numeric IDs and `verify` / `accept` commands below describe historical workflow-v1 records.
 Consult `change status <id>` before repairing that evidence.
 
+An accepted change whose signed input a later change is editing does not have to be re-verified while that later change is in flight. When an approved, implementing or verifying change created after it declares the input's owner module and path, the accepted change's evidence reads `provisionally-covered`, and `change audit` reports a warning naming the covering change instead of an error. The accepted change may archive, and its archive keeps a `coverage.json` naming the change that covered each file. Once the covering change is accepted it covers the input for good; if it is closed instead, the input is stale again. With no such change, the evidence is stale as before.
+
 If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:
 
 ```bash

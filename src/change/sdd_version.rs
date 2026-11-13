@@ -1757,6 +1757,9 @@ pub struct TerminalEvidenceSummary {
 pub enum TerminalEvidenceValidity {
     Exact,
     SuccessorCovered,
+    /// A changed input that an approved, implementing or verifying later change declares; it is
+    /// covered until that change is accepted (#657).
+    ProvisionallyCovered,
     Stale,
     AuthenticatedHistory,
     HistoricalTransitionUnproven,
@@ -1769,6 +1772,7 @@ impl TerminalEvidenceValidity {
         match self {
             Self::Exact => "exact",
             Self::SuccessorCovered => "successor-covered",
+            Self::ProvisionallyCovered => "provisionally-covered",
             Self::Stale => "stale",
             Self::AuthenticatedHistory => "authenticated-history",
             Self::HistoricalTransitionUnproven => "historical-transition-unproven",
@@ -4503,6 +4507,7 @@ fn reopen_unarchived_change(
         let records = list_all_changes_checked(root)?;
         let mut visiting = BTreeSet::new();
         let mut memo = AcceptedInputValidationMemo::default();
+        // Evidence covered only for now by an in-flight change (#657) may still be reopened.
         if validate_accepted_inputs_recursive(
             root,
             &record,
@@ -4511,7 +4516,7 @@ fn reopen_unarchived_change(
             &mut memo,
             None,
         )
-        .is_ok()
+        .is_ok_and(|validity| validity != AcceptedInputValidity::ProvisionallyCovered)
         {
             return Err(
                 "accepted change delivery inputs are current (exact or successor-covered) and its verification commit is still anchored in current history; reopen is allowed only when accepted evidence is stale"

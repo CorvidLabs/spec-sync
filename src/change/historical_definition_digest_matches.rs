@@ -3005,6 +3005,9 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(archive)
 }
 
+/// The record an archive keeps of the in-flight changes that covered its changed inputs (#657).
+const PROVISIONAL_COVERAGE_FILE: &str = "coverage.json";
+
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
@@ -3508,7 +3511,9 @@ fn archive_change_with_options(
             destination.display()
         ));
     }
-    ensure_archiving_closing_approval_valid(root, &record)?;
+    // Which in-flight changes cover this change's changed inputs for now; its archive records
+    // them (#657).
+    let provisional_coverage = ensure_archiving_closing_approval_valid(root, &record)?;
     if !allow_delivery_diff
         && let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -3617,16 +3622,30 @@ fn archive_change_with_options(
             relay_gated_record(&destination, &archived).as_ref(),
         )
         .and_then(|state| {
-            write_prepared_files(
-                root,
-                &[
-                    (destination.join("state.json"), state),
-                    (
-                        destination.join("change.md"),
-                        change_markdown_content(&archived),
-                    ),
-                ],
-            )
+            let mut prepared = vec![
+                (destination.join("state.json"), state),
+                (
+                    destination.join("change.md"),
+                    change_markdown_content(&archived),
+                ),
+            ];
+            if !provisional_coverage.is_empty() {
+                prepared.push((
+                    destination.join(PROVISIONAL_COVERAGE_FILE),
+                    json_content(&serde_json::json!({
+                        "schema_version": 1,
+                        "change_id": record.id,
+                        "covered_by": provisional_coverage
+                            .iter()
+                            .map(|(path, change)| serde_json::json!({
+                                "path": path,
+                                "change": change,
+                            }))
+                            .collect::<Vec<_>>(),
+                    }))?,
+                ));
+            }
+            write_prepared_files(root, &prepared)
         })
     };
     if let Err(error) = finalize {
@@ -4912,6 +4931,22 @@ fn check_project_with_command_output(
         ) && let Err(error) = ensure_dependencies_satisfied(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
+        }
+        // A changed input an in-flight later change declares is covered until that change is
+        // accepted: a warning naming it, not an error (#657).
+        if record.state == ChangeState::Accepted
+            && let Some(evidence) = report
+                .terminal_evidence
+                .iter()
+                .find(|evidence| evidence.id == record.id)
+            && evidence.evidence.validity == TerminalEvidenceValidity::ProvisionallyCovered
+        {
+            let warning = format!(
+                "{}: {}",
+                record.id,
+                evidence.evidence.reason.as_deref().unwrap_or("covered for now")
+            );
+            report.warnings.push(warning);
         }
         if record.state == ChangeState::Accepted
             && let Some(evidence) = report

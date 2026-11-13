@@ -363,7 +363,9 @@ fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
         .filter(|(_, evidence)| {
             !matches!(
                 evidence.validity,
-                TerminalEvidenceValidity::Exact | TerminalEvidenceValidity::SuccessorCovered
+                TerminalEvidenceValidity::Exact
+                    | TerminalEvidenceValidity::SuccessorCovered
+                    | TerminalEvidenceValidity::ProvisionallyCovered
             )
         })
         .map(|(record, _)| record.id.clone())
@@ -412,7 +414,9 @@ fn doctor_scan(root: &Path, closing: &BTreeSet<String>) -> Vec<DoctorFinding> {
         }
         if !matches!(
             evidence.validity,
-            TerminalEvidenceValidity::Exact | TerminalEvidenceValidity::SuccessorCovered
+            TerminalEvidenceValidity::Exact
+                    | TerminalEvidenceValidity::SuccessorCovered
+                    | TerminalEvidenceValidity::ProvisionallyCovered
         ) {
             findings.push(finding(
                 "could-not-check",

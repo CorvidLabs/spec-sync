@@ -643,3 +643,93 @@ fn a_verification_ignored_paths_refusal_reaches_the_handoff_of_an_upstream_archi
         "handoff does not carry the ignored-path refusal: {handoff}"
     );
 }
+
+/// The first ```` ```bash ```` block under `heading` in a docs page.
+fn documented_bash_block(page: &str, heading: &str) -> String {
+    let text = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(page)).unwrap();
+    let mut lines = text.lines().skip_while(|line| line.trim_end() != heading);
+    assert!(lines.next().is_some(), "{page} has no `{heading}` heading");
+    let mut lines = lines.skip_while(|line| line.trim() != "```bash");
+    assert!(
+        lines.next().is_some(),
+        "{page} has no ```bash block under `{heading}`"
+    );
+    lines
+        .take_while(|line| line.trim() != "```")
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+// #1003 (REQ-cmd-change-038). The CI archive check the docs page prints, run as written, passes
+// on an intact archived change and fails once the archived evidence is edited and committed.
+#[test]
+fn the_documented_ci_archive_check_passes_an_intact_archive_and_fails_a_tampered_one() {
+    let page = "site/src/content/docs/integrations/ci-archive-check.md";
+    let check = documented_bash_block(page, "## Check one archived change");
+    assert!(
+        check.contains("--timeout"),
+        "the check bounds the read: {check}"
+    );
+    let text = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(page)).unwrap();
+    for named in [
+        "change.state",
+        "summary.terminal_evidence.validity",
+        "authenticated-history",
+        "124",
+    ] {
+        assert!(text.contains(named), "{page} does not name `{named}`");
+    }
+
+    let temp = TempDir::new().unwrap();
+    let (root, _base, _verified) = verified_feature(&temp);
+    run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+    // `finalize` commits the archive tip.
+    run_ok(&root, &["change", "finalize", ID]);
+
+    let binary = Path::new(env!("CARGO_BIN_EXE_specsync"));
+    let path = format!(
+        "{}:{}",
+        binary.parent().unwrap().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let run_check = || {
+        Command::new("bash")
+            .arg("-c")
+            .arg(&check)
+            .current_dir(&root)
+            .env("CHANGE_ID", ID)
+            .env("PATH", &path)
+            .output()
+            .unwrap()
+    };
+    let intact = run_check();
+    assert!(
+        intact.status.success(),
+        "the documented check fails an intact archive: {}",
+        String::from_utf8_lossy(&intact.stderr)
+    );
+
+    let archive = fs::read_dir(root.join(".specsync/archive/changes"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| path.to_string_lossy().ends_with(ID))
+        .expect("the change is archived");
+    let verification = archive.join("verification.json");
+    let mut evidence: Value = serde_json::from_slice(&fs::read(&verification).unwrap()).unwrap();
+    evidence["workspace_digest"] = Value::String("0".repeat(64));
+    fs::write(
+        &verification,
+        serde_json::to_string_pretty(&evidence).unwrap() + "\n",
+    )
+    .unwrap();
+    git(&root, &["add", "--all"]);
+    git(
+        &root,
+        &["commit", "-q", "-m", "tamper with the archived evidence"],
+    );
+    assert!(
+        !run_check().status.success(),
+        "the documented check passes an archive whose evidence was edited after archiving"
+    );
+}

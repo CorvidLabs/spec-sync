@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794581656,
+      "digest": "7281875d51f1c3c628f4aeeace73640b5b077cecac5660c35c97b4499b6d0b73",
+      "note": "Leif approved this internal fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: change correct builds its summary inside a change read scope after its writes, so it is faster; output unchanged. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-correct-reads-its-summary-inside-a-change-read-scope",
+        "title": "Change correct reads its summary inside a change read scope",
+        "description": "change correct reads its summary inside a change read scope",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "No requirement changes: change correct already returns the corrected change's summary, and only the cost of building it changes. It took that summary with no change read scope, so it got none of the memoized reads, persistent read cache or prefetch workers that the read commands use (#921)",
+        "acceptance_criteria": [
+          "a change correct, live validation included, spawns fewer Git processes than one summary of the same change read without a scope; the corrected record, correction ledger and summary are unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "validation before the correction's writes stays live, as every mutating command's does; the read scope opens only after the writes and closes before the result returns",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync internal fixes. The output is the same; they're just faster or safer. Approve their scope?', he selected \"#955 shared copy\", \"#938 one ledger check\", \"#921 faster change correct\" and \"#981 cache per build\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:55Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p"
+      }
+    }
+  ],
   "reopenings": []
 }

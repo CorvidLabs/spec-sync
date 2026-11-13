@@ -637,7 +637,8 @@ impl Project {
 }
 
 /// Where the landing-page Quick Start tells the reader to fill in the `add-spec auth` scaffold:
-/// after `add_spec` makes it (#906). Returns the fill-in step's position.
+/// after `add_spec` makes it (#906) and before the first `specsync check --strict` (#968).
+/// Returns the fill-in step's position.
 fn quick_start_fill_in_position(steps: &[Step], add_spec: &str) -> Result<usize, String> {
     let scaffolded = steps
         .iter()
@@ -656,6 +657,17 @@ fn quick_start_fill_in_position(steps: &[Step], add_spec: &str) -> Result<usize,
         return Err(format!(
             "the Quick Start must say to fill in specs/auth/ after `{add_spec}` makes it"
         ));
+    }
+    // #968: and before the first strict check, which refuses the untouched scaffold.
+    let strict = steps.iter().position(|step| {
+        matches!(step, Step::Command(command) if command.starts_with("specsync check --strict"))
+    });
+    if strict.is_some_and(|strict| strict < filled_in) {
+        return Err(
+            "the Quick Start must say to fill in specs/auth/ before the first \
+             `specsync check --strict`, which refuses the untouched scaffold"
+                .to_string(),
+        );
     }
     Ok(filled_in)
 }

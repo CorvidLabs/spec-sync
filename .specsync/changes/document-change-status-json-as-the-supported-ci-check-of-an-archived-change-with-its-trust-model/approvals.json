@@ -1,4 +1,49 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794545044,
+      "digest": "100d239d8420d9ef564d2eddc3bea7b10cb71f89b7820929e2962a6894aca290",
+      "note": "Leif chose to build #1003 himself on 2026-11-13. The REQ-cmd-change-038 wording was checked by the coordinator claude-code-t370 against his pick and judged aligned (coordinator relay, 2026-11-13). Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "document-change-status-json-as-the-supported-ci-check-of-an-archived-change-with-its-trust-model",
+        "title": "Document change status --json as the supported CI check of an archived change, with its trust model",
+        "description": "Document change status --json as the supported CI check of an archived change, with its trust model",
+        "kind": "documentation",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/integrations/ci-archive-check.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "tests/integration/archived_upstream.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "the CI archive check page's own bash block passes on an intact archived change and fails once its archived evidence is edited and committed; the page names change.state, summary.terminal_evidence.validity, the trust model and --timeout with exit 124; the Action page links to it"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "a637069eeb73947e394eb1758019f4a616023630d2e19ca570007cbcaeddaa88"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync backlog: which of these smaller changes should the fleet build? Each needs a little new requirement wording.', he selected all four, including \"#1003 CI archive check docs\" (option text: 'A docs page making change status --json the supported CI check, saying which fields to assert and how far to trust them.').",
+        "where": "coordinator chat (Claude Code, hc t370), about 2026-11-13T03:28Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

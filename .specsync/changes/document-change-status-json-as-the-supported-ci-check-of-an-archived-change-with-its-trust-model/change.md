@@ -1,6 +1,6 @@
 ---
 id: document-change-status-json-as-the-supported-ci-check-of-an-archived-change-with-its-trust-model
-state: draft
+state: implementing
 type: documentation
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

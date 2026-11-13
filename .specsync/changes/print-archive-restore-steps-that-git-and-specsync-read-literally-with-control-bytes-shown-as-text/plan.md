@@ -21,7 +21,7 @@ Validating archive directory names at load (it would make existing archives unre
 1. Carry over CHANGE-7.b (Leif, 2026-11-06) and the red tests from the g-literal branch; commit red.
 2. Literal pathspecs in the probes and the printed commands.
 3. `--` before the id in the printed status commands.
-4. `shell_word` for control bytes.
+4. `printable_shell_word` for control bytes.
 5. Targeted tests (literal guidance, handoff, corrupt-archive recovery), fmt, clippy, then the
    Chough 0.6.0 session and the full local suite before review.
 

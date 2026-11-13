@@ -4125,11 +4125,12 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         "{json}"
     );
     let step = handoff["before_clearing"][0].as_str().unwrap().to_string();
-    let restore_from_head = format!("git restore --source=HEAD --staged --worktree -- '{package}'");
+    let restore_from_head =
+        format!("git restore --source=HEAD --staged --worktree -- ':(literal){package}'");
     assert_eq!(
         step,
         format!(
-            "run `{restore_from_head}` to put back the committed archive, then `specsync change status '{id}'`"
+            "run `{restore_from_head}` to put back the committed archive, then `specsync change status -- '{id}'`"
         )
     );
     assert_eq!(
@@ -4195,13 +4196,13 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         .unwrap()
         .to_string();
     let find_archiving_commit =
-        format!("git log -1 --diff-filter=A --format=%H -- '{package}/state.json'");
+        format!("git log -1 --diff-filter=A --format=%H -- ':(literal){package}/state.json'");
     let restore_from_commit =
-        format!("git restore --source=<commit> --staged --worktree -- '{package}'");
+        format!("git restore --source=<commit> --staged --worktree -- ':(literal){package}'");
     assert_eq!(
         step,
         format!(
-            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status '{id}'`"
+            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status -- '{id}'`"
         )
     );
     assert_eq!(json["summary"]["next_action"], step);
@@ -4248,7 +4249,7 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         .to_string();
     assert!(
         step.starts_with(&format!(
-            "run `specsync change status '{id}' --json`, restore what its `"
+            "run `specsync change status --json -- '{id}'`, restore what its `"
         )),
         "the step reads the status JSON when no package restore would help: {step}"
     );

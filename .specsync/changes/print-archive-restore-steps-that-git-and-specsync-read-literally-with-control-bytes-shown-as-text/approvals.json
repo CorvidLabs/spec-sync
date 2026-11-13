@@ -45,7 +45,70 @@
         "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
         "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794544633,
+      "digest": "be4f489119780052978930061b36fe5f465064e043c0712f6c006b833bce15ec",
+      "note": "Re-approval after a send-back under Leif's file-list rule. What the change does and the REQ-change-093 delta are unchanged. Added files: src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs, src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs and tests/integration/change.rs, three existing tests that pin the old printed restore text. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "print-archive-restore-steps-that-git-and-specsync-read-literally-with-control-bytes-shown-as-text",
+        "title": "Print archive restore steps that Git and SpecSync read literally, with control bytes shown as text",
+        "description": "Print archive restore steps that Git and SpecSync read literally, with control bytes shown as text",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+          "src/change_tests/literal_guidance.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "the printed corrupt-archive restore puts back only the named package when its path holds * or ?, and the printed archiving-commit lookup and the probes read it literally; every printed specsync change status command reads an id that begins with - as the id; a package path holding a newline or escape byte is printed with no control byte and, run through bash, still restores that exact directory"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "#901: every word interpolated into a printed step is quoted as one shell word and the step is built from literals, the id and the package path only, never a digest; CHANGE-7.a.2: the printed step is the exact restore command",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "fb2d9e8cea58b6c9d82a0869af94aef198f4e5b6eacb055042e6d120128e6b36"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-093": "5be6cdfa1426136fad46bed89ac8f112707aa60c96414f137edd02048e12ee90"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Original approval: asked 'SpecSync #929, #930 and #931 as one PR: the printed archive-restore command can't touch other archives, can't misread an id that starts with -, and can't print raw terminal control bytes. It adds one acceptance line under your earlier Capture both decision. Approve?', he chose \"Approve (Recommended)\" (option text: 'I checked the wording and it matches. t38p builds it.'). File-list rule: asked 'Standing rule? Sometimes an approved change turns out to touch a few more files than its list says, for example old tests that pin the printed text. The work itself is unchanged. May agents send it back and re-approve it under your original words, with a note listing the added files, instead of asking you each time? It's happening now for SpecSync #929-931 and #982.', he chose \"Yes, standing rule (Recommended)\" (option text: 'Only when what the change does stays the same. Anything that changes its meaning still comes to you.').",
+        "where": "coordinator chat (Claude Code, hc t370): original approval 2026-11-13T04:03Z, file-list rule 2026-11-13T04:35Z; both relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "print-archive-restore-steps-that-git-and-specsync-read-literally-with-control-bytes-shown-as-text",
+      "actor": "0xLeif",
+      "reason": "Only the file list grows; what the change does is unchanged: three existing tests pin the old printed restore text and are updated to the new literal, -- form (src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs, src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs, tests/integration/change.rs). Sent back under Leif's FILE-LIST RULE (coordinator chat, Claude Code hc t370, 2026-11-13T04:35Z, relayed by claude-code-t370): he chose \"Yes, standing rule (Recommended)\" ('Only when what the change does stays the same. Anything that changes its meaning still comes to you.'). Recorded by claude-code-t38p (Claude Opus 5.5, hc t38p).",
+      "timestamp": 1794544630,
+      "from_state": "approved",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": false
+    }
+  ]
 }

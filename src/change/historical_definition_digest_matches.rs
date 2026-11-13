@@ -4020,24 +4020,56 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
 /// away; when the damage is committed, the commit that archived the package holds them; when the
 /// package is intact, the failing evidence is elsewhere and the status JSON names it. Built from
 /// literals, the change ID and the package path only — never a digest — and every interpolated
-/// word is shell-quoted, because a change ID or archive directory may carry `;`, `$` or spaces and
-/// the step is meant to be copied into a shell (#901 review).
+/// word is quoted as one shell word, because a change ID or archive directory may carry `;`, `$`
+/// or spaces and the step is meant to be copied into a shell (#901 review). Each package path is a
+/// literal Git pathspec (#929), each status command puts `--` before the ID so an ID that begins
+/// with `-` is not read as a flag (#930), and a control byte in a directory name is printed as an
+/// escape that bash still reads as that byte (#931, CHANGE-7.b).
 fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
-    let status = format!("specsync change status {}", shell_quote(id));
+    let id = printable_shell_word(id);
+    let status = format!("specsync change status -- {id}");
+    let literal = |path: &str| printable_shell_word(&literal_pathspec(path));
     match corrupt {
         CorruptArchive::DiffersFromHead { package } => format!(
             "run `git restore --source=HEAD --staged --worktree -- {}` to put back the committed archive, then `{status}`",
-            shell_quote(package)
+            literal(package)
         ),
         CorruptArchive::DamageCommitted { package } => format!(
             "run `git restore --source=<commit> --staged --worktree -- {}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {}`), commit the restore, then run `{status}`",
-            shell_quote(package),
-            shell_quote(&format!("{package}/state.json"))
+            literal(package),
+            literal(&format!("{package}/state.json"))
         ),
         CorruptArchive::OutsidePackage => format!(
-            "run `{status} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
+            "run `specsync change status --json -- {id}`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
         ),
     }
+}
+
+/// `text` as one shell word for a printed step: what `shell_quote` gives when it holds no control
+/// character. Otherwise it is written in `$'...'` quoting, with `\\`, `\'` and a `\xHH` escape for
+/// each byte of each control character, so the printed step holds no control byte and cannot add
+/// lines or terminal commands to the output, while bash still reads the exact name (#931,
+/// CHANGE-7.b).
+fn printable_shell_word(text: &str) -> String {
+    if !text.chars().any(char::is_control) {
+        return shell_quote(text);
+    }
+    let mut word = String::from("$'");
+    for character in text.chars() {
+        match character {
+            '\\' => word.push_str("\\\\"),
+            '\'' => word.push_str("\\'"),
+            control if control.is_control() => {
+                let mut bytes = [0_u8; 4];
+                for byte in control.encode_utf8(&mut bytes).as_bytes() {
+                    word.push_str(&format!("\\x{byte:02x}"));
+                }
+            }
+            other => word.push(other),
+        }
+    }
+    word.push('\'');
+    word
 }
 
 /// Single-quotes `text` as one POSIX shell word: nothing inside single quotes is expanded, and an
@@ -4093,7 +4125,14 @@ fn corrupt_archive_signal(
     let state = format!("{package}/state.json");
     let archiving_commit = crate::git_utils::output_after_child_exits(
         Command::new("git")
-            .args(["log", "-1", "--diff-filter=A", "--format=%H", "--", &state])
+            .args([
+                "log",
+                "-1",
+                "--diff-filter=A",
+                "--format=%H",
+                "--",
+                &literal_pathspec(&state),
+            ])
             .current_dir(root),
     )
     .ok()
@@ -4109,14 +4148,20 @@ fn corrupt_archive_signal(
 }
 
 /// Whether the tracked content of `package` (relative to `root`) differs from `commit`, staged
-/// or not. Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly then.
+/// or not. Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly then. The
+/// package is one literal path, so `*`, `?` and `[` in it match only that package (#929).
 fn archive_package_differs_from(root: &Path, commit: &str, package: &str) -> bool {
     crate::git_utils::status_without_inherited_output(
         Command::new("git")
-            .args(["diff", "--quiet", commit, "--", package])
+            .args(["diff", "--quiet", commit, "--", &literal_pathspec(package)])
             .current_dir(root),
     )
     .is_ok_and(|status| status.code() == Some(1))
+}
+
+/// `path` as one literal Git pathspec, relative to the directory Git runs in (#929).
+fn literal_pathspec(path: &str) -> String {
+    format!(":(literal){path}")
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,

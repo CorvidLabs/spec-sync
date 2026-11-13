@@ -10,14 +10,17 @@
   "state": "approved",
   "base_commit": "247b6d2a62b93c7f24cbafb56c93e754f9edf85c",
   "created_at": 1794542177,
-  "updated_at": 1794542667,
+  "updated_at": 1794544633,
   "affected_specs": [
     "change"
   ],
   "affected_paths": [
     "src/change/historical_definition_digest_matches.rs",
     "src/change_tests.rs",
-    "src/change_tests/literal_guidance.rs"
+    "src/change_tests/literal_guidance.rs",
+    "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+    "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+    "tests/integration/change.rs"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

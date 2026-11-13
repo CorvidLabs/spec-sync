@@ -11,7 +11,7 @@ artifact: design
   word is still one quoted word.
 - Change id: the printed status commands become `specsync change status -- '<id>'` and
   `specsync change status --json -- '<id>'`, with options before `--`.
-- Control bytes: a new `shell_word` quotes a word that holds no control byte exactly as
+- Control bytes: a new `printable_shell_word` quotes a word that holds no control byte exactly as
   `shell_quote` does today (single quotes; `'` as `'\\''`). A word that holds one is written as
   `$'…'`, with `\\\\`, `\\'` and `\\xHH` for each control byte (C0 and DEL). So the printed
   step holds no control byte, and bash still reads the exact name. Only `corrupt_archive_recovery`

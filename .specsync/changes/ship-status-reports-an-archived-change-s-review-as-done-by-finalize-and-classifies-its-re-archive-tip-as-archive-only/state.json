@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+  "slug": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+  "title": "Ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+  "description": "ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794545423,
+  "updated_at": 1794545427,
+  "affected_specs": [
+    "cmd_change",
+    "change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "src/change/consider_accepted_evidence_anchor.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-cmd-change-007's tip class mirrors CI's archive-only lane, which counts the archived change's own package paths as archive work; SHIP-9.a names the one command when it is not time, never a review that refuses. Leif classed #1038 a bug fix on 2026-11-13: for an archived change, report the review as done by finalize and suggest nothing",
+  "acceptance_criteria": [
+    "on an archived change whose archive authenticates, ship-status reports review_currency current with a finalize reason, a done review stage and no change review suggestion; an archive commit that also removes the archived change's own package files is archive_only, and another change's package beside it is product"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

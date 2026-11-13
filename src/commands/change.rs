@@ -5880,6 +5880,85 @@ if the floor call is removed from this function"
         );
     }
 
+    /// #1038: an archive commit that also removes the change's own package files under
+    /// `.specsync/changes/<id>/` (Git pairs no rename because the archive package already exists,
+    /// as after a reopen) is still archive work, as CI's classify-ci-paths.sh counts it by the
+    /// archive's `state.json` id. Another change's package beside it is not.
+    #[test]
+    fn an_archive_tip_that_removes_its_own_package_files_is_archive_only() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_in(root, &["init", "-q", "-b", "main"]);
+        git_in(root, &["config", "user.email", "t@example.com"]);
+        git_in(root, &["config", "user.name", "T"]);
+        let active = root.join(".specsync/changes/release");
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&active).unwrap();
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(active.join("change.md"), "# reopened\n").unwrap();
+        fs::write(active.join("tasks.md"), "- [x] done\n").unwrap();
+        fs::write(
+            archive.join("state.json"),
+            r#"{"id":"release","state":"archived"}"#,
+        )
+        .unwrap();
+        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "reopened"]);
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
+
+        // A different change's package in the same commit is not this archive's work.
+        let other = root.join(".specsync/changes/other");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("change.md"), "# other\n").unwrap();
+        fs::write(archive.join("finalization.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "archive beside another change"],
+        );
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+    }
+
+    /// #1038 (Leif, 2026-11-13: "For an archived change, report the review as done by finalize and
+    /// suggest nothing."). `change review` refuses an archived change, and finalize already
+    /// required a current review, so ship-status must not call it stale or suggest re-recording it.
+    #[test]
+    fn an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        change::finalize_change(root, &id).expect("finalize");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        assert_eq!(report["review_currency"], "current", "{report}");
+        let review = report["stages"]
+            .as_array()
+            .expect("stages")
+            .iter()
+            .find(|stage| stage["id"] == "review_tip")
+            .expect("review stage");
+        assert_eq!(review["status"], "done", "{report}");
+        for text in [review["action"].to_string(), report["blockers"].to_string()] {
+            assert!(
+                !text.contains("change review"),
+                "an archived change is told to re-review: {text}"
+            );
+        }
+    }
+
     /// #687: the warning must name the cost that lands on OTHER changes, not only this one.
     /// Pins the disclosure so a future refactor cannot quietly shrink it back to "strands the
     /// change", which under-prices the decision it exists to inform.

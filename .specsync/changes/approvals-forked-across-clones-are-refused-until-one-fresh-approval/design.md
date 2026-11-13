@@ -18,6 +18,9 @@ use, gains `ensure_approval_history_not_forked`, beside the send-back history ch
   refusal names both commits, the approvers at the point they diverge, and
   `specsync change approve <id> --actor <name>`.
 - `change approve` does not run this validation, so the recovery is always available.
+- An archived change is not judged again: its finalization evidence binds the ledger it closed
+  on and it can no longer be approved, so a fork its history settled must not fail every later
+  audit. `change audit --strict --archives` on main passes with this build.
 
 Rejected: a network lock (the issue makes it optional; it cannot cover offline clones), and
 refusing at merge time (SpecSync does not run at merge).

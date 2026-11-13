@@ -134,6 +134,8 @@ so `change status` points back to `change check`.
 
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
+Two clones can approve the same change at once, since the project lock covers one working tree. Once their branches merge, history holds two approvals ledgers that neither extends. `change check`, `change audit` and `change status` then refuse the change, naming both approvers, until one fresh approval is recorded on the merged branch with `specsync change approve <id> --actor <name>`. An approval that only appends to an earlier ledger is not a fork, and an archived change is not judged again.
+
 `change finalize` requires current verification and scoped review, writes finalization evidence,
 and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. That command commits
 the move as `chore(lifecycle): archive <id>`. Run `review` and `finalize` (or `ship`)

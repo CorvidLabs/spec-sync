@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Red-first unit test: worker-path cutoff verdicts are kept in the read cache
-- [ ] Check the cutoff on the command thread before the workers start
+- [x] Check the cutoff on the command thread before the workers start
 - [ ] Targeted fast-archived-read tests, fmt and clippy

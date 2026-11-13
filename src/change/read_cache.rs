@@ -984,6 +984,16 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
         .min(pending.len());
     let next = AtomicU64::new(0);
     let results: Mutex<Vec<(usize, Result<(), String>)>> = Mutex::new(Vec::new());
+    // The trusted pre-v2 cutoff is checked here, on the command thread, for every pending
+    // workflow-v1 archive before any worker starts. Each presence lands in the persistent read
+    // cache, which only this thread can reach, and the seed below hands the workers the Git
+    // answers, so no worker reads the cutoff tree again (REQ-change-136, #978). A refusal is
+    // left for the worker's own check to report, with its message.
+    for (_, record) in &pending {
+        if record.workflow_version == 1 {
+            let _ = validate_workflow_v2_baseline(root, record);
+        }
+    }
     // Workers only read, so each starts from what this command already knows about the
     // repository and memoizes its own reads (REQ-git-utils-011).
     let seed = crate::git_utils::repository_fact_seed(root);

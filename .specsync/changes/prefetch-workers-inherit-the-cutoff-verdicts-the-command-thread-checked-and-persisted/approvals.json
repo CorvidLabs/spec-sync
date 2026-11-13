@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794578680,
+      "digest": "40e9641878a11bc860091ca0a20e267e0670f3a1526b751753418b82b430ab4d",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: prefetch workers leave every cutoff verdict in the read cache, as REQ-change-136 requires; output unchanged. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "prefetch-workers-inherit-the-cutoff-verdicts-the-command-thread-checked-and-persisted",
+        "title": "Prefetch workers inherit the cutoff verdicts the command thread checked and persisted",
+        "description": "Prefetch workers inherit the cutoff verdicts the command thread checked and persisted",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/read_cache.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-136 says whether a workflow-v1 change existed at the trusted pre-v2 cutoff is read from the cutoff tree once per command and kept in the persistent read cache; prefetch workers each read the cutoff tree again and kept nothing, because only the command thread reaches the cache (#978)",
+        "acceptance_criteria": [
+          "after a cold archived status whose archives are checked by prefetch workers, the persistent read cache holds the cutoff verdict of every workflow-v1 archive; verdicts and refusals are unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Two SpecSync speed bugs, with the same output, matching the spec. Approve their scope?', he selected \"#978 keep verdicts cached\" and \"#574 fast check\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

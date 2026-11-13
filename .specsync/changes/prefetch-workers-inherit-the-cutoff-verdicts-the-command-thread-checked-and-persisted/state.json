@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "workflow_version": 2,
+  "workflow_version": 3,
   "workflow_origin_version": 2,
   "id": "prefetch-workers-inherit-the-cutoff-verdicts-the-command-thread-checked-and-persisted",
   "slug": "prefetch-workers-inherit-the-cutoff-verdicts-the-command-thread-checked-and-persisted",
   "title": "Prefetch workers inherit the cutoff verdicts the command thread checked and persisted",
   "description": "Prefetch workers inherit the cutoff verdicts the command thread checked and persisted",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
   "created_at": 1794546765,
-  "updated_at": 1794546769,
+  "updated_at": 1794578680,
   "affected_specs": [
     "change"
   ],

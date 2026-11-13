@@ -807,3 +807,94 @@ fn a_send_back_answers_review_order_by_attempt_count_and_falls_back_to_time() {
     let parsed: SendBackRecord = serde_json::from_str(&bytes).unwrap();
     assert_eq!(parsed, legacy);
 }
+
+// #844 item 4, #1070 (REQ-change-161): a spec split moved a requirement into `sessions` while
+// `auth` still owns the code. A change declares both modules with a delta only for `sessions`;
+// `auth` is a code-only module, allowed because it owns one of the change's files.
+
+const SESSIONS_DELTA: &str = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nSessions track logins.\n";
+
+/// A second module, `sessions`, owning `src/session.rs`.
+fn sessions_spec(root: &Path) {
+    fs::create_dir_all(root.join("specs/sessions")).unwrap();
+    fs::write(root.join("src/session.rs"), "// Sessions.\n").unwrap();
+    let auth = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    fs::write(
+        root.join("specs/sessions/sessions.spec.md"),
+        auth.replace("module: auth", "module: sessions")
+            .replace("src/auth.rs", "src/session.rs")
+            .replace("# Auth\n\n## Purpose\n\nAuth.", "# Sessions\n\n## Purpose\n\nSessions."),
+    )
+    .unwrap();
+}
+
+/// A draft declaring `auth` and `sessions` over `paths`, with a delta for `sessions` only.
+fn split_scope_draft(root: &Path, paths: &str) -> ChangeRecord {
+    let record = completed_section_only_current_record(root, SEND_BACK_DELTA);
+    sessions_spec(root);
+    answer_question(root, &record.id, "affected_specs", "auth,sessions").unwrap();
+    answer_question(root, &record.id, "affected_paths", paths).unwrap();
+    answer_question(root, &record.id, "constraints", "none").unwrap();
+    fs::remove_file(delta_path(root, &record, "auth")).unwrap();
+    fs::write(delta_path(root, &record, "sessions"), SESSIONS_DELTA).unwrap();
+    load_change(root, &record.id).unwrap()
+}
+
+#[test]
+fn a_module_that_owns_a_changed_file_may_be_declared_without_a_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = split_scope_draft(root, "src/auth.rs");
+    let auth_before = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    start_implementation(root, &record.id).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    verify_change(root, &record.id).unwrap();
+    let accepted = accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap();
+    assert_eq!(accepted.state, ChangeState::Accepted);
+
+    let sessions = fs::read_to_string(root.join("specs/sessions/sessions.spec.md")).unwrap();
+    assert!(sessions.contains("Sessions track logins."), "{sessions}");
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        auth_before,
+        "a code-only module's spec is not edited"
+    );
+}
+
+#[test]
+fn a_module_with_no_delta_that_owns_none_of_the_files_is_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = split_scope_draft(root, "src/session.rs");
+    let refused = approve_definition(root, &record.id, Some("Scope owner".into()), None)
+        .unwrap_err();
+    assert!(
+        refused.contains("auth") && refused.contains("delta"),
+        "a module with no delta must own one of the change's files: {refused}"
+    );
+}
+
+// REQ-change-161: dropping an approved delta after approval does not turn its module into a
+// code-only one; the approval covered that wording, so the change is refused until approved again.
+#[test]
+fn an_approved_delta_deleted_later_is_still_a_changed_delta() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(root, SEND_BACK_DELTA);
+    sessions_spec(root);
+    answer_question(root, &record.id, "affected_specs", "auth,sessions").unwrap();
+    answer_question(root, &record.id, "affected_paths", "src/auth.rs").unwrap();
+    answer_question(root, &record.id, "constraints", "none").unwrap();
+    fs::write(delta_path(root, &record, "sessions"), SESSIONS_DELTA).unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    start_implementation(root, &record.id).unwrap();
+
+    fs::remove_file(delta_path(root, &record, "auth")).unwrap();
+    let refused = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(
+        refused.contains("auth") && refused.contains("changed after approval"),
+        "{refused}"
+    );
+}

@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] A failing unit test first.
-- [ ] `recorded_claims` checks the review attempt ledger's relays.
-- [ ] Targeted tests, the full suite, `change audit` and `check --strict` before review.
+- [x] `recorded_claims` checks the review attempt ledger's relays.
+- [x] Targeted tests, the full suite, `change audit` and `check --strict` before review.

@@ -38,6 +38,35 @@ mod tests {
         );
     }
 
+    /// #613 (Leif, orc relay, 2026-11-06: "excluded means ignored"): a flat source file that
+    /// `exclude_patterns` excludes never names a module, so coverage asks no spec for it, while a
+    /// flat file that is kept still does.
+    #[test]
+    fn an_excluded_flat_source_file_names_no_module() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("kept.ts"), "export function kept() {}\n").unwrap();
+        fs::write(src.join("generated.ts"), "export function generated() {}\n").unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            exclude_patterns: vec!["**/generated.ts".to_string()],
+            ..SpecSyncConfig::default()
+        };
+        let report = compute_coverage_checked(tmp.path(), &[], &config).unwrap();
+        assert_eq!(report.total_source_files, 1, "{:?}", report.unspecced_modules);
+        assert!(
+            report.unspecced_modules.iter().any(|module| module == "kept"),
+            "{:?}",
+            report.unspecced_modules
+        );
+        assert!(
+            !report.unspecced_modules.iter().any(|module| module == "generated"),
+            "an excluded file must name no module: {:?}",
+            report.unspecced_modules
+        );
+    }
+
     /// #612: configured modules come from a `HashMap`, so their order used to vary
     /// between runs. Eight unspecced modules make an accidentally sorted order
     /// vanishingly unlikely on the old code.

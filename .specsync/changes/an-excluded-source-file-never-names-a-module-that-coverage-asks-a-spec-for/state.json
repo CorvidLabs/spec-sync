@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "an-excluded-source-file-never-names-a-module-that-coverage-asks-a-spec-for",
+  "slug": "an-excluded-source-file-never-names-a-module-that-coverage-asks-a-spec-for",
+  "title": "An excluded source file never names a module that coverage asks a spec for",
+  "description": "An excluded source file never names a module that coverage asks a spec for",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794554395,
+  "updated_at": 1794554403,
+  "affected_specs": [
+    "validator"
+  ],
+  "affected_paths": [
+    "src/validator/tests.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Applies Leif's decision on #613 (orc relay, 2026-11-06: excluded means ignored) and the documented meaning of exclude_patterns (additive source exclusions): the flat-file-stem block now skips an excluded file, as the coverage denominator already did. No requirement text changes.",
+  "acceptance_criteria": [
+    "A flat source file that exclude_patterns excludes names no unspecced module and asks for no spec, while a kept flat file still does (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542615,
+      "digest": "118ae2249ddba3cb8eb080b6fe2f1c1496ffad80b43024a7fa59ef9971b091d3",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: check --fix in a machine format prints its progress lines on stderr, so stdout is one JSON document. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-fix-keeps-stdout-one-json-document-in-machine-formats",
+        "title": "Check --fix keeps stdout one JSON document in machine formats",
+        "description": "check --fix keeps stdout one JSON document in machine formats",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check"
+        ],
+        "affected_paths": [
+          "src/commands/check.rs",
+          "tests/integration/fix.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "cmd_check's acceptance criteria say JSON output is a single object with passed, errors, warnings, stale and specs_checked; check --fix and --fix --dry-run printed per-spec progress lines on stdout before it (#475)",
+        "acceptance_criteria": [
+          "check --fix --json and check --strict --force --fix --dry-run --json print exactly one JSON document on stdout, and each per-spec added or would-add line on stderr; text output is unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Four more SpecSync bug fixes (each matches the spec, with failing tests written). Approve their scope?', he selected all four: \"#990 odd folder names\", \"#475 clean JSON\", \"#432 adopt dry run\" and \"#982 retry history index\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

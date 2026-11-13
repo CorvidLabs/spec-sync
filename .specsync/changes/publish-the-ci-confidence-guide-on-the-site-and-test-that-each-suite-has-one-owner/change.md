@@ -1,6 +1,6 @@
 ---
 id: publish-the-ci-confidence-guide-on-the-site-and-test-that-each-suite-has-one-owner
-state: approved
+state: implementing
 type: documentation
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

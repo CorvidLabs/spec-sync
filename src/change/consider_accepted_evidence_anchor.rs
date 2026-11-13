@@ -4835,14 +4835,14 @@ const MAX_DELIVERY_BLOB_HEADER_BYTES: u64 = 256;
 /// One `git cat-file --batch` child that returns one clean delivery blob per request, so the
 /// acceptance evidence holds at most one blob at a time however large its scope is
 /// (REQ-change-144). Each blob is bounded by `git_evidence_object_cap()`, checked from its header
-/// before any payload is read. The whole stream is bounded by the Git command deadline.
+/// before any payload is read. Each read is bounded by the Git command deadline; the manifest
+/// work the caller does between reads is not, since it is not Git's (#991).
 struct DeliveryBlobStream {
     child: Arc<Mutex<std::process::Child>>,
     stdin: Option<std::process::ChildStdin>,
     stdout: std::io::BufReader<std::process::ChildStdout>,
-    finished: Option<std::sync::mpsc::Sender<()>>,
-    watchdog: Option<std::thread::JoinHandle<()>>,
-    timed_out: Arc<AtomicBool>,
+    deadline: std::time::Duration,
+    watchdog: crate::git_utils::BatchWatchdog,
 }
 
 impl DeliveryBlobStream {
@@ -4869,32 +4869,27 @@ impl DeliveryBlobStream {
             return Err("failed to capture Git stdout".into());
         };
         let child = Arc::new(Mutex::new(child));
-        let timed_out = Arc::new(AtomicBool::new(false));
-        let (finished, until_finished) = std::sync::mpsc::channel::<()>();
-        let watched = Arc::clone(&child);
-        let expired = Arc::clone(&timed_out);
-        let watchdog = std::thread::spawn(move || {
-            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
-                until_finished.recv_timeout(deadline)
-            {
-                expired.store(true, Ordering::Release);
-                if let Ok(mut child) = watched.lock() {
-                    let _ = child.kill();
-                }
-            }
-        });
+        let watchdog = crate::git_utils::BatchWatchdog::start(Arc::clone(&child));
         Ok(Self {
             child,
             stdin,
             stdout: std::io::BufReader::new(stdout),
-            finished: Some(finished),
-            watchdog: Some(watchdog),
-            timed_out,
+            deadline,
+            watchdog,
         })
     }
 
     /// The bytes of the clean delivery input `relative`, whose index names Git object `object`.
+    /// The deadline is armed for this read alone.
     fn read(&mut self, relative: &str, object: &str) -> Result<Vec<u8>, String> {
+        self.watchdog
+            .set(Some(std::time::Instant::now() + self.deadline));
+        let read = self.read_unwatched(relative, object);
+        self.watchdog.set(None);
+        read
+    }
+
+    fn read_unwatched(&mut self, relative: &str, object: &str) -> Result<Vec<u8>, String> {
         use std::io::BufRead;
         if object.is_empty() || object.bytes().any(|byte| byte.is_ascii_whitespace()) {
             return Err(format!(
@@ -4902,9 +4897,10 @@ impl DeliveryBlobStream {
             ));
         }
         let failed = |stream: &Self, error: std::io::Error| {
-            if stream.timed_out.load(Ordering::Acquire) {
+            if stream.watchdog.expired() {
                 format!(
-                    "`git cat-file --batch` exceeded its {GIT_COMMAND_DEADLINE:?} wall-clock deadline while reading delivery input `{relative}`"
+                    "`git cat-file --batch` exceeded its {:?} wall-clock deadline while reading delivery input `{relative}`",
+                    stream.deadline
                 )
             } else {
                 format!("failed to read delivery input `{relative}` from Git: {error}")
@@ -4979,12 +4975,6 @@ impl DeliveryBlobStream {
 impl Drop for DeliveryBlobStream {
     fn drop(&mut self) {
         drop(self.stdin.take());
-        if let Some(finished) = self.finished.take() {
-            let _ = finished.send(());
-        }
-        if let Some(watchdog) = self.watchdog.take() {
-            let _ = watchdog.join();
-        }
         if let Ok(mut child) = self.child.lock() {
             if !matches!(child.try_wait(), Ok(Some(_))) {
                 let _ = child.kill();

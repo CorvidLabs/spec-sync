@@ -1009,8 +1009,9 @@ struct ObjectBatch {
 }
 
 /// Kills the batch child when an armed lookup outlives its deadline, so a stalled object store
-/// cannot hang the command; the blocked read then sees the pipe close and fails.
-struct BatchWatchdog {
+/// cannot hang the command; the blocked read then sees the pipe close and fails. Only an armed
+/// read counts against the deadline, never the caller's work between reads (#991).
+pub(crate) struct BatchWatchdog {
     state: std::sync::Arc<(std::sync::Mutex<WatchdogState>, std::sync::Condvar)>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -1019,10 +1020,12 @@ struct BatchWatchdog {
 struct WatchdogState {
     armed_until: Option<std::time::Instant>,
     closed: bool,
+    expired: bool,
 }
 
 impl BatchWatchdog {
-    fn start(child: std::sync::Arc<std::sync::Mutex<std::process::Child>>) -> Self {
+    /// Watch `child`, unarmed until the first `set`.
+    pub(crate) fn start(child: std::sync::Arc<std::sync::Mutex<std::process::Child>>) -> Self {
         let state = std::sync::Arc::new((
             std::sync::Mutex::new(WatchdogState::default()),
             std::sync::Condvar::new(),
@@ -1039,6 +1042,7 @@ impl BatchWatchdog {
                     Some(until) => {
                         let now = std::time::Instant::now();
                         if now >= until {
+                            current.expired = true;
                             if let Ok(mut child) = child.lock() {
                                 let _ = child.kill();
                             }
@@ -1062,12 +1066,19 @@ impl BatchWatchdog {
         }
     }
 
-    fn set(&self, armed_until: Option<std::time::Instant>) {
+    /// Arm the deadline for one read, or disarm it with `None` once the read is done.
+    pub(crate) fn set(&self, armed_until: Option<std::time::Instant>) {
         let (lock, wake) = &*self.state;
         if let Ok(mut current) = lock.lock() {
             current.armed_until = armed_until;
             wake.notify_all();
         }
+    }
+
+    /// Whether an armed read outlived its deadline and the child was killed.
+    pub(crate) fn expired(&self) -> bool {
+        let (lock, _) = &*self.state;
+        lock.lock().map(|current| current.expired).unwrap_or(false)
     }
 }
 
@@ -2147,6 +2158,27 @@ mod tests {
             started.elapsed() < std::time::Duration::from_secs(10),
             "the read gave up after {:?}",
             started.elapsed()
+        );
+    }
+
+    // #991: time between reads never counts against the deadline, and a reader can tell its
+    // read failed because the watchdog fired.
+    #[test]
+    fn the_watchdog_counts_only_armed_reads_and_says_when_it_fired() {
+        let mut batch = ObjectBatch::start_with_deadline(
+            fake_batch("exec sleep 30"),
+            std::time::Duration::from_millis(200),
+        )
+        .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert!(
+            !batch.watchdog.expired(),
+            "the watchdog fired while unarmed"
+        );
+        assert!(batch.read("HEAD:a.txt", usize::MAX).is_err());
+        assert!(
+            batch.watchdog.expired(),
+            "the stalled read was not killed by the watchdog"
         );
     }
 

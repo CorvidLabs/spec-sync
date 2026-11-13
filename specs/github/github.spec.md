@@ -1,6 +1,6 @@
 ---
 module: github
-version: 56
+version: 57
 status: stable
 files:
   - src/github.rs
@@ -261,3 +261,4 @@ Git reads in this module run through `git_utils::output_after_child_exits`, so a
 | 2026-11-07 | run-clippy-on-every-target-in-ci-and-the-verify-lane-and-clear-the-test-code-lints-it-finds: Run clippy on every target in CI and the verify lane, and clear the test-code lints it finds |
 | 2026-11-09 | v54: The clippy-all-targets guard splits shell commands at control operators before validating flags and holds all five linting lanes (`check`, `pre-commit`, `verify`, `ci`, `repo`) to the `lint` task (CI-8, REQ-github-028, #1007 review). |
 | 2026-11-12 | advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0: Advance the Action default and current guidance to published SpecSync 6.3.0 |
+| 2026-11-13 | the-github-action-checks-the-release-archive-against-a-sha-256-the-consumer-pins-per-platform: The GitHub Action checks the release archive against a SHA-256 the consumer pins per platform |

@@ -3285,9 +3285,19 @@ fn workflow_v1_record_present_in_cutoff_tree(
     // archive tree is there but cannot be read (an offline partial clone that never fetched it),
     // and that is said, never answered as "absent" (REQ-change-145).
     if !listing.status.success() {
+        // A literal top-level pathspec, as the module's other history queries use (#851): a
+        // project directory named like pathspec magic, such as `:(exclude)app`, is one path (#990).
         let root_listing = run_git_bounded(
             root,
-            &["ls-tree", "--full-tree", "-z", "--name-only", cutoff, "--", &archive_root],
+            &[
+                "ls-tree",
+                "--full-tree",
+                "-z",
+                "--name-only",
+                cutoff,
+                "--",
+                &format!(":(top,literal){archive_root}"),
+            ],
             None,
             MAX_GIT_COMMAND_OUTPUT_BYTES,
         )?;

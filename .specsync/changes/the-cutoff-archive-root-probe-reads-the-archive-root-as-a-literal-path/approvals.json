@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542613,
+      "digest": "46c91152d70ac77f00d285cfc71cab0178335c83d4cbef07d08b5581ede63b49",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: a project folder whose name starts with pathspec magic no longer makes the cutoff check report history as unreadable. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-cutoff-archive-root-probe-reads-the-archive-root-as-a-literal-path",
+        "title": "The cutoff archive-root probe reads the archive root as a literal path",
+        "description": "The cutoff archive-root probe reads the archive root as a literal path",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/fast_archived_reads.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-145 and SPEED-1.a.3 require a cutoff without an archive root to read as absent and only an unreadable archive tree to be an error; a project directory beginning with pathspec magic made the fallback probe fail and report could not be read (#990)",
+        "acceptance_criteria": [
+          "for a project in a directory named :(exclude)app whose trusted cutoff has no archive root, the cutoff-tree check answers from the cutoff's own tree instead of reporting that the archive tree could not be read; an unreadable cutoff archive tree is still an error"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Four more SpecSync bug fixes (each matches the spec, with failing tests written). Approve their scope?', he selected all four: \"#990 odd folder names\", \"#475 clean JSON\", \"#432 adopt dry run\" and \"#982 retry history index\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

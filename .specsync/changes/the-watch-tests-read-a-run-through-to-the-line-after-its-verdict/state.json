@@ -7,10 +7,11 @@
   "title": "The watch tests read a run through to the line after its verdict",
   "description": "The watch tests read a run through to the line after its verdict",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
   "created_at": 1794542851,
-  "updated_at": 1794544686,
+  "updated_at": 1794553634,
   "affected_specs": [],
   "affected_paths": [
     "tests/integration/watch.rs",

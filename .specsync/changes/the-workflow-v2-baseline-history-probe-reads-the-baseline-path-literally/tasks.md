@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test: a never-committed baseline in a `:(exclude)app` project is absent, not deleted
 - [x] Pass the baseline to the probe as `:(top,literal)<path>`
-- [ ] Targeted baseline and fast-archived-read tests, fmt and clippy
+- [x] Targeted baseline and fast-archived-read tests, fmt and clippy

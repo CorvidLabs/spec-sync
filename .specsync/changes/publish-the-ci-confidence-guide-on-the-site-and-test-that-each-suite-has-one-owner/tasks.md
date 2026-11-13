@@ -5,4 +5,6 @@ artifact: tasks
 
 # Tasks
 
-<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->
+- [x] Red-first test: the guide is not on the site; the lane-ownership checks and their mutations
+- [ ] Move the guide to the site; leave a pointer in docs/
+- [ ] Fledge task and CI step for the test

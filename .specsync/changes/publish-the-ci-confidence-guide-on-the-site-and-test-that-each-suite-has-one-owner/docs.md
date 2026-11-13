@@ -5,4 +5,5 @@ artifact: docs
 
 # Docs
 
-<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->
+- New `site/src/content/docs/ci-confidence.md`: the guide, unchanged, with front matter (Reference, order 7).
+- `docs/ci-confidence.md`: a pointer to the site page, so existing links still resolve.

@@ -24,7 +24,7 @@ use std::process::{Command, Output};
 use tempfile::TempDir;
 
 /// One entry of a documented shell block.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Step {
     /// A command line to run exactly as written (continuations joined).
     Command(String),
@@ -383,22 +383,8 @@ impl Project {
             "`{add_spec}`: {}",
             describe(&output)
         );
-        let scaffolded = steps
-            .iter()
-            .position(|step| matches!(step, Step::Command(command) if *command == add_spec));
-        let filled_in = steps
-            .iter()
-            .position(|step| {
-                matches!(step, Step::Prose(prose) if prose.starts_with("fill in specs/auth/"))
-            })
-            .expect(
-            "the landing-page Quick Start tells the reader to fill in the `add-spec auth` \
-             scaffold (`# fill in specs/auth/ ...`); a strict verify lane refuses the scaffold",
-        );
-        assert!(
-            scaffolded.is_some_and(|scaffolded| scaffolded < filled_in),
-            "the Quick Start must say to fill in specs/auth/ after `{add_spec}` makes it"
-        );
+        quick_start_fill_in_position(steps, &add_spec)
+            .unwrap_or_else(|message| panic!("{message}"));
         for (path, body) in FILLED_AUTH_SCAFFOLD {
             project.write(path, body);
         }
@@ -648,6 +634,30 @@ impl Project {
             "JSON status next_action `{next}` does not name approval's {named}"
         );
     }
+}
+
+/// Where the landing-page Quick Start tells the reader to fill in the `add-spec auth` scaffold:
+/// after `add_spec` makes it (#906). Returns the fill-in step's position.
+fn quick_start_fill_in_position(steps: &[Step], add_spec: &str) -> Result<usize, String> {
+    let scaffolded = steps
+        .iter()
+        .position(|step| matches!(step, Step::Command(command) if command == add_spec));
+    let filled_in = steps
+        .iter()
+        .position(
+            |step| matches!(step, Step::Prose(prose) if prose.starts_with("fill in specs/auth/")),
+        )
+        .ok_or_else(|| {
+            "the landing-page Quick Start tells the reader to fill in the `add-spec auth` \
+             scaffold (`# fill in specs/auth/ ...`); a strict verify lane refuses the scaffold"
+                .to_string()
+        })?;
+    if !scaffolded.is_some_and(|scaffolded| scaffolded < filled_in) {
+        return Err(format!(
+            "the Quick Start must say to fill in specs/auth/ after `{add_spec}` makes it"
+        ));
+    }
+    Ok(filled_in)
 }
 
 /// What a reader writes when the landing page says to fill in the `add-spec auth` scaffold: the
@@ -1014,4 +1024,39 @@ fn approve_refusals_for_a_draft_created_without_scope_name_the_scope_answers() {
             "a draft without scope must be told to answer `{question}`; named {named:?}"
         );
     }
+}
+
+/// #968: the Quick Start's fill-in step comes after `add-spec auth` makes the scaffold and before
+/// the first `specsync check --strict`, which refuses an untouched scaffold. The page as written
+/// passes; the same page with the fill-in line moved below the strict check fails.
+#[test]
+fn the_quick_start_fills_in_the_scaffold_before_the_first_strict_check() {
+    let (quick_start, _) = landing_page_steps();
+    let add_spec = quick_start
+        .iter()
+        .find_map(|step| match step {
+            Step::Command(command) if command.starts_with("specsync add-spec auth") => {
+                Some(command.clone())
+            }
+            _ => None,
+        })
+        .expect("the landing-page Quick Start has a `specsync add-spec auth` line");
+    quick_start_fill_in_position(&quick_start, &add_spec).unwrap();
+
+    let mut moved = quick_start.clone();
+    let at = moved
+        .iter()
+        .position(
+            |step| matches!(step, Step::Prose(prose) if prose.starts_with("fill in specs/auth/")),
+        )
+        .expect("the fill-in line");
+    let fill_in = moved.remove(at);
+    let strict = moved
+        .iter()
+        .position(|step| matches!(step, Step::Command(command) if command.starts_with("specsync check --strict")))
+        .expect("the landing-page Quick Start runs `specsync check --strict`");
+    moved.insert(strict + 1, fill_in);
+    let error = quick_start_fill_in_position(&moved, &add_spec)
+        .expect_err("a fill-in line below the first strict check must fail");
+    assert!(error.contains("specsync check --strict"), "{error}");
 }

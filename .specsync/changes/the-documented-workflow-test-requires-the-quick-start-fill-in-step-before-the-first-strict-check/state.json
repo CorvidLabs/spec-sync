@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "the-documented-workflow-test-requires-the-quick-start-fill-in-step-before-the-first-strict-check",
+  "slug": "the-documented-workflow-test-requires-the-quick-start-fill-in-step-before-the-first-strict-check",
+  "title": "The documented-workflow test requires the Quick Start fill-in step before the first strict check",
+  "description": "The documented-workflow test requires the Quick Start fill-in step before the first strict check",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794541748,
+  "updated_at": 1794542302,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/documented_workflows.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "A test-only fix: the documented-workflow test checked the landing-page fill-in step only against add-spec, so a page that told readers to run check --strict on the untouched scaffold would still pass (DOCS-1). No spec or requirement text changes.",
+  "acceptance_criteria": [
+    "The documented-workflow test fails when the landing-page Quick Start's fill-in line comes after the first specsync check --strict, and passes for the page as written (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

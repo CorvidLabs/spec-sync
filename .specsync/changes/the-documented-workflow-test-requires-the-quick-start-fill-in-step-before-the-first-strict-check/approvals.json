@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542302,
+      "digest": "67e89d57a7c26b5e3d7340e65a39b808e6e2425675d3a0027619852162c9c0fd",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-documented-workflow-test-requires-the-quick-start-fill-in-step-before-the-first-strict-check",
+        "title": "The documented-workflow test requires the Quick Start fill-in step before the first strict check",
+        "description": "The documented-workflow test requires the Quick Start fill-in step before the first strict check",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "tests/integration/documented_workflows.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A test-only fix: the documented-workflow test checked the landing-page fill-in step only against add-spec, so a page that told readers to run check --strict on the untouched scaffold would still pass (DOCS-1). No spec or requirement text changes.",
+        "acceptance_criteria": [
+          "The documented-workflow test fails when the landing-page Quick Start's fill-in line comes after the first specsync check --strict, and passes for the page as written (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "#968 docs test",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:57Z, relayed by claude-code-t370. Asked: 'Four SpecSync bug fixes, each matching what the spec already says, with failing tests written. Approve their scope?' He selected all of \"#1012 quoted dates\", \"#972 escape names\", \"#974 check old reviews\" and \"#968 docs test\".",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

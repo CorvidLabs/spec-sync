@@ -1,6 +1,6 @@
 ---
 id: print-archive-restore-steps-that-git-and-specsync-read-literally-with-control-bytes-shown-as-text
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 247b6d2a62b93c7f24cbafb56c93e754f9edf85c
 ---

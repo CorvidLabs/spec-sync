@@ -15,3 +15,9 @@ artifact: testing
   `a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged`,
   `ship_readiness_names_unowned_production_source_before_finalize_and_the_recovery_ships`.
 - Ready-to-finalize ship-status still exits 0 (the last test's `ready` read asserts success).
+
+## Requirement evidence
+
+| Requirement | Evidence |
+|-------------|----------|
+| `REQ-cmd-change-039` | `ship_status_exits_one_when_it_reports_a_blocker` in `tests/integration/change.rs` (text, JSON and roster exit 1 on a blocker; JSON is one document); `ship_readiness_names_unowned_production_source_before_finalize_and_the_recovery_ships` (a ready change exits 0) |

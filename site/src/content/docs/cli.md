@@ -428,16 +428,23 @@ and refused when it holds a newline, a control character or an invisible charact
 ZWNJ and ZWJ.
 
 For a separately created draft successor called `update-ui`, dependency and exact succession
-are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full
-`specsync.acceptance-entry.v1` digest of the accepted predecessor entry; `--spec` names its
-canonical owner. A digest or module placeholder is not valid evidence.
+are declared before its scope approval. `--spec` names the predecessor entry's canonical owner.
+`supersede` reads the predecessor's `specsync.acceptance-entry.v1` digest for `--path` from its
+signed acceptance manifest; `--digest` still pins one explicitly, and a placeholder is not valid
+evidence.
 
 ```bash
 specsync change depend update-ui add-passkeys
-specsync change supersede update-ui add-passkeys \
-  --path src/auth.rs --spec auth --digest "$PREDECESSOR_ENTRY_DIGEST"
+specsync change supersede update-ui add-passkeys --path src/auth.rs --spec auth
 specsync change adopt --dry-run
 ```
+
+A predecessor that no active or archived change in this checkout records is reported as not in
+this branch's history: merge or rebase onto the branch that has it. When the predecessor's entry
+for the path no longer matches the successor's base commit, because a later commit changed the
+file, `supersede` still records the obligation and warns, naming that commit and any accepted or
+archived change that signed the file as it is now. Normal succession will not cover the
+predecessor then: supersede the change that signed it, or use `change reconcile-history`.
 
 `send-back` returns an approved, implementing or verifying change to draft so its scope can be
 answered again. It needs `--actor` and `--reason`, keeps every earlier approval, and cancels the

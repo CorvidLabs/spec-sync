@@ -3146,6 +3146,8 @@ pub fn add_supersedes_obligation(
     .map(|result| result.change)
 }
 
+/// Declare one succession obligation. With no `predecessor_entry_digest`, the digest is read from
+/// the predecessor's signed acceptance manifest (#423).
 pub(crate) fn add_supersedes_obligation_with_snapshot(
     root: &Path,
     id: &str,
@@ -3154,8 +3156,6 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
     module: &str,
     predecessor_entry_digest: Option<&str>,
 ) -> Result<DefinitionMutationResult, String> {
-    let predecessor_entry_digest = predecessor_entry_digest
-        .ok_or_else(|| "a predecessor entry digest is required".to_string())?;
     let _lock = acquire_project_lock(root)?;
     let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(
@@ -3170,6 +3170,15 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
         .map_err(|error| format!("invalid succession module: {error}"))?;
     let path = normalize_project_path(path)
         .map_err(|error| format!("invalid succession path: {error}"))?;
+    ensure_predecessor_in_history(root, predecessor)?;
+    let resolved;
+    let predecessor_entry_digest = match predecessor_entry_digest {
+        Some(digest) => digest,
+        None => {
+            resolved = predecessor_signed_entry_digest(root, predecessor, &path)?;
+            resolved.as_str()
+        }
+    };
     validate_sha256_digest(predecessor_entry_digest, "predecessor entry digest")?;
     if !record
         .affected_specs
@@ -3239,14 +3248,154 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
     ))
 }
 
-/// Not yet: always no warning (#423, red).
+/// A predecessor no active or archived change here records is on another branch, not missing:
+/// say so, with the step that brings it into this history (#423).
+fn ensure_predecessor_in_history(root: &Path, predecessor: &str) -> Result<(), String> {
+    match find_change_dir(root, predecessor) {
+        Ok(_) => Ok(()),
+        Err(error) if error == format!("change `{predecessor}` was not found") => Err(format!(
+            "predecessor `{predecessor}` is not in this branch's history: no active or archived \
+             change here records it. Merge or rebase onto the branch that has it, then declare the \
+             obligation again"
+        )),
+        Err(error) => Err(error),
+    }
+}
+
+/// The digest of `path`'s entry in the predecessor's signed acceptance manifest (#423).
+fn predecessor_signed_entry_digest(
+    root: &Path,
+    predecessor: &str,
+    path: &str,
+) -> Result<String, String> {
+    let record = load_change(root, predecessor)?;
+    if !matches!(
+        record.state,
+        ChangeState::Accepted | ChangeState::Archived
+    ) {
+        return Err(format!(
+            "superseded change `{predecessor}` must be accepted or archived"
+        ));
+    }
+    let manifest = resolved_acceptance_manifest(root, &record)?;
+    let mut entries = manifest.entries.iter().filter(|entry| entry.path == path);
+    let entry = entries.next().ok_or_else(|| {
+        format!("predecessor `{predecessor}` has no signed acceptance entry for `{path}`")
+    })?;
+    if entries.next().is_some() {
+        return Err(format!(
+            "predecessor `{predecessor}` has ambiguous acceptance entries for `{path}`"
+        ));
+    }
+    Ok(entry.entry_digest.clone())
+}
+
+/// Whether `predecessor`'s signed entry for `path` still holds at the successor's base commit,
+/// which normal succession requires. When it does not, the sentence names the commit that last
+/// changed `path` before the base and any accepted or archived change that signed the content
+/// there, and the two ways forward. Asked when the obligation is declared, so the mismatch is
+/// seen then rather than as a stale predecessor later (#423). It is a warning: `change
+/// reconcile-history` needs the obligation recorded for exactly this case.
 pub fn succession_base_warning(
-    _root: &Path,
-    _successor_id: &str,
-    _predecessor: &str,
-    _path: &str,
+    root: &Path,
+    successor_id: &str,
+    predecessor: &str,
+    path: &str,
 ) -> Result<Option<String>, String> {
-    Ok(None)
+    let successor = load_change(root, successor_id)?;
+    let Some(base) = successor
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    else {
+        return Ok(None);
+    };
+    let Some(expected) = successor
+        .supersedes
+        .iter()
+        .filter(|edge| edge.predecessor_id == predecessor)
+        .flat_map(|edge| edge.obligations.iter())
+        .find(|obligation| obligation.path == path)
+        .map(|obligation| obligation.predecessor_entry_digest.clone())
+    else {
+        return Ok(None);
+    };
+    let at_base = match acceptance_entry_digest_at_commit(root, base, predecessor, path) {
+        Ok(digest) => digest,
+        Err(error) => {
+            return Ok(Some(format!(
+                "predecessor `{predecessor}`'s entry for `{path}` cannot be read at this change's \
+                 base commit {}: {error}",
+                &base[..12]
+            )));
+        }
+    };
+    if at_base == expected {
+        return Ok(None);
+    }
+    let repo_path = git_repo_relative_path(root, path)?;
+    let pathspec = format!(":(top,literal){repo_path}");
+    let mover = git_output(root, &["log", "-1", "--format=%H", base, "--", &pathspec]);
+    let signers: Vec<String> = git_blob_bytes_at(root, base, &repo_path)
+        .map(|bytes| sha256_hex(&bytes))
+        .map(|payload| {
+            list_all_changes_structural(root)
+                .unwrap_or_default()
+                .into_values()
+                .filter(|record| {
+                    record.id != predecessor
+                        && record.id != successor_id
+                        && matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+                })
+                .filter(|record| {
+                    load_verification(root, record)
+                        .ok()
+                        .and_then(|verification| verification.acceptance_manifest)
+                        .is_some_and(|manifest| {
+                            manifest.entries.iter().any(|entry| {
+                                entry.path == path && entry.payload_digest == payload
+                            })
+                        })
+                })
+                .map(|record| format!("`{}`", record.id))
+                .collect()
+        })
+        .unwrap_or_default();
+    let moved_by = match (&mover, signers.is_empty()) {
+        (Some(commit), true) => format!("commit {} changed it", &commit[..commit.len().min(12)]),
+        (Some(commit), false) => format!(
+            "commit {} changed it, and {} signed what it holds now",
+            &commit[..commit.len().min(12)],
+            signers.join(", ")
+        ),
+        (None, _) => "it changed".to_string(),
+    };
+    let instead = if signers.is_empty() {
+        String::new()
+    } else {
+        format!("supersede {} instead, ", signers.join(" or "))
+    };
+    Ok(Some(format!(
+        "predecessor `{predecessor}`'s signed entry for `{path}` no longer matches this change's \
+         base commit {}: {moved_by} after `{predecessor}` was accepted, so normal succession will \
+         not cover `{predecessor}` through this obligation. {instead}or run `specsync change \
+         reconcile-history {successor_id} --actor <name> --reason <text>` to keep \
+         `{predecessor}`'s evidence as historically unproven",
+        &base[..12]
+    )))
+}
+
+/// The bytes of `repo_path` at `commit`, or `None` when Git does not hold it there.
+fn git_blob_bytes_at(root: &Path, commit: &str, repo_path: &str) -> Option<Vec<u8>> {
+    let object = format!("{commit}:{repo_path}");
+    let output = run_git_bounded(
+        root,
+        &["show", object.as_str(), "--"],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    )
+    .ok()?;
+    output.status.success().then_some(output.stdout)
 }
 
 /// Load one existing definition only after its caller has acquired the project lock.

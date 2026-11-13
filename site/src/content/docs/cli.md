@@ -682,6 +682,8 @@ specsync watch
 | `0` | All checks passed |
 | `1` | Errors found, warnings with `--strict`, or coverage below threshold |
 
+`change ship-status` prints its whole report first, then exits `1` when the report names a blocker, for one change or for any change in the roster. With `--json` the output stays one document. A report with no blocker exits `0`.
+
 ---
 
 ## JSON Output

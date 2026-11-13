@@ -68,6 +68,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.
     let _facts = crate::git_utils::begin_repository_fact_scope(root);
+    // Set when `change ship-status` reports a blocker; the command exits 1 once its report is
+    // printed (#654).
+    let mut ship_status_blocked = false;
     let result = (|| {
         match action {
         ChangeAction::New {
@@ -173,6 +176,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 closed_late_report(root, &id, format, "change ship-status").unwrap_or_else(|| {
                     change::load_change(root, &id)
                         .and_then(|record| print_ship_status(root, &record, format))
+                        .map(|blocked| ship_status_blocked |= blocked)
                 })
             } else {
                 change::list_changes(root).and_then(|roster| {
@@ -189,6 +193,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         .map(|record| ship_status_report(root, record))
                         .collect::<Result<Vec<_>, _>>()
                         .map(|reports| {
+                            ship_status_blocked |= reports.iter().any(reports_a_blocker);
                             let error = unreadable_error(&roster).err();
                             let degraded = roster.is_degraded();
                             print_json(&serde_json::json!({
@@ -206,7 +211,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     records
                         .iter()
                         .try_for_each(|record| {
-                            print_ship_status(root, record, format)?;
+                            ship_status_blocked |= print_ship_status(root, record, format)?;
                             println!();
                             Ok(())
                         })
@@ -784,6 +789,18 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         }
         process::exit(1);
     }
+    // The report is already out, with its blockers named; exiting here rather than returning Err
+    // keeps JSON stdout one document (#654).
+    if ship_status_blocked {
+        process::exit(1);
+    }
+}
+
+/// Whether a ship-status report names at least one blocker.
+fn reports_a_blocker(report: &serde_json::Value) -> bool {
+    report["blockers"]
+        .as_array()
+        .is_some_and(|blockers| !blockers.is_empty())
 }
 
 /// The read deadline for a read-only command, from `--timeout` or `SPECSYNC_TIMEOUT`
@@ -2378,16 +2395,19 @@ fn classify_paths(paths: &[String]) -> &'static str {
     }
 }
 
+/// Print one change's ship-status report. `Ok(true)` when the report names a blocker, so the
+/// command exits 1 after printing (#654).
 fn print_ship_status(
     root: &Path,
     record: &ChangeRecord,
     format: OutputFormat,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let report = ship_status_report(root, record)?;
+    let blocked = reports_a_blocker(&report);
     match format {
         OutputFormat::Json => {
             print_json(&report);
-            Ok(())
+            Ok(blocked)
         }
         _ => {
             println!(
@@ -2496,7 +2516,7 @@ fn print_ship_status(
             if let Some(next) = report["ship_next"].as_str() {
                 println!("  Next: {next}");
             }
-            Ok(())
+            Ok(blocked)
         }
     }
 }

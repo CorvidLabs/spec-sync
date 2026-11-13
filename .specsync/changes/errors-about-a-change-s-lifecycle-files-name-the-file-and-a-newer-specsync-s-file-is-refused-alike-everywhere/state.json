@@ -7,10 +7,11 @@
   "title": "Errors about a change's lifecycle files name the file, and a newer SpecSync's file is refused alike everywhere",
   "description": "Errors about a change's lifecycle files name the file, and a newer SpecSync's file is refused alike everywhere",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
   "created_at": 1794553055,
-  "updated_at": 1794578556,
+  "updated_at": 1794578621,
   "affected_specs": [
     "change"
   ],

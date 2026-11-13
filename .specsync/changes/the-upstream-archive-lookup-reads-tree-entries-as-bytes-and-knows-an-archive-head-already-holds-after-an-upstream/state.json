@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-upstream-archive-lookup-reads-tree-entries-as-bytes-and-knows-an-archive-head-already-holds-after-an-upstream",
+  "slug": "the-upstream-archive-lookup-reads-tree-entries-as-bytes-and-knows-an-archive-head-already-holds-after-an-upstream",
+  "title": "The upstream archive lookup reads tree entries as bytes and knows an archive HEAD already holds after an upstream rename",
+  "description": "The upstream archive lookup reads tree entries as bytes and knows an archive HEAD already holds after an upstream rename",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794543782,
+  "updated_at": 1794543790,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests/upstream_archive.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-129 refuses only an archive of the same change id that HEAD does not contain, and never one HEAD already contains; REQ-change-142 reports cannot-tell only when Git cannot list or read the records. An unrelated non-UTF-8 package name made the lookup cannot-tell (#961), and an upstream rename made an archive HEAD holds read as remote-only (#945)",
+  "acceptance_criteria": [
+    "an unrelated archive package with a non-UTF-8 directory name on the remote default does not stop the lookup, and this change's upstream archive is still found; an archive HEAD already holds is not reported after the remote default renames its package; a non-UTF-8 package that does hold this change's record is still cannot-tell"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

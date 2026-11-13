@@ -1,6 +1,6 @@
 ---
 id: change-correct-reads-its-summary-inside-a-change-read-scope
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

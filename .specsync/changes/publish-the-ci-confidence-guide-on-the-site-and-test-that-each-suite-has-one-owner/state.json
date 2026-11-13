@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "publish-the-ci-confidence-guide-on-the-site-and-test-that-each-suite-has-one-owner",
+  "slug": "publish-the-ci-confidence-guide-on-the-site-and-test-that-each-suite-has-one-owner",
+  "title": "Publish the CI confidence guide on the site and test that each suite has one owner",
+  "description": "Publish the CI confidence guide on the site and test that each suite has one owner",
+  "kind": "documentation",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794548663,
+  "updated_at": 1794548667,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "site/src/content/docs/ci-confidence.md",
+    "docs/ci-confidence.md",
+    ".github/scripts/test-ci-lane-ownership.py",
+    ".github/workflows/ci.yml",
+    "fledge.toml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-github-006 already requires one authoritative workflow per expensive suite, a trust-lifecycle lane without cargo test, clippy or verify, and lanes.verify as the full local suite; this publishes the guide that explains it and makes the rule an executable test (#493)",
+  "acceptance_criteria": [
+    "the CI confidence guide is a site page under Reference and docs/ci-confidence.md points to it; test-ci-lane-ownership.py passes on the repository and fails when test, lint, verify or a cargo test task is added to trust-lifecycle, when the Trust lifecycle runs another lane, or when verify drops its tests"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

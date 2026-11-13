@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "close-changes-that-will-not-ship",
+  "slug": "close-changes-that-will-not-ship",
+  "title": "Close changes that will not ship",
+  "description": "Close changes that will not ship",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794584587,
+  "updated_at": 1794584751,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/close.rs",
+    "src/change/doctor.rs",
+    "src/change.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    "tests/integration/change_close.rs",
+    "tests/integration.rs",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/workflow.md",
+    "specs/change/change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change close moves each named draft, approved, implementing or verifying change into .specsync/archive/closed/<date>-<id>/ byte for byte with close.json (actor, reason, from_state, replaced_by, relay, reviewed false); status, show and ship-status name the close; list, check and new no longer use it; a batch with one bad id closes none; a change whose materialized spec text has not merged is refused naming what to restore or remove"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "no new change state; nothing reviewed, accepted or written into a spec; closed-late behaviour unchanged; SpecSync 6.0 to 6.3 never read the closed folder",
+    "public_contract": "yes"
+  }
+}

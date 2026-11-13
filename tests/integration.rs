@@ -125,3 +125,6 @@ mod archived_upstream;
 
 #[path = "integration/doctor.rs"]
 mod doctor;
+
+#[path = "integration/change_close.rs"]
+mod change_close;

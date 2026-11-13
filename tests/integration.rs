@@ -125,3 +125,6 @@ mod archived_upstream;
 
 #[path = "integration/doctor.rs"]
 mod doctor;
+
+#[path = "integration/check_scaling.rs"]
+mod check_scaling;

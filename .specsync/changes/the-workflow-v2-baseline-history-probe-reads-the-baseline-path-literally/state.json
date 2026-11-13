@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-workflow-v2-baseline-history-probe-reads-the-baseline-path-literally",
+  "slug": "the-workflow-v2-baseline-history-probe-reads-the-baseline-path-literally",
+  "title": "The workflow-v2 baseline history probe reads the baseline path literally",
+  "description": "The workflow-v2 baseline history probe reads the baseline path literally",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794545172,
+  "updated_at": 1794545176,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests/fast_archived_reads.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "A baseline that was never committed is absent, not deleted; the reachable-history probe passed the baseline path as a plain pathspec, so a project directory named like pathspec magic read as an exclude and reported the baseline deleted. The module's other history queries are literal top-level pathspecs (#851, #990) (#1074)",
+  "acceptance_criteria": [
+    "in a project directory named :(exclude)app with no committed baseline, the reachable-history probe answers false and reading the baseline gives none instead of reporting it deleted"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

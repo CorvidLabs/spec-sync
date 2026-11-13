@@ -1925,3 +1925,22 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+// #1074. The reachable-history probe for the workflow-v2 baseline passes the baseline as a literal
+// top-level pathspec. In a project directory named like pathspec magic, `:(exclude)app/...` read as
+// an exclude, matched every other commit, and reported a baseline that was never committed as
+// deleted.
+#[test]
+fn a_never_committed_baseline_is_not_read_as_deleted_in_a_pathspec_magic_project_directory() {
+    let (temp, _root) = subdirectory_project_named(":(exclude)app");
+    let root = temp.path().join(":(exclude)app");
+    assert_eq!(
+        workflow_v2_baseline_exists_in_reachable_history(&root),
+        Ok(false),
+        "no commit ever added the baseline"
+    );
+    assert!(
+        read_workflow_v2_baseline(&root).is_ok_and(|baseline| baseline.is_none()),
+        "a missing, never-committed baseline is absent, not deleted"
+    );
+}

@@ -44,6 +44,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          # Full history, default branch included: the gate tells a stale copy of an
+          # upstream-archived change from a reopened one with `log --diff-filter=A` and
+          # `merge-base --is-ancestor`, and never fetches itself (REQ-cmd-change-029, #965).
+          fetch-depth: 0
       # Dogfoods the packaged Action's archive gate, which runs
       # .github/scripts/archive-readiness.sh without downloading SpecSync.
       - name: Require every change to be archived

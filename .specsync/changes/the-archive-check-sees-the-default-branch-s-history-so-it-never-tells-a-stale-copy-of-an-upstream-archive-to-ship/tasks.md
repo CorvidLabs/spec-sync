@@ -6,5 +6,5 @@ artifact: tasks
 # Tasks
 
 - [x] Red-first workflow test: rule 4 in test-required-ci-gate.py fails on the single-commit Archive checkout
-- [ ] Check out full history in the Archive jobs of ci.yml and trust.yml
-- [ ] Workflow tests (ci-gate-test, workflow runtime pins) pass
+- [x] Check out full history in the Archive jobs of ci.yml and trust.yml
+- [x] Workflow tests (ci-gate-test, workflow runtime pins) pass

@@ -1,4 +1,47 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794544968,
+      "digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: CI's Archive check now checks out full history, so it never tells a stale copy of an already-archived change to ship. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-archive-check-sees-the-default-branch-s-history-so-it-never-tells-a-stale-copy-of-an-upstream-archive-to-ship",
+        "title": "The Archive check sees the default branch's history, so it never tells a stale copy of an upstream archive to ship",
+        "description": "The Archive check sees the default branch's history, so it never tells a stale copy of an upstream archive to ship",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-required-ci-gate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-cmd-change-029 says archive-readiness.sh, which the Archive check runs, SHALL NOT name change ship for a copy the remote default already archived; the Archive jobs checked out one commit, so the script could not see the default branch and still named ship (#965)",
+        "acceptance_criteria": [
+          "the Archive jobs in ci.yml and trust.yml check out full history before the archive gate, and test-required-ci-gate.py fails when a job that runs the gate on the repository checks out a single commit; the archive gate script itself still never fetches"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync bug fixes from lane B (failing tests ready). Approve their scope?', he selected all three: \"#965 CI archive check\", \"#945 + #961 (one PR)\" and \"#1074 + #1075 (new)\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:39Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

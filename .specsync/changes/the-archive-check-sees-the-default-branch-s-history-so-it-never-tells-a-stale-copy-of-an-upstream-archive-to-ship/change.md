@@ -1,6 +1,6 @@
 ---
 id: the-archive-check-sees-the-default-branch-s-history-so-it-never-tells-a-stale-copy-of-an-upstream-archive-to-ship
-state: draft
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

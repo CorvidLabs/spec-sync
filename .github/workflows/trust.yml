@@ -21,6 +21,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          # Full history, default branch included: the gate tells a stale copy of an
+          # upstream-archived change from a reopened one with `log --diff-filter=A` and
+          # `merge-base --is-ancestor`, and never fetches itself (REQ-cmd-change-029, #965).
+          fetch-depth: 0
       - name: Require every change to be archived
         uses: ./
         with:

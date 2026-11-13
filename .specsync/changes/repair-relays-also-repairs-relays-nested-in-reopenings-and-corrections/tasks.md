@@ -5,7 +5,7 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Failing unit tests first.
-- [ ] The repair walks every record location, `corrections.json` included.
-- [ ] The printed places and JSON `within`, and the site's `repair-relays` paragraph.
-- [ ] Targeted tests, the full suite, `change audit` and `check --strict` before review.
+- [x] Failing unit tests first.
+- [x] The repair walks every record location, `corrections.json` included.
+- [x] The printed places and JSON `within`, and the site's `repair-relays` paragraph.
+- [x] Targeted tests, the full suite, `change audit` and `check --strict` before review.

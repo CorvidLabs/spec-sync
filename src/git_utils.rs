@@ -1797,6 +1797,33 @@ mod tests {
         String::from_utf8(output.stdout).unwrap().trim().to_string()
     }
 
+    /// #887 (REQ-git-utils-009): a failed git query is not memoized, so the next read asks git
+    /// again. A definite "absent" answer is a fact, not a failure: `git config` exits 1 for an
+    /// unset key, and `symbolic-ref -q` exits 1 for a missing ref.
+    #[test]
+    fn a_failed_fact_is_not_memoized_but_a_definite_absence_is() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        let _scope = begin_repository_fact_scope(root);
+        // No commit yet: `rev-parse --verify HEAD` fails with 128.
+        let failed = ["rev-parse", "--verify", "HEAD"];
+        let output = git_cmd_output(root, &failed).unwrap();
+        assert_eq!(output.status.code(), Some(128));
+        assert!(
+            memoized_repository_fact(root, "git_cmd", &failed).is_none(),
+            "a failed query was memoized"
+        );
+        let unset = ["config", "--get", "core.fsmonitor"];
+        assert_eq!(git_cmd_output(root, &unset).unwrap().status.code(), Some(1));
+        assert!(memoized_repository_fact(root, "git_cmd", &unset).is_some());
+        let absent = ["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"];
+        assert_eq!(
+            git_cmd_output(root, &absent).unwrap().status.code(),
+            Some(1)
+        );
+        assert!(memoized_repository_fact(root, "git_cmd", &absent).is_some());
+    }
+
     #[test]
     fn a_fact_read_twice_in_one_scope_is_answered_once() {
         let tmp = init_repo();

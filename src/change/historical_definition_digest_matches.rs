@@ -1158,10 +1158,18 @@ fn load_verification_attempts(
     if !history_path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(&history_path)
-        .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
-    let history: VerificationAttemptLedger = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+    let content = fs::read_to_string(&history_path).map_err(|error| {
+        naming_lifecycle_file(
+            &history_path,
+            format!("failed to read verification attempt history: {error}"),
+        )
+    })?;
+    let history: VerificationAttemptLedger = serde_json::from_str(&content).map_err(|error| {
+        naming_lifecycle_file(
+            &history_path,
+            format!("invalid verification attempt history: {error}"),
+        )
+    })?;
     if history.schema_version != 1 {
         return Err(format!(
             "unsupported verification attempt history schema version {}",
@@ -1235,7 +1243,10 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
             root,
             record,
             &path,
-            format!("invalid independent scoped review evidence: {error}"),
+            naming_lifecycle_file(
+                &path,
+                format!("invalid independent scoped review evidence: {error}"),
+            ),
         )
     })?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
@@ -1248,7 +1259,10 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
             root,
             record,
             &attempts_path,
-            format!("invalid scoped review attempt history: {error}"),
+            naming_lifecycle_file(
+                &attempts_path,
+                format!("invalid scoped review attempt history: {error}"),
+            ),
         )
     })?;
     ensure_read_relays_name_their_deciders(
@@ -1292,7 +1306,7 @@ fn load_scoped_review_attempt_ledger(
             root,
             record,
             &path,
-            format!("invalid scoped review attempt history: {error}"),
+            naming_lifecycle_file(&path, format!("invalid scoped review attempt history: {error}")),
         )
     })?;
     ensure_read_relays_name_their_deciders(
@@ -1732,7 +1746,9 @@ fn load_finalization(root: &Path, record: &ChangeRecord) -> Result<FinalizationR
     let content = fs::read_to_string(&path)
         .map_err(|_| "same-PR finalization evidence is missing".to_string())?;
     serde_json::from_str(&content)
-        .map_err(|error| format!("invalid same-PR finalization evidence: {error}"))
+        .map_err(|error| {
+            naming_lifecycle_file(&path, format!("invalid same-PR finalization evidence: {error}"))
+        })
 }
 
 fn finalization_digest(finalization: &FinalizationRecord) -> String {
@@ -2640,10 +2656,19 @@ pub fn record_scoped_review_with_relay(
         .transpose()?;
     let mut attempts = if attempts_path.exists() {
         serde_json::from_str::<ScopedReviewAttemptLedger>(
-            &fs::read_to_string(&attempts_path)
-                .map_err(|error| format!("failed to read scoped review history: {error}"))?,
+            &fs::read_to_string(&attempts_path).map_err(|error| {
+                naming_lifecycle_file(
+                    &attempts_path,
+                    format!("failed to read scoped review history: {error}"),
+                )
+            })?,
         )
-        .map_err(|error| format!("invalid scoped review attempt history: {error}"))?
+        .map_err(|error| {
+            naming_lifecycle_file(
+                &attempts_path,
+                format!("invalid scoped review attempt history: {error}"),
+            )
+        })?
     } else {
         ScopedReviewAttemptLedger::default()
     };
@@ -2864,10 +2889,19 @@ fn accept_change_with_gate(
         let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
         let mut attempts = if attempts_path.exists() {
             let history: VerificationAttemptLedger = serde_json::from_str(
-                &fs::read_to_string(&attempts_path)
-                    .map_err(|error| format!("failed to read verification attempts: {error}"))?,
+                &fs::read_to_string(&attempts_path).map_err(|error| {
+                    naming_lifecycle_file(
+                        &attempts_path,
+                        format!("failed to read verification attempts: {error}"),
+                    )
+                })?,
             )
-            .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+            .map_err(|error| {
+                naming_lifecycle_file(
+                    &attempts_path,
+                    format!("invalid verification attempt history: {error}"),
+                )
+            })?;
             if history.schema_version != 1 {
                 return Err(format!(
                     "unsupported verification attempt history schema version {}",

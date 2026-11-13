@@ -891,7 +891,7 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
     let path = find_change_dir(root, &record.id)?.join("approvals.json");
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
     let ledger: ApprovalLedger = serde_json::from_str(&content).map_err(|error| {
-        let message = error.to_string();
+        let message = naming_lifecycle_file(&path, error);
         if message.contains("missing field `stale_acceptance_input_digest`")
             || message.contains("missing field `current_acceptance_input_digest`")
         {
@@ -934,8 +934,9 @@ fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationR
     let path = find_change_dir(root, &record.id)?.join("verification.json");
     let content =
         fs::read_to_string(&path).map_err(|_| "verification evidence is missing".to_string())?;
-    serde_json::from_str(&content)
-        .map_err(|error| format!("invalid verification evidence: {error}"))
+    serde_json::from_str(&content).map_err(|error| {
+        naming_lifecycle_file(&path, format!("invalid verification evidence: {error}"))
+    })
 }
 
 fn load_verification_attempt_ledger(
@@ -946,8 +947,13 @@ fn load_verification_attempt_ledger(
     let history = if history_path.exists() {
         let content = fs::read_to_string(&history_path)
             .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
-        let history: VerificationAttemptLedger = serde_json::from_str(&content)
-            .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+        let history: VerificationAttemptLedger =
+            serde_json::from_str(&content).map_err(|error| {
+                naming_lifecycle_file(
+                    &history_path,
+                    format!("invalid verification attempt history: {error}"),
+                )
+            })?;
         if history.schema_version != 1 {
             return Err(format!(
                 "unsupported verification attempt history schema version {}",
@@ -2862,11 +2868,64 @@ fn validate_change_id(id: &str) -> Result<(), String> {
     Err(format!("invalid change ID `{}`", id.escape_default()))
 }
 
+/// The newest top-level `schema_version` this SpecSync reads in each lifecycle file that carries
+/// one (REQ-change-165). `approvals.json` and `verification.json` carry none.
+const SUPPORTED_LIFECYCLE_SCHEMAS: [(&str, u64); 7] = [
+    ("state.json", 1),
+    ("verification-attempts.json", 1),
+    ("review.json", 2),
+    ("review-attempts.json", 1),
+    ("corrections.json", 1),
+    ("finalization.json", 2),
+    ("accepted-state.json", 1),
+];
+
+/// Refuse a change whose lifecycle files a newer SpecSync wrote, with one message wherever the
+/// change is read: `change status`, `show`, `audit` and every verb load it through here
+/// (REQ-change-165, #434). A file that is missing or does not parse is left to its own loader.
+fn ensure_lifecycle_files_supported(change_dir: &Path) -> Result<(), String> {
+    for (name, supported) in SUPPORTED_LIFECYCLE_SCHEMAS {
+        let path = change_dir.join(name);
+        let Ok(bytes) = fs::read(&path) else {
+            continue;
+        };
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            continue;
+        };
+        if let Some(version) = value
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            && version > supported
+        {
+            return Err(format!(
+                "{} was written by a newer SpecSync (schema version {version}); upgrade specsync to read it",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// `cause` with the lifecycle file it came from named in front, unless it already names it
+/// (REQ-change-164, #434).
+fn naming_lifecycle_file(path: &Path, cause: impl std::fmt::Display) -> String {
+    let cause = cause.to_string();
+    let shown = path.display().to_string();
+    if cause.contains(&shown) {
+        cause
+    } else {
+        format!("{shown}: {cause}")
+    }
+}
+
 fn validate_loaded_change(
     record: &ChangeRecord,
     expected_id: &str,
     state_path: &Path,
 ) -> Result<(), String> {
+    if let Some(change_dir) = state_path.parent() {
+        ensure_lifecycle_files_supported(change_dir)?;
+    }
     validate_change_id(&record.id)
         .map_err(|error| format!("invalid change state {}: {error}", state_path.display()))?;
     if !matches!(record.workflow_version, 1 | 2 | RELAY_GATED_WORKFLOW_VERSION) {

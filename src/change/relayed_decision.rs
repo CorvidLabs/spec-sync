@@ -305,7 +305,10 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
                 root,
                 record,
                 &review_path,
-                format!("invalid independent scoped review evidence: {error}"),
+                naming_lifecycle_file(
+                    &review_path,
+                    format!("invalid independent scoped review evidence: {error}"),
+                ),
             )
         })?;
         ensure_read_relays_name_their_deciders(

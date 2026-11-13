@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "a-delta-can-add-replace-or-remove-a-whole-section-of-requirements-md",
+  "slug": "a-delta-can-add-replace-or-remove-a-whole-section-of-requirements-md",
+  "title": "A delta can add, replace or remove a whole section of requirements.md",
+  "description": "A delta can add, replace or remove a whole section of requirements.md",
+  "kind": "feature",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794578733,
+  "updated_at": 1794578774,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change/sdd_version.rs",
+    "src/change/send_back.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests.rs",
+    "src/change_tests/requirements_section_delta.rs",
+    "site/src/content/docs/deltas.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A ### REQUIREMENTS SECTION <name> delta item adds, replaces or removes the whole ## <name> section of requirements.md like SPEC SECTION; the section ends at the next level-2 heading or requirement heading; an item holding a requirement heading is refused (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

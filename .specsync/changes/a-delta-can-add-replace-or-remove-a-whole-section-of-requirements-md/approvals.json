@@ -1,0 +1,53 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794578774,
+      "digest": "c8a7e310acc90062d271c6970de07517dcb26443a1df051cb75fca70c2963c49",
+      "note": "Wording checked by the coordinator claude-code-t370 against Leif's pick and found aligned (hc, 2026-11-13); the boundary rule that protects the requirement blocks stays inside it. REQ-change-162 was allocated by claude-code-t370. Recorded by claude-code-t38c (Claude Opus 5.5, hc t38c).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-delta-can-add-replace-or-remove-a-whole-section-of-requirements-md",
+        "title": "A delta can add, replace or remove a whole section of requirements.md",
+        "description": "A delta can add, replace or remove a whole section of requirements.md",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/deltas.md",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/sdd_version.rs",
+          "src/change/send_back.rs",
+          "src/change_tests.rs",
+          "src/change_tests/requirements_section_delta.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A ### REQUIREMENTS SECTION <name> delta item adds, replaces or removes the whole ## <name> section of requirements.md like SPEC SECTION; the section ends at the next level-2 heading or requirement heading; an item holding a requirement heading is refused (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "564e090285142e8ebcfc3dd23feb67c3409cbbb016e408046236c81de37051f2"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Whole-section item (Recommended)",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T04:37Z, relayed by claude-code-t370. Asked: 'SpecSync #866: how should a change edit a spec's Acceptance Criteria and Constraints lists?' Option text: 'A new ### REQUIREMENTS SECTION <name> that adds, replaces or removes the whole list, approved just like SPEC SECTION.' Leif had already selected #866 to build at 03:28Z ('Delta lists grammar').",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

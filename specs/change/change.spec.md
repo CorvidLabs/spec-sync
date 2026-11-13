@@ -40,6 +40,7 @@ files:
   - src/change_tests/stale_modified_delta.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
+  - src/change_tests/requirements_section_delta.rs
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/unknown_members.rs

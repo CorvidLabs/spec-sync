@@ -2768,26 +2768,7 @@ fn prepare_module_application(
             } else {
                 item.operation
             };
-        match item.target {
-            DeltaTarget::Requirement => {
-                requirements = apply_markdown_block(
-                    &requirements,
-                    "### ",
-                    &item.key,
-                    &item.content,
-                    operation,
-                )?;
-            }
-            DeltaTarget::SpecSection => {
-                spec = apply_markdown_block(
-                    &spec,
-                    "## ",
-                    &item.key,
-                    &item.content,
-                    operation,
-                )?;
-            }
-        }
+        (spec, requirements) = apply_delta_item(&spec, &requirements, item, operation)?;
     }
     if !recorded {
         spec = bump_spec_version(&spec)?;
@@ -2902,6 +2883,31 @@ fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Ran
         .find(|(_, line)| markdown_heading_level(line).is_some_and(|found| found <= level))
         .map_or(source.len(), |(next_offset, _)| *next_offset);
     Some(lines[start].0..end)
+}
+
+/// Why a `### REQUIREMENTS SECTION` item cannot be approved, or `None` (#866). Not checked yet.
+fn requirements_section_item_problem(_item: &DeltaItem) -> Option<String> {
+    None
+}
+
+/// Apply one delta item, with `operation`, to a module's spec and requirements text; returns
+/// both texts, one of them unchanged.
+fn apply_delta_item(
+    spec: &str,
+    requirements: &str,
+    item: &DeltaItem,
+    operation: DeltaOperation,
+) -> Result<(String, String), String> {
+    match item.target {
+        DeltaTarget::Requirement => Ok((
+            spec.to_string(),
+            apply_markdown_block(requirements, "### ", &item.key, &item.content, operation)?,
+        )),
+        DeltaTarget::SpecSection => Ok((
+            apply_markdown_block(spec, "## ", &item.key, &item.content, operation)?,
+            requirements.to_string(),
+        )),
+    }
 }
 
 /// Heading depth a delta target writes at: `"## "` is 2, `"### "` is 3.

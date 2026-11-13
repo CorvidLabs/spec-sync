@@ -117,9 +117,18 @@ impl Drop for KillOnDrop {
     }
 }
 
-/// Whether `collected` holds a finished `watch` run: one of its verdict `markers`.
+/// The start of the line `watch` prints after every run: `Watching for changes in: ...` after
+/// the first, `Watching for changes...` after each later one (`src/watch.rs`).
+const AFTER_RUN: &str = "Watching for changes";
+
+/// Whether `collected` holds a finished `watch` run: one of its verdict `markers`, followed by the
+/// line `watch` prints after the run, so no later line of the same run is missed (#1055).
 fn run_finished(collected: &str, markers: &[&str]) -> bool {
-    markers.iter().any(|marker| collected.contains(marker))
+    markers
+        .iter()
+        .filter_map(|marker| collected.find(marker).map(|at| at + marker.len()))
+        .min()
+        .is_some_and(|after| collected[after..].contains(AFTER_RUN))
 }
 
 /// #1040: run `specsync watch` until one of `markers` appears in its stdout, then kill it.

@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794544969,
+      "digest": "09582d29a6220ef2f3c82fecfc7dcbfbb44873fd9eba873e1a2244f38ddb80e6",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: the already-archived-on-main lookup no longer gives up on an unrelated non-UTF-8 archive folder (#961), and knows an archive this branch already holds after main renames its folder (#945). One PR, as he chose. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-upstream-archive-lookup-reads-tree-entries-as-bytes-and-knows-an-archive-head-already-holds-after-an-upstream",
+        "title": "The upstream archive lookup reads tree entries as bytes and knows an archive HEAD already holds after an upstream rename",
+        "description": "The upstream archive lookup reads tree entries as bytes and knows an archive HEAD already holds after an upstream rename",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change_tests/upstream_archive.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-change-129 refuses only an archive of the same change id that HEAD does not contain, and never one HEAD already contains; REQ-change-142 reports cannot-tell only when Git cannot list or read the records. An unrelated non-UTF-8 package name made the lookup cannot-tell (#961), and an upstream rename made an archive HEAD holds read as remote-only (#945)",
+        "acceptance_criteria": [
+          "an unrelated archive package with a non-UTF-8 directory name on the remote default does not stop the lookup, and this change's upstream archive is still found; an archive HEAD already holds is not reported after the remote default renames its package; a non-UTF-8 package that does hold this change's record is still cannot-tell"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync bug fixes from lane B (failing tests ready). Approve their scope?', he selected all three: \"#965 CI archive check\", \"#945 + #961 (one PR)\" and \"#1074 + #1075 (new)\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:39Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

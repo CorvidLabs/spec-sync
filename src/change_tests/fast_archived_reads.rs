@@ -1925,3 +1925,47 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+// #978 (REQ-change-136). When the prefetch workers check archived workflow histories (the
+// lifecycle-state history index turned off, as when it cannot answer), the cutoff verdict of every
+// workflow-v1 archive still lands in the persistent read cache. The workers have no read scope of
+// their own, so before the fix they read the cutoff tree again and kept nothing.
+#[test]
+fn prefetch_workers_leave_every_cutoff_verdict_in_the_read_cache() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let target = repository_with_legacy_changes(root, 3);
+    let cutoff = read_workflow_v2_baseline(root)
+        .unwrap()
+        .unwrap()
+        .0
+        .cutoff_commit
+        .unwrap();
+    let legacy: Vec<String> = list_all_changes_checked(root)
+        .unwrap()
+        .into_values()
+        .filter(|record| record.workflow_version == 1)
+        .map(|record| record.id)
+        .collect();
+    assert_eq!(legacy.len(), 3);
+    let cache_path = persistent_read_cache_path(root).expect("the read cache is enabled");
+    let _ = fs::remove_file(&cache_path);
+
+    without_lifecycle_state_history(|| {
+        let _scope = begin_change_read_scope(root);
+        archived_status_read(root, &target.id).expect("the archived status reads");
+    });
+
+    let cache: serde_json::Value =
+        serde_json::from_slice(&fs::read(&cache_path).expect("the read wrote its cache")).unwrap();
+    let remembered = cache["workflow_v1_at_cutoff"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for id in &legacy {
+        assert!(
+            remembered.contains(&serde_json::json!(format!("{cutoff}\n{id}"))),
+            "the cutoff verdict of {id} was not kept: {remembered:?}"
+        );
+    }
+}

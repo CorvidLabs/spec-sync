@@ -152,6 +152,9 @@ With the gate in place, the lifecycle runs locally up to ship: `change check
 <id> --commit`, `fledge lanes run verify`, `change review`, then `change ship`.
 Push the archived tip, and CI runs the full lane on it.
 
+The gate asks whether any change is still open. To confirm in CI that one change that already
+shipped is still intact, use [the CI archive check](ci-archive-check.md).
+
 ---
 
 ## PR Comments

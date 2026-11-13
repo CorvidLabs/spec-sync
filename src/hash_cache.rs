@@ -606,6 +606,30 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /// #981 (REQ-hash-cache-005, CHECK-1.d): the build fingerprint frames the compile
+    /// configuration as well as the sources, so a build for another target, profile or feature
+    /// set never replays this build's cached results. `build.rs` records what it framed.
+    #[test]
+    fn the_build_fingerprint_frames_the_compile_configuration() {
+        let configuration = option_env!("SPECSYNC_BUILD_CONFIGURATION")
+            .expect("build.rs records the compile configuration it frames into the fingerprint");
+        for name in ["TARGET=", "PROFILE=", "OPT_LEVEL=", "DEBUG="] {
+            assert!(
+                configuration
+                    .split(';')
+                    .any(|frame| frame.starts_with(name)),
+                "{name} is not framed: {configuration}"
+            );
+        }
+        assert_eq!(
+            configuration
+                .split(';')
+                .any(|frame| frame.starts_with("CARGO_CFG_DEBUG_ASSERTIONS=")),
+            cfg!(debug_assertions),
+            "{configuration}"
+        );
+    }
+
     #[test]
     fn cache_round_trip() {
         let dir = tempfile::tempdir().unwrap();

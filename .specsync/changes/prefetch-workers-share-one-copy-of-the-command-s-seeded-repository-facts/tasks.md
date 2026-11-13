@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test: per-worker seed clones share one copy, and a worker answers from it (does not compile against main)
 - [x] Share the seed's facts behind an Arc; read them as a frame's inherited facts
-- [ ] git_utils and prefetch tests, fmt and clippy
+- [x] git_utils and prefetch tests, fmt and clippy

@@ -78,10 +78,10 @@ fn operation_name(operation: DeltaOperation) -> &'static str {
 
 impl AppliedDeltaItem {
     fn delta_target(&self) -> DeltaTarget {
-        if self.target == "requirement" {
-            DeltaTarget::Requirement
-        } else {
-            DeltaTarget::SpecSection
+        match self.target.as_str() {
+            "requirement" => DeltaTarget::Requirement,
+            "requirements-section" => DeltaTarget::RequirementsSection,
+            _ => DeltaTarget::SpecSection,
         }
     }
 
@@ -118,6 +118,9 @@ impl AppliedDeltaItem {
             }
             (DeltaTarget::SpecSection, Some((spec, _))) => {
                 format!("`{}` section `{}`", display(&spec), self.key)
+            }
+            (DeltaTarget::RequirementsSection, Some((_, requirements))) => {
+                format!("`{}` section `{}`", display(&requirements), self.key)
             }
             (_, None) => format!("module `{}` {} `{}`", self.module, self.target, self.key),
         }
@@ -157,7 +160,7 @@ fn applied_delta_items(
                 continue;
             }
             let path = match item.target {
-                DeltaTarget::Requirement => &requirements_path,
+                DeltaTarget::Requirement | DeltaTarget::RequirementsSection => &requirements_path,
                 DeltaTarget::SpecSection => &spec_path,
             };
             let previous_content = if item.operation == DeltaOperation::Added {
@@ -171,6 +174,7 @@ fn applied_delta_items(
                 target: match item.target {
                     DeltaTarget::Requirement => "requirement".into(),
                     DeltaTarget::SpecSection => "section".into(),
+                    DeltaTarget::RequirementsSection => "requirements-section".into(),
                 },
                 key: item.key,
                 content: item.content,
@@ -219,12 +223,7 @@ fn pre_change_block(
 
 /// The body under `item`'s heading in `source`, without the heading line.
 fn block_body(source: &str, item: &DeltaItem) -> Option<String> {
-    let prefix = match item.target {
-        DeltaTarget::Requirement => "### ",
-        DeltaTarget::SpecSection => "## ",
-    };
-    let heading = format!("{prefix}{}", item.key);
-    let range = markdown_block_range(source, &heading, markdown_prefix_level(prefix))?;
+    let range = delta_block_range(source, item.target, &item.key)?;
     let block = &source[range];
     let body = block.split_once('\n').map_or("", |(_, rest)| rest);
     Some(body.trim_matches(['\n', ' ', '\t']).to_string())

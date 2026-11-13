@@ -41,6 +41,7 @@ fn approved_requirement_delta_entry(materialized: bool) -> ApprovedDeltaSummary 
         delta_intact: Some(true),
         requirements: Some(declarations(&["REQ-auth-002"], &[], &[])),
         sections: Some(declarations(&[], &["Purpose"], &["Legacy Notes"])),
+        requirements_sections: None,
         materialized: Some(materialized),
         declarations_error: None,
     }
@@ -52,6 +53,7 @@ fn bare_entry(module: &str, delta_intact: Option<bool>) -> ApprovedDeltaSummary 
         delta_intact,
         requirements: None,
         sections: None,
+        requirements_sections: None,
         materialized: None,
         declarations_error: None,
     }
@@ -279,6 +281,7 @@ fn materialized_turns_true_after_check_and_false_after_a_reapproved_correction()
         delta_intact: Some(true),
         requirements: Some(declarations(&[], &[], &[])),
         sections: Some(declarations(&[], &["Purpose"], &[])),
+        requirements_sections: None,
         materialized: Some(false),
         declarations_error: None,
     };
@@ -336,6 +339,7 @@ fn a_crlf_checkout_of_an_approved_delta_stays_intact() {
             delta_intact: Some(true),
             requirements: Some(declarations(&[], &[], &[])),
             sections: Some(declarations(&[], &["Purpose"], &[])),
+            requirements_sections: None,
             materialized: Some(false),
             declarations_error: None,
         }]

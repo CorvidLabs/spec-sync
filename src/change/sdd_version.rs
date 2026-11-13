@@ -1383,6 +1383,9 @@ pub struct ApprovedDeltaSummary {
     pub requirements: Option<DeltaDeclarations>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sections: Option<DeltaDeclarations>,
+    /// `### REQUIREMENTS SECTION` declarations, present only when the delta has any (#866).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirements_sections: Option<DeltaDeclarations>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub materialized: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1883,6 +1886,9 @@ enum DeltaOperation {
 enum DeltaTarget {
     Requirement,
     SpecSection,
+    /// A `## <name>` section of `requirements.md`, such as `## Acceptance Criteria` (#866,
+    /// REQ-change-162).
+    RequirementsSection,
 }
 
 #[derive(Debug, Clone)]

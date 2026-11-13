@@ -9,7 +9,7 @@ fn semantic_acceptance_item_exists_for_module(
     Ok(parse_delta(&content)?.iter().any(|item| {
         matches!(
             item.target,
-            DeltaTarget::Requirement | DeltaTarget::SpecSection
+            DeltaTarget::Requirement | DeltaTarget::SpecSection | DeltaTarget::RequirementsSection
         ) && item.operation != DeltaOperation::Removed
             && !item.content.trim().is_empty()
     }))

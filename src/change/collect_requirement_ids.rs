@@ -959,7 +959,9 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
         if parse_delta(&content)?.iter().any(|item| {
             matches!(
                 item.target,
-                DeltaTarget::Requirement | DeltaTarget::SpecSection
+                DeltaTarget::Requirement
+                    | DeltaTarget::SpecSection
+                    | DeltaTarget::RequirementsSection
             ) && item.operation != DeltaOperation::Removed
         }) {
             return Ok(true);
@@ -1424,6 +1426,9 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
             return Err(format!("semantic delta for `{module}` is empty"));
         }
         for item in items {
+            if let Some(problem) = requirements_section_item_problem(&item) {
+                return Err(problem);
+            }
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
             {
                 validate_requirement(&item.key, &item.content)?;
@@ -1544,6 +1549,7 @@ fn delta_base_key(module: &str, item: &DeltaItem) -> String {
     let target = match item.target {
         DeltaTarget::Requirement => "REQUIREMENT",
         DeltaTarget::SpecSection => "SPEC SECTION",
+        DeltaTarget::RequirementsSection => "REQUIREMENTS SECTION",
     };
     format!("{module}: {target} {}", item.key)
 }
@@ -1552,14 +1558,10 @@ fn delta_base_key(module: &str, item: &DeltaItem) -> String {
 /// now, or of its absence. Line endings and surrounding blank lines fold exactly as
 /// `markdown_block_matches` folds them, so a CRLF checkout never reads as a moved block.
 fn canonical_block_digest(module: &str, spec: &str, requirements: &str, item: &DeltaItem) -> String {
-    let (source, prefix) = match item.target {
-        DeltaTarget::Requirement => (requirements, "### "),
-        DeltaTarget::SpecSection => (spec, "## "),
-    };
-    let heading = format!("{prefix}{}", item.key);
+    let source = delta_target_source(item.target, spec, requirements);
     let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
     digest.frame(b"key", delta_base_key(module, item).as_bytes());
-    match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
+    match delta_block_range(source, item.target, &item.key) {
         None => digest.frame(b"absent", b""),
         Some(range) => {
             let block = source[range].replace("\r\n", "\n");
@@ -1667,7 +1669,7 @@ fn moved_base_is_already_carried(
     let (spec_path, requirements_path) =
         canonical_module_paths(root, &specs_dir, &candidate.module)?;
     let path = match candidate.item.target {
-        DeltaTarget::Requirement => requirements_path,
+        DeltaTarget::Requirement | DeltaTarget::RequirementsSection => requirements_path,
         DeltaTarget::SpecSection => spec_path,
     };
     let Some(old_body) = recover_approved_base_body(root, &path, candidate) else {
@@ -1704,7 +1706,7 @@ fn recover_approved_base_body(
         let object = format!("{commit}:{prefix}{file}");
         let text = git_output_allow_empty(root, &["show", object.as_str()]).unwrap_or_default();
         let (spec, requirements) = match candidate.item.target {
-            DeltaTarget::Requirement => ("", text.as_str()),
+            DeltaTarget::Requirement | DeltaTarget::RequirementsSection => ("", text.as_str()),
             DeltaTarget::SpecSection => (text.as_str(), ""),
         };
         if canonical_block_digest(&candidate.module, spec, requirements, &candidate.item)
@@ -1842,10 +1844,7 @@ fn approval_delta_bases(
         let base = match previous_bases.get(&key) {
             Some(previous_base) if body_unchanged => {
                 if !delta_item_is_applied(spec, requirements, item) && *previous_base != current {
-                    let source = match item.target {
-                        DeltaTarget::Requirement => requirements,
-                        DeltaTarget::SpecSection => spec,
-                    };
+                    let source = delta_target_source(item.target, spec, requirements);
                     candidates.push(MovedBaseCandidate {
                         module: module.to_string(),
                         item: item.clone(),
@@ -1871,10 +1870,7 @@ fn approval_delta_bases(
             bases.insert(candidate.key.clone(), candidate.current_base.clone());
             continue;
         }
-        let target = match candidate.item.target {
-            DeltaTarget::Requirement => candidate.item.key.clone(),
-            DeltaTarget::SpecSection => format!("section `{}`", candidate.item.key),
-        };
+        let target = delta_target_label(&candidate.item);
         moved.entry(candidate.module).or_default().push(target);
     }
     if moved.is_empty() {
@@ -1942,10 +1938,7 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
             return;
         };
         if *base != canonical_block_digest(module, spec, requirements, item) {
-            let target = match item.target {
-                DeltaTarget::Requirement => item.key.clone(),
-                DeltaTarget::SpecSection => format!("section `{}`", item.key),
-            };
+            let target = delta_target_label(item);
             moved.entry(module.to_string()).or_default().push(target);
         }
     })?;
@@ -2142,6 +2135,7 @@ pub fn approved_delta_summaries(root: &Path, record: &ChangeRecord) -> Vec<Appro
         delta_intact,
         requirements: None,
         sections: None,
+        requirements_sections: None,
         materialized: None,
         declarations_error: None,
     };
@@ -2173,7 +2167,8 @@ pub fn approved_delta_summaries(root: &Path, record: &ChangeRecord) -> Vec<Appro
             };
             match parse_delta(&bound.body) {
                 Ok(items) => {
-                    let (requirements, sections) = split_delta_declarations(&items);
+                    let (requirements, sections, requirements_sections) =
+                        split_delta_declarations(&items);
                     // Before the first materialization the answer is false by definition, and a
                     // first application may raise refusals only a first application should raise.
                     let materialized = specs_dir.as_deref().is_some_and(|specs_dir| {
@@ -2188,9 +2183,18 @@ pub fn approved_delta_summaries(root: &Path, record: &ChangeRecord) -> Vec<Appro
                         )
                         .is_ok_and(|()| !prepared.pending.iter().any(|pending| pending == module))
                     });
+                    let any = |declarations: &DeltaDeclarations| {
+                        !(declarations.added.is_empty()
+                            && declarations.modified.is_empty()
+                            && declarations.removed.is_empty())
+                    };
                     ApprovedDeltaSummary {
                         requirements: Some(requirements),
                         sections: Some(sections),
+                        // Present only when the delta has such items, so every existing summary
+                        // keeps its bytes (#866).
+                        requirements_sections: any(&requirements_sections)
+                            .then_some(requirements_sections),
                         materialized: Some(materialized),
                         ..bare(module, Some(true))
                     }
@@ -2206,15 +2210,19 @@ pub fn approved_delta_summaries(root: &Path, record: &ChangeRecord) -> Vec<Appro
         .collect()
 }
 
-/// Split parsed delta items into requirement and spec-section declarations by operation. Only
-/// `### REQUIREMENT` and `### SPEC SECTION` item headings are items, so prose is never reported.
-fn split_delta_declarations(items: &[DeltaItem]) -> (DeltaDeclarations, DeltaDeclarations) {
+/// Split parsed delta items into requirement, spec-section and requirements-section declarations
+/// by operation. Only item headings are items, so prose is never reported.
+fn split_delta_declarations(
+    items: &[DeltaItem],
+) -> (DeltaDeclarations, DeltaDeclarations, DeltaDeclarations) {
     let mut requirements = DeltaDeclarations::default();
     let mut sections = DeltaDeclarations::default();
+    let mut requirements_sections = DeltaDeclarations::default();
     for item in items {
         let target = match item.target {
             DeltaTarget::Requirement => &mut requirements,
             DeltaTarget::SpecSection => &mut sections,
+            DeltaTarget::RequirementsSection => &mut requirements_sections,
         };
         match item.operation {
             DeltaOperation::Added => target.added.push(item.key.clone()),
@@ -2222,7 +2230,7 @@ fn split_delta_declarations(items: &[DeltaItem]) -> (DeltaDeclarations, DeltaDec
             DeltaOperation::Removed => target.removed.push(item.key.clone()),
         }
     }
-    for declarations in [&mut requirements, &mut sections] {
+    for declarations in [&mut requirements, &mut sections, &mut requirements_sections] {
         for list in [
             &mut declarations.added,
             &mut declarations.modified,
@@ -2232,7 +2240,7 @@ fn split_delta_declarations(items: &[DeltaItem]) -> (DeltaDeclarations, DeltaDec
             list.dedup();
         }
     }
-    (requirements, sections)
+    (requirements, sections, requirements_sections)
 }
 
 /// Approval currency as the gates that consume the approval judge it (REQ-change-111).
@@ -2515,8 +2523,12 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
             // fragment, and application kept only the last. A spec section silently lost
             // everything above its final subheading — including behaviour the change never
             // touched. Fixing the classification without moving the flush was half a fix.
-            let item_heading = strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
-                .map(|value| (DeltaTarget::Requirement, value))
+            let item_heading = strip_ascii_prefix_ignore_case(header, "REQUIREMENTS SECTION ")
+                .map(|value| (DeltaTarget::RequirementsSection, value))
+                .or_else(|| {
+                    strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
+                        .map(|value| (DeltaTarget::Requirement, value))
+                })
                 .or_else(|| {
                     strip_ascii_prefix_ignore_case(header, "SPEC SECTION ")
                         .map(|value| (DeltaTarget::SpecSection, value))
@@ -2544,7 +2556,7 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
                 continue;
             } else {
                 return Err(format!(
-                    "invalid delta item heading `### {header}` — a delta item must be `### REQUIREMENT <id>` or `### SPEC SECTION <name>`; subheadings are only content once an item has been opened"
+                    "invalid delta item heading `### {header}` — a delta item must be `### REQUIREMENT <id>`, `### SPEC SECTION <name>` or `### REQUIREMENTS SECTION <name>`; subheadings are only content once an item has been opened"
                 ));
             };
             current_target = Some(target);
@@ -2595,7 +2607,7 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
     if items.is_empty() && !content.trim().is_empty() {
         if operation.is_some() {
             return Err(
-                "semantic delta contains no items under a recognized operation heading; each ## Added, ## Modified, or ## Removed section must contain ### REQUIREMENT <id> or ### SPEC SECTION <name>"
+                "semantic delta contains no items under a recognized operation heading; each ## Added, ## Modified, or ## Removed section must contain ### REQUIREMENT <id>, ### SPEC SECTION <name> or ### REQUIREMENTS SECTION <name>"
                     .into(),
             );
         }
@@ -2637,12 +2649,9 @@ struct PreparedMaterialization {
 /// run — it means the delta names something that was never present. Asked as a question instead,
 /// "already removed" is simply true.
 fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bool {
-    let (source, prefix) = match item.target {
-        DeltaTarget::Requirement => (requirements, "### "),
-        DeltaTarget::SpecSection => (spec, "## "),
-    };
-    let heading = format!("{prefix}{}", item.key);
-    match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
+    let source = delta_target_source(item.target, spec, requirements);
+    let heading = format!("{}{}", delta_target_prefix(item.target), item.key);
+    match delta_block_range(source, item.target, &item.key) {
         None => item.operation == DeltaOperation::Removed,
         Some(range) => {
             item.operation != DeltaOperation::Removed
@@ -2885,9 +2894,76 @@ fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Ran
     Some(lines[start].0..end)
 }
 
-/// Why a `### REQUIREMENTS SECTION` item cannot be approved, or `None` (#866). Not checked yet.
-fn requirements_section_item_problem(_item: &DeltaItem) -> Option<String> {
-    None
+/// Why a `### REQUIREMENTS SECTION` item cannot be approved, or `None` (#866, REQ-change-162): its
+/// content holds a requirement heading outside fenced code, and a requirement changes only
+/// through a `### REQUIREMENT` item, with its tombstones.
+fn requirements_section_item_problem(item: &DeltaItem) -> Option<String> {
+    if item.target != DeltaTarget::RequirementsSection {
+        return None;
+    }
+    let scanned = crate::parser::blank_fenced_code(&item.content);
+    let id = scanned
+        .lines()
+        .find_map(crate::validator::requirement_heading_id)?;
+    Some(format!(
+        "`### REQUIREMENTS SECTION {}` holds the requirement heading `{id}`; a requirement changes only through a `### REQUIREMENT {id}` item, so move it into one",
+        item.key
+    ))
+}
+
+/// The text an item targets: `requirements.md` for a requirement or a requirements section, the
+/// canonical spec for a spec section.
+fn delta_target_source<'a>(target: DeltaTarget, spec: &'a str, requirements: &'a str) -> &'a str {
+    match target {
+        DeltaTarget::SpecSection => spec,
+        DeltaTarget::Requirement | DeltaTarget::RequirementsSection => requirements,
+    }
+}
+
+/// The heading prefix an item's block is written under.
+fn delta_target_prefix(target: DeltaTarget) -> &'static str {
+    match target {
+        DeltaTarget::Requirement => "### ",
+        DeltaTarget::SpecSection | DeltaTarget::RequirementsSection => "## ",
+    }
+}
+
+/// How a refusal names an item's target: a requirement by its ID, a section by its name.
+fn delta_target_label(item: &DeltaItem) -> String {
+    match item.target {
+        DeltaTarget::Requirement => item.key.clone(),
+        DeltaTarget::SpecSection => format!("section `{}`", item.key),
+        DeltaTarget::RequirementsSection => format!("requirements section `{}`", item.key),
+    }
+}
+
+/// The block `key` names in `source` for `target`, read the same way by application, the
+/// already-applied check, the approved-base digest and send-back.
+fn delta_block_range(source: &str, target: DeltaTarget, key: &str) -> Option<Range<usize>> {
+    match target {
+        DeltaTarget::RequirementsSection => requirements_section_range(source, key),
+        DeltaTarget::Requirement | DeltaTarget::SpecSection => {
+            let prefix = delta_target_prefix(target);
+            markdown_block_range(source, &format!("{prefix}{key}"), markdown_prefix_level(prefix))
+        }
+    }
+}
+
+/// The `## <key>` section of `requirements.md` (#866, REQ-change-162): from its heading to the next
+/// heading of level 2 or shallower or the next requirement heading, whichever comes first, so a
+/// requirement block is never part of a section. A heading inside fenced code is quoted text.
+fn requirements_section_range(source: &str, key: &str) -> Option<Range<usize>> {
+    let range = markdown_block_range(source, &format!("## {key}"), 2)?;
+    let scanned = crate::parser::blank_fenced_code(&source[range.clone()]);
+    let mut offset = 0;
+    for (index, line) in scanned.split_inclusive('\n').enumerate() {
+        let content = line.trim_end_matches(['\n', '\r']);
+        if index > 0 && crate::validator::requirement_heading_id(content).is_some() {
+            return Some(range.start..range.start + offset);
+        }
+        offset += line.len();
+    }
+    Some(range)
 }
 
 /// Apply one delta item, with `operation`, to a module's spec and requirements text; returns
@@ -2906,6 +2982,17 @@ fn apply_delta_item(
         DeltaTarget::SpecSection => Ok((
             apply_markdown_block(spec, "## ", &item.key, &item.content, operation)?,
             requirements.to_string(),
+        )),
+        DeltaTarget::RequirementsSection => Ok((
+            spec.to_string(),
+            apply_markdown_block_at(
+                requirements,
+                "## ",
+                &item.key,
+                &item.content,
+                operation,
+                requirements_section_range(requirements, &item.key),
+            )?,
         )),
     }
 }
@@ -2926,12 +3013,26 @@ fn apply_markdown_block(
     operation: DeltaOperation,
 ) -> Result<String, String> {
     let heading = format!("{prefix}{key}");
+    let block = markdown_block_range(source, &heading, markdown_prefix_level(prefix));
+    apply_markdown_block_at(source, prefix, key, content, operation, block)
+}
+
+/// `apply_markdown_block` with the targeted block's range already read, so a requirements section
+/// applies with its own boundary (#866).
+fn apply_markdown_block_at(
+    source: &str,
+    prefix: &str,
+    key: &str,
+    content: &str,
+    operation: DeltaOperation,
+    block: Option<Range<usize>>,
+) -> Result<String, String> {
+    let heading = format!("{prefix}{key}");
     let line_ending = if source.contains("\r\n") {
         "\r\n"
     } else {
         "\n"
     };
-    let block = markdown_block_range(source, &heading, markdown_prefix_level(prefix));
     match operation {
         // An ADDED block that is already present with exactly the declared content
         // is an applied delta, not a conflict. Re-deriving the canonical tree must

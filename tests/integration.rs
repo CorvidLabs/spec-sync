@@ -125,3 +125,6 @@ mod archived_upstream;
 
 #[path = "integration/doctor.rs"]
 mod doctor;
+
+#[path = "integration/lifecycle_file_errors.rs"]
+mod lifecycle_file_errors;

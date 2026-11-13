@@ -5520,6 +5520,65 @@ if the floor call is removed from this function"
         assert_eq!(report["stages"][0]["status"], "current", "{report}");
     }
 
+    /// An archived fixture: the reviewed change finalized on a feature branch, archive committed.
+    fn archived_change_fixture(root: &Path) -> String {
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        change::finalize_change(root, &id).expect("finalize");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        id
+    }
+
+    /// #922 (REQ-cmd-change-033): an archived change whose own accepted evidence is still current
+    /// is not told to reopen because an unrelated project file moved after it. `change reopen`
+    /// compares the change-scoped inputs, finds them unchanged and refuses.
+    #[test]
+    fn an_archived_change_is_not_told_to_reopen_for_unrelated_project_drift() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = archived_change_fixture(root);
+        fs::write(root.join("NOTES.md"), "unrelated\n").unwrap();
+        git_in(root, &["add", "NOTES.md"]);
+        git_in(root, &["commit", "-q", "-m", "an unrelated file"]);
+        let record = change::load_change(root, &id).expect("reload");
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        let product = &report["stages"][0];
+        assert_eq!(product["id"], "product_tip");
+        assert!(
+            !product["action"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("change reopen"),
+            "{report}"
+        );
+        assert_eq!(product["status"], "done", "{report}");
+    }
+
+    /// #922, second case: an archived package whose `verification.json` no longer parses makes
+    /// `change reopen` fail at `load_verification`, so the product stage names a restore instead.
+    #[test]
+    fn an_archived_change_with_unreadable_verification_is_not_told_to_reopen() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = archived_change_fixture(root);
+        let archive = change::find_change_dir(root, &id).expect("archive");
+        fs::write(archive.join("verification.json"), "not json\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "damage the archived verification"],
+        );
+        let record = change::load_change(root, &id).expect("reload");
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        let action = report["stages"][0]["action"].as_str().unwrap_or_default();
+        assert!(!action.contains("change reopen"), "{report}");
+        assert!(action.contains("verification.json"), "{report}");
+    }
+
     #[test]
     fn ship_status_treats_retired_as_terminal_in_every_stage() {
         let temp = TempDir::new().expect("temp project");

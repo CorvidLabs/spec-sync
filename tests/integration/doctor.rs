@@ -1376,6 +1376,34 @@ fn a_package_changed_after_it_merged_is_not_closed_late() {
     assert_eq!(tree(&root), before, "a refused late close wrote");
 }
 
+/// #1008 item 2 (REQ-change-143): a late close moves the package byte for byte as it merged. A
+/// file inside the package that Git ignores was never committed, so the package differs from the
+/// remote default and the close is refused, writing nothing.
+#[test]
+fn a_package_holding_an_ignored_file_is_not_closed_late() {
+    let temp = TempDir::new().unwrap();
+    let root = project(&temp);
+    fs::write(root.join("FAQ.md"), "FAQ.\n").unwrap();
+    draft(&root, "Write a FAQ", "write-a-faq", "FAQ.md");
+    commit_all(&root, "Draft the FAQ change");
+    publish(&root);
+    fs::write(root.join(".git/info/exclude"), "notes.local\n").unwrap();
+    fs::write(
+        active(&root, "write-a-faq").join("notes.local"),
+        "scratch\n",
+    )
+    .unwrap();
+    let before = tree(&root);
+    let output = close_late(&root, &["write-a-faq"]);
+    let refusal = text(&output);
+    assert!(
+        !output.status.success(),
+        "closed a package holding an ignored file:\n{refusal}"
+    );
+    assert!(refusal.contains("differs from `origin/main`"), "{refusal}");
+    assert_eq!(tree(&root), before, "a refused late close wrote");
+}
+
 #[test]
 fn recorded_late_close_text_is_escaped_when_printed() {
     let temp = TempDir::new().unwrap();

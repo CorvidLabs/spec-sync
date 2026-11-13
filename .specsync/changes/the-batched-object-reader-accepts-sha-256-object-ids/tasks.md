@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test: reads at a 64-character commit id in a sha256 repository are answered by one batch child and equal per-file reads
 - [x] Accept 64-character hex object ids in batchable_revision
-- [ ] Targeted git_utils tests, fmt and clippy
+- [x] Targeted git_utils tests, fmt and clippy

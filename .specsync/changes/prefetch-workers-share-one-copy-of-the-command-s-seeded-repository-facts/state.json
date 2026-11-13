@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "prefetch-workers-share-one-copy-of-the-command-s-seeded-repository-facts",
+  "slug": "prefetch-workers-share-one-copy-of-the-command-s-seeded-repository-facts",
+  "title": "Prefetch workers share one copy of the command's seeded repository facts",
+  "description": "Prefetch workers share one copy of the command's seeded repository facts",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794546931,
+  "updated_at": 1794546938,
+  "affected_specs": [
+    "git_utils"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-git-utils-011 lets prefetch workers start from what the command already knows; each worker deep-copied every memoized Git output, so a large memoized result was copied once per worker. The seed now shares one copy; output is unchanged (#955)",
+  "acceptance_criteria": [
+    "a repository-fact seed cloned for each prefetch worker shares one copy of the command's facts, a worker's scope still answers from them, and facts the worker learns stay its own; output is unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

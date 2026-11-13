@@ -1797,6 +1797,38 @@ mod tests {
         String::from_utf8(output.stdout).unwrap().trim().to_string()
     }
 
+    /// #955 (REQ-git-utils-011): a seed cloned for each prefetch worker shares one copy of the
+    /// command's facts instead of deep-copying every buffer per worker, and a worker's scope still
+    /// answers from it.
+    #[test]
+    fn a_repository_fact_seed_shares_one_copy_of_its_facts_across_workers() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        commit_file(root, "a.txt", "a", "first");
+        let _scope = begin_repository_fact_scope(root);
+        let head = head_through_memo(root);
+        let seed = repository_fact_seed(root).expect("a scope is open");
+        let copies: Vec<RepositoryFactSeed> = (0..8).map(|_| seed.clone()).collect();
+        assert!(
+            copies
+                .iter()
+                .all(|copy| std::sync::Arc::ptr_eq(&copy.facts, &seed.facts)),
+            "each worker's seed deep-copied the facts"
+        );
+        let answered = std::thread::spawn({
+            let seed = seed.clone();
+            let root = root.to_path_buf();
+            move || {
+                let _worker = begin_seeded_repository_fact_scope(seed);
+                memoized_repository_fact(&root, "git_cmd", &["rev-parse", "--verify", "HEAD"])
+                    .map(|fact| String::from_utf8(fact.stdout).unwrap().trim().to_string())
+            }
+        })
+        .join()
+        .unwrap();
+        assert_eq!(answered, Some(head));
+    }
+
     #[test]
     fn a_fact_read_twice_in_one_scope_is_answered_once() {
         let tmp = init_repo();

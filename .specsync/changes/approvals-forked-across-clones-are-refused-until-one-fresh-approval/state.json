@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "approvals-forked-across-clones-are-refused-until-one-fresh-approval",
+  "slug": "approvals-forked-across-clones-are-refused-until-one-fresh-approval",
+  "title": "Approvals forked across clones are refused until one fresh approval",
+  "description": "Approvals forked across clones are refused until one fresh approval",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794585341,
+  "updated_at": 1794585348,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests/forked_approvals.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a change approved separately on two branches that then merge is refused by definition-approval validation (check, audit, status) naming both approvers and the fresh approval that settles it; one fresh change approve on the merged branch settles it; approvals that only append are not a fork"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "no network lock; relayed_by is not compared (REQ-change-relay-repair-001); change approve itself is not refused, so the recovery stays available",
+    "public_contract": "yes"
+  }
+}

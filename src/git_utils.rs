@@ -686,10 +686,16 @@ pub(crate) struct MemoizedGitOutput {
     pub(crate) stderr: Vec<u8>,
 }
 
+/// Memoized git answers, keyed by command flavor and arguments.
+type RepositoryFacts = std::collections::HashMap<(&'static str, Vec<String>), MemoizedGitOutput>;
+
 /// One open repository-fact scope: the facts git already answered for `root` in this command.
 struct RepositoryFactFrame {
     root: PathBuf,
-    facts: std::collections::HashMap<(&'static str, Vec<String>), MemoizedGitOutput>,
+    facts: RepositoryFacts,
+    /// A worker's facts from the command thread, shared by every worker rather than copied into
+    /// each (#955). Read after `facts`; cleared with them.
+    inherited: Option<std::sync::Arc<RepositoryFacts>>,
     /// One `git cat-file --batch` child per git command flavor (REQ-git-utils-010).
     batches: std::collections::HashMap<&'static str, ObjectBatch>,
     /// False in a worker thread's seeded scope: it never starts a batch reader, so a command
@@ -757,14 +763,13 @@ pub(crate) fn begin_repository_fact_scope(root: &Path) -> RepositoryFactScope {
         let mut scopes = scopes.borrow_mut();
         // A scope nested in an open scope for the same root starts from what the outer one already
         // knows: both live in this command, and invalidation clears every open frame.
-        let facts = scopes
-            .last()
-            .filter(|frame| frame.root == root)
-            .map(|frame| frame.facts.clone())
-            .unwrap_or_default();
+        let outer = scopes.last().filter(|frame| frame.root == root);
+        let facts = outer.map(|frame| frame.facts.clone()).unwrap_or_default();
+        let inherited = outer.and_then(|frame| frame.inherited.clone());
         scopes.push(RepositoryFactFrame {
             root: root.to_path_buf(),
             facts,
+            inherited,
             batches: std::collections::HashMap::new(),
             batch_reader: true,
         });
@@ -778,7 +783,8 @@ pub(crate) fn begin_repository_fact_scope(root: &Path) -> RepositoryFactScope {
 #[derive(Clone, Debug)]
 pub(crate) struct RepositoryFactSeed {
     root: PathBuf,
-    facts: std::collections::HashMap<(&'static str, Vec<String>), MemoizedGitOutput>,
+    /// Shared, so a seed cloned for each worker does not copy every buffer (#955).
+    facts: std::sync::Arc<RepositoryFacts>,
 }
 
 /// The facts this thread's open scopes for `root` hold, for worker threads that only read
@@ -792,8 +798,15 @@ pub(crate) fn repository_fact_seed(root: &Path) -> Option<RepositoryFactSeed> {
         let scopes = scopes.borrow();
         let mut frames = scopes.iter().filter(|frame| frame.root == root).peekable();
         frames.peek()?;
-        let mut facts = std::collections::HashMap::new();
+        let mut facts = RepositoryFacts::new();
         for frame in frames {
+            if let Some(inherited) = &frame.inherited {
+                facts.extend(
+                    inherited
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+            }
             facts.extend(
                 frame
                     .facts
@@ -803,7 +816,7 @@ pub(crate) fn repository_fact_seed(root: &Path) -> Option<RepositoryFactSeed> {
         }
         Some(RepositoryFactSeed {
             root: root.to_path_buf(),
-            facts,
+            facts: std::sync::Arc::new(facts),
         })
     })
 }
@@ -817,7 +830,8 @@ pub(crate) fn begin_seeded_repository_fact_scope(seed: RepositoryFactSeed) -> Re
     REPOSITORY_FACT_SCOPES.with(|scopes| {
         scopes.borrow_mut().push(RepositoryFactFrame {
             root: seed.root,
-            facts: seed.facts,
+            facts: RepositoryFacts::new(),
+            inherited: Some(seed.facts),
             batches: std::collections::HashMap::new(),
             batch_reader: false,
         });
@@ -937,7 +951,13 @@ pub(crate) fn memoized_repository_fact(
             .iter()
             .rev()
             .filter(|frame| frame.root == root)
-            .find_map(|frame| frame.facts.get(&key).cloned())
+            .find_map(|frame| {
+                frame
+                    .facts
+                    .get(&key)
+                    .or_else(|| frame.inherited.as_ref()?.get(&key))
+                    .cloned()
+            })
     })
 }
 
@@ -980,6 +1000,7 @@ pub(crate) fn invalidate_repository_facts() {
     REPOSITORY_FACT_SCOPES.with(|scopes| {
         for frame in scopes.borrow_mut().iter_mut() {
             frame.facts.clear();
+            frame.inherited = None;
             // A long-lived reader may hold a ref snapshot from before the write.
             frame.batches.clear();
         }

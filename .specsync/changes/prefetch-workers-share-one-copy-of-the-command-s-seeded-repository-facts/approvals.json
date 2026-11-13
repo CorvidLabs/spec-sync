@@ -1,4 +1,45 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794546942,
+      "digest": "487f82605231e4a56a67d0360bce1dc01f2bda838cfedb86a0101690302a779a",
+      "note": "Leif approved this internal fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: prefetch workers share one copy of the seeded Git answers instead of copying them per worker; output unchanged. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "prefetch-workers-share-one-copy-of-the-command-s-seeded-repository-facts",
+        "title": "Prefetch workers share one copy of the command's seeded repository facts",
+        "description": "Prefetch workers share one copy of the command's seeded repository facts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "git_utils"
+        ],
+        "affected_paths": [
+          "src/git_utils.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-git-utils-011 lets prefetch workers start from what the command already knows; each worker deep-copied every memoized Git output, so a large memoized result was copied once per worker. The seed now shares one copy; output is unchanged (#955)",
+        "acceptance_criteria": [
+          "a repository-fact seed cloned for each prefetch worker shares one copy of the command's facts, a worker's scope still answers from them, and facts the worker learns stay its own; output is unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync internal fixes. The output is the same; they're just faster or safer. Approve their scope?', he selected \"#955 shared copy\", \"#938 one ledger check\", \"#921 faster change correct\" and \"#981 cache per build\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:55Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

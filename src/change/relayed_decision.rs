@@ -169,11 +169,15 @@ fn ensure_relay_names_the_decider(
             check_relayed_field(text).map_err(|problem| format!("relayed_by `{key}` {problem}"))?;
         }
     }
+    // Both names are recorded text, printed, not obeyed: shown with control and bidirectional
+    // characters escaped, so a stored name cannot move the cursor or recolour the terminal
+    // (#972, REQ-cmd-change-relayed-decision-001).
     match relayed_by {
         Some(relay) if relay.decided_by != decider => Err(format!(
-            "the relayed decision says `{}` decided, but {flag} records `{decider}`; one record \
+            "the relayed decision says `{}` decided, but {flag} records `{}`; one record \
              names one decider, so pass the same name to both",
-            relay.decided_by
+            printable_record_text(&relay.decided_by),
+            printable_record_text(decider)
         )),
         _ => Ok(()),
     }

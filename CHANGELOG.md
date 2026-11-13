@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).
+
 ### Changed
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.

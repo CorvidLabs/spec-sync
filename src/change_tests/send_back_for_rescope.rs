@@ -807,3 +807,62 @@ fn a_send_back_answers_review_order_by_attempt_count_and_falls_back_to_time() {
     let parsed: SendBackRecord = serde_json::from_str(&bytes).unwrap();
     assert_eq!(parsed, legacy);
 }
+
+// #1070 item 2 (REQ-change-160): a change created with `--no-spec-change` that turns out to change
+// a spec is sent back, answered `no_spec_change no`, and then delivers its delta like any other.
+#[test]
+fn a_sent_back_no_spec_change_can_declare_that_it_changes_specs() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_no_spec_current_record(root);
+    assert!(record.no_spec_change);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    send_back_change(
+        root,
+        &record.id,
+        "Scope owner".into(),
+        "the change edits the change spec after all".into(),
+    )
+    .unwrap();
+
+    let cleared = answer_question(root, &record.id, "no_spec_change", "no").unwrap();
+    assert!(!cleared.no_spec_change);
+    assert_eq!(cleared.no_spec_change_rationale, None);
+
+    fs::write(
+        delta_path(root, &cleared, "change"),
+        "## MODIFIED\n\n### SPEC SECTION Public API\n\n| Export | Description |\n|--------|-------------|\n| `ready` | Lifecycle fixture with a contract. |\n",
+    )
+    .unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    start_implementation(root, &record.id).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    verify_change(root, &record.id).unwrap();
+    let spec = fs::read_to_string(root.join("specs/change/change.spec.md")).unwrap();
+    assert!(spec.contains("Lifecycle fixture with a contract."), "{spec}");
+}
+
+#[test]
+fn a_no_spec_change_answer_is_refused_where_it_cannot_apply() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_no_spec_current_record(root);
+
+    let yes = answer_question(root, &record.id, "no_spec_change", "yes").unwrap_err();
+    assert!(
+        yes.contains("--no-spec-change --rationale"),
+        "declaring no spec change needs the rationale only `change new` records: {yes}"
+    );
+
+    answer_question(root, &record.id, "no_spec_change", "no").unwrap();
+    let again = answer_question(root, &record.id, "no_spec_change", "no").unwrap_err();
+    assert!(again.contains("already"), "{again}");
+
+    // Only a draft takes the answer; an approved change is sent back first.
+    let other = TempDir::new().unwrap();
+    let approved = completed_no_spec_current_record(other.path());
+    approve_definition(other.path(), &approved.id, Some("Scope owner".into()), None).unwrap();
+    let refused =
+        answer_question(other.path(), &approved.id, "no_spec_change", "no").unwrap_err();
+    assert!(refused.contains("answer interview questions"), "{refused}");
+}

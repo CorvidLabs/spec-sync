@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-sent-back-no-spec-change-can-declare-that-it-changes-specs",
+  "slug": "a-sent-back-no-spec-change-can-declare-that-it-changes-specs",
+  "title": "A sent-back no-spec change can declare that it changes specs",
+  "description": "A sent-back no-spec change can declare that it changes specs",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794583229,
+  "updated_at": 1794583254,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/change_tests/send_back_for_rescope.rs",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/workflow.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a no-spec change, approved and then sent back, answers no_spec_change no, adds a delta and is approved, materialized and verified with the delta applied; no_spec_change yes, no on a change that already changes specs, and any answer on an approved change are refused"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "answers stay draft-only; the send-back route for re-scoping is reused unchanged; a rationale is still recorded only by change new",
+    "public_contract": "yes"
+  }
+}

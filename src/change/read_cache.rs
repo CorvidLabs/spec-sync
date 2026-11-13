@@ -1088,6 +1088,21 @@ fn archive_introduction_listings(
     commits: &[&str],
     history_pathspec: &str,
 ) -> Option<BTreeMap<String, Vec<String>>> {
+    archive_introduction_listings_bounded(
+        root,
+        commits,
+        history_pathspec,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+}
+
+/// `archive_introduction_listings` under an output bound of `max_bytes`, which tests lower.
+fn archive_introduction_listings_bounded(
+    root: &Path,
+    commits: &[&str],
+    history_pathspec: &str,
+    max_bytes: usize,
+) -> Option<BTreeMap<String, Vec<String>>> {
     let uncached: Vec<&str> = with_persistent_read_cache(root, |_, frame| {
         commits
             .iter()
@@ -1123,7 +1138,7 @@ fn archive_introduction_listings(
             history_pathspec,
         ],
         Some(input),
-        MAX_GIT_COMMAND_OUTPUT_BYTES,
+        max_bytes,
     )
     .ok()?;
     if !output.status.success() {

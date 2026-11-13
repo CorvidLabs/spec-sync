@@ -1925,3 +1925,41 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+// #942 (REQ-change-135). A combined archive-introduction listing over the output bound is split,
+// not abandoned for one `diff-tree` per commit: the listings equal the ones a large bound gives,
+// and the Git processes stay fewer than the archive-introducing commits.
+#[test]
+fn an_over_bound_archive_introduction_listing_is_split_not_read_per_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    for _ in 0..6 {
+        finalized_archived_change(root);
+    }
+    let history = quiet_git(root, &["rev-list", "HEAD"]);
+    let commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    let pathspec = format!(":(top,literal){ARCHIVE_PATH}");
+    let whole =
+        archive_introduction_listings_bounded(root, &commits, &pathspec, MAX_GIT_COMMAND_OUTPUT_BYTES)
+            .expect("the whole listing fits the default bound");
+    let introducing = whole.values().filter(|paths| !paths.is_empty()).count();
+    assert!(introducing >= 6, "{whole:?}");
+    // The bytes `diff-tree` lists for the introducing commits: each header and every added path.
+    let listed_bytes: usize = whole
+        .iter()
+        .filter(|(_, paths)| !paths.is_empty())
+        .map(|(commit, paths)| commit.len() + 1 + paths.iter().map(|path| path.len() + 1).sum::<usize>())
+        .sum();
+
+    // Two thirds of the listing: the whole of it is over the bound, and each half fits.
+    reset_test_git_process_count();
+    let split =
+        archive_introduction_listings_bounded(root, &commits, &pathspec, listed_bytes * 2 / 3);
+    let processes = test_git_process_count();
+    assert_eq!(split.as_ref(), Some(&whole), "a split listing equals the whole one");
+    assert!(
+        processes < introducing,
+        "{processes} Git processes for {introducing} archive-introducing commits"
+    );
+}

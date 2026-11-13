@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "corvid-agent",
+      "timestamp": 1794545043,
+      "digest": "a98b653c5e84e4f8808e4e71006532659d5c80f058bace841d196ea2025eb727",
+      "note": "Leif's scope approval, given in chat to his Chief of Staff on 2026-11-12 at 9:25 PM MST: \"Yes, record my scope approval on all 8 drafts.\" Recorded by corvid-agent; this is not 0xLeif's own signature.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "list-chough-0-6-0-record-folders-in-verification-ignored-paths",
+        "title": "List Chough 0.6.0 record folders in verification_ignored_paths",
+        "description": "List Chough 0.6.0 record folders in verification_ignored_paths",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".specsync/sdd.json"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Policy-only edit to .specsync/sdd.json that adds Chough's three record folders to verification_ignored_paths; no module contract changes",
+        "acceptance_criteria": [
+          ".specsync/sdd.json verification_ignored_paths lists .chough/sessions/, .chough/archive/ and .chough/bugs/; chough doctor reports no records_in_verification finding; specsync check passes"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1794579598,
+      "digest": "a5d3d66fa9af57a4ffedfdbac580ae8e2771bfa79c2b32ac9d2fc1689aecbbe2",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -16,11 +16,13 @@ Each change workspace carries one delta file per affected spec module:
 .specsync/changes/add-passkeys/deltas/auth.md
 ```
 
-The file name must match the module name of an affected spec. Definition approval fails until the set of delta modules **exactly matches** the change's affected specs:
+The file name must match the module name of an affected spec. Definition approval fails until every delta names an affected spec and every affected spec has a delta:
 
 ```text
-semantic delta modules must exactly match affected specs (missing: auth; extra: none)
+semantic delta modules must exactly match affected specs (missing: auth; extra: none); a module may go without a delta only when it owns one of the change's declared files
 ```
+
+One exception: an affected module may have no delta when it owns one of the change's declared files. That fits a spec split, where the requirement moved into `sessions` while `auth` still owns the code the change edits: declare both, and write a delta for `sessions` only. Such a code-only module's spec is not edited, and at least one affected module still needs a delta.
 
 Documentation-only changes that touch no spec contract can opt out with `--no-spec-change` and a recorded rationale (see [Workflow](workflow.md)).
 

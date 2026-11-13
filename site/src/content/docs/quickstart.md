@@ -109,7 +109,7 @@ Answer the returned questions, complete its adaptively selected artifacts, and a
 > **Two completeness checks fire before the one `change approve` checkpoint succeeds:**
 >
 > 1. **Artifact completeness** — every generated artifact in the change workspace (`context.md`, `requirements.md`, `tasks.md`, `testing.md`, and any others the interview selected) must have its scaffold `TODO` marker replaced with real content. Approval fails with a path-and-line diagnostic naming the unfinished artifact.
-> 2. **Semantic deltas** — each spec module the change touches needs a delta file at `.specsync/changes/<change-id>/deltas/<module>.md` describing its contract changes (added/modified requirements and spec-section content). The set of delta modules must exactly match the change's affected specs, or approval fails with `semantic delta modules must exactly match affected specs`.
+> 2. **Semantic deltas** — each spec module the change touches needs a delta file at `.specsync/changes/<change-id>/deltas/<module>.md` describing its contract changes (added/modified requirements and spec-section content). The set of delta modules must exactly match the change's affected specs, or approval fails with `semantic delta modules must exactly match affected specs`; the one exception is a module that owns one of the change's declared files, which may go without a delta.
 
 Continue through the single workflow after the definition is complete:
 

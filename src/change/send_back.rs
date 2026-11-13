@@ -134,7 +134,7 @@ fn applied_delta_items(
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut applied = Vec::new();
     let mut modules = Vec::new();
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let delta_path = delta_path_checked(root, record, module)?;
         let Ok((spec_path, requirements_path)) = canonical_module_paths(root, &specs_dir, module)
         else {
@@ -456,7 +456,7 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut declared: BTreeMap<String, Vec<DeltaItem>> = BTreeMap::new();
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let delta_path = delta_path_checked(root, record, module)?;
         if delta_path.exists() {
             let delta = read_bounded_change_text(&delta_path, "semantic delta")?;

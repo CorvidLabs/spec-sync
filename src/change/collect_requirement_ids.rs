@@ -953,7 +953,7 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
     if record.no_spec_change {
         return Ok(true);
     }
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let content =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
         if parse_delta(&content)?.iter().any(|item| {
@@ -1166,6 +1166,12 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             if !record.affected_specs.contains(&module) {
                 continue;
             }
+            // A code-only module, approved with no delta, authors no section of its spec
+            // (REQ-change-161). A delta that is missing for any other reason leaves authorship
+            // unknown below, as before.
+            if approved_as_code_only(root, record, &module) {
+                continue;
+            }
             // An applied delta is already part of the canonical spec, so it is read
             // for authorship only. Its absence is not a new hard error at this gate.
             let applied = record.canonical_applied;
@@ -1361,6 +1367,71 @@ fn dependency_ordered_changes(changes: Vec<&ChangeRecord>) -> Result<Vec<&Change
     Ok(ordered)
 }
 
+/// The affected modules that carry a semantic delta. A code-only module, declared with no delta
+/// because it owns one of the change's files, carries none (REQ-change-161);
+/// `validate_delta_files` decides whether a module may go without one.
+fn delta_modules<'record>(root: &Path, record: &'record ChangeRecord) -> Vec<&'record String> {
+    if record.no_spec_change {
+        return Vec::new();
+    }
+    record
+        .affected_specs
+        .iter()
+        // An unresolvable workspace keeps every module, so the read that follows reports it.
+        .filter(|module| {
+            delta_path_checked(root, record, module)
+                .map_or(true, |path| fs::symlink_metadata(path).is_ok())
+        })
+        .collect()
+}
+
+/// Whether `module` is code-only in `record`'s effective definition approval: declared, with no
+/// delta file now, and none recorded when the scope was approved (REQ-change-161). Anything that
+/// cannot be read answers `false`, so a missing delta is treated as an unknown one.
+fn approved_as_code_only(root: &Path, record: &ChangeRecord, module: &str) -> bool {
+    if record.no_spec_change
+        || !record.affected_specs.iter().any(|declared| declared == module)
+        || delta_path_checked(root, record, module)
+            .map_or(true, |path| fs::symlink_metadata(path).is_ok())
+    {
+        return false;
+    }
+    let Ok(ledger) = load_approvals(root, record) else {
+        return false;
+    };
+    effective_definition_approval(root, record, &ledger)
+        .ok()
+        .and_then(|approval| approval.approved_delta_digests.as_ref())
+        .is_some_and(|approved| !approved.is_empty() && !approved.contains_key(module))
+}
+
+/// The modules among `expected` with no delta in `actual` that own one of the change's declared
+/// files that exist (REQ-change-161).
+fn code_only_modules(
+    root: &Path,
+    record: &ChangeRecord,
+    expected: &BTreeSet<String>,
+    actual: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
+    let missing: Vec<&String> = expected.difference(actual).collect();
+    if missing.is_empty() {
+        return Ok(BTreeSet::new());
+    }
+    let evidence = acceptance_owner_spec_evidence(root, record)?;
+    let mut code_only = BTreeSet::new();
+    for module in missing {
+        for path in &record.affected_paths {
+            if root.join(path).is_file()
+                && module_currently_owns_path(root, record, path, module, &evidence)?
+            {
+                code_only.insert(module.clone());
+                break;
+            }
+        }
+    }
+    Ok(code_only)
+}
+
 fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let directory = change_dir(root, &record.id).join("deltas");
     let mut actual_modules = BTreeSet::new();
@@ -1391,17 +1462,27 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
         }
         return Ok(());
     }
-    if actual_modules != expected_modules {
+    // A declared module may go without a delta when it owns one of the change's declared files:
+    // a spec split can move the requirement into another module while this one keeps the code
+    // (REQ-change-161). At least one module still carries a delta.
+    let code_only = if actual_modules.is_empty() {
+        BTreeSet::new()
+    } else {
+        code_only_modules(root, record, &expected_modules, &actual_modules)?
+    };
+    if actual_modules.union(&code_only).cloned().collect::<BTreeSet<_>>() != expected_modules {
         let extra: Vec<&str> = actual_modules
             .difference(&expected_modules)
             .map(String::as_str)
             .collect();
         let missing: Vec<&str> = expected_modules
             .difference(&actual_modules)
+            .filter(|module| !code_only.contains(*module))
             .map(String::as_str)
             .collect();
         return Err(format!(
-            "semantic delta modules must exactly match affected specs (missing: {}; extra: {})",
+            "semantic delta modules must exactly match affected specs (missing: {}; extra: {}); \
+             a module may go without a delta only when it owns one of the change's declared files",
             if missing.is_empty() {
                 "none".into()
             } else {
@@ -1415,7 +1496,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
         ));
     }
     let tombstones = removed_requirement_ids(root)?;
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let path = delta_path_checked(root, record, module)?;
         let content = read_bounded_change_text(&path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
@@ -1520,7 +1601,7 @@ fn delta_body_digests(
     if record.no_spec_change {
         return Ok(digests);
     }
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let path = delta_path_checked(root, record, module)?;
         let body = read_bounded_change_text(&path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
@@ -1580,7 +1661,7 @@ fn for_each_replacing_delta_item(
         return Ok(());
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let delta = read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&delta)?;
@@ -2086,7 +2167,7 @@ fn read_approved_delta_binding(
     // A `no_spec_change` record owns no delta bodies (see `delta_body_digests`).
     let mut per_module = BTreeMap::new();
     if !record.no_spec_change {
-        for module in &record.affected_specs {
+        for module in delta_modules(root, record) {
             let path = delta_path_checked(root, record, module)?;
             let body = read_bounded_change_text(&path, "semantic delta")
                 .map_err(|error| format!("semantic delta for {module}: {error}"))?;
@@ -2426,7 +2507,7 @@ fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<Str
         return Ok(Vec::new());
     }
     let mut ids = BTreeSet::new();
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let path = delta_path_checked(root, record, module)?;
         let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
         for item in parse_delta(&content)? {
@@ -2707,7 +2788,7 @@ fn prepare_pending_delta_application(
         return Ok(prepared);
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let delta =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
         prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)
@@ -3527,7 +3608,7 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
     if record.no_spec_change {
         return Ok(keys);
     }
-    for module in &record.affected_specs {
+    for module in delta_modules(root, record) {
         let path = delta_path_checked(root, record, module)?;
         let content = match fs::read_to_string(path) {
             Ok(content) => content,

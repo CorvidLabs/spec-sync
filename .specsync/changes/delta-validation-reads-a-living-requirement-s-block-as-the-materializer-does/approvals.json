@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794541310,
+      "digest": "276e52542ed32dad4e77df8f0247dd57a8a82c8037312da251cfd90cc73bfe22",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "delta-validation-reads-a-living-requirement-s-block-as-the-materializer-does",
+        "title": "Delta validation reads a living requirement's block as the materializer does",
+        "description": "Delta validation reads a living requirement's block as the materializer does",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests.rs",
+          "src/change_tests/added_requirement_block_end.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Makes delta validation match REQ-change-048 and REQ-change-049: an ADDED requirement already present with the same content is applied, not a conflict. Validation now reads the living block the way the materializer does, ending at the next heading of level 3 or shallower. The change spec only lists the new test file.",
+        "acceptance_criteria": [
+          "An ADDED requirement whose text is unchanged in the living requirements.md validates when a ## section follows it, and the applier reads the same block as applied; a different body under the same id is still refused as cannot add existing block (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve (Recommended)",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:41Z, relayed by claude-code-t370. Asked: 'SpecSync bug fix spec-sync#1071: change audit wrongly rejected an unchanged new requirement whenever another section followed it, because validation read more text than the edit step does. The fix makes them read the same, as the spec already requires, with no new wording. Approve its scope?' Option text: 't38c records it and builds, with a failing test first.'",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

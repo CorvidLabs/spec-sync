@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "delta-validation-reads-a-living-requirement-s-block-as-the-materializer-does",
+  "slug": "delta-validation-reads-a-living-requirement-s-block-as-the-materializer-does",
+  "title": "Delta validation reads a living requirement's block as the materializer does",
+  "description": "Delta validation reads a living requirement's block as the materializer does",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794541010,
+  "updated_at": 1794541310,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests.rs",
+    "src/change_tests/added_requirement_block_end.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes delta validation match REQ-change-048 and REQ-change-049: an ADDED requirement already present with the same content is applied, not a conflict. Validation now reads the living block the way the materializer does, ending at the next heading of level 3 or shallower. The change spec only lists the new test file.",
+  "acceptance_criteria": [
+    "An ADDED requirement whose text is unchanged in the living requirements.md validates when a ## section follows it, and the applier reads the same block as applied; a different body under the same id is still refused as cannot add existing block (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

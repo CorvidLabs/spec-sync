@@ -27,6 +27,7 @@ files:
   - src/change_tests/bounded_failure_output.rs
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/commit_identity_guards.rs
+  - src/change_tests/committed_approvals.rs
   - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs

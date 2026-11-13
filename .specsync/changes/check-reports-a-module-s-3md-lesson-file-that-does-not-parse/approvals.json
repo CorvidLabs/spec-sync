@@ -1,0 +1,52 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794546285,
+      "digest": "6fe8d8ebd9cf22bc77aab46d25036c7b1d6bf72f61156d10c6aa8eece73499b2",
+      "note": "Wording checked by the coordinator claude-code-t370 against Leif's pick and found aligned (hc, 2026-11-13): REQ-cmd-check-018 names the unparseable file with its parser error, and check --strict fails on it. The validator spec's Error Cases table gains the same warning as one row, because the check lives in the validator. Recorded by claude-code-t38c (Claude Opus 5.5, hc t38c).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-reports-a-module-s-3md-lesson-file-that-does-not-parse",
+        "title": "Check reports a module's .3md lesson file that does not parse",
+        "description": "check reports a module's .3md lesson file that does not parse",
+        "kind": "feature",
+        "affected_specs": [
+          "cmd_check",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/validator/consumed_by_re.rs",
+          "tests/integration/check.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A spec whose <module>.3md does not parse gets one check warning naming the file, the parser's error and context.md, and check --strict fails; a .3md that parses, or none, adds no finding (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "eb72b292d1c3b2b6924f42299cd20d3f8f53efdbc5af065e56fde469e1e217db",
+        "validator": "56c1e1a52e89dd5975d9254914cecebd5a864ddd75496c1e6ec5c11c8e2c5431"
+      },
+      "approved_delta_bases": {
+        "validator: SPEC SECTION Error Cases": "72d96d30b502c9ac22a3a2e3bbb25016574f0ada8ce3520d8995d5c84205c313"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "#1060 broken .3md reported",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:28Z, relayed by claude-code-t370. Asked: 'SpecSync backlog: which of these smaller changes should the fleet build? Each needs a little new requirement wording.' He selected all four, this one among them (option text: 'An unparseable .3md file gets named with its parser error, and check --strict fails on it. Today it's silently ignored.').",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

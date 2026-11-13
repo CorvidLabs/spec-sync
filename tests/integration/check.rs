@@ -2185,3 +2185,75 @@ fn hashes_without_snapshots_revalidate_instead_of_going_silent() {
         "a hash-only cache must re-validate rather than report a clean skip: {recovered_json:#}"
     );
 }
+
+/// #1060 (REQ-cmd-check-018): a module's `<module>.3md` that does not parse is a warning on its
+/// spec naming the file, the parser's error and that `context.md` is used instead, so
+/// `check --strict` fails on it. A `.3md` that parses, and a module with none, add no finding.
+#[test]
+fn an_unparseable_3md_is_a_check_warning_and_fails_strict() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // The fixture documents both exports, so the module passes `--strict` before any `.3md`.
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+            "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+            "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `login` | none | void | Signs in |\n| `logout` | none | void | Signs out |\n",
+        ),
+    )
+    .unwrap();
+    let check = |strict: bool| {
+        let mut command = specsync();
+        command.arg("check");
+        if strict {
+            command.arg("--strict");
+        }
+        command
+            .arg("--force")
+            .arg("--root")
+            .arg(&root)
+            .output()
+            .unwrap()
+    };
+    let shown = |output: &std::process::Output| {
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    };
+    let without = check(true);
+    assert!(without.status.success(), "{}", shown(&without));
+
+    let layers = |planes: &str| format!("---\n3md: 1.0\naxis: layers\n---\n\n{planes}");
+    let path = root.join("specs/auth/auth.3md");
+    fs::write(
+        &path,
+        layers(
+            "@plane z=0 label=\"Context\"\nContext.\n\n@plane z=1 label=\"Lesson\"\nA lesson.\n",
+        ),
+    )
+    .unwrap();
+    let parses = check(true);
+    assert!(parses.status.success(), "{}", shown(&parses));
+    assert!(!shown(&parses).contains("auth.3md"), "{}", shown(&parses));
+
+    fs::write(
+        &path,
+        layers(
+            "@plane z=0 label=\"Context\"\nContext.\n\n@plane z=1 label=\"One\"\nA.\n\n@plane z=1 label=\"Two\"\nB.\n",
+        ),
+    )
+    .unwrap();
+    let reported = check(false);
+    let text = shown(&reported);
+    assert!(text.contains("specs/auth/auth.3md"), "{text}");
+    assert!(text.contains("does not parse"), "{text}");
+    assert!(text.contains("context.md"), "{text}");
+    let strict = check(true);
+    assert!(
+        !strict.status.success(),
+        "check --strict must fail on an unparseable 3md: {}",
+        shown(&strict)
+    );
+}

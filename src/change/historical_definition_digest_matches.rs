@@ -5095,6 +5095,11 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     ));
     actions.push("preserve existing companion files without making them mandatory".into());
     if dry_run {
+        // The preview refuses a source adoption would refuse, rather than planning an import
+        // from it (#432). The check only reads metadata, so the dry run still writes nothing.
+        if let Some(source) = detected.as_deref() {
+            validate_foreign_import(root, source)?;
+        }
         return Ok(actions);
     }
     let _lock = acquire_project_lock(root)?;

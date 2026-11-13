@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542618,
+      "digest": "333bb12c6580f102ff99c82b9bba93e21ec5c1c3156b9704fb29779121965da6",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: change adopt --dry-run refuses an unsupported import source as the real run does. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-adopt-dry-run-refuses-an-unsupported-import-source-as-adoption-does",
+        "title": "Change adopt --dry-run refuses an unsupported import source as adoption does",
+        "description": "change adopt --dry-run refuses an unsupported import source as adoption does",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "change adopt documents --dry-run as a preview of adoption and --source as openspec or speckit; the preview accepted any source and claimed it would import from it, while adoption refuses it as unsupported (#432)",
+        "acceptance_criteria": [
+          "change adopt --dry-run --source bogus exits nonzero with unsupported adoption source and prints no import plan, exactly as change adopt --source bogus does; a dry run with a supported or detected source still prints its plan and writes nothing"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Four more SpecSync bug fixes (each matches the spec, with failing tests written). Approve their scope?', he selected all four: \"#990 odd folder names\", \"#475 clean JSON\", \"#432 adopt dry run\" and \"#982 retry history index\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

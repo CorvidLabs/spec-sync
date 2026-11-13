@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-github-action-checks-the-release-archive-against-a-sha-256-the-consumer-pins-per-platform",
+  "slug": "the-github-action-checks-the-release-archive-against-a-sha-256-the-consumer-pins-per-platform",
+  "title": "The GitHub Action checks the release archive against a SHA-256 the consumer pins per platform",
+  "description": "The GitHub Action checks the release archive against a SHA-256 the consumer pins per platform",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794546471,
+  "updated_at": 1794546474,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "action.yml",
+    ".github/scripts/verify-release-digest.sh",
+    ".github/scripts/test-verify-release-digest.sh",
+    ".github/workflows/ci.yml",
+    "fledge.toml",
+    "site/src/content/docs/integrations/github-action.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "with expected-sha256 set, a matching archive installs and a mismatched digest, a missing or duplicated platform line, or a malformed line fails before extraction naming the cause; with it empty the Action installs as before; the .sha256 sidecar is still checked"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "none",
+    "public_contract": "yes"
+  }
+}

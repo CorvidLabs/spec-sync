@@ -344,7 +344,7 @@ pub struct RelayRepair {
 impl RelayRepair {
     /// Where the repaired record sits, as `change repair-relays` prints it
     /// (REQ-cmd-change-relay-repair-001).
-    pub fn place(&self) -> String {
+    pub(crate) fn place(&self) -> String {
         let record = self.record;
         match (self.file.as_str(), self.within.as_deref()) {
             ("approvals.json", Some("superseded_approval")) => {

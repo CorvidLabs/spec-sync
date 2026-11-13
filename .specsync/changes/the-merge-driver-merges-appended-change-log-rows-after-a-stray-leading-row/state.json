@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-merge-driver-merges-appended-change-log-rows-after-a-stray-leading-row",
+  "slug": "the-merge-driver-merges-appended-change-log-rows-after-a-stray-leading-row",
+  "title": "The merge driver merges appended Change Log rows after a stray leading row",
+  "description": "The merge driver merges appended Change Log rows after a stray leading row",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794552981,
+  "updated_at": 1794552988,
+  "affected_specs": [
+    "merge"
+  ],
+  "affected_paths": [
+    "src/merge_driver.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes the merge driver match REQ-merge-004 (MERGE-1): two branches that each append a change-log row merge in either order with both rows. A Change Log section opening with a stray headerless row made the driver read that row as the table header, so the row union never ran and the merge conflicted.",
+  "acceptance_criteria": [
+    "Two branches that each bump version 168 to 169 and append a different Change Log row to a section that opens with a stray headerless row merge cleanly in either order with version 170, the stray row once and both new rows (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

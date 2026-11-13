@@ -2283,6 +2283,43 @@ mod tests {
         );
     }
 
+    // #895 (REQ-merge-004, MERGE-1): a Change Log section that opens with a stray, headerless
+    // row before the real table still merges two appended rows cleanly, in either order: the
+    // table's header is the row a separator follows, and the stray row stays as text before it.
+    #[test]
+    fn two_appended_rows_merge_after_a_stray_leading_change_log_row() {
+        let make = |version: u64, rows: &str| {
+            format!(
+                "---\nmodule: cli\nversion: {version}\nstatus: stable\nfiles:\n  - src/cli.rs\ndb_tables: []\ndepends_on: []\n---\n\n# CLI\n\n## Purpose\n\nThe command line.\n\n## Change Log\n\n| 2026-07-30 | A stray row with no header |\n\n| Date | Change |\n|------|--------|\n| 2026-08-01 | initial |\n{rows}"
+            )
+        };
+        let base = make(168, "");
+        let ours = make(169, "| 2026-11-01 | ours |\n");
+        let theirs = make(169, "| 2026-11-02 | theirs |\n");
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("version: 170\n"),
+                "{}",
+                merged.content
+            );
+            for row in [
+                "| 2026-07-30 | A stray row with no header |\n",
+                "| 2026-08-01 | initial |\n",
+                "| 2026-11-01 | ours |\n",
+                "| 2026-11-02 | theirs |\n",
+            ] {
+                assert_eq!(
+                    merged.content.matches(row).count(),
+                    1,
+                    "{row:?}: {}",
+                    merged.content
+                );
+            }
+        }
+    }
+
     // #875 (REQ-merge-006): the first blank line after the change-log rows ends the table.
     // Prose or a second table after it comes out byte-for-byte, and that table's rows are not
     // sorted into the change log.

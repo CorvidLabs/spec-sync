@@ -136,8 +136,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         ChangeAction::Show { id, timeout } => {
             let _deadline = read_deadline_for("change show", timeout, format);
             let _scope = change::begin_change_read_scope(root);
-            change::load_change(root, &id)
-                .and_then(|record| print_record(root, &record, format, true, strict))
+            closed_report(root, &id, format, "change show").unwrap_or_else(|| {
+                change::load_change(root, &id)
+                    .and_then(|record| print_record(root, &record, format, true, strict))
+            })
         }
         ChangeAction::Status { id, timeout } => {
             let _deadline = read_deadline_for("change status", timeout, format);
@@ -156,7 +158,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     }
                 }
                 if let Some(id) = id {
-                    closed_late_report(root, &id, format, "change status").unwrap_or_else(|| {
+                    closed_late_report(root, &id, format, "change status")
+                        .or_else(|| closed_report(root, &id, format, "change status"))
+                        .unwrap_or_else(|| {
                         change::load_change(root, &id)
                             .and_then(|record| print_record(root, &record, format, false, strict))
                     })
@@ -170,7 +174,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             let _deadline = read_deadline_for("change ship-status", timeout, format);
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
-                closed_late_report(root, &id, format, "change ship-status").unwrap_or_else(|| {
+                closed_late_report(root, &id, format, "change ship-status")
+                    .or_else(|| closed_report(root, &id, format, "change ship-status"))
+                    .unwrap_or_else(|| {
                     change::load_change(root, &id)
                         .and_then(|record| print_ship_status(root, &record, format))
                 })
@@ -370,6 +376,54 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             })
         }
+        ChangeAction::Close {
+            ids,
+            actor,
+            reason,
+            replaced_by,
+            words,
+            relay_where,
+            recorded_by,
+        } => change::relayed_decision(
+            &format!(
+                "specsync change close {} --actor <who decided> --reason \"<why>\"{}",
+                ids.join(" "),
+                if replaced_by.is_some() { " --replaced-by <id>" } else { "" }
+            ),
+            Some(actor.as_str()),
+            words,
+            relay_where,
+            recorded_by,
+        )
+        .and_then(|relayed_by| {
+            change::close_changes(
+                root,
+                &change::CloseRequest {
+                    ids,
+                    actor,
+                    reason,
+                    replaced_by,
+                    relayed_by,
+                },
+            )
+        })
+        .map(|closed| match format {
+            OutputFormat::Json => print_json(&serde_json::json!({ "closed": closed })),
+            _ => {
+                for change in &closed {
+                    println!(
+                        "{} {} closed from {}; never reviewed; its package is `{}`",
+                        "✓".green(),
+                        change.record.change_id,
+                        change.record.from_state.as_str(),
+                        change.package
+                    );
+                }
+                println!(
+                    "  Next: commit the move. If a closed change taught something, record it in the lessons of the modules it touched, as finalize asks"
+                );
+            }
+        }),
         ChangeAction::RepairRelays { id } => {
             change::repair_relayed_decisions(root, &id).map(|report| match format {
                 OutputFormat::Json => print_json(&report),
@@ -3412,6 +3466,65 @@ fn print_closed_late(root: &Path, id: &str, format: OutputFormat) -> Option<Resu
     }
     Some(Ok(()))
 }
+
+/// The report `change status`, `show` and `ship-status` give for a closed change, or `None` when
+/// `id` resolves to a live or archived workspace (REQ-change-159).
+fn closed_report(
+    root: &Path,
+    id: &str,
+    format: OutputFormat,
+    phase: &str,
+) -> Option<Result<(), String>> {
+    if !change::is_only_closed(root, id) {
+        return None;
+    }
+    if let Err(error) = change::check_read_deadline(phase, 0, 1) {
+        return Some(Err(error));
+    }
+    let (package, record) = change::closed_record(root, id)?;
+    let sentence = change::closed_sentence(root, id)?;
+    let package = package
+        .strip_prefix(root)
+        .unwrap_or(&package)
+        .to_string_lossy()
+        .replace('\\', "/");
+    match format {
+        OutputFormat::Json => {
+            let closed = match &record {
+                Ok(record) => serde_json::to_value(record).unwrap_or(serde_json::Value::Null),
+                Err(error) => serde_json::json!({ "error": error, "reviewed": false }),
+            };
+            print_json(&serde_json::json!({
+                "id": id,
+                "closed": closed,
+                "package": package,
+                "reviewed": false,
+                "summary": {
+                    "id": id,
+                    "state": "closed",
+                    "next_action": CLOSED_NEXT_ACTION,
+                    "handoff": {
+                        "readiness": "safe",
+                        "reason": CLOSED_HANDOFF,
+                    },
+                },
+            }));
+        }
+        _ => {
+            println!("{id}");
+            println!("  State: closed; never reviewed");
+            println!("  {sentence}");
+            println!("  Next: {CLOSED_NEXT_ACTION}");
+            println!("  Handoff: safe; {CLOSED_HANDOFF}");
+        }
+    }
+    Some(Ok(()))
+}
+
+/// The next action status gives a closed change: there is none.
+const CLOSED_NEXT_ACTION: &str = "none: a closed change is never reviewed or finalized";
+/// Why a session may clear its context after reading a closed change.
+const CLOSED_HANDOFF: &str = "the change was closed; nothing this session knows is still needed";
 
 /// The next action status gives a closed-late change: there is none.
 const CLOSED_LATE_NEXT_ACTION: &str = "none: a closed-late change is never re-checked or finalized";

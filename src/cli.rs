@@ -580,6 +580,31 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Close changes that will not ship: move each into the dated archive marked closed, never
+    /// reviewed, with who closed it and why (draft, approved, implementing or verifying only)
+    Close {
+        /// One or more change IDs; all are closed, or none
+        #[arg(required = true)]
+        ids: Vec<String>,
+        /// Person who decided to close them; recorded as a claim, not authenticated identity
+        #[arg(long)]
+        actor: String,
+        /// Non-empty reason the changes are closed
+        #[arg(long)]
+        reason: String,
+        /// The change that replaces the closed ones
+        #[arg(long, value_name = "ID")]
+        replaced_by: Option<String>,
+        /// Relayed decision: the decider's exact words (with --where and --recorded-by)
+        #[arg(long)]
+        words: Option<String>,
+        /// Relayed decision: where and when they said it, including any relay chain
+        #[arg(long = "where", value_name = "WHERE")]
+        relay_where: Option<String>,
+        /// Relayed decision: the agent recording it
+        #[arg(long)]
+        recorded_by: Option<String>,
+    },
     /// Repair damaged relayed decisions: put each original back from the last commit or its twin
     /// copy, otherwise remove only the damaged relayed_by (never an approval or review)
     RepairRelays {

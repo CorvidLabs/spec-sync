@@ -8,6 +8,7 @@ files:
   - src/change/consider_accepted_evidence_anchor.rs
   - src/change/retirement.rs
   - src/change/doctor.rs
+  - src/change/close.rs
   - src/change/historical_definition_digest_matches.rs
   - src/change/historical_reconciliation.rs
   - src/change/read_cache.rs
@@ -182,6 +183,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `LifecycleCommitScope` | Crate-private answer to what one change's lifecycle commit may stage: the untracked paths the lifecycle wrote or the change owns, and the runtime files (lock, transaction journal) it must neither stage nor report |
 | `LateCloseRecord` | What a late close writes beside the package it moved: actor, reason, timestamp, the state the package still holds, workflow version, the path it came from, the remote default reference and commit, the commit that merged it and its date, `verified: false`, and any dropped collision acknowledgement (REQ-change-143) |
 | `LateCloseCollision` | The acknowledged sequence collision a late close removed from `.specsync/change-sequence.json` because its member left the enumerated directories (REQ-change-143) |
+| `CloseRecord` | What `change close` writes beside the package it moved: actor, reason, timestamp, the state the package still holds, workflow version, the path it came from, the change that replaces it, `reviewed: false`, any relayed decision and any dropped collision acknowledgement (REQ-change-159) |
+| `CloseRequest` | What `change close` was asked to do: the IDs, the actor and reason, the replacing change and the relayed decision (REQ-change-159) |
+| `ClosedChange` | One change `change close` closed: its record and its package path (REQ-change-159) |
 | `DoctorRequest` | What `specsync doctor` was asked to do: `fix`, `dry_run`, the IDs (or `all`) to close late, and the actor and reason a late close needs (REQ-cmd-change-035) |
 | `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
 | `DoctorFinding` | One problem doctor found: its kind, change (or none for the project), location, reason and fix |
@@ -208,6 +212,10 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `closed_late_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<LateCloseRecord, String>)>` | The closed-late package for `id` under `.specsync/archive/closed-late/` and its `late-close.json` (REQ-change-143) |
 | `is_canonical_commit_id` | `value: &str` | `bool` | Crate-private: whether `value` is a full commit id as SpecSync records one (40 lowercase hex digits, SHA-1). A commit identity read from a change record reaches Git as a revision only when it passes (REQ-change-013) |
 | `closed_late_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed-late change: who closed it, when and why, the commit that merged it, never re-checked and not verified, and never approved for a draft (REQ-change-143) |
+| `close_changes` | `root: &Path, request: &CloseRequest` | `Result<Vec<ClosedChange>, String>` | Close every named draft, approved, implementing or verifying change, or none: move each package byte for byte into `.specsync/archive/closed/<date>-<id>/` with `close.json`, refusing one whose materialized spec text has not merged (REQ-change-159) |
+| `is_only_closed` | `root: &Path, id: &str` | `bool` | Whether only a closed package holds `id`; status, show and ship-status report the close record only then (REQ-change-159) |
+| `closed_record` | `root: &Path, id: &str` | `Option<(PathBuf, Result<CloseRecord, String>)>` | The closed package for `id` under `.specsync/archive/closed/` and its `close.json` (REQ-change-159) |
+| `closed_sentence` | `root: &Path, id: &str` | `Option<String>` | The one sentence every verb gives for a closed change: who closed it, when and why, what replaces it, and that it was never reviewed, nor approved for a draft (REQ-change-159) |
 | `begin_read_deadline` | `limit_secs, command, resume, json` | `ReadDeadlineGuard` | Give this thread's read-only command a deadline; past it, `check_read_deadline` reports the phase and the resume command and exits 124 (REQ-change-137) |
 | `begin_worker_read_deadline` | `deadline: Option<ReadDeadline>` | `ReadDeadlineGuard` | Give a prefetch worker the command's deadline; a worker stops taking work instead of reporting |
 | `check_read_deadline` | `phase, done, total` | `Result<(), String>` | Call between items of a long read phase; past the deadline the command's thread flushes its read caches, reports and exits 124, and a worker gets `Err` |
@@ -381,6 +389,8 @@ Acceptance Criteria
 58. Failed verification command evidence carries a bounded `output` of the findings that failed it (errors, and warnings only under `--strict`), so a recorded failure is classifiable without re-running; passing records omit the field and serialize byte-identically to before (#640, REQ-change-153).
 59. After definition approval, the guided next action for an approved or implementing change names `specsync change check <id> --commit`. `change review` and `change ship` refuse when the recorded verification commit does not contain the change's own work — the current contents of its `affected_paths` and any canonical specs it materialized — and they do not record a review bound to such a commit. Uncommitted files under `.specsync/` alone do not trigger that refusal (#535, REQ-change-156, REQ-change-157).
 60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
+61. A closed change is never reviewed, accepted or archived as delivered: `change close` moves its package byte for byte under `.specsync/archive/closed/`, outside every directory the lifecycle enumerates, so it counts toward no check, coverage, preflight, successor walk or sequence accounting, and SpecSync 6.0 to 6.3 never read it (REQ-change-159).
+62. Closing leaves no spec text that no change owns: a change whose materialized text differs from the remote default branch is refused before anything moves, and a batch closes every named change or none (REQ-change-159).
 
 ## Behavioral Examples
 

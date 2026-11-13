@@ -2807,6 +2807,7 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     }
     match matches.len() {
         0 => Err(closed_late_sentence(root, id)
+            .or_else(|| closed_sentence(root, id))
             .unwrap_or_else(|| format!("change `{id}` was not found"))),
         1 => Ok(matches.remove(0)),
         _ => Err(format!(
@@ -4311,7 +4312,7 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
     })?;
     let id = slug.to_string();
     validate_change_id(&id)?;
-    if let Some(sentence) = closed_late_sentence(root, &id) {
+    if let Some(sentence) = closed_late_sentence(root, &id).or_else(|| closed_sentence(root, &id)) {
         return Err(format!(
             "{sentence}; its ID stays reserved, so describe the new change differently"
         ));

@@ -747,17 +747,66 @@ fn package_is_on_reference(root: &Path, project_path: &str, reference: &str) -> 
     git_output_allow_empty(root, &["cat-file", "-e", &format!("{reference}:{repo_path}")]).is_some()
 }
 
-/// One validated late close, ready to write.
-struct LateClosePlan {
+/// A record a package move leaves beside the package it moved: a late close or a close (#1070).
+trait PackageCloseRecord: Serialize {
+    fn change_id(&self) -> &str;
+    fn set_dropped_collision(&mut self, collision: LateCloseCollision);
+}
+
+impl PackageCloseRecord for LateCloseRecord {
+    fn change_id(&self) -> &str {
+        &self.change_id
+    }
+
+    fn set_dropped_collision(&mut self, collision: LateCloseCollision) {
+        self.dropped_collision_acknowledgement = Some(collision);
+    }
+}
+
+/// One validated package move, ready to write.
+struct PackageClosePlan<Record> {
     source: PathBuf,
     destination: PathBuf,
-    record: LateCloseRecord,
+    record: Record,
 }
+
+/// One validated late close, ready to write.
+type LateClosePlan = PackageClosePlan<LateCloseRecord>;
+
+/// Where a package move goes and what it writes, named in its messages.
+struct PackageCloseKind {
+    /// The folder under the project root the packages move into.
+    folder: &'static str,
+    /// The record file written into each moved package.
+    record_file: &'static str,
+    /// The destination named by a symlink refusal, such as `late-close destination`.
+    destination_name: &'static str,
+    /// The past participle in "nothing was ...", such as `closed late`.
+    done: &'static str,
+    /// The record named when a rollback leaves it in place, such as `late-close record`.
+    record_name: &'static str,
+}
+
+const LATE_CLOSE_KIND: PackageCloseKind = PackageCloseKind {
+    folder: CLOSED_LATE_PATH,
+    record_file: LATE_CLOSE_RECORD,
+    destination_name: "late-close destination",
+    done: "closed late",
+    record_name: "late-close record",
+};
 
 /// Refuse existing links (including dangling links) before creating or moving anything. The
 /// lifecycle lock uses the same component walk; checking only `exists()` follows the link.
 fn validate_late_close_destination(root: &Path, destination: &Path) -> Result<(), String> {
-    reject_symlink_components_for(root, destination, "late-close destination").map_err(|error| {
+    validate_package_close_destination(root, destination, &LATE_CLOSE_KIND)
+}
+
+fn validate_package_close_destination(
+    root: &Path,
+    destination: &Path,
+    kind: &PackageCloseKind,
+) -> Result<(), String> {
+    reject_symlink_components_for(root, destination, kind.destination_name).map_err(|error| {
         if error.starts_with("refusing symlinked ") {
             format!("{error}; replace the symlinked parent with an in-project directory, or remove the link at the dated destination; leave the dated destination absent, then retry")
         } else {
@@ -942,22 +991,35 @@ fn drop_collision_acknowledgement(
 /// Close every planned change late, or none: each package moves byte for byte into the
 /// closed-late folder and gets its record, and a failed write restores what was moved.
 fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), String> {
+    write_package_closes(root, plans, &LATE_CLOSE_KIND)
+}
+
+/// Move every planned package into `kind.folder`, or none: each package moves byte for byte and
+/// gets its record, the sequence ledger drops each from its acknowledged collision, and a failed
+/// write restores what was moved.
+fn write_package_closes<Record: PackageCloseRecord>(
+    root: &Path,
+    plans: &mut [PackageClosePlan<Record>],
+    kind: &PackageCloseKind,
+) -> Result<(), String> {
     if plans.is_empty() {
         return Ok(());
     }
     let _lock = acquire_project_lock(root)?;
+    let done = kind.done;
     // Planning (including dry-run) is read-only and happens before this lock. Recheck the whole
     // batch before any write so a link planted since planning cannot move even its first member.
     for plan in plans.iter() {
-        validate_late_close_destination(root, &plan.destination)
-            .map_err(|error| format!("{error}; nothing was closed late"))?;
+        validate_package_close_destination(root, &plan.destination, kind)
+            .map_err(|error| format!("{error}; nothing was {done}"))?;
     }
     let mut ledger = load_change_sequence_ledger(root)?;
     let mut ledger_changed = false;
     if let Some(ledger) = ledger.as_mut() {
         for plan in plans.iter_mut() {
-            if let Some(collision) = drop_collision_acknowledgement(ledger, &plan.record.change_id) {
-                plan.record.dropped_collision_acknowledgement = Some(collision);
+            if let Some(collision) = drop_collision_acknowledgement(ledger, plan.record.change_id())
+            {
+                plan.record.set_dropped_collision(collision);
                 ledger_changed = true;
             }
         }
@@ -972,15 +1034,15 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     };
     let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut write = || -> Result<(), String> {
-        fs::create_dir_all(root.join(CLOSED_LATE_PATH))
-            .map_err(|error| format!("failed to create {CLOSED_LATE_PATH}: {error}"))?;
+        fs::create_dir_all(root.join(kind.folder))
+            .map_err(|error| format!("failed to create {}: {error}", kind.folder))?;
         for plan in plans.iter() {
             // Like lifecycle-lock acquisition, check again after creating the parent and at
             // each move boundary. The existing rollback still protects earlier batch members.
-            validate_late_close_destination(root, &plan.destination)?;
+            validate_package_close_destination(root, &plan.destination, kind)?;
             rename_durable(&plan.source, &plan.destination)?;
             moved.push((plan.source.clone(), plan.destination.clone()));
-            write_json(&plan.destination.join(LATE_CLOSE_RECORD), &plan.record)?;
+            write_json(&plan.destination.join(kind.record_file), &plan.record)?;
         }
         if ledger_changed && let Some(ledger) = &ledger {
             write_json_keeping_unknown_members(&ledger_path, ledger)?;
@@ -989,7 +1051,7 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     };
     let outcome = write();
     if let Err(error) = outcome {
-        let mut failures = restore_late_close_moves(&moved);
+        let mut failures = restore_package_close_moves(&moved, kind);
         if let Some(bytes) = original_ledger
             && let Err(restore) = fs::write(&ledger_path, bytes)
         {
@@ -998,7 +1060,7 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
             ));
         }
         if failures.is_empty() {
-            return Err(format!("{error}; nothing was closed late"));
+            return Err(format!("{error}; nothing was {done}"));
         }
         return Err(format!(
             "{error}; the rollback did not finish, so restore these by hand: {}",
@@ -1008,27 +1070,37 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     Ok(())
 }
 
-/// Move every package in `moved` back, newest first, then remove the record a late close wrote
-/// into it. Returns one sentence per package that could not be put back (Codex review of #994).
+#[cfg(test)]
 fn restore_late_close_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
+    restore_package_close_moves(moved, &LATE_CLOSE_KIND)
+}
+
+/// Move every package in `moved` back, newest first, then remove the record the move wrote into
+/// it. Returns one sentence per package that could not be put back (Codex review of #994).
+fn restore_package_close_moves(
+    moved: &[(PathBuf, PathBuf)],
+    kind: &PackageCloseKind,
+) -> Vec<String> {
     let mut failures = Vec::new();
     for (source, destination) in moved.iter().rev() {
         // The record stays with a package that cannot be moved back, so it is never stranded
-        // under closed-late without its actor, reason and merge proof (Codex review of #994).
+        // without its actor and reason (Codex review of #994).
         if let Err(error) = rename_durable(destination, source) {
             failures.push(format!(
-                "`{}` could not be moved back to `{}`, and keeps its late-close record: {error}",
+                "`{}` could not be moved back to `{}`, and keeps its {}: {error}",
                 destination.display(),
-                source.display()
+                source.display(),
+                kind.record_name
             ));
             continue;
         }
-        match fs::remove_file(source.join(LATE_CLOSE_RECORD)) {
+        let record = source.join(kind.record_file);
+        match fs::remove_file(&record) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => failures.push(format!(
                 "`{}` could not be removed: {error}",
-                source.join(LATE_CLOSE_RECORD).display()
+                record.display()
             )),
         }
     }

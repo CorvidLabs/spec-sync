@@ -30,6 +30,10 @@ new → one scope approval → implement → check → PR review → finalize �
 | **Verifying** | Targeted evidence is current and one scoped PR review is required | `change check`, ordinary PR review, `change review` |
 | **Archived** | Finalization records closure and moves the package to dated history in the same PR | `change finalize` |
 
+A change that will not ship is closed instead: `change close <id>... --actor <name> --reason "<why>"`
+moves it, from any state before acceptance, into `.specsync/archive/closed/` with who closed it and
+why, never reviewed, and frees its paths. `--replaced-by <id>` names the change that takes over.
+
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
 
 ## 1. Create and Interview

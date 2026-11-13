@@ -450,6 +450,24 @@ specsync change send-back add-passkeys --actor "Ada" --reason "The session code 
 # answer the scope questions again, then approve and check
 ```
 
+`close` ends draft, approved, implementing or verifying changes that will not ship. It moves each
+package, byte for byte, into `.specsync/archive/closed/<date>-<id>/` with a `close.json` record:
+who closed it and why, the state it was in, the change that replaces it (`--replaced-by`), the
+relayed decision when `--words`, `--where` and `--recorded-by` are given, and `reviewed: false`.
+Nothing is reviewed, accepted or written into a spec. Several IDs close together, or none do. A
+change whose materialized spec text has not merged is refused, with the files to restore from the
+remote default branch (or remove, when the change created them), so no spec text is left that no
+change owns. Afterwards `change status`, `show` and `ship-status` say who closed it, when and why,
+and that it was never reviewed; `change list`, `check` and the archive no longer count it, its
+paths are free for other changes, and its ID stays reserved. Accepted and archived changes are
+refused: they are finalized, reopened or retired.
+
+```bash
+specsync change close old-login stale-cache --actor "Ada" --reason "Superseded by the passkey design"
+specsync change close add-sms-login --actor "Ada" --reason "Replaced" --replaced-by add-passkeys
+# commit the move
+```
+
 `reopen` supports eligible accepted or archived workflow-v2 evidence as well as legacy records:
 
 ```bash

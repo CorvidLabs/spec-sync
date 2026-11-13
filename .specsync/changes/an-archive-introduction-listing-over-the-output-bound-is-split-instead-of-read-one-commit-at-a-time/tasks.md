@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test with a lowered bound (plus the bound-parameter refactor)
 - [x] Split an over-bound listing in halves; leave an over-bound single commit to its own read
-- [ ] Targeted fast-archived-read tests, fmt and clippy
+- [x] Targeted fast-archived-read tests, fmt and clippy

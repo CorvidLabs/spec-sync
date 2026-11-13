@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "change-correct-reads-its-summary-inside-a-change-read-scope",
+  "slug": "change-correct-reads-its-summary-inside-a-change-read-scope",
+  "title": "Change correct reads its summary inside a change read scope",
+  "description": "change correct reads its summary inside a change read scope",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794581628,
+  "updated_at": 1794581632,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/fast_archived_reads.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "No requirement changes: change correct already returns the corrected change's summary, and only the cost of building it changes. It took that summary with no change read scope, so it got none of the memoized reads, persistent read cache or prefetch workers that the read commands use (#921)",
+  "acceptance_criteria": [
+    "a change correct, live validation included, spawns fewer Git processes than one summary of the same change read without a scope; the corrected record, correction ledger and summary are unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "validation before the correction's writes stays live, as every mutating command's does; the read scope opens only after the writes and closes before the result returns",
+    "public_contract": "no"
+  }
+}

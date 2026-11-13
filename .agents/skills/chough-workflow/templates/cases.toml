@@ -1,5 +1,6 @@
-# .chough/cases/<module>.cases.toml: test-case definitions only.
-# Observations live in .chough/evidence/. Unknown fields are rejected.
+# .chough/cases/<module>.cases.toml (or <module>.<part>.cases.toml): test-case
+# definitions only. Evidence lives in each session's evidence/ folder. Unknown fields
+# are rejected.
 # New IDs use TC-<module>-<title-slug>: curated lowercase ASCII letters and digits
 # in nonempty runs separated by single hyphens. Keep IDs stable and globally unique.
 # The complete ID stays within 100 bytes using the module-aware title-slug bound.

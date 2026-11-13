@@ -6,6 +6,6 @@ artifact: tasks
 # Tasks
 
 - [x] A failing integration test first.
-- [ ] The validator warns on a `.3md` that does not parse.
-- [ ] The CHANGELOG line.
-- [ ] Targeted tests, the full suite, `change audit` and `check --strict` before review.
+- [x] The validator warns on a `.3md` that does not parse.
+- [x] The CHANGELOG line.
+- [x] Targeted tests, the full suite, `change audit` and `check --strict` before review.

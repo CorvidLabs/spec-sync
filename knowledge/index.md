@@ -245,9 +245,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [list-chough-0-6-0-record-folders-in-verification-ignored-paths](../.specsync/archive/changes/2026-11-13-list-chough-0-6-0-record-folders-in-verification-ignored-paths/lesson-bundle.md), List Chough 0.6.0 record folders in verification_ignored_paths
 - [advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0](../.specsync/archive/changes/2026-11-12-advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0/lesson-bundle.md), Advance the Action default and current guidance to published SpecSync 6.3.0
 - [prepare-specsync-6-3-0-package-metadata-and-release-handoff](../.specsync/archive/changes/2026-11-12-prepare-specsync-6-3-0-package-metadata-and-release-handoff/lesson-bundle.md), Prepare SpecSync 6.3.0 package metadata and release handoff
-- [record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of](../.specsync/archive/changes/2026-11-12-record-a-change-that-holds-a-relayed-decision-at-workflow-version-3-so-released-specsync-6-2-0-refuses-it-instead-of/lesson-bundle.md), Record a change that holds a relayed decision at workflow version 3 so released SpecSync 6.2.0 refuses it instead of dropping relayed_by
 
 ## Snapshots and briefs
 

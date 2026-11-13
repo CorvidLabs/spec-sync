@@ -119,9 +119,21 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             &predecessor,
             &path,
             &module,
-            &digest,
+            digest.as_deref(),
         )
-        .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
+        .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict))
+        .map(|()| {
+            // Checked when the obligation is declared, so the mismatch is seen now; stderr keeps
+            // JSON stdout one document (#423).
+            match change::succession_base_warning(root, &id, &predecessor, &path) {
+                Ok(Some(warning)) => eprintln!("{} {warning}", "warning:".yellow().bold()),
+                Ok(None) => {}
+                Err(error) => eprintln!(
+                    "{} could not check the predecessor's entry at this change's base: {error}",
+                    "warning:".yellow().bold()
+                ),
+            }
+        }),
         ChangeAction::ReconcileHistory { id, actor, reason } => {
             change::enable_historical_reconciliation(root, &id, actor, reason).map(|record| {
                 print_transition_with_handoff(root, &record, format, "historical reconciliation requested; old file transitions remain unproven; fresh definition approval required")

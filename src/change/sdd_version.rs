@@ -3141,7 +3141,7 @@ pub fn add_supersedes_obligation(
         predecessor,
         path,
         module,
-        predecessor_entry_digest,
+        Some(predecessor_entry_digest),
     )
     .map(|result| result.change)
 }
@@ -3152,8 +3152,10 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
     predecessor: &str,
     path: &str,
     module: &str,
-    predecessor_entry_digest: &str,
+    predecessor_entry_digest: Option<&str>,
 ) -> Result<DefinitionMutationResult, String> {
+    let predecessor_entry_digest = predecessor_entry_digest
+        .ok_or_else(|| "a predecessor entry digest is required".to_string())?;
     let _lock = acquire_project_lock(root)?;
     let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(
@@ -3235,6 +3237,16 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
         effective_definition,
         corrections,
     ))
+}
+
+/// Not yet: always no warning (#423, red).
+pub fn succession_base_warning(
+    _root: &Path,
+    _successor_id: &str,
+    _predecessor: &str,
+    _path: &str,
+) -> Result<Option<String>, String> {
+    Ok(None)
 }
 
 /// Load one existing definition only after its caller has acquired the project lock.

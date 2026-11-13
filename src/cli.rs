@@ -411,9 +411,10 @@ pub enum ChangeAction {
         /// Canonical owner module for this obligation
         #[arg(long = "spec")]
         module: String,
-        /// Full `specsync.acceptance-entry.v1` predecessor digest
+        /// Full `specsync.acceptance-entry.v1` predecessor digest; read from the predecessor's
+        /// signed acceptance manifest when omitted
         #[arg(long)]
-        digest: String,
+        digest: Option<String>,
     },
     /// Request explicitly unproven historical receipt reconciliation; requires fresh scope approval
     ReconcileHistory {

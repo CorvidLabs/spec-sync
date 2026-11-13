@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "supersede-reads-the-predecessor-digest-says-when-the-predecessor-is-on-another-branch-and-checks-the-base-entry-when",
+  "slug": "supersede-reads-the-predecessor-digest-says-when-the-predecessor-is-on-another-branch-and-checks-the-base-entry-when",
+  "title": "Supersede reads the predecessor digest, says when the predecessor is on another branch, and checks the base entry when declared",
+  "description": "Supersede reads the predecessor digest, says when the predecessor is on another branch, and checks the base entry when declared",
+  "kind": "feature",
+  "state": "draft",
+  "base_commit": "bb7682a78033aa06146baa638c44b241b6b937e1",
+  "created_at": 1794586380,
+  "updated_at": 1794586417,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change/sdd_version.rs",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    "src/change_tests/easier_supersede.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "site/src/content/docs/cli.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "supersede without --digest records the predecessor's signed entry digest for the path; a predecessor no change here records is refused as not in this branch's history with the merge or rebase step; when the predecessor's entry no longer matches the successor's base, supersede still records the obligation and warns, naming the commit that changed the file and the reconcile-history alternative"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

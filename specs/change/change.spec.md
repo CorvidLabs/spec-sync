@@ -28,6 +28,7 @@ files:
   - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
   - src/change_tests/commit_identity_guards.rs
   - src/change_tests/doctor_collision.rs
+  - src/change_tests/easier_supersede.rs
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs
   - src/change_tests/historical_reconciliation.rs
@@ -225,6 +226,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `add_dependency_with_snapshot` | `root, id, dependency` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the dependency mutation with its full in-transaction machine snapshot |
 | `add_missing_acceptance_owner_corrections` | `root, id, module, actor, reason` | `Result<ChangeRecord, String>` | Discover production-source affected paths lacking canonical ownership for a module and append them as one transactional batch |
 | `add_supersedes_obligation` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then adds one definition-bound semantic succession obligation to a draft |
+| `succession_base_warning` | `root: &Path, successor_id: &str, predecessor: &str, path: &str` | `Result<Option<String>, String>` | Whether the predecessor's signed entry for `path` still holds at the successor's base commit; when it does not, the warning names the commit that changed it, any accepted or archived change that signed it now, and the two ways forward. `change supersede` prints it when the obligation is declared (#423) |
 | `add_supersedes_obligation_with_snapshot` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the supersession mutation with its full in-transaction machine snapshot |
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or atomically enable SDD — writing an enabled policy when none exists and flipping `enabled` on one written off by `init`, failing closed on a policy it cannot parse — activate workflow v2 without stranding cutoff-ineligible legacy records or rewriting legacy policy, and import OpenSpec or Spec Kit artifacts |
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then persists an interview answer and updates adaptive artifacts |

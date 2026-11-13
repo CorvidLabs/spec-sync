@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted",
+  "slug": "a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted",
+  "title": "A clean merge-driver union keeps a quoted YAML date quoted",
+  "description": "A clean merge-driver union keeps a quoted YAML date quoted",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
+  "created_at": 1794541319,
+  "updated_at": 1794542296,
+  "affected_specs": [
+    "merge"
+  ],
+  "affected_paths": [
+    "src/merge_driver.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Makes the merge driver match REQ-merge-006: a clean merge keeps what both sides meant, so a list item YAML 1.1 would read as a timestamp when plain stays a quoted string, as numbers, booleans and nulls already do.",
+  "acceptance_criteria": [
+    "A quoted YYYY-MM-DD list item stays a quoted string after a clean union of files in either merge order; a full timestamp stays quoted; a path holding a date stays plain (red then green)"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "none",
+    "public_contract": "no"
+  }
+}

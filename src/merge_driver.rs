@@ -2197,6 +2197,44 @@ mod tests {
         );
     }
 
+    // #1012 (REQ-merge-006, MERGE-5): a quoted `YYYY-MM-DD` list item, which YAML 1.1 reads as
+    // a timestamp when plain, is still a quoted string after a clean union in either order. A
+    // full timestamp stays quoted too, and a path that merely holds a date stays plain.
+    #[test]
+    fn quoted_yaml_timestamps_stay_strings_after_a_union() {
+        let make = |files: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 5\nstatus: stable\nfiles: {files}\n---\n\n# CLI\n\n## Purpose\n\nThe command line.\n"
+            )
+        };
+        for typed in ["2026-11-07", "2026-11-07T10:00:00Z"] {
+            let base = make(&format!(r#"["src/cli.rs", "{typed}"]"#));
+            let ours = make(&format!(r#"["src/cli.rs", "{typed}", "src/a.rs"]"#));
+            let theirs = make(&format!(r#"["src/cli.rs", "{typed}", "src/b.rs"]"#));
+            for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+                let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+                assert!(merged.clean, "{typed}: {}", merged.content);
+                assert!(
+                    merged.content.contains(&format!("  - \"{typed}\"\n")),
+                    "`{typed}` must stay a quoted string: {}",
+                    merged.content
+                );
+            }
+        }
+        let base = make(r#"["src/cli.rs"]"#);
+        let ours = make(r#"["src/cli.rs", "docs/2026-11-07.md"]"#);
+        let theirs = make(r#"["src/cli.rs", "src/b.rs"]"#);
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("  - docs/2026-11-07.md\n"),
+                "a path holding a date stays plain: {}",
+                merged.content
+            );
+        }
+    }
+
     // #872 (REQ-merge-006): a quoted list item that YAML would read as a number, boolean or
     // null is still a string after a union. Plain paths stay plain.
     #[test]

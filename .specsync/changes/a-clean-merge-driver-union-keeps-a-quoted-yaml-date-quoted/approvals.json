@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542296,
+      "digest": "885d6041cc03f8b2c8ede1b1ad8f26f31d24bac9a57df38948926e7c0e42896a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted",
+        "title": "A clean merge-driver union keeps a quoted YAML date quoted",
+        "description": "A clean merge-driver union keeps a quoted YAML date quoted",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "merge"
+        ],
+        "affected_paths": [
+          "src/merge_driver.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Makes the merge driver match REQ-merge-006: a clean merge keeps what both sides meant, so a list item YAML 1.1 would read as a timestamp when plain stays a quoted string, as numbers, booleans and nulls already do.",
+        "acceptance_criteria": [
+          "A quoted YYYY-MM-DD list item stays a quoted string after a clean union of files in either merge order; a full timestamp stays quoted; a path holding a date stays plain (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "#1012 quoted dates",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:57Z, relayed by claude-code-t370. Asked: 'Four SpecSync bug fixes, each matching what the spec already says, with failing tests written. Approve their scope?' He selected all of \"#1012 quoted dates\", \"#972 escape names\", \"#974 check old reviews\" and \"#968 docs test\".",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

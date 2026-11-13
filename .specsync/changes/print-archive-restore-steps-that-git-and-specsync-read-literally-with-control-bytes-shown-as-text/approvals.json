@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542667,
+      "digest": "9d80f85c4f6ed21b75cd3b8718ed9a0fc7be94c7e4f877968764ddde52ae42d1",
+      "note": "Leif approved this change's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: the printed archive-restore step reads archive paths literally, puts -- before the change id, and prints control bytes in a directory name as text. The REQ-change-093 delta adds one acceptance line under HI CHANGE-7.b (Leif, 2026-11-06, 'Capture both'); the coordinator checked that wording and judged it aligned. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "print-archive-restore-steps-that-git-and-specsync-read-literally-with-control-bytes-shown-as-text",
+        "title": "Print archive restore steps that Git and SpecSync read literally, with control bytes shown as text",
+        "description": "Print archive restore steps that Git and SpecSync read literally, with control bytes shown as text",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests.rs",
+          "src/change_tests/literal_guidance.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "the printed corrupt-archive restore puts back only the named package when its path holds * or ?, and the printed archiving-commit lookup and the probes read it literally; every printed specsync change status command reads an id that begins with - as the id; a package path holding a newline or escape byte is printed with no control byte and, run through bash, still restores that exact directory"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "#901: every word interpolated into a printed step is quoted as one shell word and the step is built from literals, the id and the package path only, never a digest; CHANGE-7.a.2: the printed step is the exact restore command",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "fb2d9e8cea58b6c9d82a0869af94aef198f4e5b6eacb055042e6d120128e6b36"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-093": "5be6cdfa1426136fad46bed89ac8f112707aa60c96414f137edd02048e12ee90"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync #929, #930 and #931 as one PR: the printed archive-restore command can't touch other archives, can't misread an id that starts with -, and can't print raw terminal control bytes. It adds one acceptance line under your earlier Capture both decision. Approve?', he chose \"Approve (Recommended)\" (option text: 'I checked the wording and it matches. t38p builds it.').",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
+  "reopenings": []
+}

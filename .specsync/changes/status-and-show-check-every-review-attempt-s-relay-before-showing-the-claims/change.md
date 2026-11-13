@@ -1,6 +1,6 @@
 ---
 id: status-and-show-check-every-review-attempt-s-relay-before-showing-the-claims
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

@@ -313,6 +313,10 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
             "the review's reviewer",
         )
         .map_err(|message| with_relayed_read_recovery(root, record, &review_path, message))?;
+        // Every earlier attempt too, as `load_scoped_review` checks them: between review and
+        // ship they are uncommitted, so no Git check would notice a damaged one (#974). A
+        // change with no attempt history yet still shows its review.
+        load_scoped_review_attempt_ledger(root, record)?;
         claims.push(RecordedClaim {
             gate: "review".into(),
             name: review.reviewer.clone(),

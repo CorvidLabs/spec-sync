@@ -7,10 +7,11 @@
   "title": "The build fingerprint frames the compile configuration as well as the sources",
   "description": "The build fingerprint frames the compile configuration as well as the sources",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
   "created_at": 1794547209,
-  "updated_at": 1794547336,
+  "updated_at": 1794552849,
   "affected_specs": [
     "hash_cache",
     "cli"

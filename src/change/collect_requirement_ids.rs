@@ -2450,7 +2450,9 @@ fn validate_requirement(id: &str, content: &str) -> Result<(), String> {
             "requirement ID `{id}` must use REQ-<module>-<number>"
         ));
     }
-    if !content.contains(" SHALL ") && !content.trim_start().starts_with("SHALL ") {
+    // SHALL counts as a whole word wherever whitespace sets it off, a line break included, so a
+    // requirement wrapped with SHALL at a line edge is still normative (#1076).
+    if !content.split_whitespace().any(|word| word == "SHALL") {
         return Err(format!(
             "requirement `{id}` must contain a normative SHALL statement"
         ));

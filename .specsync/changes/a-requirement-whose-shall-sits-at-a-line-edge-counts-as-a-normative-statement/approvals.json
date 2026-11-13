@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794579362,
+      "digest": "d3f82311d92252c1096081c386ab602eac5f7072363181118d3171e106429101",
+      "note": "Leif approved this bug fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: a requirement whose SHALL sits at a line edge counts as a normative statement; any whitespace sets SHALL off. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-requirement-whose-shall-sits-at-a-line-edge-counts-as-a-normative-statement",
+        "title": "A requirement whose SHALL sits at a line edge counts as a normative statement",
+        "description": "A requirement whose SHALL sits at a line edge counts as a normative statement",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests/approved_delta_requirements.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A requirement must contain a normative SHALL statement; a SHALL that a line break sets off, at the end or start of a wrapped line, is that statement, and validate_requirement refused it because it looked only for a space on each side (#1076)",
+        "acceptance_criteria": [
+          "a requirement whose SHALL ends or starts a wrapped line is accepted; a requirement with no SHALL is still refused with the normative SHALL message"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync bug fix #1076: a correctly worded requirement got refused when a line break fell right before or after its SHALL. Any whitespace counts now. Approve?', he chose \"Approve (Recommended)\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:15Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p"
+      }
+    }
+  ],
   "reopenings": []
 }

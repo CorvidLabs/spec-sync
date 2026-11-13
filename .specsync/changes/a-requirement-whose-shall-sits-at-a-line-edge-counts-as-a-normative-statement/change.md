@@ -1,6 +1,6 @@
 ---
 id: a-requirement-whose-shall-sits-at-a-line-edge-counts-as-a-normative-statement
-state: draft
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---

@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "workflow_version": 2,
+  "workflow_version": 3,
   "workflow_origin_version": 2,
   "id": "a-requirement-whose-shall-sits-at-a-line-edge-counts-as-a-normative-statement",
   "slug": "a-requirement-whose-shall-sits-at-a-line-edge-counts-as-a-normative-statement",
   "title": "A requirement whose SHALL sits at a line edge counts as a normative statement",
   "description": "A requirement whose SHALL sits at a line edge counts as a normative statement",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "18385ef5ead84f0b51d70a29a6fed8a3e5ca222a",
   "created_at": 1794578699,
-  "updated_at": 1794578703,
+  "updated_at": 1794579362,
   "affected_specs": [
     "change"
   ],

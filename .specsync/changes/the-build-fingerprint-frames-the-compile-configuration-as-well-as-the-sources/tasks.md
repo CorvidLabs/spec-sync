@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Red-first unit test: the build records the compile configuration it frames
 - [x] Frame the configuration in build.rs through src/build_fingerprint.rs; spec files list and description
-- [ ] hash_cache and build_fingerprint tests, fmt and clippy
+- [x] hash_cache and build_fingerprint tests, fmt and clippy

@@ -1,4 +1,47 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794579032,
+      "digest": "0a5aee29978f5b91d604f2046674cd524ea04c295d261ebd3f6e4084f1203e6a",
+      "note": "Leif approved this speed fix's scope himself on 2026-11-13 after the coordinator agent's (claude-code-t370) summary: check names each undocumented export's file from one lookup instead of rescanning every export; same output. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-names-each-undocumented-export-s-file-from-one-lookup-so-its-time-grows-linearly",
+        "title": "Check names each undocumented export's file from one lookup, so its time grows linearly",
+        "description": "check names each undocumented export's file from one lookup, so its time grows linearly",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "validator"
+        ],
+        "affected_paths": [
+          "src/validator/consumed_by_re.rs",
+          "tests/integration.rs",
+          "tests/integration/check_scaling.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "SPEED-1.b: check stays proportional to the specs it touches; naming each undocumented export's file rescanned every export, so check time grew with the square of their number (#574). Output is unchanged",
+        "acceptance_criteria": [
+          "with four times as many undocumented exports, check takes well under seven times as long, and each warning names the same file as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'Two SpecSync speed bugs, with the same output, matching the spec. Approve their scope?', he selected \"#978 keep verdicts cached\" and \"#574 fast check\".",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    }
+  ],
   "reopenings": []
 }

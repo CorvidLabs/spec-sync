@@ -2673,14 +2673,16 @@ fn validate_spec_content_internal(
                 }
             }
 
-            // Code exports something not in spec = WARNING (with source file attribution)
+            // Code exports something not in spec = WARNING (with source file attribution). The
+            // first file that exported each symbol, looked up once rather than by a scan per
+            // undocumented export, which made check quadratic in their number (#574).
+            let mut first_file: HashMap<&str, &str> = HashMap::new();
+            for (symbol, file) in &exports_by_file {
+                first_file.entry(symbol.as_str()).or_insert(file.as_str());
+            }
             for sym in &all_exports {
                 if !spec_set.contains(sym.as_str()) {
-                    // Find the source file for this export
-                    let source_file = exports_by_file
-                        .iter()
-                        .find(|(s, _)| s == sym)
-                        .map(|(_, f)| f.as_str());
+                    let source_file = first_file.get(sym.as_str()).copied();
                     match source_file {
                         Some(file) => {
                             result

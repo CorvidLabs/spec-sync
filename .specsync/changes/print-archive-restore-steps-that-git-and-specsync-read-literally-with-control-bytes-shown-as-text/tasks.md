@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Literal pathspecs in the probes and the printed restore and lookup
 - [x] `--` before the change id in the printed status commands
 - [x] Control bytes printed as `$'…'` escapes
-- [ ] Update tests that pin the old strings; targeted tests, fmt and clippy
+- [x] Update tests that pin the old strings; targeted tests, fmt and clippy

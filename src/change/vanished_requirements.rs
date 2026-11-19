@@ -100,7 +100,7 @@ fn working_tree_requirement_blocks(
     root: &Path,
     directories: &[String],
 ) -> Vec<(String, Vec<(String, String)>)> {
-    fn walk(root: &Path, directory: &Path, depth: usize, found: &mut Vec<PathBuf>) {
+    fn walk(directory: &Path, depth: usize, found: &mut Vec<PathBuf>) {
         if depth > 16 {
             return;
         }
@@ -113,7 +113,7 @@ fn working_tree_requirement_blocks(
             };
             let path = entry.path();
             if kind.is_dir() {
-                walk(root, &path, depth + 1, found);
+                walk(&path, depth + 1, found);
             } else if kind.is_file()
                 && is_requirements_file(&entry.file_name().to_string_lossy())
             {
@@ -123,7 +123,7 @@ fn working_tree_requirement_blocks(
     }
     let mut files = Vec::new();
     for directory in directories {
-        walk(root, &root.join(directory), 0, &mut files);
+        walk(&root.join(directory), 0, &mut files);
     }
     files.sort();
     files.dedup();

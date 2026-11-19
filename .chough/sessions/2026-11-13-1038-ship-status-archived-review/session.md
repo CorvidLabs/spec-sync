@@ -5,7 +5,7 @@ aliases: [1038-ship-status-archived-review]
 objective: ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -28,6 +28,7 @@ observations:
   - 2026-11-19-1038-red-control-for-the-archive-side-at-d14fcad3
   - 2026-11-19-1038-verify-lane-at-5f5cdf8d
   - 2026-11-19-1038-the-real-archive-reopen-and-re-ship-case
+  - 2026-11-19-1038-verify-lane-at-9564c7a3
 bugs: []
 blockers: []
 waiting_on_human:
@@ -36,7 +37,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T20:07:47Z
 run_consents: []
-next: Continue build
+next: "Pushed on fix/ship-status-654-1038-937 (PR #1093). Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that."
 ---
 # ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 
@@ -51,6 +52,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 - Fixed the two review findings on PR #1093 (failing tests 7052e227, fix c697bbde): the own-package tip exemption now needs a deletion and an absent package directory, as CI's classifier does; only a workflow-v2 archive with a valid finalization record reads done by finalize, and any other archived change gets a done review stage that names no review; added the CHANGELOG Fixed line
 - Second parity finding on PR #1093 fixed (failing tests d14fcad3, fix e54bc636): a change's own package paths are archive work only in the shape CI's script accepts by status; main's rule for tips with no package path is left as it was; the positive test now builds the real tip of a change archived after a reopen
 - Ran the send-back on Leif's relayed word (gate above), exactly as written in ss-lead/gates/1093-send-back-command.md: specsync change send-back ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only --actor 0xLeif --reason "The first acceptance criterion gains 'that finalize archived': a workflow-v1 archive is not done by finalize (review of PR #1093)". It exited 0 and returned the change to draft with its approval cancelled
+- Send-back run on Leif's relayed word, criterion set to his approved line word for word, his 05:21Z re-approval recorded as relayed; all three changes on PR #1093 re-checked; lane 10/10 at 9564c7a3
 
 ## Decisions and why
 
@@ -62,6 +64,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 - 0xLeif decided "Send-back of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only, run by the builder on Leif's word": "The builder runs it, on my word" (Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:05Z, on the send-back command in ss-lead/gates/1093-send-back-command.md; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated
 - 0xLeif decided "Approve the scope of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only": "Approve" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:21Z, on the new acceptance criterion line for #1038's change in ss-lead/gates/1093-1038-criterion.md ('New'); relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only as 0xLeif
 - decided: the 11-13 approval of this change no longer stands: the send-back of 2026-11-19 (run by the builder on Leif's relayed word) cancelled it, the acceptance criterion is now the 'New' line of ss-lead/gates/1093-1038-criterion.md word for word, and Leif's relayed 'Approve' of that line (2026-11-19 about 05:21Z) is the current approval
+- noted: the send-back ran at 2026-11-19T14:07:32Z with the reason as ss-lead/gates/1093-send-back-command.md gave it, before Leif asked at about 14:17Z (relayed by hc t4c through ss-lead hc t58) that the reason add '(run by the builder on Leif's relayed word, via t4c)'; approvals.json is left as written, and his word is recorded in this session's gate closed at 2026-11-19T14:07:21Z
 
 ## What was verified
 
@@ -76,6 +79,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 - [Red-first control for the second parity finding on PR #1093, at d14fcad3 with only the new tests: deleted_package_files_beside_a_modified_archive_file_are_product fails (the tip reads archive_only), and the_own_package_exemption_agrees_with_the_ci_classifier_script fails on that same tip (the script says archive_only=false). Fixed in e54bc636; not a new bug.](evidence/2026-11-19-1038-red-control-for-the-archive-side-at-d14fcad3.md)
 - [At 5f5cdf8d (PR #1093 after the archive-side fix e54bc636, each change re-checked there), fledge lanes run verify passed 10/10 steps in 9m42s: fmt, lint and check-types, cargo test (unit 3084 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes the #1038 tests: the archive tip of a reopened change on its real shape, deleted package files beside a modified archive file, a package still present, the status table, the agreement with CI's classifier script (run with bash and jq), and the two archived review-stage tests.](evidence/2026-11-19-1038-verify-lane-at-5f5cdf8d.md)
 - [The real case of #1038, driven through the release binary built at e54bc636 on a throwaway project: a change approved, checked, reviewed and shipped; its delivered file edited; change reopen; check, review and ship again. The re-archive tip is 14 renames into the archive, 2 additions there (finalization.json, verification.json) and 2 deletions from the package, with no modified archive file. CI's classify-ci-paths.sh in name-status mode says archive_only=true, and ship-status says tip_class archive_only, review_currency current, no blockers. The first archive tip agrees too.](evidence/2026-11-19-1038-the-real-archive-reopen-and-re-ship-case.md)
+- [At 9564c7a3 (after the send-back, the new criterion and Leif's relayed re-approval of #1038's change, with all three changes re-checked), fledge lanes run verify passed 10/10 steps in 11m60s, run alone: fmt, lint and check-types, cargo test (unit 3084 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs) and the CI script tests. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1038-verify-lane-at-9564c7a3.md)
 
 ## Open threads
 
@@ -197,4 +201,14 @@ ship-status reports an archived change's review as done by finalize and classifi
   - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
   - gate: native:approved
   - revision: b8c35abe01826be739ad0b6022ee3449263db889
+  - by: claude-code (hc t59)
+- 2026-11-19T14:21:40Z · advance · build → test · native:verifying ^t-d1e104
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 9564c7a3e165e3b6cf44e3a8f3125b6c39f97725
+  - by: claude-code (hc t59)
+- 2026-11-19T14:21:41Z · advance · test → accept · native:verifying ^t-1fd555
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 9564c7a3e165e3b6cf44e3a8f3125b6c39f97725
   - by: claude-code (hc t59)

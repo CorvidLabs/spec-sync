@@ -27,6 +27,7 @@ observations:
   - 2026-11-19-937-verify-lane-at-4d439b39
   - 2026-11-19-937-verify-lane-at-612d255d
   - 2026-11-19-937-verify-lane-at-5f5cdf8d
+  - 2026-11-19-937-verify-lane-at-9564c7a3
 bugs: []
 blockers: []
 waiting_on_human:
@@ -67,6 +68,7 @@ Text change status names a sequence-ledger freeze before the verification_ignore
 - [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including archived_upstream::a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status. The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-937-verify-lane-at-4d439b39.md)
 - [At 612d255d (PR #1093 after the review fixes for #1038 in c697bbde, each change re-checked there), fledge lanes run verify passed 10/10 steps in 29m34s on a busy machine: fmt, lint and check-types, cargo test (unit 3081 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes archived_upstream::a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status; this change's source is unchanged since 4d439b39, and its CHANGELOG Fixed line is new.](evidence/2026-11-19-937-verify-lane-at-612d255d.md)
 - [At 5f5cdf8d (PR #1093 after the archive-side fix e54bc636, each change re-checked there), fledge lanes run verify passed 10/10 steps in 9m42s: fmt, lint and check-types, cargo test (unit 3084 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes archived_upstream::a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status; this change's source is unchanged since 4d439b39.](evidence/2026-11-19-937-verify-lane-at-5f5cdf8d.md)
+- [At 9564c7a3 (after the send-back, the new criterion and Leif's relayed re-approval of #1038's change, with all three changes re-checked), fledge lanes run verify passed 10/10 steps in 11m60s, run alone: fmt, lint and check-types, cargo test (unit 3084 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs) and the CI script tests. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-937-verify-lane-at-9564c7a3.md)
 
 ## Open threads
 

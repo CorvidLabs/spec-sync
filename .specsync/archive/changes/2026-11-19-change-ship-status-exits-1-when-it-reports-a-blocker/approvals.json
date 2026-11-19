@@ -44,6 +44,13 @@
         "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:12Z; relayed by claude-code-t370, passed on by claude-code-t38c to claude-code-t38p; REQ-cmd-change-039 wording checked ALIGNED and numbered by claude-code-t370",
         "recorded_by": "claude-code-t38p"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795098911,
+      "digest": "5c7ff2a39897b84dee011624f1e203ee0b193b33887fb7df4403f259a8aac571",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

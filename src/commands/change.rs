@@ -6045,72 +6045,139 @@ if the floor call is removed from this function"
         );
     }
 
-    /// #1038: an archive commit that also removes the change's own package files under
-    /// `.specsync/changes/<id>/` (Git pairs no rename because the archive package already exists,
-    /// as after a reopen) is still archive work, as CI's classify-ci-paths.sh counts it by the
-    /// archive's `state.json` id. Another change's package beside it is not.
-    #[test]
-    fn an_archive_tip_that_removes_its_own_package_files_is_archive_only() {
-        let temp = TempDir::new().expect("temp project");
-        let root = temp.path();
+    /// A change `release` whose package is active and committed, as it is after a reopen:
+    /// `change reopen` moves the package out of the archive, so no archive directory is left.
+    fn reopened_package_fixture(root: &Path) -> PathBuf {
         git_in(root, &["init", "-q", "-b", "main"]);
         git_in(root, &["config", "user.email", "t@example.com"]);
         git_in(root, &["config", "user.name", "T"]);
         let active = root.join(".specsync/changes/release");
-        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
         fs::create_dir_all(&active).unwrap();
-        fs::create_dir_all(&archive).unwrap();
-        fs::write(active.join("change.md"), "# reopened\n").unwrap();
-        fs::write(active.join("tasks.md"), "- [x] done\n").unwrap();
+        fs::write(active.join("change.md"), "# release\n\nReopened.\n").unwrap();
+        fs::write(active.join("tasks.md"), "# Tasks\n\n- [x] done\n").unwrap();
         fs::write(
-            archive.join("state.json"),
-            r#"{"id":"release","state":"archived"}"#,
+            active.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"verifying\"\n}\n",
         )
         .unwrap();
-        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        fs::write(
+            active.join("finalization.json"),
+            "{\"closing\": \"first\"}\n",
+        )
+        .unwrap();
+        fs::write(
+            active.join("verification.json"),
+            "{\"commit\": \"first\"}\n",
+        )
+        .unwrap();
         git_in(root, &["add", "."]);
         git_in(root, &["commit", "-q", "-m", "reopened"]);
-        fs::remove_dir_all(&active).unwrap();
-        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
-        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        active
+    }
+
+    /// Archive `release` the way `change finalize` leaves the tree: every package file moves
+    /// into the dated archive, `state.json` says archived, and `finalization.json` and
+    /// `verification.json` are written anew. Git then shows renames, two additions in the
+    /// archive and two deletions in the package. Not committed.
+    fn archive_the_reopened_package(root: &Path) -> PathBuf {
+        let active = root.join(".specsync/changes/release");
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(archive.parent().unwrap()).unwrap();
+        fs::rename(&active, &archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            archive.join("finalization.json"),
+            "{\"closing\": \"second\", \"implementation_commit\": \"0123456789abcdef\"}\n",
+        )
+        .unwrap();
+        fs::write(
+            archive.join("verification.json"),
+            "{\"commit\": \"second\", \"passed\": true, \"acceptance_input_digest\": \"fedcba\"}\n",
+        )
+        .unwrap();
+        archive
+    }
+
+    /// #1038: the archive commit of a change that was reopened is an archive-only tip. Git pairs
+    /// most package files as renames into the archive, but `finalization.json` and
+    /// `verification.json` are rewritten, so they show as deletions under
+    /// `.specsync/changes/<id>/` beside additions in the archive, and main read those deletions
+    /// as product work. Another change's package beside it is not this archive's work.
+    #[test]
+    fn an_archive_tip_that_removes_its_own_package_files_is_archive_only() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        reopened_package_fixture(root);
+        let archive = archive_the_reopened_package(root);
         git_in(root, &["add", "--all"]);
         git_in(root, &["commit", "-q", "-m", "archive again"]);
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
 
         // A different change's package in the same commit is not this archive's work.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        reopened_package_fixture(root);
+        archive_the_reopened_package(root);
         let other = root.join(".specsync/changes/other");
         fs::create_dir_all(&other).unwrap();
         fs::write(other.join("change.md"), "# other\n").unwrap();
-        fs::write(archive.join("finalization.json"), "{}\n").unwrap();
         git_in(root, &["add", "--all"]);
         git_in(
             root,
             &["commit", "-q", "-m", "archive beside another change"],
         );
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+        drop(archive);
     }
 
-    /// The fixture of the test above: a change `release` with its package still active and an
-    /// archive package of the same id beside it, as after a reopen, committed.
-    fn reopened_beside_its_archive_fixture(root: &Path) -> (PathBuf, PathBuf) {
-        git_in(root, &["init", "-q", "-b", "main"]);
-        git_in(root, &["config", "user.email", "t@example.com"]);
-        git_in(root, &["config", "user.name", "T"]);
-        let active = root.join(".specsync/changes/release");
+    /// #1038, from the review of #1093: a change's own package paths count as archive work only
+    /// when the tip has the shape `.github/scripts/classify-ci-paths.sh` asks for, by status. Its
+    /// archive paths must be additions or rename targets. With a file modified inside an archive
+    /// that already existed, the tip is not an archive move, so the deleted package files are
+    /// product work, as they are for the script.
+    #[test]
+    fn deleted_package_files_beside_a_modified_archive_file_are_product() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        // An archive of the same change beside its package, which no command leaves behind.
         let archive = root.join(".specsync/archive/changes/2026-11-10-release");
-        fs::create_dir_all(&active).unwrap();
         fs::create_dir_all(&archive).unwrap();
-        fs::write(active.join("change.md"), "# reopened\n").unwrap();
-        fs::write(active.join("tasks.md"), "- [x] done\n").unwrap();
         fs::write(
             archive.join("state.json"),
-            r#"{"id":"release","state":"archived"}"#,
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
         )
         .unwrap();
         fs::write(archive.join("review.json"), "{}\n").unwrap();
         git_in(root, &["add", "."]);
-        git_in(root, &["commit", "-q", "-m", "reopened"]);
-        (active, archive)
+        git_in(
+            root,
+            &["commit", "-q", "-m", "an archive beside the package"],
+        );
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "delete the package, edit the archive"],
+        );
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+
+        // A tip that touches only an archived package, and no active one, is left as main has
+        // it: archive-only. The stricter shape is the condition for the exemption alone.
+        fs::write(
+            archive.join("review.json"),
+            "{\"verdict\":\"pass\",\"note\":1}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "edit the archive"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
     }
 
     /// #1038, from the review of #1093: the own-package exemption is CI's, no looser. CI's
@@ -6123,35 +6190,188 @@ if the floor call is removed from this function"
         // Modified, still present: the case the review reproduced as `archive_only`.
         let temp = TempDir::new().expect("temp project");
         let root = temp.path();
-        let (active, archive) = reopened_beside_its_archive_fixture(root);
-        fs::write(active.join("change.md"), "# reopened, edited\n").unwrap();
-        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(active.join("change.md"), "# release\n\nReopened, edited.\n").unwrap();
         git_in(root, &["add", "--all"]);
         git_in(root, &["commit", "-q", "-m", "edit the package"]);
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
 
-        // One file deleted, the package directory still there.
+        // One package file deleted and an archive file added, the package directory still there.
         let temp = TempDir::new().expect("temp project");
         let root = temp.path();
-        let (active, archive) = reopened_beside_its_archive_fixture(root);
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
         fs::remove_file(active.join("tasks.md")).unwrap();
-        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
         git_in(root, &["add", "--all"]);
         git_in(root, &["commit", "-q", "-m", "delete one package file"]);
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
 
-        // The tip removed the whole package, but the working tree holds one again.
+        // The tip archived the whole package, but the working tree holds one again.
         let temp = TempDir::new().expect("temp project");
         let root = temp.path();
-        let (active, archive) = reopened_beside_its_archive_fixture(root);
-        fs::remove_dir_all(&active).unwrap();
-        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        let active = reopened_package_fixture(root);
+        archive_the_reopened_package(root);
         git_in(root, &["add", "--all"]);
         git_in(root, &["commit", "-q", "-m", "archive again"]);
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
         fs::create_dir_all(&active).unwrap();
         fs::write(active.join("change.md"), "# back again\n").unwrap();
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+    }
+
+    /// #1038: one tip that touches a change's own package, asked of
+    /// `.github/scripts/classify-ci-paths.sh` in its name-status mode and of `classify_head_tip`.
+    /// They must agree on whether it is archive-only. The script needs `bash` and `jq`, which CI
+    /// has; where either is missing this test says so and checks nothing.
+    #[test]
+    fn the_own_package_exemption_agrees_with_the_ci_classifier_script() {
+        let runs = |program: &str, argument: &str| {
+            std::process::Command::new(program)
+                .arg(argument)
+                .output()
+                .is_ok_and(|output| output.status.success())
+        };
+        if !runs("bash", "--version") || !runs("jq", "--version") {
+            eprintln!("skipped: the CI classifier script needs bash and jq");
+            return;
+        }
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let script = repository.join(".github/scripts/classify-ci-paths.sh");
+        let limits = repository.join(".github/scripts/lifecycle-validation-limits.json");
+        // What the script says of `HEAD` against its first parent, given Git's status diff.
+        let script_says_archive_only = |root: &Path| -> bool {
+            use std::io::Write;
+            fs::create_dir_all(root.join(".github/scripts")).unwrap();
+            fs::copy(
+                &limits,
+                root.join(".github/scripts/lifecycle-validation-limits.json"),
+            )
+            .unwrap();
+            let diff = std::process::Command::new("git")
+                .args(["diff", "--name-status", "-z", "HEAD~1", "HEAD"])
+                .current_dir(root)
+                .output()
+                .unwrap();
+            assert!(diff.status.success());
+            let mut child = std::process::Command::new("bash")
+                .arg(&script)
+                .args([root.to_str().unwrap(), "false", "name-status", "HEAD~1"])
+                .current_dir(root)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            child.stdin.take().unwrap().write_all(&diff.stdout).unwrap();
+            let output = child.wait_with_output().unwrap();
+            let printed = String::from_utf8_lossy(&output.stdout).to_string();
+            assert!(
+                output.status.success(),
+                "the classifier failed: {printed}{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let verdict = printed
+                .lines()
+                .find_map(|line| line.strip_prefix("archive_only="))
+                .unwrap_or_else(|| panic!("no archive_only in {printed}"));
+            fs::remove_dir_all(root.join(".github")).unwrap();
+            verdict == "true"
+        };
+        let agree = |root: &Path, case: &str, expected: bool| {
+            let script_verdict = script_says_archive_only(root);
+            let here = classify_head_tip(root).unwrap().tip_class == "archive_only";
+            assert_eq!(script_verdict, expected, "{case}: what the script says");
+            assert_eq!(here, script_verdict, "{case}: ship-status and the script");
+        };
+
+        // The real archive move after a reopen.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        reopened_package_fixture(root);
+        archive_the_reopened_package(root);
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        agree(root, "an archive move", true);
+
+        // The package deleted, and a file modified in an archive that already existed.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "an archive beside the package"],
+        );
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "delete the package, edit the archive"],
+        );
+        agree(root, "a modified archive file", false);
+
+        // The package modified and still present.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(active.join("change.md"), "# release\n\nReopened, edited.\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "edit the package"]);
+        agree(root, "a package still present", false);
+
+        // A workflow-v1 archive move: the script sends it to the full lane.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        fs::write(
+            active.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 1,\n  \"state\": \"verifying\"\n}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "a workflow-v1 package"]);
+        let archive = archive_the_reopened_package(root);
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 1,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "archive a workflow-v1 change"],
+        );
+        agree(root, "a workflow-v1 archive move", false);
     }
 
     /// #1038 (Leif, 2026-11-13: "For an archived change, report the review as done by finalize and

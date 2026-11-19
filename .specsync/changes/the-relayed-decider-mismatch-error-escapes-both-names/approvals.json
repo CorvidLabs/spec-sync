@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542299,
+      "digest": "c5abc23d17421b718575086cc98120f8474d660de9bdd772b2cb477af11cbd20",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-relayed-decider-mismatch-error-escapes-both-names",
+        "title": "The relayed decider-mismatch error escapes both names",
+        "description": "The relayed decider-mismatch error escapes both names",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/relayed_decision.rs",
+          "src/change_tests/relayed_decision.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Makes the decider-mismatch error match REQ-cmd-change-relayed-decision-001, whose text output escapes control characters in recorded names and relayed fields; the error printed both names raw.",
+        "acceptance_criteria": [
+          "The decider-mismatch error, on write (change approve or review with a relay) and on read (change status, show and every ledger read), shows the relayed decided_by and the record's actor or reviewer with control characters escaped, so a stored escape sequence or newline is printed as its escape (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "#972 escape names",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:57Z, relayed by claude-code-t370. Asked: 'Four SpecSync bug fixes, each matching what the spec already says, with failing tests written. Approve their scope?' He selected all of \"#1012 quoted dates\", \"#972 escape names\", \"#974 check old reviews\" and \"#968 docs test\".",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

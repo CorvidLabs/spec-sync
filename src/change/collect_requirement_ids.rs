@@ -2687,10 +2687,32 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
         .map(str::trim)
         .filter(|line| line.starts_with('|'))
         .any(|row| {
-            row.trim_matches('|')
-                .split('|')
+            table_row_cells(row)
+                .iter()
                 .any(|cell| cell_names_change(cell.trim(), &needle))
         })
+}
+
+/// A Markdown table row's cells as Markdown reads them: split on pipes no backslash escapes, each
+/// `\|` a pipe inside its cell (Codex's review of 0cdd7f41: the cell `a\|b: Title` is the row of
+/// the id `a|b`). The empty text before a row's leading pipe and after its trailing one is kept;
+/// an empty cell never begins with an id.
+fn table_row_cells(row: &str) -> Vec<String> {
+    let mut cells = Vec::new();
+    let mut cell = String::new();
+    let mut characters = row.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' if characters.peek() == Some(&'|') => {
+                characters.next();
+                cell.push('|');
+            }
+            '|' => cells.push(std::mem::take(&mut cell)),
+            other => cell.push(other),
+        }
+    }
+    cells.push(cell);
+    cells
 }
 
 /// Whether a Change Log cell begins with `needle` (`<id>:`): the raw cell first, so an id that

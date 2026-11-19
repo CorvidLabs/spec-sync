@@ -315,3 +315,33 @@ fn a_leading_space_in_the_id_is_cell_padding_not_part_of_the_match() {
         "the row and the fragment are a double record: {errors:?}"
     );
 }
+
+/// Codex's review of 0cdd7f41 (the tester's case): a Markdown table row splits on unescaped pipes
+/// only, and `\|` is a pipe inside its cell. A fragment for the id `a|b` beside the legacy row
+/// cell `a\|b: Title` is a double record. The unescaped `a|b: Title` is two cells, as Markdown
+/// reads it, so it is no row of `a|b`.
+#[test]
+fn an_escaped_pipe_is_part_of_its_cell() {
+    let spec = |cell: &str| {
+        format!("---\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-11-19 | {cell} |\n")
+    };
+    let escaped = spec("a\\|b: Title");
+    assert!(changelog_records_change(&escaped, "a|b"));
+    assert!(!changelog_records_change(&spec("a|b: Title"), "a|b"));
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    fs::create_dir_all(root.join("specs/auth/history")).unwrap();
+    fs::write(&spec_path, &escaped).unwrap();
+    fs::write(
+        history_fragment_path(&spec_path, "a|b"),
+        history_fragment_content("a|b", "2026-11-19", "Title"),
+    )
+    .unwrap();
+    let (_, errors) = scan_history_fragments(root, &spec_path, &escaped);
+    assert!(
+        errors.iter().any(|error| error.contains("records it too")),
+        "the escaped row and the fragment are a double record: {errors:?}"
+    );
+}

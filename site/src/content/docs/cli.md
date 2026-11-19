@@ -245,6 +245,8 @@ specsync rehash                            # rebuild .specsync/hashes.json
 ```
 
 > **Note:** The hash cache (`.specsync/hashes.json`) should **not** be committed to git — it is a local-only optimization for incremental validation. Both `specsync init` and `specsync migrate` automatically add it to `.gitignore`. In CI, use `specsync check --force` (the GitHub Action does this by default).
+>
+> The cache is never read or written through a symbolic link. If `.specsync/hashes.json` or `.specsync` itself is a link, or not a regular file and a directory, `check` prints `warning: hash cache not used` on stderr and runs without a cache, with the same result and exit code, and `rehash` exits 1. Remove the link to use the cache again.
 
 ### `stale`
 

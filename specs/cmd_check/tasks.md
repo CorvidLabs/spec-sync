@@ -23,6 +23,7 @@ spec: cmd_check.spec.md
 - [x] Validation outcomes covered: valid project, missing source file, undocumented export warn, phantom export error
 - [x] Git staleness migrated to `git_commits_since` (N+1 fix over the old `git_commits_between`)
 - [x] Remove embedded regeneration so `--fix` is deterministic and local
+- [x] Warn once and run with no cache when the hash cache location is a symbolic link or not a regular file (REQ-cmd-check-018). Evidence: `check_never_writes_the_hash_cache_through_a_link`.
 - [x] Fail closed on malformed Gradle coverage discovery and preserve structured JSON failure output — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
 
 ## Gaps

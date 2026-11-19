@@ -52,6 +52,11 @@ optional drift issues. SDD / change / archive history is not part of this comman
     snapshot is re-validated rather than reported clean.
 12. `check` does not consult SDD policy, active change workspaces, or archive history. Those
     surfaces belong to `specsync change`.
+13. When the hash cache location is refused, because `.specsync` or `.specsync/hashes.json` is a
+    symbolic link or not a directory and a regular file, `check` prints one
+    `warning: hash cache not used: <reason>` on stderr before anything can end the run, neither
+    reads nor saves the cache, and keeps the stdout output, verdict and exit code of a run with no
+    cache (REQ-cmd-check-018).
 
 ## Behavioral Examples
 
@@ -98,6 +103,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop |
 | Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
+| `.specsync/hashes.json` or `.specsync` is a symbolic link, or not a regular file and a directory | One stderr warning naming the path; full validation with no cache; nothing is read or written through it; same stdout and exit code as with no cache |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation |
 | Malformed Gradle settings prevent coverage discovery | Emits an explicit inconclusive failure, preserves valid structured JSON in JSON mode, and exits 1 |
 
@@ -108,7 +114,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
 | Module | What is used |
 |--------|-------------|
 | commands | `load_and_discover`, `filter_specs`, `build_schema_columns`, `run_validation`, `compute_exit_code`, `exit_with_status`, `create_drift_issues` |
-| hash_cache | `HashCache::load`, `save`, `is_changed` |
+| hash_cache | `HashCache::refusal`, `load`, `save`, `is_changed` |
 | ignore | `IgnoreRules::load` |
 | output | `print_summary`, `print_coverage_line`, `print_check_markdown` |
 | comment | `build_comment_body` |

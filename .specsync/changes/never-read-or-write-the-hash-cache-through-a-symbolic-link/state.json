@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "never-read-or-write-the-hash-cache-through-a-symbolic-link",
+  "slug": "never-read-or-write-the-hash-cache-through-a-symbolic-link",
+  "title": "Never read or write the hash cache through a symbolic link",
+  "description": "Never read or write the hash cache through a symbolic link",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "3bebe8b03094b2079630801584b56f94a1e460c5",
+  "created_at": 1795062345,
+  "updated_at": 1795063034,
+  "affected_specs": [
+    "hash_cache",
+    "cmd_check"
+  ],
+  "affected_paths": [
+    "src/hash_cache.rs",
+    "src/commands/check.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/hash_cache/",
+    "specs/cmd_check/",
+    "hi/check.md",
+    "INTENT.md",
+    "CHANGELOG.md",
+    "site/src/content/docs/cli.md",
+    "docs/HLD.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "With .specsync/hashes.json, or .specsync itself, as a symbolic link to a path outside the repository, specsync check and specsync rehash leave the link's target byte for byte unchanged and create nothing through it; check keeps its verdict and exit code and prints one stderr warning that the hash cache was not saved; rehash exits 1 and names the link; load returns an empty cache without reading through a link; a regular cache is replaced by a temp file in .specsync renamed over it; the new tests fail on 3bebe8b0 and pass with the fix"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "hash_cache.3md 'Conservative on uncertainty': an unusable cache may only cause more validation, so a cache location that is a link or not a regular file reads as an empty cache. cmd_check.3md: the cache is persisted only with zero errors and a skip is never a claim that nothing was wrong, so a cache that was not saved is said on stderr and never changes the verdict.",
+    "public_contract": "yes"
+  }
+}

@@ -37,8 +37,9 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `load` | `root: &Path` | `Self` | HashCache: load from `.specsync/hashes.json`; returns empty cache if missing |
-| `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write to `.specsync/hashes.json` with pretty JSON |
+| `load` | `root: &Path` | `Self` | HashCache: load from `.specsync/hashes.json`; returns empty cache if missing, and reads nothing when `.specsync` or the file is a symbolic link or not a directory and a regular file (REQ-hash-cache-007) |
+| `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write pretty JSON to a new file in `.specsync` and rename it over `hashes.json`; refuses, writing nothing, when `.specsync` or `hashes.json` is a symbolic link or not a directory and a regular file (REQ-hash-cache-007) |
+| `refusal` | `root: &Path` | `Option<String>` | HashCache: why this project's cache is refused, naming `.specsync` or `.specsync/hashes.json` and what it is; `None` for a usable or absent cache |
 | `hash_file` | `path: &Path` | `Option<String>` | HashCache: compute SHA-256 of file in 8KB chunks; returns hex string |
 | `is_changed` | `&self, root: &Path, rel_path: &str` | `bool` | HashCache: true if file is new or hash differs from cached value |
 | `has_baseline` | `&self, rel_path: &str` | `bool` | HashCache: whether a prior hash exists, so "changed" can be told apart from "never seen" |
@@ -70,6 +71,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 7. `update_cache` prunes entries for deleted files to prevent unbounded cache growth
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
 9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
+10. The cache is never read or written through a symbolic link, and is written only inside the project's own `.specsync`. `load` and `save` open `.specsync` without following a link and work through that directory handle. `save` creates a new file there exclusively and renames it over `hashes.json`, so the old file is never written in place. A repository can commit either path as a link, so both are treated as input its author chose (REQ-hash-cache-007).
 
 ## Behavioral Examples
 
@@ -97,6 +99,12 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 - **When** `HashCache::load` is called
 - **Then** returns empty cache; all files will be classified as changed
 
+### Scenario: A cloned repository commits the cache as a link
+
+- **Given** `.specsync/hashes.json` is a symbolic link to a file outside the project
+- **When** `HashCache::save` is called
+- **Then** it returns an error, the link stays, and the file it names keeps its bytes; `HashCache::load` returns an empty cache and `HashCache::refusal` returns `.specsync/hashes.json is a symbolic link, and the hash cache is never read or written through one`
+
 ### Scenario: Requirements change triggers staleness
 
 - **Given** `requirements.md` companion has been updated
@@ -117,6 +125,8 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | Cache file has invalid JSON | Returns empty cache silently |
 | File unreadable during hashing | `hash_file` returns `None`; file treated as changed |
 | Cannot create `.specsync/` directory | `save` returns `io::Error` |
+| `.specsync` is a symbolic link or not a directory | `load` returns an empty cache; `save` returns `io::Error` and writes nothing; `refusal` names `.specsync` |
+| `.specsync/hashes.json` is a symbolic link (dangling or not), a directory, or anything but a regular file | `load` returns an empty cache without reading it; `save` returns `io::Error`, leaves it as it is and creates nothing at a link's target; `refusal` names `.specsync/hashes.json` |
 
 ## Dependencies
 
@@ -126,12 +136,13 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 |--------|-------------|
 | (external) | `sha2::Sha256` for content hashing |
 | (external) | `serde` / `serde_json` for cache serialization |
+| (external) | `cap-std` / `cap-primitives` for the no-follow `.specsync` directory handle the cache is read and written through |
 
 ### Consumed By
 
 | Module | What is used |
 |--------|-------------|
-| main | `HashCache`, `classify_all_changes`, `update_cache` in `cmd_check` for incremental validation |
+| main | `HashCache`, `classify_all_changes`, `update_cache` in `cmd_check` for incremental validation; `HashCache::refusal` for its one warning |
 
 ## Change Log
 

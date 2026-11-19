@@ -1,10 +1,14 @@
+use cap_primitives::fs::FollowSymlinks;
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, Metadata, OpenOptions};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
-use std::io;
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Name of the cache directory (relative to project root).
 const CACHE_DIR: &str = ".specsync";
@@ -88,26 +92,82 @@ impl Default for HashCache {
 
 impl HashCache {
     /// Load the hash cache from disk.  Returns an empty cache if the file
-    /// does not exist, cannot be parsed, or uses an unsupported schema.
+    /// does not exist, cannot be parsed, or uses an unsupported schema, and
+    /// when `.specsync` or the file is a symbolic link or not a directory and
+    /// a regular file: the cache is never read through a link
+    /// (REQ-hash-cache-007).
     pub fn load(root: &Path) -> Self {
-        let path = cache_path(root);
-        match fs::read_to_string(&path) {
-            Ok(contents) => match serde_json::from_str::<Self>(&contents) {
-                Ok(cache) if cache.format_version == CACHE_FORMAT_VERSION => cache,
-                Ok(_) | Err(_) => Self::default(),
-            },
-            Err(_) => Self::default(),
+        Self::read(root).unwrap_or_default()
+    }
+
+    /// The cache on disk, or `None` when there is none this project may trust.
+    fn read(root: &Path) -> Option<Self> {
+        let directory = open_cache_directory(root, false).ok()??;
+        // No-follow, so a link is an error here even if it appeared after the directory was
+        // opened; non-blocking, so a FIFO cannot hold the open. What was opened is then checked,
+        // not what the name pointed at a moment earlier.
+        let mut options = OpenOptions::new();
+        options
+            .read(true)
+            ._cap_fs_ext_nonblock(true)
+            ._cap_fs_ext_follow(FollowSymlinks::No);
+        let mut file = directory.open_with(CACHE_FILE, &options).ok()?;
+        if !file.metadata().ok()?.is_file() {
+            return None;
         }
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).ok()?;
+        serde_json::from_str::<Self>(&contents)
+            .ok()
+            .filter(|cache| cache.format_version == CACHE_FORMAT_VERSION)
     }
 
     /// Persist the cache to disk, creating the `.specsync/` directory if needed.
+    ///
+    /// The cache is written to a new file in `.specsync` and renamed over `hashes.json`, all
+    /// through a handle on that directory opened without following a link. It is refused, and
+    /// nothing is written, when `.specsync` is a symbolic link or not a directory, or when
+    /// `hashes.json` is a symbolic link or anything but a regular file: a repository can commit
+    /// either as a link to a file of whoever clones it (REQ-hash-cache-007).
     pub fn save(&self, root: &Path) -> io::Result<()> {
-        let dir = root.join(CACHE_DIR);
-        fs::create_dir_all(&dir)?;
-        let path = dir.join(CACHE_FILE);
         let json = serde_json::to_string_pretty(self)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        fs::write(path, json)
+        let directory = open_cache_directory(root, true)?.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "the cache directory is missing")
+        })?;
+        cache_file_exists(&directory)?;
+
+        let temporary = temporary_cache_name();
+        let mut options = OpenOptions::new();
+        // An exclusive create never follows a link at the new name.
+        options.write(true).create_new(true);
+        let mut file = directory.open_with(&temporary, &options)?;
+        let written = file.write_all(json.as_bytes()).and_then(|()| file.flush());
+        drop(file);
+        // A rename replaces whatever holds the name and never writes through it.
+        let published = written.and_then(|()| directory.rename(&temporary, &directory, CACHE_FILE));
+        if published.is_err() {
+            let _ = directory.remove_file(&temporary);
+        }
+        published
+    }
+
+    /// Why this project's cache is refused, in words for the user: which of `.specsync` and
+    /// `.specsync/hashes.json` is a symbolic link, or is not the directory or regular file it must
+    /// be. `None` when the cache is usable or absent. `load` reads such a cache as empty and
+    /// `save` refuses it (REQ-hash-cache-007).
+    pub fn refusal(root: &Path) -> Option<String> {
+        let refused = |error: io::Error| {
+            error
+                .get_ref()
+                .is_some_and(|inner| inner.is::<RefusedCacheLocation>())
+                .then(|| error.to_string())
+        };
+        match open_cache_directory(root, false) {
+            Ok(Some(directory)) => cache_file_exists(&directory).err().and_then(refused),
+            Ok(None) => None,
+            Err(error) => refused(error),
+        }
     }
 
     /// Compute the SHA-256 hex digest of a file's contents.
@@ -354,9 +414,90 @@ fn validation_input_digest_for_build(
     format!("{:x}", hasher.finalize())
 }
 
-/// Full path to the cache file.
-fn cache_path(root: &Path) -> PathBuf {
-    root.join(CACHE_DIR).join(CACHE_FILE)
+/// A cache location the cache will not read or write (REQ-hash-cache-007), with the reason as
+/// the user is shown it. Carried inside an `io::Error` so `HashCache::refusal` can tell it from a
+/// failure of the filesystem.
+#[derive(Debug)]
+struct RefusedCacheLocation(String);
+
+impl fmt::Display for RefusedCacheLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for RefusedCacheLocation {}
+
+/// The refusal of `path`, which is `found` where the cache needs `wanted`.
+fn refused_cache_location(path: &str, found: &Metadata, wanted: &str) -> io::Error {
+    let reason = if found.file_type().is_symlink() {
+        format!(
+            "{path} is a symbolic link, and the hash cache is never read or written through one"
+        )
+    } else {
+        format!("{path} is not {wanted}")
+    };
+    io::Error::new(io::ErrorKind::InvalidInput, RefusedCacheLocation(reason))
+}
+
+/// A handle on `{root}/.specsync`, opened without following a link at that name, so everything
+/// done through it stays in the project's own directory. `None` when the directory is missing and
+/// `create` is false; with `create` it is made. A symbolic link or a non-directory is refused.
+fn open_cache_directory(root: &Path, create: bool) -> io::Result<Option<Dir>> {
+    let project = Dir::open_ambient_dir(root, ambient_authority())?;
+    match project.symlink_metadata(CACHE_DIR) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(metadata) => {
+            return Err(refused_cache_location(CACHE_DIR, &metadata, "a directory"));
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if !create {
+                return Ok(None);
+            }
+            match project.create_dir(CACHE_DIR) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Err(error) => return Err(error),
+    }
+    // The check above names what is refused. This open is what enforces it: it fails on a link
+    // even if one replaced the directory after the check.
+    let project = project.into_std_file();
+    cap_primitives::fs::open_dir_nofollow(&project, Path::new(CACHE_DIR))
+        .map(Dir::from_std_file)
+        .map(Some)
+}
+
+/// Whether `hashes.json` exists in the cache directory as a regular file. Anything else at that
+/// name, a symbolic link first of all, is refused.
+fn cache_file_exists(directory: &Dir) -> io::Result<bool> {
+    match directory.symlink_metadata(CACHE_FILE) {
+        Ok(metadata) if metadata.is_file() => Ok(true),
+        Ok(metadata) => Err(refused_cache_location(
+            &format!("{CACHE_DIR}/{CACHE_FILE}"),
+            &metadata,
+            "a regular file",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// A name in the cache directory that no other save is using, for the file that is renamed over
+/// `hashes.json`.
+fn temporary_cache_name() -> String {
+    static SAVES: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.subsec_nanos())
+        .unwrap_or_default();
+    format!(
+        ".{CACHE_FILE}.{}.{nanos}.{}.tmp",
+        std::process::id(),
+        SAVES.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 /// What kind of change was detected for a spec.
@@ -1188,5 +1329,231 @@ mod tests {
         let edited = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
         fs::remove_file(&fragment).unwrap();
         assert!(!replays(&edited), "a removed fragment re-validates");
+    }
+
+    /// A project beside an `outside` directory, both inside one temporary directory, so a link
+    /// that leaves the project still reaches nothing but this fixture (REQ-hash-cache-007).
+    #[cfg(unix)]
+    fn project_beside_outside() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        (dir, root, outside)
+    }
+
+    #[cfg(unix)]
+    fn cache_with_one_hash() -> HashCache {
+        let mut cache = HashCache::default();
+        cache
+            .hashes
+            .insert("specs/auth.spec.md".into(), "abc123".into());
+        cache
+    }
+
+    /// The names in `directory`, sorted.
+    #[cfg(unix)]
+    fn entry_names(directory: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// Verifies REQ-hash-cache-007 (GHSA-7q5v-8jcc-rx54). A repository can commit
+    /// `.specsync/hashes.json` as a link to a file of whoever clones it. Saving the cache must not
+    /// write that file.
+    #[cfg(unix)]
+    #[test]
+    fn save_refuses_a_linked_cache_file_and_leaves_its_target() {
+        let (_dir, root, outside) = project_beside_outside();
+        let victim = outside.join("victim.txt");
+        fs::write(&victim, "the owner's bytes\n").unwrap();
+        fs::create_dir_all(root.join(CACHE_DIR)).unwrap();
+        let link = root.join(CACHE_DIR).join(CACHE_FILE);
+        std::os::unix::fs::symlink("../../outside/victim.txt", &link).unwrap();
+
+        let saved = cache_with_one_hash().save(&root);
+
+        assert_eq!(
+            fs::read_to_string(&victim).unwrap(),
+            "the owner's bytes\n",
+            "the cache was written through the link, over a file outside the project"
+        );
+        assert!(
+            saved
+                .expect_err("a linked cache file must be refused")
+                .to_string()
+                .starts_with(".specsync/hashes.json is a symbolic link"),
+        );
+        assert!(
+            HashCache::refusal(&root)
+                .unwrap()
+                .starts_with(".specsync/hashes.json is a symbolic link")
+        );
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            "the refusal leaves the link as it found it"
+        );
+        assert_eq!(entry_names(&outside), ["victim.txt"]);
+        assert_eq!(entry_names(&root.join(CACHE_DIR)), [CACHE_FILE]);
+    }
+
+    /// Verifies REQ-hash-cache-007. A link whose target does not exist yet must not create it.
+    #[cfg(unix)]
+    #[test]
+    fn save_creates_nothing_through_a_dangling_cache_link() {
+        let (_dir, root, outside) = project_beside_outside();
+        let target = outside.join("not-there-yet.json");
+        fs::create_dir_all(root.join(CACHE_DIR)).unwrap();
+        std::os::unix::fs::symlink(&target, root.join(CACHE_DIR).join(CACHE_FILE)).unwrap();
+
+        let saved = cache_with_one_hash().save(&root);
+
+        assert!(
+            fs::symlink_metadata(&target).is_err(),
+            "the cache was created at the link's target, outside the project"
+        );
+        assert!(saved.is_err(), "a dangling cache link must be refused");
+        assert!(entry_names(&outside).is_empty());
+        assert!(
+            HashCache::refusal(&root)
+                .unwrap()
+                .starts_with(".specsync/hashes.json is a symbolic link")
+        );
+    }
+
+    /// Verifies REQ-hash-cache-007. `.specsync` itself can be the link, which would put
+    /// `hashes.json` into a directory outside the project.
+    #[cfg(unix)]
+    #[test]
+    fn save_refuses_a_linked_cache_directory() {
+        let (_dir, root, outside) = project_beside_outside();
+        std::os::unix::fs::symlink(&outside, root.join(CACHE_DIR)).unwrap();
+
+        let saved = cache_with_one_hash().save(&root);
+
+        assert!(
+            entry_names(&outside).is_empty(),
+            "the cache was written into a directory outside the project: {:?}",
+            entry_names(&outside)
+        );
+        assert!(
+            saved
+                .expect_err("a linked cache directory must be refused")
+                .to_string()
+                .starts_with(".specsync is a symbolic link"),
+        );
+        assert!(
+            HashCache::refusal(&root)
+                .unwrap()
+                .starts_with(".specsync is a symbolic link")
+        );
+    }
+
+    /// Verifies REQ-hash-cache-007. A valid cache behind either link is not this project's cache,
+    /// so it is not read.
+    #[cfg(unix)]
+    #[test]
+    fn load_reads_no_cache_through_a_link() {
+        let valid = serde_json::to_string(&cache_with_one_hash()).unwrap();
+
+        let (_dir, root, outside) = project_beside_outside();
+        fs::write(outside.join("elsewhere.json"), &valid).unwrap();
+        fs::create_dir_all(root.join(CACHE_DIR)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.join("elsewhere.json"),
+            root.join(CACHE_DIR).join(CACHE_FILE),
+        )
+        .unwrap();
+        assert!(
+            HashCache::load(&root).hashes.is_empty(),
+            "a cache was read through a linked cache file"
+        );
+
+        let (_dir, root, outside) = project_beside_outside();
+        fs::write(outside.join(CACHE_FILE), &valid).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join(CACHE_DIR)).unwrap();
+        assert!(
+            HashCache::load(&root).hashes.is_empty(),
+            "a cache was read through a linked cache directory"
+        );
+    }
+
+    /// Verifies REQ-hash-cache-007. Anything at the cache path that is not a regular file is
+    /// refused, not only a link.
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_at_the_cache_path_is_refused() {
+        let (_dir, root, _outside) = project_beside_outside();
+        fs::create_dir_all(root.join(CACHE_DIR).join(CACHE_FILE)).unwrap();
+
+        assert!(cache_with_one_hash().save(&root).is_err());
+        assert!(HashCache::load(&root).hashes.is_empty());
+        assert!(root.join(CACHE_DIR).join(CACHE_FILE).is_dir());
+        assert_eq!(entry_names(&root.join(CACHE_DIR)), [CACHE_FILE]);
+        assert_eq!(
+            HashCache::refusal(&root).unwrap(),
+            ".specsync/hashes.json is not a regular file"
+        );
+
+        // The same for a file where the cache directory belongs.
+        let (_dir, root, _outside) = project_beside_outside();
+        fs::write(root.join(CACHE_DIR), "not a directory\n").unwrap();
+        assert!(cache_with_one_hash().save(&root).is_err());
+        assert!(HashCache::load(&root).hashes.is_empty());
+        assert_eq!(
+            fs::read_to_string(root.join(CACHE_DIR)).unwrap(),
+            "not a directory\n"
+        );
+        assert_eq!(
+            HashCache::refusal(&root).unwrap(),
+            ".specsync is not a directory"
+        );
+    }
+
+    /// Verifies REQ-hash-cache-007. The cache is replaced by a rename, never written in place: a
+    /// second name for the old file keeps the old bytes, and no temporary file is left behind.
+    #[cfg(unix)]
+    #[test]
+    fn save_replaces_the_cache_by_rename() {
+        let (_dir, root, outside) = project_beside_outside();
+        assert_eq!(
+            HashCache::refusal(&root),
+            None,
+            "an absent cache is not refused"
+        );
+        HashCache::default().save(&root).unwrap();
+        assert_eq!(
+            HashCache::refusal(&root),
+            None,
+            "a regular cache is not refused"
+        );
+        let cache_file = root.join(CACHE_DIR).join(CACHE_FILE);
+        let before = fs::read_to_string(&cache_file).unwrap();
+        let other_name = outside.join("other-name.json");
+        fs::hard_link(&cache_file, &other_name).unwrap();
+
+        cache_with_one_hash().save(&root).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(&other_name).unwrap(),
+            before,
+            "the old cache file was written in place, through its other name"
+        );
+        assert_eq!(
+            HashCache::load(&root)
+                .hashes
+                .get("specs/auth.spec.md")
+                .unwrap(),
+            "abc123"
+        );
+        assert_eq!(entry_names(&root.join(CACHE_DIR)), [CACHE_FILE]);
     }
 }

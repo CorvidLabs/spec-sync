@@ -277,6 +277,17 @@ pub fn cmd_check(
         );
     }
 
+    // A repository can commit `.specsync/hashes.json`, or `.specsync` itself, as a link to a file
+    // of whoever clones it. Such a cache is never read or written: say so once, before anything
+    // can end the run, then run as with no cache (REQ-cmd-check-018).
+    let cache_refusal = hash_cache::HashCache::refusal(root);
+    if let Some(reason) = &cache_refusal {
+        eprintln!(
+            "{} hash cache not used: {reason}",
+            "warning:".yellow().bold()
+        );
+    }
+
     // Always allow the empty-specs case through: `check` handles it itself below,
     // where a requested coverage/enforcement gate is still evaluated (the shared
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
@@ -813,7 +824,7 @@ pub fn cmd_check(
     // of re-validation, not a claim that there were no problems. --fix,
     // --strict, and --force still bypass the skip so an explicit request
     // never trusts hashes alone.
-    if total_errors == 0 {
+    if total_errors == 0 && cache_refusal.is_none() {
         record_validation_snapshots(&mut cache, root, &global_inputs, &inventory, outcomes);
         hash_cache::update_cache(root, &specs_to_validate, &mut cache);
         // Record global inputs (config + schema files) so a later unchanged run

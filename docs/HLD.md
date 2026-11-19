@@ -695,7 +695,10 @@ of prior findings with an input digest and an integrity digest
 ([`src/hash_cache.rs`](../src/hash_cache.rs)). It covers the spec, its companions, its `files:`
 and global inputs (the config file and every file in `schema_dir`). An unknown format version or a
 parse error loads as an empty cache. `--force` bypasses it and `rehash` rebuilds it. It is only
-saved after a run with no errors.
+saved after a run with no errors. It is never read or written through a symbolic link: `.specsync`
+is opened without following one, the cache is written to a new file there and renamed over
+`hashes.json`, and a linked or non-regular cache is refused, which `check` reports as a warning
+and `rehash` as a failure.
 
 ## 6. Runtime and deployment
 

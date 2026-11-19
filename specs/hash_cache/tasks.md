@@ -22,6 +22,7 @@ spec: hash_cache.spec.md
 - [x] Integration coverage: `check_creates_hash_cache`
 - [x] Persist and replay per-spec validation snapshots so a warm check cannot drop findings
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Never read or write the cache through a symbolic link: no-follow `.specsync` handle, exclusive create and rename, `refusal` for the caller's warning (REQ-hash-cache-007)
 
 ## Review Status
 

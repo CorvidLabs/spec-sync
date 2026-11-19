@@ -3776,25 +3776,43 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
         return terminal_summary_from_cache(record, cached);
     }
     if read_scope_value(root, |_| Some(())).is_some() {
-        let result = list_all_changes_checked(root).map(|records| {
-            let accepted: BTreeMap<String, ChangeRecord> = records
+        // #1104: a change whose records fail keeps its own failure; the others are judged on the
+        // changes that loaded, as REQ-change-119, REQ-change-012 and REQ-change-024 say.
+        let result = terminal_evidence_roster(root).map(|roster| {
+            let accepted: BTreeMap<String, ChangeRecord> = roster
+                .records
                 .iter()
                 .filter(|(_, other)| other.state != ChangeState::Archived)
                 .map(|(id, other)| (id.clone(), other.clone()))
                 .collect();
-            let (results, _) = terminal_evidence_results_with_records(root, &accepted, &records);
-            results
+            let (results, _) =
+                terminal_evidence_results_with_records(root, &accepted, &roster.records);
+            let mut summaries: BTreeMap<String, TerminalEvidenceSummary> = results
                 .into_iter()
-                .map(|result| (result.id, result.evidence))
-                .collect()
+                .map(|result| {
+                    let evidence =
+                        name_failed_candidates(&roster, accepted.get(&result.id), result.evidence);
+                    (result.id, evidence)
+                })
+                .collect();
+            for (id, failed) in &roster.failed {
+                summaries.insert(id.clone(), own_failure_summary(failed));
+            }
+            summaries
         });
         update_read_scope(root, |scope| {
             scope.terminal_evidence = Some(result.clone());
         });
         return terminal_summary_from_cache(record, result);
     }
-    let result = list_all_changes_checked(root)
-        .map(|records| terminal_evidence_summary_with_records(root, record, &records));
+    let result = terminal_evidence_roster(root).map(|roster| match roster.failed.get(&record.id) {
+        Some(failed) => own_failure_summary(failed),
+        None => name_failed_candidates(
+            &roster,
+            Some(record),
+            terminal_evidence_summary_with_records(root, record, &roster.records),
+        ),
+    });
     match result {
         Ok(summary) => summary,
         Err(reason) => TerminalEvidenceSummary {
@@ -3842,8 +3860,15 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
     }) {
         return cached;
     }
-    if let Err(reason) = list_all_changes_checked(root) {
-        return terminal_summary_from_cache(record, Err(reason));
+    // #1104: an archive is judged for itself alone (REQ-change-119); another change's failure is
+    // not its verdict, only its own is.
+    match terminal_evidence_roster(root) {
+        Err(reason) => return terminal_summary_from_cache(record, Err(reason)),
+        Ok(roster) => {
+            if let Some(failed) = roster.failed.get(&record.id) {
+                return own_failure_summary(failed);
+            }
+        }
     }
     let mut cache = CHANGE_READ_SCOPES
         .with(|scopes| {
@@ -3869,6 +3894,70 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
             .insert(record.id.clone(), summary.clone());
     });
     summary
+}
+
+/// The verdict of a change whose own records fail validation: its own reason, `corrupt-history` for
+/// an archive and `stale` for an open change, as the roster load gave every change before #1104.
+fn own_failure_summary(failed: &FailedChange) -> TerminalEvidenceSummary {
+    TerminalEvidenceSummary {
+        validity: if failed.archived {
+            TerminalEvidenceValidity::CorruptHistory
+        } else {
+            TerminalEvidenceValidity::Stale
+        },
+        reason: Some(failed.reason.clone()),
+    }
+}
+
+/// #1104: a change that failed to load cannot cover anything, so an accepted change whose changed
+/// input it might have covered is stale either way; the reason then names it and its failure. A
+/// candidate is a failed change that declares a path overlapping the judged change's, or one whose
+/// `state.json` does not read at all, which cannot be shown not to be one. Only a successor search
+/// for a changed input names candidates; every other verdict is left as it is.
+fn name_failed_candidates(
+    roster: &TerminalRoster,
+    record: Option<&ChangeRecord>,
+    mut summary: TerminalEvidenceSummary,
+) -> TerminalEvidenceSummary {
+    let Some(record) = record else {
+        return summary;
+    };
+    let searched = summary.validity == TerminalEvidenceValidity::Stale
+        && record.state == ChangeState::Accepted
+        && summary
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("changed after acceptance"));
+    if !searched || roster.failed.is_empty() {
+        return summary;
+    }
+    let candidates: Vec<String> = roster
+        .failed
+        .iter()
+        .filter(|(id, failed)| {
+            *id != &record.id
+                && failed.record.as_ref().is_none_or(|other| {
+                    declared_paths_overlap(&record.affected_paths, &other.affected_paths)
+                })
+        })
+        .map(|(id, failed)| format!("candidate successor `{id}` fails validation: {}", failed.reason))
+        .collect();
+    if !candidates.is_empty() {
+        let reason = summary.reason.take().unwrap_or_default();
+        summary.reason = Some(format!("{reason}; {}", candidates.join("; ")));
+    }
+    summary
+}
+
+/// Whether two declared path scopes share a path: equal, or one a directory scope holding the other.
+fn declared_paths_overlap(left: &[String], right: &[String]) -> bool {
+    let covers = |scope: &str, path: &str| {
+        let scope = scope.trim_end_matches('/');
+        let path = path.trim_end_matches('/');
+        path == scope || path.starts_with(&format!("{scope}/"))
+    };
+    left.iter()
+        .any(|a| right.iter().any(|b| covers(a, b) || covers(b, a)))
 }
 
 fn terminal_summary_from_cache(

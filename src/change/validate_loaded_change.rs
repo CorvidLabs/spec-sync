@@ -502,6 +502,155 @@ fn list_all_change_metadata(
     Ok(records)
 }
 
+/// One change whose records fail validation, as terminal evidence sees it (#1104): its failure, the
+/// record when it still parsed, and whether it was found in the archive.
+#[derive(Debug, Clone)]
+struct FailedChange {
+    reason: String,
+    record: Option<ChangeRecord>,
+    archived: bool,
+}
+
+/// The roster terminal evidence judges against (#1104): every change that loads and validates, and
+/// every one that does not, each with its own failure.
+#[derive(Debug, Clone, Default)]
+struct TerminalRoster {
+    records: BTreeMap<String, ChangeRecord>,
+    failed: BTreeMap<String, FailedChange>,
+}
+
+/// The roster for terminal evidence. When every change loads, it is exactly
+/// `list_all_changes_checked`. When one fails, each change is loaded on its own instead, so the
+/// failure stays with the change it belongs to and the others are judged without it
+/// (REQ-change-119, REQ-change-012, REQ-change-024). A failure that cannot be put on one change,
+/// such as an archive directory that cannot be listed, still fails the whole read.
+fn terminal_evidence_roster(root: &Path) -> Result<TerminalRoster, String> {
+    match list_all_changes_checked(root) {
+        Ok(records) => Ok(TerminalRoster {
+            records,
+            failed: BTreeMap::new(),
+        }),
+        Err(_) => list_all_changes_one_by_one(root),
+    }
+}
+
+/// `list_all_change_metadata` with its history walk and the retirement checks, but each change
+/// loaded on its own: a change that fails is set aside with its reason instead of failing the rest.
+fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
+    fn fail(roster: &mut TerminalRoster, id: String, failed: FailedChange) {
+        roster.records.remove(&id);
+        roster.failed.entry(id).or_insert(failed);
+    }
+    let mut roster = TerminalRoster::default();
+    // Active changes load as `list_changes_checked` loads them, one unreadable workspace at a time.
+    let active = list_changes(root)?;
+    for unreadable in active.unreadable {
+        let failed = FailedChange {
+            reason: unreadable.reason,
+            record: None,
+            archived: false,
+        };
+        fail(&mut roster, unreadable.id, failed);
+    }
+    for record in active.records {
+        roster.records.insert(record.id.clone(), record);
+    }
+    let archive = root.join(ARCHIVE_PATH);
+    let entries = match fs::read_dir(&archive) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
+        Err(error) => return Err(format!("failed to read archived changes: {error}")),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("failed to inspect archive entry: {error}"))?
+            .is_dir()
+        {
+            continue;
+        }
+        let directory = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path().join("state.json");
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    && (is_positive_legacy_tombstone(&entry.path())
+                        || is_untrackable_husk(&entry.path())) =>
+            {
+                continue;
+            }
+            Err(error) => {
+                let reason = format!("failed to read archived state {}: {error}", path.display());
+                let failed = FailedChange {
+                    reason,
+                    record: None,
+                    archived: true,
+                };
+                fail(&mut roster, directory, failed);
+                continue;
+            }
+        };
+        let record: ChangeRecord = match serde_json::from_str(&content) {
+            Ok(record) => record,
+            Err(error) => {
+                let reason = format!("invalid archived state {}: {error}", path.display());
+                let failed = FailedChange {
+                    reason,
+                    record: None,
+                    archived: true,
+                };
+                fail(&mut roster, directory, failed);
+                continue;
+            }
+        };
+        let checked = validate_loaded_change(&record, &record.id, &path)
+            .and_then(|()| validate_workflow_version_history(root, &record));
+        if let Err(reason) = checked {
+            let failed = FailedChange {
+                reason,
+                record: Some(record.clone()),
+                archived: true,
+            };
+            fail(&mut roster, record.id.clone(), failed);
+            continue;
+        }
+        if roster.records.contains_key(&record.id) || roster.failed.contains_key(&record.id) {
+            let reason = format!(
+                "change `{}` exists in multiple active/archive locations",
+                record.id
+            );
+            let failed = FailedChange {
+                reason,
+                record: Some(record.clone()),
+                archived: true,
+            };
+            fail(&mut roster, record.id.clone(), failed);
+            continue;
+        }
+        roster.records.insert(record.id.clone(), record);
+    }
+    // A retirement that does not validate is the retired change's own failure.
+    if let Err(reason) = validate_retired_records(root, &roster.records) {
+        let retired: Vec<ChangeRecord> = roster
+            .records
+            .values()
+            .filter(|record| record.state == ChangeState::Retired)
+            .cloned()
+            .collect();
+        for record in retired {
+            let failed = FailedChange {
+                reason: reason.clone(),
+                record: Some(record.clone()),
+                archived: false,
+            };
+            fail(&mut roster, record.id.clone(), failed);
+        }
+    }
+    Ok(roster)
+}
+
 /// True when `path` is a directory holding no regular file at any depth.
 ///
 /// Git cannot track an empty directory. Checking out a commit that predates a

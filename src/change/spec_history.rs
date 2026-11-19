@@ -186,8 +186,8 @@ pub fn parse_history_fragment(file_name: &str, content: &str) -> Result<HistoryF
     })
 }
 
-/// A one-line YAML scalar as text: double-quoted with `\"` and `\\` escapes, single-quoted with
-/// `''`, or plain. A fragment written before #1086's review holds a plain id, and still reads.
+/// A one-line YAML scalar as text: double-quoted with YAML's escapes, single-quoted with `''`, or
+/// plain. A fragment written before #1086's review holds a plain id, and still reads.
 fn yaml_scalar(value: &str) -> Result<String, String> {
     if value.len() >= 2
         && let Some(inner) = value
@@ -198,10 +198,10 @@ fn yaml_scalar(value: &str) -> Result<String, String> {
         let mut characters = inner.chars();
         while let Some(character) = characters.next() {
             match character {
-                '\\' => match characters.next() {
-                    Some(escaped @ ('"' | '\\')) => text.push(escaped),
-                    _ => return Err("has an escape other than `\\\"` or `\\\\`".into()),
-                },
+                '\\' => text.push(
+                    yaml_escape(&mut characters)
+                        .ok_or_else(|| "has an escape YAML does not define".to_string())?,
+                ),
                 '"' => return Err("has an unescaped `\"` inside its quotes".into()),
                 other => text.push(other),
             }
@@ -216,6 +216,43 @@ fn yaml_scalar(value: &str) -> Result<String, String> {
         return Ok(inner.replace("''", "'"));
     }
     Ok(value.to_string())
+}
+
+/// The character one YAML double-quoted escape stands for, read after its `\`: the one-letter
+/// escapes, `\xXX`, `\uXXXX` and `\UXXXXXXXX`; `None` for any other escape or a code point that
+/// is not a character. A fragment written by a standard YAML tool reads back (Codex's review of
+/// #1088: `change: "a"` is the id `a`).
+fn yaml_escape(characters: &mut std::str::Chars<'_>) -> Option<char> {
+    let hex = |characters: &mut std::str::Chars<'_>, digits: usize| {
+        let text: String = characters.by_ref().take(digits).collect();
+        (text.len() == digits)
+            .then(|| u32::from_str_radix(&text, 16).ok())
+            .flatten()
+            .and_then(char::from_u32)
+    };
+    Some(match characters.next()? {
+        '0' => '\0',
+        'a' => '\u{7}',
+        'b' => '\u{8}',
+        't' | '\t' => '\t',
+        'n' => '\n',
+        'v' => '\u{b}',
+        'f' => '\u{c}',
+        'r' => '\r',
+        'e' => '\u{1b}',
+        ' ' => ' ',
+        '"' => '"',
+        '/' => '/',
+        '\\' => '\\',
+        'N' => '\u{85}',
+        '_' => '\u{a0}',
+        'L' => '\u{2028}',
+        'P' => '\u{2029}',
+        'x' => hex(characters, 2)?,
+        'u' => hex(characters, 4)?,
+        'U' => hex(characters, 8)?,
+        _ => return None,
+    })
 }
 
 /// `YYYY-MM-DD` naming a real calendar day.

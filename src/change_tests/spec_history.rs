@@ -250,3 +250,36 @@ fn an_id_in_another_row_s_prose_is_not_a_record() {
     let (_, errors) = scan_history_fragments(root, &spec_path, legacy);
     assert!(errors.is_empty(), "{errors:?}");
 }
+
+/// Codex's second review of #1088: an id that itself begins with `*`, `_` or a backtick is matched
+/// as written, and only a marker pair that wraps the id is formatting, so `_draft:` is not a row
+/// for `draft`.
+#[test]
+fn a_row_matches_the_raw_id_before_any_markdown_around_it() {
+    let spec = |row: &str| {
+        format!("---\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n{row}\n")
+    };
+    assert!(changelog_records_change(&spec("| 2026 | *hotfix: Hot |"), "*hotfix"));
+    assert!(!changelog_records_change(&spec("| 2026 | *hotfix: Hot |"), "hotfix"));
+    assert!(changelog_records_change(&spec("| 2026 | _draft: Draft |"), "_draft"));
+    assert!(!changelog_records_change(&spec("| 2026 | _draft: Draft |"), "draft"));
+    for wrapped in ["**add-passkeys:**", "*add-passkeys:*", "__add-passkeys:__", "`add-passkeys:`"] {
+        assert!(
+            changelog_records_change(&spec(&format!("| 2026 | {wrapped} Passkeys |")), "add-passkeys"),
+            "{wrapped}"
+        );
+    }
+}
+
+/// Codex's second review of #1088: a double-quoted `change:` reads YAML's escapes, so a fragment a
+/// standard YAML tool wrote parses back to its id.
+#[test]
+fn a_quoted_change_id_reads_yaml_escapes() {
+    for (written, id) in [("\"\\u0061\"", "a"), ("\"\\x61dd\"", "add"), ("\"a\\tb\"", "a\tb"), ("\"\\\"q\\\"\"", "\"q\"")] {
+        assert_eq!(yaml_scalar(written).unwrap(), id, "{written}");
+    }
+    assert!(yaml_scalar("\"\\q\"").is_err());
+    assert!(yaml_scalar("\"\\u12\"").is_err());
+    let content = "---\nchange: \"\\u0061\"\ndate: 2026-11-19\n---\n\nSummary\n";
+    assert_eq!(parse_history_fragment("a.md", content).unwrap().change, "a");
+}

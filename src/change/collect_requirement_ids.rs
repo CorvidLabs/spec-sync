@@ -2682,12 +2682,26 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
         .map(str::trim)
         .filter(|line| line.starts_with('|'))
         .any(|row| {
-            row.trim_matches('|').split('|').any(|cell| {
-                cell.trim()
-                    .trim_start_matches(['*', '_', '`'])
-                    .starts_with(needle.as_str())
-            })
+            row.trim_matches('|')
+                .split('|')
+                .any(|cell| cell_names_change(cell.trim(), &needle))
         })
+}
+
+/// Whether a Change Log cell begins with `needle` (`<id>:`): the raw cell first, so an id that
+/// itself begins with `*`, `_` or a backtick is matched as written, then the same text wrapped in
+/// one Markdown marker pair (`**<id>:**`, `*<id>:*`, `__<id>:__`, `_<id>:_`, `` `<id>:` ``). A
+/// marker that does not close after the id belongs to another id, so `_draft:` is not a row for
+/// `draft` (Codex's review of #1088).
+fn cell_names_change(cell: &str, needle: &str) -> bool {
+    if cell.starts_with(needle) {
+        return true;
+    }
+    ["**", "__", "*", "_", "`"].iter().any(|marker| {
+        cell.strip_prefix(marker)
+            .and_then(|rest| rest.strip_prefix(needle))
+            .is_some_and(|after| after.starts_with(marker))
+    })
 }
 
 /// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the

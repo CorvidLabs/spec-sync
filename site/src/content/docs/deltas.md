@@ -108,9 +108,12 @@ requirement in the working tree must be main's text, the change's text or alread
 clean Git merge and a conflict resolved to either side are rebased, while a sentence added by hand
 on the branch, or in a merge resolution, is refused as stale. A requirement main has edited that
 cannot be rebased is refused even when the branch kept the change's own text, because keeping it
-would drop main's edit. Edits that overlap, a spec section, a `## REMOVED` item, a workflow-v1
-change, a CI run, a repository without a default branch or the history needed, a module delta over
-256 KiB and a change holding 64 rebases keep the refusal above.
+would drop main's edit, and so is one whose main text Git cannot read while a default branch exists;
+with no default branch, and in CI, such a requirement materializes as before. Edits that overlap, a
+word both sides deleted at one place that one side adds at another (as when both move one word), a
+spec section, a `## REMOVED` item, a workflow-v1 change, a CI run, a repository without a default
+branch or the history needed, a module delta over 256 KiB and a change holding 64 rebases keep the
+refusal above.
 
 Otherwise, rewrite the delta body onto the current canonical text, then run `change approve` and
 `change check` again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,

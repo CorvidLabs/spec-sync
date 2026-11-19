@@ -432,3 +432,55 @@ fn a_change_squash_merged_before_finalize_is_never_rebased_over_its_own_text() {
         "{requirements}"
     );
 }
+
+/// Codex's third review of #1089, as ss-lead narrowed it, through the binary: a CI run reads an
+/// applied item as "no main edit", as before, even when Git cannot read main's text; outside CI
+/// with a default branch the same check refuses, naming the requirement.
+#[test]
+fn an_unreadable_main_text_refuses_an_applied_item_outside_ci_only() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id]);
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "materialize"]);
+    let blob = project
+        .git(&["rev-parse", "origin/main:specs/auth/requirements.md"])
+        .trim()
+        .to_string();
+    fs::remove_file(
+        project
+            .root
+            .join(".git/objects")
+            .join(&blob[..2])
+            .join(&blob[2..]),
+    )
+    .unwrap();
+
+    let ci = specsync()
+        .env("CI", "true")
+        .env("GITHUB_WORKSPACE", &project.root)
+        .args([
+            "--root",
+            project.root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+        ])
+        .output()
+        .unwrap();
+    let local = project.invoke(&["change", "check", &id]);
+
+    assert!(
+        !combined(&ci).contains("cannot be read from Git"),
+        "{}",
+        combined(&ci)
+    );
+    assert!(!local.status.success(), "{}", combined(&local));
+    let text = combined(&local);
+    assert!(
+        text.contains("REQ-auth-001") && text.contains("cannot be read from Git"),
+        "{text}"
+    );
+}

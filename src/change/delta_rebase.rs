@@ -90,15 +90,27 @@ fn word_tokens(text: &str) -> Vec<&str> {
 }
 
 /// The word-level three-way merge of `approved` and `current` over their common `base`, or `None`
-/// when the two edits overlap or cannot be aligned unambiguously.
+/// when the two edits overlap, when either moves a word, or when they cannot be aligned
+/// unambiguously.
 ///
-/// The texts are aligned only on anchors: words that occur exactly once in each of the three, in
-/// an order that rises in all three, found again inside each gap between anchors. A repeated word
-/// is never an anchor, so it can never be matched to one occurrence on one side and another on the
-/// other, which is how an LCS alignment once let two edits to the same words merge (Codex's review
-/// of #1089: base `c a b d`, main `b b d`, approved `b d`). Between anchors, a stretch only one side
-/// changed takes that side; a stretch both changed, the same way excepted, is an overlap, and so is
-/// a stretch both changed with no anchor inside to split it.
+/// The texts are aligned only on anchors: words that occur exactly once in each of the three,
+/// found again inside each gap between anchors. A repeated word is never an anchor, so it can never
+/// be matched to one occurrence on one side and another on the other, which is how an LCS
+/// alignment once let two edits to the same words merge (Codex's review of #1089: base `c a b d`,
+/// main `b b d`, approved `b d`). Between anchors, a stretch only one side changed takes that side;
+/// a stretch both changed, the same way excepted, is an overlap, and so is a stretch both changed
+/// with no anchor inside to split it.
+///
+/// Moves refuse by one rule, not one counterexample at a time (ss-lead's review of #1089): a word
+/// both sides removed from one stretch the same way, that one side alone adds in another stretch,
+/// is a move against the other side's edit, and refuses. That covers a move against a deletion
+/// (Codex: base `a b c`, main `a c`, approved `b a c`) and both sides moving one word to different
+/// places, where both remove it from where it stood (Codex: base `a b c d`, main `b a c d`,
+/// approved `a c b d` once gave `b a c b d`). A move only one side makes is a deletion and an
+/// insertion of that side alone, and merges like any other edit. A word only one side deleted is
+/// that side's own edit, so the other side may use it elsewhere: the change drops one `the`, main
+/// appends a sentence with `the`, and they merge. Refusing every anchor word out of order (R1)
+/// was measured and rejected: it refused #360's REQ-cli-012, where main alone moved a clause.
 fn merge_words(base: &str, current: &str, approved: &str) -> Option<String> {
     let base = word_tokens(base);
     let current = word_tokens(current);
@@ -109,103 +121,88 @@ fn merge_words(base: &str, current: &str, approved: &str) -> Option<String> {
     {
         return None;
     }
-    let guard = MoveGuard {
-        main_deleted: deleted_words(&base, &current),
-        approved_deleted: deleted_words(&base, &approved),
-    };
-    let mut merged = Vec::new();
-    merge_token_ranges(&base, &current, &approved, &mut merged, &guard)?;
-    Some(merged.concat())
+    let mut merge = WordMerge::default();
+    merge.ranges(&base, &current, &approved)?;
+    if merge
+        .one_side_added
+        .iter()
+        .any(|word| merge.jointly_removed.contains(word))
+    {
+        return None;
+    }
+    Some(merge.merged.concat())
 }
 
-/// The words each side deleted from the base, by count, so a merge never puts back, through the
-/// other side's insertion, a word one side removed. Codex's review of #1089: base `a b c`, main
-/// `a c`, approved `b a c` anchors `a` and `c` and would return `b a c`, restoring the `b` main
-/// deleted because the approved body moved it.
-struct MoveGuard<'a> {
-    main_deleted: BTreeSet<&'a str>,
-    approved_deleted: BTreeSet<&'a str>,
+/// A word merge in progress: the tokens merged so far, the words both sides removed from one
+/// stretch the same way, and the words one side alone added.
+#[derive(Default)]
+struct WordMerge<'a> {
+    merged: Vec<&'a str>,
+    jointly_removed: BTreeSet<&'a str>,
+    one_side_added: BTreeSet<&'a str>,
 }
 
-/// Words (whitespace aside) that occur fewer times in `side` than in `base`.
-fn deleted_words<'a>(base: &[&'a str], side: &[&'a str]) -> BTreeSet<&'a str> {
-    let count = |tokens: &[&'a str]| {
-        let mut counts: BTreeMap<&'a str, usize> = BTreeMap::new();
-        for token in tokens {
-            *counts.entry(token.trim()).or_insert(0) += 1;
+impl<'a> WordMerge<'a> {
+    fn ranges(
+        &mut self,
+        base: &[&'a str],
+        current: &[&'a str],
+        approved: &[&'a str],
+    ) -> Option<()> {
+        if approved == current {
+            self.jointly_removed.extend(surplus_words(base, current));
+            self.merged.extend_from_slice(current);
+            return Some(());
         }
-        counts
-    };
-    let in_side = count(side);
-    count(base)
+        if current == base {
+            self.one_side_added.extend(surplus_words(approved, base));
+            self.merged.extend_from_slice(approved);
+            return Some(());
+        }
+        if approved == base {
+            self.one_side_added.extend(surplus_words(current, base));
+            self.merged.extend_from_slice(current);
+            return Some(());
+        }
+        let anchors = unique_anchors(base, current, approved);
+        if anchors.is_empty() {
+            return None;
+        }
+        let (mut b, mut c, mut a) = (0usize, 0usize, 0usize);
+        for (base_at, current_at, approved_at) in anchors {
+            self.ranges(
+                &base[b..base_at],
+                &current[c..current_at],
+                &approved[a..approved_at],
+            )?;
+            self.merged.push(base[base_at]);
+            b = base_at + 1;
+            c = current_at + 1;
+            a = approved_at + 1;
+        }
+        self.ranges(&base[b..], &current[c..], &approved[a..])
+    }
+}
+
+/// The words (whitespace aside) that occur more often in `more` than in `less`.
+fn surplus_words<'a>(more: &[&'a str], less: &[&'a str]) -> Vec<&'a str> {
+    let mut counts: BTreeMap<&'a str, isize> = BTreeMap::new();
+    for token in more {
+        *counts.entry(token.trim()).or_insert(0) += 1;
+    }
+    for token in less {
+        *counts.entry(token.trim()).or_insert(0) -= 1;
+    }
+    counts
         .into_iter()
-        .filter(|(word, times)| in_side.get(word).copied().unwrap_or(0) < *times)
+        .filter(|(_, surplus)| *surplus > 0)
         .map(|(word, _)| word)
         .collect()
 }
 
-/// Whether `taken` inserts, relative to `base_chunk`, a word in `deleted`.
-fn reinserts(taken: &[&str], base_chunk: &[&str], deleted: &BTreeSet<&str>) -> bool {
-    let mut surplus: BTreeMap<&str, isize> = BTreeMap::new();
-    for token in taken {
-        *surplus.entry(token.trim()).or_insert(0) += 1;
-    }
-    for token in base_chunk {
-        *surplus.entry(token.trim()).or_insert(0) -= 1;
-    }
-    surplus
-        .into_iter()
-        .any(|(word, extra)| extra > 0 && deleted.contains(word))
-}
-
-fn merge_token_ranges<'a>(
-    base: &[&'a str],
-    current: &[&'a str],
-    approved: &[&'a str],
-    merged: &mut Vec<&'a str>,
-    guard: &MoveGuard<'_>,
-) -> Option<()> {
-    if approved == current {
-        merged.extend_from_slice(current);
-        return Some(());
-    }
-    if current == base {
-        if reinserts(approved, base, &guard.main_deleted) {
-            return None;
-        }
-        merged.extend_from_slice(approved);
-        return Some(());
-    }
-    if approved == base {
-        if reinserts(current, base, &guard.approved_deleted) {
-            return None;
-        }
-        merged.extend_from_slice(current);
-        return Some(());
-    }
-    let anchors = unique_anchors(base, current, approved);
-    if anchors.is_empty() {
-        return None;
-    }
-    let (mut b, mut c, mut a) = (0usize, 0usize, 0usize);
-    for (base_at, current_at, approved_at) in anchors {
-        merge_token_ranges(
-            &base[b..base_at],
-            &current[c..current_at],
-            &approved[a..approved_at],
-            merged,
-            guard,
-        )?;
-        merged.push(base[base_at]);
-        b = base_at + 1;
-        c = current_at + 1;
-        a = approved_at + 1;
-    }
-    merge_token_ranges(&base[b..], &current[c..], &approved[a..], merged, guard)
-}
-
 /// The words that occur exactly once in each of `base`, `current` and `approved`, as index triples,
-/// keeping the longest chain whose indices rise in all three.
+/// keeping the longest chain whose indices rise in all three. A word left out of the chain is one a
+/// side moved; the gaps then hold its deletion and its insertion as that side's edits.
 fn unique_anchors(base: &[&str], current: &[&str], approved: &[&str]) -> Vec<(usize, usize, usize)> {
     fn once<'a>(tokens: &[&'a str]) -> BTreeMap<&'a str, Option<usize>> {
         let mut seen: BTreeMap<&str, Option<usize>> = BTreeMap::new();
@@ -578,8 +575,8 @@ fn base_on_line_before(
 
 /// Main's side of `item` when main has edited it past `base`: its block at HEAD's merge-base with
 /// the default branch differs from `base` and from the delta's body, and `base` is a text the
-/// default branch's first-parent line held before it. `Ok(None)` when main has no such edit;
-/// `Err` when Git cannot say.
+/// default branch's first-parent line held before it. `Ok(None)` when main has no such edit, or
+/// there is no default branch; `Err` when there is one and Git cannot read what this needs.
 fn main_side(
     root: &Path,
     path: &Path,
@@ -587,6 +584,12 @@ fn main_side(
     item: &DeltaItem,
     base: &str,
 ) -> Result<Option<MainSide>, String> {
+    // No default branch (a local-only project): there is no main edit to merge, exactly as before
+    // #1085. With one, a merge-base, tree, text or history Git cannot read is an `Err`, never "main
+    // did not edit it" (Codex's third review of #1089, as ss-lead narrowed it).
+    if remote_default_ref(root).is_none() {
+        return Ok(None);
+    }
     let (_, commit) = main_merge_base(root)?;
     let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
     let file = project_relative(root, path)
@@ -614,24 +617,34 @@ fn main_side(
     }))
 }
 
-/// Whether main has edited `item` past the base `base` and the change has not been rebased over
-/// it, for the base check (REQ-change-161): a workflow-v2 `## MODIFIED` requirement outside CI
-/// whose block at HEAD's merge-base with the default branch is newer text than its base. Such an
-/// item is stale even when the working tree carries the change's own body, since keeping that body
-/// drops main's edit. `false` whenever Git cannot say, so the item keeps today's check.
-fn main_moved_past_base(
+/// Why the base check refuses `item` on main's side, for a workflow-v2 `## MODIFIED` requirement
+/// outside CI (REQ-change-161): `Some("")` when main has edited it past `base` and the change has
+/// not been rebased over that edit, which is stale even when the working tree carries the change's
+/// own body, since keeping that body drops main's edit; `Some` with the reason when a default branch
+/// exists and Git cannot read main's text; `None` otherwise, as before, including with no default
+/// branch and in CI.
+fn main_edit_refusal(
     root: &Path,
     record: &ChangeRecord,
     path: &Path,
     module: &str,
     item: &DeltaItem,
     base: &str,
-) -> bool {
-    record.workflow_version >= 2
-        && !is_ci_project(root)
-        && item.operation == DeltaOperation::Modified
-        && item.target == DeltaTarget::Requirement
-        && matches!(main_side(root, path, module, item, base), Ok(Some(_)))
+) -> Option<String> {
+    if record.workflow_version < 2
+        || is_ci_project(root)
+        || item.operation != DeltaOperation::Modified
+        || item.target != DeltaTarget::Requirement
+    {
+        return None;
+    }
+    match main_side(root, path, module, item, base) {
+        Ok(Some(_)) => Some(String::new()),
+        Ok(None) => None,
+        Err(why) => Some(format!(
+            " (main's text cannot be read from Git: {why}; repair the repository or fetch the default branch, then check again)"
+        )),
+    }
 }
 
 /// What a reader checks of a record's main commit while the change is delivered: it names a
@@ -688,7 +701,10 @@ fn check_rebase_main_commit(
 /// item's body in the delta, and in the canonical requirement when the working tree carries the
 /// change's body, and appends a record to `approvals.json`, all in one prepared write. An item
 /// that cannot be rebased is left alone, so the base check that runs next refuses it, and then no
-/// item is rebased. Returns the number of rebases written.
+/// item is rebased. Three causes are refused here instead, each naming itself and its way on,
+/// because the base check's "rewrite and re-approve" would mislead for them (the tester's run at
+/// 0d6ca1cd): Git cannot read main's text, the module's delta is over the size bound, or the change
+/// already holds the most rebase records. Returns the number of rebases written.
 ///
 /// Workflow-v1 changes are left out: their definition digest hashes the delta bodies, so a
 /// rebase there would change what the approval signed. CI never writes.
@@ -711,6 +727,9 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
     let mut prepared = Vec::new();
     let mut rebases = Vec::new();
     let mut left_stale = false;
+    // Items refused for a cause of their own, each with its way on; nothing is written then.
+    let mut causes: Vec<String> = Vec::new();
+    let id = record.id.as_str();
     for module in &record.affected_specs {
         let delta_path = delta_path_checked(root, record, module)?;
         let mut delta = read_bounded_change_text(&delta_path, "semantic delta")
@@ -737,14 +756,37 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
             };
             let stale = !delta_item_is_applied(&spec, &requirements, item)
                 && canonical_block_digest(module, &spec, &requirements, item) != base;
-            let main = (item.operation == DeltaOperation::Modified
-                && item.target == DeltaTarget::Requirement)
-                .then(|| main_side(root, &requirements_path, module, item, &base).ok().flatten())
-                .flatten();
-            let Some(main) = main else {
-                left_stale |= stale;
-                continue;
+            let main = if item.operation == DeltaOperation::Modified
+                && item.target == DeltaTarget::Requirement
+            {
+                main_side(root, &requirements_path, module, item, &base)
+            } else {
+                Ok(None)
             };
+            let main = match main {
+                Ok(Some(main)) => main,
+                Ok(None) => {
+                    left_stale |= stale;
+                    continue;
+                }
+                Err(why) => {
+                    causes.push(format!(
+                        "{module}: {}: main's text cannot be read from Git ({why}); repair the repository or fetch the default branch (`git fetch origin`), then run `specsync change check {}` again",
+                        item.key,
+                        shell_word(id)
+                    ));
+                    continue;
+                }
+            };
+            if delta.len() > MAX_REBASED_DELTA_BYTES {
+                causes.push(format!(
+                    "{module}: {}: the `{module}` delta is over 256 KiB, more than a rebase record copies into approvals.json; rewrite the item's body onto main's text by hand, then run `specsync change approve {}` and `specsync change check {}`",
+                    item.key,
+                    shell_word(id),
+                    shell_word(id)
+                ));
+                continue;
+            }
             let staged = stage_rebase(
                 module,
                 &requirements,
@@ -774,8 +816,29 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
             prepared.push((requirements_path, requirements));
         }
     }
-    if left_stale || ledger.delta_rebases.len() + rebases.len() > MAX_DELTA_REBASES {
+    if !causes.is_empty() {
+        return Err(format!(
+            "semantic delta for {} could not be rebased over main's edit, and nothing was written: {}",
+            shell_word(id),
+            causes.join("; ")
+        ));
+    }
+    if left_stale {
         return Ok(0);
+    }
+    if ledger.delta_rebases.len() + rebases.len() > MAX_DELTA_REBASES {
+        let items = rebases
+            .iter()
+            .map(|rebase| rebase.item.replacen(" REQUIREMENT ", ": ", 1))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "semantic delta for {} could not be rebased over main's edit, and nothing was written: {items}: the change already holds {} rebase records, the most one approval carries; rewrite each item's body onto main's text by hand, then run `specsync change approve {}` (a new approval starts a new set of records) and `specsync change check {}`",
+            shell_word(id),
+            ledger.delta_rebases.len(),
+            shell_word(id),
+            shell_word(id)
+        ));
     }
     if rebases.is_empty() {
         return Ok(0);
@@ -793,9 +856,9 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
 
 /// One rebase of the `## MODIFIED` requirement `key` in `delta` over `main`, staged in memory: the
 /// record, the rebased delta, the base the item binds after it, and the canonical requirements
-/// when they must change too. `None` when the item cannot be rebased: the edits overlap, the delta
-/// is over the size bound, or the working tree's block is not one of the three texts a rebase
-/// accepts (main's block, the delta's body, or already their merge). Nothing is written here.
+/// when they must change too. `None` when the item cannot be rebased: the edits overlap, or the
+/// working tree's block is not one of the three texts a rebase accepts (main's block, the delta's
+/// body, or already their merge). Nothing is written here.
 fn stage_rebase(
     module: &str,
     requirements: &str,
@@ -804,9 +867,6 @@ fn stage_rebase(
     main: &MainSide,
     (approval_index, approval): (usize, &ApprovalRecord),
 ) -> Option<(DeltaRebaseRecord, String, String, Option<String>)> {
-    if delta.len() > MAX_REBASED_DELTA_BYTES {
-        return None;
-    }
     let current = modified_requirement_item(module, delta, key)?;
     let approved = trimmed_block(&current.content);
     let main_body = trimmed_block_body(&main.block);

@@ -795,3 +795,41 @@ fn the_dry_run_refuses_while_an_interrupted_write_is_waiting() {
         );
     }
 }
+
+// REQ-change-163: a journal that cannot be read, or that names a path outside the project, is a
+// refusal `change approve` itself gives when it takes the lock. So the dry run gives that same
+// refusal, word for word, runs nothing after it, and leaves the journal alone. Only a journal
+// that reads is "waiting to be recovered".
+#[test]
+fn the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay() {
+    for (case, journal) in [
+        ("a journal that does not parse", "not a journal\n"),
+        (
+            "a journal entry outside the project",
+            "[{\"path\": \"../outside.txt\", \"original\": \"x\"}]\n",
+        ),
+    ] {
+        let project = Project::new();
+        let id = project.clean_draft();
+        project.write(".specsync/change-transaction.json", journal);
+        let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+        assert_eq!(code, 1, "{case}: {document}");
+        let refused = refusals(&document);
+        assert_eq!(refused.len(), 1, "{case}: {document}");
+        assert_eq!(refused[0].0, "lifecycle_lock", "{case}: {document}");
+        assert!(
+            refused[0].1.contains("invalid transaction journal"),
+            "{case}: the dry run says what approve says: {document}"
+        );
+        assert_eq!(
+            check(&document, "change")["skipped_because"],
+            "lifecycle_lock",
+            "{case}: {document}"
+        );
+        let real = project.approve(&id, &ACTOR).expect_err("refused");
+        assert_eq!(
+            real, refused[0].1,
+            "{case}: the dry run and the real approve give one message"
+        );
+    }
+}

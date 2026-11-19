@@ -180,6 +180,26 @@
         "REQ-cli-args-027",
         "REQ-cmd-change-040"
       ]
+    },
+    {
+      "timestamp": 1795073784,
+      "commit": "eab406c461a0c8394d75e7033fb7b06c2cfe85c8",
+      "contract_digest": "9847d9e8014b00aae9ab09e9a702bbfa9f48a80cd091a90fdc358eef6bae916d",
+      "execution_digest": "b408c77f17696441148ad6a2bcf030024990b58dde9ec5d28d179e809a44f3ec",
+      "workspace_digest": "a569ee0bb03c4c629d09de46689c07fd870e7de4f885be7a38426d6c9fe6d37c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-163",
+        "REQ-cli-args-027",
+        "REQ-cmd-change-040"
+      ]
     }
   ]
 }

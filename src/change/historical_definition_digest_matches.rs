@@ -3069,16 +3069,19 @@ pub(crate) fn approvals_ledger_held_by_history(
             None,
             MAX_CHANGE_ARTIFACT_BYTES as usize,
         )
-        .map_err(|error| format!("failed to read `{object}`: {error}"))?;
+        .map_err(|error| format!("failed to read `{object}`: {error}; {REPAIR}"))?;
         if output.status.success() {
             return Ok(Some(output.stdout));
         }
         match commit_tree_lists_path(root, commit, &relative) {
             Some(false) => Ok(None),
-            _ => Err(format!("failed to read `{object}`")),
+            _ => Err(format!("failed to read `{object}`; {REPAIR}")),
         }
     };
     const WHY: &str = "a change is archived only with approvals that Git history holds";
+    // A blobless clone of a private repository (#1077) or a damaged one cannot read a version.
+    const REPAIR: &str =
+        "repair the repository or fetch the missing objects, then run the command again";
     let commit_it = if record.state == ChangeState::Accepted {
         format!("`git add -- {display}` and a commit")
     } else {
@@ -3129,9 +3132,9 @@ pub(crate) fn approvals_ledger_held_by_history(
         None,
         MAX_GIT_COMMAND_OUTPUT_BYTES,
     )
-    .map_err(|error| format!("failed to read the history of `{display}`: {error}"))?;
+    .map_err(|error| format!("failed to read the history of `{display}`: {error}; {REPAIR}"))?;
     if !output.status.success() {
-        return Err(format!("failed to read the history of `{display}`"));
+        return Err(format!("failed to read the history of `{display}`; {REPAIR}"));
     }
     let history = String::from_utf8_lossy(&output.stdout);
     let mut commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();

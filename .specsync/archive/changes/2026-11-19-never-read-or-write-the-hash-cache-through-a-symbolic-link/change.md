@@ -1,6 +1,6 @@
 ---
 id: never-read-or-write-the-hash-cache-through-a-symbolic-link
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 3bebe8b03094b2079630801584b56f94a1e460c5
 ---

@@ -28,6 +28,11 @@ waiting_on_human:
     opened: 2026-11-19T04:48:26Z
 run_consents: []
 next: "Both changes are verified, pushed to the private advisory fork and on draft PR 1. Wait for the human's implementation review of each, relayed by the planning session. On a yes: chough change ship <id> --close-gate with their words, one change at a time (hash cache first), commit each archive, re-run chough change check for the other change if it went stale, push, then mark the PR ready. Publishing the advisory, releasing and a 5.x backport are the human's decisions."
+title: Hash cache never read or written through a link
+summary:
+  - specsync check and rehash wrote .specsync/hashes.json with a write that follows a symbolic link, so a repository that committed that path as a link could make a check in a clone overwrite a file outside it (GHSA-7q5v-8jcc-rx54, 3.3.0 to 6.3.0).
+  - The cache is now read and written through a no-follow handle on .specsync and saved by rename; any link is refused. check warns once and keeps its verdict and exit code, rehash exits 1.
+  - "Verified: 5 unit and 2 integration tests failed first and pass; full macOS verify lane green; Linux arm64 container green. Next: the project file change on the same private PR, then the advisory."
 ---
 # specsync check and rehash never read or write the hash cache through a symbolic link, so a cloned repository cannot make them overwrite a file outside it (GHSA-7q5v-8jcc-rx54)
 

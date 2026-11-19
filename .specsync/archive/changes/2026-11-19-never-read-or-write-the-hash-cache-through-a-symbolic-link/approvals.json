@@ -53,6 +53,13 @@
         "where": "Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 04:25Z. t4c gave him the scope in plain words (load reads a linked or non-regular cache as empty; save refuses when .specsync or .specsync/hashes.json is a symlink or not a regular file, else writes a temp file in .specsync and renames it; check skips the cache with one stderr warning and keeps its verdict and exit code; rehash exits 1; the listed paths) and asked him to approve; relayed by t4c over hc to t5r",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795097121,
+      "digest": "3a0a1bf2a5378d8ef46258975980dfb7d5aeb7bd70e9ce64c7a8e60041a9c8c8",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -7,11 +7,11 @@
   "title": "Never read or write the hash cache through a symbolic link",
   "description": "Never read or write the hash cache through a symbolic link",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "3bebe8b03094b2079630801584b56f94a1e460c5",
   "created_at": 1795062345,
-  "updated_at": 1795065732,
+  "updated_at": 1795097123,
   "affected_specs": [
     "hash_cache",
     "cmd_check"

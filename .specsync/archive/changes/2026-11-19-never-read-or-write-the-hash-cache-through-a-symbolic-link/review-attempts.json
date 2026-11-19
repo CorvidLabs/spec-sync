@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "never-read-or-write-the-hash-cache-through-a-symbolic-link",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "b60cac3895cb615daf9ce8a0426d398548dc2599",
+      "contract_digest": "97ad086a3daca40ce717abbbefc2a2ff3a3db89473468d4a959591171eb58c6d",
+      "execution_digest": "f9b1b5f5f4f6c54689330c769f7805956c3a273f0d152eefc0b20b873677d7bb",
+      "workspace_digest": "b755b968881361257774a19601544a69df0d71fcc048885766fe07f06989b776",
+      "timestamp": 1795097107,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:04Z, after t4c walked him through the change in plain words from its own read of the code at a33dcc6f, with its side effects and limits; relayed by t4c over hc to t5r as his implementation approval",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

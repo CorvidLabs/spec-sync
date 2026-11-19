@@ -16,12 +16,12 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists]
 bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: Continue build
+next: "Paused for a second parity finding on PR #1093. Next here: src/change/approval_checks.rs with the step list and ApprovalRun, then make approve walk it, then the dry run and the CLI flag"
 ---
 # specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 
@@ -33,6 +33,8 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 
 - Captured CHANGE-15, CHANGE-15.a, CHANGE-15.b and CHANGE-15.c in hi/change.md with their provenance
 - Created the draft change with the approved title, specs, paths and interview answers; wrote the three deltas (REQ-change-163 with Leif's exception, REQ-cmd-change-040, REQ-cli-args-027), word for word against the approved text, and every selected artifact
+- Failing tests: 1f5c09de
+- Split building the approval record from writing it, for the plain and the portable approval (uncommitted, compiles)
 
 ## Decisions and why
 
@@ -41,6 +43,8 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - 0xLeif decided "Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "Approve" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
 
 ## What was verified
+
+- [Red first: on main 3bebe8b0 with the approved #1091 change and only the new tests, all 8 tests of tests/integration/approve_dry_run.rs fail with 'unexpected argument --dry-run found', and cli::tests::change_approve_accepts_a_dry_run fails to parse the flag. The feature does not exist yet; this is the expected failure, not a bug.](evidence/2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists.md)
 
 ## Open threads
 

@@ -97,23 +97,36 @@ semantic delta for `auth` was approved against canonical text that has changed s
 ```
 
 When main's edit and the change's own edit to a `## MODIFIED` requirement do not overlap word by
-word, `change check` rebases the delta itself once the branch has merged main. It reads main's text
-for the requirement from Git at the merge-base of HEAD and the default branch (`origin/HEAD`, else
-`origin/main` or `origin/master`), never from the working tree, takes the approval-time text from
-that branch's earlier history, merges the three, writes the merge into the delta, and records the
-rebase in `approvals.json` under `delta_rebases`. The approval stands, `change status` shows the
-rebase, and every later read recomputes the merge from the texts the record holds and checks the
-commit it names, so a record that does not recompute is refused, and `change status` names it. The
-requirement in the working tree must be main's text, the change's text or already their merge: a
-clean Git merge and a conflict resolved to either side are rebased, while a sentence added by hand
-on the branch, or in a merge resolution, is refused as stale. A requirement main has edited that
-cannot be rebased is refused even when the branch kept the change's own text, because keeping it
-would drop main's edit, and so is one whose main text Git cannot read while a default branch exists;
-with no default branch, and in CI, such a requirement materializes as before. Edits that overlap, a
-word both sides deleted at one place that one side adds at another (as when both move one word), a
-spec section, a `## REMOVED` item, a workflow-v1 change, a CI run, a repository without a default
-branch or the history needed, a module delta over 256 KiB and a change holding 64 rebases keep the
-refusal above.
+word, `change check` proposes the rebase itself. It reads main's text for the requirement from Git
+at the merge-base of HEAD and the default branch (`origin/HEAD`, else `origin/main` or
+`origin/master`), never from the working tree, takes the approval-time text from that branch's
+earlier history, merges the three word by word, writes the merge into the delta, and refuses:
+
+```text
+semantic delta for <id> now holds a proposed rebase over main's edit, and nothing else was written: auth: REQ-auth-001 (main's text at 1a2b3c4d5e6f). A proposal is not approved wording: read it in the delta, approve it with `specsync change approve <id>`, then run `specsync change check <id>`
+```
+
+A proposal writes only the delta. The canonical requirement and `approvals.json` stay as they were,
+and `change status` shows the delta as changed after approval, so nothing reaches the canonical
+requirement until a person reads the merge and approves it; the next `change check` then applies it
+like any approved body. The requirement in the working tree must be main's text, the change's text
+or already their merge: a clean Git merge and a conflict resolved to either side get the same
+proposal. A requirement main has edited that cannot be proposed is refused even when the branch
+kept the change's own text, because keeping it would drop main's edit. The refusal names the cause
+and the way on for each requirement:
+
+- the edits overlap: the same words changed on both sides, a word both sides deleted at one place
+  that one side adds at another (as when both move one word), or a merge that would lose or
+  duplicate a word;
+- main deleted the requirement, or edited its heading;
+- the working tree holds some other text, such as a sentence added by hand on the branch;
+- the requirement is longer than the merge reads, 4,000 words a side;
+- a default branch exists and Git cannot read main's text (repair the repository or
+  `git fetch origin`, then check again).
+
+For all but the last, rewrite the body onto main's text by hand and approve it. With no default
+branch, and in CI, nothing is proposed and such a requirement materializes as before. Spec
+sections, `## REMOVED` items and workflow-v1 changes keep the refusal above.
 
 Otherwise, rewrite the delta body onto the current canonical text, then run `change approve` and
 `change check` again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,

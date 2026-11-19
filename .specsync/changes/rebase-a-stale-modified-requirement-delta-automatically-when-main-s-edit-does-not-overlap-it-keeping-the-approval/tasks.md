@@ -5,9 +5,8 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Red tests for the option-2 proposal and its refusals.
-- [ ] Drop the rebase records, their readers and the provenance checks.
-- [ ] Turn the rebase step into the proposal writer with all-or-nothing writes.
-- [ ] Keep and test the merge's safety checks and the cause-naming refusals.
-- [ ] Docs, CHANGELOG, invariant and lesson.
-- [ ] `change check --commit`, verify lane, `change audit --strict`, trust, real-repo run.
+- [x] Red tests for the option-2 proposal and its refusals (fe86dd9e: ten failed on the record-based code).
+- [x] Drop the rebase records, their readers and the provenance checks.
+- [x] Turn the rebase step into the proposal writer with all-or-nothing writes.
+- [x] Keep and test the merge's safety checks and the cause-naming refusals, including the 4,000-word limit.
+- [x] Docs, CHANGELOG, invariant 62 and the lesson.

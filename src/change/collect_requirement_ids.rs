@@ -1558,7 +1558,8 @@ fn canonical_block_digest(module: &str, spec: &str, requirements: &str, item: &D
     };
     let heading = format!("{prefix}{}", item.key);
     match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
-        // A rebase record frames its blocks through the same function (REQ-change-161).
+        // Main's side of a proposed rebase frames its blocks through the same function
+        // (REQ-change-161).
         Some(range) => item_block_digest(module, item, &source[range]),
         None => {
             let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
@@ -1826,17 +1827,9 @@ fn approval_delta_bases(
                 .rev()
                 .find(|approval| approval.gate == "definition")
         });
-    // The previous approval's claims with its recorded rebases folded in (REQ-change-161). A
-    // rebase that does not recompute leaves no trustworthy previous claim, so the new approval
-    // records the canonical text as it stands, as for an approval with no claims.
-    let previous_claims = previous
-        .map(|approval| effective_delta_claims(root, record, ledger, approval))
-        .transpose()
-        .ok()
-        .flatten();
     let (Some(previous_bases), Some(previous_bodies)) = (
-        previous_claims.as_ref().and_then(|(_, bases)| bases.as_ref()),
-        previous_claims.as_ref().and_then(|(digests, _)| digests.as_ref()),
+        previous.and_then(|approval| approval.approved_delta_bases.as_ref()),
+        previous.and_then(|approval| approval.approved_delta_digests.as_ref()),
     ) else {
         return delta_base_digests(root, record);
     };
@@ -1919,17 +1912,16 @@ fn approval_delta_bases(
 ///
 /// An item that is already applied is converged, whatever the base was, unless it is a
 /// workflow-v2 requirement main has edited past its base (REQ-change-161): keeping the change's
-/// body there drops main's edit, so it is stale until the check rebases it. Absent bases (approvals written before this
-/// binding) are unknown, not violated, so such a change keeps materializing as before.
+/// body there drops main's edit, so it is stale until a proposed rebase of it is approved. Absent
+/// bases (approvals written before this binding) are unknown, not violated, so such a change keeps
+/// materializing as before.
 fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     if record.no_spec_change {
         return Ok(());
     }
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
-    // The bases the approval binds once every recorded rebase is folded in (REQ-change-161).
-    let (_, effective_bases) = effective_delta_claims(root, record, &ledger, approval)?;
-    let Some(bases) = effective_bases.as_ref() else {
+    let Some(bases) = approval.approved_delta_bases.as_ref() else {
         // Absence is monotone, exactly as for `approved_delta_digests` (#719): a ledger that has
         // recorded bases for this change is new enough to record them again, so a later
         // definition approval carrying none is a claim being withdrawn, not silence from before
@@ -1953,13 +1945,13 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
         };
         let stale = !delta_item_is_applied(spec, requirements, item)
             && *base != canonical_block_digest(module, spec, requirements, item);
-        // A requirement main has edited past its base and the check did not rebase is stale too,
-        // even when the working tree carries this change's own body: keeping that body would drop
-        // main's edit (REQ-change-161; the tester's and ss-lead's reviews of #1089).
+        // A requirement main has edited past its base is stale too, even when the working tree
+        // carries this change's own body: keeping that body would drop main's edit
+        // (REQ-change-161; the tester's and ss-lead's reviews of #1089). Its cause is named.
         let main_refusal = canonical_module_paths(root, &specs_dir, module)
             .ok()
             .and_then(|(_, requirements_path)| {
-                main_edit_refusal(root, record, &requirements_path, module, item, base)
+                main_edit_refusal(root, record, &requirements_path, requirements, module, item, base)
             });
         if stale || main_refusal.is_some() {
             let target = match item.target {
@@ -1975,9 +1967,9 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
         return Ok(());
     }
     // The way on for a requirement main edited without overlapping this change's words: take
-    // main's text for it and check again, and the check rebases the delta itself (REQ-change-161).
-    // Without this, a correct hand resolution of a merge conflict reads only as stale (fable-lead's
-    // review of #1089).
+    // main's text for it and check again, and the check proposes a rebase of the delta for a
+    // person to approve (REQ-change-161). Without this, a correct hand resolution of a merge
+    // conflict reads only as stale (fable-lead's review of #1089).
     let rebase_hint = if record.workflow_version >= 2
         && moved
             .values()
@@ -1994,8 +1986,8 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
             .zip(remote_default_ref(root))
             .map(|(file, default)| {
                 format!(
-                    ". For a requirement whose edits do not overlap main's, merge {default} into this branch, leave the requirement as {default} has it (`git show {default}:{file}` prints that text), as this change has it, or with both edits, and run `specsync change check {}` again: the check then rebases the delta itself and the approval stands",
-                    record.id
+                    ". For a requirement whose edits do not overlap main's, merge {default} into this branch, leave the requirement as {default} has it (`git show {default}:{file}` prints that text), as this change has it, or with both edits, and run `specsync change check {}` again: the check then proposes a rebase of the delta, for a person to approve with `specsync change approve {}`",
+                    record.id, record.id
                 )
             })
             .unwrap_or_default()
@@ -2122,10 +2114,7 @@ fn read_approved_delta_binding(
 ) -> Result<DeltaBinding, String> {
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
-    // The delta digests the approval binds once every recorded rebase is folded in
-    // (REQ-change-161); a rebase that does not recompute refuses here.
-    let (effective_digests, _) = effective_delta_claims(root, record, &ledger, approval)?;
-    let Some(approved) = effective_digests.as_ref() else {
+    let Some(approved) = approval.approved_delta_digests.as_ref() else {
         if ledger.approvals.iter().any(|candidate| {
             candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
         }) {

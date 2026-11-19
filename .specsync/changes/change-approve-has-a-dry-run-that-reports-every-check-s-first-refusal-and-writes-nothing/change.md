@@ -1,6 +1,6 @@
 ---
 id: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
-state: implementing
+state: approved
 type: feature
 base_commit: 3bebe8b03094b2079630801584b56f94a1e460c5
 ---

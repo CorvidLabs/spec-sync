@@ -492,8 +492,9 @@ first `refused` entry carries the message a real `change approve` with the same 
 Only a few things skip a check. When the lifecycle-lock check refuses, the change does not load,
 or its state does not admit approval, every later check is skipped. When `deltas` refuses,
 `approval_record` is skipped, because it digests the same delta bodies. `lifecycle_lock` asks
-what taking the lock asks, without taking it: a symlink in the lock path, and an existing lock
-path the approval cannot open, such as a directory, are refused in the approval's own words. It
+what taking the lock asks, without taking it: a symlink in the lock path, an existing lock path
+the approval cannot open, such as a directory, and a missing lock file the approval could not
+create, as in a `.specsync` that is not writable, are refused in the approval's own words. It
 also refuses when an interrupted lifecycle write is waiting to be recovered: a real approval
 recovers it first, which is a write, so the dry run says so, runs nothing else, and leaves it
 alone. A journal that cannot be replayed, because it does not read or names a path outside the

@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -158,4 +158,10 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
   - gate: native:verifying
   - revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
+  - by: claude-code (hc t59)
+- 2026-11-19T07:33:33Z · back · accept → build · ss-lead's finding on e24bdbf9: the 'waiting to be recovered' message lost its line continuations and prints runs of spaces; pin the exact sentence in a test, red first ^t-cd8357
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 1a7b7785c8182914aa01a0255c2f23f5e18e85fb
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

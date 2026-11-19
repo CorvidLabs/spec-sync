@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.
 
+### Fixed
+
+- `change correct` builds the corrected change's summary inside a change read scope, as the read commands do, so a whole correction costs fewer Git processes than one unscoped summary. The corrected record, the correction ledger and the summary are unchanged (#921).
+- An archive-introduction listing over the output bound is split in halves until each part fits, instead of falling back to one `diff-tree` per commit. A cold archived status no longer spawns more Git processes as archive-introducing commits grow (REQ-change-135, #942).
+- Prefetch workers share one copy of the command's seeded repository facts instead of each deep-copying every memoized Git output; output is unchanged (REQ-git-utils-011, #955).
+- The cutoff verdict of every workflow-v1 archive that prefetch workers check now lands in the persistent read cache, instead of being read again from the cutoff tree and kept nowhere; verdicts and refusals are unchanged (REQ-change-136, #978).
+
 ## [6.3.0] - 2026-11-12
 
 ### Added

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump",
+  "implementation_commit": "928ad001166318b420ac3897f5d2f7f9a28a29cd",
+  "implementation_tree": "983c372c5fd3412147c98620b14f76e389eaa8b5",
+  "contract_digest": "90fa46185ff32dfd2ec6d4d7551c0c7da614875d143dd0afccbeceb9aacccf10",
+  "workspace_digest": "69d4f906acd833024285b48a058973c7dd1091f6864f88251fb6cc82da2da0ba",
+  "closing_digest": "dca78a466484d543bd739c695b22b77deb2cd7c4e929ec230439e92edfee8cf3",
+  "review_digest": "c960e0128d832601fb337060940ede4056a070f78a7f3787061b9693d469343a",
+  "finalization_digest": "299a7590678ea253ab75df4d0310d46d5457fa1ad1625b24fd145bf88ed3ad5d",
+  "timestamp": 1795052725
+}

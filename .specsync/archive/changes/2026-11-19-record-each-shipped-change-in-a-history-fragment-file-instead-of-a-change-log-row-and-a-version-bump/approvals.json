@@ -149,6 +149,13 @@
         "where": "Written on spec-sync issue #1084 on 2026-11-18; relayed by hc t4c on 2026-11-18 as his scope approval of the issue's three bullets; re-recorded after the delta added MODIFIED REQ-change-021, -092 and -123, which that scope requires",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795052725,
+      "digest": "dca78a466484d543bd739c695b22b77deb2cd7c4e929ec230439e92edfee8cf3",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

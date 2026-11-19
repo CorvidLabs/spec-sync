@@ -82,3 +82,95 @@ fn the_broken_change_still_reports_its_own_failure() {
         "{error}"
     );
 }
+
+/// A legacy change accepted on the current branch and committed: an accepted change whose
+/// verdict searches for successors when one of its delivery inputs changes.
+fn accepted_legacy_change(root: &Path) -> ChangeRecord {
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "approve and implement the legacy change"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accept the legacy change"]);
+    record
+}
+
+#[test]
+fn an_accepted_change_is_judged_on_its_own_inputs_and_a_failed_candidate_is_named() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let accepted = accepted_legacy_change(root);
+    // A later change over the same paths, archived and then left open and archived at one commit.
+    let broken = finalized_archived_change(root);
+    let before_archive = quiet_git(root, &["rev-parse", "HEAD~1"]).trim().to_string();
+    leave_open_and_archived_at_one_commit(root, &broken, &before_archive);
+    for (read, summary) in ["scoped", "unscoped"]
+        .iter()
+        .zip(scoped_and_unscoped_evidence(root, &accepted.id))
+    {
+        assert_eq!(
+            summary.validity,
+            TerminalEvidenceValidity::Exact,
+            "unchanged inputs, {read}: {:?}",
+            summary.reason
+        );
+    }
+
+    // Its input changes: the broken change would be a candidate successor, and covers nothing.
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { false }\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "change the accepted change's input"]);
+    for (read, summary) in ["scoped", "unscoped"]
+        .iter()
+        .zip(scoped_and_unscoped_evidence(root, &accepted.id))
+    {
+        assert_eq!(summary.validity, TerminalEvidenceValidity::Stale, "{read}");
+        let reason = summary.reason.unwrap_or_default();
+        assert!(
+            reason.contains("changed after acceptance")
+                && reason.contains(&format!("candidate successor `{}` fails validation", broken.id))
+                && reason.contains("duplicates state at commit"),
+            "{read}: the reason names the failed candidate and its failure: {reason}"
+        );
+    }
+}
+
+#[test]
+fn an_unreadable_state_counts_only_against_a_successor_search() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let accepted = accepted_legacy_change(root);
+    let archived = finalized_archived_change(root);
+    let unreadable = root.join(".specsync/changes/unreadable-change");
+    fs::create_dir_all(&unreadable).unwrap();
+    fs::write(unreadable.join("state.json"), "not json\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "a change whose state does not read"]);
+    for (case, id, validity) in [
+        ("an archive never searches", &archived.id, TerminalEvidenceValidity::AuthenticatedHistory),
+        ("unchanged inputs never search", &accepted.id, TerminalEvidenceValidity::Exact),
+    ] {
+        for (read, summary) in ["scoped", "unscoped"]
+            .iter()
+            .zip(scoped_and_unscoped_evidence(root, id))
+        {
+            assert_eq!(summary.validity, validity, "{case}, {read}: {:?}", summary.reason);
+        }
+    }
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { false }\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "change the accepted change's input"]);
+    let [scoped, unscoped] = scoped_and_unscoped_evidence(root, &accepted.id);
+    for (read, summary) in [("scoped", scoped), ("unscoped", unscoped)] {
+        let reason = summary.reason.unwrap_or_default();
+        assert!(
+            reason.contains("candidate successor `unreadable-change` fails validation"),
+            "{read}: a search counts the unreadable change: {reason}"
+        );
+    }
+}

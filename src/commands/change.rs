@@ -74,6 +74,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.
     let _facts = crate::git_utils::begin_repository_fact_scope(root);
+    // Set when `change approve --dry-run` reports a refusal; the command exits 1 once its report
+    // is printed (REQ-cmd-change-040).
+    let mut approval_dry_run_refused = false;
     let result = (|| {
         match action {
         ChangeAction::New {
@@ -249,33 +252,56 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             words,
             relay_where,
             recorded_by,
-        } => change::relayed_decision(
-            // The re-run keeps every flag that changes what is recorded (#900 review).
-            &format!(
-                "specsync change approve {id} --actor <who decided>{}{}",
-                if note.is_some() { " --note \"<your note>\"" } else { "" },
-                if portable_5_0_1 { " --portable-5-0-1" } else { "" }
-            ),
-            actor.as_deref(),
-            words,
-            relay_where,
-            recorded_by,
-        )
-        .and_then(|relayed_by| match relayed_by {
-            None if portable_5_0_1 => {
-                change::approve_definition_portable_v501(root, &id, actor, note)
+            dry_run,
+        } => {
+            let relayed = change::relayed_decision(
+                // The re-run keeps every flag that changes what is recorded (#900 review).
+                &format!(
+                    "specsync change approve {id} --actor <who decided>{}{}",
+                    if note.is_some() { " --note \"<your note>\"" } else { "" },
+                    if portable_5_0_1 { " --portable-5-0-1" } else { "" }
+                ),
+                actor.as_deref(),
+                words,
+                relay_where,
+                recorded_by,
+            );
+            if dry_run {
+                // The approval's own checks, with nothing written. A refusal is part of the
+                // report, not an error, so the report is the one document printed
+                // (REQ-cmd-change-040).
+                let report = change::approve_definition_dry_run(
+                    root,
+                    &id,
+                    actor,
+                    note,
+                    portable_5_0_1,
+                    relayed,
+                );
+                approval_dry_run_refused = !report.would_approve;
+                print_approval_dry_run(&report, format);
+                Ok(())
+            } else {
+                relayed
+                    .and_then(|relayed_by| match relayed_by {
+                        None if portable_5_0_1 => {
+                            change::approve_definition_portable_v501(root, &id, actor, note)
+                        }
+                        None => change::approve_definition(root, &id, actor, note),
+                        relayed_by => change::approve_definition_with_relay(
+                            root,
+                            &id,
+                            actor,
+                            note,
+                            portable_5_0_1,
+                            relayed_by,
+                        ),
+                    })
+                    .map(|record| {
+                        print_transition_with_handoff(root, &record, format, "definition approved")
+                    })
             }
-            None => change::approve_definition(root, &id, actor, note),
-            relayed_by => change::approve_definition_with_relay(
-                root,
-                &id,
-                actor,
-                note,
-                portable_5_0_1,
-                relayed_by,
-            ),
-        })
-        .map(|record| print_transition_with_handoff(root, &record, format, "definition approved")),
+        }
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),
         ChangeAction::Verify { id } => {
@@ -789,6 +815,50 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             _ => eprintln!("{} {error}", "error:".red().bold()),
         }
         process::exit(1);
+    }
+    // The report is already out, with each refusal in it; exiting here rather than returning
+    // `Err` keeps JSON stdout one document (REQ-cmd-change-040).
+    if approval_dry_run_refused {
+        process::exit(1);
+    }
+}
+
+/// Print what `change approve --dry-run` found (REQ-cmd-change-040). JSON is the report itself.
+/// Text is one line per refused check with its message, one per skipped check with the refused
+/// check it waits on, and a closing line that says whether the change would be approved and
+/// that nothing was written.
+fn print_approval_dry_run(report: &change::ApprovalDryRun, format: OutputFormat) {
+    if matches!(format, OutputFormat::Json) {
+        print_json(report);
+        return;
+    }
+    for check in &report.checks {
+        match check.result {
+            change::ApprovalCheckResult::Passed => {}
+            change::ApprovalCheckResult::Refused => println!(
+                "  {}: {}",
+                check.check,
+                check.message.as_deref().unwrap_or("refused")
+            ),
+            change::ApprovalCheckResult::Skipped => println!(
+                "  {}: skipped, it waits on `{}`",
+                check.check,
+                check.skipped_because.unwrap_or("an earlier check")
+            ),
+        }
+    }
+    if report.would_approve {
+        println!(
+            "{} {} would be approved (dry run: nothing was written)",
+            "✓".green(),
+            report.id
+        );
+    } else {
+        println!(
+            "{} {} would be refused (dry run: nothing was written)",
+            "✗".red(),
+            report.id
+        );
     }
 }
 

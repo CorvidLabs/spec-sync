@@ -537,10 +537,12 @@ fn a_clean_draft_passes_the_dry_run_and_is_then_approved() {
     let project = Project::new();
     let id = project.clean_draft();
 
-    // Neither the lifecycle lock nor the hash cache exists yet, and neither appears.
-    assert!(!project.root.join(".specsync/change.lock").exists());
+    // With no lifecycle lock and no hash cache, neither appears. Opening the draft took the
+    // lock, so it is removed first: a fresh clone has none.
+    fs::remove_file(project.root.join(".specsync/change.lock")).unwrap();
     assert!(!project.root.join(".specsync/hashes.json").exists());
     let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    assert!(!project.root.join(".specsync/change.lock").exists());
     assert_eq!(code, 0, "a clean dry run exits 0: {document}");
     assert_eq!(document["id"], id.as_str(), "{document}");
     assert_eq!(document["dry_run"], true, "{document}");

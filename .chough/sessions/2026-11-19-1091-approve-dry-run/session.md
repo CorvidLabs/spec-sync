@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -33,6 +33,8 @@ observations:
   - 2026-11-19-1091-red-fix-field-at-6d6ac9ea
   - 2026-11-19-1091-verify-lane-at-e2438304
   - 2026-11-19-1091-verify-lane-at-5b4558e0
+  - 2026-11-19-1091-red-lock-create-at-e04f81bd
+  - 2026-11-19-1091-verify-lane-at-a768326c
 bugs: []
 blockers: []
 waiting_on_human:
@@ -41,7 +43,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T06:37:41Z
 run_consents: []
-next: Continue build
+next: "Pushed on feat/1091-approve-dry-run (PR #1100). Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that."
 ---
 # specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 
@@ -62,6 +64,7 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - After the send-back and Leif's 14:32Z approval: the fix field built red first (6d6ac9ea red, 4d5d0440 fix) with Codex's two first-round P2s; docs; lane 10/10 at e2438304; change re-checked with the new REQ-change-163 and REQ-cmd-change-040 materialized word for word
 - Updated against main 2cc0897f: hand-resolved conflicts, plane z=56, #1088's refusal in the deltas step with its dry-run row; re-checked; lane 10/10 at 5b4558e0
 - Ran the send-back under Leif's standing OK (gate above): specsync change send-back change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing --actor 0xLeif, reason ending '(standing OK, relayed via t4c)'; it exited 0 and returned the change to draft
+- Codex round-2 P2 fixed red first (e04f81bd red, 036735e3 fix); REQ-change-163's lock-check sentence and criterion matched to the tested code under Leif's standing OK (send-back, exact text, relayed approval); re-checked; lane 10/10 at a768326c
 
 ## Decisions and why
 
@@ -87,6 +90,8 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - [Red-first after the send-back: at 6d6ac9ea (the tests alone) four dry-run tests fail. A definition refusal for an open question and an ownership refusal carry no fix; a .specsync/change.lock that is a directory passes the dry run though approve cannot open it (Codex P2); an ownership message's line breaks spill the text output over several lines (Codex P2). The fifth new test (no fix elsewhere) passes there, as it should. Fixed in 4d5d0440.](evidence/2026-11-19-1091-red-fix-field-at-6d6ac9ea.md)
 - [At e2438304 (the fix field, the lock-path open and the one-line text output, with docs), fledge lanes run verify passed 10/10 steps in 12m19s, run alone: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 641 passed, including the fourteen approve_dry_run tests), release build, strict spec check (62 specs) and the CI script tests. The site's tests (48), lint and build pass (site-1091d.log). The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-e2438304.md)
 - [After main 2cc0897f (#1093, #1088) was merged in (7edf9808; conflicts by hand in sdd_version.rs, commands/change.rs, cmd_change/requirements.md and change.3md, plane moved to z=56; #1088's Change Log delta refusal folded into the deltas step, with a dry-run row for it in ea481983) and the change re-checked, fledge lanes run verify passed 10/10 steps in 12m52s at 5b4558e0, run alone. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-5b4558e0.md)
+- [Red-first for Codex's round-2 P2 on #1100 (reproduced by corvid-agent at 57c36d84): at e04f81bd (the test alone) a_lock_the_approval_cannot_create_is_refused_in_its_words fails: with no lock file and .specsync mode 0555 the dry run exits 0 (would_approve) while the real approve fails 'failed to open lifecycle lock …: Permission denied'. Fixed in 036735e3.](evidence/2026-11-19-1091-red-lock-create-at-e04f81bd.md)
+- [At a768326c (the lock-create fix, REQ-change-163's lock-check wording under Leif's standing OK, the change re-checked), fledge lanes run verify passed 10/10 steps in 20m55s, run alone, including the fifteen approve_dry_run tests. Probed through the binary against the real approve: an unwritable .specsync, a read-only lock file and a file in place of .specsync each give one refusal word for word, no lock created. Site 48 pass, lint and build OK (site-1091f.log). The lane's processes ran with a neutral global git config as a command prefix (#1092)](evidence/2026-11-19-1091-verify-lane-at-a768326c.md)
 
 ## Open threads
 
@@ -333,4 +338,14 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
   - gate: native:approved
   - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - by: claude-code (hc t59)
+- 2026-11-19T16:57:28Z · advance · build → test · native:verifying ^t-c02308
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: a768326cb740bf0b18695a809e780a09ad148436
+  - by: claude-code (hc t59)
+- 2026-11-19T16:57:30Z · advance · test → accept · native:verifying ^t-56cbd2
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: a768326cb740bf0b18695a809e780a09ad148436
   - by: claude-code (hc t59)

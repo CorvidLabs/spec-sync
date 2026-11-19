@@ -1356,9 +1356,11 @@ fn post_move_same_pr_finalization_resumes_across_dates_without_another_approval(
     let markdown_path = destination.join("change.md");
     let original_state = fs::read_to_string(&state_path).unwrap();
     let original_markdown = fs::read_to_string(&markdown_path).unwrap();
-    write_json(
-        &root.join(TRANSACTION_PATH),
-        &[
+    // The durable form this build writes: the bare-array form is no longer replayed
+    // (REQ-change-162).
+    fs::write(
+        root.join(TRANSACTION_PATH),
+        durable_journal(vec![
             TransactionEntry {
                 path: portable_project_path(root, &state_path),
                 original: Some(original_state),
@@ -1367,7 +1369,7 @@ fn post_move_same_pr_finalization_resumes_across_dates_without_another_approval(
                 path: portable_project_path(root, &markdown_path),
                 original: Some(original_markdown),
             },
-        ],
+        ]),
     )
     .unwrap();
     let mut interrupted = load_change(root, &record.id).unwrap();

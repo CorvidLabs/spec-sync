@@ -355,6 +355,87 @@ fn a_policy_linked_inside_the_project_is_still_read() {
     assert!(!said(&output).contains("sdd.json is"), "{}", said(&output));
 }
 
+// ─── A committed transaction journal (F1) ────────────────────────────────
+
+/// The journal exactly as SpecSync writes one, with its integrity envelope, so the test does not
+/// rely on the bare-array form a fix might refuse for that reason alone.
+fn durable_journal(entries: &[(&str, Option<&str>)]) -> String {
+    use sha2::{Digest, Sha256};
+    let rendered: Vec<String> = entries
+        .iter()
+        .map(|(path, original)| {
+            format!(
+                r#"{{"path":{},"original":{}}}"#,
+                serde_json::to_string(path).unwrap(),
+                serde_json::to_string(original).unwrap()
+            )
+        })
+        .collect();
+    let array = format!("[{}]", rendered.join(","));
+    let digest = format!("{:x}", Sha256::digest(array.as_bytes()));
+    format!(
+        r#"{{"schema_version":1,"entry_count":{},"entries_digest":"{digest}","entries":{array}}}"#,
+        entries.len()
+    )
+}
+
+/// Verifies REQ-change-162 through the CLI. `change new`, the first step of the change
+/// workflow in a fresh clone, takes the lock and so replays the journal: a committed one must
+/// never rewrite `.git/config`.
+#[test]
+fn change_new_never_replays_a_committed_journal_into_git() {
+    let fx = project();
+    let git = |args: &[&str]| {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&fx.root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    };
+    git(&["init", "-q"]);
+    git(&["config", "user.email", "journal@example.invalid"]);
+    git(&["config", "user.name", "journal test"]);
+    git(&["config", "commit.gpgsign", "false"]);
+    let config = fs::read(fx.root.join(".git/config")).unwrap();
+    fs::write(
+        fx.root.join(".specsync/change-transaction.json"),
+        durable_journal(&[(".git/config", Some("[core]\n\tfsmonitor = touch planted\n"))]),
+    )
+    .unwrap();
+    // `init`'s `.specsync/.gitignore` ignores the journal; a repository that wants one tracked
+    // adds it with `-f`.
+    git(&["add", "-A"]);
+    git(&["add", "-f", ".specsync/change-transaction.json"]);
+    git(&["commit", "-q", "-m", "a repository that carries a journal"]);
+
+    let output = fx.run(&[
+        "change",
+        "new",
+        "Probe the journal",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth/service.ts",
+    ]);
+
+    assert_eq!(
+        fs::read(fx.root.join(".git/config")).unwrap(),
+        config,
+        "a committed journal rewrote .git/config: {}",
+        said(&output)
+    );
+    assert!(!output.status.success(), "{}", said(&output));
+    assert!(
+        said(&output).contains("tracked by Git"),
+        "{}",
+        said(&output)
+    );
+}
+
 // ─── The guard ───────────────────────────────────────────────────────────
 
 /// Files whose every read is outside this rule: `util` holds the bounded read itself; the others

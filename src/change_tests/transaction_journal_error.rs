@@ -117,7 +117,10 @@ fn a_journal_entry_escaping_the_root_names_the_journal() {
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(
         root.join(TRANSACTION_PATH),
-        r#"[{"path":"../outside.txt","original":null}]"#,
+        durable_journal(vec![TransactionEntry {
+            path: "../outside.txt".into(),
+            original: None,
+        }]),
     )
     .unwrap();
     let error = recover_pending_transaction(root).unwrap_err();

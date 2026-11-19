@@ -679,12 +679,6 @@ struct TransactionJournal {
     entries: Vec<TransactionEntry>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum TransactionJournalRead {
-    Durable(TransactionJournal),
-    Legacy(Vec<TransactionEntry>),
-}
 
 /// The refusal for a journal that cannot be read or parsed: the path, and a set-aside
 /// command that runs as printed — both paths shell-quoted, so a project whose path contains a
@@ -698,35 +692,129 @@ fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
     )
 }
 
+/// Whether Git tracks the transaction journal, in the index or in `HEAD`. Outside a Git
+/// repository nothing is tracked.
+fn transaction_journal_is_tracked(root: &Path) -> bool {
+    let succeeds = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    };
+    succeeds(&["ls-files", "--error-unmatch", "--", TRANSACTION_PATH])
+        || succeeds(&["cat-file", "-e", &format!("HEAD:./{TRANSACTION_PATH}")])
+}
+
+/// The refusal for a journal that came with the repository, and the way to remove it.
+fn tracked_journal_error(journal_path: &Path) -> String {
+    format!(
+        "the transaction journal at {} is tracked by Git, so it came with the repository and is \
+         never replayed; remove it with `git rm --cached {TRANSACTION_PATH}` and delete the file, \
+         then re-run the command",
+        shell_quote(&journal_path.display().to_string())
+    )
+}
+
+/// Whether a journaled path is one the change workflow writes, and so one a replay may put back
+/// (REQ-change-162): anything under `.specsync/`, anything under the configured `specs_dir`, and
+/// for each spec the local registry maps, that spec, the `requirements.md` beside it and its
+/// `history/` fragments. A `.git` component is refused in any letter case and with trailing dots
+/// or spaces, which some file systems ignore.
+fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String> {
+    if relative.split('/').any(|component| {
+        component
+            .trim_end_matches(['.', ' '])
+            .eq_ignore_ascii_case(".git")
+    }) {
+        return Err("it names Git's own files, which a replay never touches".to_string());
+    }
+    let under = |directory: &str, path: &str| {
+        let directory = directory.trim_start_matches("./").trim_end_matches('/');
+        directory.is_empty()
+            || directory == "."
+            || path == directory
+            || path.starts_with(&format!("{directory}/"))
+    };
+    if under(".specsync", relative) {
+        return Ok(());
+    }
+    let config = crate::config::load_config_allowing_unloadable(root);
+    if under(&config.specs_dir, relative) {
+        return Ok(());
+    }
+    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+        for (_, spec) in &registry.specs {
+            let spec = spec.trim_start_matches("./");
+            let directory = spec.rsplit_once('/').map_or("", |(parent, _)| parent);
+            let beside = |name: &str| {
+                if directory.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{directory}/{name}")
+                }
+            };
+            if relative == spec
+                || relative == beside("requirements.md")
+                || relative.starts_with(&beside("history/"))
+            {
+                return Ok(());
+            }
+        }
+    }
+    Err("it is outside what the change workflow writes".to_string())
+}
+
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     let journal_path = root.join(TRANSACTION_PATH);
     if !journal_path.exists() {
         return Ok(());
     }
+    // A journal Git tracks came with the repository: SpecSync on this machine never wrote it, so
+    // it is never replayed (REQ-change-162).
+    if transaction_journal_is_tracked(root) {
+        return Err(tracked_journal_error(&journal_path));
+    }
     let content = crate::util::read_project_string(root, &journal_path, crate::util::MAX_PROJECT_INPUT_BYTES)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
-    let journal: TransactionJournalRead = serde_json::from_str(&content)
+    let value: serde_json::Value = serde_json::from_str(&content)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
-    let entries = match journal {
-        TransactionJournalRead::Legacy(entries) => entries,
-        TransactionJournalRead::Durable(journal) => {
-            if journal.schema_version != 1
-                || journal.entry_count != journal.entries.len()
-                || journal.entries_digest != transaction_entries_digest(&journal.entries)?
-            {
-                return Err(invalid_journal_error(
-                    &journal_path,
-                    "the integrity envelope does not hold",
-                ));
-            }
-            journal.entries
-        }
-    };
-    for entry in entries {
-        let path = safe_project_path(root, &entry.path).map_err(|error| {
-            invalid_journal_error(&journal_path, &format!("entry `{}`: {error}", entry.path))
-        })?;
-        if let Some(original) = entry.original {
+    // The bare-array form, written only by SpecSync 5.x, carries no envelope at all
+    // (REQ-change-162).
+    if value.is_array() {
+        return Err(invalid_journal_error(
+            &journal_path,
+            "a bare-array journal from SpecSync 5.x is no longer replayed",
+        ));
+    }
+    let journal: TransactionJournal = serde_json::from_value(value)
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
+    if journal.schema_version != 1
+        || journal.entry_count != journal.entries.len()
+        || journal.entries_digest != transaction_entries_digest(&journal.entries)?
+    {
+        return Err(invalid_journal_error(
+            &journal_path,
+            "the integrity envelope does not hold",
+        ));
+    }
+    // Every entry is checked before any is applied: one entry the change workflow would never
+    // write refuses the whole journal, so nothing is half replayed (REQ-change-162).
+    let mut planned = Vec::with_capacity(journal.entries.len());
+    for entry in journal.entries {
+        let refused = |reason: String| {
+            invalid_journal_error(&journal_path, &format!("entry `{}`: {reason}", entry.path))
+        };
+        let path = safe_project_path(root, &entry.path).map_err(refused)?;
+        replayable_transaction_path(root, &entry.path).map_err(refused)?;
+        reject_symlink_components_for(root, &path, "transaction journal entry").map_err(refused)?;
+        planned.push((path, entry.original));
+    }
+    for (path, original) in planned {
+        if let Some(original) = original {
             atomic_write_durable(&path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
         } else if path.exists() {

@@ -324,3 +324,15 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `change_status_does_not_wait_on_a_policy_that_is_not_a_regular_file`, `change_status_does_not_read_a_policy_linked_outside_the_project`, `change_status_refuses_a_policy_over_its_bound`, `a_lifecycle_write_does_not_wait_on_or_follow_the_transaction_journal`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## The transaction journal (REQ-change-162)
+
+Each fixture has its own `git init`; every journal names files inside the fixture only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| An entry for `.git/config`, `.GIT/config`, `.git./config`, `.git/HEAD` or a hook | Refused; Git's files keep their bytes | `a_journal_never_rewrites_or_deletes_git_files` |
+| A journal Git tracks, in the index or only in `HEAD` | Refused with the `git rm --cached` fix | `a_journal_git_tracks_is_never_replayed`, `change_new_never_replays_a_committed_journal_into_git` |
+| One entry outside the workflow's files | The whole journal is refused | `one_entry_outside_the_change_workflow_refuses_the_whole_journal` |
+| The bare-array 5.x form | Refused with the `.broken` recovery | `a_bare_array_journal_is_no_longer_replayed` |
+| The person's own interrupted write, including a registry-mapped spec | Still recovered | `a_real_interrupted_write_is_still_recovered`, `a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not` |

@@ -45,6 +45,7 @@ files:
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/unknown_members.rs
+  - src/change_tests/journal_replay_targets.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/lifecycle-validation-limits.json
@@ -396,6 +397,7 @@ Acceptance Criteria
 60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
 61. A change's record in a module's history is its own file, `history/<change-id>.md` beside the spec, so two changes to one module never edit the same line of its spec and merge without a merge driver (#1084, MERGE-1). A Change Log table written before this is frozen as it is: no row is rewritten, and `specsync check` refuses a change recorded both by a fragment and by a row.
 62. Every read of a project file here, `.specsync/sdd.json` and every change record (4 MiB), the transaction journal and a delivery file whose digest it compares (64 MiB), and the spec, requirements, companion, history and lesson files it reads (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-change-161).
+63. The transaction journal is replayed only when this machine can have written it, and only into files the change workflow writes. A journal Git tracks, in the index or in `HEAD`, is refused with the `git rm --cached` fix. An entry is replayed only under `.specsync/`, under `specs_dir`, or as a registry-mapped spec, the `requirements.md` beside it or a file in its `history/`. A `.git` component is refused in any letter case and with trailing dots or spaces. One refused entry refuses the whole journal before any entry is applied, and the bare-array 5.x form is refused. Every transaction passes the same rule before it is journaled (REQ-change-162).
 
 ## Behavioral Examples
 
@@ -509,6 +511,7 @@ Acceptance Criteria
 | The exactly recorded mismatched old review also has an inconsistent review hash | Reopen-only recovery preserves both as untrusted at the same anchor; finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch remains refused |
 | A workflow-version downgrade is committed and then restored, including when the project root is a subdirectory of the Git repository | Load, status, and a warm read cache refuse with `workflow-version history changed immutable identity`, and a downgrade that exists only on an earlier dated archive path is still seen after reopen and rearchive |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
+| The transaction journal is tracked by Git, names a `.git` file or a file outside what the workflow writes, or is the bare-array form | The writing command refuses before it starts and replays nothing; the message names the journal, the entry where there is one, and the recovery (`git rm --cached` for a tracked journal, otherwise the `.broken` set-aside) |
 
 ## Dependencies
 

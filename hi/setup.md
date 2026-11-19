@@ -35,3 +35,4 @@ SETUP-7 comes from a tester's finding handled with the same advisory: SpecSync r
   - **SETUP-5.c**  I can bring in a whole backlog in one go rather than an item at a time.
 - **SETUP-6**  A command I run in a repository somebody else wrote never writes outside it through a link it found there.
 - **SETUP-7**  A command I run in a repository somebody else wrote never reads outside it through a link it found there, and no file there can make it hang or run out of memory.
+- **SETUP-8**  Starting work in a repository somebody else wrote never replays a half-finished write I did not make, and never changes Git's own files.

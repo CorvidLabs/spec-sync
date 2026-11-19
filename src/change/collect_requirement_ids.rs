@@ -3121,7 +3121,11 @@ fn validate_prepared_transaction_targets(
 }
 
 fn validate_prepared_transaction_target(root: &Path, path: &Path) -> Result<(), String> {
-    transaction_relative_path(root, path)?;
+    let relative = transaction_relative_path(root, path)?;
+    // The same rule the replay applies, so this build never journals a write it would refuse to
+    // put back (REQ-change-162).
+    replayable_transaction_path(root, &relative)
+        .map_err(|reason| format!("transaction target `{relative}`: {reason}"))?;
     reject_symlink_components_for(root, path, "transaction target")
 }
 

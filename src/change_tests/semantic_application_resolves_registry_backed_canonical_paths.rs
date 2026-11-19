@@ -2307,12 +2307,15 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
     fs::create_dir_all(root.join("specs/auth")).unwrap();
     let canonical = root.join("specs/auth/auth.spec.md");
     fs::write(&canonical, "corrupted partial write\n").unwrap();
-    write_json(
-        &root.join(TRANSACTION_PATH),
-        &[TransactionEntry {
+    // The durable form this build writes: the bare-array form is no longer replayed
+    // (REQ-change-162).
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(TRANSACTION_PATH),
+        durable_journal(vec![TransactionEntry {
             path: "specs/auth/auth.spec.md".into(),
             original: Some("original canonical content\n".into()),
-        }],
+        }]),
     )
     .unwrap();
     let lock = acquire_project_lock(root).unwrap();
@@ -2372,7 +2375,9 @@ fn torn_canonical_transaction_journal_fails_closed() {
 fn unreadable_transaction_backup_aborts_before_journal_publication() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let target = root.join("state.json");
+    // A change record, a path the change workflow really journals (REQ-change-162).
+    let target = root.join(".specsync/changes/unreadable/state.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, [0xff, 0xfe]).unwrap();
 
     let error =

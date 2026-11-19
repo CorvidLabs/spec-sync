@@ -806,6 +806,35 @@ fn adopt_dry_run_does_not_enable_policy() {
     assert!(!temp.path().join(".specsync/sdd.json").exists());
 }
 
+// #432: the dry run previews adoption, so it refuses a source the real run refuses instead of
+// printing a plan that claims to import from it.
+#[test]
+fn adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does() {
+    let temp = TempDir::new().unwrap();
+    for dry_run in [false, true] {
+        let mut args = vec![
+            "--root",
+            temp.path().to_str().unwrap(),
+            "change",
+            "adopt",
+            "--source",
+            "bogus",
+        ];
+        if dry_run {
+            args.push("--dry-run");
+        }
+        specsync()
+            .args(&args)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains(
+                "unsupported adoption source `bogus`",
+            ))
+            .stdout(predicate::str::contains("import active and canonical artifacts").not());
+        assert!(!temp.path().join(".specsync/sdd.json").exists());
+    }
+}
+
 #[test]
 fn adopt_existing_4x_project_is_idempotent() {
     let temp = TempDir::new().unwrap();

@@ -638,3 +638,27 @@ fn delta_binding_refactor_keeps_existing_refusals() {
         )
     );
 }
+
+// #1076. A requirement wrapped at a normal width can put its SHALL at the end or the start of a
+// line. That is still a normative SHALL statement; only a requirement with no SHALL is refused.
+#[test]
+fn a_shall_at_a_line_edge_is_a_normative_statement() {
+    let criteria = "\n\n#### Acceptance Criteria\n\n- The path is named.";
+    for statement in [
+        "The lifecycle files (`state.json`) SHALL\nname their path.",
+        "The lifecycle files (`state.json`)\nSHALL name their path.",
+        "The lifecycle files SHALL name their path.",
+    ] {
+        let content = format!("{statement}{criteria}");
+        assert!(
+            validate_requirement("REQ-change-901", &content).is_ok(),
+            "{content:?}"
+        );
+    }
+    let refused = validate_requirement(
+        "REQ-change-901",
+        &format!("The lifecycle files name their path.{criteria}"),
+    )
+    .unwrap_err();
+    assert!(refused.contains("normative SHALL"), "{refused}");
+}

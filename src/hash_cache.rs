@@ -646,7 +646,7 @@ mod tests {
         }
         // The debug-assertions setting is not asserted here: cargo 1.89 passes a build script
         // `PROFILE` and `DEBUG` but no `CARGO_CFG_DEBUG_ASSERTIONS`, so `build.rs` cannot know it.
-        // The cache identity frames it at run time instead (see
+        // The validation snapshot's input digest frames it at run time instead (see
         // `a_snapshot_from_a_build_with_other_debug_assertions_is_not_replayed`).
     }
 

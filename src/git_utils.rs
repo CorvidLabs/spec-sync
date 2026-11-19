@@ -855,6 +855,7 @@ fn is_repository_fact(args: &[&str]) -> bool {
             | ["for-each-ref", ..]
             | ["show-ref", ..]
             | ["symbolic-ref", "--short", _]
+            | ["symbolic-ref", "-q", "--short", _]
             | ["symbolic-ref", "-q", _]
             | ["symbolic-ref", _]
     ) || is_config_read(args)
@@ -954,7 +955,10 @@ pub(crate) fn note_repository_git(
         invalidate_repository_facts();
         return;
     }
-    if !is_repository_fact(args) || discovery_ceiling_is_set() || output.status.code().is_none() {
+    if !is_repository_fact(args)
+        || discovery_ceiling_is_set()
+        || !(output.status.success() || is_definite_absence(args, output))
+    {
         return;
     }
     let key: (&'static str, Vec<String>) = (
@@ -972,6 +976,33 @@ pub(crate) fn note_repository_git(
             frame.facts.insert(key.clone(), output.clone());
         }
     });
+}
+
+/// Whether a nonzero exit is a definite answer rather than a failure, and so a fact worth keeping
+/// for the command: `git config` lookups exit 1 when the key is unset, and `symbolic-ref -q` and
+/// `rev-parse --verify --quiet` exit 1 when the ref is absent. Any other nonzero exit is a failed
+/// query, which is never memoized, so the next read asks git again (REQ-git-utils-009, #887).
+fn is_definite_absence(args: &[&str], output: &MemoizedGitOutput) -> bool {
+    let code = output.status.code();
+    if code == Some(1)
+        && (is_config_read(args)
+            || matches!(args, ["symbolic-ref", "-q", ..])
+            || (args.first() == Some(&"rev-parse")
+                && args.contains(&"--verify")
+                && args.contains(&"--quiet")))
+    {
+        return true;
+    }
+    // `show <rev>:<path>` of a path the revision does not hold: Git names the path and the
+    // revision, and the batch reader reports the name missing after resolving the revision. Any
+    // other 128, such as an unreadable object or a failed fetch, stays a failure.
+    if code == Some(128) && args.first() == Some(&"show") {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return stderr.contains("does not exist in '")
+            || stderr.contains("exists on disk, but not in '")
+            || stderr.starts_with("fatal: invalid object name '");
+    }
+    false
 }
 
 /// Forget every memoized repository fact on this thread: something outside the fact rules ran,
@@ -1795,6 +1826,64 @@ mod tests {
     fn head_through_memo(root: &Path) -> String {
         let output = git_cmd_output(root, &["rev-parse", "--verify", "HEAD"]).unwrap();
         String::from_utf8(output.stdout).unwrap().trim().to_string()
+    }
+
+    /// #887 (REQ-git-utils-009): a failed git query is not memoized, so the next read asks git
+    /// again. A definite "absent" answer is a fact, not a failure: `git config` exits 1 for an
+    /// unset key, and `symbolic-ref -q` exits 1 for a missing ref.
+    #[test]
+    fn a_failed_fact_is_not_memoized_but_a_definite_absence_is() {
+        let tmp = init_repo();
+        let root = tmp.path();
+        let _scope = begin_repository_fact_scope(root);
+        // No commit yet: `rev-parse --verify HEAD` fails with 128.
+        let failed = ["rev-parse", "--verify", "HEAD"];
+        let output = git_cmd_output(root, &failed).unwrap();
+        assert_eq!(output.status.code(), Some(128));
+        assert!(
+            memoized_repository_fact(root, "git_cmd", &failed).is_none(),
+            "a failed query was memoized"
+        );
+        let unset = ["config", "--get", "core.fsmonitor"];
+        assert_eq!(git_cmd_output(root, &unset).unwrap().status.code(), Some(1));
+        assert!(memoized_repository_fact(root, "git_cmd", &unset).is_some());
+        let absent = ["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"];
+        assert_eq!(
+            git_cmd_output(root, &absent).unwrap().status.code(),
+            Some(1)
+        );
+        assert!(memoized_repository_fact(root, "git_cmd", &absent).is_some());
+    }
+
+    /// #887: the batch reader's "missing" for `show <rev>:<path>` is cat-file's own answer, and
+    /// Git's "path … does not exist in …" names the absent path: both are definite. A process
+    /// `git show <rev>:<path> --` that fails says only "bad revision", the same for a missing path
+    /// and a missing commit, so it stays a failure and is asked again.
+    #[cfg(unix)]
+    #[test]
+    fn a_missing_path_answer_is_definite_but_a_bad_revision_is_not() {
+        let output = |code: i32, stderr: &str| MemoizedGitOutput {
+            status: synthetic_status(code),
+            stdout: Vec::new(),
+            stderr: stderr.as_bytes().to_vec(),
+        };
+        let show = ["show", "HEAD:missing.txt", "--"];
+        assert!(is_definite_absence(
+            &show,
+            &output(128, "fatal: invalid object name 'HEAD:missing.txt'.\n")
+        ));
+        assert!(is_definite_absence(
+            &show,
+            &output(128, "fatal: path 'missing.txt' does not exist in 'HEAD'\n")
+        ));
+        assert!(!is_definite_absence(
+            &show,
+            &output(128, "fatal: bad revision 'HEAD:missing.txt'\n")
+        ));
+        assert!(!is_definite_absence(
+            &["rev-parse", "--verify", "HEAD"],
+            &output(128, "fatal: Needed a single revision\n")
+        ));
     }
 
     #[test]

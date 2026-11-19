@@ -962,6 +962,10 @@ fn print_record(
                     change::utc_date_of(rebase.rebased_at)
                 );
             }
+            // A recorded rebase the binding refuses, named as `change check` names it.
+            if let Some(why) = change::refused_delta_rebase(root, record) {
+                println!("  Rebase refused: {}", printable_claim_text(&why));
+            }
             print_verification_ignored_lines(root);
             print_change_text_answers(record);
             print_change_text_correction_counts(record);

@@ -3553,11 +3553,6 @@ fn materialize_change_deltas_inner(
     // after the first — and the workspace would keep shipping a delta that no longer describes
     // the spec it produced. The delta must match its approval for as long as it is evidence.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
-    // A body approved over a requirement main has since edited is first rebased over main's edit
-    // when the two do not overlap, keeping the approval (#1085, REQ-change-161). Whatever is left
-    // stale is then refused, never applied over main's text (#843).
-    rebase_stale_modified_requirements(root, &record)?;
-    ensure_approved_delta_bases_current(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     if let Err(error) = ensure_tasks_complete(root, &record, rerun) {
@@ -3565,6 +3560,13 @@ fn materialize_change_deltas_inner(
         let _ = record_refused_attempt(root, &record, &error);
         return Err(error);
     }
+    // A body approved over a requirement main has since edited is first rebased over main's edit
+    // when the two do not overlap, keeping the approval (#1085, REQ-change-161). Whatever is left
+    // stale is then refused, never applied over main's text (#843). Both come after the read-only
+    // gates above, so a check those refuse writes no rebase (ss-lead's review of #1089), and both
+    // come before anything canonical is written.
+    rebase_stale_modified_requirements(root, &record)?;
+    ensure_approved_delta_bases_current(root, &record)?;
     // `canonical_applied` records that materialization RAN, never that it ran for the delta on
     // disk now. Re-approving a corrected delta satisfies every gate above — the guard directly
     // above asks whether the delta matches its approval, and a new approval signs the new body —

@@ -1917,8 +1917,9 @@ fn approval_delta_bases(
 /// over; an item whose block is neither that base nor already this change's own text is refused,
 /// naming the block, before anything is written.
 ///
-/// An item that is already applied is never refused: the block carrying exactly this change's
-/// approved text is converged, whatever the base was. Absent bases (approvals written before this
+/// An item that is already applied is converged, whatever the base was, unless it is a
+/// workflow-v2 requirement main has edited past its base (REQ-change-161): keeping the change's
+/// body there drops main's edit, so it is stale until the check rebases it. Absent bases (approvals written before this
 /// binding) are unknown, not violated, so such a change keeps materializing as before.
 fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     if record.no_spec_change {
@@ -1944,15 +1945,23 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
         return Ok(());
     };
     let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let specs_dir = crate::config::load_config(root).specs_dir;
     for_each_replacing_delta_item(root, record, |module, spec, requirements, item| {
-        if delta_item_is_applied(spec, requirements, item) {
-            return;
-        }
         let key = delta_base_key(module, item);
         let Some(base) = bases.get(&key) else {
             return;
         };
-        if *base != canonical_block_digest(module, spec, requirements, item) {
+        let stale = !delta_item_is_applied(spec, requirements, item)
+            && *base != canonical_block_digest(module, spec, requirements, item);
+        // A requirement main has edited past its base and the check did not rebase is stale too,
+        // even when the working tree carries this change's own body: keeping that body would drop
+        // main's edit (REQ-change-161; the tester's and ss-lead's reviews of #1089).
+        let main_moved = || {
+            canonical_module_paths(root, &specs_dir, module).is_ok_and(|(_, requirements_path)| {
+                main_moved_past_base(root, record, &requirements_path, module, item, base)
+            })
+        };
+        if stale || main_moved() {
             let target = match item.target {
                 DeltaTarget::Requirement => item.key.clone(),
                 DeltaTarget::SpecSection => format!("section `{}`", item.key),
@@ -1973,15 +1982,17 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
             .flatten()
             .any(|target| !target.starts_with("section "))
     {
-        let specs_dir = crate::config::load_config(root).specs_dir;
+        // The file of a module that has a stale requirement, never one whose only stale item is
+        // a section (Codex's review of #1089).
         moved
-            .keys()
-            .find_map(|module| canonical_module_paths(root, &specs_dir, module).ok())
+            .iter()
+            .filter(|(_, targets)| targets.iter().any(|target| !target.starts_with("section ")))
+            .find_map(|(module, _)| canonical_module_paths(root, &specs_dir, module).ok())
             .and_then(|(_, requirements)| project_relative(root, &requirements))
             .zip(remote_default_ref(root))
             .map(|(file, default)| {
                 format!(
-                    ". For a requirement whose edits do not overlap main's, make it read exactly as {default} has it (`git show {default}:{file}` prints that text) and run `specsync change check {}` again: the check then rebases the delta itself and the approval stands",
+                    ". For a requirement whose edits do not overlap main's, merge {default} into this branch, leave the requirement as {default} has it (`git show {default}:{file}` prints that text), as this change has it, or with both edits, and run `specsync change check {}` again: the check then rebases the delta itself and the approval stands",
                     record.id
                 )
             })

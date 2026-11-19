@@ -125,6 +125,20 @@ impl Project {
     /// As `approved_change_then_main_edits`, but the edit stays on the change's own branch when
     /// `push` is false: it is never on the default branch.
     fn approved_change_then_edits(&self, delta: &str, from: &str, to: &str, push: bool) -> String {
+        let id = self.approved_change(delta);
+        let moved = self.read("specs/auth/requirements.md").replace(from, to);
+        assert_ne!(moved, self.read("specs/auth/requirements.md"));
+        self.write("specs/auth/requirements.md", &moved);
+        self.git(&["add", "--all"]);
+        self.git(&["commit", "-q", "-m", "main edits REQ-auth-001"]);
+        if push {
+            self.git(&["push", "-q", "origin", "main"]);
+        }
+        id
+    }
+
+    /// A change to REQ-auth-001 with `delta`, approved against `BASE_REQUIREMENTS` and committed.
+    fn approved_change(&self, delta: &str) -> String {
         let created: Value = serde_json::from_str(&self.run(&[
             "--json",
             "change",
@@ -165,14 +179,6 @@ impl Project {
         self.run(&["change", "approve", &id, "--actor", "Scope owner"]);
         self.git(&["add", "--all"]);
         self.git(&["commit", "-q", "-m", "approve"]);
-        let moved = self.read("specs/auth/requirements.md").replace(from, to);
-        assert_ne!(moved, self.read("specs/auth/requirements.md"));
-        self.write("specs/auth/requirements.md", &moved);
-        self.git(&["add", "--all"]);
-        self.git(&["commit", "-q", "-m", "main edits REQ-auth-001"]);
-        if push {
-            self.git(&["push", "-q", "origin", "main"]);
-        }
         id
     }
 
@@ -354,5 +360,75 @@ fn a_branch_side_edit_to_the_requirement_is_refused_not_rebased() {
     assert_eq!(
         project.read(&format!(".specsync/changes/{id}/approvals.json")),
         ledger
+    );
+}
+
+/// REQ-change-161: a record that does not recompute is refused by `change check` and named by
+/// `change status`, not only marked invalid in its JSON (the tester's review of #1089).
+#[test]
+fn text_status_names_a_refused_rebase_record() {
+    let project = Project::new();
+    let id = project.approved_change_then_main_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after twelve hours.",
+    );
+    project.run(&["change", "check", &id]);
+    let path = format!(".specsync/changes/{id}/approvals.json");
+    let mut ledger = project.ledger(&id);
+    ledger["delta_rebases"][0]["main_block"] = Value::String(
+        ledger["delta_rebases"][0]["main_block"]
+            .as_str()
+            .unwrap()
+            .replace("twelve hours", "twelve years"),
+    );
+    project.write(&path, &serde_json::to_string_pretty(&ledger).unwrap());
+
+    let text = project.run(&["change", "status", &id]);
+
+    assert!(
+        text.contains("Rebase refused: delta rebase 1") && text.contains("does not recompute"),
+        "{text}"
+    );
+    assert!(!text.contains("the approval stands"), "{text}");
+}
+
+/// ss-lead's review of #1089, the #654 case: a verifying change squash-merged into the default
+/// branch before it was finalized. On the default branch HEAD is the merge-base, and its block is
+/// the change's own body, which differs from the item's base although main never edited it. That
+/// is not main's edit, so `change check --commit` and `change audit` there refuse nothing for it
+/// and record no rebase.
+#[test]
+fn a_change_squash_merged_before_finalize_is_never_rebased_over_its_own_text() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.git(&["checkout", "-q", "main"]);
+    project.git(&["merge", "-q", "--squash", "change"]);
+    project.git(&["commit", "-q", "-m", "squash-merge the verifying change"]);
+    project.git(&["push", "-q", "origin", "main"]);
+
+    let check = project.invoke(&["change", "check", &id, "--commit"]);
+    let audit = project.invoke(&["change", "audit"]);
+
+    for (what, output) in [("change check --commit", &check), ("change audit", &audit)] {
+        let text = combined(output);
+        assert!(!text.contains("has changed since"), "{what}:\n{text}");
+        assert!(!text.contains("Rebased"), "{what}:\n{text}");
+    }
+    assert!(check.status.success(), "{}", combined(&check));
+    assert!(
+        project.ledger(&id)["delta_rebases"]
+            .as_array()
+            .is_none_or(Vec::is_empty),
+        "no rebase is recorded for the change's own text: {}",
+        project.ledger(&id)
+    );
+    let requirements = project.read("specs/auth/requirements.md");
+    assert!(
+        requirements.contains("keep exactly one session"),
+        "{requirements}"
     );
 }

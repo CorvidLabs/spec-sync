@@ -97,16 +97,20 @@ semantic delta for `auth` was approved against canonical text that has changed s
 ```
 
 When main's edit and the change's own edit to a `## MODIFIED` requirement do not overlap word by
-word, `change check` rebases the delta itself: it recovers the requirement's approval-time text from
-Git, merges it with main's text and the approved body, writes the merge into the delta, and records
-the rebase in `approvals.json` under `delta_rebases`. The approval stands, `change status` shows the
-rebase, and every later read recomputes the merge from the texts the record holds, so a record that
-does not recompute is refused. A requirement whose edits overlap, a spec section, a `## REMOVED`
-item, a workflow-v1 change, a CI run and a repository without the approval-time history keep the
-refusal above. Main's text must come from main: the requirement as the change's branch holds it is
-merged only when the default branch (`origin/HEAD`, else `origin/main` or `origin/master`) held that
-same text, so a sentence added by hand on the branch, or in a merge resolution, is refused as stale
-rather than merged into the approved delta.
+word, `change check` rebases the delta itself once the branch has merged main. It reads main's text
+for the requirement from Git at the merge-base of HEAD and the default branch (`origin/HEAD`, else
+`origin/main` or `origin/master`), never from the working tree, takes the approval-time text from
+that branch's earlier history, merges the three, writes the merge into the delta, and records the
+rebase in `approvals.json` under `delta_rebases`. The approval stands, `change status` shows the
+rebase, and every later read recomputes the merge from the texts the record holds and checks the
+commit it names, so a record that does not recompute is refused, and `change status` names it. The
+requirement in the working tree must be main's text, the change's text or already their merge: a
+clean Git merge and a conflict resolved to either side are rebased, while a sentence added by hand
+on the branch, or in a merge resolution, is refused as stale. A requirement main has edited that
+cannot be rebased is refused even when the branch kept the change's own text, because keeping it
+would drop main's edit. Edits that overlap, a spec section, a `## REMOVED` item, a workflow-v1
+change, a CI run, a repository without a default branch or the history needed, a module delta over
+256 KiB and a change holding 64 rebases keep the refusal above.
 
 Otherwise, rewrite the delta body onto the current canonical text, then run `change approve` and
 `change check` again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,

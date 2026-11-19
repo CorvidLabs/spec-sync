@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -30,6 +30,8 @@ observations:
   - 2026-11-19-1091-verify-lane-at-003a14e6
   - 2026-11-19-1091-red-waiting-sentence-at-5de3c276
   - 2026-11-19-1091-verify-lane-at-fd02224d
+  - 2026-11-19-1091-red-fix-field-at-6d6ac9ea
+  - 2026-11-19-1091-verify-lane-at-e2438304
 bugs: []
 blockers: []
 waiting_on_human:
@@ -38,7 +40,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T06:37:41Z
 run_consents: []
-next: Continue build
+next: "Pushed on feat/1091-approve-dry-run (PR #1100). Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that."
 ---
 # specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 
@@ -56,6 +58,7 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - Tester's finding on 37496bdf fixed, red test first: the dry run gives change approve's own refusal for a journal recovery cannot replay; recovery split into its reading and restoring halves; re-checked; lane 10/10 at 003a14e6; site checks pass
 - ss-lead's finding on e24bdbf9 fixed, red test first: the 'waiting to be recovered' sentence has its line continuations back and is pinned word for word in the JSON message and the text output; re-checked; lane 10/10 at fd02224d
 - Ran the send-back on Leif's relayed word (gate above): specsync change send-back change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing --actor 0xLeif with the reason ending '(run by the builder on Leif's relayed word, via t4c, 2026-11-19)'; it exited 0 at 14:44:50Z and returned the change to draft with its approval cancelled
+- After the send-back and Leif's 14:32Z approval: the fix field built red first (6d6ac9ea red, 4d5d0440 fix) with Codex's two first-round P2s; docs; lane 10/10 at e2438304; change re-checked with the new REQ-change-163 and REQ-cmd-change-040 materialized word for word
 
 ## Decisions and why
 
@@ -75,6 +78,8 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - [At 003a14e6 (fix e24bdbf9, change re-checked), fledge lanes run verify passed 10/10 steps in 11m04s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. It includes the nine approve_dry_run tests; the new one covers a journal that does not parse, one whose integrity envelope does not hold and one that names a path outside the project, each compared word for word with the real approve. The site's tests (48), lint and build pass for the edited cli.md (site-1091b.log). The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-003a14e6.md)
 - [Red-first, for ss-lead's finding on e24bdbf9: at 5de3c276 (the test alone) approve_dry_run::the_dry_run_refuses_while_an_interrupted_write_is_waiting fails on the exact sentence. e24bdbf9 had rewritten the message as one source line without its line continuations, so it printed runs of spaces ('the next          lifecycle command'). My own regression from this session, fixed in 2d8abc60; not a new bug.](evidence/2026-11-19-1091-red-waiting-sentence-at-5de3c276.md)
 - [At fd02224d (fix 2d8abc60, change re-checked), fledge lanes run verify passed 10/10 steps in 16m01s on a machine also running other builds: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. The interrupted-write test now compares the whole 'waiting to be recovered' sentence, in the --json message and in the text output. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-fd02224d.md)
+- [Red-first after the send-back: at 6d6ac9ea (the tests alone) four dry-run tests fail. A definition refusal for an open question and an ownership refusal carry no fix; a .specsync/change.lock that is a directory passes the dry run though approve cannot open it (Codex P2); an ownership message's line breaks spill the text output over several lines (Codex P2). The fifth new test (no fix elsewhere) passes there, as it should. Fixed in 4d5d0440.](evidence/2026-11-19-1091-red-fix-field-at-6d6ac9ea.md)
+- [At e2438304 (the fix field, the lock-path open and the one-line text output, with docs), fledge lanes run verify passed 10/10 steps in 12m19s, run alone: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 641 passed, including the fourteen approve_dry_run tests), release build, strict spec check (62 specs) and the CI script tests. The site's tests (48), lint and build pass (site-1091d.log). The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-e2438304.md)
 
 ## Open threads
 
@@ -236,4 +241,14 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
   - gate: native:approved
   - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - by: claude-code (hc t59)
+- 2026-11-19T15:33:07Z · advance · build → test · native:verifying ^t-5b8b2d
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 272abff42a0cf61efe11e38c5978037d20838b86
+  - by: claude-code (hc t59)
+- 2026-11-19T15:33:08Z · advance · test → accept · native:verifying ^t-d00afa
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 272abff42a0cf61efe11e38c5978037d20838b86
   - by: claude-code (hc t59)

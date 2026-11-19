@@ -5,7 +5,7 @@ aliases: [1084-history-fragments]
 objective: At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Change Log row and a version bump; check validates the fragments; specsync history renders the table; existing tables are frozen as written, no row rewritten (#1084, Leif's approval on the issue, relayed by hc t4c)
 intent_scope: ""
 modules: [change]
-stage: test
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -18,9 +18,13 @@ design: []
 files: []
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1084 (PR #1086)"
+    holds: accept
+    drives: review
+    opened: 2026-11-19T01:31:01Z
 run_consents: []
-next: Push, open the PR, report to t4c; then wait for the tester and Leif's review through t4c before change review and ship
+next: "Tester checks PR #1086; Leif reviews through t4c; on his pass, chough change ship <id> --close-gate with his words, then push the archive tip and mark the PR ready"
 observations: [2026-11-19-covers-req-change-159-160-req-validator-048-req-hash-cache-006]
 ---
 # At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Change Log row and a version bump; check validates the fragments; specsync history renders the table; existing tables are frozen as written, no row rewritten (#1084, Leif's approval on the issue, relayed by hc t4c)
@@ -133,4 +137,15 @@ At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Chang
   - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
   - gate: native:verifying
   - revision: d2fa5b6bc8686320333be8463b0d2fa913d836d5
+  - by: claude-code (hc t4t)
+- 2026-11-19T01:31:01Z · advance · test → accept · native:verifying ^t-b22054
+  - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
+  - gate: native:verifying
+  - revision: b2dcb5a54e59666cc98dcc91f3996dd5e96533f2
+  - by: claude-code (hc t4t)
+- 2026-11-19T01:31:01Z · gate-opened · accept → accept · Leif's review of #1084 (PR #1086) ^t-467e70
+  - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
+  - revision: b2dcb5a54e59666cc98dcc91f3996dd5e96533f2
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

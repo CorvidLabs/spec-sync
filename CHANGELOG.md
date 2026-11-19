@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `specsync check` warns on a module's `<module>.3md` lesson file that does not parse, naming the file, the parser's error and that `context.md` is used instead, so `check --strict` fails on it; lifecycle commands still fall back and never fail (#1060).
+
 ### Fixed
 
 - `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).

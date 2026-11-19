@@ -2971,6 +2971,11 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     if let Some(upstream) = upstream_archive_of(root, &record) {
         return Err(upstream_archive_message(&record.id, &upstream));
     }
+    // A missing approvals ledger is named before any read of it can fail with a bare error.
+    let ledger = change_dir(root, &record.id).join("approvals.json");
+    if change_dir(root, &record.id).is_dir() && !ledger.exists() {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     if record.workflow_version < 2 {
         return Err(format!(
             "{} uses the legacy workflow; after reopen run `specsync change accept {} --actor <name>` then `specsync change archive {}` (do not use finalize — it would write finalization evidence without a matching acceptance closing approval)",
@@ -3059,8 +3064,13 @@ pub(crate) fn approvals_ledger_held_by_history(
     }
     let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
     let relative = git_repo_relative_path(root, &display)?;
-    let working = fs::read(root.join(&display))
-        .map_err(|error| format!("failed to read `{display}`: {error}"))?;
+    let working = match fs::read(root.join(&display)) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(missing_approvals_ledger_refusal(root, &display, &relative));
+        }
+        Err(error) => return Err(format!("failed to read `{display}`: {error}")),
+    };
     let committed = |commit: &str| -> Result<Option<Vec<u8>>, String> {
         let object = format!("{commit}:{relative}");
         let output = run_git_bounded(
@@ -3089,6 +3099,20 @@ pub(crate) fn approvals_ledger_held_by_history(
             "`specsync change check {} --commit` commits it",
             record.id
         )
+    };
+    // `change check --commit` does not commit an ignored file, so its way out would loop
+    // (tester2 on #428): an ignored ledger is told what does work.
+    let ignored = run_git_bounded(root, &["check-ignore", "-q", "--", display.as_str()], None, 1024)
+        .is_ok_and(|output| output.status.success());
+    let commit_it = if ignored {
+        format!(
+            "it is ignored by Git, so `specsync change check {} --commit` cannot commit it: a \
+             change's approvals ledger must not be ignored, so remove the rule that ignores it, or \
+             commit it with `git add -f -- {display}` and a commit",
+            record.id
+        )
+    } else {
+        commit_it
     };
     let Some(at_head) = committed("HEAD")? else {
         return Err(format!(
@@ -3146,11 +3170,16 @@ pub(crate) fn approvals_ledger_held_by_history(
     }
     commits.reverse();
     let short = |commit: &str| commit[..12.min(commit.len())].to_string();
-    let two_ways_out = |commit: &str| {
+    let two_ways_out = |commit: &str, removed: Option<&str>| {
+        // Taking out only the commit that created the file again would leave it deleted, so a
+        // removal and its re-creation are named together (tester2 on #428).
+        let commits = match removed {
+            Some(removed) => format!("{} and {}", short(removed), short(commit)),
+            None => short(commit),
+        };
         format!(
-            "a commit already in history cannot be made to extend the one before it, so take {} \
-             out of this branch's history, or make the change again under a new id",
-            short(commit)
+            "a commit already in history cannot be made to extend the one before it, so take \
+             {commits} out of this branch's history, or make the change again under a new id"
         )
     };
     let mut earlier: Option<(&str, Vec<u8>)> = None;
@@ -3192,7 +3221,7 @@ pub(crate) fn approvals_ledger_held_by_history(
                      it, and {}",
                     short(commit),
                     short(earlier_commit),
-                    two_ways_out(commit)
+                    two_ways_out(commit, removed_in)
                 ));
             }
             Err(()) => {
@@ -3200,7 +3229,7 @@ pub(crate) fn approvals_ledger_held_by_history(
                     "`{display}` as committed in {} does not read as an approvals ledger; {WHY}, \
                      and {}",
                     short(commit),
-                    two_ways_out(commit)
+                    two_ways_out(commit, None)
                 ));
             }
         }
@@ -3208,6 +3237,37 @@ pub(crate) fn approvals_ledger_held_by_history(
         removed_in = None;
     }
     Ok(())
+}
+
+/// The refusal for a change whose working `approvals.json` is missing: the file, and the commit to
+/// restore it from, the one that last held it (REQ-change-166, tester2 on #428).
+fn missing_approvals_ledger_refusal(root: &Path, display: &str, relative: &str) -> String {
+    let pathspec = format!(":(top,literal){relative}");
+    let last_touch = git_output(root, &["log", "-1", "--format=%H", "HEAD", "--", pathspec.as_str()]);
+    let held = last_touch.and_then(|commit| match commit_tree_lists_path(root, &commit, relative) {
+        Some(true) => Some(commit),
+        // The last commit that touched it removed it, so its parent last held it.
+        _ => git_output(root, &["rev-parse", "--verify", &format!("{commit}^1")]),
+    });
+    match held {
+        Some(commit) => {
+            let at_head = git_output(root, &["rev-parse", "HEAD"]).is_some_and(|head| head == commit);
+            let from = if at_head {
+                "HEAD".to_string()
+            } else {
+                commit[..12.min(commit.len())].to_string()
+            };
+            format!(
+                "`{display}` is missing; a change is archived only with approvals that Git history \
+                 holds. Restore it from the commit that last held it with `git checkout {from} -- \
+                 {display}`, then run the command again"
+            )
+        }
+        None => format!(
+            "`{display}` is missing and no commit holds it; a change is archived only with \
+             approvals that Git history holds, so make the change again under a new id"
+        ),
+    }
 }
 
 /// Why `newer` does not extend `older`, as "drops `approvals[0]`" or "changes `reopenings[1]`";
@@ -3805,6 +3865,12 @@ fn archive_change_with_options(
     let located = find_change_dir(root, id)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    // A missing approvals ledger is named before any read of it can fail with a bare error.
+    if change_dir(root, &record.id).is_dir()
+        && !change_dir(root, &record.id).join("approvals.json").exists()
+    {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     validate_acceptance_owner_correction_records(&record)?;
     let source = change_dir(root, &record.id);
     let archive_root = root.join(ARCHIVE_PATH);

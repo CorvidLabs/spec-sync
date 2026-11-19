@@ -9,6 +9,7 @@ db_tables: []
 tracks: [90]
 depends_on:
   - specs/parser/parser.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Hash Cache
@@ -40,7 +41,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | `load` | `root: &Path` | `Self` | HashCache: load from `.specsync/hashes.json`; returns empty cache if missing, and reads nothing when `.specsync` or the file is a symbolic link or not a directory and a regular file (REQ-hash-cache-007) |
 | `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write pretty JSON to a new file in `.specsync` and rename it over `hashes.json`; refuses, writing nothing, when `.specsync` or `hashes.json` is a symbolic link or not a directory and a regular file (REQ-hash-cache-007) |
 | `refusal` | `root: &Path` | `Option<String>` | HashCache: why this project's cache is refused, naming `.specsync` or `.specsync/hashes.json` and what it is; `None` for a usable or absent cache |
-| `hash_file` | `path: &Path` | `Option<String>` | HashCache: compute SHA-256 of file in 8KB chunks; returns hex string |
+| `hash_file` | `root: &Path, path: &Path` | `Option<String>` | HashCache: SHA-256 of a file read through the bounded project read (8 MiB); `None` when it is missing or refused, which the cache treats as changed (REQ-hash-cache-008) |
 | `is_changed` | `&self, root: &Path, rel_path: &str` | `bool` | HashCache: true if file is new or hash differs from cached value |
 | `has_baseline` | `&self, rel_path: &str` | `bool` | HashCache: whether a prior hash exists, so "changed" can be told apart from "never seen" |
 | `update` | `&mut self, root: &Path, rel_path: &str` | `()` | HashCache: recompute and store hash for a file |
@@ -72,6 +73,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
 9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
 10. The cache is never read or written through a symbolic link, and is written only inside the project's own `.specsync`. `load` and `save` open `.specsync` without following a link and work through that directory handle. `save` creates a new file there exclusively and renames it over `hashes.json`, so the old file is never written in place. A repository can commit either path as a link, so both are treated as input its author chose (REQ-hash-cache-007).
+11. Every read of a project file here, `.specsync/hashes.json` (64 MiB, any link still refused) and every file it hashes or reads to classify a spec (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-hash-cache-008).
 
 ## Behavioral Examples
 
@@ -127,6 +129,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | Cannot create `.specsync/` directory | `save` returns `io::Error` |
 | `.specsync` is a symbolic link or not a directory | `load` returns an empty cache; `save` returns `io::Error` and writes nothing; `refusal` names `.specsync` |
 | `.specsync/hashes.json` is a symbolic link (dangling or not), a directory, or anything but a regular file | `load` returns an empty cache without reading it; `save` returns `io::Error`, leaves it as it is and creates nothing at a link's target; `refusal` names `.specsync/hashes.json` |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

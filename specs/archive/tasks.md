@@ -18,6 +18,7 @@ spec: archive.spec.md
 - [x] Preflight and stage every operation before atomic publication
 - [x] Preserve destination permissions and roll back prior publishes after a late failure
 - [x] Cover planning, middle-staging, middle-publish, rollback, permission, and dry-run/apply parity cases
+- [x] Read project files only through the bounded project read of `util` (REQ-archive-002). Evidence: `tests/integration/project_reads.rs`.
 
 ## Review Status
 

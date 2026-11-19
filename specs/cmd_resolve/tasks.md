@@ -17,6 +17,7 @@ spec: cmd_resolve.spec.md
 - [x] File-based remote-spec cache with TTL (`SpecCache`) and slash sanitization
 - [x] Unit tests for cache roundtrip/miss/expired, path sanitization, `### Consumes` parsing, and deprecated-status detection
 - [x] Never read or write the remote spec cache through a symbolic link; skip it with one warning (REQ-cmd-resolve-002). Evidence: `spec_cache_never_writes_or_reads_through_a_link`, `spec_cache_creates_nothing_through_a_dangling_link_or_a_linked_directory`.
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-resolve-003). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

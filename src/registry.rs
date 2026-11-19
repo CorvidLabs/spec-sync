@@ -1,4 +1,5 @@
 use crate::types::RegistryEntry;
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -92,6 +93,7 @@ fn github_raw_get(url: &str) -> Result<String, String> {
 
     response
         .body_mut()
+        // not a project file read: the body of an HTTP response, not a file
         .read_to_string()
         .map_err(|e| format!("Failed to read response body: {e}"))
 }
@@ -176,7 +178,7 @@ pub fn load_local_registry(root: &Path) -> Result<Option<RegistryEntry>, String>
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read local registry {}: {error}", path.display()))?;
     if is_inert_legacy_registry_stub(&content) {
         return Ok(None);
@@ -349,7 +351,8 @@ pub fn generate_registry(root: &Path, project_name: &str, specs_dir: &str) -> St
                 }
 
                 // Extract module name from frontmatter
-                if let Ok(content) = fs::read_to_string(path)
+                if let Ok(content) =
+                    crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES)
                     && let Some(module) = extract_module_name(&content)
                 {
                     let rel_path = path
@@ -412,14 +415,15 @@ pub fn register_module(
     spec_rel_path: &str,
 ) -> Result<bool, String> {
     let path = local_registry_path(root);
-    let content = match crate::util::read_project_file(root, &path) {
-        Ok(Some(bytes)) => match String::from_utf8(bytes) {
-            Ok(content) => content,
-            Err(_) => return Ok(false),
-        },
-        Ok(None) => return Ok(false),
-        Err(error) => return Err(format!("Cannot update the registry: {error}")),
-    };
+    let content =
+        match crate::util::read_project_file(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(Some(bytes)) => match String::from_utf8(bytes) {
+                Ok(content) => content,
+                Err(_) => return Ok(false),
+            },
+            Ok(None) => return Ok(false),
+            Err(error) => return Err(format!("Cannot update the registry: {error}")),
+        };
 
     // Check if module already registered
     if let Some(entry) = parse_registry(&content)

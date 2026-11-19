@@ -47,8 +47,8 @@ use std::path::Path;
 /// `config.export_level` / `config.parse_mode` to `get_exported_symbols_full`.
 /// Kept for callers that genuinely want the default surface (tests).
 #[allow(dead_code)]
-pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
-    get_exported_symbols_full(file_path, ExportLevel::Member, ParseMode::Regex)
+pub fn get_exported_symbols(root: &Path, file_path: &Path) -> Vec<String> {
+    get_exported_symbols_full(root, file_path, ExportLevel::Member, ParseMode::Regex)
 }
 
 /// Extract exported symbol names from a source file with configurable granularity.
@@ -56,8 +56,12 @@ pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
 /// When `level` is `Member`, all public symbols are returned (default).
 /// Uses regex parsing for backwards compatibility.
 #[allow(dead_code)]
-pub fn get_exported_symbols_with_level(file_path: &Path, level: ExportLevel) -> Vec<String> {
-    get_exported_symbols_full(file_path, level, ParseMode::Regex)
+pub fn get_exported_symbols_with_level(
+    root: &Path,
+    file_path: &Path,
+    level: ExportLevel,
+) -> Vec<String> {
+    get_exported_symbols_full(root, file_path, level, ParseMode::Regex)
 }
 
 /// The outcome of attempting to extract exported symbols from a source file,
@@ -153,14 +157,19 @@ fn sample_symbols(symbols: &[String]) -> String {
 /// had not configured (#474). Use `scan_exported_symbols_full` with the
 /// project's `export_level`/`parse_mode` instead.
 #[allow(dead_code)]
-pub fn scan_exported_symbols(file_path: &Path) -> ExportScan {
-    scan_exported_symbols_full(file_path, ExportLevel::Member, ParseMode::Regex)
+pub fn scan_exported_symbols(root: &Path, file_path: &Path) -> ExportScan {
+    scan_exported_symbols_full(root, file_path, ExportLevel::Member, ParseMode::Regex)
 }
 
 /// Like `get_exported_symbols_full`, but returns an `ExportScan` so a read/parse
 /// failure or unsupported language is distinguishable from a file that genuinely
 /// exports nothing — required by callers that gate on the result.
+///
+/// The file is read through the bounded project read (REQ-exports-011): a source file linked
+/// out of the project, one that is not a regular file, or one over 8 MiB is `Unreadable`, and
+/// TypeScript re-exports are followed only inside `root`.
 pub fn scan_exported_symbols_full(
+    root: &Path,
     file_path: &Path,
     level: ExportLevel,
     parse_mode: ParseMode,
@@ -168,11 +177,13 @@ pub fn scan_exported_symbols_full(
     if files_entry_is_directory(file_path) {
         return ExportScan::Directory;
     }
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(content) => content,
-        Err(_) => return ExportScan::Unreadable,
-    };
-    scan_exported_symbols_content_internal(file_path, &content, level, parse_mode, true)
+    let content =
+        match crate::util::read_project_string(root, file_path, crate::util::MAX_SOURCE_FILE_BYTES)
+        {
+            Ok(content) => content,
+            Err(_) => return ExportScan::Unreadable,
+        };
+    scan_exported_symbols_content_internal(file_path, &content, level, parse_mode, Some(root))
 }
 
 /// Extract symbols from caller-supplied source bytes without reopening the source
@@ -190,7 +201,7 @@ pub(super) fn get_exported_symbols_from_content(
     level: ExportLevel,
     parse_mode: ParseMode,
 ) -> Vec<String> {
-    match scan_exported_symbols_content_internal(file_path, content, level, parse_mode, false) {
+    match scan_exported_symbols_content_internal(file_path, content, level, parse_mode, None) {
         ExportScan::Parsed(symbols) => symbols,
         ExportScan::UnknownLanguage
         | ExportScan::Unreadable
@@ -207,7 +218,7 @@ pub(super) fn scan_exported_symbols_from_content(
     level: ExportLevel,
     parse_mode: ParseMode,
 ) -> ExportScan {
-    scan_exported_symbols_content_internal(file_path, content, level, parse_mode, false)
+    scan_exported_symbols_content_internal(file_path, content, level, parse_mode, None)
 }
 
 /// Extract, then check whether extraction was fooled by an unresolved conflict.
@@ -229,15 +240,9 @@ fn scan_exported_symbols_content_internal(
     content: &str,
     level: ExportLevel,
     parse_mode: ParseMode,
-    resolve_typescript_imports: bool,
+    resolve_root: Option<&Path>,
 ) -> ExportScan {
-    let scan = extract_scan(
-        file_path,
-        content,
-        level,
-        parse_mode,
-        resolve_typescript_imports,
-    );
+    let scan = extract_scan(file_path, content, level, parse_mode, resolve_root);
     let ExportScan::Parsed(symbols) = &scan else {
         return scan;
     };
@@ -246,7 +251,7 @@ fn scan_exported_symbols_content_internal(
         side,
         level,
         parse_mode,
-        resolve_typescript_imports,
+        resolve_root,
     ) {
         ExportScan::Parsed(side_symbols) => side_symbols,
         _ => Vec::new(),
@@ -313,7 +318,7 @@ fn extract_scan(
     content: &str,
     level: ExportLevel,
     parse_mode: ParseMode,
-    resolve_typescript_imports: bool,
+    resolve_root: Option<&Path>,
 ) -> ExportScan {
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
@@ -325,20 +330,23 @@ fn extract_scan(
     let symbols = if parse_mode == ParseMode::Ast {
         match lang {
             Language::TypeScript => {
-                let result = if resolve_typescript_imports {
+                let result = if let Some(root) = resolve_root {
                     let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                    let root = root.to_path_buf();
                     let resolver =
-                        move |import_path: &str| resolve_ts_import(&base_dir, import_path);
+                        move |import_path: &str| resolve_ts_import(&root, &base_dir, import_path);
                     ast::typescript::extract_exports_with_resolver(content, Some(&resolver))
                 } else {
                     ast::typescript::extract_exports_with_resolver(content, None)
                 };
                 if result.is_empty() {
                     // Fallback to regex if AST returned nothing (parse failure)
-                    if resolve_typescript_imports {
+                    if let Some(root) = resolve_root {
                         let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-                        let resolver =
-                            move |import_path: &str| resolve_ts_import(&base_dir, import_path);
+                        let root = root.to_path_buf();
+                        let resolver = move |import_path: &str| {
+                            resolve_ts_import(&root, &base_dir, import_path)
+                        };
                         typescript::extract_exports_with_resolver(content, Some(&resolver))
                     } else {
                         typescript::extract_exports_with_resolver(content, None)
@@ -420,12 +428,12 @@ fn extract_scan(
                 }
             }
             // Nim and Crystal have no published tree-sitter grammar crate: fall back to regex
-            _ => extract_with_regex(content, lang, file_path),
+            _ => extract_with_regex(content, lang, file_path, resolve_root),
         }
-    } else if lang == Language::TypeScript && !resolve_typescript_imports {
+    } else if lang == Language::TypeScript && resolve_root.is_none() {
         typescript::extract_exports_with_resolver(content, None)
     } else {
-        extract_with_regex(content, lang, file_path)
+        extract_with_regex(content, lang, file_path, resolve_root)
     };
 
     // If type-level granularity, filter to only type declarations
@@ -452,11 +460,12 @@ fn extract_scan(
 /// failure or unsupported language yields an empty vector — use
 /// `scan_exported_symbols_full` when that distinction matters (e.g. for gating).
 pub fn get_exported_symbols_full(
+    root: &Path,
     file_path: &Path,
     level: ExportLevel,
     parse_mode: ParseMode,
 ) -> Vec<String> {
-    match scan_exported_symbols_full(file_path, level, parse_mode) {
+    match scan_exported_symbols_full(root, file_path, level, parse_mode) {
         ExportScan::Parsed(symbols) => symbols,
         ExportScan::UnknownLanguage
         | ExportScan::Unreadable
@@ -466,13 +475,23 @@ pub fn get_exported_symbols_full(
 }
 
 /// Dispatch to the regex-based export extractor for the given language.
-fn extract_with_regex(content: &str, lang: Language, file_path: &Path) -> Vec<String> {
+fn extract_with_regex(
+    content: &str,
+    lang: Language,
+    file_path: &Path,
+    resolve_root: Option<&Path>,
+) -> Vec<String> {
     match lang {
-        Language::TypeScript => {
-            let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-            let resolver = move |import_path: &str| resolve_ts_import(&base_dir, import_path);
-            typescript::extract_exports_with_resolver(content, Some(&resolver))
-        }
+        Language::TypeScript => match resolve_root {
+            Some(root) => {
+                let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                let root = root.to_path_buf();
+                let resolver =
+                    move |import_path: &str| resolve_ts_import(&root, &base_dir, import_path);
+                typescript::extract_exports_with_resolver(content, Some(&resolver))
+            }
+            None => typescript::extract_exports_with_resolver(content, None),
+        },
         Language::Rust => rust_lang::extract_exports(content),
         Language::Go => go::extract_exports(content),
         Language::Python => python::extract_exports(content),
@@ -636,24 +655,30 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
 
 /// Resolve a TypeScript/JavaScript relative import to file content.
 /// Tries TypeScript-family and JavaScript-family extensions and index files.
-fn resolve_ts_import(base_dir: &Path, import_path: &str) -> Option<String> {
+///
+/// Every candidate is read through the bounded project read beneath `root` (REQ-exports-011),
+/// so an import such as `../../../outside` or a linked target outside the project resolves to
+/// nothing, and a FIFO or an oversized file is skipped.
+fn resolve_ts_import(root: &Path, base_dir: &Path, import_path: &str) -> Option<String> {
     // Only resolve relative imports
     if !import_path.starts_with('.') {
         return None;
     }
 
+    let read = |candidate: &Path| {
+        crate::util::read_project_string(root, candidate, crate::util::MAX_SOURCE_FILE_BYTES).ok()
+    };
     let target = base_dir.join(import_path);
 
     // Try exact path first (might already have extension)
-    if target.is_file() {
-        return std::fs::read_to_string(&target).ok();
+    if let Some(content) = read(&target) {
+        return Some(content);
     }
 
     // Try common extensions
     for ext in &[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"] {
-        let with_ext = target.with_extension(ext.trim_start_matches('.'));
-        if with_ext.is_file() {
-            return std::fs::read_to_string(&with_ext).ok();
+        if let Some(content) = read(&target.with_extension(ext.trim_start_matches('.'))) {
+            return Some(content);
         }
     }
 
@@ -668,9 +693,8 @@ fn resolve_ts_import(base_dir: &Path, import_path: &str) -> Option<String> {
         "index.mjs",
         "index.cjs",
     ] {
-        let index_path = target.join(index);
-        if index_path.is_file() {
-            return std::fs::read_to_string(&index_path).ok();
+        if let Some(content) = read(&target.join(index)) {
+            return Some(content);
         }
     }
 
@@ -884,7 +908,7 @@ mod scan_tests {
         let ts = dir.path().join("a.ts");
         std::fs::write(&ts, "export function hi() {}\n").unwrap();
         assert_eq!(
-            scan_exported_symbols(&ts),
+            scan_exported_symbols(ts.parent().unwrap(), &ts),
             ExportScan::Parsed(vec!["hi".to_string()])
         );
 
@@ -892,16 +916,22 @@ mod scan_tests {
         // NOT Unreadable — the caller can tell "clean but empty" from "could not read".
         let empty = dir.path().join("empty.rs");
         std::fs::write(&empty, "fn private_only() {}\n").unwrap();
-        assert_eq!(scan_exported_symbols(&empty), ExportScan::Parsed(vec![]));
+        assert_eq!(
+            scan_exported_symbols(empty.parent().unwrap(), &empty),
+            ExportScan::Parsed(vec![])
+        );
 
         // A non-source extension → UnknownLanguage (a `.md`/`.sql` listed in files:).
         let md = dir.path().join("readme.md");
         std::fs::write(&md, "# doc\n").unwrap();
-        assert_eq!(scan_exported_symbols(&md), ExportScan::UnknownLanguage);
+        assert_eq!(
+            scan_exported_symbols(md.parent().unwrap(), &md),
+            ExportScan::UnknownLanguage
+        );
 
         // A missing file → Unreadable.
         assert_eq!(
-            scan_exported_symbols(&dir.path().join("missing.ts")),
+            scan_exported_symbols(dir.path(), &dir.path().join("missing.ts")),
             ExportScan::Unreadable
         );
 
@@ -909,7 +939,10 @@ mod scan_tests {
         let bad = dir.path().join("bad.ts");
         let mut f = std::fs::File::create(&bad).unwrap();
         f.write_all(b"export function x() {}\n\xff\xfe").unwrap();
-        assert_eq!(scan_exported_symbols(&bad), ExportScan::Unreadable);
+        assert_eq!(
+            scan_exported_symbols(bad.parent().unwrap(), &bad),
+            ExportScan::Unreadable
+        );
     }
 
     #[test]
@@ -918,7 +951,10 @@ mod scan_tests {
         // not collapse that into Unreadable ("missing or not UTF-8") or they
         // disagree with `check`, which hard-errors on a `files:` directory.
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(scan_exported_symbols(dir.path()), ExportScan::Directory);
+        assert_eq!(
+            scan_exported_symbols(dir.path(), dir.path()),
+            ExportScan::Directory
+        );
         assert!(super::files_entry_is_directory(dir.path()));
         let file = dir.path().join("lib.rs");
         std::fs::write(&file, "pub fn one() {}\n").unwrap();
@@ -948,7 +984,7 @@ mod scan_tests {
         .unwrap();
 
         assert_eq!(
-            scan_exported_symbols(&barrel),
+            scan_exported_symbols(barrel.parent().unwrap(), &barrel),
             ExportScan::Parsed(vec![
                 "fromMjs".to_string(),
                 "fromCjs".to_string(),
@@ -969,7 +1005,12 @@ mod scan_tests {
 
         for parse_mode in [ParseMode::Regex, ParseMode::Ast] {
             assert_eq!(
-                scan_exported_symbols_full(&source, ExportLevel::Type, parse_mode),
+                scan_exported_symbols_full(
+                    source.parent().unwrap(),
+                    &source,
+                    ExportLevel::Type,
+                    parse_mode
+                ),
                 ExportScan::Parsed(vec!["Widget".to_string(), "Inline".to_string()])
             );
         }
@@ -988,7 +1029,7 @@ mod scan_tests {
         .unwrap();
 
         assert_eq!(
-            scan_exported_symbols(&barrel),
+            scan_exported_symbols(barrel.parent().unwrap(), &barrel),
             ExportScan::Parsed(vec!["outsideSecret".to_string()])
         );
         assert!(
@@ -1020,7 +1061,7 @@ mod scan_tests {
         )
         .unwrap();
 
-        match scan_exported_symbols(&source) {
+        match scan_exported_symbols(source.parent().unwrap(), &source) {
             ExportScan::Conflicted(evidence) => {
                 assert_eq!(evidence.ours_label, "HEAD");
                 assert_eq!(evidence.theirs_label, "feature/other");
@@ -1030,7 +1071,7 @@ mod scan_tests {
             other => panic!("a conflicted file must not scan as {other:?}"),
         }
         // The plain-vector entry point must not leak the union either.
-        assert!(super::get_exported_symbols(&source).is_empty());
+        assert!(super::get_exported_symbols(source.parent().unwrap(), &source).is_empty());
     }
 
     /// The false positive that makes the naive fix unshippable. This shape is
@@ -1061,7 +1102,7 @@ mod scan_tests {
         .unwrap();
 
         assert_eq!(
-            scan_exported_symbols(&source),
+            scan_exported_symbols(source.parent().unwrap(), &source),
             ExportScan::Parsed(vec!["real_export".to_string()]),
             "a quoted triple must stay Parsed — the extractor blanks string literals, \
              so neither side contributes a symbol the other lacks"
@@ -1085,7 +1126,7 @@ mod scan_tests {
         .unwrap();
 
         assert!(matches!(
-            scan_exported_symbols(&source),
+            scan_exported_symbols(source.parent().unwrap(), &source),
             ExportScan::Parsed(_)
         ));
     }
@@ -1128,9 +1169,12 @@ mod scan_tests {
                 marker_files += 1;
             }
             for parse_mode in [ParseMode::Regex, ParseMode::Ast] {
-                if let ExportScan::Conflicted(evidence) =
-                    scan_exported_symbols_full(source, ExportLevel::Member, parse_mode)
-                {
+                if let ExportScan::Conflicted(evidence) = scan_exported_symbols_full(
+                    source.parent().unwrap(),
+                    source,
+                    ExportLevel::Member,
+                    parse_mode,
+                ) {
                     offenders.push(format!(
                         "{} [{parse_mode:?}] {}",
                         source.display(),

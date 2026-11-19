@@ -89,7 +89,7 @@ fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
                 continue;
             }
             let state = entry.path().join("state.json");
-            if let Some(record) = fs::read(&state)
+            if let Some(record) = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES)
                 .ok()
                 .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
             {
@@ -474,6 +474,7 @@ fn with_persistent_read_cache<Value>(
         let loaded = frame
             .path
             .as_ref()
+            // not a project file read: the read cache lives in the Git common directory, not in the project
             .and_then(|path| fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice::<PersistentReadCache>(&bytes).ok())
             .filter(|cache| {
@@ -548,7 +549,7 @@ fn path_is_state_candidate(path: &str, changes_root: &str, archive_root: &str, i
 fn archived_state_cache_key(root: &Path, record: &ChangeRecord) -> Option<(String, String)> {
     let workspace = find_change_dir(root, &record.id).ok()?;
     let state = workspace.join("state.json");
-    let bytes = fs::read(&state).ok()?;
+    let bytes = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES).ok()?;
     if serde_json::from_slice::<ChangeRecord>(&bytes).ok().as_ref() != Some(record) {
         return None;
     }
@@ -948,7 +949,7 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     }
     let mut pending = Vec::new();
     for entry in entries.iter().flatten() {
-        let Ok(content) = fs::read_to_string(entry.path().join("state.json")) else {
+        let Ok(content) = crate::util::read_project_string(root, &entry.path().join("state.json"), crate::util::MAX_STATE_FILE_BYTES) else {
             continue;
         };
         let Ok(record) = serde_json::from_str::<ChangeRecord>(&content) else {

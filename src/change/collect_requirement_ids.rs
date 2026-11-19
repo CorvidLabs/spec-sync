@@ -22,7 +22,7 @@ fn project_path_is_absent_at(root: &Path, commit: &str, path: &str) -> bool {
 }
 
 fn project_path_matches_digest(root: &Path, path: &str, digest: &str) -> bool {
-    let Ok(content) = fs::read(root.join(path)) else {
+    let Ok(content) = crate::util::read_project_bytes(root, &root.join(path), crate::util::MAX_PROJECT_INPUT_BYTES) else {
         return false;
     };
     if bootstrap_digest(path, &content) == digest || content_digest(&content) == digest {
@@ -83,7 +83,7 @@ fn requirement_id_proposals(root: &Path) -> Vec<serde_json::Value> {
         {
             continue;
         }
-        let content = fs::read_to_string(path).unwrap_or_default();
+        let content = crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
         if content.contains("### REQ-") {
             continue;
         }
@@ -242,7 +242,7 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         && let Some(principles) = policy.principles_file
     {
         let path = safe_project_path(root, &principles)?;
-        let content = fs::read_to_string(&path)
+        let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|_| format!("configured principles file is missing: {}", path.display()))?;
         if content.trim().is_empty() {
             return Err(format!(
@@ -596,7 +596,7 @@ fn validate_artifact_bodies(
     let dir = find_change_dir(root, id)?;
     for artifact in selected {
         let path = dir.join(artifact.file_name());
-        let content = read_bounded_change_text(&path, "artifact")?;
+        let content = read_bounded_change_text(root, &path, "artifact")?;
         if artifact_is_incomplete(artifact, &content) {
             return Err(format!("artifact is incomplete: {}", path.display()));
         }
@@ -782,7 +782,7 @@ fn is_placeholder_todo_line(line: &str) -> bool {
         || lower == "* todo"
 }
 
-fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
+fn read_bounded_change_text(root: &Path, path: &Path, kind: &str) -> Result<String, String> {
     let metadata = fs::metadata(path)
         .map_err(|_| format!("required {kind} is missing: {}", path.display()))?;
     if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
@@ -792,7 +792,7 @@ fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
             path.display()
         ));
     }
-    fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))
+    crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| format!("failed to read {}: {error}", path.display()))
 }
 
 /// How many open tasks a refusal or next action names one by one; the rest are counted.
@@ -875,7 +875,7 @@ fn open_tasks_selected(
         return Ok(Vec::new());
     }
     let path = change_dir(root, id).join("tasks.md");
-    let content = fs::read(&path).map_err(|error| error.to_string())?;
+    let content = crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| error.to_string())?;
     Ok(open_tasks_in(&content))
 }
 
@@ -955,7 +955,7 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
     }
     for module in &record.affected_specs {
         let content =
-            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+            read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
         if parse_delta(&content)?.iter().any(|item| {
             matches!(
                 item.target,
@@ -970,7 +970,7 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
 
 fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[String]) -> Vec<String> {
     let testing =
-        fs::read_to_string(change_dir(root, &record.id).join("testing.md")).unwrap_or_default();
+        crate::util::read_project_string(root, &change_dir(root, &record.id).join("testing.md"), crate::util::MAX_STATE_FILE_BYTES).unwrap_or_default();
     let mut evidence = Vec::new();
     for entry in walkdir::WalkDir::new(root)
         .into_iter()
@@ -996,7 +996,7 @@ fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[Strin
         .filter(|id| {
             !testing.contains(id.as_str())
                 && !evidence.iter().any(|path| {
-                    fs::read_to_string(path)
+                    crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES)
                         .map(|content| content.contains(id.as_str()))
                         .unwrap_or(false)
                 })
@@ -1148,7 +1148,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
                 continue;
             }
         };
-        let mut spec = match fs::read_to_string(&canonical) {
+        let mut spec = match crate::util::read_project_string(root, &canonical, crate::util::MAX_SPEC_FILE_BYTES) {
             Ok(spec) => spec,
             Err(error) => {
                 errors.push(format!(
@@ -1177,7 +1177,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
                 }
                 Err(error) => return EffectiveContractOutcome::failed(error),
             };
-            let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
+            let delta = match read_bounded_change_text(root, &delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
                     if applied {
@@ -1417,7 +1417,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     let tombstones = removed_requirement_ids(root)?;
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = read_bounded_change_text(&path, "semantic delta")
+        let content = read_bounded_change_text(root, &path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&content)?;
         if items.is_empty() {
@@ -1522,7 +1522,7 @@ fn delta_body_digests(
     }
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let body = read_bounded_change_text(&path, "semantic delta")
+        let body = read_bounded_change_text(root, &path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         digests.insert(module.clone(), delta_body_digest(module, &body));
     }
@@ -1581,7 +1581,7 @@ fn for_each_replacing_delta_item(
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
     for module in &record.affected_specs {
-        let delta = read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")
+        let delta = read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&delta)?;
         if !items
@@ -1607,7 +1607,7 @@ fn for_each_replacing_delta_item(
 /// A canonical file's text, or empty when it does not exist. Any other read failure is an error:
 /// reading an unreadable file as empty would report an IO fault as a moved block.
 fn read_canonical_or_absent(root: &Path, path: &Path) -> Result<String, String> {
-    match fs::read_to_string(path) {
+    match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
         Ok(text) => Ok(text),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(error) => Err(format!(
@@ -2089,7 +2089,7 @@ fn read_approved_delta_binding(
     if !record.no_spec_change {
         for module in &record.affected_specs {
             let path = delta_path_checked(root, record, module)?;
-            let body = read_bounded_change_text(&path, "semantic delta")
+            let body = read_bounded_change_text(root, &path, "semantic delta")
                 .map_err(|error| format!("semantic delta for {module}: {error}"))?;
             record_test_delta_binding_read();
             let intact = approved.get(module) == Some(&delta_body_digest(module, &body));
@@ -2309,8 +2309,8 @@ fn sent_back_added_block_is_own_on_disk(
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
     let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
-    let spec = fs::read_to_string(&spec_path).unwrap_or_default();
-    let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+    let spec = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
+    let requirements = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
     Ok(sent_back_added_block_is_own(
         &ledger,
         module,
@@ -2328,7 +2328,7 @@ fn living_requirement_conflicts(
 ) -> Result<bool, String> {
     let specs_dir = crate::config::load_config(root).specs_dir;
     let (_, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
-    let Ok(source) = fs::read_to_string(&requirements_path) else {
+    let Ok(source) = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES) else {
         return Ok(false);
     };
     let heading = format!("### {key}");
@@ -2392,7 +2392,7 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
                 ));
             }
             let content =
-                read_bounded_change_text(path, "historical semantic delta").map_err(|error| {
+                read_bounded_change_text(root, path, "historical semantic delta").map_err(|error| {
                     format!(
                         "failed to read historical semantic delta {}: {error}",
                         path.display()
@@ -2429,7 +2429,7 @@ fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<Str
     let mut ids = BTreeSet::new();
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let content = crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES).map_err(|error| error.to_string())?;
         for item in parse_delta(&content)? {
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
             {
@@ -2713,7 +2713,7 @@ fn prepare_pending_delta_application(
     let specs_dir = crate::config::load_config(root).specs_dir;
     for module in &record.affected_specs {
         let delta =
-            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+            read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
         prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)
             .map_err(|error| {
                 let frozen = record.canonical_applied && load_approvals(root, record)
@@ -2747,9 +2747,9 @@ fn prepare_module_application(
     let converging = record.canonical_applied || !ledger.send_backs.is_empty();
     let items = parse_delta(delta)?;
     let (spec_path, requirements_path) = canonical_module_paths(root, specs_dir, module)?;
-    let mut spec = fs::read_to_string(&spec_path)
+    let mut spec = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", spec_path.display()))?;
-    let mut requirements = fs::read_to_string(&requirements_path)
+    let mut requirements = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES)
         .unwrap_or_else(|_| format!("---\nspec: {module}.spec.md\n---\n\n# Requirements\n"));
     // Read BEFORE applying. A delta may legitimately target `## Change Log`, and the question
     // is whether the record was already there, never whether this run has just written one.
@@ -3036,7 +3036,7 @@ where
     let backups: Vec<(PathBuf, Option<String>)> = prepared
         .iter()
         .map(|(path, _)| {
-            let original = match fs::read_to_string(path) {
+            let original = match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
                 Ok(content) => Some(content),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
                 Err(error) => {
@@ -3269,6 +3269,7 @@ fn remove_file_durable(path: &Path) -> Result<(), String> {
 
 #[cfg(unix)]
 fn sync_parent_directory(directory: &Path) -> Result<(), String> {
+    // not a project file read: opens a directory only to sync it; nothing is read
     fs::File::open(directory)
         .and_then(|file| file.sync_all())
         .map_err(|error| format!("failed to sync directory {}: {error}", directory.display()))
@@ -3411,7 +3412,7 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
     }
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = match fs::read_to_string(path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(_) if record.state == ChangeState::Draft => continue,
             Err(error) => return Err(error.to_string()),
@@ -4056,7 +4057,7 @@ fn portable_definition_digest_pair_v501_with_task_mode(
     let legacy_bytes = definition_projection_bytes_v501(record)?;
     let snapshot = definition_artifact_snapshot(root, record, &[])?;
     for (relative, _, captured_payload, object) in &snapshot.entries {
-        let working_payload = fs::read(root.join(relative)).map_err(|error| {
+        let working_payload = crate::util::read_project_bytes(root, &root.join(relative), crate::util::MAX_PROJECT_INPUT_BYTES).map_err(|error| {
             format!(
                 "SpecSync 5.0.1 portable projection cannot read working-tree definition artifact `{relative}`: {error}"
             )

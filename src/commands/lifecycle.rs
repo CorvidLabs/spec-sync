@@ -106,13 +106,14 @@ fn read_spec_status(root: &Path, spec_path: &Path) -> (String, Option<SpecStatus
         .display()
         .to_string();
 
-    let content = match std::fs::read_to_string(spec_path) {
-        Ok(c) => c.replace("\r\n", "\n"),
-        Err(e) => {
-            eprintln!("{} Cannot read {rel}: {e}", "error:".red().bold());
-            process::exit(1);
-        }
-    };
+    let content =
+        match crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES) {
+            Ok(c) => c.replace("\r\n", "\n"),
+            Err(e) => {
+                eprintln!("{} Cannot read {rel}: {e}", "error:".red().bold());
+                process::exit(1);
+            }
+        };
 
     let status = parser::parse_frontmatter(&content).and_then(|p| p.frontmatter.parsed_status());
 
@@ -182,7 +183,11 @@ pub fn evaluate_guards(
 
         // Check required sections
         if !guard.require_sections.is_empty() {
-            match std::fs::read_to_string(spec_path) {
+            match crate::util::read_project_string(
+                root,
+                spec_path,
+                crate::util::MAX_SPEC_FILE_BYTES,
+            ) {
                 Ok(content) => {
                     let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
                     match parsed {
@@ -210,7 +215,11 @@ pub fn evaluate_guards(
         // Check staleness
         if guard.no_stale.unwrap_or(false) {
             let threshold = guard.stale_threshold.unwrap_or(5);
-            match std::fs::read_to_string(spec_path) {
+            match crate::util::read_project_string(
+                root,
+                spec_path,
+                crate::util::MAX_SPEC_FILE_BYTES,
+            ) {
                 Ok(content) => {
                     let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
                     match parsed {
@@ -541,10 +550,11 @@ pub fn cmd_status(root: &Path, spec_filter: Option<&str>, format: OutputFormat) 
             .display()
             .to_string();
 
-        let status = std::fs::read_to_string(spec_path)
-            .ok()
-            .and_then(|c| parser::parse_frontmatter(&c.replace("\r\n", "\n")))
-            .and_then(|p| p.frontmatter.parsed_status());
+        let status =
+            crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES)
+                .ok()
+                .and_then(|c| parser::parse_frontmatter(&c.replace("\r\n", "\n")))
+                .and_then(|p| p.frontmatter.parsed_status());
 
         let status_str = status
             .map(|s| s.as_str().to_string())
@@ -929,7 +939,11 @@ pub fn cmd_enforce(
             .display()
             .to_string();
 
-        let content = match std::fs::read_to_string(spec_path) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(_) => continue,
         };
@@ -1227,10 +1241,11 @@ fn chrono_today() -> String {
 fn load_lifecycle_json(root: &Path, module: &str) -> Vec<String> {
     let safe_module = module.replace(['/', '\\'], "_").replace("..", "_");
     let path = root.join(format!(".specsync/lifecycle/{safe_module}.json"));
-    let content = match std::fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => return vec![],
-    };
+    let content =
+        match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
     let data: serde_json::Value = match serde_json::from_str(&content) {
         Ok(v) => v,
         Err(e) => {

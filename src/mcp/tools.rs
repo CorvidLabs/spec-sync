@@ -215,7 +215,7 @@ fn validate_all(root: &Path, config: &SpecSyncConfig, spec_files: &[PathBuf]) ->
     let schema_columns = config
         .schema_dir
         .as_deref()
-        .map(|schema_dir| crate::schema::build_schema(&root.join(schema_dir)))
+        .map(|schema_dir| crate::schema::build_schema(root, &root.join(schema_dir)))
         .unwrap_or_default();
 
     let mut collected = McpFindings::default();

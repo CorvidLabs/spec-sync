@@ -450,15 +450,16 @@ fn load_agent_artifact_manifest(root: &Path) -> Result<AgentArtifactManifest, St
     let path = agent_artifact_manifest_path(root);
     // Read, like every artifact below, through the project file functions: the manifest and each
     // generated file can be committed as a symbolic link (REQ-agents-011).
-    let content = match crate::util::read_project_file(root, &path) {
-        Ok(Some(content)) => content,
-        Ok(None) => {
-            return Ok(AgentArtifactManifest::default());
-        }
-        Err(error) => {
-            return Err(format!("Failed to read {}: {error}", path.display()));
-        }
-    };
+    let content =
+        match crate::util::read_project_file(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(Some(content)) => content,
+            Ok(None) => {
+                return Ok(AgentArtifactManifest::default());
+            }
+            Err(error) => {
+                return Err(format!("Failed to read {}: {error}", path.display()));
+            }
+        };
     let manifest: AgentArtifactManifest = serde_json::from_slice(&content)
         .map_err(|error| format!("Failed to parse {}: {error}", path.display()))?;
     if manifest.version != AGENT_ARTIFACT_MANIFEST_VERSION {
@@ -635,7 +636,8 @@ pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
 
     for artifact in &artifacts {
         let desired_digest = content_digest(&artifact.content);
-        match crate::util::read_project_file(root, &artifact.path) {
+        match crate::util::read_project_file(root, &artifact.path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
             Ok(Some(existing)) if existing == artifact.content => {
                 updated_manifest.artifacts.insert(
                     artifact.manifest_key.clone(),
@@ -713,7 +715,8 @@ pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
     let mut conflicts = Vec::new();
 
     for artifact in &artifacts {
-        match crate::util::read_project_file(root, &artifact.path) {
+        match crate::util::read_project_file(root, &artifact.path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
             Ok(Some(existing)) => {
                 let existing_digest = content_digest(&existing);
                 match manifest.artifacts.get(&artifact.manifest_key) {

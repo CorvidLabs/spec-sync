@@ -209,8 +209,9 @@ pub(crate) fn is_detectable_source_file(path: &Path) -> bool {
 /// becomes an unknown key and is silently ignored) or breaks JSON parsing entirely.
 /// Stripping a leading BOM is lossless. Returns None when the file can't be read.
 /// Avoids allocating when there is no BOM (the common case).
-pub fn read_config_file(path: &Path) -> Option<String> {
-    let content = fs::read_to_string(path).ok()?;
+pub fn read_config_file(root: &Path, path: &Path) -> Option<String> {
+    let content =
+        crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES).ok()?;
     let trimmed = content.trim_start_matches('\u{feff}');
     Some(if trimmed.len() == content.len() {
         content
@@ -225,8 +226,8 @@ pub fn read_config_file(path: &Path) -> Option<String> {
 /// This intentionally does not reject unknown extension keys. It only prevents
 /// `init --repair` from claiming success while a malformed or wrongly typed
 /// canonical config remains unusable.
-pub(crate) fn validate_config_file(path: &Path) -> Result<(), String> {
-    let content = fs::read_to_string(path)
+pub(crate) fn validate_config_file(root: &Path, path: &Path) -> Result<(), String> {
+    let content = crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read config {}: {error}", path.display()))?;
     let is_json = path.extension().and_then(|extension| extension.to_str()) == Some("json");
     if is_json {
@@ -636,7 +637,7 @@ pub fn load_config_allowing_unloadable(root: &Path) -> SpecSyncConfig {
     // Read the old local override file only to surface migration guidance.
     let local_toml = root.join(".specsync/config.local.toml");
     if local_toml.exists() {
-        inspect_legacy_local_config(&local_toml);
+        inspect_legacy_local_config(root, &local_toml);
     }
 
     config
@@ -651,8 +652,8 @@ pub fn load_config_allowing_unloadable(root: &Path) -> SpecSyncConfig {
 /// is ever added to local config, route it through the shared array handling
 /// (`find_toml_array_close` accumulation) to avoid re-introducing `["["]`
 /// corruption.
-fn inspect_legacy_local_config(local_path: &Path) {
-    let content = match read_config_file(local_path) {
+fn inspect_legacy_local_config(root: &Path, local_path: &Path) {
+    let content = match read_config_file(root, local_path) {
         Some(c) => c,
         None => {
             // Local config is optional, but a file that exists yet cannot be read
@@ -1143,7 +1144,7 @@ fn fail_closed_invalid_json_github_repo(raw: &mut serde_json::Value) {
 }
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
-    let content = match read_config_file(config_path) {
+    let content = match read_config_file(root, config_path) {
         Some(c) => c,
         None => {
             // See load_toml_config: a present-but-unreadable config must fail loud
@@ -1235,7 +1236,7 @@ fn parse_json_config_with_source_dirs(
 /// required_sections = ["Purpose", "Public API"]
 /// ```
 fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
-    let content = match read_config_file(config_path) {
+    let content = match read_config_file(root, config_path) {
         Some(c) => c,
         None => {
             // read_config_file returns None for both "absent" and "present but
@@ -3333,18 +3334,18 @@ verify_issues = false
             "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
         )
         .unwrap();
-        validate_config_file(&toml_path).expect("canonical TOML must validate");
+        validate_config_file(temp.path(), &toml_path).expect("canonical TOML must validate");
 
         fs::write(&toml_path, "specs_dir = [\"wrong\"]\n").unwrap();
-        let error = validate_config_file(&toml_path).unwrap_err();
+        let error = validate_config_file(temp.path(), &toml_path).unwrap_err();
         assert!(error.contains("`specs_dir` must be a string"), "{error}");
 
         let json_path = temp.path().join("config.json");
         fs::write(&json_path, r#"{"specsDir":"specs","sourceDirs":["src"]}"#).unwrap();
-        validate_config_file(&json_path).expect("canonical JSON must validate");
+        validate_config_file(temp.path(), &json_path).expect("canonical JSON must validate");
 
         fs::write(&json_path, r#"{"specsDir":"specs","sourceDirs":[1]}"#).unwrap();
-        let error = validate_config_file(&json_path).unwrap_err();
+        let error = validate_config_file(temp.path(), &json_path).unwrap_err();
         assert!(error.contains("sourceDirs"), "{error}");
     }
 

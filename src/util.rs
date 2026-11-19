@@ -83,7 +83,19 @@ fn refused_project_path(reason: String) -> io::Error {
 /// as it is. Anything that would leave the root by its own spelling (`..`, another absolute
 /// path) is refused before the filesystem is asked.
 fn project_relative_path(root: &Path, path: &Path) -> io::Result<PathBuf> {
-    let beneath = path.strip_prefix(root).unwrap_or(path);
+    // A path built from the canonical root (`/private/var/...` on macOS) still names a file
+    // beneath a root given as `/var/...`. Only the root is canonicalized, never the path, so a
+    // link in the path is still looked at, component by component, below.
+    let canonical_root = root.canonicalize().ok();
+    let beneath = path
+        .strip_prefix(root)
+        .ok()
+        .or_else(|| {
+            canonical_root
+                .as_deref()
+                .and_then(|canonical| path.strip_prefix(canonical).ok())
+        })
+        .unwrap_or(path);
     let mut relative = PathBuf::new();
     for component in beneath.components() {
         match component {
@@ -205,12 +217,24 @@ fn create_new_project_file(project: &Dir, relative: &Path, contents: &[u8]) -> i
     file.flush()
 }
 
-/// Read a file of the project, `None` when nothing is there (REQ-util-002).
+/// The bound for policy, config and state files and for change records (REQ-util-003).
+pub const MAX_STATE_FILE_BYTES: u64 = 4 * 1024 * 1024;
+/// The bound for spec files, companions, history fragments, templates and hook files.
+pub const MAX_SPEC_FILE_BYTES: u64 = 8 * 1024 * 1024;
+/// The bound for source and schema files, the same as coverage and `watch` use.
+pub const MAX_SOURCE_FILE_BYTES: u64 = 8 * 1024 * 1024;
+/// The bound for the transaction journal, the hash cache and other whole project inputs.
+pub const MAX_PROJECT_INPUT_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Read a file of the project, `None` when nothing is there (REQ-util-002, REQ-util-003).
 ///
 /// `path` is `root` joined with a relative path, or a path relative to `root`. A symbolic link
-/// that stays inside the project is followed. A link that leaves it, a dangling link and anything
-/// that is not a regular file are refused with an error that names the path.
-pub fn read_project_file(root: &Path, path: &Path) -> io::Result<Option<Vec<u8>>> {
+/// that stays inside the project is followed. A link that leaves it, a dangling link, anything
+/// that is not a regular file, and a file larger than `max_bytes` are refused with an error that
+/// names the path and the reason. The file is opened without blocking and its type is checked on
+/// the open handle, so neither a FIFO nor a device can hold the read, and at most one byte past
+/// the bound is ever read.
+pub fn read_project_file(root: &Path, path: &Path, max_bytes: u64) -> io::Result<Option<Vec<u8>>> {
     let (project, relative) = open_project(root, path)?;
     if !project_file_exists(&project, &relative)? {
         return Ok(None);
@@ -218,16 +242,53 @@ pub fn read_project_file(root: &Path, path: &Path) -> io::Result<Option<Vec<u8>>
     let mut options = OpenOptions::new();
     // Non-blocking, so a FIFO swapped in after the look above cannot hold the open.
     options.read(true)._cap_fs_ext_nonblock(true);
-    let mut file = project.open_with(&relative, &options)?;
-    if !file.metadata()?.is_file() {
+    let file = project.open_with(&relative, &options)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
         return Err(refused_project_path(format!(
             "{} is not a regular file",
             relative.display()
         )));
     }
+    let over_bound = || {
+        refused_project_path(format!(
+            "{} is larger than {max_bytes} bytes",
+            relative.display()
+        ))
+    };
+    if metadata.len() > max_bytes {
+        return Err(over_bound());
+    }
     let mut contents = Vec::new();
-    file.read_to_end(&mut contents)?;
+    file.take(max_bytes.saturating_add(1))
+        .read_to_end(&mut contents)?;
+    if contents.len() as u64 > max_bytes {
+        return Err(over_bound());
+    }
     Ok(Some(contents))
+}
+
+/// [`read_project_file`] with the contract of `std::fs::read`: a missing file is a not-found
+/// error, so a call site keeps the error handling it had (REQ-util-003).
+pub fn read_project_bytes(root: &Path, path: &Path, max_bytes: u64) -> io::Result<Vec<u8>> {
+    read_project_file(root, path, max_bytes)?.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("{} does not exist", path.display()),
+        )
+    })
+}
+
+/// [`read_project_file`] with the contract of `std::fs::read_to_string`: a missing file is a
+/// not-found error and bytes that are not UTF-8 are invalid data (REQ-util-003).
+pub fn read_project_string(root: &Path, path: &Path, max_bytes: u64) -> io::Result<String> {
+    // The same error text as `std::fs::read_to_string`, so a caller's message does not change.
+    String::from_utf8(read_project_bytes(root, path, max_bytes)?).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    })
 }
 
 /// Write a file of the project, creating it and the directories on the way when they are missing
@@ -394,7 +455,7 @@ mod tests {
             );
             assert_eq!(written.unwrap_err().to_string(), reason);
             assert_eq!(
-                read_project_file(&root, &root.join("CLAUDE.md"))
+                read_project_file(&root, &root.join("CLAUDE.md"), MAX_SPEC_FILE_BYTES)
                     .unwrap_err()
                     .to_string(),
                 reason
@@ -483,7 +544,7 @@ mod tests {
 
         assert_eq!(project_path_refusal(&root, Path::new("CLAUDE.md")), None);
         assert_eq!(
-            read_project_file(&root, Path::new("CLAUDE.md")).unwrap(),
+            read_project_file(&root, Path::new("CLAUDE.md"), MAX_SPEC_FILE_BYTES).unwrap(),
             Some(b"# Agents\n".to_vec())
         );
         write_project_file(&root, Path::new("CLAUDE.md"), b"# Agents\n\nblock\n").unwrap();
@@ -546,12 +607,15 @@ mod tests {
         let (_dir, root, _outside) = project_beside_outside();
         let path = root.join(".specsync/lock.json");
 
-        assert_eq!(read_project_file(&root, &path).unwrap(), None);
+        assert_eq!(
+            read_project_file(&root, &path, MAX_SPEC_FILE_BYTES).unwrap(),
+            None
+        );
         assert_eq!(project_path_refusal(&root, &path), None);
         assert!(create_project_file(&root, &path, b"one\n").unwrap());
         assert!(!create_project_file(&root, &path, b"two\n").unwrap());
         assert_eq!(
-            read_project_file(&root, &path).unwrap(),
+            read_project_file(&root, &path, MAX_SPEC_FILE_BYTES).unwrap(),
             Some(b"one\n".to_vec())
         );
         write_project_file(&root, &path, b"three\n").unwrap();
@@ -579,6 +643,119 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "file is not a directory"
+        );
+    }
+
+    /// Make a FIFO at `path` that nothing ever writes to.
+    #[cfg(unix)]
+    fn fifo(path: &Path) {
+        let status = std::process::Command::new("mkfifo")
+            .arg(path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    /// Verifies REQ-util-003. A link that leaves the root, a dangling link, a FIFO and a directory
+    /// are refused with the path and the reason, and the FIFO read returns at once.
+    #[cfg(unix)]
+    #[test]
+    fn project_file_reads_refuse_what_they_must_not_read() {
+        use std::os::unix::fs::symlink;
+        let (_dir, root, outside) = project_beside_outside();
+        std::fs::write(outside.join("victim.txt"), "the owner's bytes\n").unwrap();
+        symlink("../outside/victim.txt", root.join("out.json")).unwrap();
+        symlink("not-there.json", root.join("dangling.json")).unwrap();
+        fifo(&root.join("fifo.json"));
+        std::fs::create_dir(root.join("dir.json")).unwrap();
+
+        let started = std::time::Instant::now();
+        for (name, reason) in [
+            (
+                "out.json",
+                "out.json is a symbolic link that leaves the project",
+            ),
+            ("dangling.json", "dangling.json is a dangling symbolic link"),
+            ("fifo.json", "fifo.json is not a regular file"),
+            ("dir.json", "dir.json is not a regular file"),
+        ] {
+            assert_eq!(
+                read_project_file(&root, Path::new(name), MAX_STATE_FILE_BYTES)
+                    .unwrap_err()
+                    .to_string(),
+                reason
+            );
+            assert_eq!(
+                read_project_string(&root, &root.join(name), MAX_STATE_FILE_BYTES)
+                    .unwrap_err()
+                    .to_string(),
+                reason
+            );
+        }
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "a read waited on the FIFO"
+        );
+    }
+
+    /// Verifies REQ-util-003. The bound is exact: a file at the bound is read, one byte more is
+    /// refused naming the bound, without being read.
+    #[cfg(unix)]
+    #[test]
+    fn project_file_reads_hold_the_bound() {
+        let (_dir, root, _outside) = project_beside_outside();
+        std::fs::write(root.join("at.txt"), vec![b'a'; 16]).unwrap();
+        assert_eq!(
+            read_project_bytes(&root, Path::new("at.txt"), 16)
+                .unwrap()
+                .len(),
+            16
+        );
+        assert_eq!(
+            read_project_bytes(&root, Path::new("at.txt"), 15)
+                .unwrap_err()
+                .to_string(),
+            "at.txt is larger than 15 bytes"
+        );
+        let sparse = std::fs::File::create(root.join("sparse.json")).unwrap();
+        sparse.set_len(MAX_STATE_FILE_BYTES + 1).unwrap();
+        assert_eq!(
+            read_project_file(&root, Path::new("sparse.json"), MAX_STATE_FILE_BYTES)
+                .unwrap_err()
+                .to_string(),
+            format!("sparse.json is larger than {MAX_STATE_FILE_BYTES} bytes")
+        );
+    }
+
+    /// Verifies REQ-util-003. A link inside the root is read; a missing file is `None` from
+    /// `read_project_file` and not found from the other two; bytes that are not UTF-8 are invalid
+    /// data from `read_project_string`.
+    #[cfg(unix)]
+    #[test]
+    fn project_file_reads_follow_inside_links_and_keep_the_std_contracts() {
+        let (_dir, root, _outside) = project_beside_outside();
+        std::fs::write(root.join("AGENTS.md"), "# Agents\n").unwrap();
+        std::os::unix::fs::symlink("AGENTS.md", root.join("CLAUDE.md")).unwrap();
+        assert_eq!(
+            read_project_string(&root, Path::new("CLAUDE.md"), MAX_SPEC_FILE_BYTES).unwrap(),
+            "# Agents\n"
+        );
+        assert_eq!(
+            read_project_file(&root, Path::new("missing.md"), MAX_SPEC_FILE_BYTES).unwrap(),
+            None
+        );
+        for error in [
+            read_project_bytes(&root, Path::new("missing.md"), MAX_SPEC_FILE_BYTES).unwrap_err(),
+            read_project_string(&root, Path::new("missing.md"), MAX_SPEC_FILE_BYTES).unwrap_err(),
+        ] {
+            assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        }
+        std::fs::write(root.join("binary.md"), [0xff, 0xfe]).unwrap();
+        assert_eq!(
+            read_project_string(&root, Path::new("binary.md"), MAX_SPEC_FILE_BYTES)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
         );
     }
 }

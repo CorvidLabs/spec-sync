@@ -240,7 +240,11 @@ fn plan_archive_operations(
             continue;
         }
 
-        let original_content = match fs::read(&tasks_path) {
+        let original_content = match crate::util::read_project_bytes(
+            root,
+            &tasks_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(content) => content,
             Err(error) => {
                 failures.push(ArchiveFailure {
@@ -437,7 +441,7 @@ fn archive_completed_tasks(content: &str) -> Option<(String, usize)> {
 
 /// Count completed tasks across all tasks.md files (for warnings in check command).
 #[allow(dead_code)]
-pub fn count_completed_tasks(specs_dir: &Path) -> usize {
+pub fn count_completed_tasks(root: &Path, specs_dir: &Path) -> usize {
     let spec_files = find_spec_files(specs_dir);
     let mut total = 0;
 
@@ -450,7 +454,9 @@ pub fn count_completed_tasks(specs_dir: &Path) -> usize {
         if !tasks_path.exists() {
             continue;
         }
-        if let Ok(content) = fs::read_to_string(&tasks_path) {
+        if let Ok(content) =
+            crate::util::read_project_string(root, &tasks_path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
             total += content
                 .lines()
                 .filter(|l| {

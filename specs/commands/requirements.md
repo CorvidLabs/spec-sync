@@ -189,3 +189,10 @@ Acceptance Criteria
 - The set is defined once. A second copy is how the two would drift apart, and a name that is reserved for one caller and not the other is a directory some host platform cannot open.
 - The set is scoped to the platforms a repository may be checked out on rather than the platforms SpecSync publishes binaries for, so a change to the published set cannot quietly shrink it.
 
+### REQ-commands-014
+
+The shared command helpers SHALL read the spec files they read for frontmatter, ownership and inline ignores only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+

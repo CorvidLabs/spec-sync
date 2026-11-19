@@ -20,3 +20,11 @@ spec: config.spec.md
 | Retained CLI config with invalid UTF-8 | Emit the established fail-loud warning and use safe defaults; MCP selected-config reads still reject it |
 | Serialization | No retired inference keys |
 | `[modules."<name>"] owns` | Round-trips through `config_to_toml` and `load_config`, alone or beside `files`; a non-array value is rejected by checked TOML validation; coverage ignores it |
+
+## Bounded reads (REQ-config-016)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `check_does_not_wait_on_a_config_file_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

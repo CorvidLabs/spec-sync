@@ -5,7 +5,7 @@ fn semantic_acceptance_item_exists_for_module(
     module: &str,
 ) -> Result<bool, String> {
     let content =
-        read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+        read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
     Ok(parse_delta(&content)?.iter().any(|item| {
         matches!(
             item.target,
@@ -1779,7 +1779,7 @@ fn capture_working_candidate(
         Ok(metadata) if metadata.is_file() => (
             AcceptanceInputKind::File,
             working_file_mode(&metadata),
-            fs::read(&path)
+            crate::util::read_project_bytes(root, &path, crate::util::MAX_PROJECT_INPUT_BYTES)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         ),
         Ok(_) => (AcceptanceInputKind::NonFile, 0, Vec::new()),
@@ -3150,7 +3150,7 @@ fn authenticated_accepted_transition_for(
             && closing_ledger_extends_all_introductions(root, record, &current_approvals)?);
     if eligible.is_empty()
         && closing_evidence_may_speak
-        && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
+        && let Ok(state_bytes) = crate::util::read_project_bytes(root, &workspace.join("accepted-state.json"), crate::util::MAX_STATE_FILE_BYTES)
         && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
     {
         let mut projection = record.clone();
@@ -4094,7 +4094,7 @@ fn validate_archived_accepted_snapshot(
     let path = workspace.join("accepted-state.json");
     let (_, historical_bytes, historical) =
         authenticated_accepted_transition_for(root, archived, pending)?;
-    let accepted = match fs::read(&path) {
+    let accepted = match crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => {
             if content != historical_bytes {
                 return Err(format!(
@@ -4325,7 +4325,7 @@ fn load_legacy_archive_baseline_context(
     root: &Path,
 ) -> Result<LegacyArchiveBaselineContext, String> {
     let baseline_path = root.join(LEGACY_BASELINE_PATH);
-    let baseline_bytes = fs::read(&baseline_path)
+    let baseline_bytes = crate::util::read_project_bytes(root, &baseline_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
 

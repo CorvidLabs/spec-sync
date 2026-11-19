@@ -16,6 +16,7 @@ spec: cmd_report.spec.md
 - [x] Wire global `--exclude-status` / `--only-status` filtering through `filter_by_status`
 - [x] Adopt the resolve-spec-commit-once + `git_commits_since` per-source-file staleness path (N+1 fix)
 - [x] Fail closed with structured JSON when checked manifest discovery is inconclusive — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-report-006). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

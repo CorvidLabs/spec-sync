@@ -14,11 +14,12 @@ const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is inv
 
 fn configured_commands_not_run(root: &Path) -> Result<Vec<String>, String> {
     let path = root.join(".specsync/sdd.json");
-    let content = match fs::read_to_string(&path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
-    };
+    let content =
+        match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+        };
     let policy: serde_json::Value = serde_json::from_str(&content)
         .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
     let mut commands = Vec::new();
@@ -549,7 +550,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             )?;
             disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
             let finalization_path = path.join("finalization.json");
-            let content = fs::read_to_string(&finalization_path).map_err(|error| {
+            let content = crate::util::read_project_string(root, &finalization_path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| {
                 format!("failed to read {}: {error}", finalization_path.display())
             })?;
             let finalization: change::FinalizationRecord =
@@ -1384,10 +1385,14 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             // into rc=1 on a repository whose archived evidence is already damaged — the fix
             // for an inspection command must not be the thing that bricks inspection. An
             // unreadable or unparseable artifact degrades to "no evidence recorded".
-            let value = fs::read_to_string(&verification_path)
-                .ok()
-                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-                .unwrap_or(serde_json::Value::Null);
+            let value = crate::util::read_project_string(
+                root,
+                &verification_path,
+                crate::util::MAX_STATE_FILE_BYTES,
+            )
+            .ok()
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .unwrap_or(serde_json::Value::Null);
             let commit = value
                 .get("commit")
                 .and_then(|value| value.as_str())
@@ -1993,7 +1998,11 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     if !dir.join("verification.json").is_file() {
         return false;
     }
-    let Ok(text) = fs::read_to_string(dir.join("review.json")) else {
+    let Ok(text) = crate::util::read_project_string(
+        root,
+        &dir.join("review.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) else {
         return false;
     };
     let Ok(review) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -3476,6 +3485,7 @@ fn resolve_correct_owner_entries(
 }
 
 fn parse_owner_manifest(path: &Path) -> Result<Vec<(String, String)>, String> {
+    // not a project file read: a path the person names with --manifest, not a file the project chose
     let content = fs::read_to_string(path).map_err(|error| {
         format!(
             "failed to read correct-owner manifest {}: {error}",

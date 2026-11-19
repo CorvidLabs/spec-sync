@@ -134,7 +134,11 @@ fn steps() -> Vec<MigrationStep> {
 fn check_detect_version(ctx: &MigrationContext) -> StepStatus {
     let version_file = ctx.root.join(".specsync/version");
     if version_file.exists()
-        && let Ok(v) = fs::read_to_string(&version_file)
+        && let Ok(v) = crate::util::read_project_string(
+            &ctx.root,
+            &version_file,
+            crate::util::MAX_STATE_FILE_BYTES,
+        )
         && v.trim() == V4_VERSION
     {
         return StepStatus::Done;
@@ -156,7 +160,11 @@ fn apply_detect_version(
 ) -> Result<(), String> {
     let version_file = ctx.root.join(".specsync/version");
     if version_file.exists()
-        && let Ok(v) = fs::read_to_string(&version_file)
+        && let Ok(v) = crate::util::read_project_string(
+            &ctx.root,
+            &version_file,
+            crate::util::MAX_STATE_FILE_BYTES,
+        )
         && v.trim() == V4_VERSION
     {
         return Ok(());
@@ -238,7 +246,8 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
     // Back up spec files (only those with lifecycle_log)
     let specs_backup_dir = backup_dir.join("specs");
     for spec_file in &ctx.spec_files {
-        if let Ok(content) = fs::read_to_string(spec_file)
+        if let Ok(content) =
+            crate::util::read_project_string(&ctx.root, spec_file, crate::util::MAX_SPEC_FILE_BYTES)
             && content.contains("lifecycle_log:")
         {
             let rel = spec_file.strip_prefix(&ctx.root).unwrap_or(spec_file);
@@ -468,7 +477,7 @@ fn check_extract_lifecycle(ctx: &MigrationContext) -> StepStatus {
 
     // Check if any specs still have lifecycle_log in frontmatter
     let any_remaining = ctx.spec_files.iter().any(|f| {
-        fs::read_to_string(f)
+        crate::util::read_project_string(&ctx.root, f, crate::util::MAX_SPEC_FILE_BYTES)
             .map(|c| c.contains("lifecycle_log:"))
             .unwrap_or(false)
     });
@@ -505,7 +514,11 @@ fn apply_extract_lifecycle(
         .map_err(|e| format!("Failed to create lifecycle dir: {e}"))?;
 
     for spec_file in &ctx.spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            &ctx.root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(e) => {
                 report.warnings.push(format!(
@@ -615,7 +628,7 @@ fn apply_extract_lifecycle(
 
 fn check_cleanup_frontmatter(ctx: &MigrationContext) -> StepStatus {
     let any_has_log = ctx.spec_files.iter().any(|f| {
-        fs::read_to_string(f)
+        crate::util::read_project_string(&ctx.root, f, crate::util::MAX_SPEC_FILE_BYTES)
             .map(|c| c.contains("lifecycle_log:"))
             .unwrap_or(false)
     });
@@ -631,7 +644,11 @@ fn apply_cleanup_frontmatter(
     report: &mut MigrationReport,
 ) -> Result<(), String> {
     for spec_file in &ctx.spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            &ctx.root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(_) => continue,
         };
@@ -717,7 +734,8 @@ fn apply_write_gitignore(
 fn check_update_root_gitignore(ctx: &MigrationContext) -> StepStatus {
     let gitignore = ctx.root.join(".gitignore");
     let entry = ".specsync/hashes.json";
-    match fs::read_to_string(&gitignore) {
+    match crate::util::read_project_string(&ctx.root, &gitignore, crate::util::MAX_STATE_FILE_BYTES)
+    {
         Ok(content) if content.lines().any(|l| l.trim() == entry) => StepStatus::Done,
         _ => StepStatus::Pending,
     }
@@ -743,7 +761,7 @@ fn check_scan_cross_project(ctx: &MigrationContext) -> StepStatus {
     } else {
         // Only needed if any specs have cross-project references
         let has_xrefs = ctx.spec_files.iter().any(|f| {
-            fs::read_to_string(f)
+            crate::util::read_project_string(&ctx.root, f, crate::util::MAX_SPEC_FILE_BYTES)
                 .map(|c| {
                     let normalized = c.replace("\r\n", "\n");
                     if let Some(parsed) = parser::parse_frontmatter(&normalized) {
@@ -778,7 +796,11 @@ fn apply_scan_cross_project(
     let mut refs: Vec<serde_json::Value> = Vec::new();
 
     for spec_file in &ctx.spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            &ctx.root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(_) => continue,
         };
@@ -846,7 +868,11 @@ fn apply_scan_cross_project(
 fn check_stamp_version(ctx: &MigrationContext) -> StepStatus {
     let version_file = ctx.root.join(".specsync/version");
     if version_file.exists()
-        && let Ok(v) = fs::read_to_string(&version_file)
+        && let Ok(v) = crate::util::read_project_string(
+            &ctx.root,
+            &version_file,
+            crate::util::MAX_STATE_FILE_BYTES,
+        )
         && v.trim() == V4_VERSION
     {
         return StepStatus::Done;
@@ -880,12 +906,13 @@ fn apply_stamp_version(ctx: &MigrationContext, report: &mut MigrationReport) -> 
 /// (leftover) file anyway.
 /// Copy one project file to another through the project file functions (REQ-cmd-migrate-005).
 fn copy_project_file(root: &Path, from: &Path, to: &Path) -> std::io::Result<()> {
-    let contents = crate::util::read_project_file(root, from)?.ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("{} does not exist", from.display()),
-        )
-    })?;
+    let contents = crate::util::read_project_file(root, from, crate::util::MAX_SPEC_FILE_BYTES)?
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("{} does not exist", from.display()),
+            )
+        })?;
     crate::util::write_project_file(root, to, &contents)
 }
 
@@ -985,7 +1012,7 @@ fn preflight_config_parseable(root: &Path) -> Result<(), (String, String)> {
         .unwrap_or(&source)
         .display()
         .to_string();
-    let raw = fs::read_to_string(&source)
+    let raw = crate::util::read_project_string(root, &source, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|e| (name.clone(), format!("cannot read file: {e}")))?;
     // Same parse `load_json_config` uses (including its leading-BOM tolerance), so a
     // BOM-prefixed JSON config that loads fine is not spuriously refused here; on
@@ -1156,7 +1183,8 @@ pub fn cmd_migrate(
     // Pre-flight: check if already migrated
     let version_file = root.join(".specsync/version");
     if version_file.exists()
-        && let Ok(v) = fs::read_to_string(&version_file)
+        && let Ok(v) =
+            crate::util::read_project_string(root, &version_file, crate::util::MAX_STATE_FILE_BYTES)
         && v.trim() == V4_VERSION
     {
         match format {
@@ -1529,12 +1557,12 @@ fn discover_specs(root: &Path) -> Vec<PathBuf> {
     // `read_config_file` strips a leading BOM so a BOM-prefixed config does not
     // silently lose its `specsDir`/`specs_dir` (which would drop specs in a custom
     // dir from the migration entirely).
-    let specs_dir_name = crate::config::read_config_file(&root.join("specsync.json"))
-        .or_else(|| crate::config::read_config_file(&root.join(".specsync/config.json")))
+    let specs_dir_name = crate::config::read_config_file(root, &root.join("specsync.json"))
+        .or_else(|| crate::config::read_config_file(root, &root.join(".specsync/config.json")))
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|v| v.get("specsDir").and_then(|s| s.as_str()).map(String::from))
         .or_else(|| {
-            crate::config::read_config_file(&root.join(".specsync.toml"))
+            crate::config::read_config_file(root, &root.join(".specsync.toml"))
                 .and_then(|content| parse_specs_dir_from_toml(&content))
         })
         .unwrap_or_else(|| "specs".to_string());

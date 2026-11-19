@@ -43,11 +43,14 @@ pub fn merge_specs(
         let spec_files = find_spec_files(specs_dir);
         spec_files
             .into_iter()
-            .filter(|path| match fs::read_to_string(path) {
-                Ok(content) => has_conflict_markers(&content),
-                // Keep unreadable candidates so the main loop emits an explicit
-                // Manual result instead of silently dropping them.
-                Err(_) => true,
+            .filter(|path| {
+                match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES)
+                {
+                    Ok(content) => has_conflict_markers(&content),
+                    // Keep unreadable candidates so the main loop emits an explicit
+                    // Manual result instead of silently dropping them.
+                    Err(_) => true,
+                }
             })
             .collect::<Vec<_>>()
     } else {
@@ -74,7 +77,11 @@ pub fn merge_specs(
     let mut results = Vec::new();
 
     for spec_path in &conflicted {
-        let content = match fs::read_to_string(spec_path) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(e) => {
                 results.push(MergeResult {

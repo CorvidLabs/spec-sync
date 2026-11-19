@@ -1278,7 +1278,7 @@ where
     }
 
     if let Some(directory) = &config.schema_dir {
-        for error in schema::schema_read_errors(&root.join(directory)) {
+        for error in schema::schema_read_errors(root, &root.join(directory)) {
             all_errors.push_unattributed(error);
         }
     }

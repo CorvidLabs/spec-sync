@@ -6,6 +6,7 @@ spec: util.spec.md
 
 - [x] Document shared utility helpers in a dedicated spec
 - [x] Project file functions: read, write, create and remove beneath the project root without leaving it through a link (REQ-util-002). Evidence: the five `project_file_functions_*` tests.
+- [x] Read project files only through the bounded project read of `util` (REQ-util-003). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

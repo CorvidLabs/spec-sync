@@ -103,6 +103,7 @@ No global ignore list or manifest-driven expansion of stated roots is introduced
   file lacks checked Cargo target authority; preserve directory-only fallback and
   extension/test/pattern exclusions without admitting arbitrary exact files.
 - [x] Add valid/malformed/missing, explicit-directory, alias, filter, symlink,
+- [x] Read project files only through the bounded project read of `util` (REQ-validator-049). Evidence: `tests/integration/project_reads.rs`.
   escape and special-file controls beside the retained identity/budget regressions.
 - [ ] Qualify the final whole product tree, independently review it and complete
   genuine native lifecycle/hosted/release evidence; earlier 5f0c9c6 gates are historical.

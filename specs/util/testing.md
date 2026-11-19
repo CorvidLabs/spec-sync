@@ -41,3 +41,11 @@ Every fixture is one temporary directory with the project and an `outside` direc
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/util.rs`: `project_file_functions_refuse_a_link_that_leaves_the_project`, `project_file_functions_refuse_a_dangling_link_and_a_chain_that_leaves`, `project_file_functions_follow_a_link_that_stays_inside_the_project`, `project_file_functions_refuse_a_directory_that_leaves_and_a_path_outside`, `project_file_functions_create_replace_read_and_remove_plain_files` |
+
+## Bounded reads (REQ-util-003)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `src/util.rs`: `project_file_reads_refuse_what_they_must_not_read`, `project_file_reads_hold_the_bound`, `project_file_reads_follow_inside_links_and_keep_the_std_contracts`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

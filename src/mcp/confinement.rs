@@ -646,7 +646,7 @@ fn config_requires_source_autodetection(root: &Path) -> bool {
     let Some(config_path) = selected_config_path(root) else {
         return true;
     };
-    let Some(content) = crate::config::read_config_file(&config_path) else {
+    let Some(content) = crate::config::read_config_file(root, &config_path) else {
         return false;
     };
     if config_path

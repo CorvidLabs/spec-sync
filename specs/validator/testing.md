@@ -131,3 +131,11 @@ An inconclusive JSON result has `passed: false` and no usable partial percentage
 this repair intentionally preserves Cargo-only admission rather than pretending
 that unverified files were measured. Full final-tree qualification is separate
 from these focused controls.
+
+## Bounded reads (REQ-validator-049)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `check_does_not_read_requirements_linked_outside_the_project`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

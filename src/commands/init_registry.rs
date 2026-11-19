@@ -93,7 +93,7 @@ fn execute_init_registry(
     }
 
     if let Some(config_path) = existing_config_path(root)
-        && let Err(error) = validate_config_file(&config_path)
+        && let Err(error) = validate_config_file(root, &config_path)
     {
         return Err(InitRegistryReport::failure(rel_display, error));
     }

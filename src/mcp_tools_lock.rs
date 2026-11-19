@@ -9,6 +9,7 @@ use crate::mcp;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -62,8 +63,8 @@ pub fn cmd_diff(root: &Path, allow_write: bool) -> Result<(), String> {
             path.display()
         ));
     }
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
+        .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
     let locked: Value = serde_json::from_str(&content).map_err(|e| {
         format!(
             "Invalid MCP tools lock JSON at {}: {e}\n\

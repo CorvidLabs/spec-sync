@@ -87,7 +87,7 @@ pub fn closed_late_record(
 ) -> Option<(PathBuf, Result<LateCloseRecord, String>)> {
     let package = closed_late_package(root, id)?;
     let path = package.join(LATE_CLOSE_RECORD);
-    let record = fs::read_to_string(&path)
+    let record = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", path.display()))
         .and_then(|content| {
             serde_json::from_str(&content)
@@ -694,7 +694,7 @@ fn unreadable_archive_records(root: &Path) -> Vec<(PathBuf, String)> {
         .map(|entry| entry.path())
         .filter(|path| path.join("state.json").is_file())
         .filter_map(|path| {
-            let error = match fs::read(path.join("state.json")) {
+            let error = match crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES) {
                 Err(error) => error.to_string(),
                 Ok(content) => serde_json::from_slice::<ChangeRecord>(&content).err()?.to_string(),
             };
@@ -715,7 +715,7 @@ fn archived_records(root: &Path) -> Vec<ChangeRecord> {
         .flatten()
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
-        .filter_map(|path| serde_json::from_slice(&fs::read(path.join("state.json")).ok()?).ok())
+        .filter_map(|path| serde_json::from_slice(&crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES).ok()?).ok())
         .collect()
 }
 
@@ -731,7 +731,7 @@ fn archived_accepted_packages(root: &Path) -> Vec<(PathBuf, ChangeRecord)> {
         .filter(|path| path.is_dir())
         .filter_map(|path| {
             let record: ChangeRecord =
-                serde_json::from_slice(&fs::read(path.join("state.json")).ok()?).ok()?;
+                serde_json::from_slice(&crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES).ok()?).ok()?;
             (record.state == ChangeState::Accepted).then_some((path, record))
         })
         .collect();
@@ -798,7 +798,7 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
         }
     };
     let state_path = source.join("state.json");
-    let record: ChangeRecord = fs::read(&state_path)
+    let record: ChangeRecord = crate::util::read_project_bytes(root, &state_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", state_path.display()))
         .and_then(|content| {
             serde_json::from_slice(&content)
@@ -909,7 +909,7 @@ fn archived_package_for(root: &Path, id: &str) -> Option<PathBuf> {
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
         .find(|path| {
-            fs::read(path.join("state.json"))
+            crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
                 .ok()
                 .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
                 .is_some_and(|record| record.id == id)
@@ -964,7 +964,7 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     }
     let ledger_path = root.join(SEQUENCE_PATH);
     let original_ledger = if ledger_changed {
-        Some(fs::read(&ledger_path).map_err(|error| {
+        Some(crate::util::read_project_bytes(root, &ledger_path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| {
             format!("failed to read {}: {error}", ledger_path.display())
         })?)
     } else {
@@ -983,7 +983,7 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
             write_json(&plan.destination.join(LATE_CLOSE_RECORD), &plan.record)?;
         }
         if ledger_changed && let Some(ledger) = &ledger {
-            write_json_keeping_unknown_members(&ledger_path, ledger)?;
+            write_json_keeping_unknown_members(root, &ledger_path, ledger)?;
         }
         Ok(())
     };

@@ -20,6 +20,7 @@ spec: schema.spec.md
 - [x] String literal and comment handling in paren matching
 - [x] Table-level constraint skipping (PRIMARY KEY, UNIQUE, CHECK, FOREIGN KEY, CONSTRAINT)
 - [x] SQL keyword filtering for column names
+- [x] Read project files only through the bounded project read of `util` (REQ-schema-002). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

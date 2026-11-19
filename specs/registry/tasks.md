@@ -24,6 +24,7 @@ spec: registry.spec.md
 - [x] Cross-repo content verification: `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`
 - [x] Tolerate inert 5.0.1 registry.toml stubs via `load_local_registry`
 - [x] `register_module` goes through `util`'s project file functions and reports a refused registry as an error (REQ-registry-003). Evidence: `register_module_refuses_a_registry_linked_outside_the_project`, `register_module_appends_once_to_a_regular_registry`.
+- [x] Read project files only through the bounded project read of `util` (REQ-registry-004). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

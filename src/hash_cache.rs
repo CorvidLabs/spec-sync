@@ -14,6 +14,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const CACHE_DIR: &str = ".specsync";
 /// Name of the hash cache file inside the cache directory.
 const CACHE_FILE: &str = "hashes.json";
+/// The largest cache read or kept: the project input bound (REQ-hash-cache-008). A larger
+/// `hashes.json` is refused like a link, so it is neither read whole nor saved over.
+const MAX_CACHE_BYTES: u64 = crate::util::MAX_PROJECT_INPUT_BYTES;
 /// On-disk cache schema. Unknown versions are discarded conservatively.
 const CACHE_FORMAT_VERSION: u32 = 1;
 /// Per-spec validation snapshot schema.
@@ -111,12 +114,18 @@ impl HashCache {
             .read(true)
             ._cap_fs_ext_nonblock(true)
             ._cap_fs_ext_follow(FollowSymlinks::No);
-        let mut file = directory.open_with(CACHE_FILE, &options).ok()?;
-        if !file.metadata().ok()?.is_file() {
+        let file = directory.open_with(CACHE_FILE, &options).ok()?;
+        let metadata = file.metadata().ok()?;
+        if !metadata.is_file() || metadata.len() > MAX_CACHE_BYTES {
             return None;
         }
         let mut contents = String::new();
-        file.read_to_string(&mut contents).ok()?;
+        let mut bounded = file.take(MAX_CACHE_BYTES + 1);
+        // not a project file read: the strict cache handle above, bounded here (REQ-hash-cache-008)
+        bounded.read_to_string(&mut contents).ok()?;
+        if contents.len() as u64 > MAX_CACHE_BYTES {
+            return None;
+        }
         serde_json::from_str::<Self>(&contents)
             .ok()
             .filter(|cache| cache.format_version == CACHE_FORMAT_VERSION)
@@ -171,20 +180,13 @@ impl HashCache {
     }
 
     /// Compute the SHA-256 hex digest of a file's contents.
-    /// Returns `None` if the file cannot be read.
-    pub fn hash_file(path: &Path) -> Option<String> {
-        use std::io::Read;
-        let mut file = fs::File::open(path).ok()?;
-        let mut hasher = Sha256::new();
-        let mut buf = [0u8; 8192];
-        loop {
-            let n = file.read(&mut buf).ok()?;
-            if n == 0 {
-                break;
-            }
-            hasher.update(&buf[..n]);
-        }
-        Some(format!("{:x}", hasher.finalize()))
+    /// Returns `None` if the file cannot be read: missing, a link out of the project, not a
+    /// regular file, or larger than 8 MiB (REQ-hash-cache-008). The cache treats that as
+    /// changed, which only ever causes more validation.
+    pub fn hash_file(root: &Path, path: &Path) -> Option<String> {
+        let content =
+            crate::util::read_project_bytes(root, path, crate::util::MAX_SOURCE_FILE_BYTES).ok()?;
+        Some(format!("{:x}", Sha256::digest(&content)))
     }
 
     /// Check whether a file has changed since the last cached hash.
@@ -196,7 +198,7 @@ impl HashCache {
     }
 
     pub fn is_changed(&self, root: &Path, rel_path: &str) -> bool {
-        let current = match Self::hash_file(&root.join(rel_path)) {
+        let current = match Self::hash_file(root, &root.join(rel_path)) {
             Some(h) => h,
             None => return true, // unreadable → treat as changed
         };
@@ -208,7 +210,7 @@ impl HashCache {
 
     /// Update the stored hash for a file (computes fresh hash from disk).
     pub fn update(&mut self, root: &Path, rel_path: &str) {
-        if let Some(hash) = Self::hash_file(&root.join(rel_path)) {
+        if let Some(hash) = Self::hash_file(root, &root.join(rel_path)) {
             self.hashes.insert(rel_path.to_string(), hash);
         }
     }
@@ -387,7 +389,9 @@ fn validation_input_digest_for_build(
             companion.strip_prefix(root).unwrap_or(companion),
         ));
     }
-    if let Ok(content) = fs::read_to_string(spec_path) {
+    if let Ok(content) =
+        crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES)
+    {
         input_paths.extend(extract_frontmatter_files(&content));
     }
     // `check` validates the spec's history fragments (REQ-validator-048), so the verdict binds
@@ -406,7 +410,7 @@ fn validation_input_digest_for_build(
 
     for input in input_paths {
         update_digest(&mut hasher, "input_path", &input);
-        let state = HashCache::hash_file(&root.join(&input))
+        let state = HashCache::hash_file(root, &root.join(&input))
             .map(|hash| format!("sha256:{hash}"))
             .unwrap_or_else(|| "missing-or-unreadable".to_string());
         update_digest(&mut hasher, "input_state", &state);
@@ -474,6 +478,14 @@ fn open_cache_directory(root: &Path, create: bool) -> io::Result<Option<Dir>> {
 /// name, a symbolic link first of all, is refused.
 fn cache_file_exists(directory: &Dir) -> io::Result<bool> {
     match directory.symlink_metadata(CACHE_FILE) {
+        Ok(metadata) if metadata.is_file() && metadata.len() > MAX_CACHE_BYTES => {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                RefusedCacheLocation(format!(
+                    "{CACHE_DIR}/{CACHE_FILE} is larger than {MAX_CACHE_BYTES} bytes"
+                )),
+            ))
+        }
         Ok(metadata) if metadata.is_file() => Ok(true),
         Ok(metadata) => Err(refused_cache_location(
             &format!("{CACHE_DIR}/{CACHE_FILE}"),
@@ -640,7 +652,9 @@ pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> Cha
     }
 
     // Check source files listed in frontmatter
-    if let Ok(content) = fs::read_to_string(spec_path) {
+    if let Ok(content) =
+        crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES)
+    {
         for source_file in extract_frontmatter_files(&content) {
             if cache.is_changed(root, &source_file) {
                 changes.push(ChangeKind::Source);
@@ -698,7 +712,9 @@ pub fn update_cache(root: &Path, spec_files: &[PathBuf], cache: &mut HashCache) 
         }
 
         // Update source files from frontmatter
-        if let Ok(content) = fs::read_to_string(spec_path) {
+        if let Ok(content) =
+            crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
             for source_file in extract_frontmatter_files(&content) {
                 cache.update(root, &source_file);
             }
@@ -1158,7 +1174,7 @@ mod tests {
         input_paths.extend(global_inputs.iter().cloned());
         for input in input_paths {
             update_digest(&mut hasher, "input_path", &input);
-            let state = HashCache::hash_file(&root.join(&input))
+            let state = HashCache::hash_file(root, &root.join(&input))
                 .map(|hash| format!("sha256:{hash}"))
                 .unwrap_or_else(|| "missing-or-unreadable".to_string());
             update_digest(&mut hasher, "input_state", &state);

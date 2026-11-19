@@ -26,6 +26,7 @@ spec: hooks.spec.md
 - [x] All-targets default when no flags specified
 - [x] Write hook files without en or em dashes; read the 6.1.1 begin sentinel through `is_hook_begin` (REQ-hooks-005, #827)
 - [x] Write every hook file through `util`'s project file functions, so a committed link cannot take `install` or `uninstall` outside the project (REQ-hooks-006). Evidence: `tests/integration/project_links.rs` `hooks_*`.
+- [x] Read project files only through the bounded project read of `util` (REQ-hooks-007). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

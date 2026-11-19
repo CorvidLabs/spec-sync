@@ -25,6 +25,7 @@ spec: cmd_check.spec.md
 - [x] Remove embedded regeneration so `--fix` is deterministic and local
 - [x] Warn once and run with no cache when the hash cache location is a symbolic link or not a regular file (REQ-cmd-check-018). Evidence: `check_never_writes_the_hash_cache_through_a_link`.
 - [x] Fail closed on malformed Gradle coverage discovery and preserve structured JSON failure output — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-check-019). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

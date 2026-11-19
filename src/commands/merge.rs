@@ -100,7 +100,21 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
         ));
     }
     let attributes_path = root.join(".gitattributes");
-    let previous_attributes = match fs::read(&attributes_path) {
+    // The write below refuses a linked `.gitattributes`; refuse it here too, before the read, so
+    // the refusal reads the same whichever step meets it first.
+    if fs::symlink_metadata(&attributes_path)
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err(
+            "refusing to update symlinked .gitattributes; add the merge=specsync rules manually"
+                .to_string(),
+        );
+    }
+    let previous_attributes = match crate::util::read_project_bytes(
+        root,
+        &attributes_path,
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) {
         Ok(bytes) => Some(bytes),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
@@ -225,11 +239,12 @@ fn write_attribute_lines(root: &Path, lines: &[String]) -> Result<(), String> {
                 .into(),
         );
     }
-    let mut content = match fs::read_to_string(&path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
-    };
+    let mut content =
+        match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
+        };
     let mut changed = false;
     if !content.is_empty() && !content.ends_with('\n') {
         content.push('\n');
@@ -284,6 +299,7 @@ fn git_config(root: &Path, key: &str, value: &str) -> Result<(), String> {
 /// so the unmerged path still shows both sides.
 pub fn cmd_merge_file(ancestor: &Path, current: &Path, other: &Path, pathname: Option<&str>) {
     let read = |path: &Path, label: &str| -> Result<String, String> {
+        // not a project file read: a file Git hands the merge driver, not a project file
         fs::read_to_string(path)
             .map_err(|error| format!("cannot read merge {label} {}: {error}", path.display()))
     };

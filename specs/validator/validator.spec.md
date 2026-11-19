@@ -134,6 +134,7 @@ links and special files retain their existing fatal safety checks. Explicit
 directory-only lists can still complete with a manifest notice when discovery
 degrades. This does not admit arbitrary configured files as exact Cargo targets.
 25. `specsync check` validates the history fragments beside every spec it validates (REQ-validator-048): each `history/` entry must be a regular `<change-id>.md` fragment with a matching `change:`, a calendar `date:` and a one-line summary, and no change may be recorded both by a fragment and by a Change Log row. Each violation is an error naming the file.
+26. Every read of a project file here, the requirements files and archived specs it reads for requirement IDs (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-validator-049).
 
 ## Behavioral Examples
 
@@ -247,6 +248,7 @@ degrades. This does not admit arbitrary configured files as exact Cargo targets.
 | Caller-selected coverage spec is outside the retained project, missing, linked/reparse-backed, special, replaced, invalid UTF-8, or over the shared coverage input bounds | Returns `Err`; ownership mappings are never obtained through the ambient spec pathname |
 | Valid checked coverage contains more sibling spec/source directories than the process descriptor limit | Children are reopened sequentially through retained parents; coverage completes with handles bounded by traversal depth |
 | Valid checked coverage configures more source roots than the process descriptor limit | Root identities are selected without retaining handles, then each root is reopened, identity-checked, traversed, and released sequentially |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

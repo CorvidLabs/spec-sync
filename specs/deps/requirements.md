@@ -62,3 +62,11 @@ Acceptance Criteria
 - Every imported package resolves to exactly one of: owned by a spec module, foreign to every namespace the project occupies, or inside the project's namespace but unattributed.
 - An unattributed import is recorded rather than dropped. When nothing is known about the project's packages, an unowned import is unattributed rather than foreign, so silence is never the default.
 - A package claimed by two modules is left unowned and disclosed rather than guessed.
+
+### REQ-deps-004
+
+`deps` SHALL read spec files and the source files it reads for imports only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+

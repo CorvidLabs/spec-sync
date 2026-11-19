@@ -93,7 +93,7 @@ fn execute_init(root: &Path, repair: bool) -> Result<InitReport, Box<InitReport>
         } else {
             (".specsync/config.json", v4_json)
         };
-        if let Err(error) = validate_config_file(&path) {
+        if let Err(error) = validate_config_file(root, &path) {
             return Err(Box::new(InitReport::failure(
                 error,
                 Some(existing.to_string()),
@@ -364,9 +364,13 @@ fn render_init_text(root: &Path, report: &InitReport) {
 }
 
 fn root_gitignore_has_hash_entry(root: &Path) -> bool {
-    fs::read(root.join(".gitignore"))
-        .ok()
-        .is_some_and(|content| gitignore_has_hash_entry(&content))
+    crate::util::read_project_bytes(
+        root,
+        &root.join(".gitignore"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    )
+    .ok()
+    .is_some_and(|content| gitignore_has_hash_entry(&content))
 }
 
 fn gitignore_has_hash_entry(content: &[u8]) -> bool {
@@ -469,7 +473,7 @@ fn repair_layout(
     existing_config: &str,
     config_path: &Path,
 ) -> Result<InitReport, String> {
-    validate_config_file(config_path)?;
+    validate_config_file(root, config_path)?;
     preflight_layout(root)?;
 
     let mut restored: Vec<String> = Vec::new();
@@ -641,8 +645,12 @@ pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
                 "Refusing to update .gitignore because it is not a regular file".to_string(),
             );
         }
-        Ok(_) => fs::read(&gitignore_path)
-            .map_err(|error| format!("Failed to read .gitignore: {error}"))?,
+        Ok(_) => crate::util::read_project_bytes(
+            root,
+            &gitignore_path,
+            crate::util::MAX_STATE_FILE_BYTES,
+        )
+        .map_err(|error| format!("Failed to read .gitignore: {error}"))?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("Failed to inspect .gitignore: {error}")),
     };
@@ -701,9 +709,8 @@ fn ensure_3md_linguist_attribute(root: &Path) -> Result<bool, String> {
                 "Refusing to update .gitattributes because it is not a regular file".to_string(),
             );
         }
-        Ok(_) => {
-            fs::read(&path).map_err(|error| format!("Failed to read .gitattributes: {error}"))?
-        }
+        Ok(_) => crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES)
+            .map_err(|error| format!("Failed to read .gitattributes: {error}"))?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("Failed to inspect .gitattributes: {error}")),
     };
@@ -768,7 +775,11 @@ fn print_legacy_policy_notice(root: &Path) {
     if root.join(".specsync/workflow-v2-baseline.json").is_file() {
         return;
     }
-    let Ok(text) = fs::read_to_string(root.join(".specsync/sdd.json")) else {
+    let Ok(text) = crate::util::read_project_string(
+        root,
+        &root.join(".specsync/sdd.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) else {
         return;
     };
     let Ok(policy) = serde_json::from_str::<serde_json::Value>(&text) else {

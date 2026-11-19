@@ -67,6 +67,7 @@ managed bytes from user customization.
 10. Generated create-spec and create-change assets preserve complete arguments using each tool's native placeholder and quote free-text interview answers as one CLI argument.
 11. Repository-owned native create-spec commands are exact installer outputs, strip supported flags before complete-input classification, and cannot silently drift from their shared templates.
 12. Generated artifacts and `.specsync/agent-artifacts.json` are inspected, written and removed through `util`'s project file functions. `install` reads the manifest and every artifact before it writes one, so a path that leaves the project through a symbolic link, is a dangling link, or is not a regular file fails the install with an error naming it before any write (REQ-agents-011).
+13. Every read of a project file here, `.specsync/agent-artifacts.json` (4 MiB) and the generated artifacts (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-agents-012).
 
 ## Behavioral Examples
 
@@ -114,6 +115,7 @@ managed bytes from user customization.
 | Cannot remove skill directory or command file | Returns `Err` with descriptive message |
 | Generated artifact was customized | Preserves every customized artifact and returns one actionable conflict report |
 | An artifact path, the manifest, or a directory on the way leaves the project through a symbolic link, is a dangling link, or is not a regular file | `install` and `uninstall` fail naming the path before writing or removing anything; nothing is created at a link's target |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

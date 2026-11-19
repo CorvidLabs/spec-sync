@@ -22,3 +22,4 @@ spec: generator.spec.md
 
 - [x] Implement the approved exact-file creation selection correction with confined no-follow metadata traversal, explicit mapping precedence and causal focused regressions. Full final-source and independent release qualification remain separate.
 - [x] Create spec and companion files through `util::create_project_file` (REQ-generator-010). Evidence: `companion_files_are_never_created_through_a_link_that_leaves_the_project`, `scaffold_refuses_a_dangling_companion_link_and_creates_the_others`.
+- [x] Read project files only through the bounded project read of `util` (REQ-generator-011). Evidence: `tests/integration/project_reads.rs`.

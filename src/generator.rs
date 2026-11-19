@@ -878,7 +878,9 @@ pub(crate) fn find_new_module_sources(
 fn owned_source_files(root: &Path, config: &SpecSyncConfig) -> std::collections::HashSet<String> {
     let mut owned = std::collections::HashSet::new();
     for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
-        let Ok(content) = fs::read_to_string(&spec) else {
+        let Ok(content) =
+            crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES)
+        else {
             continue;
         };
         let Some(parsed) = crate::parser::parse_frontmatter(&content.replace("\r\n", "\n")) else {
@@ -961,7 +963,8 @@ pub fn generate_spec(
     let template_path = specs_dir.join("_template.spec.md");
     let template = if template_path.exists() {
         // User-provided template takes priority
-        fs::read_to_string(&template_path).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
+        crate::util::read_project_string(root, &template_path, crate::util::MAX_SPEC_FILE_BYTES)
+            .unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
     } else {
         // Use language-specific template
         match detect_primary_language(source_files) {
@@ -1074,6 +1077,7 @@ pub fn collect_exports_for_files(
         }
         let full_path = root.join(&rel);
         all_exports.extend(crate::exports::get_exported_symbols_full(
+            root,
             &full_path,
             config.export_level,
             config.parse_mode,
@@ -1203,6 +1207,7 @@ pub fn generate_spec_from_custom_template(
 ) -> String {
     let template_file = template_dir.join("spec.md");
     let template = if template_file.exists() {
+        // not a project file read: a template in the directory the person names with --template
         fs::read_to_string(&template_file).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
     } else {
         // No custom spec template — use language-aware default
@@ -1285,6 +1290,7 @@ pub fn generate_companion_files_from_template(
     if !tasks_path.exists() {
         let template_file = template_dir.join("tasks.md");
         let content = if template_file.exists() {
+            // not a project file read: a template in the directory the person names with --template
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| TASKS_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
@@ -1298,6 +1304,7 @@ pub fn generate_companion_files_from_template(
     if !context_path.exists() {
         let template_file = template_dir.join("context.md");
         let content = if template_file.exists() {
+            // not a project file read: a template in the directory the person names with --template
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| CONTEXT_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
@@ -1311,6 +1318,7 @@ pub fn generate_companion_files_from_template(
     if !requirements_path.exists() {
         let template_file = template_dir.join("requirements.md");
         let content = if template_file.exists() {
+            // not a project file read: a template in the directory the person names with --template
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| REQUIREMENTS_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
@@ -1324,6 +1332,7 @@ pub fn generate_companion_files_from_template(
     if !testing_path.exists() {
         let template_file = template_dir.join("testing.md");
         let content = if template_file.exists() {
+            // not a project file read: a template in the directory the person names with --template
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| TESTING_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
@@ -1339,6 +1348,7 @@ pub fn generate_companion_files_from_template(
         if !design_path.exists() {
             let template_file = template_dir.join("design.md");
             let content = if template_file.exists() {
+                // not a project file read: a template in the directory the person names with --template
                 fs::read_to_string(&template_file)
                     .unwrap_or_else(|_| DESIGN_TEMPLATE.to_string())
                     .replace("{module}.spec.md", &module_spec_filename(module_name))
@@ -1420,7 +1430,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             )
         })?;
 
-        let template = retained_generation_template(project, &specs_relative, &module_files);
+        let template = retained_generation_template(root, project, &specs_relative, &module_files);
         let spec_content = render_spec_template(module_name, &module_files, root, template, config);
         match write_new_retained_file(project, &spec_relative, spec_content.as_bytes()) {
             Ok(true) => {
@@ -1719,16 +1729,21 @@ fn named_module_files_from_coverage(
 }
 
 fn retained_generation_template(
+    root: &Path,
     project: &Dir,
     specs_relative: &Path,
     source_files: &[String],
 ) -> String {
-    project
-        .read_to_string(specs_relative.join("_template.spec.md"))
-        .unwrap_or_else(|_| match detect_primary_language(source_files) {
-            Some(language) => language_template(language).to_string(),
-            None => DEFAULT_TEMPLATE.to_string(),
-        })
+    let _ = project;
+    crate::util::read_project_string(
+        root,
+        &root.join(specs_relative).join("_template.spec.md"),
+        crate::util::MAX_SPEC_FILE_BYTES,
+    )
+    .unwrap_or_else(|_| match detect_primary_language(source_files) {
+        Some(language) => language_template(language).to_string(),
+        None => DEFAULT_TEMPLATE.to_string(),
+    })
 }
 
 fn write_new_retained_file(project: &Dir, relative: &Path, content: &[u8]) -> io::Result<bool> {

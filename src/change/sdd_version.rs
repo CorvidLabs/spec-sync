@@ -703,7 +703,7 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     if !journal_path.exists() {
         return Ok(());
     }
-    let content = fs::read_to_string(&journal_path)
+    let content = crate::util::read_project_string(root, &journal_path, crate::util::MAX_PROJECT_INPUT_BYTES)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
     let journal: TransactionJournalRead = serde_json::from_str(&content)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
@@ -1902,7 +1902,7 @@ fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?;
     let policy: SddPolicy = serde_json::from_str(&content)
         .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
@@ -2082,7 +2082,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
 
 pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let path = find_change_dir(root, id)?.join("state.json");
-    let content = match fs::read_to_string(&path) {
+    let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(format!(
@@ -2211,7 +2211,7 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         // directory that holds a file but no `state.json` is damaged and still
         // open: report it and keep enumerating. Every other read error is still
         // reported, so an unreadable state.json is never mistaken for an absent one.
-        let content = match fs::read_to_string(&path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 if is_untrackable_husk(&entry.path()) {
@@ -2311,7 +2311,7 @@ fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedge
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read change sequence ledger: {error}"))?;
     let ledger: ChangeSequenceLedger = serde_json::from_str(&content)
         .map_err(|error| format!("invalid change sequence ledger: {error}"))?;
@@ -2428,7 +2428,7 @@ pub fn floor_sequence_ledger_to_committed(root: &Path) -> Result<Option<(u64, u6
         }
     }
     collisions.sort_by_key(|collision| collision.sequence);
-    write_json_keeping_unknown_members(
+    write_json_keeping_unknown_members(root, 
         &root.join(SEQUENCE_PATH),
         &ChangeSequenceLedger {
             schema_version: 1,
@@ -2466,7 +2466,7 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 continue;
             }
             let state_path = entry.path().join("state.json");
-            let content = match fs::read_to_string(&state_path) {
+            let content = match crate::util::read_project_string(root, &state_path, crate::util::MAX_STATE_FILE_BYTES) {
                 Ok(content) => content,
                 Err(error)
                     if archived
@@ -3580,9 +3580,9 @@ fn materialize_change_deltas_inner(
     record.state = ChangeState::Implementing;
     record.updated_at = now();
     let state_path = change_dir(root, &record.id).join("state.json");
-    let state = json_content_keeping_unknown_members(
+    let state = json_content_keeping_unknown_members(root, 
         &state_path,
-        relay_gated_record(&change_dir(root, &record.id), &record).as_ref(),
+        relay_gated_record(root, &change_dir(root, &record.id), &record).as_ref(),
     )?;
     prepared.push((state_path, state));
     prepared.push((
@@ -3958,7 +3958,7 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         // A spec that declares this module somewhere else is moved or registered, never
         // duplicated by a scaffold at the canonical path.
         if let Some(elsewhere) = spec_files.iter().find(|spec| {
-            fs::read_to_string(spec)
+            crate::util::read_project_string(root, spec, crate::util::MAX_SPEC_FILE_BYTES)
                 .ok()
                 .and_then(|content| crate::parser::parse_frontmatter(&content))
                 .and_then(|parsed| parsed.frontmatter.module)
@@ -4116,7 +4116,7 @@ fn scoped_spec_files(
         if selected.contains_key(&spec) {
             continue;
         }
-        let Ok(content) = fs::read_to_string(&spec) else {
+        let Ok(content) = crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");
@@ -4212,7 +4212,7 @@ fn evaluate_spec_code_sync(
     for spec in &scope.files {
         let result =
             crate::validator::validate_spec(spec, root, &schema_tables, &schema_columns, &config);
-        let inline_ignores = fs::read_to_string(spec)
+        let inline_ignores = crate::util::read_project_string(root, spec, crate::util::MAX_SPEC_FILE_BYTES)
             .map(|content| crate::ignore::IgnoreRules::parse_inline(&content))
             .unwrap_or_default();
         errors += result.errors.len();
@@ -4294,7 +4294,7 @@ fn verification_commands_for_change(
 
 fn load_verification_routing(root: &Path) -> Result<VerificationRouting, String> {
     let path = root.join(POLICY_PATH);
-    let content = match fs::read_to_string(&path) {
+    let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(VerificationRouting::default());
@@ -4549,16 +4549,16 @@ fn reopen_unarchived_change(
         &[
             {
                 let path = change_dir(root, &record.id).join("approvals.json");
-                let content = json_content_keeping_unknown_members(&path, &ledger)?;
+                let content = json_content_keeping_unknown_members(root, &path, &ledger)?;
                 (path, content)
             },
             {
                 let workspace = change_dir(root, &record.id);
                 let path = workspace.join("state.json");
                 // A reopened change that holds a relay stays gated (REQ-change-158).
-                let content = json_content_keeping_unknown_members(
+                let content = json_content_keeping_unknown_members(root, 
                     &path,
-                    relay_gated_record(&workspace, &record).as_ref(),
+                    relay_gated_record(root, &workspace, &record).as_ref(),
                 )?;
                 (path, content)
             },
@@ -4603,7 +4603,7 @@ pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackf
     };
     for workspace in change_workspaces_for_backfill(root)? {
         let approvals_path = workspace.join("approvals.json");
-        let Ok(content) = fs::read_to_string(&approvals_path) else {
+        let Ok(content) = crate::util::read_project_string(root, &approvals_path, crate::util::MAX_STATE_FILE_BYTES) else {
             continue;
         };
         let id = workspace
@@ -4690,7 +4690,7 @@ fn backfill_change_ledger(
             .get("timestamp")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or_default();
-        let current = match superseding_acceptance_digest(workspace, reopen_timestamp)? {
+        let current = match superseding_acceptance_digest(root, workspace, reopen_timestamp)? {
             Some(digest) => digest,
             None => match live_acceptance_digest(root, workspace) {
                 Ok(digest) => digest,
@@ -4732,11 +4732,12 @@ fn backfill_change_ledger(
 /// Returns the signed acceptance-input digest of the change's current verification record when
 /// it supersedes the reopening (recorded after it), matching the rollout-proven repair.
 fn superseding_acceptance_digest(
+    root: &Path,
     workspace: &Path,
     reopen_timestamp: u64,
 ) -> Result<Option<String>, String> {
     let verification_path = workspace.join("verification.json");
-    let Ok(content) = fs::read_to_string(&verification_path) else {
+    let Ok(content) = crate::util::read_project_string(root, &verification_path, crate::util::MAX_STATE_FILE_BYTES) else {
         return Ok(None);
     };
     let verification: serde_json::Value = serde_json::from_str(&content)
@@ -4758,7 +4759,7 @@ fn superseding_acceptance_digest(
 /// using the same manifest-aware path as the 5.1 reopen flow.
 fn live_acceptance_digest(root: &Path, workspace: &Path) -> Result<String, String> {
     let state: ChangeRecord = serde_json::from_str(
-        &fs::read_to_string(workspace.join("state.json"))
+        &crate::util::read_project_string(root, &workspace.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|error| format!("failed to read change state: {error}"))?,
     )
     .map_err(|error| format!("change state is not valid: {error}"))?;
@@ -5146,7 +5147,7 @@ pub fn add_acceptance_owner_corrections(
     write_prepared_files(
         root,
         &[
-            (json_content_keeping_unknown_members(&dir.join("state.json"), relay_gated_record(&dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
+            (json_content_keeping_unknown_members(root, &dir.join("state.json"), relay_gated_record(root, &dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
             (dir.join("change.md"), change_markdown_content(&record)),
         ],
     )?;
@@ -5973,7 +5974,7 @@ impl SpecListingIndex {
                 {
                     continue;
                 }
-                let Some(parsed) = fs::read_to_string(&entry_path)
+                let Some(parsed) = crate::util::read_project_string(root, &entry_path, crate::util::MAX_SPEC_FILE_BYTES)
                     .ok()
                     .and_then(|content| crate::parser::parse_frontmatter(&content))
                 else {
@@ -6004,7 +6005,7 @@ impl SpecListingIndex {
                 if specs.iter().any(|(spec, _, _)| spec == &portable) {
                     continue;
                 }
-                let Some(parsed) = fs::read_to_string(&spec_path)
+                let Some(parsed) = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES)
                     .ok()
                     .and_then(|content| crate::parser::parse_frontmatter(&content))
                 else {
@@ -6058,7 +6059,7 @@ fn closest_declared_spec_hint(
         let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module) else {
             continue;
         };
-        let depth = fs::read_to_string(&spec_path)
+        let depth = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES)
             .ok()
             .and_then(|content| crate::parser::parse_frontmatter(&content))
             .map(|parsed| {

@@ -50,3 +50,11 @@ Every fixture is one temporary directory with the project and an `outside` direc
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `agents_install_refuses_a_dangling_artifact_link_before_writing_anything`, `agents_install_refuses_a_manifest_linked_outside_the_project`, `agents_install_creates_nothing_in_a_directory_linked_outside_the_project` |
+
+## Bounded reads (REQ-agents-012)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `agents_install_does_not_wait_on_a_manifest_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

@@ -392,28 +392,28 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
         HookTarget::Claude => {
             let path = root.join("CLAUDE.md");
             path.exists()
-                && fs::read_to_string(&path)
+                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                     .map(|c| c.contains("Spec-Sync Integration"))
                     .unwrap_or(false)
         }
         HookTarget::Cursor => {
             let path = root.join(".cursorrules");
             path.exists()
-                && fs::read_to_string(&path)
+                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                     .map(|c| c.contains("Spec-Sync Rules"))
                     .unwrap_or(false)
         }
         HookTarget::Copilot => {
             let path = root.join(".github").join("copilot-instructions.md");
             path.exists()
-                && fs::read_to_string(&path)
+                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                     .map(|c| c.contains("Spec-Sync Integration"))
                     .unwrap_or(false)
         }
         HookTarget::Agents => {
             let path = root.join("AGENTS.md");
             path.exists()
-                && fs::read_to_string(&path)
+                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                     .map(|c| c.contains("Spec-Sync Integration"))
                     .unwrap_or(false)
         }
@@ -428,14 +428,14 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
             if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
                 return false;
             }
-            fs::read_to_string(path)
+            crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                 .map(|content| content.contains(&begin) && content.contains(&end))
                 .unwrap_or(false)
         }
         HookTarget::ClaudeCodeHook => {
             let path = root.join(".claude").join("settings.json");
             path.exists()
-                && fs::read_to_string(&path)
+                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                     .map(|c| c.contains(CLAUDE_CODE_HOOK_MARKER))
                     .unwrap_or(false)
         }
@@ -466,6 +466,13 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
             Err(_) => return Ok(false),
         };
         return uninstall_precommit(root, &hooks_dir.join("pre-commit"));
+    }
+    // A target that leaves the project through a link reads as not installed, because its read
+    // is refused. Uninstall must still fail on it, naming the path (REQ-hooks-006, REQ-hooks-007).
+    if let Some(reason) = uninstalled_file(root, target)
+        .and_then(|path| crate::util::project_path_refusal(root, &path))
+    {
+        return Err(reason);
     }
     if !is_installed(root, target) {
         return Ok(false);
@@ -539,7 +546,7 @@ fn wrap_snippet(snippet: &str) -> String {
 /// and a non-regular file are refused with an error naming the path, and a link that stays
 /// inside the project is followed (REQ-hooks-006).
 fn read_hook_target(root: &Path, path: &Path, label: &str) -> Result<Option<String>, String> {
-    match crate::util::read_project_file(root, path) {
+    match crate::util::read_project_file(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
         Ok(Some(bytes)) => String::from_utf8(bytes)
             .map(Some)
             .map_err(|e| format!("Failed to read {label}: {e}")),
@@ -624,6 +631,7 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
                 path.display()
             ));
         }
+        // not a project file read: the pre-commit hook lives in the repository's own Git hooks directory, which has its own guard
         let existing = fs::read_to_string(&path)
             .map_err(|e| format!("Failed to read pre-commit hook: {e}"))?;
         let has_begin = existing.contains(&begin);
@@ -679,6 +687,7 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
             path.display()
         ));
     }
+    // not a project file read: the pre-commit hook lives in the repository's own Git hooks directory, which has its own guard
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),

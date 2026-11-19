@@ -20,6 +20,7 @@ spec: commands.spec.md
 - [x] Preserve the public rendered `Vec<String>` validation API while retaining exact structured
   spec-path attribution privately, including legal paths containing `": "`
 - [x] Enforce portable module names, Windows reserved basenames, trailing-space/dot rejection, and
+- [x] Read project files only through the bounded project read of `util` (REQ-commands-014). Evidence: `tests/integration/project_reads.rs`.
   the generated spec filename byte limit with ASCII and multibyte boundary tests
 
 ## Gaps

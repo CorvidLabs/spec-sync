@@ -57,6 +57,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
     `warning: hash cache not used: <reason>` on stderr before anything can end the run, neither
     reads nor saves the cache, and keeps the stdout output, verdict and exit code of a run with no
     cache (REQ-cmd-check-018).
+14. Every read of a project file here, the spec files it reads again (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-check-019).
 
 ## Behavioral Examples
 
@@ -106,6 +107,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
 | `.specsync/hashes.json` or `.specsync` is a symbolic link, or not a regular file and a directory | One stderr warning naming the path; full validation with no cache; nothing is read or written through it; same stdout and exit code as with no cache |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation |
 | Malformed Gradle settings prevent coverage discovery | Emits an explicit inconclusive failure, preserves valid structured JSON in JSON mode, and exits 1 |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

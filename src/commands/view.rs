@@ -36,7 +36,7 @@ pub fn cmd_view(root: &Path, role: &str, spec_filter: Option<&str>) {
             continue;
         }
 
-        match view::view_spec(spec_path, role) {
+        match view::view_spec(root, spec_path, role) {
             Ok(output) => {
                 rendered += 1;
                 println!("{output}");

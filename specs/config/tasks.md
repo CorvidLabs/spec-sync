@@ -23,3 +23,4 @@ spec: config.spec.md
 - [x] Share config precedence and lexical source classification with retained CLI discovery
 - [x] Preserve explicit-source validation and malformed legacy config warning compatibility
 - [x] Parse, validate, and round-trip `owns` under `[modules."<name>"]` without making it a source mapping
+- [x] Read project files only through the bounded project read of `util` (REQ-config-016). Evidence: `tests/integration/project_reads.rs`.

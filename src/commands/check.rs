@@ -300,7 +300,7 @@ pub fn cmd_check(
     // change(s)" on the default path made history look like part of the product.
     // REQ-cmd-check-004: exit status derives solely from spec validation.
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
-    let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
+    let spec_files = filter_by_status(root, &spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
@@ -702,7 +702,11 @@ pub fn cmd_check(
         && history_missing.is_none()
     {
         for spec_file in &spec_files {
-            let content = match fs::read_to_string(spec_file) {
+            let content = match crate::util::read_project_string(
+                root,
+                spec_file,
+                crate::util::MAX_SPEC_FILE_BYTES,
+            ) {
                 Ok(c) => c.replace("\r\n", "\n"),
                 Err(_) => continue,
             };
@@ -1357,7 +1361,11 @@ fn auto_fix_specs(
     let sub_re = regex::Regex::new(r"(?m)^### ").unwrap();
 
     for spec_file in spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(error) => {
                 // `--fix` is a mutation request. A spec it could not even read
@@ -1418,6 +1426,7 @@ fn auto_fix_specs(
             }
             let full_path = root.join(file);
             all_exports.extend(get_exported_symbols_full(
+                root,
                 &full_path,
                 config.export_level,
                 config.parse_mode,
@@ -1467,6 +1476,7 @@ fn auto_fix_specs(
             }
             let full_path = root.join(file);
             type_names.extend(get_exported_symbols_full(
+                root,
                 &full_path,
                 types::ExportLevel::Type,
                 config.parse_mode,

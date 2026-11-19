@@ -66,3 +66,10 @@ Acceptance Criteria
 - A deleted cited file fails the guard regardless of the configured threshold, since it measures a single commit and would otherwise pass on any threshold above one.
 - The failure names the file and states that it is still cited by the spec.
 
+### REQ-cmd-lifecycle-005
+
+The `lifecycle` commands SHALL read spec files (8 MiB) and `.specsync/lifecycle/*.json` (4 MiB) only through the bounded project read of `util` (REQ-util-003), with a bound of the one named for each file. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+

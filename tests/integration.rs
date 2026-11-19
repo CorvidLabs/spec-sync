@@ -132,3 +132,7 @@ mod spec_history;
 #[cfg(unix)]
 #[path = "integration/project_links.rs"]
 mod project_links;
+
+#[cfg(unix)]
+#[path = "integration/project_reads.rs"]
+mod project_reads;

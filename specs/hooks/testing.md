@@ -54,3 +54,11 @@ Every fixture is one temporary directory with the project and an `outside` direc
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `hooks_install_refuses_a_target_linked_outside_the_project` (all five targets), `hooks_install_refuses_a_dangling_link_and_a_chain_that_leaves`, `hooks_install_creates_nothing_in_a_directory_linked_outside_the_project`, `hooks_install_writes_through_a_link_that_stays_inside_the_project`, `hooks_uninstall_refuses_a_target_linked_outside_the_project` |
+
+## Bounded reads (REQ-hooks-007)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `hooks_status_does_not_wait_on_a_hook_file_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

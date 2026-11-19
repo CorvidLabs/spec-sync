@@ -114,3 +114,4 @@ spec: change.spec.md
 - [x] Preserve exact unknown JSON values in approval/reopening succession prefixes and the first newly superseded approval: three committed intended REDs pass unchanged after the private-helper repair, with the five prior numeric and 22 related relay controls, formatting and production Clippy passing; keep initial fixture failures and prior archives separate.
 
 - [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).
+- [x] Read project files only through the bounded project read of `util` (REQ-change-161). Evidence: `tests/integration/project_reads.rs`.

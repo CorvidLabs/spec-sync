@@ -227,7 +227,7 @@ fn verification_ignored_protected_scopes(
         ));
     }
     for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
-        let Ok(content) = fs::read_to_string(&spec) else {
+        let Ok(content) = crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");

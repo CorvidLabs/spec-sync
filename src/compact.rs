@@ -85,7 +85,11 @@ fn compact_changelogs_with_failures(
 
     for spec_path in &spec_files {
         let rel_path = relative_display_path(root, spec_path);
-        let content = match fs::read_to_string(spec_path) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(error) => {
                 failures.push(CompactFailure {

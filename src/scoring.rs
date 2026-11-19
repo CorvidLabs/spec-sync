@@ -114,13 +114,14 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         explain: Vec::new(),
     };
 
-    let content = match fs::read_to_string(spec_path) {
-        Ok(c) => c.replace("\r\n", "\n"),
-        Err(_) => {
-            score.suggestions.push("Cannot read spec file".to_string());
-            return score;
-        }
-    };
+    let content =
+        match crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES) {
+            Ok(c) => c.replace("\r\n", "\n"),
+            Err(_) => {
+                score.suggestions.push("Cannot read spec file".to_string());
+                return score;
+            }
+        };
 
     let parsed = match parse_frontmatter(&content) {
         Some(p) => p,
@@ -341,6 +342,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             // `export_level = "type"`, check reported `2/2 exports documented`
             // while score deducted for members the contract never claimed (#474).
             match crate::exports::scan_exported_symbols_full(
+                root,
                 &full_path,
                 config.export_level,
                 config.parse_mode,

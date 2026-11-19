@@ -59,6 +59,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 - Explicit module mappings remain authoritative even when empty or missing. Distinct candidates are normalized and deduplicated before the exactly-one-file fallback. Inconclusive traversal produces no fallback.
 - `new` retains combined named-directory/flat matches; add-spec/scaffold retain named-directory precedence. Explicit `.` directory aliases keep their directory authority. Traversal is bounded to 100,000 entries and 256 components.
 - `create_spec_file` and the companion generators create files only through `util::create_project_file`. An existing companion is left as it is. A path that is a dangling link, or leaves the project through a link, is refused: as an error for a spec file, and on stderr for a companion, with the other companions still created (REQ-generator-010).
+- Every read of a project file here, spec files and the templates in the project (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-generator-011).
 
 ## Behavioral Examples
 
@@ -102,6 +103,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | No source files found for module | Skips module entirely |
 | Requested CLI root is replaced after coverage | Generation fails inconclusively and writes to neither the replacement nor an outside path |
 | A spec or companion path, or its directory, is a dangling link or leaves the project through a symbolic link | `create_spec_file` returns an error naming the path; a companion is skipped with an error on stderr and the others are created; nothing is created outside the project |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

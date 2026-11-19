@@ -80,7 +80,7 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
         // whose directory holds specs that are all archived is history, not living
         // contract, so the audit skips it too. A file with no spec beside it is
         // still checked.
-        if path.parent().is_some_and(only_archived_specs_in) {
+        if path.parent().is_some_and(|dir| only_archived_specs_in(root, dir)) {
             continue;
         }
         let relative = path
@@ -88,7 +88,7 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
             .unwrap_or(path)
             .to_string_lossy()
             .replace('\\', "/");
-        let text = match fs::read_to_string(path) {
+        let text = match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
             Ok(text) => text,
             Err(error) => {
                 errors.push(format!(
@@ -104,7 +104,7 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
 
 /// Whether `dir` holds at least one `*.spec.md` and every one of them parses
 /// with `status: archived`. A spec that cannot be read or parsed counts as live.
-fn only_archived_specs_in(dir: &Path) -> bool {
+fn only_archived_specs_in(root: &Path, dir: &Path) -> bool {
     let Ok(entries) = fs::read_dir(dir) else {
         return false;
     };
@@ -114,7 +114,7 @@ fn only_archived_specs_in(dir: &Path) -> bool {
         if !name.to_string_lossy().ends_with(".spec.md") {
             continue;
         }
-        let Ok(content) = fs::read_to_string(entry.path()) else {
+        let Ok(content) = crate::util::read_project_string(root, &entry.path(), crate::util::MAX_SPEC_FILE_BYTES) else {
             return false;
         };
         let archived = crate::parser::parse_frontmatter(&content).is_some_and(|parsed| {

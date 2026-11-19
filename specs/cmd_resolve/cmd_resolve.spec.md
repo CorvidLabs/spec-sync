@@ -40,6 +40,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 8. Remote spec content is cached with configurable TTL (default 1 hour)
 9. Cache stored in `.specsync-cache/remote-specs/` under project root
 10. The remote spec cache is never read or written through a symbolic link, inside the project or not: a cache never needs one, and the entry's file name comes from the repository's own `depends_on`. A cache file or directory that is a link, or not a regular file and a directory, skips the cache for that entry with one `warning: remote spec cache not used` on stderr per run, and the fetched content is used as with no cache (REQ-cmd-resolve-002).
+11. Every read of a project file here, local spec files and the remote spec cache (8 MiB; the cache still refuses any link), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-resolve-003).
 
 ## Behavioral Examples
 
@@ -98,6 +99,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 | Consumed export missing from remote | DRIFT error, exit 1 |
 | Non-bidirectional dependency | Warning only |
 | A cache entry, `.specsync-cache` or `remote-specs` is a symbolic link or not a regular file and a directory | The cache is skipped for that entry with one stderr warning naming the path; nothing is read or written through it; the fetched content is still used |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

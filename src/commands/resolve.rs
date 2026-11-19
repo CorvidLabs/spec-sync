@@ -109,7 +109,12 @@ impl SpecCache {
         if age > self.ttl {
             return None;
         }
-        let content = crate::util::read_project_file(&self.root, &cache_file).ok()??;
+        let content = crate::util::read_project_file(
+            &self.root,
+            &cache_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        )
+        .ok()??;
         String::from_utf8(content).ok()
     }
 
@@ -177,7 +182,11 @@ pub fn cmd_resolve(
     let local_repo = crate::github::detect_repo(root);
 
     for spec_file in &spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(_) => continue,
         };
@@ -671,7 +680,11 @@ fn verify_remote_specs(
 /// Expected table format: `| module | What is used |`
 fn find_consumed_exports(root: &Path, spec_path: &str, remote_module: &str) -> Vec<String> {
     let full_path = root.join(spec_path);
-    let content = match fs::read_to_string(&full_path) {
+    let content = match crate::util::read_project_string(
+        root,
+        &full_path,
+        crate::util::MAX_SPEC_FILE_BYTES,
+    ) {
         Ok(c) => c,
         Err(_) => return vec![],
     };

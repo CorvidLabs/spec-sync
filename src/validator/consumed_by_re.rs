@@ -86,7 +86,7 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
         None => return HashSet::new(),
     };
 
-    let snapshot = match schema::build_schema_snapshot(&schema_dir) {
+    let snapshot = match schema::build_schema_snapshot(root, &schema_dir) {
         Ok(snapshot) => snapshot,
         // The schema could not be replayed. Returning an empty set here would be read by
         // `add_missing_db_table_error` as "these tables do not exist", which is a different
@@ -109,7 +109,7 @@ fn schema_table_names_available(root: &Path, config: &SpecSyncConfig) -> bool {
     let Some(schema_dir) = config.schema_dir.as_ref().map(|dir| root.join(dir)) else {
         return false;
     };
-    let Ok(snapshot) = schema::build_schema_snapshot(&schema_dir) else {
+    let Ok(snapshot) = schema::build_schema_snapshot(root, &schema_dir) else {
         return false;
     };
     schema_table_names_from_snapshot(&snapshot, config).is_ok()
@@ -2623,7 +2623,7 @@ fn validate_spec_content_internal(
                 if !source_within_root(root, file) {
                     continue;
                 }
-                crate::exports::scan_exported_symbols_full(
+                crate::exports::scan_exported_symbols_full(root, 
                     &full_path,
                     config.export_level,
                     config.parse_mode,

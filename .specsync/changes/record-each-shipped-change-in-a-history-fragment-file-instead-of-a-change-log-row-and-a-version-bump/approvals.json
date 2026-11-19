@@ -1,0 +1,78 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795048708,
+      "digest": "90fa46185ff32dfd2ec6d4d7551c0c7da614875d143dd0afccbeceb9aacccf10",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump\": \"Leif's decision (2026-11-18): approved.\" (Written on spec-sync issue #1084 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue's three bullets). Relayed and recorded by claude-code-t4t at 2026-11-19T00:38:27Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump",
+        "title": "Record each shipped change in a history fragment file instead of a Change Log row and a version bump",
+        "description": "Record each shipped change in a history fragment file instead of a Change Log row and a version bump",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_change",
+          "hash_cache",
+          "validator"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "docs/HLD.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cli/",
+          "specs/cli_args/",
+          "specs/cmd_change/",
+          "specs/hash_cache/",
+          "specs/validator/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "src/commands/history.rs",
+          "src/hash_cache.rs",
+          "src/main.rs",
+          "src/validator/",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After change check materializes a change, each affected module has specs/<module>/history/<change-id>.md with the change id, date and title, and the spec's version: and Change Log are byte for byte unchanged; two changes to one module shipped on separate branches merge with plain git (no merge driver) without a conflict in that spec; specsync check refuses a malformed fragment and names it; specsync history <module> prints the frozen table rows unchanged followed by one row per fragment"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "MERGE-1 (no conflict on version: or the change-log row), MERGE-4 (no looser gates), the #741 lesson that the record of a change in a module is the evidence that materialization ran, and the #843 stale MODIFIED refusal, which stays as it is",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "2bd58ab58c7a8c0c2281f111fb4ada65d8302f03695f7c0e9c959aaaa3d6e758",
+        "cli": "126b31ed6ea13870c301594f178bb4566a927ab21544eb674df9bef1436d3cc9",
+        "cli_args": "370a96c5d1cde095ca5fc144e1387a90b02fe42e8182158bb735c30a8a69af88",
+        "cmd_change": "77d0b97e85d1d5fc14bf12a6780247e6c0e5637141edb42d0cdfbc3378c71d77",
+        "hash_cache": "a11334e6c3c6cd9b160e63a6a89643676a40dc76694b29cbc31f5eb4e31e8e49",
+        "validator": "f770364d4613f34d4b54bbcd9d5d85fd6451d7e159626978b381840832436f50"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Leif's decision (2026-11-18): approved.",
+        "where": "Written on spec-sync issue #1084 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue's three bullets",
+        "recorded_by": "claude-code-t4t"
+      }
+    }
+  ],
+  "reopenings": []
+}

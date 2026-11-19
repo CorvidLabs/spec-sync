@@ -125,3 +125,6 @@ mod archived_upstream;
 
 #[path = "integration/doctor.rs"]
 mod doctor;
+
+#[path = "integration/spec_history.rs"]
+mod spec_history;

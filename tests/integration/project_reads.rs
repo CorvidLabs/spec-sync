@@ -453,6 +453,30 @@ const ALLOWED_FILES: &[(&str, &str)] = &[
         "src/mcp/confinement.rs",
         "the MCP server's own confined, bounded reads beneath its retained root",
     ),
+    (
+        "src/mcp/snapshot.rs",
+        "copies the MCP snapshot through no-follow, bounded handles beneath its retained root",
+    ),
+    (
+        "src/mcp/publication.rs",
+        "reads back only what it staged in its own confined publication directory",
+    ),
+    (
+        "src/hash_cache.rs",
+        "reads its cache only through a no-follow, non-blocking, bounded handle (REQ-hash-cache-007)",
+    ),
+    (
+        "src/watch.rs",
+        "reads through its retained, no-follow, bounded watch handles, and a child's own output",
+    ),
+    (
+        "src/manifest/max_gradle_manifest_bytes.rs",
+        "reads manifests through the coverage traversal's retained, no-follow, bounded handles",
+    ),
+    (
+        "src/commands/issues.rs",
+        "reads project config only through no-follow, identity-checked, bounded handles",
+    ),
 ];
 
 /// A direct read elsewhere carries this marker, on its line or the line above, with the reason
@@ -478,7 +502,8 @@ pub(crate) fn non_test_lines(text: &str) -> Vec<(usize, &str)> {
     let mut kept = Vec::new();
     let mut index = 0;
     while index < lines.len() {
-        if lines[index].trim_start().starts_with("#[cfg(test)]") {
+        let attribute = lines[index].trim_start();
+        if attribute.starts_with("#[cfg(test)]") || attribute.starts_with("#[cfg(all(test") {
             let mut next = index + 1;
             while next < lines.len() {
                 let line = lines[next].trim_start();
@@ -510,6 +535,30 @@ pub(crate) fn non_test_lines(text: &str) -> Vec<(usize, &str)> {
         index += 1;
     }
     kept
+}
+
+/// Whether the call at `position` carries one of `markers`: on its own line, or on a line above
+/// it in the same statement, which a builder chain spreads over several lines. The look back
+/// stops at the end of the statement before (`;`, `{` or `}`).
+pub(crate) fn marked_in_statement(
+    lines: &[(usize, &str)],
+    position: usize,
+    markers: &[&str],
+) -> bool {
+    let has_marker = |text: &str| markers.iter().any(|marker| text.contains(marker));
+    if has_marker(lines[position].1) {
+        return true;
+    }
+    for (_, line) in lines[..position].iter().rev() {
+        if has_marker(line) {
+            return true;
+        }
+        let code = line.trim_end();
+        if code.ends_with(';') || code.ends_with('{') || code.ends_with('}') {
+            return false;
+        }
+    }
+    false
 }
 
 pub(crate) fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
@@ -554,11 +603,7 @@ fn no_project_file_is_read_outside_the_bounded_read() {
             if code.starts_with("//") || !READ_CALLS.iter().any(|call| line.contains(call)) {
                 continue;
             }
-            let previous = position
-                .checked_sub(1)
-                .map(|before| lines[before].1)
-                .unwrap_or("");
-            if line.contains(ALLOWED_MARKER) || previous.contains(ALLOWED_MARKER) {
+            if marked_in_statement(&lines, position, &[ALLOWED_MARKER]) {
                 continue;
             }
             direct.push(format!("{relative}:{number}: {}", code.trim()));

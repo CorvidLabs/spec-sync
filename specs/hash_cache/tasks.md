@@ -24,6 +24,7 @@ spec: hash_cache.spec.md
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
 - [x] Never read or write the cache through a symbolic link: no-follow `.specsync` handle, exclusive create and rename, `refusal` for the caller's warning (REQ-hash-cache-007)
 - [x] Read project files only through the bounded project read of `util` (REQ-hash-cache-008). Evidence: `tests/integration/project_reads.rs`.
+- [x] Never read or save a cache Git tracks, and keep `prune` inside the project (REQ-hash-cache-009, REQ-hash-cache-010). Evidence: the two new `src/hash_cache.rs` tests.
 
 ## Review Status
 

@@ -14,6 +14,7 @@ spec: changelog.spec.md
 - [x] Implement frontmatter diffing (incl. agent_policy/implements/tracks) and section diffing
 - [x] Implement `parse_range` with `..` validation and three formatters (text/JSON/markdown)
 - [x] Git-backed `generate_changelog` tests against a temp repo
+- [x] Ask a blob's size before reading it and skip one over the spec bound (REQ-changelog-002). Evidence: `tests/integration/repository_inputs.rs`.
 
 ## Review Status
 

@@ -100,6 +100,9 @@ impl HashCache {
     /// a regular file: the cache is never read through a link
     /// (REQ-hash-cache-007).
     pub fn load(root: &Path) -> Self {
+        if tracked_cache_refusal(root).is_some() {
+            return Self::default();
+        }
         Self::read(root).unwrap_or_default()
     }
 
@@ -139,6 +142,12 @@ impl HashCache {
     /// `hashes.json` is a symbolic link or anything but a regular file: a repository can commit
     /// either as a link to a file of whoever clones it (REQ-hash-cache-007).
     pub fn save(&self, root: &Path) -> io::Result<()> {
+        if let Some(reason) = tracked_cache_refusal(root) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                RefusedCacheLocation(reason),
+            ));
+        }
         let json = serde_json::to_string_pretty(self)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
         let directory = open_cache_directory(root, true)?.ok_or_else(|| {
@@ -172,11 +181,12 @@ impl HashCache {
                 .is_some_and(|inner| inner.is::<RefusedCacheLocation>())
                 .then(|| error.to_string())
         };
-        match open_cache_directory(root, false) {
+        let location = match open_cache_directory(root, false) {
             Ok(Some(directory)) => cache_file_exists(&directory).err().and_then(refused),
             Ok(None) => None,
             Err(error) => refused(error),
-        }
+        };
+        location.or_else(|| tracked_cache_refusal(root))
     }
 
     /// Compute the SHA-256 hex digest of a file's contents.
@@ -215,12 +225,17 @@ impl HashCache {
         }
     }
 
-    /// Remove entries for files that no longer exist on disk.
+    /// Remove entries for files that no longer exist in the project. A key is looked up only
+    /// when it names a path inside the project, and only through the project rule, so a key a
+    /// committed cache chose (absolute, with `..`, or behind a link out) is dropped without its
+    /// path ever being looked at (REQ-hash-cache-010).
     pub fn prune(&mut self, root: &Path) {
-        self.hashes
-            .retain(|rel_path, _| root.join(rel_path).exists());
-        self.snapshots
-            .retain(|rel_path, _| root.join(rel_path).exists());
+        let present = |rel_path: &str| {
+            crate::util::confine_path_to_root(root, rel_path)
+                .is_some_and(|path| crate::util::is_project_file(root, &path))
+        };
+        self.hashes.retain(|rel_path, _| present(rel_path));
+        self.snapshots.retain(|rel_path, _| present(rel_path));
     }
 
     /// Record one complete validation snapshot against the current inputs.
@@ -416,6 +431,22 @@ fn validation_input_digest_for_build(
         update_digest(&mut hasher, "input_state", &state);
     }
     format!("{:x}", hasher.finalize())
+}
+
+/// The cache's path under the project root, with `/` separators.
+const CACHE_RELATIVE_PATH: &str = ".specsync/hashes.json";
+
+/// A cache Git tracks came with the repository: every digest in it is over public inputs, so it
+/// can carry a pass for a spec that fails. It is never read or saved over (REQ-hash-cache-009).
+/// Git is asked only when a cache is there.
+fn tracked_cache_refusal(root: &Path) -> Option<String> {
+    let present = std::fs::symlink_metadata(root.join(CACHE_RELATIVE_PATH)).is_ok();
+    (present && crate::git_utils::tracked_by_git(root, CACHE_RELATIVE_PATH)).then(|| {
+        format!(
+            "{CACHE_RELATIVE_PATH} is tracked by Git, so it came with the repository and is not \
+             trusted; remove it from Git with `git rm --cached {CACHE_RELATIVE_PATH}`"
+        )
+    })
 }
 
 /// A cache location the cache will not read or write (REQ-hash-cache-007), with the reason as

@@ -66,6 +66,7 @@ fn acceptance_entry_digest_at_commit(
     )
     .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
     if !added.status.success() {
+        // not a project file write: the scratch worktree this function made in the system temporary directory
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
             "failed to inspect succession base tree: {}",
@@ -83,6 +84,7 @@ fn acceptance_entry_digest_at_commit(
             ])
             .current_dir(root),
     );
+    // not a project file write: the scratch worktree this function made in the system temporary directory
     let _ = fs::remove_dir_all(&temporary);
     if !removed.is_ok_and(|output| output.status.success()) {
         return Err("failed to remove succession base workspace".into());
@@ -1219,6 +1221,7 @@ fn fingerprint_git_index_paths(paths: Vec<PathBuf>) -> Result<String, String> {
                 if total > MAX_GIT_INDEX_BYTES {
                     return Err("Git index dependencies exceed deterministic bounds".into());
                 }
+                // not a project file read: a Git index file in the Git directory, refused as a link and bounded above
                 let mut file = OpenOptions::new()
                     .read(true)
                     .open(&path)
@@ -2225,6 +2228,7 @@ fn reconstruct_legacy_at_anchor(
     )
     .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
     if !added.status.success() {
+        // not a project file write: the scratch worktree this function made in the system temporary directory
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
             "failed to reconstruct legacy acceptance tree: {}",
@@ -2302,6 +2306,7 @@ fn reconstruct_legacy_at_anchor(
                 .current_dir(root),
         );
     }
+    // not a project file write: the scratch worktree this function made in the system temporary directory
     let _ = fs::remove_dir_all(&temporary);
     result
 }
@@ -4882,6 +4887,7 @@ impl DeliveryBlobStream {
         Ok(Self {
             child,
             stdin,
+            // not a project file read: the output of a child process this function started
             stdout: std::io::BufReader::new(stdout),
             finished: Some(finished),
             watchdog: Some(watchdog),

@@ -259,25 +259,29 @@ fn add_schema_resolution_error(error: String, result: &mut ValidationResult) {
 
 // ─── File Discovery ──────────────────────────────────────────────────────
 
-/// Find all *.spec.md files in a directory recursively.
-pub fn find_spec_files(dir: &Path) -> Vec<PathBuf> {
-    let mut results = Vec::new();
-    if !dir.exists() {
-        return results;
-    }
+/// Every `*.spec.md` under the project directory `dir`, sorted (REQ-validator-050).
+///
+/// The walk is confined and budgeted like coverage's: `dir` follows the project rule, so a
+/// `specs` link that leaves the repository is refused instead of walked, and a tree with more
+/// entries or levels than coverage allows stops the walk with the reason.
+pub fn find_spec_files_checked(root: &Path, dir: &Path) -> Result<Vec<PathBuf>, String> {
+    crate::util::find_project_files(
+        root,
+        dir,
+        ".spec.md",
+        MAX_COVERAGE_ENTRIES,
+        MAX_COVERAGE_DEPTH,
+    )
+    .map_err(|error| format!("spec discovery stopped: {error}"))
+}
 
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file()
-            && let Some(name) = path.file_name().and_then(|n| n.to_str())
-            && name.ends_with(".spec.md")
-        {
-            results.push(path.to_path_buf());
-        }
-    }
-
-    results.sort();
-    results
+/// [`find_spec_files_checked`] for a command: a refused or over-budget walk ends the command
+/// with the reason, as an unloadable config does.
+pub fn find_spec_files(root: &Path, dir: &Path) -> Vec<PathBuf> {
+    find_spec_files_checked(root, dir).unwrap_or_else(|error| {
+        eprintln!("error: {error}");
+        std::process::exit(1);
+    })
 }
 
 /// Load CLI discovery inputs through one retained project-root capability.
@@ -1113,6 +1117,7 @@ fn coverage_snapshot_test_barrier(checkpoint: CoverageSnapshotCheckpoint) -> Res
     }
     let directory = PathBuf::from(directory);
     let marker = checkpoint.marker();
+    // not a project file write: a test barrier file in the directory a test names
     let mut ready = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -1688,6 +1693,7 @@ where
     }
     before_open();
     let mut options = OpenOptions::new();
+    // not a project file read: the retained coverage traversal's no-follow, non-blocking handle, bounded below
     options
         .read(true)
         ._cap_fs_ext_nonblock(true)
@@ -1713,6 +1719,7 @@ where
     verify_coverage_file_edge(directory, name, display, identity)?;
     let mut bytes = Vec::new();
     let read_limit = max_file_bytes.min(remaining_input_bytes);
+    // not a project file read: reads the retained handle opened above, at most the bound plus one byte
     Read::by_ref(&mut file)
         .take(read_limit.saturating_add(1))
         .read_to_end(&mut bytes)
@@ -1764,6 +1771,7 @@ fn verify_coverage_file_edge(
         ));
     }
     let mut options = OpenOptions::new();
+    // not a project file read: the retained coverage traversal's no-follow, non-blocking handle, bounded below
     options
         .read(true)
         ._cap_fs_ext_nonblock(true)
@@ -2011,6 +2019,29 @@ pub(crate) enum SourceSnapshot {
     Directory,
 }
 
+/// Read a spec, or a companion beside it, within a bound (REQ-util-003): through the project read
+/// when it lies in the project, or within its own directory when it is a temporary effective
+/// contract this run wrote outside it.
+fn read_spec_input(root: &Path, path: &Path) -> std::io::Result<String> {
+    if path.starts_with(root) {
+        return crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES);
+    }
+    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    let bytes = crate::util::read_file_within(directory, path, crate::util::MAX_SPEC_FILE_BYTES)?
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("{} does not exist", path.display()),
+            )
+        })?;
+    String::from_utf8(bytes).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    })
+}
+
 /// Validate a single spec file against source code.
 pub fn validate_spec(
     spec_path: &Path,
@@ -2019,7 +2050,7 @@ pub fn validate_spec(
     schema_columns: &HashMap<String, SchemaTable>,
     config: &SpecSyncConfig,
 ) -> ValidationResult {
-    let content = match fs::read_to_string(spec_path) {
+    let content = match read_spec_input(root, spec_path) {
         Ok(content) => content,
         Err(error) => {
             let rel_path = spec_path
@@ -2198,7 +2229,7 @@ fn validate_spec_content_internal(
             .parent()
             .map(|parent| parent.join("requirements.md"));
         if let Some(requirements_path) = requirements_path
-            && let Ok(text) = fs::read_to_string(&requirements_path)
+            && let Ok(text) = read_spec_input(root, &requirements_path)
         {
             let relative = requirements_path
                 .strip_prefix(root)
@@ -2376,7 +2407,20 @@ fn validate_spec_content_internal(
             let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let is_supported = crate::types::Language::from_extension(ext).is_some();
             if is_supported {
-                if let Err(err) = fs::read_to_string(&full_path) {
+                let read = crate::util::read_project_bytes(
+                    root,
+                    &full_path,
+                    crate::util::MAX_SOURCE_FILE_BYTES,
+                )
+                .and_then(|bytes| {
+                    String::from_utf8(bytes).map(drop).map_err(|_| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "stream did not contain valid UTF-8",
+                        )
+                    })
+                });
+                if let Err(err) = read {
                     result.errors.push(format!(
                         "Source file `{file}` could not be read as UTF-8 for validation: {err}"
                     ));
@@ -2384,7 +2428,11 @@ fn validate_spec_content_internal(
                         "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
                     ));
                 }
-            } else if let Err(err) = fs::File::open(&full_path) {
+            } else if let Err(err) = match crate::util::project_path_refusal(root, &full_path) {
+                Some(reason) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, reason)),
+                // not a project file read: opens only to test permission, after the project rule
+                None => fs::File::open(&full_path).map(drop),
+            } {
                 result.errors.push(format!(
                     "Source file `{file}` could not be read for validation: {err}"
                 ));
@@ -2872,7 +2920,7 @@ fn validate_companion_scaffold_markers(
     };
     for (file_name, marker, correction) in MARKERS {
         let path = directory.join(file_name);
-        let Ok(content) = fs::read_to_string(&path) else {
+        let Ok(content) = read_spec_input(root, &path) else {
             continue;
         };
         let mut fence: Option<char> = None;

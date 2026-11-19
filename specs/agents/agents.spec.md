@@ -68,6 +68,7 @@ managed bytes from user customization.
 11. Repository-owned native create-spec commands are exact installer outputs, strip supported flags before complete-input classification, and cannot silently drift from their shared templates.
 12. Generated artifacts and `.specsync/agent-artifacts.json` are inspected, written and removed through `util`'s project file functions. `install` reads the manifest and every artifact before it writes one, so a path that leaves the project through a symbolic link, is a dangling link, or is not a regular file fails the install with an error naming it before any write (REQ-agents-011).
 13. Every read of a project file here, `.specsync/agent-artifacts.json` (4 MiB) and the generated artifacts (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-agents-012).
+14. Removing a generated namespace directory goes through `util::remove_empty_project_dir`, which never follows a link to the directory, so an empty directory reached through a link out of the repository is left in place; every other write goes through the confined project write functions (REQ-agents-013).
 
 ## Behavioral Examples
 
@@ -116,6 +117,7 @@ managed bytes from user customization.
 | Generated artifact was customized | Preserves every customized artifact and returns one actionable conflict report |
 | An artifact path, the manifest, or a directory on the way leaves the project through a symbolic link, is a dangling link, or is not a regular file | `install` and `uninstall` fail naming the path before writing or removing anything; nothing is created at a link's target |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
+| A generated namespace directory is a link that leaves the repository | It is not removed, and the directory it names keeps its contents |
 
 ## Dependencies
 

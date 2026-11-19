@@ -718,6 +718,7 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     let Ok(bytes) = serde_json::to_vec(cache) else {
         return;
     };
+    // not a project file write: the read cache in the Git common directory, which a repository does not control
     if let Some(parent) = path.parent()
         && fs::create_dir_all(parent).is_err()
     {
@@ -731,7 +732,9 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
         std::process::id(),
         FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
     ));
+    // not a project file write: the read cache in the Git common directory, which a repository does not control
     if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
+        // not a project file write: the read cache in the Git common directory, which a repository does not control
         let _ = fs::remove_file(&temporary);
     }
 }

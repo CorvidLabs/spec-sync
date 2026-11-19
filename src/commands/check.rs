@@ -548,8 +548,11 @@ pub fn cmd_check(
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
         if backup && !dry_run {
+            // The backup tree is written through the confined project write: a committed
+            // `backup-fix`, or a file in it, linked out of the repository is refused and `--fix`
+            // stops before it changes a spec (REQ-cmd-check-020).
             let backup_dir = root.join(".specsync/backup-fix");
-            if let Err(e) = fs::create_dir_all(&backup_dir) {
+            if let Err(e) = crate::util::create_project_dir(root, &backup_dir) {
                 eprintln!(
                     "{} Failed to create backup directory {}: {e}",
                     "✗".red(),
@@ -572,17 +575,13 @@ pub fn cmd_check(
                     }
                 };
                 let dest = backup_dir.join(rel);
-                if let Some(parent) = dest.parent()
-                    && let Err(e) = fs::create_dir_all(parent)
-                {
-                    eprintln!(
-                        "{} Failed to create backup subdirectory {}: {e}",
-                        "✗".red(),
-                        parent.display()
-                    );
-                    process::exit(1);
-                }
-                if let Err(e) = fs::copy(spec_file, &dest) {
+                let copied = crate::util::read_project_bytes(
+                    root,
+                    spec_file,
+                    crate::util::MAX_SPEC_FILE_BYTES,
+                )
+                .and_then(|bytes| crate::util::write_project_file(root, &dest, &bytes));
+                if let Err(e) = copied {
                     eprintln!(
                         "{} Failed to backup {}: {e}",
                         "✗".red(),
@@ -1389,7 +1388,7 @@ fn auto_fix_specs(
                 "✓".green()
             );
             if !dry_run {
-                let _ = fs::write(spec_file, &content);
+                let _ = crate::util::write_project_file(root, spec_file, content.as_bytes());
             }
         }
 
@@ -1402,7 +1401,7 @@ fn auto_fix_specs(
                 "✓".green()
             );
             if !dry_run {
-                let _ = fs::write(spec_file, &content);
+                let _ = crate::util::write_project_file(root, spec_file, content.as_bytes());
             }
         }
 
@@ -1642,7 +1641,7 @@ fn auto_fix_specs(
             );
         } else {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            match fs::write(spec_file, &new_content) {
+            match crate::util::write_project_file(root, spec_file, new_content.as_bytes()) {
                 Ok(()) => {
                     fixed_count += 1;
                     println!(

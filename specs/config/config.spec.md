@@ -37,6 +37,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | `config_to_toml_lossy_fields` | `config: &SpecSyncConfig` | `Vec<&'static str>` | List config fields `config_to_toml` cannot represent (e.g. `customRules`), so `migrate` can refuse rather than silently drop them |
 | `read_config_file` | `root: &Path, path: &Path` | `Option<String>` | Read a config file, dropping a leading UTF-8 BOM (lossless) so it does not attach to the first TOML key or break JSON parsing; shared by the loaders and `migrate` so config reads handle a BOM consistently. `None` if unreadable |
 | `parse_config_content_checked` | `config_path: &Path, content: &str, root: &Path` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte JSON/TOML parser for retained callers; validates syntax and known TOML field types without reopening the path |
+| `validate_config_directories` | `config: &SpecSyncConfig` | `Result<(), String>` | Crate-private rule that `specs_dir`, each `source_dirs` entry and `schema_dir` are relative paths inside the project without `..`; the ambient loaders and the MCP snapshot apply it (REQ-config-017) |
 | `parse_config_content_checked_with_source_dirs` | `config_path: &Path, content: &str, root: &Path, detected_source_dirs: Option<Vec<String>>` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte parser with caller-supplied retained source discovery for omitted source fields |
 | `is_detectable_source_file` | `path: &Path` | `bool` | Crate-private lexical classifier shared by ambient and retained source detection |
 
@@ -76,6 +77,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
     or carries an unknown `enforcement` value sets `load_error` so `load_config` refuses rather
     than substituting built-in defaults.
 18. Every read of a project file here, every config file (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-config-016).
+19. The ambient TOML and JSON loaders refuse a `specs_dir`, `source_dirs` entry or `schema_dir` that is absolute or holds `..`: the config is unloadable, with `` `<field>` must be a relative path inside the project, without `..`; found `<value>` ``. The MCP server applies the same rule to the configuration it snapshots and refuses that one request, naming the field. `check` and `issues` keep their own confined handling of these directories (REQ-config-017).
 
 ## Behavioral Examples
 
@@ -121,6 +123,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Malformed or unreadable Gradle settings passed to checked discovery | Returns `Err`; compatibility wrappers preserve their infallible signatures |
 | Empty project root | Returns `["src"]` as source dirs |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
+| `specs_dir`, a `source_dirs` entry or `schema_dir` is absolute or holds `..` | The config is unloadable: `` `<field>` must be a relative path inside the project, without `..`; found `<value>` ``; the MCP server returns it as that request's tool error |
 
 ## Dependencies
 

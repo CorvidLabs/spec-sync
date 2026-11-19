@@ -128,8 +128,8 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
         .and_then(|()| git_config(root, keys[1], &driver));
     if let Err(error) = configured {
         let restored = match &previous_attributes {
-            Some(bytes) => fs::write(&attributes_path, bytes),
-            None => fs::remove_file(&attributes_path),
+            Some(bytes) => crate::util::write_project_file(root, &attributes_path, bytes),
+            None => crate::util::remove_project_file(root, &attributes_path),
         };
         for (key, value) in keys.iter().zip(&previous_config) {
             let _ = match value {
@@ -259,7 +259,7 @@ fn write_attribute_lines(root: &Path, lines: &[String]) -> Result<(), String> {
         changed = true;
     }
     if changed {
-        fs::write(&path, content)
+        crate::util::write_project_file(root, &path, content.as_bytes())
             .map_err(|error| format!("failed to write .gitattributes: {error}"))?;
     }
     Ok(())
@@ -316,6 +316,7 @@ pub fn cmd_merge_file(ancestor: &Path, current: &Path, other: &Path, pathname: O
             process::exit(1);
         }
     };
+    // not a project file write: the temporary file Git hands the merge driver as %A
     if let Err(error) = fs::write(current, &merged.content) {
         eprintln!(
             "{} cannot write merge result {}: {error}",

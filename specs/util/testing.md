@@ -49,3 +49,16 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `src/util.rs`: `project_file_reads_refuse_what_they_must_not_read`, `project_file_reads_hold_the_bound`, `project_file_reads_follow_inside_links_and_keep_the_std_contracts`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Work-tree confinement and the Git directory (REQ-util-004, REQ-util-005)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A monorepo subproject's link stays inside its repository; one leaves it | Followed; refused | `tests/integration/project_writes.rs`: `a_subproject_writes_through_a_link_that_stays_inside_its_repository`, `a_subproject_reads_specs_through_a_link_that_stays_inside_its_repository`, `a_subproject_link_that_leaves_its_repository_is_still_refused` |
+| An absolute link, even to a file inside | Refused as an absolute link | `tests/integration/project_writes.rs`: `an_absolute_link_is_refused_as_an_absolute_link` |
+| A path or link into `.git`, in any case, or into a Git directory with another name | Refused as leading into the Git directory; the hook or config keeps its bytes | `src/util.rs`: `project_file_functions_refuse_the_git_directory`, `project_file_functions_refuse_a_git_directory_under_any_name`; `tests/integration/project_writes.rs`: `hooks_install_never_writes_through_a_link_into_the_git_directory`, `change_answer_never_writes_change_md_into_a_hook` |
+| A FIFO at a path being written | Refused without blocking | `src/util.rs`: `writing_a_fifo_is_refused_without_blocking` |
+| The new helpers: reading within a named directory, removing an empty directory, walking a project directory or the root itself | Stay inside; never follow a link out; the walk lists file links for the reader and stops at its budget | `src/util.rs`: `reading_within_a_named_directory_stays_inside_it`, `removing_an_empty_directory_never_follows_a_link_out`, `finding_project_files_never_follows_a_link`, `finding_project_files_from_the_root_itself_lists_its_files` |
+| Any new direct file write outside the helpers | The source scan fails | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |

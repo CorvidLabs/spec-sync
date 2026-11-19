@@ -1572,7 +1572,7 @@ fn discover_specs(root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     }
 
-    crate::validator::find_spec_files(&specs_dir)
+    crate::validator::find_spec_files(root, &specs_dir)
 }
 
 #[cfg(test)]

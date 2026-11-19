@@ -74,6 +74,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
 10. The cache is never read or written through a symbolic link, and is written only inside the project's own `.specsync`. `load` and `save` open `.specsync` without following a link and work through that directory handle. `save` creates a new file there exclusively and renames it over `hashes.json`, so the old file is never written in place. A repository can commit either path as a link, so both are treated as input its author chose (REQ-hash-cache-007).
 11. Every read of a project file here, `.specsync/hashes.json` (64 MiB, any link still refused) and every file it hashes or reads to classify a spec (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-hash-cache-008).
+12. A cache that Git tracks, in the index or in `HEAD`, came with the repository: `load` returns an empty cache, `save` refuses with `RefusedCacheLocation`, and `refusal` gives the reason and the `git rm --cached .specsync/hashes.json` fix. Git is asked only when the cache file exists. `prune` keeps an entry only for a key `confine_path_to_root` accepts that names a regular project file, so it never looks at a path outside the project (REQ-hash-cache-009, REQ-hash-cache-010).
 
 ## Behavioral Examples
 
@@ -130,6 +131,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | `.specsync` is a symbolic link or not a directory | `load` returns an empty cache; `save` returns `io::Error` and writes nothing; `refusal` names `.specsync` |
 | `.specsync/hashes.json` is a symbolic link (dangling or not), a directory, or anything but a regular file | `load` returns an empty cache without reading it; `save` returns `io::Error`, leaves it as it is and creates nothing at a link's target; `refusal` names `.specsync/hashes.json` |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
+| `.specsync/hashes.json` is tracked by Git | `load` returns an empty cache; `save` refuses and leaves the tracked bytes; `refusal` names the `git rm --cached` fix |
 
 ## Dependencies
 

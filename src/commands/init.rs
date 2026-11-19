@@ -1,7 +1,6 @@
 use colored::Colorize;
 use serde::Serialize;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -482,7 +481,7 @@ fn repair_layout(
     for dir in V4_DIRS {
         let path = root.join(dir);
         if !path.is_dir() {
-            fs::create_dir_all(&path)
+            crate::util::create_project_dir(root, &path)
                 .map_err(|error| format!("failed to create {dir}: {error}"))?;
             restored.push(format!("{dir}/"));
         }
@@ -491,6 +490,7 @@ fn repair_layout(
     let version_path = root.join(".specsync/version");
     if !version_path.is_file() {
         write_new_file(
+            root,
             &version_path,
             format!("{PROJECT_VERSION}\n").as_bytes(),
             ".specsync/version",
@@ -501,6 +501,7 @@ fn repair_layout(
     let gitignore_path = root.join(".specsync/.gitignore");
     if !gitignore_path.is_file() {
         write_new_file(
+            root,
             &gitignore_path,
             specsync_gitignore_content().as_bytes(),
             ".specsync/.gitignore",
@@ -585,7 +586,8 @@ fn specsync_gitignore_content() -> String {
 /// produces so a fresh `init` never triggers the legacy-layout migration nag.
 fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), String> {
     for dir in V4_DIRS {
-        fs::create_dir_all(root.join(dir)).map_err(|e| format!("Failed to create {dir}: {e}"))?;
+        crate::util::create_project_dir(root, &root.join(dir))
+            .map_err(|e| format!("Failed to create {dir}: {e}"))?;
     }
 
     let config = SpecSyncConfig {
@@ -594,6 +596,7 @@ fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), Strin
     };
     let config_path = root.join(".specsync/config.toml");
     write_new_file(
+        root,
         &config_path,
         config_to_toml(&config).as_bytes(),
         ".specsync/config.toml",
@@ -602,6 +605,7 @@ fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), Strin
     let version_path = root.join(".specsync/version");
     if !version_path.exists() {
         write_new_file(
+            root,
             &version_path,
             format!("{PROJECT_VERSION}\n").as_bytes(),
             ".specsync/version",
@@ -611,6 +615,7 @@ fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), Strin
     let gitignore_path = root.join(".specsync/.gitignore");
     if !gitignore_path.exists() {
         write_new_file(
+            root,
             &gitignore_path,
             specsync_gitignore_content().as_bytes(),
             ".specsync/.gitignore",
@@ -620,13 +625,13 @@ fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), Strin
     Ok(())
 }
 
-fn write_new_file(path: &Path, bytes: &[u8], display: &str) -> Result<(), String> {
-    fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .and_then(|mut file| file.write_all(bytes))
-        .map_err(|error| format!("Failed to write {display}: {error}"))
+/// Create a file that must not exist yet, through the confined project write.
+fn write_new_file(root: &Path, path: &Path, bytes: &[u8], display: &str) -> Result<(), String> {
+    match crate::util::create_project_file(root, path, bytes) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(format!("Failed to write {display}: it already exists")),
+        Err(error) => Err(format!("Failed to write {display}: {error}")),
+    }
 }
 
 /// Append `.specsync/hashes.json` to the root `.gitignore` if not already present.
@@ -669,16 +674,7 @@ pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
         b"# spec-sync hash cache (regenerated locally)\n.specsync/hashes.json\n",
     );
 
-    let mut options = fs::OpenOptions::new();
-    options.write(true);
-    if existing.is_empty() && !gitignore_path.exists() {
-        options.create_new(true);
-    } else {
-        options.append(true);
-    }
-    options
-        .open(&gitignore_path)
-        .and_then(|mut file| file.write_all(&addition))
+    crate::util::write_project_file(root, &gitignore_path, &[existing, addition].concat())
         .map_err(|error| format!("Failed to update .gitignore: {error}"))?;
     Ok(true)
 }
@@ -727,16 +723,7 @@ fn ensure_3md_linguist_attribute(root: &Path) -> Result<bool, String> {
     }
     addition.extend_from_slice(THREE_MD_LINGUIST_RULE.as_bytes());
 
-    let mut options = fs::OpenOptions::new();
-    options.write(true);
-    if existing.is_empty() && !path.exists() {
-        options.create_new(true);
-    } else {
-        options.append(true);
-    }
-    options
-        .open(&path)
-        .and_then(|mut file| file.write_all(&addition))
+    crate::util::write_project_file(root, &path, &[existing, addition].concat())
         .map_err(|error| format!("Failed to update .gitattributes: {error}"))?;
     Ok(true)
 }

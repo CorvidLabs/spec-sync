@@ -352,11 +352,11 @@ pub fn cmd_promote(root: &Path, spec_filter: &str, format: OutputFormat, force: 
     }
 
     write_status(
+        root,
         &spec_path,
         &content,
         current,
         next,
-        &rel,
         format,
         config.lifecycle.track_history,
     );
@@ -420,11 +420,11 @@ pub fn cmd_demote(root: &Path, spec_filter: &str, format: OutputFormat, force: b
     }
 
     write_status(
+        root,
         &spec_path,
         &content,
         current,
         prev,
-        &rel,
         format,
         config.lifecycle.track_history,
     );
@@ -512,11 +512,11 @@ pub fn cmd_set(
     }
 
     write_status(
+        root,
         &spec_path,
         &content,
         current,
         target,
-        &rel,
         format,
         config.lifecycle.track_history,
     );
@@ -837,7 +837,9 @@ pub fn cmd_auto_promote(root: &Path, format: OutputFormat, dry_run: bool) {
                 new_content
             };
 
-            if let Err(e) = std::fs::write(spec_path, &final_content) {
+            if let Err(e) =
+                crate::util::write_project_file(root, spec_path, final_content.as_bytes())
+            {
                 skipped.push((rel, format!("write failed: {e}"), vec![]));
                 continue;
             }
@@ -1149,14 +1151,19 @@ fn days_since_date(date_str: &str) -> Option<u64> {
 
 /// Write the updated status to disk, optionally recording in lifecycle_log, and print the result.
 fn write_status(
+    root: &Path,
     spec_path: &Path,
     content: &str,
     from: SpecStatus,
     to: SpecStatus,
-    rel: &str,
     format: OutputFormat,
     track_history: bool,
 ) {
+    let rel = spec_path
+        .strip_prefix(root)
+        .unwrap_or(spec_path)
+        .display()
+        .to_string();
     let mut new_content = match update_status_in_content(content, to.as_str()) {
         Some(c) => c,
         None => {
@@ -1175,7 +1182,7 @@ fn write_status(
         new_content = append_lifecycle_log_entry(&new_content, &entry);
     }
 
-    if let Err(e) = std::fs::write(spec_path, &new_content) {
+    if let Err(e) = crate::util::write_project_file(root, spec_path, new_content.as_bytes()) {
         eprintln!("{} {rel}: failed to write: {e}", "error:".red().bold());
         process::exit(1);
     }

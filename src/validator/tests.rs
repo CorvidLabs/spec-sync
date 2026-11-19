@@ -1966,13 +1966,13 @@ mod tests {
     #[test]
     fn test_find_spec_files_empty_dir() {
         let tmp = tempfile::tempdir().unwrap();
-        let files = find_spec_files(tmp.path());
+        let files = find_spec_files(tmp.path(), tmp.path());
         assert!(files.is_empty());
     }
 
     #[test]
     fn test_find_spec_files_nonexistent() {
-        let files = find_spec_files(Path::new("/nonexistent/path"));
+        let files = find_spec_files(Path::new("/nonexistent/path"), Path::new("/nonexistent/path"));
         assert!(files.is_empty());
     }
 
@@ -1984,7 +1984,7 @@ mod tests {
         fs::write(spec_dir.join("auth.spec.md"), "---\nmodule: auth\n---\n").unwrap();
         fs::write(spec_dir.join("not-a-spec.md"), "other").unwrap();
 
-        let files = find_spec_files(tmp.path());
+        let files = find_spec_files(tmp.path(), tmp.path());
         assert_eq!(files.len(), 1);
         assert!(files[0].ends_with("auth.spec.md"));
     }

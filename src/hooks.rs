@@ -210,6 +210,7 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
         root.join(path)
     };
     if create {
+        // not a project file write: the Git hooks directory `git rev-parse --git-path hooks` names, which a repository cannot redirect
         fs::create_dir_all(&path)
             .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
     } else if !path.is_dir() {
@@ -428,9 +429,13 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
             if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
                 return false;
             }
-            crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
-                .map(|content| content.contains(&begin) && content.contains(&end))
-                .unwrap_or(false)
+            // The hook is Git's, not a project file: read it within the hooks directory, which
+            // the project rule would refuse as the Git directory (REQ-util-005).
+            crate::util::read_file_within(&hooks_dir, &path, crate::util::MAX_SPEC_FILE_BYTES)
+                .ok()
+                .flatten()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .is_some_and(|content| content.contains(&begin) && content.contains(&end))
         }
         HookTarget::ClaudeCodeHook => {
             let path = root.join(".claude").join("settings.json");
@@ -661,9 +666,11 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
             new_content.push_str(&tail.join("\n"));
             new_content.push('\n');
         }
+        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
         fs::write(&path, new_content)
             .map_err(|e| format!("Failed to write pre-commit hook: {e}"))?;
     } else {
+        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
         fs::write(&path, format!("#!/bin/sh\n{block}\n"))
             .map_err(|e| format!("Failed to create pre-commit hook: {e}"))?;
     }
@@ -673,6 +680,7 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
+        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
         fs::set_permissions(&path, perms)
             .map_err(|e| format!("Failed to set pre-commit hook permissions: {e}"))?;
     }
@@ -733,6 +741,7 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
         }
         lines.truncate(marker);
     } else if content.trim() == PRE_COMMIT_HOOK.trim() {
+        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
         fs::remove_file(path)
             .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
         return Ok(true);
@@ -743,9 +752,11 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
         lines.pop();
     }
     if lines.is_empty() || lines == ["#!/bin/sh"] {
+        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
         fs::remove_file(path)
             .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
     } else {
+        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
         fs::write(path, format!("{}\n", lines.join("\n")))
             .map_err(|error| format!("Failed to write pre-commit hook: {error}"))?;
     }

@@ -14,6 +14,7 @@ spec: git_utils.spec.md
 - [x] Return safe defaults when git is unavailable or files are untracked
 - [x] Replace `git_commits_between` with `git_commits_since` (takes a precomputed spec commit hash) to eliminate N+1 `git log` calls
 - [x] Add a `#[cfg(test)]` module covering hash lookup, commit counting, invalid-commit degradation, and repo detection
+- [x] Add `tracked_by_git` and capped child output (REQ-git-utils-012, REQ-git-utils-013). Evidence: `capped_output_keeps_the_cap_and_reports_more` and the tracked-cache tests.
 
 ## Review Status
 

@@ -604,6 +604,7 @@ fn generate_after_coverage_test_barrier() -> Result<(), String> {
     }
 
     let directory = std::path::PathBuf::from(directory);
+    // not a project file write: a test barrier file in the directory a test names
     let mut ready = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)

@@ -1725,6 +1725,8 @@ fn cargo_build_lock_path(
 /// the whole point, because a "probably wedged" heuristic would be one more
 /// signal that stopped carrying information while still looking like one.
 fn cargo_build_lock_is_held(path: &Path) -> bool {
+    // not a project file write: opens Cargo's build lock only to test it; nothing is written
+    // not a project file read: opens Cargo's build lock only to test it; nothing is read
     let Ok(file) = OpenOptions::new().read(true).write(true).open(path) else {
         // The file is created by Cargo when it takes the lock; absent or
         // unreadable means there is nothing this run can prove.
@@ -2661,12 +2663,38 @@ fn save_change(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     write_json_keeping_unknown_members(root, &workspace.join("state.json"), record.as_ref())
 }
 
+/// Refuse, before anything is written, a change whose record files the save would write through
+/// a link out of the repository or into the Git directory: `state.json`, `change.md`,
+/// `approvals.json` and each selected artifact (REQ-change-163). A committed change can carry any
+/// of them as a link, and a refusal half way would leave the change half saved.
+fn ensure_change_files_writable(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let workspace = change_dir(root, &record.id);
+    let mut files = vec![
+        workspace.join("state.json"),
+        workspace.join("change.md"),
+        workspace.join("approvals.json"),
+    ];
+    files.extend(
+        record
+            .selected_artifacts
+            .iter()
+            .map(|artifact| workspace.join(artifact.file_name())),
+    );
+    for file in files {
+        if let Some(reason) = crate::util::project_path_refusal(root, &file) {
+            return Err(format!(
+                "refused to write change `{}`: {reason}; restore the file as a plain file",
+                record.id
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    fs::write(
-        change_dir(root, &record.id).join("change.md"),
-        change_markdown_content(record),
-    )
-    .map_err(|error| error.to_string())
+    let path = change_dir(root, &record.id).join("change.md");
+    crate::util::write_project_file(root, &path, change_markdown_content(record).as_bytes())
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
 fn change_markdown_content(record: &ChangeRecord) -> String {
@@ -2711,10 +2739,14 @@ fn ensure_artifact_files(root: &Path, record: &ChangeRecord) -> Result<(), Strin
     let dir = change_dir(root, &record.id);
     for artifact in &record.selected_artifacts {
         let path = dir.join(artifact.file_name());
-        if !path.exists() {
-            fs::write(path, artifact_template(root, artifact, record))
-                .map_err(|error| error.to_string())?;
-        }
+        // An exclusive create: an artifact already there is kept, and a dangling link is refused
+        // instead of being created through (REQ-change-163).
+        crate::util::create_project_file(
+            root,
+            &path,
+            artifact_template(root, artifact, record).as_bytes(),
+        )
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
     }
     Ok(())
 }
@@ -4315,7 +4347,7 @@ fn mint_change_slug(description: &str) -> Result<String, String> {
 /// exclusive `create_dir` is still what serializes two processes sharing one volume.
 fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf), String> {
     let changes = root.join(CHANGES_PATH);
-    fs::create_dir_all(&changes).map_err(|error| {
+    crate::util::create_project_dir(root, &changes).map_err(|error| {
         format!(
             "failed to create active changes directory {}: {error}",
             changes.display()
@@ -4332,7 +4364,7 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
         return Err(change_name_taken_error(root, &id));
     }
     let dir = change_dir(root, &id);
-    match fs::create_dir(&dir) {
+    match crate::util::create_new_project_dir(root, &dir) {
         Ok(()) => Ok((id, dir)),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             Err(change_name_taken_error(root, &id))
@@ -4554,6 +4586,18 @@ fn git_repo_prefix(root: &Path) -> Result<String, String> {
     Ok(prefix)
 }
 
+/// Write a change workflow record through the confined project write (REQ-change-163).
+fn write_record_json<Value: Serialize>(
+    root: &Path,
+    path: &Path,
+    value: &Value,
+) -> Result<(), String> {
+    crate::util::write_project_file(root, path, json_content(value)?.as_bytes())
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+/// A test fixture writer: tests lay records out directly, links and all.
+#[cfg(test)]
 fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -4562,7 +4606,7 @@ fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
-/// `write_json` for a lifecycle record or ledger rewritten in place: members a newer SpecSync
+/// `write_record_json` for a lifecycle record or ledger rewritten in place: members a newer SpecSync
 /// wrote that this one does not know are kept (#1043, #434).
 fn write_json_keeping_unknown_members<Record>(
     root: &Path,
@@ -4572,11 +4616,12 @@ fn write_json_keeping_unknown_members<Record>(
 where
     Record: Serialize + serde::de::DeserializeOwned,
 {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    fs::write(path, json_content_keeping_unknown_members(root, path, value)?)
-        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+    crate::util::write_project_file(
+        root,
+        path,
+        json_content_keeping_unknown_members(root, path, value)?.as_bytes(),
+    )
+    .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
 fn bytes_match_canonical_json(on_disk: &[u8], canonical: &[u8]) -> bool {

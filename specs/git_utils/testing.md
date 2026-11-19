@@ -55,3 +55,12 @@ spec: git_utils.spec.md
 - Keep the resolve-once / count-per-file contract: callers must not re-resolve the spec commit per source file (that was the removed N+1 path).
 - Do NOT reintroduce a public `Option<String>` commit lookup. The private raw lookup plus `SpecBaseline` is the choke point that makes #572 a compile error rather than a review catch; a helper that callers must remember to call is fail-open by construction.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+
+## Tracking and capped output (REQ-git-utils-012, REQ-git-utils-013)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A child writes more than the cap | The first `cap` bytes are kept, more is reported, the rest drained | `src/git_utils.rs`: `capped_output_keeps_the_cap_and_reports_more` |
+| A path in the index or `HEAD`, and one Git does not track | `tracked_by_git` says yes and no | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_git_tracks`, `rehash_refuses_a_hash_cache_git_tracks` |

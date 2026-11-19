@@ -31,6 +31,7 @@ Implements the `specsync init-registry` command. Creates a registry file for cro
 2. Will not overwrite an existing registry file (v4 or legacy location)
 3. `--name` overrides auto-detected project name
 4. Never recreates the legacy root-level registry in a v4 project — doing so would re-trigger the legacy-layout migration nag
+5. `init-registry` creates its registry through `util`'s confined `create_project_dir` and `create_project_file`, so a `.specsync` linked out of the repository, or a dangling link at the registry path, receives nothing (REQ-cmd-init-registry-004).
 
 ## Behavioral Examples
 
@@ -46,6 +47,7 @@ Implements the `specsync init-registry` command. Creates a registry file for cro
 |-----------|----------|
 | Registry exists | Early return |
 | Write fails | Exits 1 |
+| `.specsync` or the registry path leads out of the repository, or is a dangling link | `failed to write registry:` with the refusal; nothing is created outside |
 
 ## Dependencies
 

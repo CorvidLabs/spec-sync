@@ -13,9 +13,7 @@ use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::output::{CoverageFindings, coverage_json};
 use crate::scoring;
 use crate::types::SpecSyncConfig;
-use crate::validator::{
-    compute_coverage_checked, find_spec_files, get_schema_table_names, validate_spec,
-};
+use crate::validator::{compute_coverage_checked, get_schema_table_names, validate_spec};
 use cap_std::fs::Dir;
 use serde_json::{Value, json};
 use std::ffi::OsStr;
@@ -295,7 +293,7 @@ pub(super) fn load_and_discover(
 ) -> Result<(SpecSyncConfig, Vec<PathBuf>), String> {
     let config = load_confined_config(root)?;
     let specs_dir = root.join(&config.specs_dir);
-    let spec_files: Vec<PathBuf> = find_spec_files(&specs_dir)
+    let spec_files: Vec<PathBuf> = crate::validator::find_spec_files_checked(root, &specs_dir)?
         .into_iter()
         .filter(|f| {
             f.file_name()

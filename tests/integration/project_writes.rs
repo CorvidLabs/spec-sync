@@ -602,6 +602,14 @@ const WRITE_ALLOWED_FILES: &[(&str, &str)] = &[
         "src/hash_cache.rs",
         "writes only through its no-follow handle on `.specsync`, then renames (REQ-hash-cache-007)",
     ),
+    (
+        "src/mcp/publication.rs",
+        "publishes MCP output through a staged, confined directory handle",
+    ),
+    (
+        "src/mcp/snapshot.rs",
+        "writes only the MCP server's snapshot copy, in its own temporary directory",
+    ),
 ];
 
 /// A direct write elsewhere carries one of these markers, with the reason: the file is not a
@@ -632,7 +640,7 @@ const WRITE_CALLS: &[&str] = &[
 /// it says why its path is not a project file or was checked just before.
 #[test]
 fn no_project_file_is_written_outside_the_confined_helpers() {
-    use crate::project_reads::{non_test_lines, rust_sources};
+    use crate::project_reads::{marked_in_statement, non_test_lines, rust_sources};
     let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut sources = Vec::new();
     rust_sources(&crate_root.join("src"), &mut sources);
@@ -661,14 +669,7 @@ fn no_project_file_is_written_outside_the_confined_helpers() {
             if code.starts_with("//") || !WRITE_CALLS.iter().any(|call| line.contains(call)) {
                 continue;
             }
-            let previous = position
-                .checked_sub(1)
-                .map(|before| lines[before].1)
-                .unwrap_or("");
-            if WRITE_MARKERS
-                .iter()
-                .any(|marker| line.contains(marker) || previous.contains(marker))
-            {
+            if marked_in_statement(&lines, position, WRITE_MARKERS) {
                 continue;
             }
             direct.push(format!("{relative}:{number}: {}", code.trim()));

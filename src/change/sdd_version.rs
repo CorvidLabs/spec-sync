@@ -640,10 +640,13 @@ fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
     // `change_adopt_rejects_symlinked_metadata_root_before_lock_write`).
     reject_symlink_components_for(root, &path, "lifecycle lock path")?;
     if let Some(parent) = path.parent() {
+        // checked project write: the lock path's components were refused as links just above, and are again below
         fs::create_dir_all(parent)
             .map_err(|error| format!("failed to create lifecycle metadata directory: {error}"))?;
     }
     reject_symlink_components_for(root, &path, "lifecycle lock path")?;
+    // checked project write: the lock path's components were refused as links just above
+    // not a project file read: opens the lifecycle lock to hold it; nothing is read
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -695,18 +698,7 @@ fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
 /// Whether Git tracks the transaction journal, in the index or in `HEAD`. Outside a Git
 /// repository nothing is tracked.
 fn transaction_journal_is_tracked(root: &Path) -> bool {
-    let succeeds = |args: &[&str]| {
-        std::process::Command::new("git")
-            .args(args)
-            .current_dir(root)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
-    };
-    succeeds(&["ls-files", "--error-unmatch", "--", TRANSACTION_PATH])
-        || succeeds(&["cat-file", "-e", &format!("HEAD:./{TRANSACTION_PATH}")])
+    crate::git_utils::tracked_by_git(root, TRANSACTION_PATH)
 }
 
 /// The refusal for a journal that came with the repository, and the way to remove it.
@@ -829,15 +821,15 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     }
     for (path, original) in planned {
         if let Some(original) = original {
-            atomic_write_durable(&path, original.as_bytes())
+            atomic_write_durable(root, &path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
         } else if path.exists() {
-            remove_file_durable(&path)
+            remove_file_durable(root, &path)
                 .map_err(|error| format!("failed to remove {}: {error}", path.display()))?;
             remove_empty_transaction_directories(root, path.parent());
         }
     }
-    remove_file_durable(&journal_path)
+    remove_file_durable(root, &journal_path)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 
@@ -2050,14 +2042,11 @@ fn disclose_inert_ignored_paths(root: &Path, policy: &SddPolicy) {
 
 pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> Result<(), String> {
     let path = root.join(POLICY_PATH);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
     if path.exists() {
         return Ok(());
     }
     let policy = default_policy(root, verification_commands);
-    write_json(&path, &policy)
+    write_record_json(root, &path, &policy)
 }
 
 fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy {
@@ -2168,17 +2157,12 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
-    fs::create_dir_all(dir.join("deltas")).map_err(|error| error.to_string())?;
+    crate::util::create_project_dir(root, &dir.join("deltas"))
+        .map_err(|error| format!("failed to create {}: {error}", dir.join("deltas").display()))?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
-    write_json(&dir.join("approvals.json"), &ApprovalLedger::default())?;
-    for artifact in &record.selected_artifacts {
-        let path = dir.join(artifact.file_name());
-        if !path.exists() {
-            fs::write(&path, artifact_template(root, artifact, &record))
-                .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
-        }
-    }
+    write_record_json(root, &dir.join("approvals.json"), &ApprovalLedger::default())?;
+    ensure_artifact_files(root, &record)?;
     Ok(record)
 }
 
@@ -3353,6 +3337,7 @@ fn load_change_for_definition_mutation(
         .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
     validate_correction_records(&record, &ledger.corrections)
         .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+    ensure_change_files_writable(root, &record)?;
     Ok((record, ledger.corrections))
 }
 
@@ -3436,6 +3421,7 @@ pub fn approve_definition_with_relay(
     }
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
+    ensure_change_files_writable(root, &record)?;
     ensure_no_sequence_collision(root, &record)?;
     // Accepted records may re-approve the definition when the artifact digest drifted
     // (reopen recovery). Refuse no-op re-approvals that would only rewrite an already-valid
@@ -3566,6 +3552,7 @@ fn validate_legacy_baseline_authority_cutoff(
 pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
+    ensure_change_files_writable(root, &record)?;
     require_state(
         &record,
         &[ChangeState::Approved, ChangeState::Implementing],
@@ -4023,7 +4010,8 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
     // check entirely in a project whose specs all live in the registry).
     let registry = crate::registry::load_local_registry(root)
         .map_err(|error| format!("the spec registry cannot be read: {error}"))?;
-    let spec_files = crate::validator::find_spec_files(&root.join(&config.specs_dir));
+    let spec_files =
+        crate::validator::find_spec_files_checked(root, &root.join(&config.specs_dir))?;
     // Bootstrap, exactly as REQ-change-150 says: a project with no spec files and no registry
     // entries cannot typo against an empty set, so the declaration is provisional there.
     if spec_files.is_empty() && registry.as_ref().is_none_or(|registry| registry.specs.is_empty()) {
@@ -4153,7 +4141,7 @@ fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
             candidates.insert(module.clone());
         }
     }
-    for spec in crate::validator::find_spec_files(&root.join(specs_dir)) {
+    for spec in crate::validator::find_spec_files(root, &root.join(specs_dir)) {
         let filter = spec_filter_name(&spec);
         if !filter.is_empty() {
             candidates.insert(filter);
@@ -4214,7 +4202,7 @@ fn scoped_spec_files(
             }
         }
     }
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
         if selected.contains_key(&spec) {
             continue;
         }
@@ -4474,7 +4462,7 @@ pub fn reopen_change(
         Ok(result) => return Ok(result),
         Err(error) => error,
     };
-    match rename_durable(&change_dir(root, id), &archived_location) {
+    match rename_durable(root, &change_dir(root, id), &archived_location) {
         Ok(()) => Err(format!("{error}; archive restored")),
         Err(restore_error) => Err(format!(
             "{error}; and the un-archived package could not be restored to {} ({restore_error}); move it back by hand before retrying",
@@ -4497,9 +4485,10 @@ fn unarchive_change_workspace(root: &Path, record: &ChangeRecord) -> Result<Path
         ));
     }
     if let Some(parent) = active.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        crate::util::create_project_dir(root, parent)
+            .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
     }
-    rename_durable(&archived_location, &active)
+    rename_durable(root, &archived_location, &active)
         .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
     Ok(archived_location)
 }
@@ -4825,7 +4814,7 @@ fn backfill_change_ledger(
     if !dry_run {
         let mut bytes = bytes;
         bytes.push(b'\n');
-        fs::write(workspace.join("approvals.json"), bytes)
+        crate::util::write_project_file(root, &workspace.join("approvals.json"), &bytes)
             .map_err(|error| format!("failed to write repaired approvals ledger: {error}"))?;
     }
     Ok(Ok(true))

@@ -31,7 +31,7 @@ pub fn cmd_rehash(root: &Path) {
 
 fn discover_spec_files(root: &Path) -> (crate::types::SpecSyncConfig, Vec<PathBuf>) {
     let config = config::load_config(root);
-    let spec_files = validator::find_spec_files(&root.join(&config.specs_dir))
+    let spec_files = validator::find_spec_files(root, &root.join(&config.specs_dir))
         .into_iter()
         .filter(|path| {
             path.file_name()

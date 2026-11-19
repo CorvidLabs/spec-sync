@@ -1,9 +1,11 @@
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, OpenOptions};
 use regex::RegexBuilder;
+use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Levenshtein edit distance between two strings.
 pub fn levenshtein(a: &str, b: &str) -> usize {
@@ -79,22 +81,133 @@ fn refused_project_path(reason: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, RefusedProjectPath(reason))
 }
 
+/// Where the project file functions confine a path (REQ-util-004): the Git work tree that holds
+/// the project root, so a monorepo subproject can follow a link that stays inside its
+/// repository, or the project root itself when it is in no work tree.
+struct Confinement {
+    /// The directory every operation goes through, canonical.
+    top: PathBuf,
+    /// The project root as a path beneath `top`; empty when they are the same directory.
+    prefix: PathBuf,
+    /// The work tree's Git directory, canonical, from `git rev-parse --absolute-git-dir`; `None`
+    /// outside a work tree. Nothing beneath it is a project file, whatever it is named
+    /// (REQ-util-005).
+    git_dir: Option<PathBuf>,
+}
+
+/// The confinement of `canonical_root`, worked out once per root for the whole run.
+fn confinement(canonical_root: &Path) -> Arc<Confinement> {
+    static KNOWN: OnceLock<Mutex<HashMap<PathBuf, Arc<Confinement>>>> = OnceLock::new();
+    let known = KNOWN.get_or_init(Default::default);
+    if let Some(found) = known
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(canonical_root)
+    {
+        return Arc::clone(found);
+    }
+    let computed = Arc::new(
+        work_tree_confinement(canonical_root).unwrap_or_else(|| Confinement {
+            top: canonical_root.to_path_buf(),
+            prefix: PathBuf::new(),
+            git_dir: None,
+        }),
+    );
+    known
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(canonical_root.to_path_buf(), Arc::clone(&computed));
+    computed
+}
+
+/// The Git work tree holding `canonical_root` and its Git directory, from `git rev-parse
+/// --show-toplevel --absolute-git-dir`. `None` outside a work tree, when Git is not installed,
+/// or when its answer does not hold the root. `GIT_DIR` and `GIT_WORK_TREE` are left out, so a
+/// hook's environment cannot move the answer.
+fn work_tree_confinement(canonical_root: &Path) -> Option<Confinement> {
+    let mut command = std::process::Command::new("git");
+    command
+        .args(["rev-parse", "--show-toplevel", "--absolute-git-dir"])
+        .current_dir(canonical_root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE");
+    let output = crate::git_utils::output_after_child_exits(&mut command).ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8(output.stdout).ok()?;
+    let mut lines = text.lines();
+    let top = Path::new(lines.next()?).canonicalize().ok()?;
+    let git_dir = Path::new(lines.next()?).canonicalize().ok()?;
+    let prefix = canonical_root.strip_prefix(&top).ok()?.to_path_buf();
+    Some(Confinement {
+        top,
+        prefix,
+        git_dir: Some(git_dir),
+    })
+}
+
+/// A Git directory name, as Git and a case-insensitive file system read it: `.git` in any letter
+/// case, with any trailing dots and spaces (REQ-util-005).
+fn is_git_directory_name(name: &std::ffi::OsStr) -> bool {
+    name.to_string_lossy()
+        .trim_end_matches(['.', ' '])
+        .eq_ignore_ascii_case(".git")
+}
+
+/// A directory handle on the confinement, the confined path beneath it, and the part of that
+/// path that is the project root, which messages leave out.
+struct ProjectPath {
+    project: Dir,
+    top: PathBuf,
+    prefix: PathBuf,
+    git_dir: Option<PathBuf>,
+    relative: PathBuf,
+}
+
+impl ProjectPath {
+    /// The same confinement, at another path beneath it.
+    fn at(&self, relative: PathBuf) -> io::Result<ProjectPath> {
+        Ok(ProjectPath {
+            project: self.project.try_clone()?,
+            top: self.top.clone(),
+            prefix: self.prefix.clone(),
+            git_dir: self.git_dir.clone(),
+            relative,
+        })
+    }
+
+    /// `location`, a canonical path, lies in the Git directory.
+    fn in_git_dir(&self, location: &Path) -> bool {
+        self.git_dir
+            .as_deref()
+            .is_some_and(|git_dir| location.starts_with(git_dir))
+    }
+
+    /// `reached` as the user named it: relative to the project root where it lies beneath it.
+    fn shown<'a>(&self, reached: &'a Path) -> std::path::Display<'a> {
+        reached
+            .strip_prefix(&self.prefix)
+            .unwrap_or(reached)
+            .display()
+    }
+}
+
 /// `path` as a path beneath `root`: `root` joined with a relative path, or a relative path given
 /// as it is. Anything that would leave the root by its own spelling (`..`, another absolute
 /// path) is refused before the filesystem is asked.
-fn project_relative_path(root: &Path, path: &Path) -> io::Result<PathBuf> {
+fn project_relative_path(
+    root: &Path,
+    canonical_root: Option<&Path>,
+    path: &Path,
+) -> io::Result<PathBuf> {
     // A path built from the canonical root (`/private/var/...` on macOS) still names a file
     // beneath a root given as `/var/...`. Only the root is canonicalized, never the path, so a
     // link in the path is still looked at, component by component, below.
-    let canonical_root = root.canonicalize().ok();
     let beneath = path
         .strip_prefix(root)
         .ok()
-        .or_else(|| {
-            canonical_root
-                .as_deref()
-                .and_then(|canonical| path.strip_prefix(canonical).ok())
-        })
+        .or_else(|| canonical_root.and_then(|canonical| path.strip_prefix(canonical).ok()))
         .unwrap_or(path);
     let mut relative = PathBuf::new();
     for component in beneath.components() {
@@ -128,21 +241,32 @@ enum ProjectTarget {
     Directory,
 }
 
-/// Follow `relative` beneath `project` one component at a time and say what it leads to, or why
-/// it is refused: a symbolic link that leaves the project (an absolute target included), a
-/// dangling link, a non-directory on the way, or a last component that is neither a regular file
-/// nor a directory.
+/// Follow the path beneath the confinement one component at a time and say what it leads to, or
+/// why it is refused: a symbolic link that leaves the project, an absolute link, a dangling
+/// link, a path into the Git directory, a non-directory on the way, or a last component that is
+/// neither a regular file nor a directory.
 ///
-/// This names the path and the reason. What enforces the rule is that every read and write then
-/// goes through `project`, a `cap_std` directory handle that cannot be led outside itself, so a
-/// component swapped after this look still cannot take the operation out of the project.
-fn inspect_project_path(project: &Dir, relative: &Path) -> io::Result<ProjectTarget> {
+/// This names the path and the reason. What enforces confinement is that every read and write
+/// then goes through `project`, a `cap_std` directory handle that cannot be led outside itself,
+/// so a component swapped after this look still cannot take the operation out of the project.
+fn inspect_project_path(path: &ProjectPath) -> io::Result<ProjectTarget> {
+    let project = &path.project;
     let mut reached = PathBuf::new();
-    let mut components = relative.components().peekable();
+    // Once a link is on the way, `top` joined with `reached` is no longer where it leads.
+    let mut through_link = false;
+    let mut components = path.relative.components().peekable();
     while let Some(component) = components.next() {
         reached.push(component);
         let last = components.peek().is_none();
-        let shown = reached.display();
+        let shown = path.shown(&reached);
+        if reached.starts_with(&path.prefix)
+            && let Component::Normal(name) = component
+            && is_git_directory_name(name)
+        {
+            return Err(refused_project_path(format!(
+                "{shown} leads into the Git directory"
+            )));
+        }
         let found = match project.symlink_metadata(&reached) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -151,7 +275,14 @@ fn inspect_project_path(project: &Dir, relative: &Path) -> io::Result<ProjectTar
             Err(error) => return Err(error),
         };
         let resolved = if found.file_type().is_symlink() {
-            match project.metadata(&reached) {
+            // Reading the link's own text never follows it.
+            let target = std::fs::read_link(path.top.join(&reached))?;
+            if target.is_absolute() {
+                return Err(refused_project_path(format!(
+                    "{shown} is an absolute link, which is never followed"
+                )));
+            }
+            let resolved = match project.metadata(&reached) {
                 Ok(metadata) => metadata,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
                     return Err(refused_project_path(format!(
@@ -163,8 +294,36 @@ fn inspect_project_path(project: &Dir, relative: &Path) -> io::Result<ProjectTar
                         "{shown} is a symbolic link that leaves the project"
                     )));
                 }
+            };
+            // A link that stays inside may still lead into `.git`, or into a Git directory with
+            // another name, where Git runs hooks and reads its config (REQ-util-005).
+            let canonical = std::fs::canonicalize(path.top.join(&reached))?;
+            if path.in_git_dir(&canonical)
+                || canonical
+                    .strip_prefix(&path.top)
+                    .unwrap_or(&canonical)
+                    .components()
+                    .any(
+                        |part| matches!(part, Component::Normal(name) if is_git_directory_name(name)),
+                    )
+            {
+                return Err(refused_project_path(format!(
+                    "{shown} leads into the Git directory"
+                )));
             }
+            through_link = true;
+            resolved
         } else {
+            let location = if through_link {
+                std::fs::canonicalize(path.top.join(&reached))?
+            } else {
+                path.top.join(&reached)
+            };
+            if path.in_git_dir(&location) {
+                return Err(refused_project_path(format!(
+                    "{shown} leads into the Git directory"
+                )));
+            }
             found
         };
         if last {
@@ -185,34 +344,57 @@ fn inspect_project_path(project: &Dir, relative: &Path) -> io::Result<ProjectTar
     Ok(ProjectTarget::Absent)
 }
 
-/// A directory handle on the project root, with `path` as a path beneath it.
-fn open_project(root: &Path, path: &Path) -> io::Result<(Dir, PathBuf)> {
-    let relative = project_relative_path(root, path)?;
-    let project = Dir::open_ambient_dir(root, ambient_authority())?;
-    Ok((project, relative))
+/// A handle on the confinement of `root`, with `path` as a path beneath it.
+fn open_project(root: &Path, path: &Path) -> io::Result<ProjectPath> {
+    let canonical_root = root.canonicalize()?;
+    let relative = project_relative_path(root, Some(&canonical_root), path)?;
+    let confinement = confinement(&canonical_root);
+    let project = Dir::open_ambient_dir(&confinement.top, ambient_authority())?;
+    Ok(ProjectPath {
+        project,
+        top: confinement.top.clone(),
+        prefix: confinement.prefix.clone(),
+        git_dir: confinement.git_dir.clone(),
+        relative: confinement.prefix.join(relative),
+    })
+}
+
+/// A handle on exactly `directory`, with `path` as a path beneath it: for a directory the person
+/// names outside the project, read within itself and nothing wider (REQ-util-004).
+fn open_within(directory: &Path, path: &Path) -> io::Result<ProjectPath> {
+    let top = directory.canonicalize()?;
+    let relative = project_relative_path(directory, Some(&top), path)?;
+    let project = Dir::open_ambient_dir(&top, ambient_authority())?;
+    Ok(ProjectPath {
+        project,
+        top,
+        prefix: PathBuf::new(),
+        git_dir: None,
+        relative,
+    })
 }
 
 /// The path leads to a file, or to nothing yet. A directory there is refused.
-fn project_file_exists(project: &Dir, relative: &Path) -> io::Result<bool> {
-    match inspect_project_path(project, relative)? {
+fn project_file_exists(path: &ProjectPath) -> io::Result<bool> {
+    match inspect_project_path(path)? {
         ProjectTarget::File => Ok(true),
         ProjectTarget::Absent => Ok(false),
         ProjectTarget::Directory => Err(refused_project_path(format!(
             "{} is not a regular file",
-            relative.display()
+            path.shown(&path.relative)
         ))),
     }
 }
 
 /// Create the file with an exclusive create, which never follows a link at its last component,
 /// after making the directories on the way.
-fn create_new_project_file(project: &Dir, relative: &Path, contents: &[u8]) -> io::Result<()> {
-    if let Some(parent) = relative.parent().filter(|p| !p.as_os_str().is_empty()) {
-        project.create_dir_all(parent)?;
+fn create_new_project_file(path: &ProjectPath, contents: &[u8]) -> io::Result<()> {
+    if let Some(parent) = path.relative.parent().filter(|p| !p.as_os_str().is_empty()) {
+        path.project.create_dir_all(parent)?;
     }
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
-    let mut file = project.open_with(relative, &options)?;
+    let mut file = path.project.open_with(&path.relative, &options)?;
     file.write_all(contents)?;
     file.flush()
 }
@@ -226,36 +408,23 @@ pub const MAX_SOURCE_FILE_BYTES: u64 = 8 * 1024 * 1024;
 /// The bound for the transaction journal, the hash cache and other whole project inputs.
 pub const MAX_PROJECT_INPUT_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Read a file of the project, `None` when nothing is there (REQ-util-002, REQ-util-003).
-///
-/// `path` is `root` joined with a relative path, or a path relative to `root`. A symbolic link
-/// that stays inside the project is followed. A link that leaves it, a dangling link, anything
-/// that is not a regular file, and a file larger than `max_bytes` are refused with an error that
-/// names the path and the reason. The file is opened without blocking and its type is checked on
-/// the open handle, so neither a FIFO nor a device can hold the read, and at most one byte past
-/// the bound is ever read.
-pub fn read_project_file(root: &Path, path: &Path, max_bytes: u64) -> io::Result<Option<Vec<u8>>> {
-    let (project, relative) = open_project(root, path)?;
-    if !project_file_exists(&project, &relative)? {
+/// The bounded read behind [`read_project_file`] and [`read_file_within`].
+fn read_confined(path: &ProjectPath, max_bytes: u64) -> io::Result<Option<Vec<u8>>> {
+    if !project_file_exists(path)? {
         return Ok(None);
     }
+    let shown = path.shown(&path.relative);
     let mut options = OpenOptions::new();
     // Non-blocking, so a FIFO swapped in after the look above cannot hold the open.
     options.read(true)._cap_fs_ext_nonblock(true);
-    let file = project.open_with(&relative, &options)?;
+    let file = path.project.open_with(&path.relative, &options)?;
     let metadata = file.metadata()?;
     if !metadata.is_file() {
         return Err(refused_project_path(format!(
-            "{} is not a regular file",
-            relative.display()
+            "{shown} is not a regular file"
         )));
     }
-    let over_bound = || {
-        refused_project_path(format!(
-            "{} is larger than {max_bytes} bytes",
-            relative.display()
-        ))
-    };
+    let over_bound = || refused_project_path(format!("{shown} is larger than {max_bytes} bytes"));
     if metadata.len() > max_bytes {
         return Err(over_bound());
     }
@@ -266,6 +435,30 @@ pub fn read_project_file(root: &Path, path: &Path, max_bytes: u64) -> io::Result
         return Err(over_bound());
     }
     Ok(Some(contents))
+}
+
+/// Read a file of the project, `None` when nothing is there (REQ-util-002, REQ-util-003).
+///
+/// `path` is `root` joined with a relative path, or a path relative to `root`. A symbolic link
+/// that stays inside the project, or inside the Git work tree that holds it, is followed. A link
+/// that leaves it, an absolute or dangling link, a path into the Git directory, anything that is
+/// not a regular file, and a file larger than `max_bytes` are refused with an error that names
+/// the path and the reason. The file is opened without blocking and its type is checked on the
+/// open handle, so neither a FIFO nor a device can hold the read, and at most one byte past the
+/// bound is ever read.
+pub fn read_project_file(root: &Path, path: &Path, max_bytes: u64) -> io::Result<Option<Vec<u8>>> {
+    read_confined(&open_project(root, path)?, max_bytes)
+}
+
+/// [`read_project_file`] within exactly `directory`, for a directory the person names that may
+/// lie outside the project: a link inside it is followed, a link out of it is refused, and the
+/// same bound applies (REQ-util-004).
+pub fn read_file_within(
+    directory: &Path,
+    path: &Path,
+    max_bytes: u64,
+) -> io::Result<Option<Vec<u8>>> {
+    read_confined(&open_within(directory, path)?, max_bytes)
 }
 
 /// [`read_project_file`] with the contract of `std::fs::read`: a missing file is a not-found
@@ -294,18 +487,27 @@ pub fn read_project_string(root: &Path, path: &Path, max_bytes: u64) -> io::Resu
 /// Write a file of the project, creating it and the directories on the way when they are missing
 /// (REQ-util-002).
 ///
-/// A symbolic link that stays inside the project is written through. A link that leaves it, a
-/// dangling link and anything that is not a regular file are refused with an error that names the
-/// path, and nothing is written or created.
+/// A symbolic link that stays inside the project is written through. A link that leaves it, an
+/// absolute or dangling link, a path into the Git directory and anything that is not a regular
+/// file are refused with an error that names the path, and nothing is written or created. An
+/// existing file is opened without blocking and without truncating, and emptied only once the
+/// open handle shows a regular file, so a FIFO swapped in after the look cannot hold the write.
 pub fn write_project_file(root: &Path, path: &Path, contents: &[u8]) -> io::Result<()> {
-    let (project, relative) = open_project(root, path)?;
-    if !project_file_exists(&project, &relative)? {
-        return create_new_project_file(&project, &relative, contents);
+    let path = open_project(root, path)?;
+    if !project_file_exists(&path)? {
+        return create_new_project_file(&path, contents);
     }
     // No create flag: an existing file is opened, so a link is never created through.
     let mut options = OpenOptions::new();
-    options.write(true).truncate(true);
-    let mut file = project.open_with(&relative, &options)?;
+    options.write(true)._cap_fs_ext_nonblock(true);
+    let mut file = path.project.open_with(&path.relative, &options)?;
+    if !file.metadata()?.is_file() {
+        return Err(refused_project_path(format!(
+            "{} is not a regular file",
+            path.shown(&path.relative)
+        )));
+    }
+    file.set_len(0)?;
     file.write_all(contents)?;
     file.flush()
 }
@@ -313,45 +515,189 @@ pub fn write_project_file(root: &Path, path: &Path, contents: &[u8]) -> io::Resu
 /// Create a file of the project that does not exist yet (REQ-util-002). `Ok(false)`, with nothing
 /// changed, when a regular file is already there. The refusals of [`write_project_file`] apply.
 pub fn create_project_file(root: &Path, path: &Path, contents: &[u8]) -> io::Result<bool> {
-    let (project, relative) = open_project(root, path)?;
-    if project_file_exists(&project, &relative)? {
+    let path = open_project(root, path)?;
+    if project_file_exists(&path)? {
         return Ok(false);
     }
-    create_new_project_file(&project, &relative, contents).map(|()| true)
+    create_new_project_file(&path, contents).map(|()| true)
 }
 
 /// Remove a file of the project (REQ-util-002). The name removed is inside the project: a link
 /// that stays inside is removed as a link, and its target is left. The refusals of
 /// [`write_project_file`] apply.
 pub fn remove_project_file(root: &Path, path: &Path) -> io::Result<()> {
-    let (project, relative) = open_project(root, path)?;
-    if !project_file_exists(&project, &relative)? {
+    let path = open_project(root, path)?;
+    if !project_file_exists(&path)? {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("{} does not exist", relative.display()),
+            format!("{} does not exist", path.shown(&path.relative)),
         ));
     }
-    project.remove_file(&relative)
+    path.project.remove_file(&path.relative)
 }
 
 /// Create a directory of the project and the directories on the way to it (REQ-util-002). The
 /// refusals of [`write_project_file`] apply, and a file where the directory belongs is refused.
 pub fn create_project_dir(root: &Path, path: &Path) -> io::Result<()> {
-    let (project, relative) = open_project(root, path)?;
-    match inspect_project_path(&project, &relative)? {
+    let path = open_project(root, path)?;
+    match inspect_project_path(&path)? {
         ProjectTarget::Directory => Ok(()),
-        ProjectTarget::Absent => project.create_dir_all(&relative),
+        ProjectTarget::Absent => path.project.create_dir_all(&path.relative),
         ProjectTarget::File => Err(refused_project_path(format!(
             "{} is not a directory",
-            relative.display()
+            path.shown(&path.relative)
         ))),
     }
 }
 
+/// Create a directory of the project that must not exist yet, after the directories on the way
+/// (REQ-util-002). Something already at the name, a link included, is an `AlreadyExists` error;
+/// the refusals of [`write_project_file`] apply on the way.
+pub fn create_new_project_dir(root: &Path, path: &Path) -> io::Result<()> {
+    let path = open_project(root, path)?;
+    if let Some(parent) = path.relative.parent().filter(|p| !p.as_os_str().is_empty()) {
+        let parent = path.at(parent.to_path_buf())?;
+        match inspect_project_path(&parent)? {
+            ProjectTarget::Directory => {}
+            ProjectTarget::Absent => parent.project.create_dir_all(&parent.relative)?,
+            ProjectTarget::File => {
+                return Err(refused_project_path(format!(
+                    "{} is not a directory",
+                    parent.shown(&parent.relative)
+                )));
+            }
+        }
+    }
+    // `mkdir` never follows a link at its last component: a name already there, link or not,
+    // fails with `AlreadyExists`.
+    path.project.create_dir(&path.relative)
+}
+
+/// Whether `path` is a regular file of the project the project file functions would read: a
+/// refused path counts as absent (REQ-util-002).
+pub fn is_project_file(root: &Path, path: &Path) -> bool {
+    open_project(root, path)
+        .and_then(|path| project_file_exists(&path))
+        .unwrap_or(false)
+}
+
+/// Remove an empty directory of the project (REQ-util-002). A link at the name is never
+/// followed, and a directory reached through a link that leaves the project is refused.
+pub fn remove_empty_project_dir(root: &Path, path: &Path) -> io::Result<()> {
+    let path = open_project(root, path)?;
+    match inspect_project_path(&path)? {
+        ProjectTarget::Directory => path.project.remove_dir(&path.relative),
+        ProjectTarget::Absent => Ok(()),
+        ProjectTarget::File => Err(refused_project_path(format!(
+            "{} is not a directory",
+            path.shown(&path.relative)
+        ))),
+    }
+}
+
+/// Every regular file under the project directory `directory` whose name ends with `suffix`,
+/// sorted, as `root` joined with its path (REQ-util-002).
+///
+/// `directory` follows the project rule, so a link there that stays inside is followed and one
+/// that leaves is refused. Below it, a link is listed but never followed, unless it dangles
+/// inside the project or leads to a directory, so a reader refuses one that leaves by name;
+/// links to directories are not walked, as before. A `.git` directory is not walked. The walk
+/// stops with an error past `max_entries` entries or `max_depth` levels, so no tree can hold it.
+pub fn find_project_files(
+    root: &Path,
+    directory: &Path,
+    suffix: &str,
+    max_entries: usize,
+    max_depth: usize,
+) -> io::Result<Vec<PathBuf>> {
+    let Ok(canonical_root) = root.canonicalize() else {
+        // No project there: nothing to find, as when the directory is missing.
+        return Ok(Vec::new());
+    };
+    let names_root = directory == root || directory == canonical_root;
+    let start = if names_root {
+        // `specs_dir = "."`: the walk starts at the project root itself.
+        let confinement = confinement(&canonical_root);
+        ProjectPath {
+            project: Dir::open_ambient_dir(&confinement.top, ambient_authority())?,
+            top: confinement.top.clone(),
+            prefix: confinement.prefix.clone(),
+            git_dir: confinement.git_dir.clone(),
+            relative: confinement.prefix.clone(),
+        }
+    } else {
+        open_project(root, directory)?
+    };
+    if !names_root && !matches!(inspect_project_path(&start)?, ProjectTarget::Directory) {
+        return Ok(Vec::new());
+    }
+    let shown_start = if names_root {
+        ".".to_string()
+    } else {
+        start.shown(&start.relative).to_string()
+    };
+    let mut found = Vec::new();
+    let mut entries = 0usize;
+    let mut pending = vec![(start.relative.clone(), 0usize)];
+    while let Some((current, depth)) = pending.pop() {
+        // The root that is the confinement itself is the handle's own directory, `.`.
+        let listed = if current.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            current.as_path()
+        };
+        for entry in start.project.read_dir(listed)? {
+            let entry = entry?;
+            entries += 1;
+            if entries > max_entries {
+                return Err(refused_project_path(format!(
+                    "{shown_start} holds more than {max_entries} entries"
+                )));
+            }
+            let name = entry.file_name();
+            let child = current.join(&name);
+            let file_type = entry.file_type()?;
+            if file_type.is_dir() {
+                if is_git_directory_name(&name) || start.in_git_dir(&start.top.join(&child)) {
+                    continue;
+                }
+                if depth + 1 > max_depth {
+                    return Err(refused_project_path(format!(
+                        "{shown_start} is more than {max_depth} directories deep"
+                    )));
+                }
+                pending.push((child, depth + 1));
+                continue;
+            }
+            if !name.to_string_lossy().ends_with(suffix) {
+                continue;
+            }
+            // A link is listed unless it is dangling or leads to a directory inside, as a walk
+            // that does not follow links lists it. It is never followed here: one that leaves
+            // the project or leads into `.git` is listed for the reader to refuse by name.
+            let keep = file_type.is_file()
+                || (file_type.is_symlink()
+                    && !matches!(
+                        start.project.metadata(&child),
+                        Err(ref error) if error.kind() == io::ErrorKind::NotFound
+                    )
+                    && !matches!(
+                        inspect_project_path(&start.at(child.clone())?),
+                        Ok(ProjectTarget::Directory)
+                    ));
+            if keep {
+                found.push(root.join(child.strip_prefix(&start.prefix).unwrap_or(&child)));
+            }
+        }
+    }
+    found.sort();
+    Ok(found)
+}
+
 /// Why a project path is refused, in words for the user, without changing anything: a symbolic
-/// link that leaves the project, a dangling link, a path outside the project, or something that
-/// is neither a regular file nor a directory. `None` for a path the project file functions accept
-/// (REQ-util-002).
+/// link that leaves the project, an absolute or dangling link, a path into the Git directory, a
+/// path outside the project, or something that is neither a regular file nor a directory. `None`
+/// for a path the project file functions accept (REQ-util-002).
 pub fn project_path_refusal(root: &Path, path: &Path) -> Option<String> {
     let refusal = |error: io::Error| {
         error
@@ -360,9 +706,7 @@ pub fn project_path_refusal(root: &Path, path: &Path) -> Option<String> {
             .then(|| error.to_string())
     };
     match open_project(root, path) {
-        Ok((project, relative)) => inspect_project_path(&project, &relative)
-            .err()
-            .and_then(refusal),
+        Ok(path) => inspect_project_path(&path).err().and_then(refusal),
         Err(error) => refusal(error),
     }
 }
@@ -446,7 +790,12 @@ mod tests {
             } else {
                 symlink("../outside/victim.txt", root.join("CLAUDE.md")).unwrap();
             }
-            let reason = "CLAUDE.md is a symbolic link that leaves the project";
+            // An absolute link is refused as one before anything asks where it leads (REQ-util-004).
+            let reason = if absolute {
+                "CLAUDE.md is an absolute link, which is never followed"
+            } else {
+                "CLAUDE.md is a symbolic link that leaves the project"
+            };
 
             let written = write_project_file(&root, Path::new("CLAUDE.md"), b"block\n");
             assert_eq!(
@@ -479,6 +828,186 @@ mod tests {
             assert!(std::fs::symlink_metadata(root.join("CLAUDE.md")).is_ok());
             assert_eq!(entries(&outside), 1);
         }
+    }
+
+    /// Verifies REQ-util-004. A write to a FIFO is refused at once; nothing waits on it.
+    #[cfg(unix)]
+    #[test]
+    fn writing_a_fifo_is_refused_without_blocking() {
+        let (_dir, root, _outside) = project_beside_outside();
+        fifo(&root.join("pipe.md"));
+        assert_eq!(
+            write_project_file(&root, Path::new("pipe.md"), b"x")
+                .unwrap_err()
+                .to_string(),
+            "pipe.md is not a regular file"
+        );
+    }
+
+    /// Verifies REQ-util-004. `read_file_within` reads within exactly the directory it is given:
+    /// a link inside it is followed, a link out of it is refused, even to a sibling directory.
+    #[cfg(unix)]
+    #[test]
+    fn reading_within_a_named_directory_stays_inside_it() {
+        use std::os::unix::fs::symlink;
+        let (_dir, root, outside) = project_beside_outside();
+        std::fs::write(outside.join("notes.md"), "notes\n").unwrap();
+        symlink("notes.md", outside.join("again.md")).unwrap();
+        std::fs::write(root.join("secret.md"), "secret\n").unwrap();
+        symlink("../project/secret.md", outside.join("secret.md")).unwrap();
+        let read =
+            |name: &str| read_file_within(&outside, &outside.join(name), MAX_SPEC_FILE_BYTES);
+        assert_eq!(read("again.md").unwrap().unwrap(), b"notes\n");
+        assert_eq!(
+            read("secret.md").unwrap_err().to_string(),
+            "secret.md is a symbolic link that leaves the project"
+        );
+    }
+
+    /// Verifies REQ-util-004. An empty directory reached through a link that leaves the project
+    /// is never removed; one inside is.
+    #[cfg(unix)]
+    #[test]
+    fn removing_an_empty_directory_never_follows_a_link_out() {
+        use std::os::unix::fs::symlink;
+        let (_dir, root, outside) = project_beside_outside();
+        std::fs::create_dir_all(outside.join("specsync")).unwrap();
+        symlink("../outside", root.join("commands")).unwrap();
+        assert!(remove_empty_project_dir(&root, &root.join("commands/specsync")).is_err());
+        assert!(outside.join("specsync").is_dir());
+        std::fs::create_dir_all(root.join("own/specsync")).unwrap();
+        remove_empty_project_dir(&root, &root.join("own/specsync")).unwrap();
+        assert!(!root.join("own/specsync").exists());
+    }
+
+    /// Verifies REQ-util-004. The walk lists a file link that leaves the project, without
+    /// following it, so its reader refuses it by name; it drops a link dangling inside the
+    /// project and does not walk a linked directory or `.git`.
+    #[cfg(unix)]
+    #[test]
+    fn finding_project_files_never_follows_a_link() {
+        use std::os::unix::fs::symlink;
+        let (_dir, root, outside) = project_beside_outside();
+        std::fs::create_dir_all(root.join("specs/auth")).unwrap();
+        std::fs::create_dir_all(root.join("specs/.git")).unwrap();
+        std::fs::create_dir_all(outside.join("more")).unwrap();
+        std::fs::write(root.join("specs/auth/auth.spec.md"), "a").unwrap();
+        std::fs::write(root.join("specs/.git/x.spec.md"), "a").unwrap();
+        std::fs::write(outside.join("out.spec.md"), "a").unwrap();
+        std::fs::write(outside.join("more/deep.spec.md"), "a").unwrap();
+        symlink("../../outside/out.spec.md", root.join("specs/out.spec.md")).unwrap();
+        symlink("nothing.spec.md", root.join("specs/gone.spec.md")).unwrap();
+        symlink("../../outside/more", root.join("specs/more")).unwrap();
+        let found = find_project_files(&root, &root.join("specs"), ".spec.md", 1000, 16).unwrap();
+        assert_eq!(
+            found,
+            vec![
+                root.join("specs/auth/auth.spec.md"),
+                root.join("specs/out.spec.md")
+            ]
+        );
+        assert_eq!(
+            read_project_file(&root, &found[1], MAX_SPEC_FILE_BYTES)
+                .unwrap_err()
+                .to_string(),
+            "specs/out.spec.md is a symbolic link that leaves the project"
+        );
+    }
+
+    /// Verifies REQ-util-002. A walk that starts at the project root itself (`specs_dir = "."`)
+    /// lists the root's files, outside Git and at the top of a work tree, where the root is the
+    /// confinement's own directory.
+    #[test]
+    fn finding_project_files_from_the_root_itself_lists_its_files() {
+        for in_git in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path();
+            if in_git {
+                let status = std::process::Command::new("git")
+                    .args(["init", "-q"])
+                    .current_dir(root)
+                    .status()
+                    .unwrap();
+                assert!(status.success());
+            }
+            std::fs::create_dir_all(root.join("auth")).unwrap();
+            std::fs::write(root.join("top.spec.md"), "a").unwrap();
+            std::fs::write(root.join("auth/auth.spec.md"), "a").unwrap();
+            let found = find_project_files(root, root, ".spec.md", 1000, 16).unwrap();
+            assert_eq!(
+                found,
+                vec![root.join("auth/auth.spec.md"), root.join("top.spec.md")],
+                "in_git: {in_git}"
+            );
+        }
+    }
+
+    /// Verifies REQ-util-005. A path into the Git directory is refused, named directly in any
+    /// letter case or reached through a link that stays inside the project.
+    #[cfg(unix)]
+    #[test]
+    fn project_file_functions_refuse_the_git_directory() {
+        use std::os::unix::fs::symlink;
+        let (_dir, root, _outside) = project_beside_outside();
+        std::fs::create_dir_all(root.join(".git/hooks")).unwrap();
+        std::fs::write(root.join(".git/config"), "[core]\n").unwrap();
+        symlink(".git/config", root.join("CLAUDE.md")).unwrap();
+        for name in [".git/config", ".GIT/config", ".git./config", "CLAUDE.md"] {
+            let error = write_project_file(&root, Path::new(name), b"x").unwrap_err();
+            assert!(
+                error.to_string().ends_with("leads into the Git directory"),
+                "{name}: {error}"
+            );
+            assert!(read_project_file(&root, Path::new(name), MAX_SPEC_FILE_BYTES).is_err());
+        }
+        assert_eq!(
+            std::fs::read_to_string(root.join(".git/config")).unwrap(),
+            "[core]\n"
+        );
+    }
+
+    /// Verifies REQ-util-005. A Git directory with another name (`git init --separate-git-dir`
+    /// inside the work tree) is refused like `.git`: named directly, reached through a link, or
+    /// reached through a linked directory on the way. A walk does not enter it.
+    #[cfg(unix)]
+    #[test]
+    fn project_file_functions_refuse_a_git_directory_under_any_name() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        let status = std::process::Command::new("git")
+            .args(["init", "-q", "--separate-git-dir", "gitstore", "."])
+            .current_dir(&root)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let hook = root.join("gitstore/hooks/pre-commit");
+        std::fs::write(&hook, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::write(root.join("gitstore/hooks/notes.spec.md"), "a").unwrap();
+        symlink("gitstore/hooks/pre-commit", root.join("CLAUDE.md")).unwrap();
+        symlink("gitstore", root.join("store")).unwrap();
+        for name in [
+            "gitstore/hooks/pre-commit",
+            "CLAUDE.md",
+            "store/hooks/pre-commit",
+        ] {
+            let error = write_project_file(&root, Path::new(name), b"x").unwrap_err();
+            assert!(
+                error.to_string().ends_with("leads into the Git directory"),
+                "{name}: {error}"
+            );
+        }
+        assert_eq!(
+            std::fs::read_to_string(&hook).unwrap(),
+            "#!/bin/sh\nexit 0\n"
+        );
+        assert!(
+            find_project_files(&root, &root, ".spec.md", 1000, 16)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     /// Verifies REQ-util-002. A dangling link creates nothing, wherever it points, and a link to

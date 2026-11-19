@@ -46,3 +46,12 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `check_does_not_wait_on_a_companion_that_is_not_a_regular_file`, `check_refuses_a_hash_cache_over_its_bound`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## A tracked cache and prune (REQ-hash-cache-009, REQ-hash-cache-010)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A cache carrying a forged pass, untracked and then tracked by Git | Replays while untracked; not once tracked; `save` refuses and the tracked bytes stay | `src/hash_cache.rs`: `a_forged_pass_in_a_cache_git_tracks_is_never_replayed`; `tests/integration/repository_inputs.rs`: `rehash_refuses_a_hash_cache_git_tracks` |
+| `prune` with an absolute key and a `..` key naming an outside file | Both dropped; a project file's key kept | `src/hash_cache.rs`: `prune_drops_keys_that_leave_the_project` |

@@ -3485,7 +3485,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
     // Durable like every other artifact this lifecycle writes: a crash mid-write would leave a
     // TRUNCATED bundle, and truncated lessons read exactly like lessons nobody wrote — the same
     // failure this whole change exists to prevent.
-    atomic_write_durable(&archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
+    atomic_write_durable(root, &archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
         .map_err(|error| format!("failed to write lesson bundle: {error}"))
 }
 
@@ -3542,7 +3542,7 @@ fn archive_change_with_options(
     let original_markdown_bytes = crate::util::read_project_bytes(root, &current_location.join("change.md"), crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        crate::util::create_project_dir(root, parent).map_err(|error| error.to_string())?;
     }
     // The package is being closed out of the change's own active workspace by this process, so
     // the closing evidence under `current_location` may speak for a generation history has not
@@ -3557,7 +3557,7 @@ fn archive_change_with_options(
         authenticated_accepted_transition_for(root, &record, pending_close.as_ref())
             .map(|(_, bytes, _)| bytes)
             .unwrap_or_else(|_| original_state_bytes.clone());
-    atomic_write_durable(&accepted_snapshot, &accepted_state_bytes)
+    atomic_write_durable(root, &accepted_snapshot, &accepted_state_bytes)
         .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
     // Structural roster (REQ-change-124). The change being archived had its own history checked
     // by `load_change` and is validated in full below; other archives are read from their own
@@ -3570,7 +3570,7 @@ fn archive_change_with_options(
         Some(pending) => validate_archived_integrity_closing(root, &archived_projection, pending),
         None => validate_archived_integrity(root, &archived_projection),
     } {
-        let _ = remove_file_durable(&accepted_snapshot);
+        let _ = remove_file_durable(root, &accepted_snapshot);
         return Err(format!(
             "archive target historical-integrity preflight failed: {error}"
         ));
@@ -3596,7 +3596,7 @@ fn archive_change_with_options(
             pending_close.as_ref(),
         ) {
             drop(memo);
-            let _ = remove_file_durable(&accepted_snapshot);
+            let _ = remove_file_durable(root, &accepted_snapshot);
             return Err(format!(
                 "archive post-move preflight would invalidate `{}`: {error}",
                 candidate.id
@@ -3604,8 +3604,8 @@ fn archive_change_with_options(
         }
     }
     drop(memo);
-    if !resume_post_move && let Err(error) = rename_durable(&source, &destination) {
-        let _ = remove_file_durable(&accepted_snapshot);
+    if !resume_post_move && let Err(error) = rename_durable(root, &source, &destination) {
+        let _ = remove_file_durable(root, &accepted_snapshot);
         return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
@@ -3639,9 +3639,9 @@ fn archive_change_with_options(
     if let Err(error) = finalize {
         if resume_post_move {
             let restore =
-                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+                atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
                     .and_then(|()| {
-                        atomic_write_durable(
+                        atomic_write_durable(root, 
                             &destination.join("change.md"),
                             &original_markdown_bytes,
                         )
@@ -3655,12 +3655,12 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+        let restore = atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
             .and_then(|()| {
-                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
+                atomic_write_durable(root, &destination.join("change.md"), &original_markdown_bytes)
             })
-            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
-            .and_then(|()| rename_durable(&destination, &source));
+            .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "failed to finalize archive; source restored: {error}"
@@ -3679,9 +3679,9 @@ fn archive_change_with_options(
     } {
         if resume_post_move {
             let restore =
-                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+                atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
                     .and_then(|()| {
-                        atomic_write_durable(
+                        atomic_write_durable(root, 
                             &destination.join("change.md"),
                             &original_markdown_bytes,
                         )
@@ -3695,12 +3695,12 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+        let restore = atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
             .and_then(|()| {
-                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
+                atomic_write_durable(root, &destination.join("change.md"), &original_markdown_bytes)
             })
-            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
-            .and_then(|()| rename_durable(&destination, &source));
+            .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "archived evidence failed post-move validation; source restored: {error}"
@@ -3731,6 +3731,7 @@ fn prune_empty_package_directories(package: &Path) {
     // Deepest first, so a parent emptied by its children is removed in the same pass.
     directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
     for directory in directories {
+        // checked project write: removes empty directories inside the package just moved by a rename whose paths were refused as links; rmdir never follows a link
         let _ = fs::remove_dir(&directory);
     }
 }
@@ -5236,7 +5237,8 @@ pub fn record_bootstrap_paths(root: &Path) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
-    write_json(
+    write_record_json(
+        root,
         &root.join(BOOTSTRAP_RECORD_PATH),
         &serde_json::json!({
             "version": 1,
@@ -5403,7 +5405,8 @@ mod lesson_bundle_dash_tests {
             requirement_ids: Vec::new(),
             refusal: None,
         };
-        write_json(
+        write_record_json(
+            root,
             &change_dir(root, &record.id).join("verification.json"),
             &verification,
         )

@@ -139,3 +139,13 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `check_does_not_read_requirements_linked_outside_the_project`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Confined spec discovery (REQ-validator-050, REQ-validator-051)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A `specs` link that leaves the project | Discovery stops with the reason; nothing outside is named | `tests/integration/repository_inputs.rs`: `a_specs_link_that_leaves_the_project_is_not_walked` |
+| A tree deeper than 256 levels | Discovery stops with the reason | `tests/integration/repository_inputs.rs`: `spec_discovery_stops_at_the_depth_budget` |
+| `specs_dir` is the project root | The root's spec files are listed | `src/validator/tests.rs`: `test_find_spec_files_empty_dir`, `test_find_spec_files_with_specs`; `src/util.rs`: `finding_project_files_from_the_root_itself_lists_its_files` |

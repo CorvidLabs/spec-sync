@@ -702,7 +702,7 @@ pub fn retire_change_with_source(
         .join(format!("{}-{id}", utc_date(receipt.timestamp)));
     validate_late_close_destination(root, &destination)?;
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        crate::util::create_project_dir(root, parent).map_err(|e| e.to_string())?;
     }
     validate_late_close_destination(root, &destination)?;
     record.state = ChangeState::Retired;
@@ -892,14 +892,14 @@ fn finish_retirement_move(
         reject_symlink_components_for(root, source, "retirement source")?;
         validate_late_close_destination(root, &destination)?;
         if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            crate::util::create_project_dir(root, parent).map_err(|e| e.to_string())?;
         }
         validate_late_close_destination(root, &destination)?;
         #[cfg(test)]
         if RETIREMENT_TEST_FAIL_MOVE.with(|value| value.get()) {
             return Err("injected retirement move failure".to_string());
         }
-        rename_durable(source, &destination).map_err(|e| e.to_string())
+        rename_durable(root, source, &destination).map_err(|e| e.to_string())
     })();
     moved.map_err(|error| format!(
         "retirement custody is recorded but archive move is pending: {error}; rerun the identical change retire command to finish; no implementation acceptance was recorded"))

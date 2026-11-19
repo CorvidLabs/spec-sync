@@ -28,3 +28,12 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `check_does_not_wait_on_a_config_file_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Configured directories (REQ-config-017)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| `specs_dir`, a `source_dirs` entry or `schema_dir` outside the project, absolute or through `..` | A config error naming the field; nothing outside is listed | `tests/integration/repository_inputs.rs`: `a_configured_directory_outside_the_project_is_a_config_error` |
+| The same config under the MCP server | A tool error naming the field for that request; the server keeps serving | `tests/integration/mcp.rs`: `mcp_rejects_configured_read_and_write_path_escapes` |

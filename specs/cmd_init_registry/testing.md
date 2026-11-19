@@ -37,3 +37,11 @@ spec: cmd_init_registry.spec.md
 - Reproduce one Behavioral Verification row with a temp project before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Confined registry create (REQ-cmd-init-registry-004)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| `.specsync` linked to an outside directory | Nothing is created there | `tests/integration/project_writes.rs`: `init_registry_creates_nothing_in_a_specsync_directory_linked_out` |

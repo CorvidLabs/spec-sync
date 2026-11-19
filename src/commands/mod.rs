@@ -1365,7 +1365,7 @@ pub fn create_drift_issues(
     all_errors: &[String],
     format: types::OutputFormat,
 ) {
-    let spec_paths = find_spec_files(&root.join(&config.specs_dir))
+    let spec_paths = find_spec_files(root, &root.join(&config.specs_dir))
         .into_iter()
         .map(|path| {
             path.strip_prefix(root)

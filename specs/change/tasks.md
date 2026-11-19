@@ -116,3 +116,4 @@ spec: change.spec.md
 - [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).
 - [x] Read project files only through the bounded project read of `util` (REQ-change-161). Evidence: `tests/integration/project_reads.rs`.
 - [x] Replay the transaction journal only when this machine can have written it and only into files the workflow writes (REQ-change-162). Evidence: `src/change_tests/journal_replay_targets.rs`, `change_new_never_replays_a_committed_journal_into_git`.
+- [x] Write change records and workspaces only through the confined helpers, and refuse a linked record before writing (REQ-change-163). Evidence: the `change_*` tests in `tests/integration/project_writes.rs`.

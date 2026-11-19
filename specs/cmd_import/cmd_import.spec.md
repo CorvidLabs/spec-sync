@@ -38,6 +38,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 5. Unsafe/reserved/overlong output names create no directory or file.
 6. Partial batch success never produces a false-green exit status.
 7. `import`, for one item and for a batch, creates the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so an item whose spec path is a dangling link, or whose spec directory leaves the project through a link, fails with an error naming the path and creates nothing there (REQ-cmd-import-003).
+8. `import --from-dir` reads each Markdown entry through `read_import_file`: an entry of a directory inside the project by the project rule, and an entry of a directory outside it within that directory only (`util::read_file_within`), following a link that stays inside it, refusing one that leaves it, and reading at most the 8 MiB spec bound (REQ-cmd-import-004).
 
 ## Behavioral Examples
 
@@ -61,6 +62,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | Written draft spec has an empty `files:` list (including a parseable doc without frontmatter) | Import writes it as a `status: draft` draft and warns that `check --strict` will fail until `files` is filled in |
 | Any batch item errors | Summary includes imported/skipped/error counts and the command exits 1 |
 | An item's spec path is a dangling link, or its spec directory leaves the project through a link | That item fails naming the path; nothing is created at the link's target |
+| An `--from-dir` entry is a link that leaves the named directory (or the project), dangles, or is over 8 MiB | That entry is refused with its path and reason, and nothing from outside is imported |
 
 ## Dependencies
 

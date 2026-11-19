@@ -65,3 +65,13 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Backups and a tracked hash cache (REQ-cmd-check-020, REQ-cmd-check-021)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| `.specsync/backup-fix` linked outside, or a backup file linked outside | Nothing is written there and the spec is unchanged | `tests/integration/project_writes.rs`: `check_fix_backup_copies_nothing_through_a_linked_backup_directory`, `check_fix_backup_never_copies_over_a_linked_backup_file` |
+| No link | The backup is written where it was and the fix goes on | `tests/integration/project_writes.rs`: `check_fix_backup_still_backs_up_a_project_with_no_link` |
+| `.specsync/hashes.json` committed to Git | One warning with the `git rm --cached` fix; nothing replayed; the file keeps its bytes | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_git_tracks` |

@@ -1225,12 +1225,14 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             }
         }
         let effective_dir = temp.join(&module);
+        // not a project file write: the effective-contract workspace in the system temporary directory
         if let Err(error) = fs::create_dir_all(&effective_dir) {
             errors.push(format!("failed to prepare effective contract: {error}"));
             continue;
         }
         let effective = effective_dir.join(format!("{module}.spec.md"));
         let inline_ignores = crate::ignore::IgnoreRules::parse_inline(&spec);
+        // not a project file write: the effective-contract workspace in the system temporary directory
         if let Err(error) = fs::write(&effective, spec) {
             errors.push(format!("failed to write effective contract: {error}"));
             continue;
@@ -1278,6 +1280,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             module_errors.insert(module.clone(), verdicts);
         }
     }
+    // not a project file write: the effective-contract workspace in the system temporary directory
     let _ = fs::remove_dir_all(temp);
     EffectiveContractOutcome {
         errors,
@@ -1294,6 +1297,7 @@ fn create_effective_contract_workspace() -> Result<PathBuf, String> {
             std::process::id(),
             now()
         ));
+        // not a project file write: the effective-contract workspace in the system temporary directory
         match fs::create_dir(&path) {
             Ok(()) => return Ok(path),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -3067,7 +3071,7 @@ where
     validate_prepared_transaction_targets(root, prepared)?;
     validate()?;
     let journal_path = root.join(TRANSACTION_PATH);
-    atomic_write_durable(&journal_path, json_content(&journal)?.as_bytes())
+    atomic_write_durable(root, &journal_path, json_content(&journal)?.as_bytes())
         .map_err(|error| format!("failed to publish transaction journal: {error}"))?;
     #[cfg(test)]
     run_transaction_after_journal_hook();
@@ -3091,7 +3095,7 @@ where
             recover_pending_transaction(root)?;
             return Err(error);
         }
-        if let Err(error) = atomic_write_durable(path, content.as_bytes()) {
+        if let Err(error) = atomic_write_durable(root, path, content.as_bytes()) {
             recover_pending_transaction(root)?;
             return Err(format!(
                 "atomic delta application failed at {}: {error}",
@@ -3105,7 +3109,7 @@ where
         recover_pending_transaction(root)?;
         return Err(error);
     }
-    remove_file_durable(&journal_path)
+    remove_file_durable(root, &journal_path)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
     Ok(())
 }
@@ -3205,6 +3209,7 @@ fn remove_empty_transaction_directories(root: &Path, start: Option<&Path>) {
             break;
         }
         let parent = directory.parent().map(Path::to_path_buf);
+        // checked project write: removes only empty directories a transaction left below targets whose components were refused as links; rmdir never follows a link
         if fs::remove_dir(&directory).is_err() {
             break;
         }
@@ -3218,10 +3223,15 @@ fn transaction_entries_digest(entries: &[TransactionEntry]) -> Result<String, St
         .map_err(|error| format!("failed to hash transaction journal: {error}"))
 }
 
-fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
+/// Write `path` durably: stage a new file beside it, then rename it over the name, which never
+/// writes through a link there. Every component of `path` is refused as a link first, so no
+/// directory on the way can lead the write out of the project (REQ-change-163).
+fn atomic_write_durable(root: &Path, path: &Path, content: &[u8]) -> Result<(), String> {
+    reject_symlink_components_for(root, path, "lifecycle write target")?;
     let parent = path
         .parent()
         .ok_or_else(|| format!("transaction target has no parent: {}", path.display()))?;
+    // checked project write: `path` and its directories were refused as links just above
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-transaction-")
@@ -3230,6 +3240,7 @@ fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
     let permissions = fs::metadata(path)
         .map(|metadata| metadata.permissions())
         .unwrap_or(default_transaction_permissions(temporary.path())?);
+    // not a project file write: the staged file this function just created
     fs::set_permissions(temporary.path(), permissions)
         .map_err(|error| format!("failed to preserve {} permissions: {error}", path.display()))?;
     temporary
@@ -3237,6 +3248,7 @@ fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
         .and_then(|()| temporary.flush())
         .and_then(|()| temporary.as_file().sync_all())
         .map_err(|error| format!("failed to durably stage {}: {error}", path.display()))?;
+    // checked project write: a rename over a name whose components were refused as links
     temporary
         .persist(path)
         .map_err(|error| format!("failed to publish {}: {}", path.display(), error.error))?;
@@ -3263,7 +3275,9 @@ fn default_transaction_permissions(temporary: &Path) -> Result<fs::Permissions, 
     Ok(permissions)
 }
 
-fn remove_file_durable(path: &Path) -> Result<(), String> {
+fn remove_file_durable(root: &Path, path: &Path) -> Result<(), String> {
+    reject_symlink_components_for(root, path, "lifecycle removal target")?;
+    // checked project write: `path` and its directories were refused as links just above
     fs::remove_file(path).map_err(|error| error.to_string())?;
     let parent = path
         .parent()
@@ -3288,6 +3302,7 @@ fn sync_parent_directory(directory: &Path) -> Result<(), String> {
     // Directory FlushFileBuffers can fail with ERROR_ACCESS_DENIED while a
     // sibling handle (lifecycle lock, staged temp file) remains open. File bytes
     // are already synced; treat metadata durability as best-effort in that case.
+    // not a project file read: opens a directory only to sync it; nothing is read
     match OpenOptions::new()
         .read(true)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
@@ -3312,7 +3327,9 @@ fn sync_parent_directory(_directory: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn rename_durable(source: &Path, destination: &Path) -> Result<(), String> {
+fn rename_durable(root: &Path, source: &Path, destination: &Path) -> Result<(), String> {
+    reject_symlink_components_for(root, source, "lifecycle move source")?;
+    reject_symlink_components_for(root, destination, "lifecycle move destination")?;
     let source_parent = source
         .parent()
         .ok_or_else(|| format!("rename source has no parent: {}", source.display()))?;
@@ -3322,6 +3339,7 @@ fn rename_durable(source: &Path, destination: &Path) -> Result<(), String> {
             destination.display()
         )
     })?;
+    // checked project write: both paths were refused as links just above
     fs::rename(source, destination).map_err(|error| error.to_string())?;
     sync_parent_directory(source_parent)?;
     if destination_parent != source_parent {

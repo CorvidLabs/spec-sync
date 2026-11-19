@@ -58,3 +58,11 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `agents_install_does_not_wait_on_a_manifest_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Confined directory cleanup (REQ-agents-013)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| An emptied namespace directory reached through a link that leaves the project | Not removed | `src/util.rs`: `removing_an_empty_directory_never_follows_a_link_out`; `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |

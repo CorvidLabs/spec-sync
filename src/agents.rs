@@ -757,7 +757,7 @@ pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
         crate::util::remove_project_file(root, &artifact.path)
             .map_err(|error| format!("Failed to remove {}: {error}", artifact.path.display()))?;
         updated_manifest.artifacts.remove(&artifact.manifest_key);
-        cleanup_generated_namespace(&artifact.path);
+        cleanup_generated_namespace(root, &artifact.path);
     }
 
     // Missing files no longer need stale ownership entries.
@@ -848,31 +848,24 @@ fn audit_change_command_content(tool: AgentTool) -> String {
     }
 }
 
-fn cleanup_command_namespace(path: &Path) {
-    if let Some(parent) = path.parent() {
-        let is_our_namespace_dir =
-            parent.file_name().and_then(|name| name.to_str()) == Some("specsync");
-        if is_our_namespace_dir
-            && fs::read_dir(parent)
-                .map(|mut entries| entries.next().is_none())
-                .unwrap_or(false)
-        {
-            let _ = fs::remove_dir(parent);
-        }
-    }
-}
-
-fn cleanup_generated_namespace(path: &Path) {
-    cleanup_command_namespace(path);
-    if let Some(parent) = path.parent() {
-        let is_skill_dir = parent.file_name().and_then(|name| name.to_str()) == Some("spec-sync");
-        if is_skill_dir
-            && fs::read_dir(parent)
-                .map(|mut entries| entries.next().is_none())
-                .unwrap_or(false)
-        {
-            let _ = fs::remove_dir(parent);
-        }
+/// Remove the now-empty `specsync` command directory or `spec-sync` skill directory that held
+/// `path`. The removal is confined: a directory reached through a link out of the project is
+/// never removed (REQ-agents-013).
+fn cleanup_generated_namespace(root: &Path, path: &Path) {
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let ours = matches!(
+        parent.file_name().and_then(|name| name.to_str()),
+        Some("specsync" | "spec-sync")
+    );
+    if ours
+        && crate::util::project_path_refusal(root, parent).is_none()
+        && fs::read_dir(parent)
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(false)
+    {
+        let _ = crate::util::remove_empty_project_dir(root, parent);
     }
 }
 

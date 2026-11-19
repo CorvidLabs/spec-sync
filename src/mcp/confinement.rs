@@ -116,6 +116,7 @@ fn wait_for_mcp_read_root_revalidation_test_barrier() -> Result<(), String> {
     let barrier_directory = PathBuf::from(barrier_directory);
     let ready_path = barrier_directory.join("operation-complete");
     let resume_path = barrier_directory.join("resume");
+    // not a project file write: a debug-build test barrier in the directory a test names
     let mut ready_file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)

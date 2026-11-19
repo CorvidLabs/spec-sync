@@ -379,13 +379,42 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
         md_files.len()
     );
 
-    let stats = import_markdown_file_batch(root, &specs_dir, config.companions.design, &md_files);
+    let stats =
+        import_markdown_file_batch(root, &dir, &specs_dir, config.companions.design, &md_files);
 
     finish_batch("import", &stats);
 }
 
+/// Read one file `import --from-dir` found, within a bound (REQ-cmd-import-004). A directory in the
+/// project is read by the project rule. A directory outside it is read within itself: a link in
+/// it is followed, a link out of it is refused.
+fn read_import_file(root: &Path, source_dir: &Path, file_path: &Path) -> std::io::Result<String> {
+    let inside = source_dir.starts_with(root)
+        || root
+            .canonicalize()
+            .is_ok_and(|canonical| source_dir.starts_with(canonical));
+    let bytes = if inside {
+        crate::util::read_project_bytes(root, file_path, crate::util::MAX_SPEC_FILE_BYTES)?
+    } else {
+        crate::util::read_file_within(source_dir, file_path, crate::util::MAX_SPEC_FILE_BYTES)?
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("{} does not exist", file_path.display()),
+                )
+            })?
+    };
+    String::from_utf8(bytes).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    })
+}
+
 fn import_markdown_file_batch(
     root: &Path,
+    source_dir: &Path,
     specs_dir: &Path,
     design_enabled: bool,
     md_files: &[PathBuf],
@@ -401,7 +430,7 @@ fn import_markdown_file_batch(
             .unwrap_or("unknown");
         print!("  {} {} ", progress.dimmed(), filename);
 
-        let content = match fs::read_to_string(file_path) {
+        let content = match read_import_file(root, source_dir, file_path) {
             Ok(c) => c,
             Err(e) => {
                 println!("{} Failed to read: {e}", "✗".red());
@@ -646,10 +675,10 @@ mod tests {
             "import created the target of a dangling spec link"
         );
         let error = dangling.err().expect("a dangling spec link is refused");
+        // The fixture's links are absolute, refused as such before anything asks where they
+        // lead (REQ-util-004).
         assert!(
-            error.contains(
-                "specs/billing/billing.spec.md is a symbolic link that leaves the project"
-            ),
+            error.contains("specs/billing/billing.spec.md is an absolute link"),
             "{error}"
         );
 
@@ -664,7 +693,7 @@ mod tests {
             .err()
             .expect("a spec directory linked outside is refused");
         assert!(
-            error.contains("specs/payments is a symbolic link that leaves the project"),
+            error.contains("specs/payments is an absolute link"),
             "{error}"
         );
 

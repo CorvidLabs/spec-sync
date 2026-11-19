@@ -58,3 +58,12 @@ Every fixture is one temporary directory with the project and an `outside` direc
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/commands/import.rs`: `import_item_refuses_a_dangling_spec_link_and_a_linked_spec_directory` |
+
+## Confined `--from-dir` reads (REQ-cmd-import-004)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| An entry of a directory inside the project links out | Refused; nothing outside is imported | `tests/integration/repository_inputs.rs`: `import_from_dir_never_imports_through_a_link_out` |
+| An entry of a directory outside the project links out of that directory | Refused; a link inside it is followed | `tests/integration/repository_inputs.rs`: `import_from_an_outside_dir_stays_inside_that_dir` |

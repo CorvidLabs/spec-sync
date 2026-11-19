@@ -226,7 +226,7 @@ fn verification_ignored_protected_scopes(
             format!("custom_artifacts template `{template}`"),
         ));
     }
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
         let Ok(content) = crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };

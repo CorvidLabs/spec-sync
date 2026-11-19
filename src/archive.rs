@@ -171,6 +171,7 @@ fn archive_tasks_with_failures(
         }
 
         let StagedArchive { plan, temporary } = operation;
+        // checked project write: a rename over the archive-tasks target, which passed its final-component link check and bounded read
         match temporary.persist(&plan.absolute_path) {
             Ok(file) => {
                 drop(file);
@@ -200,7 +201,7 @@ fn plan_archive_operations(
     let mut failures = Vec::new();
     let mut seen_tasks_paths = HashSet::new();
 
-    for spec_path in find_spec_files(specs_dir) {
+    for spec_path in find_spec_files(root, specs_dir) {
         let Some(spec_dir) = spec_path.parent() else {
             continue;
         };
@@ -324,6 +325,7 @@ fn stage_replacement(
         .tempfile_in(parent)?;
     temporary.as_file_mut().write_all(content)?;
     temporary.as_file_mut().flush()?;
+    // not a project file write: the staged file this function just created
     fs::set_permissions(temporary.path(), permissions.clone())?;
     temporary.as_file_mut().sync_all()?;
     Ok(temporary)
@@ -346,6 +348,7 @@ fn rollback_published(
                 &plan.permissions,
             )
             .and_then(|temporary| {
+                // checked project write: a rename over the archive-tasks target it read before
                 temporary
                     .persist(&plan.absolute_path)
                     .map(drop)
@@ -442,7 +445,7 @@ fn archive_completed_tasks(content: &str) -> Option<(String, usize)> {
 /// Count completed tasks across all tasks.md files (for warnings in check command).
 #[allow(dead_code)]
 pub fn count_completed_tasks(root: &Path, specs_dir: &Path) -> usize {
-    let spec_files = find_spec_files(specs_dir);
+    let spec_files = find_spec_files(root, specs_dir);
     let mut total = 0;
 
     for spec_path in &spec_files {

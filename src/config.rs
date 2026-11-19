@@ -408,6 +408,29 @@ pub(crate) fn parse_config_content_checked_with_source_dirs(
     Ok(config)
 }
 
+/// `specs_dir`, `source_dirs` and `schema_dir` name directories inside the project: a relative
+/// path with no `..` (REQ-config-017). A repository writes its own config, so an absolute path or
+/// a `..` would send every walk and read of these directories outside it.
+pub(crate) fn validate_config_directories(config: &SpecSyncConfig) -> Result<(), String> {
+    let inside = |field: &str, value: &str| -> Result<(), String> {
+        if crate::util::confine_path_to_root(Path::new(""), value).is_some() {
+            Ok(())
+        } else {
+            Err(format!(
+                "`{field}` must be a relative path inside the project, without `..`; found `{value}`"
+            ))
+        }
+    };
+    inside("specs_dir", &config.specs_dir)?;
+    for source_dir in &config.source_dirs {
+        inside("source_dirs", source_dir)?;
+    }
+    if let Some(schema_dir) = &config.schema_dir {
+        inside("schema_dir", schema_dir)?;
+    }
+    Ok(())
+}
+
 fn validate_checked_json_config_types(value: &serde_json::Value) -> Result<(), String> {
     let root = value
         .as_object()
@@ -1166,7 +1189,10 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    match parse_json_config(&content, root) {
+    let parsed = parse_json_config(&content, root)
+        .map_err(|error| error.to_string())
+        .and_then(|config| validate_config_directories(&config).map(|()| config));
+    match parsed {
         Ok(config) => config,
         Err(error) => {
             eprintln!(
@@ -1262,7 +1288,11 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    match parse_config_content_checked(config_path, &content, root) {
+    // The confined loaders of `check`, MCP and `issues` refuse these directories their own way;
+    // this ambient loader refuses them here (REQ-config-017).
+    let parsed = parse_config_content_checked(config_path, &content, root)
+        .and_then(|config| validate_config_directories(&config).map(|()| config));
+    match parsed {
         Ok(config) => config,
         Err(error) => {
             eprintln!(

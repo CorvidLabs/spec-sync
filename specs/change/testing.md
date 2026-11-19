@@ -338,3 +338,14 @@ Each fixture has its own `git init`; every journal names files inside the fixtur
 | `specs_dir = "."` and an entry for `Makefile` | Refused: under `specs_dir` only spec files, `requirements.md` and history fragments | `specs_dir_dot_does_not_widen_replay` |
 | The bare-array 5.x form | Refused with the `.broken` recovery | `a_bare_array_journal_is_no_longer_replayed` |
 | The person's own interrupted write, including a registry-mapped spec | Still recovered | `a_real_interrupted_write_is_still_recovered`, `a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not` |
+
+## Change records written through the confined helpers (REQ-change-163)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A committed `change.md` linked outside, with `change answer` or `change approve` | Refused before anything is written; the outside file, the state and the approvals keep their bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_through_a_link_out`, `change_approve_never_writes_change_md_through_a_link_out` |
+| A dangling artifact link, with `change answer` | Refused; nothing is created outside | `tests/integration/project_writes.rs`: `change_answer_never_creates_the_target_of_a_dangling_artifact_link` |
+| `.specsync/changes` linked outside, with `change new` | No workspace is created there | `tests/integration/project_writes.rs`: `change_new_creates_nothing_in_a_changes_directory_linked_out` |
+| `change.md` linked into `.git/hooks` | Refused; the hook keeps its bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_into_a_hook` |

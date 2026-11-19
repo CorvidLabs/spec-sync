@@ -877,7 +877,7 @@ pub(crate) fn find_new_module_sources(
 /// two specs mapping one source is the double-mapping defect (#611).
 fn owned_source_files(root: &Path, config: &SpecSyncConfig) -> std::collections::HashSet<String> {
     let mut owned = std::collections::HashSet::new();
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
         let Ok(content) =
             crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES)
         else {
@@ -1423,6 +1423,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             continue;
         }
 
+        // checked project write: through the retained project directory handle, which cannot leave the project
         project.create_dir_all(&module_relative).map_err(|error| {
             format!(
                 "Cannot create retained generate directory {}: {error}",
@@ -1748,6 +1749,7 @@ fn retained_generation_template(
 
 fn write_new_retained_file(project: &Dir, relative: &Path, content: &[u8]) -> io::Result<bool> {
     let mut options = OpenOptions::new();
+    // checked project write: an exclusive create through the retained project directory handle
     options.write(true).create_new(true);
     let mut file = match project.open_with(relative, &options) {
         Ok(file) => file,
@@ -1826,7 +1828,7 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        if let Err(e) = fs::create_dir_all(&spec_dir) {
+        if let Err(e) = crate::util::create_project_dir(root, &spec_dir) {
             eprintln!("  Failed to create {}: {e}", spec_dir.display());
             continue;
         }
@@ -1834,8 +1836,9 @@ pub fn generate_specs_for_unspecced_modules(
         let spec_content =
             generate_module_spec(module_name, &module_files, root, &specs_dir, config);
 
-        match fs::write(&spec_file, &spec_content) {
-            Ok(_) => {
+        // An exclusive, confined create: a dangling or outward link at the spec is refused.
+        match crate::util::create_project_file(root, &spec_file, spec_content.as_bytes()) {
+            Ok(true) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file);
                 println!(
                     "  {} Generated {} ({} files)",
@@ -1850,6 +1853,8 @@ pub fn generate_specs_for_unspecced_modules(
                     .generated_paths
                     .push(rel.to_string_lossy().to_string());
             }
+            // The spec appeared since the look above: it is kept.
+            Ok(false) => {}
             Err(e) => {
                 eprintln!("  Failed to write {}: {e}", spec_file.display());
             }
@@ -1889,14 +1894,16 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        if fs::create_dir_all(&spec_dir).is_err() {
+        if crate::util::create_project_dir(root, &spec_dir).is_err() {
             continue;
         }
 
         let spec_content =
             generate_module_spec(module_name, &module_files, root, &specs_dir, config);
 
-        if fs::write(&spec_file, &spec_content).is_ok() {
+        if crate::util::create_project_file(root, &spec_file, spec_content.as_bytes())
+            .is_ok_and(|created| created)
+        {
             let rel = spec_file
                 .strip_prefix(root)
                 .unwrap_or(&spec_file)

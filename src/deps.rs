@@ -116,7 +116,7 @@ struct CheckedDepGraph {
 
 fn build_dep_graph_checked(root: &Path, specs_dir: &str) -> CheckedDepGraph {
     let specs_path = root.join(specs_dir);
-    let spec_files = find_spec_files(&specs_path);
+    let spec_files = find_spec_files(root, &specs_path);
     let mut graph: HashMap<String, DepNode> = HashMap::new();
     let mut unreadable: Vec<String> = Vec::new();
     let mut reported_edges: HashSet<(String, String)> = HashSet::new();

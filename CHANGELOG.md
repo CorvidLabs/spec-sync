@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The error for a relayed decision that names another decider shows both names with control and bidirectional characters escaped, on write and on read, so a hand-edited name cannot move the cursor or recolour the terminal (#972).
+- `change status` and `change show` refuse, naming `repair-relays`, a review attempt in `review-attempts.json` whose relayed decision is damaged or names someone other than its reviewer, instead of showing the claims while only the latest review is valid (#974).
 
 ## [6.3.0] - 2026-11-12
 

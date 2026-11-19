@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794542301,
+      "digest": "2656469ac19dbe356c7b8c0a77ad68b1a50ac8c57745f451226311e37e909a72",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "status-and-show-check-every-review-attempt-s-relay-before-showing-the-claims",
+        "title": "Status and show check every review attempt's relay before showing the claims",
+        "description": "Status and show check every review attempt's relay before showing the claims",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/relayed_decision.rs",
+          "src/change_tests/relayed_decision.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Makes the status and show claim projection match REQ-change-relayed-decision-001: reading refuses a damaged relayed_by with its recovery. recorded_claims read only the latest review.json, so a damaged earlier attempt in review-attempts.json was shown as fine.",
+        "acceptance_criteria": [
+          "change status and change show refuse, with the repair-relays recovery, a review-attempts.json attempt whose relay names someone other than its reviewer or is malformed, while the latest review.json is valid; a review with no attempt history still shows its claims (red then green)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "#974 check old reviews",
+        "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:57Z, relayed by claude-code-t370. Asked: 'Four SpecSync bug fixes, each matching what the spec already says, with failing tests written. Approve their scope?' He selected all of \"#1012 quoted dates\", \"#972 escape names\", \"#974 check old reviews\" and \"#968 docs test\".",
+        "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -19,6 +19,8 @@ files: [src/change/read_cache.rs, src/change_tests/fast_archived_reads.rs]
 observations:
   - 2026-11-13-at-db5f6c2e3-978-with-origin-main-bb7682a78-merged-in-fledge
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-prefetch
+  - 2026-11-19-refreshed-onto-main-3bebe8b0-with-921-942-and-955-the-red-test
 bugs: []
 blockers: []
 waiting_on_human:
@@ -43,11 +45,15 @@ Prefetch workers inherit the cutoff verdicts the command thread checked and pers
 
 - decided: authorization is Leif's own scope approval ('#978 keep verdicts cached', coordinator chat 2026-11-13T14:03Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: no new lesson, because the change is narrow and an existing lesson covers it
+- Refreshed onto main 3bebe8b0 (batch 7b) under Leif's relayed answer of 2026-11-18 that the 2026-11-13 approvals stand, 'Yes, they stand' (from his planning session hc t4c, relayed through ss-lead t58); no approved sentence changed, and no review, approval or gate close was recorded
 
 ## What was verified
 
 - [At db5f6c2e3 (978 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3071 passed, 2 ignored; integration 619 passed), release build, strict spec check, and the CI script tests, including change::tests::prefetch_workers_leave_every_cutoff_verdict_in_the_read_cache.](evidence/2026-11-13-at-db5f6c2e3-978-with-origin-main-bb7682a78-merged-in-fledge.md)
 - [Red-first control: on main 18385ef5e with only the new test, change::tests::prefetch_workers_leave_every_cutoff_verdict_in_the_read_cache fails. Workers re-read the cutoff tree and kept nothing in the persistent read cache. The failure is the defect #978 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+- [Red-first control for the refresh onto main 3bebe8b0: prefetch_workers_leave_every_cutoff_verdict_in_the_read_cache fails ('the cutoff verdict of harden-verification was not kept: \[\]'), the defect #978 reports.](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-prefetch.md)
+- [Refreshed onto main 3bebe8b0 with #921, #942 and #955; the red test passes. fledge lanes run verify at fde6e01b with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10/10 steps, 3081 unit and 627 integration tests, strict specs 62/62, 100% file and LOC coverage; lifecycle_commands_stay_within_git_spawn_ceilings passes; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-921-942-and-955-the-red-test.md)
 
 ## Open threads
 

@@ -416,6 +416,13 @@ fn the_dry_run_reports_what_approve_then_refuses_for_each_faulty_delta() {
             item_with_heading("### REQUIREMENT REQ-auth-001 — Größe"),
             "must use REQ-<module>-<number>",
         ),
+        // #1088: the `## Change Log` table is frozen, so `change approve` refuses a delta aimed at
+        // it, and the dry run says so in the `deltas` check.
+        (
+            "a delta aimed at the Change Log".into(),
+            "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-11-19 | Rewritten |\n".into(),
+            "targets its `## Change Log` section, which SpecSync no longer writes",
+        ),
     ];
     // Item headings that are not `### REQUIREMENT <id>` or `### SPEC SECTION <name>`: short,
     // bare, non-ASCII and near-miss forms, none of which may panic.

@@ -55,6 +55,19 @@ impl Project {
         );
         project.git(&["add", "--all"]);
         project.git(&["commit", "-q", "-m", "base"]);
+        // A bare origin inside .git, so the working tree never sees it: `origin/main` is the
+        // default branch the rebase reads main's text from.
+        let origin = project.root.join(".git/test-origin.git");
+        project.git(&[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ]);
+        project.git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+        project.git(&["push", "-q", "origin", "main"]);
         project
     }
 
@@ -106,6 +119,12 @@ impl Project {
     /// A change to REQ-auth-001, approved against `BASE_REQUIREMENTS` and committed; then main
     /// replaces `from` with `to` in that requirement and commits.
     fn approved_change_then_main_edits(&self, delta: &str, from: &str, to: &str) -> String {
+        self.approved_change_then_edits(delta, from, to, true)
+    }
+
+    /// As `approved_change_then_main_edits`, but the edit stays on the change's own branch when
+    /// `push` is false: it is never on the default branch.
+    fn approved_change_then_edits(&self, delta: &str, from: &str, to: &str, push: bool) -> String {
         let created: Value = serde_json::from_str(&self.run(&[
             "--json",
             "change",
@@ -151,6 +170,9 @@ impl Project {
         self.write("specs/auth/requirements.md", &moved);
         self.git(&["add", "--all"]);
         self.git(&["commit", "-q", "-m", "main edits REQ-auth-001"]);
+        if push {
+            self.git(&["push", "-q", "origin", "main"]);
+        }
         id
     }
 
@@ -295,6 +317,36 @@ fn a_ci_run_does_not_rebase() {
         .unwrap();
 
     assert!(!output.status.success(), "{}", combined(&output));
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/approvals.json")),
+        ledger
+    );
+}
+
+/// fable-lead's #1089 review, end to end: an edit to the requirement that only the change's own
+/// branch holds is never merged into the approved delta. `change check` refuses it as stale, as
+/// it always has, and writes nothing.
+#[test]
+fn a_branch_side_edit_to_the_requirement_is_refused_not_rebased() {
+    let project = Project::new();
+    let id = project.approved_change_then_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after one day, or at sign-out.",
+        false,
+    );
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+    let ledger = project.read(&format!(".specsync/changes/{id}/approvals.json"));
+
+    let output = project.invoke(&["change", "check", &id]);
+
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("has changed since"), "{text}");
     assert_eq!(
         project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
         delta

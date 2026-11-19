@@ -103,7 +103,10 @@ the rebase in `approvals.json` under `delta_rebases`. The approval stands, `chan
 rebase, and every later read recomputes the merge from the texts the record holds, so a record that
 does not recompute is refused. A requirement whose edits overlap, a spec section, a `## REMOVED`
 item, a workflow-v1 change, a CI run and a repository without the approval-time history keep the
-refusal above.
+refusal above. Main's text must come from main: the requirement as the change's branch holds it is
+merged only when the default branch (`origin/HEAD`, else `origin/main` or `origin/master`) held that
+same text, so a sentence added by hand on the branch, or in a merge resolution, is refused as stale
+rather than merged into the approved delta.
 
 Otherwise, rewrite the delta body onto the current canonical text, then run `change approve` and
 `change check` again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,

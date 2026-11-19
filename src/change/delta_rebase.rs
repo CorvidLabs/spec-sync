@@ -26,7 +26,9 @@ pub struct DeltaRebaseRecord {
     pub module: String,
     /// The item's base key, e.g. `auth: REQUIREMENT REQ-auth-001`.
     pub item: String,
-    /// The definition approval this rebase extends, by its timestamp and digest.
+    /// The definition approval this rebase extends: its position in `approvals`, its timestamp and
+    /// its digest, so a re-approval in the same second with the same digest never inherits it.
+    pub approval_index: usize,
     pub approval_timestamp: u64,
     pub approval_digest: String,
     pub actor: String,
@@ -75,10 +77,15 @@ fn word_tokens(text: &str) -> Vec<&str> {
 }
 
 /// The word-level three-way merge of `approved` and `current` over their common `base`, or `None`
-/// when the two edits overlap. Aligned diff3-style on the base, as `three_way_keeps_body` aligns
-/// lines: between stable words, a stretch that only one side changed takes that side; a stretch
-/// both sides changed, including two insertions at one point, is an overlap unless both sides
-/// made the same change.
+/// when the two edits overlap or cannot be aligned unambiguously.
+///
+/// The texts are aligned only on anchors: words that occur exactly once in each of the three, in
+/// an order that rises in all three, found again inside each gap between anchors. A repeated word
+/// is never an anchor, so it can never be matched to one occurrence on one side and another on the
+/// other, which is how an LCS alignment once let two edits to the same words merge (Codex's review
+/// of #1089: base `c a b d`, main `b b d`, approved `b d`). Between anchors, a stretch only one side
+/// changed takes that side; a stretch both changed, the same way excepted, is an overlap, and so is
+/// a stretch both changed with no anchor inside to split it.
 fn merge_words(base: &str, current: &str, approved: &str) -> Option<String> {
     let base = word_tokens(base);
     let current = word_tokens(current);
@@ -89,50 +96,95 @@ fn merge_words(base: &str, current: &str, approved: &str) -> Option<String> {
     {
         return None;
     }
-    let to_current = longest_common_subsequence_map(&base, &current);
-    let to_approved = longest_common_subsequence_map(&base, &approved);
+    let mut merged = Vec::new();
+    merge_token_ranges(&base, &current, &approved, &mut merged)?;
+    Some(merged.concat())
+}
+
+fn merge_token_ranges<'a>(
+    base: &[&'a str],
+    current: &[&'a str],
+    approved: &[&'a str],
+    merged: &mut Vec<&'a str>,
+) -> Option<()> {
+    if current == base {
+        merged.extend_from_slice(approved);
+        return Some(());
+    }
+    if approved == base || approved == current {
+        merged.extend_from_slice(current);
+        return Some(());
+    }
+    let anchors = unique_anchors(base, current, approved);
+    if anchors.is_empty() {
+        return None;
+    }
     let (mut b, mut c, mut a) = (0usize, 0usize, 0usize);
-    let mut merged = String::new();
-    loop {
-        while b < base.len() && to_current[b] == Some(c) && to_approved[b] == Some(a) {
-            merged.push_str(base[b]);
-            b += 1;
-            c += 1;
-            a += 1;
+    for (base_at, current_at, approved_at) in anchors {
+        merge_token_ranges(
+            &base[b..base_at],
+            &current[c..current_at],
+            &approved[a..approved_at],
+            merged,
+        )?;
+        merged.push(base[base_at]);
+        b = base_at + 1;
+        c = current_at + 1;
+        a = approved_at + 1;
+    }
+    merge_token_ranges(&base[b..], &current[c..], &approved[a..], merged)
+}
+
+/// The words that occur exactly once in each of `base`, `current` and `approved`, as index triples,
+/// keeping the longest chain whose indices rise in all three.
+fn unique_anchors(base: &[&str], current: &[&str], approved: &[&str]) -> Vec<(usize, usize, usize)> {
+    fn once<'a>(tokens: &[&'a str]) -> BTreeMap<&'a str, Option<usize>> {
+        let mut seen: BTreeMap<&str, Option<usize>> = BTreeMap::new();
+        for (index, token) in tokens.iter().enumerate() {
+            seen.entry(token)
+                .and_modify(|slot| *slot = None)
+                .or_insert(Some(index));
         }
-        if b == base.len() && c == current.len() && a == approved.len() {
-            return Some(merged);
-        }
-        let next = (b..base.len()).find(|&index| {
-            to_current[index].is_some_and(|token| token >= c)
-                && to_approved[index].is_some_and(|token| token >= a)
-        });
-        let (base_end, current_end, approved_end) = match next {
-            Some(index) => (
-                index,
-                to_current[index].unwrap_or(current.len()),
-                to_approved[index].unwrap_or(approved.len()),
-            ),
-            None => (base.len(), current.len(), approved.len()),
-        };
-        let base_chunk = &base[b..base_end];
-        let current_chunk = &current[c..current_end];
-        let approved_chunk = &approved[a..approved_end];
-        let taken = if current_chunk == base_chunk {
-            approved_chunk
-        } else if approved_chunk == base_chunk || approved_chunk == current_chunk {
-            current_chunk
-        } else {
-            return None;
-        };
-        merged.extend(taken.iter().copied());
-        b = base_end;
-        c = current_end;
-        a = approved_end;
-        if next.is_none() {
-            return Some(merged);
+        seen
+    }
+    let (in_current, in_approved) = (once(current), once(approved));
+    let candidates: Vec<(usize, usize, usize)> = once(base)
+        .into_iter()
+        .filter_map(|(token, base_at)| {
+            Some((
+                base_at?,
+                (*in_current.get(token)?)?,
+                (*in_approved.get(token)?)?,
+            ))
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    // Longest chain rising in the current and approved indices (the base index already rises).
+    let mut length = vec![1usize; candidates.len()];
+    let mut previous = vec![None; candidates.len()];
+    for later in 0..candidates.len() {
+        for earlier in 0..later {
+            if candidates[earlier].1 < candidates[later].1
+                && candidates[earlier].2 < candidates[later].2
+                && length[earlier] + 1 > length[later]
+            {
+                length[later] = length[earlier] + 1;
+                previous[later] = Some(earlier);
+            }
         }
     }
+    let Some(mut at) = (0..candidates.len()).max_by_key(|&index| (length[index], usize::MAX - index))
+    else {
+        return Vec::new();
+    };
+    let mut chain = vec![candidates[at]];
+    while let Some(earlier) = previous[at] {
+        chain.push(candidates[earlier]);
+        at = earlier;
+    }
+    chain.reverse();
+    chain
 }
 
 /// A block as the base digest frames it: CRLF folded, surrounding blank lines and spaces trimmed.
@@ -210,17 +262,29 @@ type DeltaClaims = (
 /// folded in, in order (REQ-change-161). Each rebase must follow the digest and base its
 /// predecessor left and must recompute from its own texts; one that does not is refused, naming it.
 /// `None` claims stay `None`, and a rebase under an approval without claims is refused.
+///
+/// For a change still being delivered, each record's main block must also be text the default
+/// branch held: found by digest in the default branch's history of the requirement's file
+/// (fable-lead's #1089 review). A block that only the change's own branch holds, such as a sentence
+/// added by hand or in a conflict resolution, is wording nobody approved, so it is refused, and so
+/// is a record whose default branch cannot be read. An accepted or archived change is not re-judged
+/// against a default branch that has since moved on; its acceptance bound the canonical text.
 fn effective_delta_claims(
-    id: &str,
+    root: &Path,
+    record: &ChangeRecord,
     ledger: &ApprovalLedger,
     approval: &ApprovalRecord,
 ) -> Result<DeltaClaims, String> {
+    let id = record.id.as_str();
+    let delivering = matches!(
+        record.state,
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+    );
     let mut digests = approval.approved_delta_digests.clone();
     let mut bases = approval.approved_delta_bases.clone();
+    let approval_index = approval_position(ledger, approval);
     for (index, rebase) in ledger.delta_rebases.iter().enumerate() {
-        if rebase.approval_timestamp != approval.timestamp
-            || rebase.approval_digest != approval.digest
-        {
+        if !rebase_extends(rebase, approval_index, approval) {
             continue;
         }
         let refuse = |why: &str| {
@@ -247,6 +311,27 @@ fn effective_delta_claims(
         {
             return Err(refuse("its base block is not the approved base"));
         }
+        if delivering {
+            let specs_dir = crate::config::load_config(root).specs_dir;
+            let (_, requirements_path) = canonical_module_paths(root, &specs_dir, &rebase.module)?;
+            let main_digest = item_block_digest(&rebase.module, &item, &rebase.main_block);
+            match block_on_default_branch(
+                root,
+                &requirements_path,
+                &rebase.module,
+                &item,
+                &main_digest,
+                &item_block_digest(&rebase.module, &item, &rebase.base_block),
+            ) {
+                Ok(true) => {}
+                Ok(false) => {
+                    return Err(refuse(
+                        "its main block is not text the default branch held, so it would carry wording nobody approved",
+                    ));
+                }
+                Err(why) => return Err(refuse(&why)),
+            }
+        }
         digests.insert(rebase.module.clone(), rebase.delta_after_digest.clone());
         bases.insert(
             rebase.item.clone(),
@@ -256,9 +341,32 @@ fn effective_delta_claims(
     Ok((digests, bases))
 }
 
+/// Where `approval` sits in `ledger.approvals`, by identity when it is one of the ledger's own
+/// records; `None` for a copy, which no rebase extends.
+fn approval_position(ledger: &ApprovalLedger, approval: &ApprovalRecord) -> Option<usize> {
+    ledger
+        .approvals
+        .iter()
+        .position(|candidate| std::ptr::eq(candidate, approval))
+}
+
+/// Whether `rebase` extends the approval at `approval_index`: the same position, time and digest,
+/// so a re-approval in the same second with the same digest does not inherit an earlier
+/// approval's rebases (Codex's review of #1089).
+fn rebase_extends(
+    rebase: &DeltaRebaseRecord,
+    approval_index: Option<usize>,
+    approval: &ApprovalRecord,
+) -> bool {
+    approval_index == Some(rebase.approval_index)
+        && rebase.approval_timestamp == approval.timestamp
+        && rebase.approval_digest == approval.digest
+}
+
 /// The rebases recorded under the change's effective definition approval, for `change status`
-/// (REQ-cmd-change-038). Empty when there are none or the ledger cannot be read; a record that
-/// does not recompute is reported by the binding, not here.
+/// (REQ-cmd-change-038). Empty when there are none, when the ledger cannot be read, and when the
+/// records do not recompute: status never says "the approval stands" for a rebase the binding
+/// refuses (Codex's review of #1089); the binding's own refusal says what is wrong.
 pub fn recorded_delta_rebases(root: &Path, record: &ChangeRecord) -> Vec<DeltaRebaseSummary> {
     let Ok(ledger) = load_approvals(root, record) else {
         return Vec::new();
@@ -266,13 +374,14 @@ pub fn recorded_delta_rebases(root: &Path, record: &ChangeRecord) -> Vec<DeltaRe
     let Ok(approval) = effective_definition_approval(root, record, &ledger) else {
         return Vec::new();
     };
+    if effective_delta_claims(root, record, &ledger, approval).is_err() {
+        return Vec::new();
+    }
+    let approval_index = approval_position(&ledger, approval);
     ledger
         .delta_rebases
         .iter()
-        .filter(|rebase| {
-            rebase.approval_timestamp == approval.timestamp
-                && rebase.approval_digest == approval.digest
-        })
+        .filter(|rebase| rebase_extends(rebase, approval_index, approval))
         .map(|rebase| DeltaRebaseSummary {
             module: rebase.module.clone(),
             requirement: rebase
@@ -282,6 +391,58 @@ pub fn recorded_delta_rebases(root: &Path, record: &ChangeRecord) -> Vec<DeltaRe
             rebased_at: rebase.timestamp,
         })
         .collect()
+}
+
+/// Whether the default branch (`origin/HEAD`, else `origin/main` or `origin/master`) held `item`'s
+/// block with digest `digest` more recently than the block with digest `base`, in the newest
+/// `MOVED_BASE_HISTORY_LIMIT` commits that touched `path`. `Err` when there is no default branch to read, or Git cannot read it; the rebase then
+/// keeps today's refusal (fable-lead's #1089 review: main's block comes from main, never from the
+/// change's own working tree).
+fn block_on_default_branch(
+    root: &Path,
+    path: &Path,
+    module: &str,
+    item: &DeltaItem,
+    digest: &str,
+    base: &str,
+) -> Result<bool, String> {
+    let default = remote_default_ref(root).ok_or_else(|| {
+        "no default branch to read main's text from (origin/HEAD, origin/main or origin/master)"
+            .to_string()
+    })?;
+    let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
+    let file = project_relative(root, path)
+        .ok_or_else(|| "the requirement's file is outside the project".to_string())?;
+    let limit = MOVED_BASE_HISTORY_LIMIT.to_string();
+    let commits = git_output_allow_empty(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            "-n",
+            limit.as_str(),
+            "--end-of-options",
+            default.as_str(),
+            "--",
+            file.as_str(),
+        ],
+    )
+    .ok_or_else(|| format!("cannot read the history of {file} on {default}"))?;
+    // Newest first: main's block counts only if the branch held it more recently than the
+    // approval-time base. Meeting the base first means the block is older text main replaced, and
+    // taking it would revert main's edit inside the delta.
+    for commit in commits.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        let object = format!("{commit}:{prefix}{file}");
+        let text = git_output_allow_empty(root, &["show", object.as_str()]).unwrap_or_default();
+        let held = canonical_block_digest(module, "", &text, item);
+        if held == digest {
+            return Ok(true);
+        }
+        if held == base {
+            return Ok(false);
+        }
+    }
+    Ok(false)
 }
 
 /// The canonical block whose base digest an approval recorded, read from the newest commit that
@@ -326,14 +487,20 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
         return Ok(0);
     }
     let mut ledger = load_approvals(root, record)?;
-    let approval = effective_definition_approval(root, record, &ledger)?.clone();
-    let (Some(mut digests), Some(mut bases)) = effective_delta_claims(&record.id, &ledger, &approval)?
-    else {
+    let (approval, approval_index, claims) = {
+        let effective = effective_definition_approval(root, record, &ledger)?;
+        let index = approval_position(&ledger, effective)
+            .ok_or_else(|| "the effective definition approval is not in the ledger".to_string())?;
+        let claims = effective_delta_claims(root, record, &ledger, effective)?;
+        (effective.clone(), index, claims)
+    };
+    let (Some(mut digests), Some(mut bases)) = claims else {
         return Ok(0);
     };
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut prepared = Vec::new();
     let mut rebases = Vec::new();
+    let mut left_stale = false;
     for module in &record.affected_specs {
         let delta_path = delta_path_checked(root, record, module)?;
         let mut delta = read_bounded_change_text(&delta_path, "semantic delta")
@@ -347,8 +514,11 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
         let requirements = read_canonical_or_absent(root, &requirements_path)?;
         let items = parse_delta(&delta)?;
         let mut changed = false;
+        // Every replacing item whose canonical block moved is either rebased here or left stale.
+        // One left stale means the base check refuses next, and a refusal writes nothing
+        // (corvid-agent's review of #1089), so the rebases staged for the others are dropped.
         for item in items.iter().filter(|item| {
-            item.operation == DeltaOperation::Modified && item.target == DeltaTarget::Requirement
+            item.operation != DeltaOperation::Added && !is_change_log_section(item)
         }) {
             if delta_item_is_applied(&spec, &requirements, item) {
                 continue;
@@ -360,48 +530,27 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
             if canonical_block_digest(module, &spec, &requirements, item) == base {
                 continue;
             }
-            let Some(range) = markdown_block_range(&requirements, &format!("### {}", item.key), 3)
-            else {
+            let staged = (item.operation == DeltaOperation::Modified
+                && item.target == DeltaTarget::Requirement)
+                .then(|| {
+                    stage_rebase(
+                        root,
+                        module,
+                        &requirements_path,
+                        &requirements,
+                        &delta,
+                        &key,
+                        &base,
+                        (approval_index, &approval),
+                    )
+                })
+                .flatten();
+            let Some((rebase, after, main_base)) = staged else {
+                left_stale = true;
                 continue;
             };
-            let main_block = trimmed_block(&requirements[range]);
-            let Some(base_block) =
-                recover_approved_base_block(root, &requirements_path, module, item, &base)
-            else {
-                continue;
-            };
-            let Some(current) = modified_requirement_item(module, &delta, &key) else {
-                continue;
-            };
-            let Some(merged) = merge_words(
-                trimmed_block_body(&base_block),
-                trimmed_block_body(&main_block),
-                &trimmed_block(&current.content),
-            ) else {
-                continue;
-            };
-            let Ok(after) = rebased_delta_text(&delta, &current, &merged) else {
-                continue;
-            };
-            let rebase = DeltaRebaseRecord {
-                schema_version: 1,
-                module: module.clone(),
-                item: key.clone(),
-                approval_timestamp: approval.timestamp,
-                approval_digest: approval.digest.clone(),
-                actor: DELTA_REBASE_ACTOR.into(),
-                timestamp: now(),
-                base_block,
-                main_block: main_block.clone(),
-                delta_before: delta.clone(),
-                delta_after_digest: delta_body_digest(module, &after),
-            };
-            // Written only if it recomputes, exactly as every later reader will recompute it.
-            if recompute_rebase(&rebase).is_err() {
-                continue;
-            }
             digests.insert(module.clone(), rebase.delta_after_digest.clone());
-            bases.insert(key, item_block_digest(module, &current, &main_block));
+            bases.insert(key, main_base);
             rebases.push(rebase);
             delta = after;
             changed = true;
@@ -409,6 +558,9 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
         if changed {
             prepared.push((delta_path, delta));
         }
+    }
+    if left_stale {
+        return Ok(0);
     }
     if rebases.is_empty() {
         return Ok(0);
@@ -422,4 +574,58 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
     ));
     write_prepared_files(root, &prepared)?;
     Ok(count)
+}
+
+/// One rebase of the `## MODIFIED` requirement `key` in `delta`, staged in memory: the record, the
+/// rebased delta, and the base the item binds after it. `None` when the item cannot be rebased:
+/// main's block is not text the default branch held after the approval-time base, the base text is
+/// gone from Git, or the edits overlap. Nothing is written here.
+#[allow(clippy::too_many_arguments)]
+fn stage_rebase(
+    root: &Path,
+    module: &str,
+    requirements_path: &Path,
+    requirements: &str,
+    delta: &str,
+    key: &str,
+    base: &str,
+    (approval_index, approval): (usize, &ApprovalRecord),
+) -> Option<(DeltaRebaseRecord, String, String)> {
+    let current = modified_requirement_item(module, delta, key)?;
+    let range = markdown_block_range(requirements, &format!("### {}", current.key), 3)?;
+    let main_block = trimmed_block(&requirements[range]);
+    // Main's block comes from main, and from after the base: the working tree's block must be text
+    // the default branch held more recently than the approval-time text, or the rebase would carry
+    // a branch-side edit, or revert one of main's, inside the approved delta (fable-lead's #1089
+    // review).
+    let main_base = item_block_digest(module, &current, &main_block);
+    if !block_on_default_branch(root, requirements_path, module, &current, &main_base, base)
+        .unwrap_or(false)
+    {
+        return None;
+    }
+    let base_block = recover_approved_base_block(root, requirements_path, module, &current, base)?;
+    let merged = merge_words(
+        trimmed_block_body(&base_block),
+        trimmed_block_body(&main_block),
+        &trimmed_block(&current.content),
+    )?;
+    let after = rebased_delta_text(delta, &current, &merged).ok()?;
+    let rebase = DeltaRebaseRecord {
+        schema_version: 1,
+        module: module.to_string(),
+        item: key.to_string(),
+        approval_index,
+        approval_timestamp: approval.timestamp,
+        approval_digest: approval.digest.clone(),
+        actor: DELTA_REBASE_ACTOR.into(),
+        timestamp: now(),
+        base_block,
+        main_block,
+        delta_before: delta.to_string(),
+        delta_after_digest: delta_body_digest(module, &after),
+    };
+    // Staged only if it recomputes, exactly as every later reader will recompute it.
+    recompute_rebase(&rebase).ok()?;
+    Some((rebase, after, main_base))
 }

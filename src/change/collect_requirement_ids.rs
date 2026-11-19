@@ -1830,7 +1830,7 @@ fn approval_delta_bases(
     // rebase that does not recompute leaves no trustworthy previous claim, so the new approval
     // records the canonical text as it stands, as for an approval with no claims.
     let previous_claims = previous
-        .map(|approval| effective_delta_claims(&record.id, ledger, approval))
+        .map(|approval| effective_delta_claims(root, record, ledger, approval))
         .transpose()
         .ok()
         .flatten();
@@ -1927,7 +1927,7 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
     // The bases the approval binds once every recorded rebase is folded in (REQ-change-161).
-    let (_, effective_bases) = effective_delta_claims(&record.id, &ledger, approval)?;
+    let (_, effective_bases) = effective_delta_claims(root, record, &ledger, approval)?;
     let Some(bases) = effective_bases.as_ref() else {
         // Absence is monotone, exactly as for `approved_delta_digests` (#719): a ledger that has
         // recorded bases for this change is new enough to record them again, so a later
@@ -1963,8 +1963,34 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
     if moved.is_empty() {
         return Ok(());
     }
+    // The way on for a requirement main edited without overlapping this change's words: take
+    // main's text for it and check again, and the check rebases the delta itself (REQ-change-161).
+    // Without this, a correct hand resolution of a merge conflict reads only as stale (fable-lead's
+    // review of #1089).
+    let rebase_hint = if record.workflow_version >= 2
+        && moved
+            .values()
+            .flatten()
+            .any(|target| !target.starts_with("section "))
+    {
+        let specs_dir = crate::config::load_config(root).specs_dir;
+        moved
+            .keys()
+            .find_map(|module| canonical_module_paths(root, &specs_dir, module).ok())
+            .and_then(|(_, requirements)| project_relative(root, &requirements))
+            .zip(remote_default_ref(root))
+            .map(|(file, default)| {
+                format!(
+                    ". For a requirement whose edits do not overlap main's, make it read exactly as {default} has it (`git show {default}:{file}` prints that text) and run `specsync change check {}` again: the check then rebases the delta itself and the approval stands",
+                    record.id
+                )
+            })
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     Err(format!(
-        "semantic delta for {} was approved against canonical text that has changed since ({}); applying it would overwrite text this change never approved, so rewrite each listed delta body onto the current canonical text, re-run `specsync change approve {}` to approve the rebased bodies, then `specsync change check {}`",
+        "semantic delta for {} was approved against canonical text that has changed since ({}); applying it would overwrite text this change never approved, so rewrite each listed delta body onto the current canonical text, re-run `specsync change approve {}` to approve the rebased bodies, then `specsync change check {}`{rebase_hint}",
         moved
             .keys()
             .map(|module| format!("`{module}`"))
@@ -2085,7 +2111,7 @@ fn read_approved_delta_binding(
     let approval = effective_definition_approval(root, record, &ledger)?;
     // The delta digests the approval binds once every recorded rebase is folded in
     // (REQ-change-161); a rebase that does not recompute refuses here.
-    let (effective_digests, _) = effective_delta_claims(&record.id, &ledger, approval)?;
+    let (effective_digests, _) = effective_delta_claims(root, record, &ledger, approval)?;
     let Some(approved) = effective_digests.as_ref() else {
         if ledger.approvals.iter().any(|candidate| {
             candidate.gate == "definition" && candidate.approved_delta_digests.is_some()

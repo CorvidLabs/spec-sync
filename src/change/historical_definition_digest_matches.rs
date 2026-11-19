@@ -2834,7 +2834,8 @@ fn accept_change_with_gate(
                 // With every recorded rebase folded in (REQ-change-161): a rebase extends the
                 // approval it was recorded under, not this normalizing one.
                 approved_delta_bases: effective_delta_claims(
-                    &record.id,
+                    root,
+                    &record,
                     &ledger,
                     effective_definition_approval(root, &record, &ledger)?,
                 )?

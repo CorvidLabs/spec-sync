@@ -55,6 +55,62 @@
         "where": "Written on spec-sync issue #1085 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795060919,
+      "digest": "966999b83b04c04fd05ad75428a027c00c24343fada9ff1b97f22a92a45c6639",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, REQ-cmd-change-038 wording)\": \"Approve\" (Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-161 and REQ-cmd-change-038 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58). Relayed and recorded by claude-code-t4t at 2026-11-19T04:01:54Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the two edits do not overlap word by word, change check rewrites the delta to the merge, records a verifiable rebase in approvals.json, keeps the approval and materializes the merged text; when they overlap it refuses as today and asks for re-approval; change status shows each rebase"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6.a (an approval is bound to what it approved, so the rebase must be a recorded, re-checkable merge, not a silent edit), CHANGE-6.c, the #843 stale MODIFIED refusal (REQ-change-122) and the #975 moved-base recovery from git",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "e76d2d2d42218bf5cc74cef5e08e4ebf349cfe19485c440486d6126a08109feb",
+        "cmd_change": "18754350b6ae22ac8d4f127ab0315cca0385634e817eb090082f5c167a7a7171"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "00e9b13237912a918f96c0af6725da9faf4fdad174a258331c8300d70132bb8d"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-161 and REQ-cmd-change-038 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58",
+        "recorded_by": "claude-code-t4t"
+      }
     }
   ],
   "reopenings": []

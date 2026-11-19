@@ -33,6 +33,8 @@ CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05
 
 CHANGE-14.c was drafted by the agent after a fixture showed a task reopened after a passing check being reviewed and finalized (#892). Leif approved it in the Herdr orc tab on 2026-11-05 at 20:24 MST ("Widen S6"), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
+CHANGE-17, CHANGE-17.a, CHANGE-17.b and CHANGE-17.c were drafted by the SpecSync agent (hc t4t) for issue #1081 (a change in CorvidLabs/starling silently deleted 28 requirements) and approved by Leif in a Claude Code chat with his planning session hc t4c on 2026-11-19 at about 14:17Z, relayed through ss-lead hc t58: "Approve as written", on the frozen definition in ss-lead/gates/1081-definition.md, where these sentences were marked as the agent's draft.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -85,6 +87,10 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-14.a**  The refusal names each open task and the command to run once it is done.
   - **CHANGE-14.b**  The change's status names that same way forward instead of telling me to run the check again.
   - **CHANGE-14.c**  A task reopened after a passing check stops the change from being reviewed or finalized until it is done again.
+- **CHANGE-17**  A change never deletes a requirement nobody agreed to remove.
+  - **CHANGE-17.a**  Checking, verifying or shipping a change on a branch that lost a requirement without an approved removal stops, and names every lost requirement.
+  - **CHANGE-17.b**  The project health check (audit) reports the same loss.
+  - **CHANGE-17.c**  The message tells me how to put each requirement back, or how to remove it on purpose.
 
 ## Retired
 

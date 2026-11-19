@@ -1,0 +1,61 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795098443,
+      "digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names\": \"Approve as written\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:17Z, on ss-lead's frozen gates/1081-definition.md (CHANGE-17 and .a to .c marked as the agent's draft, REQ-change-169, REQ-cmd-change-042, five choices, no CI-side guard); relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T14:27:20Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+        "title": "Check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "description": "check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change/vanished_requirements.rs",
+          "src/change_tests.rs",
+          "src/change_tests/vanished_requirements.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check, change verify, change accept, change finalize and change ship refuse, writing nothing, a change on a branch that lost a canonical requirement no approved REMOVED delta names, and name every lost id and its file; a removal an approved REMOVED item of a change on the branch accounts for passes, and so does one the branch merged in from the default branch; a requirement moved between files under its id passes, and a renumbered one is refused under its old id with the permanence hint; change audit reports the same refusal and change ship-status lists it as a blocker; the usual flows pass as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-142: fail closed when a default branch exists and Git cannot answer; #847: a refusal before verification records a refused attempt; CHANGE-11.b: the health check reports what check refuses; REQ-change-122: the new gate sits beside the base check at check, acceptance and audit",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "986eea99b2f8b7a2ce08d05c8bc37a73e6be56f9a297db6a9628623f87327ca1",
+        "cmd_change": "2345beed8e0e4907b08f8fd76569e2eab521646955927412923e1be03cd5cc79"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve as written",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:17Z, on ss-lead's frozen gates/1081-definition.md (CHANGE-17 and .a to .c marked as the agent's draft, REQ-change-169, REQ-cmd-change-042, five choices, no CI-side guard); relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -48,6 +48,13 @@
         "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795103696,
+      "digest": "84a898fd07d34fd49830409de024147ffd2bc53d90a9fee1afd61a02770562c6",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

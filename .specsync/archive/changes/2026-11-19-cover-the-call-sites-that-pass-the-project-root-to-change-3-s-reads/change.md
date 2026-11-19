@@ -1,6 +1,6 @@
 ---
 id: cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 6d524c6c2f5c4579b81bd4acca85651834be45da
 ---

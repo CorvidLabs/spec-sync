@@ -7,11 +7,11 @@
   "title": "Cover the call sites that pass the project root to change 3's reads",
   "description": "Cover the call sites that pass the project root to change 3's reads",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "6d524c6c2f5c4579b81bd4acca85651834be45da",
   "created_at": 1795103467,
-  "updated_at": 1795103615,
+  "updated_at": 1795103697,
   "affected_specs": [
     "cmd_init_registry",
     "cmd_issues",

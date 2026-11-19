@@ -123,11 +123,11 @@ fn a_working_copy_that_only_adds_records_is_told_to_commit_it_not_to_restore_it(
 }
 
 #[test]
-fn a_ledger_that_is_not_committed_at_head_is_refused_with_the_commit_as_the_way_out() {
+fn an_ignored_ledger_is_told_to_stop_ignoring_it_or_force_add_it() {
     let (temp, record) = reviewed_after(|root, record| {
         quiet_git(root, &["rm", "--cached", "-q", &approvals_display(record)]);
-        // Kept out of the fixture's later `git add --all`, as an untracked file stays out of a
-        // commit that does not name it.
+        // Ignored, so the fixture's later `git add --all` leaves it out, as `change check
+        // --commit` would too: its way out must not be that command (tester2 on #428).
         let exclude = root.join(".git/info/exclude");
         let mut excluded = fs::read_to_string(&exclude).unwrap_or_default();
         excluded.push_str(&format!("/{}\n", approvals_display(record)));
@@ -138,10 +138,27 @@ fn a_ledger_that_is_not_committed_at_head_is_refused_with_the_commit_as_the_way_
     let refused = finalize_change(root, &record.id).unwrap_err();
     assert!(
         refused.contains("is not committed at HEAD")
-            && refused.contains(&format!("specsync change check {} --commit", record.id)),
+            && refused.contains("ignored by Git")
+            && refused.contains(&format!("git add -f -- {}", approvals_display(&record))),
         "{refused}"
     );
     assert!(change_dir(root, &record.id).is_dir());
+}
+
+#[test]
+fn a_ledger_not_committed_at_head_is_told_to_commit_it() {
+    let (temp, record) = committed_approvals_project();
+    let root = temp.path();
+    quiet_git(root, &["rm", "--cached", "-q", &approvals_display(&record)]);
+    quiet_git(root, &["commit", "-m", "stop tracking the ledger"]);
+    let refused =
+        approvals_ledger_held_by_history(root, &load_change(root, &record.id).unwrap()).unwrap_err();
+    assert!(
+        refused.contains("is not committed at HEAD")
+            && refused.contains(&format!("specsync change check {} --commit", record.id))
+            && !refused.contains("ignored"),
+        "{refused}"
+    );
 }
 
 #[test]
@@ -224,10 +241,13 @@ fn a_workspace_deleted_and_created_again_under_the_same_id_is_refused() {
 #[test]
 fn a_ledger_deleted_and_created_again_under_the_same_id_is_refused() {
     let mut earlier = String::new();
+    let mut removed = String::new();
+    let mut created = String::new();
     let (temp, record) = reviewed_after(|root, record| {
         earlier = short_head(root);
         quiet_git(root, &["rm", "-q", &approvals_display(record)]);
         quiet_git(root, &["commit", "-m", "remove the ledger"]);
+        removed = short_head(root);
         // Created again from the same file, with the approval recorded anew.
         quiet_git(root, &["checkout", &earlier, "--", &approvals_display(record)]);
         let mut ledger = read_ledger(root, record);
@@ -236,6 +256,7 @@ fn a_ledger_deleted_and_created_again_under_the_same_id_is_refused() {
         write_ledger(root, record, &ledger);
         quiet_git(root, &["add", "--all"]);
         quiet_git(root, &["commit", "-m", "create the ledger again"]);
+        created = short_head(root);
     });
     let root = temp.path();
     let refused = finalize_change(root, &record.id).unwrap_err();
@@ -244,7 +265,35 @@ fn a_ledger_deleted_and_created_again_under_the_same_id_is_refused() {
         "the refusal names the commit that last held the earlier ledger: {refused}"
     );
     assert!(refused.contains("new id"), "and the two ways out: {refused}");
+    assert!(
+        refused.contains(&format!("take {removed} and {created} out")),
+        "taking out only the re-creation would leave the ledger deleted: {refused}"
+    );
     assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
+}
+
+#[test]
+fn a_missing_working_ledger_is_named_with_the_commit_to_restore_it_from() {
+    let (temp, record) = committed_approvals_project();
+    let root = temp.path();
+    fs::remove_file(approvals_path(root, &record)).unwrap();
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    assert!(
+        refused.contains(&approvals_display(&record))
+            && refused.contains("is missing")
+            && refused.contains(&format!("git checkout HEAD -- {}", approvals_display(&record))),
+        "finalize names the file and how to get it back: {refused}"
+    );
+    // Deleted in a commit too: the commit before that one last held it.
+    let last_held = short_head(root);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "delete the ledger"]);
+    let refused =
+        approvals_ledger_held_by_history(root, &load_change(root, &record.id).unwrap()).unwrap_err();
+    assert!(
+        refused.contains(&format!("git checkout {last_held} -- {}", approvals_display(&record))),
+        "{refused}"
+    );
 }
 
 #[test]

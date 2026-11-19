@@ -489,41 +489,33 @@ fn a_stale_delta_in_one_module_is_named_and_blocks_every_module() {
     );
 }
 
-/// DISCRIMINATOR for a `## MODIFIED` `Change Log` section (#845 review plan, 2.2f). The change's
-/// own materialization appends its row to that section, so the block never equals the approved
-/// body afterwards and a recorded base would refuse the change's second check on its own text.
-/// The Change Log therefore records no base, and a re-check is not refused as stale.
+/// A `## MODIFIED` `Change Log` section, approved before #1086's review made such items a
+/// refusal (#845 review plan, 2.2f, then #1088). SpecSync no longer writes the table, so `change
+/// check` refuses the item before writing anything, naming it, even though an older SpecSync let
+/// the approval record it; the Change Log still records no base.
 #[test]
-fn a_modified_change_log_section_is_not_refused_as_stale_by_its_own_row() {
+fn a_change_log_delta_an_older_specsync_approved_is_refused_at_check() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let record = approved_change_with_delta(
-        root,
-        "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial (restated) |\n",
-    );
-    let bases = load_approvals(root, &record)
-        .unwrap()
-        .approvals
-        .last()
-        .unwrap()
-        .approved_delta_bases
-        .clone()
-        .expect("a new approval records bases");
-    assert!(
-        !bases.keys().any(|key| key.ends_with("SPEC SECTION Change Log")),
-        "the Change Log section must record no base: {bases:?}"
-    );
-    materialize_change_deltas(root, &record.id).unwrap();
+    let record = approved_change_with_delta(root, STALE_MODIFIED_DELTA);
+    // The delta an older SpecSync approved, and the digest it recorded for it.
+    let delta = "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial (restated) |\n";
+    fs::write(delta_path(root, &record, "auth"), delta).unwrap();
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    let mut ledger = load_approvals(root, &record).unwrap();
+    let approval = ledger.approvals.last_mut().unwrap();
+    approval
+        .approved_delta_digests
+        .get_or_insert_with(BTreeMap::new)
+        .insert("auth".into(), delta_body_digest("auth", delta));
+    write_json(&ledger_path, &ledger).unwrap();
+    let spec = fs::read_to_string(spec_path(root)).unwrap();
 
-    let second = materialize_change_deltas(root, &record.id);
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
 
-    assert!(
-        second
-            .as_ref()
-            .err()
-            .is_none_or(|error| !error.contains("approved against canonical text that has changed")),
-        "the change's own Change Log row must not read as a stale base: {second:?}"
-    );
+    assert!(error.contains("`## Change Log`"), "{error}");
+    assert!(error.contains(&format!("history/{}.md", record.id)), "{error}");
+    assert_eq!(fs::read_to_string(spec_path(root)).unwrap(), spec);
 }
 
 /// DISCRIMINATOR (review nit on #845): a canonical file that exists but cannot be read is an

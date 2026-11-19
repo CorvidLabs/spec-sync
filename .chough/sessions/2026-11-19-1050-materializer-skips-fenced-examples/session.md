@@ -5,7 +5,7 @@ aliases: [1050-materializer-skips-fenced-examples]
 objective: The delta materializer skips fenced examples when it matches a requirement block (#1050)
 intent_scope: CHANGE
 modules: [change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -85,4 +85,10 @@ The delta materializer skips fenced examples when it matches a requirement block
   - revision: c2b19a9115af3d6045d3f09447fcd7bc05907cae
   - holds: accept
   - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-19T07:23:34Z · back · accept → build · ss-lead's review of the batch 3 branch at f4de84fc: the CHANGELOG entry says what the block-range move means for a change approved before the upgrade ^t-38dcea
+  - native_change: the-delta-materializer-skips-fenced-examples-when-it-matches-a-requirement-block
+  - gate: native:verifying
+  - revision: f4de84fc72a02214003261bb9e01648dbd9916c6
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

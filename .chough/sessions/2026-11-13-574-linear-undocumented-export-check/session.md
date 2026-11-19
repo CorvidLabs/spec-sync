@@ -5,7 +5,7 @@ aliases: [574-linear-undocumented-export-check]
 objective: check names each undocumented export's file from one lookup, so its time grows linearly (#574)
 intent_scope: ""
 modules: [validator]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -90,3 +90,9 @@ check names each undocumented export's file from one lookup, so its time grows l
   - holds: accept
   - drives: review
   - by: claude-code (hc t38p)
+- 2026-11-19T07:23:20Z · back · accept → build · ss-lead's review of the batch 3 branch at f4de84fc: make the timing test harder for machine load to flip (interleaved runs, fastest of three), same 4x sizes and same bound ^t-539258
+  - native_change: check-names-each-undocumented-export-s-file-from-one-lookup-so-its-time-grows-linearly
+  - gate: native:verifying
+  - revision: f4de84fc72a02214003261bb9e01648dbd9916c6
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)

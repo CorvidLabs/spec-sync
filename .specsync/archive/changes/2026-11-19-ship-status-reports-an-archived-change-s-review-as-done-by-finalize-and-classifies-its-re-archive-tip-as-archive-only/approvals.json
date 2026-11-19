@@ -83,6 +83,13 @@
         "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:21Z, on the new acceptance criterion line for #1038's change in ss-lead/gates/1093-1038-criterion.md ('New'); relayed by hc t4c through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795099146,
+      "digest": "fe5b91c76916305534153d5d9fd153764ec827faaf4beb4ace19f94a236aff93",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

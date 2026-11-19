@@ -1,0 +1,54 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795108996,
+      "digest": "e4a809a04255a6821a471b01666f755fa5d0281cea53b35c9d3af206515783e1",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence\": \"approve 1104 as written\" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 15:12Z, on the frozen ss-lead/gates/1104-definition.md, with its three choices as recommended (a bug fix with no new requirement text; an unreadable state.json counts against a successor search only; no warning line in other changes' status); relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T17:23:12Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence",
+        "title": "One change whose records fail validation no longer decides another change's terminal evidence",
+        "description": "one change whose records fail validation no longer decides another change's terminal evidence",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/terminal_evidence_isolation.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "No requirement text changes. REQ-change-119 computes an archived change's terminal evidence for that\nchange alone; REQ-change-012 has an archive enter current-input recursion only when selected as a\nsuccessor; REQ-change-024 requires a selected candidate successor to be valid. `terminal_evidence_summary`\nread the whole roster first and gave its first error to every change, so one change whose history\nfails validation made every other archived change read `corrupt-history` and every open one `stale`\nwith that change's reason (#1104). Each verdict now reads only its own records and the candidates it\nselects; a failure among those still counts.",
+        "acceptance_criteria": [
+          "A retired change whose replacement fails validation still reports that failure in its own status.",
+          "An accepted change whose changed input a broken change would cover reads `stale`, and the reason names that change and its failure; the same holds for a candidate successor whose `state.json` does not read, when the judged change is searching for a successor.",
+          "The broken change itself still reports its error in `change status` and `change show` (exit 1), and `change audit --archives` (an archive) or `change audit` (an active change) still exits 1 naming it.",
+          "With another change whose history fails validation (open and archived at one commit, as in #1104), an archived change whose own package and history authenticate reads `authenticated-history`, and an accepted change whose delivery inputs are unchanged reads `exact`, in `change status`, `change show`, `change list` and `change ship-status`, with and without a warm read cache.",
+          "`change check`, `change review`, `change finalize`, `change ship` and `change archive` refuse and pass exactly as before, with and without a broken change in the roster."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-119, REQ-change-012 and REQ-change-024 already say what a verdict depends on; Leif's rule 5, narrow a dependency rather than add a rule; the REQ-change-119 read cache keeps every read identical to a live read",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "approve 1104 as written",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 15:12Z, on the frozen ss-lead/gates/1104-definition.md, with its three choices as recommended (a bug fix with no new requirement text; an unreadable state.json counts against a successor search only; no warning line in other changes' status); relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ],
+  "reopenings": []
+}

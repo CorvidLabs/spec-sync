@@ -117,32 +117,36 @@ fn approvals(root: &Path) -> PathBuf {
         .join("approvals.json")
 }
 
-fn ship_status(root: &Path) -> Value {
+/// `change ship-status --json` for the change: its one document, and its exit code.
+fn ship_status(root: &Path) -> (Value, i32) {
     let output = run(root, &["--json", "change", "ship-status", ID]);
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+    let document = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
         panic!(
             "ship-status prints one document ({error}): {}",
             printed(&output)
         )
-    })
+    });
+    (document, output.status.code().unwrap_or(-1))
 }
 
 #[test]
 fn finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed() {
     let (_temp, root) = reviewed_project();
-    let report = ship_status(&root);
+    let (report, code) = ship_status(&root);
     assert_eq!(
         report["ready_to_finalize"], true,
         "the fixture is ready: {report}"
     );
+    assert_eq!(code, 0, "the fixture is ready, with no blocker: {report}");
 
     let path = approvals(&root);
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("Scope owner"), "{text}");
     fs::write(&path, text.replace("Scope owner", "Mallory")).unwrap();
 
-    let report = ship_status(&root);
+    let (report, code) = ship_status(&root);
     assert_eq!(report["ready_to_finalize"], false, "{report}");
+    assert_eq!(code, 1, "a blocker makes ship-status exit 1 (REQ-cmd-change-039): {report}");
     let blockers: Vec<String> = report["blockers"]
         .as_array()
         .unwrap()
@@ -186,9 +190,10 @@ fn finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed() {
             &format!(".specsync/changes/{ID}/approvals.json"),
         ],
     );
-    let report = ship_status(&root);
+    let (report, code) = ship_status(&root);
     assert_eq!(
         report["ready_to_finalize"], true,
         "restored, it is ready again: {report}"
     );
+    assert_eq!(code, 0, "restored, it has no blocker: {report}");
 }

@@ -54,5 +54,4 @@ The refusal says what fixes it, and which one depends on what differs:
 
 `ship_status_report` asks the check for a verifying or accepted change and pushes its message as a
 blocker, so `ready_to_finalize` is false. `change ship` and `change ship --dry-run` already refuse with
-the report's first blocker. Exit 1 on a blocker is #654 (PR #1093); this branch adds the assertion
-when it is updated against main after #1093 merges (an open task until then).
+the report's first blocker, and ship-status exits 1 on a blocker (#654, REQ-cmd-change-039).

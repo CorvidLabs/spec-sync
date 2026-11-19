@@ -14,7 +14,6 @@ artifact: tasks
 - [ ] The `files:` entry for the new test file in the `change` spec
 - [ ] Docs: `workflow.md`, `cli.md`, and `CHANGELOG.md` with the 6.3.0 note
 - [ ] `fledge lanes run verify` and the pre-push gate
-- [ ] After #1093 merges and this branch is updated against main: assert that `change ship-status <id>` exits 1 on the ledger blocker (REQ-cmd-change-041's criterion; exit 1 on a blocker is #654's REQ-cmd-change-039)
 
 Human gates and Chough's own records are not tasks here: Leif's scope approval and implementation review
 are recorded through Chough when he gives them.

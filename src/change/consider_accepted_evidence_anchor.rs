@@ -5363,17 +5363,20 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
     else {
         return Some(cannot_tell());
     };
-    // An archived record does not change when its package directory is renamed, so HEAD holding
-    // the same `state.json` blob is HEAD containing this archive, whatever the remote default did
-    // to its path afterwards (#945). Read only when the remote default holds a match.
-    let held_by_head = (!state_records.is_empty())
-        .then(|| archived_state_objects_at(root, "HEAD", &archive_root))
-        .flatten()
-        .unwrap_or_default();
+    // An archived record does not change when its package directory is renamed, so HEAD's history
+    // holding the same `state.json` blob under the archive root is HEAD containing this archive,
+    // whatever the remote default did to its path afterwards (#945). History, not HEAD's tree: a
+    // real `change reopen` moves the package back to `.specsync/changes/`, so the tree no longer
+    // holds the archive that HEAD's history added (the tester's run on f740d0a2).
     let mut unreadable = false;
     for (state_path, object) in state_records {
-        if held_by_head.contains(&object) {
-            continue;
+        match archive_object_in_head_history(root, &archive_root, &object) {
+            Some(true) => continue,
+            Some(false) => {}
+            None => {
+                unreadable = true;
+                continue;
+            }
         }
         match upstream_addition_outside_head(root, &reference, &state_path) {
             Some(Some(commit)) => {
@@ -5387,6 +5390,28 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
         }
     }
     unreadable.then(cannot_tell)
+}
+
+/// Whether a commit reachable from `HEAD` added or removed the blob `object` under
+/// `archive_root`: `HEAD`'s history then held that archived record, whatever happened to its path
+/// since. `None` when Git cannot say, which the caller reads as "cannot tell" (REQ-change-142).
+fn archive_object_in_head_history(root: &Path, archive_root: &str, object: &str) -> Option<bool> {
+    let find_object = format!("--find-object={object}");
+    let pathspec = format!(":(top,literal){archive_root}");
+    let found = git_output_allow_empty(
+        root,
+        &[
+            "log",
+            "-1",
+            "--format=%H",
+            "--no-renames",
+            find_object.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    )?;
+    Some(!found.trim().is_empty())
 }
 
 /// The commit on `reference` that added `state_path`, when `HEAD` does not contain it:
@@ -5521,36 +5546,6 @@ fn archived_state_entries(listing: &[u8], archive_root: &str) -> Vec<(String, Op
         }
     }
     entries
-}
-
-/// The blob ids of every archived `state.json` under `archive_root` at `revision`, or `None` when
-/// Git cannot list them.
-fn archived_state_objects_at(
-    root: &Path,
-    revision: &str,
-    archive_root: &str,
-) -> Option<std::collections::BTreeSet<String>> {
-    let listing = run_git_bounded(
-        root,
-        &[
-            "ls-tree",
-            "-r",
-            "-z",
-            "--full-tree",
-            revision,
-            "--",
-            &format!(":(top,literal){archive_root}/"),
-        ],
-        None,
-        MAX_GIT_COMMAND_OUTPUT_BYTES,
-    )
-    .ok()?;
-    listing.status.success().then(|| {
-        archived_state_entries(&listing.stdout, archive_root)
-            .into_iter()
-            .map(|(object, _)| object)
-            .collect()
-    })
 }
 
 /// The `id` an archived `state.json` carries: from the change record, or, for a record this

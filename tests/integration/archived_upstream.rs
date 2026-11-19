@@ -643,3 +643,130 @@ fn a_verification_ignored_paths_refusal_reaches_the_handoff_of_an_upstream_archi
         "handoff does not carry the ignored-path refusal: {handoff}"
     );
 }
+
+/// #945, the tester's real flow on f740d0a2. The change is archived on `main`, a branch reopens
+/// it (`change reopen` moves the package back to `.specsync/changes/`, so `HEAD`'s tree holds no
+/// archive) and checks it again, and then the remote default renames the archive package. `HEAD`'s
+/// history still holds that archive, so review passes; it was refused as "already archived on
+/// `origin/main`" at the rename commit. The control, with no rename, passes too.
+#[test]
+fn a_reopened_change_reviews_after_the_remote_default_renames_its_archive() {
+    for rename in [false, true] {
+        let temp = TempDir::new().unwrap();
+        let (root, _, _) = verified_feature(&temp);
+        run_ok(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+        run_ok(&root, &["change", "finalize", ID]);
+        let archived = git(&root, &["rev-parse", "HEAD"]);
+        let origin = temp.path().join("origin.git");
+        git(
+            temp.path(),
+            &[
+                "init",
+                "-q",
+                "--bare",
+                "-b",
+                "main",
+                origin.to_str().unwrap(),
+            ],
+        );
+        git(
+            &root,
+            &["remote", "add", "origin", origin.to_str().unwrap()],
+        );
+        git(
+            &root,
+            &[
+                "push",
+                "-q",
+                "origin",
+                &format!("{archived}:refs/heads/main"),
+            ],
+        );
+        git(&root, &["fetch", "-q", "origin"]);
+        git(&root, &["remote", "set-head", "origin", "main"]);
+
+        // A branch from the archive reopens the change for stale evidence and checks it again.
+        git(&root, &["checkout", "-q", "-b", "reopen", &archived]);
+        fs::write(
+            root.join("src/auth.rs"),
+            "// Authentication module, probed again.\n",
+        )
+        .unwrap();
+        git(&root, &["add", "--all"]);
+        git(&root, &["commit", "-q", "-m", "stale the evidence"]);
+        run_ok(
+            &root,
+            &[
+                "change",
+                "reopen",
+                ID,
+                "--actor",
+                "Reviewer",
+                "--reason",
+                "the probe changed",
+            ],
+        );
+        assert_eq!(state(&root), "verifying");
+        assert!(
+            root.join(".specsync/archive/changes")
+                .read_dir()
+                .unwrap()
+                .next()
+                .is_none(),
+            "a reopen moves the package out of the archive"
+        );
+        git(&root, &["add", "--all"]);
+        git(&root, &["commit", "-q", "-m", "reopen"]);
+        run_ok(&root, &["change", "check", ID, "--commit"]);
+
+        if rename {
+            // The remote default renames the archive package after the branch left it.
+            git(&root, &["checkout", "-q", "--detach", &archived]);
+            let archive_root = root.join(".specsync/archive/changes");
+            let package = archive_root
+                .read_dir()
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .file_name();
+            let package = package.to_str().unwrap().to_string();
+            git(
+                &root,
+                &[
+                    "mv",
+                    &format!(".specsync/archive/changes/{package}"),
+                    &format!(".specsync/archive/changes/{package}-renamed"),
+                ],
+            );
+            git(&root, &["commit", "-q", "-m", "rename the archive package"]);
+            let renamed = git(&root, &["rev-parse", "HEAD"]);
+            git(
+                &root,
+                &[
+                    "push",
+                    "-q",
+                    "origin",
+                    &format!("{renamed}:refs/heads/main"),
+                ],
+            );
+            git(&root, &["fetch", "-q", "origin"]);
+            git(&root, &["checkout", "-q", "reopen"]);
+        }
+
+        let review = run(&root, &["change", "review", ID, "--reviewer", "Reviewer"]);
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&review.stdout),
+            String::from_utf8_lossy(&review.stderr)
+        );
+        assert!(
+            review.status.success(),
+            "rename={rename}: review refused:\n{text}"
+        );
+        assert!(
+            !text.contains("already archived"),
+            "rename={rename}:\n{text}"
+        );
+    }
+}

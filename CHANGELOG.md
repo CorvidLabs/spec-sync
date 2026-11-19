@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The upstream archive lookup reads archive tree entries as bytes, so an unrelated archive package with a non-UTF-8 directory name on the remote default branch no longer makes the lookup answer "cannot tell"; a non-UTF-8 package that does hold this change's record still does (#961). An archive that HEAD already holds is no longer reported as remote-only after the remote default branch renames its package (#945).
+- The upstream archive lookup reads archive tree entries as bytes, so an unrelated archive package with a non-UTF-8 directory name on the remote default branch no longer makes the lookup answer "cannot tell"; a non-UTF-8 package that does hold this change's record still does (#961). An archive that HEAD's history already holds, including one `change reopen` moved back out of the archive, is no longer reported as remote-only after the remote default branch renames its package (#945).
 - The `Archive` jobs in `ci.yml` and `trust.yml` check out full history, so the archive gate sees the default branch and never tells a stale copy of a change the remote default already archived to ship; `test-required-ci-gate.py` fails when a job that runs the gate checks out a single commit, and the gate script itself still never fetches (REQ-cmd-change-029, #965).
 
 ## [6.3.0] - 2026-11-12

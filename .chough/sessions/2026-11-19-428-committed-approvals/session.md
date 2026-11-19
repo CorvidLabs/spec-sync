@@ -5,7 +5,7 @@ aliases: [428-committed-approvals]
 objective: finalize, ship and archive refuse an approvals ledger that Git history does not hold (#428)
 intent_scope: CHANGE
 modules: [change, cmd_change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -20,6 +20,7 @@ observations:
   - 2026-11-19-428-red-on-main-at-ba481a7e
   - 2026-11-19-428-red-integration-on-main
   - 2026-11-19-428-verify-lane-at-d8ad737f
+  - 2026-11-19-428-verify-lane-at-cb0b4fc3
 bugs: []
 blockers: []
 waiting_on_human:
@@ -50,6 +51,7 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
 - [Red first on main 3bebe8b0: at ba481a7e (the tests alone) seven unit tests fail: finalize archives a ledger edited since HEAD, one whose working copy only adds records, one not committed at HEAD, a committed rewrite, a rewrite merged in from a side branch and a recreated change; an accepted change archives with an extra or changed approval. Five pass, as they must before and after. This is the defect #428 reports; fixed in 54427418.](evidence/2026-11-19-428-red-on-main-at-ba481a7e.md)
 - [Red first on main: finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed fails: ship-status calls a change ready to finalize after its approvals.json was edited in the working tree.](evidence/2026-11-19-428-red-integration-on-main.md)
 - [At d8ad737f (main 2cc0897f merged in; the fix, the rule tests and the existing-test commits), fledge lanes run verify passed 10/10 steps in 8m29s, run alone: unit 3110 passed (2 ignored), integration 630 passed (ship-status exit 1 on the ledger blocker included), strict specs 62/62. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-d8ad737f.md)
+- [At cb0b4fc3 (the Git-read refusals name the way out, red first in the commit before), fledge lanes run verify passed 10/10 steps in 12m18s, run alone. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-cb0b4fc3.md)
 
 ## Open threads
 
@@ -121,4 +123,14 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
   - gate: native:verifying
   - revision: cb0b4fc3273a3ca9a62110362773cf386a9f6601
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 3 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T17:34:29Z · advance · build → test · native:verifying ^t-7ae329
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: 45b8f9dcc745b1ef6b50a9bf304e1c73b455adfc
+  - by: claude-code (hc t59)
+- 2026-11-19T17:34:30Z · advance · test → accept · native:verifying ^t-d2f9ab
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: 45b8f9dcc745b1ef6b50a9bf304e1c73b455adfc
   - by: claude-code (hc t59)

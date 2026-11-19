@@ -68,9 +68,27 @@ fn is_module_history_path(root: &Path, spec_path: &Path, path: &str) -> bool {
 /// The bytes `change check` writes for one change's fragment.
 pub fn history_fragment_content(change_id: &str, date: &str, summary: &str) -> String {
     format!(
-        "---\nchange: {change_id}\ndate: {date}\n---\n\n{}\n",
+        "---\nchange: {}\ndate: {date}\n---\n\n{}\n",
+        yaml_double_quoted(change_id),
         one_line_summary(summary)
     )
+}
+
+/// `value` as a YAML double-quoted scalar, so every id `validate_change_id` accepts (it refuses
+/// control characters) reads back as the same string: `true`, `'foo'` and `"x"` stay text (#1086
+/// review).
+fn yaml_double_quoted(value: &str) -> String {
+    let mut quoted = String::with_capacity(value.len() + 2);
+    quoted.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => quoted.push_str("\\\""),
+            '\\' => quoted.push_str("\\\\"),
+            other => quoted.push(other),
+        }
+    }
+    quoted.push('"');
+    quoted
 }
 
 /// A title as one line: line breaks become spaces, so the fragment always parses back.
@@ -135,7 +153,10 @@ pub fn parse_history_fragment(file_name: &str, content: &str) -> Result<HistoryF
         if slot.is_some() {
             return Err(format!("its frontmatter sets `{}:` twice", key.trim()));
         }
-        *slot = Some(unquote_scalar(value.trim()).to_string());
+        *slot = Some(
+            yaml_scalar(value.trim())
+                .map_err(|problem| format!("its `{}:` {problem}", key.trim()))?,
+        );
     }
     let change = change.ok_or_else(|| "its frontmatter has no `change:`".to_string())?;
     if change != stem {
@@ -165,16 +186,36 @@ pub fn parse_history_fragment(file_name: &str, content: &str) -> Result<HistoryF
     })
 }
 
-fn unquote_scalar(value: &str) -> &str {
-    for quote in ['"', '\''] {
-        if let Some(inner) = value
-            .strip_prefix(quote)
-            .and_then(|rest| rest.strip_suffix(quote))
-        {
-            return inner;
+/// A one-line YAML scalar as text: double-quoted with `\"` and `\\` escapes, single-quoted with
+/// `''`, or plain. A fragment written before #1086's review holds a plain id, and still reads.
+fn yaml_scalar(value: &str) -> Result<String, String> {
+    if value.len() >= 2
+        && let Some(inner) = value
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+    {
+        let mut text = String::with_capacity(inner.len());
+        let mut characters = inner.chars();
+        while let Some(character) = characters.next() {
+            match character {
+                '\\' => match characters.next() {
+                    Some(escaped @ ('"' | '\\')) => text.push(escaped),
+                    _ => return Err("has an escape other than `\\\"` or `\\\\`".into()),
+                },
+                '"' => return Err("has an unescaped `\"` inside its quotes".into()),
+                other => text.push(other),
+            }
         }
+        return Ok(text);
     }
-    value
+    if value.len() >= 2
+        && let Some(inner) = value
+            .strip_prefix('\'')
+            .and_then(|rest| rest.strip_suffix('\''))
+    {
+        return Ok(inner.replace("''", "'"));
+    }
+    Ok(value.to_string())
 }
 
 /// `YYYY-MM-DD` naming a real calendar day.
@@ -294,7 +335,7 @@ pub fn scan_history_fragments(
         };
         match parse_history_fragment(name, &content) {
             Ok(fragment) => {
-                if changelog_row_names_change(spec, &fragment.change) {
+                if changelog_records_change(spec, &fragment.change) {
                     errors.push(format!(
                         "history fragment `{shown}` records `{}`, and the Change Log in `{spec_relative}` records it too; keep one of the two records",
                         fragment.change
@@ -309,23 +350,6 @@ pub fn scan_history_fragments(
         (left.date.as_str(), left.change.as_str()).cmp(&(right.date.as_str(), right.change.as_str()))
     });
     (fragments, errors)
-}
-
-/// Whether a row of the spec's Change Log table has a cell that starts with `<change_id>:`, the
-/// way `change check` wrote a change's row before #1084. Narrower than `changelog_records_change`,
-/// which also matches inside a cell, because a double record is an error and must not be claimed
-/// for a different change whose id merely ends with this one.
-fn changelog_row_names_change(spec: &str, change_id: &str) -> bool {
-    let prefix = format!("{change_id}:");
-    let Some(table) = change_log_table(spec) else {
-        return false;
-    };
-    table.rows.iter().any(|row| {
-        row.trim()
-            .trim_matches('|')
-            .split('|')
-            .any(|cell| cell.trim().starts_with(&prefix))
-    })
 }
 
 /// A spec's `## Change Log` table: the header and separator lines and the rows, as written.

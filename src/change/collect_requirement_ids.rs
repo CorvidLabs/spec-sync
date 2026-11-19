@@ -2663,8 +2663,10 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
 /// The row described the change as `{id}: {title}` in whichever column the table calls its
 /// description, so it is found by that prefix inside the `## Change Log` section rather than by
 /// rebuilding a row and comparing it. A table that `specsync compact` or a human has since
-/// reformatted still counts, and the trailing colon keeps one slug from matching another that
-/// merely extends it.
+/// reformatted still counts (`**{id}:**` too), the trailing colon keeps one slug from matching
+/// another that merely extends it, and the character before the id must not belong to an id, so
+/// `one-session:` is not a row for `session`. This one matcher decides both "the module records
+/// the change" and "the change is recorded twice" (#1086 review).
 fn changelog_records_change(spec: &str, id: &str) -> bool {
     let Some(position) = spec.rfind("## Change Log") else {
         return false;
@@ -2673,7 +2675,38 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     let end = spec[start..]
         .find("\n## ")
         .map_or(spec.len(), |offset| start + offset);
-    spec[start..end].contains(&format!("{id}:"))
+    let section = &spec[start..end];
+    let needle = format!("{id}:");
+    section.match_indices(needle.as_str()).any(|(index, _)| {
+        section[..index].chars().next_back().is_none_or(|before| {
+            !(before.is_alphanumeric() || matches!(before, '-' | '_' | '.'))
+        })
+    })
+}
+
+/// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the
+/// lifecycle never writes that table, which is frozen, and a change's history goes to its own
+/// fragment (#1086 review). Approve, check, verify and accept ask it; an archive is never re-judged.
+fn refuse_change_log_delta_items(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if record.no_spec_change {
+        return Ok(());
+    }
+    for module in &record.affected_specs {
+        let path = delta_path_checked(root, record, module)?;
+        let Ok(delta) = read_bounded_change_text(&path, "semantic delta") else {
+            continue;
+        };
+        let Ok(items) = parse_delta(&delta) else {
+            continue;
+        };
+        if items.iter().any(is_change_log_section) {
+            return Err(format!(
+                "semantic delta for `{module}` targets its `## Change Log` section, which SpecSync no longer writes: the table is frozen, and `change check` records this change in `history/{id}.md` beside the spec; take the `SPEC SECTION Change Log` item out of `.specsync/changes/{id}/deltas/{module}.md`, then run `specsync change approve {id}`",
+                id = record.id
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Materialization writes TWO outputs per module, and the `canonical_applied` short-circuit

@@ -782,6 +782,27 @@ fn the_dry_run_refuses_while_an_interrupted_write_is_waiting() {
         refused[0].1.contains(".specsync/change-transaction.json"),
         "the refusal names the waiting write: {document}"
     );
+    // The whole sentence, once, as `--json` carries it and as the text output prints it: a
+    // message built from a wrapped source string printed runs of spaces and no test noticed.
+    let waiting = "an interrupted lifecycle write is waiting to be recovered \
+                   (`.specsync/change-transaction.json`); the next lifecycle command that writes \
+                   recovers it before it checks anything, and a dry run writes nothing, so it \
+                   cannot say what `change approve` would find. Run the dry run again once that \
+                   write is recovered";
+    assert_eq!(refused[0].1, waiting, "{document}");
+    let output = project.invoke(&[
+        "change",
+        "approve",
+        &id,
+        "--dry-run",
+        "--actor",
+        "Scope owner",
+    ]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        text.contains(&format!("  lifecycle_lock: {waiting}\n")),
+        "the text output prints the same sentence: {text}"
+    );
     let position = CHECKS
         .iter()
         .position(|name| *name == "lifecycle_lock")

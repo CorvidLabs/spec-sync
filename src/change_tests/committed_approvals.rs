@@ -126,6 +126,12 @@ fn a_working_copy_that_only_adds_records_is_told_to_commit_it_not_to_restore_it(
 fn a_ledger_that_is_not_committed_at_head_is_refused_with_the_commit_as_the_way_out() {
     let (temp, record) = reviewed_after(|root, record| {
         quiet_git(root, &["rm", "--cached", "-q", &approvals_display(record)]);
+        // Kept out of the fixture's later `git add --all`, as an untracked file stays out of a
+        // commit that does not name it.
+        let exclude = root.join(".git/info/exclude");
+        let mut excluded = fs::read_to_string(&exclude).unwrap_or_default();
+        excluded.push_str(&format!("/{}\n", approvals_display(record)));
+        fs::write(&exclude, excluded).unwrap();
         quiet_git(root, &["commit", "-m", "stop tracking the ledger"]);
     });
     let root = temp.path();
@@ -194,8 +200,8 @@ fn a_relay_committed_then_removed_and_restored_still_finalizes() {
 
 #[test]
 fn a_workspace_deleted_and_created_again_under_the_same_id_is_refused() {
-    // `change check` refuses this history already (the workflow-version history loses its
-    // creation anchor), so the deletion comes after the review, where finalize asks first.
+    // The workflow-version history refuses this as the change loads, before finalize can ask
+    // about its ledger: deleting the change's `state.json` deletes its creation anchor.
     let (temp, record) = committed_approvals_project();
     let root = temp.path();
     quiet_git(root, &["add", "--all"]);
@@ -204,20 +210,41 @@ fn a_workspace_deleted_and_created_again_under_the_same_id_is_refused() {
     let workspace = format!(".specsync/changes/{}", record.id);
     quiet_git(root, &["rm", "-r", "-q", &workspace]);
     quiet_git(root, &["commit", "-m", "remove the change"]);
-    // Created again from the same files, with the approval recorded anew.
     quiet_git(root, &["checkout", &earlier, "--", &workspace]);
-    let mut ledger = read_ledger(root, &record);
-    let timestamp = ledger["approvals"][0]["timestamp"].as_u64().unwrap();
-    ledger["approvals"][0]["timestamp"] = serde_json::json!(timestamp + 1);
-    write_ledger(root, &record, &ledger);
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "-m", "create the change again"]);
     let refused = finalize_change(root, &record.id).unwrap_err();
     assert!(
-        refused.contains(&earlier) && refused.contains("removed in"),
+        refused.starts_with("workflow-version history deleted its immutable creation anchor"),
+        "{refused}"
+    );
+    assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
+}
+
+#[test]
+fn a_ledger_deleted_and_created_again_under_the_same_id_is_refused() {
+    let mut earlier = String::new();
+    let (temp, record) = reviewed_after(|root, record| {
+        earlier = short_head(root);
+        quiet_git(root, &["rm", "-q", &approvals_display(record)]);
+        quiet_git(root, &["commit", "-m", "remove the ledger"]);
+        // Created again from the same file, with the approval recorded anew.
+        quiet_git(root, &["checkout", &earlier, "--", &approvals_display(record)]);
+        let mut ledger = read_ledger(root, record);
+        let timestamp = ledger["approvals"][0]["timestamp"].as_u64().unwrap();
+        ledger["approvals"][0]["timestamp"] = serde_json::json!(timestamp + 1);
+        write_ledger(root, record, &ledger);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "create the ledger again"]);
+    });
+    let root = temp.path();
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    assert!(
+        refused.contains(&format!("last held in {earlier}")) && refused.contains("removed in"),
         "the refusal names the commit that last held the earlier ledger: {refused}"
     );
     assert!(refused.contains("new id"), "and the two ways out: {refused}");
+    assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
 }
 
 #[test]

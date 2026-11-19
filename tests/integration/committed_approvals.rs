@@ -146,7 +146,10 @@ fn finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed() {
 
     let (report, code) = ship_status(&root);
     assert_eq!(report["ready_to_finalize"], false, "{report}");
-    assert_eq!(code, 1, "a blocker makes ship-status exit 1 (REQ-cmd-change-039): {report}");
+    assert_eq!(
+        code, 1,
+        "a blocker makes ship-status exit 1 (REQ-cmd-change-039): {report}"
+    );
     let blockers: Vec<String> = report["blockers"]
         .as_array()
         .unwrap()

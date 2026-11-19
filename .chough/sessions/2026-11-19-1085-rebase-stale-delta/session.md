@@ -5,7 +5,7 @@ aliases: [1085-rebase-stale-delta]
 objective: When a MODIFIED delta is stale only because main edited the same requirement, change check merges base, main and the delta word by word; non-overlapping edits rebase the delta automatically, keep the approval and record the rebase; overlapping edits are refused as today (#1085, Leif's approval on the issue, relayed by hc t4c)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -22,11 +22,16 @@ observations:
   - 2026-11-19-covers-req-change-161-req-change-122-and-req-cmd-change-038-a5d044
   - 2026-11-19-correction-to-the-round-3-entry-recorded-at-985de940-it-says
   - 2026-11-19-round-4-codex-s-third-review-of-0d6ca1cd-ss-lead-s-rules-the
+  - 2026-11-19-option-2-propose-don-t-approve-as-leif-approved-it-approve
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1085 (PR #1089), option 2"
+    holds: accept
+    drives: review
+    opened: 2026-11-19T15:37:16Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # When a MODIFIED delta is stale only because main edited the same requirement, change check merges base, main and the delta word by word; non-overlapping edits rebase the delta automatically, keep the approval and record the rebase; overlapping edits are refused as today (#1085, Leif's approval on the issue, relayed by hc t4c)
 
@@ -59,6 +64,7 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
 - [Covers REQ-change-161, REQ-change-122 and REQ-cmd-change-038 (the last not linked: chough 0.6.0 looks up specs/cmd-change). After the tester's regression on 0d31218a, Codex's second #1089 review and ss-lead's F1/F2, order and #654 reviews: main's block is read at HEAD's merge-base with the default branch on its first-parent line; a rebase happens when the working tree holds main's block, the delta's body or their merge; a merge-base block equal to the delta's body is the change's own text; records name main's commit and readers check it; an applied requirement main edited that cannot be rebased is refused; text status names a refused record; a word one side deleted is never put back; 256 KiB and 64-record bounds; the hint names a module with a stale requirement. The #654 squash-merge test fails without its fix; F1, F2, (c), (d), (e) tests fail on the old code. Re-approved under Leif's relayed 'Approve' (round 3). fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3100 unit and 633 integration tests, strict specs 62/62; change audit --strict, fledge trust verify and pre-push passed.](evidence/2026-11-19-covers-req-change-161-req-change-122-and-req-cmd-change-038-a5d044.md)
 - [Correction to the round-3 entry recorded at 985de940: it says the (c), (d) and (e) tests fail on the old code. They were not run on 0d31218a, and they cannot compile there because they use main_commit and MAX_DELTA_REBASES. Their failing inputs are Codex's own reproductions on 0d31218a. Red-first was run for F1 and F2 (both fail on the code before them) and for the #654 squash-merge test (fails without its fix). The tester's regression is red by the tester's run on 0d31218a.](evidence/2026-11-19-correction-to-the-round-3-entry-recorded-at-985de940-it-says.md)
 - [Round 4 (Codex's third review of 0d6ca1cd, ss-lead's rules, the tester's measurements): moves refuse by one rule (a word both sides removed from one stretch the same way that one side alone adds elsewhere), which refuses Codex's two-sided move and a move against a deletion while a one-sided move and the tester's 'the' and punctuation cases merge; R1 was measured on the seven stale triples rebuilt from Chough's history and dropped (it refused #360 REQ-cli-012); with this rule 6 of 7 rebase and #336 is an overlap. With a default branch, an applied item whose main text Git cannot read is refused naming why; with none, and in CI, it reads as unedited. The unreadable-object, 256 KiB and 65th-record refusals name their cause and way on. Every new test fails on 0d6ca1cd. Re-approved under Leif's relayed 'Approve' of the round-4 wording. fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3103 unit and 634 integration tests, strict specs 62/62, 100% file and LOC coverage; change audit --strict and fledge trust verify passed.](evidence/2026-11-19-round-4-codex-s-third-review-of-0d6ca1cd-ss-lead-s-rules-the.md)
+- [Option 2 (propose, don't approve), as Leif approved it ('approve 1089', 14:59Z). Red first: fe86dd9e's reworked tests failed 10 of 24 on the record-based code; the fix is 1141ea78. Now 24 unit tests and 6 integration tests pass: the proposal is written into the delta and refused, naming the requirement and 'specsync change approve <id>'; the canonical file and approvals.json stay byte for byte; status shows the delta as changed after approval; after approval the check applies it; each working-tree text (main's, the change's, the merge) gets the same proposal; a second main edit is proposed again; overlap, main's deletion, a heading main edited, other working-tree text, the 4,000-word limit and an unreadable main text each refuse naming the cause and the way on; one item that cannot be proposed holds back all; no proposal in CI, with no default branch, or over the change's own text (#654). Real cases (rule 3): the tester's three English cases and Chough's seven real stale triples give 9 proposals and the #336 overlap refusal; after approval the applied text is byte-identical to round 4's rebase (88867715) in all 10. Chough's open PRs #311 and #310: the same check and strict-audit results under released 6.3.0 and this build (no new refusal). Chough main 4c764c09, starling main db97480 and spec-sync main ee76ef1b audit --strict clean under both. fledge lanes run verify passed at fbe085f3 (3101 unit, 633 integration, 62/62 specs, 100% coverage); change audit --strict exit 0, pre-push and fledge trust verify passed.](evidence/2026-11-19-option-2-propose-don-t-approve-as-leif-approved-it-approve.md)
 
 ## Open threads
 
@@ -352,4 +358,32 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
   - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
   - gate: native:approved
   - revision: a5dd8d0255d51d38b48b40a898bc1217a491ad68
+  - by: claude-code (hc t4t)
+- 2026-11-19T15:37:11Z · direct-native-write · build → build · rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state approved → verifying ^t-dcd86f
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: fbe085f31a2051fb0f289503c7f605c2d712daaa
+  - direct_write:
+    - change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-19T15:37:11Z · advance · build → test · native:verifying ^t-d633c8
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - gate: native:verifying
+  - revision: fbe085f31a2051fb0f289503c7f605c2d712daaa
+  - by: claude-code (hc t4t)
+- 2026-11-19T15:37:13Z · advance · test → accept · native:verifying ^t-889e8e
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - gate: native:verifying
+  - revision: fbe085f31a2051fb0f289503c7f605c2d712daaa
+  - by: claude-code (hc t4t)
+- 2026-11-19T15:37:16Z · gate-opened · accept → accept · Leif's review of #1085 (PR #1089), option 2 ^t-7cdb86
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: fbe085f31a2051fb0f289503c7f605c2d712daaa
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

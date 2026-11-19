@@ -5,7 +5,7 @@ aliases: [1038-ship-status-archived-review]
 objective: ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -23,6 +23,8 @@ observations:
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-tests-an
   - 2026-11-19-1038-red-control-on-main-3bebe8b0
   - 2026-11-19-1038-verify-lane-at-4d439b39
+  - 2026-11-19-1038-red-control-for-the-review-fixes-at-7052e227
+  - 2026-11-19-1038-verify-lane-at-612d255d
 bugs: []
 blockers: []
 waiting_on_human:
@@ -31,7 +33,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T20:07:47Z
 run_consents: []
-next: Wait for Leif's review of the batch PR, relayed by hc t4c through ss-lead; then chough change ship with his words. Record no review before that.
+next: "Wait for Leif's send-back of this change (or his words that the builder may run it), then set the criterion to the approved line, record his re-approval as relayed, and re-check. Then his review of PR #1093."
 ---
 # ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 
@@ -43,6 +45,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
 - Refreshed onto main 3bebe8b0 on branch fix/ship-status-654-1038-937 with #654 and #937: merged the 11-13 branch with no conflict and re-ran change check; no delta, so no history fragment; red control on main and the verify lane recorded
+- Fixed the two review findings on PR #1093 (failing tests 7052e227, fix c697bbde): the own-package tip exemption now needs a deletion and an absent package directory, as CI's classifier does; only a workflow-v2 archive with a valid finalization record reads done by finalize, and any other archived change gets a done review stage that names no review; added the CHANGELOG Fixed line
 
 ## Decisions and why
 
@@ -50,6 +53,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 - decided: no new lesson, because the change is narrow and an existing lesson covers it
 - decided: the approved definition is unchanged and the 11-13 approval stands because Leif said 'Yes, they stand' (relayed by his planning session hc t4c through ss-lead hc t58, 2026-11-18)
 - decided: one review answer from Leif on the batch PR counts as the scoped review of each change in it because he said 'Yes, one answer per batch' (relayed by hc t4c through ss-lead hc t58, 2026-11-18); nothing is recorded until it comes
+- decided: #1038's first acceptance criterion gains 'that finalize archived' and a clause for an archived change that finalize did not archive, because Leif said 'Approve' to that line (Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:21Z, relayed through ss-lead hc t58); it is not recorded natively yet, because the criterion changes only through change send-back, which Leif runs himself
 
 ## What was verified
 
@@ -59,6 +63,8 @@ ship-status reports an archived change's review as done by finalize and classifi
 - [Red-first control: on main 18385ef5e with only the new tests, an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review and an_archive_tip_that_removes_its_own_package_files_is_archive_only fail. These are the defects #1038 reports, fixed by this change; not new bugs.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-tests-an.md)
 - [Red-first control: on main 3bebe8b0 with only the new tests, an_archive_tip_that_removes_its_own_package_files_is_archive_only fails (tip class product, not archive_only) and an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review fails (review_currency stale, and the stage says to re-record the review). These are the defects #1038 reports, fixed by this change; not new bugs.](evidence/2026-11-19-1038-red-control-on-main-3bebe8b0.md)
 - [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including commands::change::tests::an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review and an_archive_tip_that_removes_its_own_package_files_is_archive_only. The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-1038-verify-lane-at-4d439b39.md)
+- [Red-first control for the review of PR #1093, at 7052e227 with only the new tests: an_archive_tip_whose_package_is_still_present_is_product fails (a tip that modifies the change's package, still present, reads archive_only where CI picks the product lane), and a_workflow_v1_archive_is_not_done_by_finalize_and_suggests_no_review fails (a workflow-v1 archive holding a review.json reads review_currency current). These are the two review findings, fixed in c697bbde; not new bugs.](evidence/2026-11-19-1038-red-control-for-the-review-fixes-at-7052e227.md)
+- [At 612d255d (PR #1093 after the review fixes c697bbde, each change re-checked there), fledge lanes run verify passed 10/10 steps in 29m34s on a busy machine: fmt, lint and check-types, cargo test (unit 3081 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes the four #1038 tests: the archived review stage done by finalize with no blocker, the workflow-v1 archive that is not done by finalize and is told no review, the archive-only tip, and the tip whose package is still present reading product.](evidence/2026-11-19-1038-verify-lane-at-612d255d.md)
 
 ## Open threads
 
@@ -101,4 +107,14 @@ ship-status reports an archived change's review as done by finalize and classifi
   - gate: native:verifying
   - revision: 8313f3ff7f17d50fbd13e1c9296a6e144a6ba572
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 6 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T05:56:33Z · advance · build → test · native:verifying ^t-063ea3
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 612d255dc6c463fdabdb7fe329f74dcb78de5824
+  - by: claude-code (hc t59)
+- 2026-11-19T05:56:36Z · advance · test → accept · native:verifying ^t-959d30
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 612d255dc6c463fdabdb7fe329f74dcb78de5824
   - by: claude-code (hc t59)

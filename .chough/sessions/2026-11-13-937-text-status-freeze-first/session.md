@@ -15,12 +15,17 @@ criteria: [SHIP-9.a]
 requirements: []
 cases: []
 design: []
-files: [src/change/sdd_version.rs, tests/integration/archived_upstream.rs, src/commands/change.rs]
+files:
+  - src/change/sdd_version.rs
+  - tests/integration/archived_upstream.rs
+  - src/commands/change.rs
+  - CHANGELOG.md
 observations:
   - 2026-11-13-at-bff847366-fix-937-with-origin-main-bb7682a78-merged-in
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
   - 2026-11-19-937-red-control-on-main-3bebe8b0
   - 2026-11-19-937-verify-lane-at-4d439b39
+  - 2026-11-19-937-verify-lane-at-612d255d
 bugs: []
 blockers: []
 waiting_on_human:
@@ -41,6 +46,7 @@ Text change status names a sequence-ledger freeze before the verification_ignore
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
 - Refreshed onto main 3bebe8b0 on branch fix/ship-status-654-1038-937 with #654 and #1038: merged the 11-13 branch with no conflict and re-ran change check; no delta, so no history fragment; red control on main and the verify lane recorded
+- PR #1093 opened; CHANGELOG Fixed line added; re-checked at 612d255d after the review fixes for #1038, with the verify lane recorded there
 
 ## Decisions and why
 
@@ -58,6 +64,7 @@ Text change status names a sequence-ledger freeze before the verification_ignore
 - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
 - [Red-first control: on main 3bebe8b0 with only the new test, archived_upstream::a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status fails: text change status named the verification_ignored_paths repair while JSON next_action named the sequence-ledger freeze. The failure is the defect #937 reports, fixed by this change; not a new bug.](evidence/2026-11-19-937-red-control-on-main-3bebe8b0.md)
 - [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including archived_upstream::a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status. The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-937-verify-lane-at-4d439b39.md)
+- [At 612d255d (PR #1093 after the review fixes for #1038 in c697bbde, each change re-checked there), fledge lanes run verify passed 10/10 steps in 29m34s on a busy machine: fmt, lint and check-types, cargo test (unit 3081 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes archived_upstream::a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status; this change's source is unchanged since 4d439b39, and its CHANGELOG Fixed line is new.](evidence/2026-11-19-937-verify-lane-at-612d255d.md)
 
 ## Open threads
 

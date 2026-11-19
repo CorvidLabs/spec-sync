@@ -26,6 +26,7 @@ observations:
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
   - 2026-11-19-red-first-control-on-main-3bebe8b0-with-only-the-new-tests
   - 2026-11-19-654-verify-lane-at-4d439b39
+  - 2026-11-19-654-verify-lane-at-612d255d
 bugs: []
 blockers: []
 waiting_on_human:
@@ -46,6 +47,7 @@ change ship-status exits 1 when it reports a blocker, so scripts and CI can act 
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
 - Refreshed onto main 3bebe8b0 on branch fix/ship-status-654-1038-937 with #1038 and #937: merged the 11-13 branch, kept main's cmd_change spec files, and let change check apply REQ-cmd-change-039 and write specs/cmd_change/history/change-ship-status-exits-1-when-it-reports-a-blocker.md instead of the old version bump and Change Log row; added the CHANGELOG line; red control on main and the verify lane recorded
+- PR #1093 opened; re-checked at 612d255d after the review fixes for #1038, with the verify lane recorded there
 
 ## Decisions and why
 
@@ -61,6 +63,7 @@ change ship-status exits 1 when it reports a blocker, so scripts and CI can act 
 - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
 - [Red-first control: on main 3bebe8b0 with only the new tests, change::ship_status_exits_one_when_it_reports_a_blocker fails (ship-status printed its Blocker line and exited 0), and the three existing tests that now expect exit 1 from a blocked ship-status fail the same way. The failure is the defect #654 reports, fixed by this change; not a new bug.](evidence/2026-11-19-red-first-control-on-main-3bebe8b0-with-only-the-new-tests.md)
 - [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including change::ship_status_exits_one_when_it_reports_a_blocker and the three tests that now expect exit 1 from a blocked ship-status (REQ-cmd-change-039). The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-654-verify-lane-at-4d439b39.md)
+- [At 612d255d (PR #1093 after the review fixes for #1038 in c697bbde, each change re-checked there), fledge lanes run verify passed 10/10 steps in 29m34s on a busy machine: fmt, lint and check-types, cargo test (unit 3081 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes change::ship_status_exits_one_when_it_reports_a_blocker (REQ-cmd-change-039); this change's source is unchanged since 4d439b39.](evidence/2026-11-19-654-verify-lane-at-612d255d.md)
 
 ## Open threads
 

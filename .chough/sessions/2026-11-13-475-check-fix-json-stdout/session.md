@@ -5,7 +5,7 @@ aliases: [475-check-fix-json-stdout]
 objective: check --fix keeps stdout one JSON document in machine formats, with progress on stderr (#475)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -85,3 +85,9 @@ check --fix keeps stdout one JSON document in machine formats, with progress on 
   - holds: accept
   - drives: review
   - by: claude-code (hc t38p)
+- 2026-11-19T08:44:56Z · back · accept → build · Batch 10 refresh onto main 3bebe8b0 (ss-builder, hc t59): the change gets its CHANGELOG Fixed line and is re-checked on the merged branch ^t-941f83
+  - native_change: check-fix-keeps-stdout-one-json-document-in-machine-formats
+  - gate: native:verifying
+  - revision: d8a3ba6c77873600e87b269625bd2d4d4c57613d
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)

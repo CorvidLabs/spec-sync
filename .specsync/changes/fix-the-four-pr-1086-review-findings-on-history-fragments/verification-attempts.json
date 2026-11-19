@@ -240,6 +240,26 @@
         "REQ-change-160",
         "REQ-hash-cache-006"
       ]
+    },
+    {
+      "timestamp": 1795068966,
+      "commit": "6df85e9f8b3f6a64fcbab758bff9270fd017aa85",
+      "contract_digest": "57ff43bb2e09d21903abb28da75802293dafbbb2d860ff9780b9157c0a80b000",
+      "execution_digest": "32751fd81e1a89af649974f3d6db969fdacc5e6ba0cca048814e4c86cebf9aae",
+      "workspace_digest": "235096f29e32251ca01c66f34c7be4eab2e0f527af8baea1914cef4ef5e8a862",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec hash_cache",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-159",
+        "REQ-change-160",
+        "REQ-hash-cache-006"
+      ]
     }
   ]
 }

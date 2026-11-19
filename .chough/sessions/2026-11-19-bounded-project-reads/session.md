@@ -21,7 +21,7 @@ modules:
   - commands
   - schema
   - deps
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -38,13 +38,9 @@ observations:
   - 2026-11-19-on-linux-at-3daf6ba0-a-clean-copy-in-a-local-rust-1-89
 bugs: [2026-11-19-specsync-reads-project-files-through-links-waits-on-fifos-and]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound
-    holds: accept
-    drives: review
-    opened: 2026-11-19T15:15:03Z
+waiting_on_human: []
 run_consents: []
-next: Commit, chough change check, push to the private fork, Linux container run, then ask Leif through t4c for the implementation review
+next: Continue done
 title: Project file reads are confined and bounded
 summary:
   - SpecSync read about 200 project files with reads that follow links, block on FIFOs and have no bound, so a committed link from .specsync/sdd.json to /dev/zero exhausted memory in change status, which Chough runs on every next and status.
@@ -67,6 +63,7 @@ No SpecSync read of a project file follows a link out of the project, waits on a
 - 0xLeif decided "Intent approval of proposed criterion SETUP-7": "OK as written" (Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:29Z, asked whether SETUP-7 'A command I run in a repository somebody else wrote never reads outside it through a link it found there, and no file there can make it hang or run out of memory.' is OK as written; relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated
 - agent choice (claude-code-t5r): Cargo config files above the project and in CARGO_HOME, and --template directories, keep a plain read because they are the person's own files or paths they name, which the approved scope leaves out
 - agent choice (claude-code-t5r): merge --install refuses a linked .gitattributes before its read too, because its write already refused any link and the message should not depend on which step meets it
+- 0xLeif decided "Implementation review of never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound": "yes, change 3 too" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:36Z, after t4c walked him through the change in plain words from its own read of read_project_file at 2446aba8 (confined open, non-blocking, type check on the open handle, bound+1 read; the source scan test; about 200 sites; the out-of-scope reads marked in source; the red-first and green counts on macOS and Linux; the three side effects; x86 and CI Ubuntu not run) and asked whether its implementation review passes; relayed by t4c over hc to t5r as his implementation review); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -141,4 +138,20 @@ No SpecSync read of a project file follows a link out of the project, waits on a
   - revision: 3a02a5d5903b08612c0dad8c44ecfdf28fe2b0ef
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-19T15:48:12Z · gate-closed · accept → accept · Implementation review of never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound ^t-a5d273
+  - native_change: never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound
+  - revision: c2f5182999e5e86eb81f7bd260671b7e90022ffa
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: yes, change 3 too
+    - where: Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:36Z, after t4c walked him through the change in plain words from its own read of read_project_file at 2446aba8 (confined open, non-blocking, type check on the open handle, bound+1 read; the source scan test; about 200 sites; the out-of-scope reads marked in source; the red-first and green counts on macOS and Linux; the three side effects; x86 and CI Ubuntu not run) and asked whether its implementation review passes; relayed by t4c over hc to t5r as his implementation review
+    - recorded_by: claude-code-t5r
+    - native: specsync change review never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-19T15:48:21Z · advance · accept → done · native:archived ^t-67c87c
+  - native_change: never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound
+  - gate: native:archived
+  - revision: c2f5182999e5e86eb81f7bd260671b7e90022ffa
   - by: claude-code (hc t5r)

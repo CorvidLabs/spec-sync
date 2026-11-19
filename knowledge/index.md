@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [Project file reads are confined and bounded](journal/2026-11-19-project-file-reads-are-confined-and-bounded.md) (2026-11-19, shipped)
 - [Project file writes never leave the project](journal/2026-11-19-project-file-writes-never-leave-the-project.md) (2026-11-19, shipped)
 - [Hash cache never read or written through a link](journal/2026-11-19-hash-cache-never-read-or-written-through-a-link.md) (2026-11-19, shipped)
 - [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
@@ -236,7 +237,7 @@ Each module's lessons stay in its lesson source:
 - schema: [specs/schema/schema.3md](../specs/schema/schema.3md), 4 lessons
 - scoring: [specs/scoring/scoring.3md](../specs/scoring/scoring.3md), 4 lessons
 - types: [specs/types/types.3md](../specs/types/types.3md), 4 lessons
-- util: [specs/util/util.3md](../specs/util/util.3md), 5 lessons
+- util: [specs/util/util.3md](../specs/util/util.3md), 6 lessons
 - validator: [specs/validator/validator.3md](../specs/validator/validator.3md), 11 lessons
 - view: [specs/view/view.3md](../specs/view/view.3md), 4 lessons
 - watch: [specs/watch/watch.3md](../specs/watch/watch.3md), 7 lessons
@@ -247,9 +248,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound](../.specsync/archive/changes/2026-11-19-never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound/lesson-bundle.md), Never read a project file through a link that leaves the project, a non-regular file, or past a size bound
 - [never-write-a-project-file-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-write-a-project-file-through-a-symbolic-link/lesson-bundle.md), Never write a project file through a symbolic link
 - [never-read-or-write-the-hash-cache-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-read-or-write-the-hash-cache-through-a-symbolic-link/lesson-bundle.md), Never read or write the hash cache through a symbolic link
-- [record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump](../.specsync/archive/changes/2026-11-19-record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump/lesson-bundle.md), Record each shipped change in a history fragment file instead of a Change Log row and a version bump
 
 ## Snapshots and briefs
 

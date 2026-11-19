@@ -1051,6 +1051,56 @@ fn a_lock_path_the_approval_cannot_open_is_refused_in_its_words() {
     );
 }
 
+/// Puts a directory's mode back when the test ends, also when it fails.
+#[cfg(unix)]
+struct RestoreMode(PathBuf, u32);
+
+#[cfg(unix)]
+impl Drop for RestoreMode {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(self.1));
+    }
+}
+
+// REQ-change-163, the lifecycle-lock check (Codex on #1100, round 2): the lock file is
+// gitignored, so a fresh clone has none, and the approval creates it. Where `.specsync` cannot
+// take a new file, the dry run refuses in the approval's own words instead of predicting an
+// approval that fails, and it creates nothing.
+#[cfg(unix)]
+#[test]
+fn a_lock_the_approval_cannot_create_is_refused_in_its_words() {
+    use std::os::unix::fs::PermissionsExt;
+    let uid = Command::new("id").arg("-u").output().unwrap();
+    if String::from_utf8_lossy(&uid.stdout).trim() == "0" {
+        eprintln!("skipped: root writes into a read-only directory");
+        return;
+    }
+    let project = Project::new();
+    let id = project.clean_draft();
+    let metadata = project.root.join(".specsync");
+    let lock = metadata.join("change.lock");
+    if lock.exists() {
+        fs::remove_file(&lock).unwrap();
+    }
+    let mode = fs::metadata(&metadata).unwrap().permissions().mode() & 0o7777;
+    let _restore = RestoreMode(metadata.clone(), mode);
+    fs::set_permissions(&metadata, fs::Permissions::from_mode(0o555)).unwrap();
+    let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    assert!(!lock.exists(), "the dry run creates no lock file");
+    assert_eq!(code, 1, "{document}");
+    let refused = refusals(&document);
+    assert_eq!(refused.len(), 1, "{document}");
+    assert_eq!(refused[0].0, "lifecycle_lock", "{document}");
+    let real = project
+        .approve(&id, &ACTOR)
+        .expect_err("approve cannot create the lock");
+    assert_eq!(
+        real, refused[0].1,
+        "the dry run and the real approve give one message"
+    );
+}
+
 // REQ-cmd-change-040, text output (Codex on #1100): one line for each refused check, even when its
 // message holds line breaks, as the ownership refusal's does.
 #[test]

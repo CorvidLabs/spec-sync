@@ -32,6 +32,7 @@ files: [src/util.rs, tests/integration/project_links.rs]
 observations:
   - 2026-11-19-on-base-7b6e4779-with-only-the-new-tests-added-15-of-19
   - 2026-11-19-with-the-fix-at-a33dcc6f-all-19-project-link-integration-tests
+  - 2026-11-19-the-full-verify-lane-passes-on-the-code-of-the-pushed-tip-with
 bugs: [2026-11-19-install-scaffold-import-and-migrate-commands-write-through]
 blockers: []
 waiting_on_human:
@@ -66,6 +67,7 @@ No install, scaffold, import, lifecycle, migrate, lock or remote-cache command w
 
 - [On base 7b6e4779 with only the new tests added: 15 of 19 project-link integration tests and 3 unit tests fail. hooks install and uninstall, agents install, mcp lock --write, scaffold, add-spec, new, import and migrate write, create or rewrite files outside the project through a committed link; the resolve --remote cache is written and read through one.](evidence/2026-11-19-on-base-7b6e4779-with-only-the-new-tests-added-15-of-19.md)
 - [With the fix at a33dcc6f, all 19 project-link integration tests pass and the unit tests of every touched module pass (239). The same suite passes on Linux arm64 in a local container as a normal user: unit 3099 passed, integration 650 passed plus one test that needs jq and passes once jq is installed.](evidence/2026-11-19-with-the-fix-at-a33dcc6f-all-19-project-link-integration-tests.md)
+- [The full verify lane passes on the code of the pushed tip with both changes: unit suite 3095 passed, 0 failed, 2 ignored; integration suite 648 passed, 0 failed; fmt, clippy on all targets, the release build, the strict spec check at 62 specs and 100 percent coverage, and the six gate scripts.](evidence/2026-11-19-the-full-verify-lane-passes-on-the-code-of-the-pushed-tip-with.md)
 
 ## Open threads
 

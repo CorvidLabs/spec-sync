@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+  "implementation_commit": "3aadebb018537d9460691136ad7d1551bf55e412",
+  "implementation_tree": "c4e104d7b241320f883d5bb9b2c33daea779530b",
+  "contract_digest": "73009a7e4a492cf6692d3986b9ae9548a3deea301b73dad4eb5394e36329a085",
+  "workspace_digest": "2b17f9077799abe19aceae3847b68f95e3a3484287948977b46dc468f9ab622b",
+  "closing_digest": "fe5b91c76916305534153d5d9fd153764ec827faaf4beb4ace19f94a236aff93",
+  "review_digest": "e925675a5a23c2c8e50d554fc2758061f34919094835fd90b0cb75f8b80777f9",
+  "finalization_digest": "94155043df6563f22e5f9bffe5ae2c3d5fc0b9906c427ee61b1e3cee57e11281",
+  "timestamp": 1795099146
+}

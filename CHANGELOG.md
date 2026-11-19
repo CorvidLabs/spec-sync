@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.
 
+- `specsync change ship-status` exits 1 when its report names a blocker, for one change and for the roster. It used to exit 0 beside its `Blocker:` line, so a script or CI step that runs it read success. The whole report is still printed first, `--json` output stays one document, and a report with no blocker exits 0 as before. A change that is not ready but has no blocker, such as one still waiting for its review, also exits 0. A script that runs `ship-status` on a blocked change now has to expect exit 1 (REQ-cmd-change-039, #654).
+
+### Fixed
+
+- `specsync change ship-status` on an archived change no longer calls its scoped review stale or suggests `change review`, which refuses an archived change. For a change that `change finalize` archived and whose archive authenticates, the review stage reads done by finalize and `review_currency` is `current`. Any other archived change, such as a workflow-v1 one closed by `change accept` and `change archive`, gets a done review stage that says there is no review to record. The archive tip of a change that was reopened is classed `archive_only`, not `product`: the files it deletes from the change's own `.specsync/changes/<id>/` count as archive work when the tip has the shape CI's classifier script accepts, which is additions and renames into one archive that names the change, deletions from its package, and no package directory left. With a package the tip only modified, one still present, or a file modified inside an archive that already existed, those files stay `product` (#1038).
+
+- Text `specsync change status` names a sequence-ledger freeze before the `verification_ignored_paths` repair, as JSON `next_action` does. With both present, the `Next:` line used to name the policy repair while the `Handoff:` line pointed at the freeze (REQ-cmd-change-034, #937).
+
 ## [6.3.0] - 2026-11-12
 
 ### Added

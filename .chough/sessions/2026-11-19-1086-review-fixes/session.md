@@ -5,7 +5,7 @@ aliases: [1086-review-fixes]
 objective: "Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)"
 intent_scope: ""
 modules: [change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -20,11 +20,16 @@ observations:
   - 2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked
   - 2026-11-19-after-codex-s-and-corvid-agent-s-1088-findings-a-change-log
   - 2026-11-19-after-codex-s-second-1088-review-a-change-log-cell-records-a
+  - 2026-11-19-round-3-of-1088-a-change-log-cell-records-a-change-when-it
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of the #1086 review fixes (PR #1088)"
+    holds: accept
+    drives: review
+    opened: 2026-11-19T06:03:45Z
 run_consents: []
-next: "Gate \"Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 matcher clause, round 3)\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)
 
@@ -51,6 +56,7 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
 - [Covers REQ-change-159, -160 and REQ-hash-cache-006 (not linked: chough 0.6.0 looks up specs/hash-cache). Red first on 979c3fe9: the four new tests (quoted change id round-trip, boundary-aware matcher, Change Log delta refusal, symlink-swapped fragment cache replay) all failed. Now fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null (fmt, clippy -D warnings, 3081 unit and 627 integration tests, release build, strict specs 62/62, CI script tests). An older test that approved a MODIFIED Change Log delta now asserts the check-time refusal instead. change audit --strict and fledge trust verify passed.](evidence/2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked.md)
 - [After Codex's and corvid-agent's #1088 findings: a Change Log row records a change only when a table cell begins with <id>: after any leading *, _ or backtick (prose mentions count for nothing; corvid-agent's exact case, a 'session:' in another row's prose beside history/session.md, is no double record); the refusal's approve command is shell-quoted; a check refused for a Change Log item records a refused attempt; lessons in change.3md and hash_cache.3md; deltas.md names verification. New tests fail on 1821f1e3 and pass. fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3083 unit and 627 integration tests, strict specs 62/62. Re-approved under Leif's relayed 'Approve' of the new REQ-change-159 wording; change audit --strict and fledge trust verify passed.](evidence/2026-11-19-after-codex-s-and-corvid-agent-s-1088-findings-a-change-log.md)
 - [After Codex's second #1088 review: a Change Log cell records a change when it begins with <id>: as written, or inside one Markdown marker pair that closes right after the id, so an id that itself begins with *, _ or a backtick is no longer mangled; a double-quoted change: in a fragment decodes YAML's double-quoted escapes (\u0061 is a). Both new tests fail on 939cfa36 and pass. fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3085 unit and 627 integration tests, strict specs 62/62. change audit --strict and fledge trust verify passed; pre-push green.](evidence/2026-11-19-after-codex-s-second-1088-review-a-change-log-cell-records-a.md)
+- [Round 3 of #1088: a Change Log cell records a change when it begins with <id>: as written, or just inside the one Markdown marker that opens the cell where that marker closes right after the id or at the cell's end, so a whole cell in emphasis (**my-change: Title**) is a row again and *hotfix: Hot stays the row of *hotfix only; an id's leading spaces are cell padding, so a fragment for ' add-passkeys' beside the row '|  add-passkeys: Passkeys |' is a double record (the tester's case of Codex's P2 at 8266e6c6). New asserts fail on 8266e6c6 and c983f2e9 respectively and pass. REQ-change-159's clause and criterion re-approved under Leif's relayed 'Approve' (round 3). fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3086 unit and 627 integration tests, strict specs 62/62; change audit --strict, fledge trust verify and pre-push passed.](evidence/2026-11-19-round-3-of-1088-a-change-log-cell-records-a-change-when-it.md)
 
 ## Open threads
 
@@ -182,4 +188,37 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
     - recorded_by: claude-code-t4t
     - native: specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments
     - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-19T06:03:42Z · direct-native-write · plan → plan · fix-the-four-pr-1086-review-findings-on-history-fragments's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state stays verifying ^t-ba3c93
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: cf3c98081b29122b23f05ef3a1961fd825be0972
+  - direct_write:
+    - change: fix-the-four-pr-1086-review-findings-on-history-fragments
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: verifying
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-19T06:03:42Z · advance · plan → build · native:verifying ^t-c5602b
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:verifying
+  - revision: cf3c98081b29122b23f05ef3a1961fd825be0972
+  - by: claude-code (hc t4t)
+- 2026-11-19T06:03:44Z · advance · build → test · native:verifying ^t-9b7264
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:verifying
+  - revision: cf3c98081b29122b23f05ef3a1961fd825be0972
+  - by: claude-code (hc t4t)
+- 2026-11-19T06:03:45Z · advance · test → accept · native:verifying ^t-270da5
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:verifying
+  - revision: cf3c98081b29122b23f05ef3a1961fd825be0972
+  - by: claude-code (hc t4t)
+- 2026-11-19T06:03:45Z · gate-opened · accept → accept · Leif's review of the #1086 review fixes (PR #1088) ^t-d86857
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: cf3c98081b29122b23f05ef3a1961fd825be0972
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

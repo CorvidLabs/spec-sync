@@ -5,7 +5,7 @@ aliases: [1084-history-fragments]
 objective: At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Change Log row and a version bump; check validates the fragments; specsync history renders the table; existing tables are frozen as written, no row rewritten (#1084, Leif's approval on the issue, relayed by hc t4c)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: test
 stage_status: active
 iteration: 1
 callers: []
@@ -16,12 +16,12 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
 bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: Full suite under GIT_CONFIG_GLOBAL=/dev/null, release build, then chough change check --commit with the branch build, verify lane, pre-push, PR
+next: Push, open the PR, report to t4c; then wait for the tester and Leif's review through t4c before change review and ship
+observations: [2026-11-19-covers-req-change-159-160-req-validator-048-req-hash-cache-006]
 ---
 # At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Change Log row and a version bump; check validates the fragments; specsync history renders the table; existing tables are frozen as written, no row rewritten (#1084, Leif's approval on the issue, relayed by hc t4c)
 
@@ -33,6 +33,7 @@ At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Chang
 
 - Change opened with six deltas and its artifacts; failing tests in tests/integration/spec_history.rs fail on 65864de8 (7 of 8: no history subcommand, materialization bumps version:, check ignores fragments)
 - Implemented REQ-change-159/160, REQ-validator-048, REQ-hash-cache-006, REQ-cmd-change-037, REQ-cli-args-026, REQ-cli-014: fragment at materialization, legacy row still counts, fragment in commit scope/coverage/ownership/verification-commit paths/send-back, check validation and cache binding, specsync history; tests updated for no bump/row; specs, change.3md z=53, site docs, AGENTS.md, CHANGELOG
+- change check --commit (d49f4a3b, d2fa5b6b), verify lane on rust 1.89.0, change audit --strict, fledge trust verify all passed
 
 ## Decisions and why
 
@@ -47,6 +48,9 @@ At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Chang
 - Environment note: this Mac's global git config sets tag.gpgsign, so changelog::tests' lightweight git tag fails; they pass with GIT_CONFIG_GLOBAL=/dev/null and do not touch this change
 
 ## What was verified
+
+- [Covers REQ-change-159, -160, REQ-validator-048, REQ-hash-cache-006, REQ-cmd-change-037 (the last two are not linked: chough 0.6.0 looks them up under specs/hash-cache and specs/cmd-change). Failing first on 65864de8: 7 of 8 tests in tests/integration/spec_history.rs failed, and main's release binary made two branches (ADDED REQ-auth-002; MODIFIED Invariants) that conflict under plain git merge in specs/auth/auth.spec.md on the two Change Log rows. Now, with GIT_CONFIG_GLOBAL=/dev/null (this Mac's global tag.gpgsign breaks changelog::tests' lightweight tags; they do not touch this change): fledge lanes run verify passed (fmt, clippy --all-targets -D warnings, check, 3077 unit and 627 integration tests, release build, specsync check --strict --require-coverage 100 62/62, CI script tests). The same two branches merge with plain git, no driver; version: and the Change Log stay byte for byte; both fragments are kept; specsync history renders them. This change's own change check --commit wrote six fragments and bumped no version. change audit --strict and fledge trust verify (augur review, risk 39) passed.](evidence/2026-11-19-covers-req-change-159-160-req-validator-048-req-hash-cache-006.md)
+
 
 ## Open threads
 
@@ -124,4 +128,9 @@ At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Chang
   - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
   - gate: native:approved
   - revision: bc67639d587286bc1024220a7b5e61c7db2430cd
+  - by: claude-code (hc t4t)
+- 2026-11-19T01:29:19Z · advance · build → test · native:verifying ^t-6a9226
+  - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
+  - gate: native:verifying
+  - revision: d2fa5b6bc8686320333be8463b0d2fa913d836d5
   - by: claude-code (hc t4t)

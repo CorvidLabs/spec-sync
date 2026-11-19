@@ -44,3 +44,11 @@ spec: cmd_resolve.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Symbolic links (REQ-cmd-resolve-002)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/commands/resolve.rs`: `spec_cache_never_writes_or_reads_through_a_link`, `spec_cache_creates_nothing_through_a_dangling_link_or_a_linked_directory`. No test drives a live `resolve --remote`, which needs the network |

@@ -24,3 +24,9 @@ Stable. The helpers are small, covered by unit tests, and intentionally have no 
 
 @plane z=4 label="Notes"
 - Keep this module dependency-light. It is imported by validation code that runs on every check.
+
+@plane z=5 label="Lesson: stay inside the root by construction, not by checking (GHSA-7q5v-8jcc-rx54 sweep)"
+- verified. A private sweep after the hash-cache advisory found the same bug in a dozen writers: `root.join(...)` then `fs::write`, which follows any link the repository committed. Guarding each write by hand had already drifted: the pre-commit hook and `.gitignore` refused links, the files beside them did not, and several `exists()` guards were passed by a dangling link.
+- The project file functions do every read and write through a `cap_std` directory handle on the project root. It resolves each component beneath the handle and cannot be led outside it, so there is no check for a later write to disagree with. The look that comes first only produces the message.
+- A link that stays inside the project is followed, because `CLAUDE.md` as a link to `AGENTS.md` is a real setup. The two cases the handle does not settle are handled on purpose: an existing file is opened without the create flag, and a missing one is created exclusively, so a dangling link is never created through.
+- Limits: an absolute link target is refused even when it points inside the project. The caches (`hash_cache`, the remote spec cache) keep a stricter rule, no link at all. Source: bug 2026-11-19-install-scaffold-import-and-migrate-commands-write-through. New writers of project files should start here.

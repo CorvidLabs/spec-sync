@@ -11,6 +11,7 @@ depends_on:
   - specs/generator/generator.spec.md
   - specs/github/github.spec.md
   - specs/importer/importer.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Import
@@ -36,6 +37,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
    pagination ambiguity, and cap truncation fail closed.
 5. Unsafe/reserved/overlong output names create no directory or file.
 6. Partial batch success never produces a false-green exit status.
+7. `import`, for one item and for a batch, creates the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so an item whose spec path is a dangling link, or whose spec directory leaves the project through a link, fails with an error naming the path and creates nothing there (REQ-cmd-import-003).
 
 ## Behavioral Examples
 
@@ -58,6 +60,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | `--from-dir` source is unreadable | Item fails loudly; nothing is written; batch continues and exits 1 |
 | Written draft spec has an empty `files:` list (including a parseable doc without frontmatter) | Import writes it as a `status: draft` draft and warns that `check --strict` will fail until `files` is filled in |
 | Any batch item errors | Summary includes imported/skipped/error counts and the command exits 1 |
+| An item's spec path is a dangling link, or its spec directory leaves the project through a link | That item fails naming the path; nothing is created at the link's target |
 
 ## Dependencies
 

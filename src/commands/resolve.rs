@@ -37,38 +37,92 @@ enum DriftIssue {
 
 /// Simple file-based cache for remote spec content.
 struct SpecCache {
+    root: std::path::PathBuf,
     cache_dir: std::path::PathBuf,
     ttl: Duration,
+    /// Whether this run has already said that the cache was not used.
+    warned: std::cell::Cell<bool>,
 }
 
 impl SpecCache {
     fn new(root: &Path, ttl_secs: u64) -> Self {
         let cache_dir = root.join(".specsync-cache").join("remote-specs");
         Self {
+            root: root.to_path_buf(),
             cache_dir,
             ttl: Duration::from_secs(ttl_secs),
+            warned: std::cell::Cell::new(false),
+        }
+    }
+
+    /// Why a cache entry is not used: its file, or a directory on the way to it, is a symbolic
+    /// link, or is not the regular file or directory it must be. The entry's name comes from the
+    /// repository's own `depends_on`, so the repository can commit a link at exactly that path.
+    /// A cache never needs a link, so one that stays inside the project is refused as well
+    /// (REQ-cmd-resolve-002).
+    fn refusal(&self, cache_file: &Path) -> Option<String> {
+        let relative = cache_file.strip_prefix(&self.root).unwrap_or(cache_file);
+        let mut reached = self.root.clone();
+        let mut shown = std::path::PathBuf::new();
+        let mut components = relative.components().peekable();
+        while let Some(component) = components.next() {
+            reached.push(component);
+            shown.push(component);
+            let last = components.peek().is_none();
+            let Ok(metadata) = fs::symlink_metadata(&reached) else {
+                // Nothing there yet, so nothing on the rest of the way either.
+                return None;
+            };
+            if metadata.file_type().is_symlink() {
+                return Some(format!("{} is a symbolic link", shown.display()));
+            }
+            if last && !metadata.is_file() {
+                return Some(format!("{} is not a regular file", shown.display()));
+            }
+            if !last && !metadata.is_dir() {
+                return Some(format!("{} is not a directory", shown.display()));
+            }
+        }
+        None
+    }
+
+    /// Say once per run that the cache was skipped, and why. The fetched content is still used.
+    fn skipped(&self, reason: &str) {
+        if !self.warned.replace(true) {
+            eprintln!(
+                "{} remote spec cache not used: {reason}",
+                "warning:".yellow().bold()
+            );
         }
     }
 
     /// Get cached content if it exists and hasn't expired.
     fn get(&self, repo: &str, spec_path: &str) -> Option<String> {
         let cache_file = self.cache_path(repo, spec_path);
-        let metadata = fs::metadata(&cache_file).ok()?;
+        if let Some(reason) = self.refusal(&cache_file) {
+            self.skipped(&reason);
+            return None;
+        }
+        let metadata = fs::symlink_metadata(&cache_file).ok()?;
         let modified = metadata.modified().ok()?;
         let age = SystemTime::now().duration_since(modified).ok()?;
         if age > self.ttl {
             return None;
         }
-        fs::read_to_string(&cache_file).ok()
+        let content = crate::util::read_project_file(&self.root, &cache_file).ok()??;
+        String::from_utf8(content).ok()
     }
 
     /// Store content in cache.
     fn set(&self, repo: &str, spec_path: &str, content: &str) {
         let cache_file = self.cache_path(repo, spec_path);
-        if let Some(parent) = cache_file.parent() {
-            let _ = fs::create_dir_all(parent);
+        if let Some(reason) = self.refusal(&cache_file) {
+            self.skipped(&reason);
+            return;
         }
-        let _ = fs::write(&cache_file, content);
+        // Written beneath the project root, so even a path swapped after the look above cannot
+        // take the write out of the project.
+        let _ = crate::util::write_project_file(&self.root, &cache_file, content.as_bytes());
     }
 
     fn cache_path(&self, repo: &str, spec_path: &str) -> std::path::PathBuf {
@@ -780,6 +834,90 @@ depends_on: []
         std::thread::sleep(Duration::from_millis(10));
         let cached = cache.get("owner/repo", "specs/auth/auth.spec.md");
         assert!(cached.is_none());
+    }
+
+    /// A project beside an `outside` directory, both in one temporary directory, so a link that
+    /// leaves the project still reaches nothing but this fixture (REQ-cmd-resolve-002).
+    #[cfg(unix)]
+    fn project_beside_outside() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        (dir, root, outside)
+    }
+
+    /// Verifies REQ-cmd-resolve-002. The cache file name comes from the repository's own
+    /// `depends_on`, so the repository can commit a link at exactly that path.
+    #[cfg(unix)]
+    #[test]
+    fn spec_cache_never_writes_or_reads_through_a_link() {
+        let (_dir, root, outside) = project_beside_outside();
+        let victim = outside.join("victim.md");
+        fs::write(&victim, "the owner's bytes\n").unwrap();
+        let cache = SpecCache::new(&root, 3600);
+        let planted = cache.cache_path("owner/repo", "specs/auth/auth.spec.md");
+        fs::create_dir_all(planted.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&victim, &planted).unwrap();
+
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+
+        assert_eq!(
+            fs::read_to_string(&victim).unwrap(),
+            "the owner's bytes\n",
+            "the fetched spec was written through a link, over a file outside the project"
+        );
+        assert_eq!(
+            cache.get("owner/repo", "specs/auth/auth.spec.md"),
+            None,
+            "a cache entry was read through a link"
+        );
+        assert!(cache.warned.get(), "the skipped cache is said, once");
+        assert_eq!(
+            cache.refusal(&planted).as_deref(),
+            Some(
+                ".specsync-cache/remote-specs/owner_repo__specs_auth_auth.spec.md is a symbolic link"
+            )
+        );
+
+        // A cache never needs a link, so one that stays inside the project is not used either.
+        let (_dir, root, _outside) = project_beside_outside();
+        fs::write(root.join("kept.md"), "kept\n").unwrap();
+        let cache = SpecCache::new(&root, 3600);
+        let planted = cache.cache_path("owner/repo", "specs/auth/auth.spec.md");
+        fs::create_dir_all(planted.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(root.join("kept.md"), &planted).unwrap();
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+        assert_eq!(fs::read_to_string(root.join("kept.md")).unwrap(), "kept\n");
+        assert_eq!(cache.get("owner/repo", "specs/auth/auth.spec.md"), None);
+    }
+
+    /// Verifies REQ-cmd-resolve-002. A dangling link must not create its target, and the cache
+    /// directory itself can be the link.
+    #[cfg(unix)]
+    #[test]
+    fn spec_cache_creates_nothing_through_a_dangling_link_or_a_linked_directory() {
+        let (_dir, root, outside) = project_beside_outside();
+        let cache = SpecCache::new(&root, 3600);
+        let planted = cache.cache_path("owner/repo", "specs/auth/auth.spec.md");
+        fs::create_dir_all(planted.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(outside.join("not-there-yet.md"), &planted).unwrap();
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+        assert!(
+            fs::read_dir(&outside).unwrap().next().is_none(),
+            "the fetched spec was created at a dangling link's target"
+        );
+
+        let (_dir, root, outside) = project_beside_outside();
+        std::os::unix::fs::symlink(&outside, root.join(".specsync-cache")).unwrap();
+        let cache = SpecCache::new(&root, 3600);
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+        assert!(
+            fs::read_dir(&outside).unwrap().next().is_none(),
+            "the fetched spec was written into a directory outside the project"
+        );
+        assert_eq!(cache.get("owner/repo", "specs/auth/auth.spec.md"), None);
     }
 
     #[test]

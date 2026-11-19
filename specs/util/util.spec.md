@@ -23,6 +23,12 @@ Provides small shared utility functions used by validators, fix suggestions, and
 | `levenshtein` | `a: &str, b: &str` | `usize` | Computes Unicode-scalar edit distance between two strings |
 | `safe_regex` | `pattern: &str` | `Option<regex::Regex>` | Compiles a user-provided regex with bounded regex and DFA size limits |
 | `confine_path_to_root` | `root, rel` | `Option<PathBuf>` | Resolve a project-relative path and reject escapes outside the root |
+| `read_project_file` | `root, path` | `io::Result<Option<Vec<u8>>>` | Read a file beneath the project root, `None` when nothing is there; follows a link that stays inside the root and refuses one that leaves it, a dangling link and a non-regular file (REQ-util-002) |
+| `write_project_file` | `root, path, contents` | `io::Result<()>` | Write a file beneath the project root, creating it and its directories when missing; writes through a link that stays inside, refuses the rest and never creates through a link |
+| `create_project_file` | `root, path, contents` | `io::Result<bool>` | Create a file that does not exist yet with an exclusive create; `false` and no change when a regular file is already there |
+| `remove_project_file` | `root, path` | `io::Result<()>` | Remove a name beneath the project root; a link that stays inside is removed as a link |
+| `create_project_dir` | `root, path` | `io::Result<()>` | Create a directory beneath the project root and the directories on the way |
+| `project_path_refusal` | `root, path` | `Option<String>` | Why the project file functions refuse a path, naming it, without changing anything; `None` for a path they accept |
 
 ## Invariants
 
@@ -30,6 +36,7 @@ Provides small shared utility functions used by validators, fix suggestions, and
 2. `levenshtein` returns `0` for equal strings and the other string's character length when one side is empty.
 3. `safe_regex` never panics on invalid user input; invalid or oversized patterns return `None`.
 4. `safe_regex` applies the same maximum limit to compiled regex size and DFA size.
+5. `read_project_file`, `write_project_file`, `create_project_file`, `remove_project_file` and `create_project_dir` act only through a `cap_std` directory handle on the project root, so nothing they touch is outside it, even if a path component is swapped while they run. A symbolic link that stays inside the root is followed. A path that leaves the root through a link (an absolute target included) or through `..`, a dangling link, and a target of the wrong kind are refused with an error naming the path. A missing file is created with an exclusive create, never through a link (REQ-util-002).
 
 ## Behavioral Examples
 
@@ -52,6 +59,7 @@ Provides small shared utility functions used by validators, fix suggestions, and
 | Empty string passed to `levenshtein` | Returns the character length of the other string |
 | Invalid regex syntax | `safe_regex` returns `None` |
 | Pattern exceeds configured regex size limits | `safe_regex` returns `None` |
+| A project path leaves the root through a symbolic link or `..`, is a dangling link, or is not a regular file | The project file functions return an error naming the path and change nothing; `project_path_refusal` returns the same reason |
 
 ## Dependencies
 

@@ -11,6 +11,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/registry/registry.spec.md
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Resolve
@@ -38,6 +39,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 7. Bidirectional dependency mismatches are warnings, not errors
 8. Remote spec content is cached with configurable TTL (default 1 hour)
 9. Cache stored in `.specsync-cache/remote-specs/` under project root
+10. The remote spec cache is never read or written through a symbolic link, inside the project or not: a cache never needs one, and the entry's file name comes from the repository's own `depends_on`. A cache file or directory that is a link, or not a regular file and a directory, skips the cache for that entry with one `warning: remote spec cache not used` on stderr per run, and the fetched content is used as with no cache (REQ-cmd-resolve-002).
 
 ## Behavioral Examples
 
@@ -95,6 +97,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 | Remote spec deprecated/removed | DRIFT error, exit 1 |
 | Consumed export missing from remote | DRIFT error, exit 1 |
 | Non-bidirectional dependency | Warning only |
+| A cache entry, `.specsync-cache` or `remote-specs` is a symbolic link or not a regular file and a directory | The cache is skipped for that entry with one stderr warning naming the path; nothing is read or written through it; the fetched content is still used |
 
 ## Dependencies
 

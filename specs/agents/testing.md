@@ -42,3 +42,11 @@ reproduces the observed failure. Run
 byte-parity and idempotency regressions. Template version 8 and installer-generated copies
 move together. These tests inspect instruction artifacts; they do not prove host discovery or
 supply human implementation acceptance.
+
+## Symbolic links (REQ-agents-011)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `agents_install_refuses_a_dangling_artifact_link_before_writing_anything`, `agents_install_refuses_a_manifest_linked_outside_the_project`, `agents_install_creates_nothing_in_a_directory_linked_outside_the_project` |

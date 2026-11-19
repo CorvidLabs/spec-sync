@@ -43,3 +43,11 @@ spec: cmd_scaffold.spec.md
 Run `cargo test --locked --offline --bin specsync creation_source_selection` for exact root files, flat-name matching, explicit mapping precedence including missing mappings, file/directory overlap, distinct-file ambiguity, configured extension/extensionless/test/exclusion rules, escaped mappings, symlink leaves/parents and Unix named pipes. `creation_source_selection_keeps_directory_priorities_and_explicit_dot` retains each command's prior matching order; root-alias coverage includes `.`, `./`, `./.` and `.//` with exact-file overlap.
 
 The preserved f72 optimized CLI produced `files: []` after init then new/scaffold for root lib.rs; subsequent ordinary check failed, while src/lib.rs controls bound their file. Root owns the real process regressions for all three creation commands and final full qualification. Passing draft checks do not represent authored prose or human implementation acceptance.
+
+## Symbolic links (REQ-cmd-scaffold-007)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `spec_creation_refuses_a_dangling_spec_link`, `spec_creation_creates_nothing_in_a_spec_directory_linked_outside_the_project`, `spec_creation_writes_through_a_spec_directory_link_that_stays_inside` (each runs `scaffold` and `add-spec`), `scaffold_refuses_a_registry_linked_outside_the_project` |

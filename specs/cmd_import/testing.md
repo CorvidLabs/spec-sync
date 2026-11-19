@@ -50,3 +50,11 @@ spec: cmd_import.spec.md
 - Run `cargo test github::tests` and `cargo test importer::tests` when changing GitHub import behavior.
 - If an error message changes, update the matching Regression Matrix row and assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Symbolic links (REQ-cmd-import-003)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/commands/import.rs`: `import_item_refuses_a_dangling_spec_link_and_a_linked_spec_directory` |

@@ -31,6 +31,7 @@ depends_on:
   - specs/scoring/scoring.spec.md
   - specs/generator/generator.spec.md
   - specs/deps/deps.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Mcp
@@ -144,6 +145,7 @@ The implementation uses private protocol, tools, confinement, preflight, snapsho
     inputSchema}`; `title` is omitted when null/absent. `mcp lock` prints; `mcp lock --write`
     persists; `mcp diff` fails closed on add/remove/rename, sha256 mismatch, tool_count mismatch,
     or missing lock — never silent rewrite.
+36. `mcp lock --write` writes the lock through `util::write_project_file`. A lock linked to a regular file inside the project is written through. One that leaves the project through a symbolic link, is a dangling link, or is not a regular file is refused with an error naming it and exit 2 (REQ-mcp-011).
 
 ## Behavioral Examples
 
@@ -257,6 +259,7 @@ The implementation uses private protocol, tools, confinement, preflight, snapsho
 | Retired AI/provider/model/credential/endpoint/command argument | JSON-RPC error -32602 with migration guidance; supplied values are not echoed |
 | Any parsed request without `id` | No response and no dispatch |
 | stdin EOF | Server exits gracefully |
+| `.specsync/mcp-tools.lock.json`, or `.specsync`, leaves the project through a symbolic link, is a dangling link, or is not a regular file | `mcp lock --write` exits 2 naming the path; nothing is written through the link or created at its target |
 
 ## Dependencies
 

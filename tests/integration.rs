@@ -128,3 +128,7 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+
+#[cfg(unix)]
+#[path = "integration/project_links.rs"]
+mod project_links;

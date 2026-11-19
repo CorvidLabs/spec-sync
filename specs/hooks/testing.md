@@ -46,3 +46,11 @@ and the apostrophe test exits2; the two ordinary/spaced controls pass.
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+
+## Symbolic links (REQ-hooks-006)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `hooks_install_refuses_a_target_linked_outside_the_project` (all five targets), `hooks_install_refuses_a_dangling_link_and_a_chain_that_leaves`, `hooks_install_creates_nothing_in_a_directory_linked_outside_the_project`, `hooks_install_writes_through_a_link_that_stays_inside_the_project`, `hooks_uninstall_refuses_a_target_linked_outside_the_project` |

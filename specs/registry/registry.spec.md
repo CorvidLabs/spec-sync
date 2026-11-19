@@ -8,6 +8,7 @@ db_tables: []
 tracks: [52]
 depends_on:
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Registry
@@ -44,7 +45,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | `load_local_registry` | `root: &Path` | `Result<Option<RegistryEntry>, String>` | Load the local registry as `Ok(None)` when missing or inert, `Ok(Some(entry))` when parsable, and `Err` when a non-inert file fails to parse |
 | `load_registry` | `root: &Path` | `Option<RegistryEntry>` | Best-effort load from the local registry file resolved by `local_registry_path`; returns `None` for missing, inert, or unparsable content |
 | `generate_registry` | `root, project_name, specs_dir` | `String` | Generate registry TOML content by scanning for spec files |
-| `register_module` | `root, module_name, spec_rel_path` | `bool` | Append a module entry to the registry file resolved by `local_registry_path`; returns false if already exists or file missing |
+| `register_module` | `root, module_name, spec_rel_path` | `Result<bool, String>` | Append a module entry to the registry file resolved by `local_registry_path`, through `util`'s project file functions; `Ok(false)` if already listed or the file is missing, `Err` naming the path when the registry leaves the project through a link (REQ-registry-003) |
 
 ## Invariants
 
@@ -57,6 +58,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 7. TOML parsing is zero-dependency — uses line-by-line string parsing
 8. Local registry resolution prefers the v4 `.specsync/registry.toml` location; the legacy root-level `specsync-registry.toml` is only used for un-migrated 3.x layouts
 9. Inert 5.0.1-era stubs (no registry name and no `[specs]` mappings) are treated as absent; non-inert unparsable registries fail closed through `load_local_registry`
+10. `register_module` reads and rewrites the registry through `util`'s project file functions and returns `Err` naming the path when the registry leaves the project through a symbolic link, is a dangling link, or is not a regular file. `Ok(false)` still means already listed, no `[specs]` table, or no registry (REQ-registry-003).
 
 ## Behavioral Examples
 
@@ -94,6 +96,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | Local registry file unreadable | `load_registry` returns `None`; `load_local_registry` returns `Err` |
 | Inert legacy stub (no name, no `[specs]` mappings) | `load_local_registry` returns `Ok(None)`; `load_registry` returns `None` |
 | Non-inert unparsable local registry | `load_local_registry` returns `Err`; `load_registry` returns `None` |
+| The local registry leaves the project through a symbolic link, is a dangling link, or is not a regular file | `register_module` returns `Err` naming the path; the registry and what a link points at are unchanged |
 
 ## Dependencies
 

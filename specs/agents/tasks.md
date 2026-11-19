@@ -42,3 +42,4 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Teach generated skills and the check command archive-first CI (local verify → review → ship → push the archive tip); keep checked-in installed copies identical
 
 - [x] Correct generated archive-first skill guidance: native ship/finalize creates the archive commit; advance template version 8, regenerate managed artifacts and retain failing-first evidence (REQ-agents-009, DOCS-2/DOCS-4).
+- [x] Inspect, write and remove artifacts and the manifest through `util`'s project file functions (REQ-agents-011). Evidence: `tests/integration/project_links.rs` `agents_install_*`.

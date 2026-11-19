@@ -399,19 +399,33 @@ fn toml_escape(value: &str) -> String {
 /// Add a module entry to an existing local registry file
 /// (`.specsync/registry.toml`, falling back to legacy `specsync-registry.toml`).
 /// If the module already exists, it is not duplicated.
-/// Returns `true` if the entry was added, `false` if it already existed or the file is missing.
-pub fn register_module(root: &Path, module_name: &str, spec_rel_path: &str) -> bool {
+/// Returns `Ok(true)` if the entry was added, `Ok(false)` if it already existed or the file is
+/// missing.
+///
+/// The registry is read and rewritten through the project file functions: it is a committed
+/// file, so it can be committed as a symbolic link. One that leaves the project, a dangling link
+/// and a non-regular file are an error that names the path, never a silent "nothing added"
+/// (REQ-registry-003).
+pub fn register_module(
+    root: &Path,
+    module_name: &str,
+    spec_rel_path: &str,
+) -> Result<bool, String> {
     let path = local_registry_path(root);
-    let content = match fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => return false,
+    let content = match crate::util::read_project_file(root, &path) {
+        Ok(Some(bytes)) => match String::from_utf8(bytes) {
+            Ok(content) => content,
+            Err(_) => return Ok(false),
+        },
+        Ok(None) => return Ok(false),
+        Err(error) => return Err(format!("Cannot update the registry: {error}")),
     };
 
     // Check if module already registered
     if let Some(entry) = parse_registry(&content)
         && entry.specs.iter().any(|(m, _)| m == module_name)
     {
-        return false;
+        return Ok(false);
     }
 
     // Append to the [specs] section
@@ -420,12 +434,12 @@ pub fn register_module(root: &Path, module_name: &str, spec_rel_path: &str) -> b
     // If there's a [specs] section, append after it
     if content.contains("[specs]") {
         let updated = format!("{}\n{new_line}", content.trim_end());
-        if fs::write(&path, updated).is_ok() {
-            return true;
-        }
+        crate::util::write_project_file(root, &path, updated.as_bytes())
+            .map_err(|error| format!("Cannot update the registry: {error}"))?;
+        return Ok(true);
     }
 
-    false
+    Ok(false)
 }
 
 /// Extract module name from spec frontmatter.
@@ -451,6 +465,71 @@ fn extract_module_name(content: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Verifies REQ-registry-003. The registry is a committed file, so it can be a link: one that
+    /// leaves the project is an error naming it, never a silent "nothing added".
+    #[cfg(unix)]
+    #[test]
+    fn register_module_refuses_a_registry_linked_outside_the_project() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("project");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let registry = "[registry]\nname = \"elsewhere\"\n\n[specs]\n";
+        fs::write(outside.join("registry.toml"), registry).unwrap();
+        std::os::unix::fs::symlink(
+            "../../outside/registry.toml",
+            root.join(".specsync/registry.toml"),
+        )
+        .unwrap();
+
+        let error = register_module(&root, "billing", "specs/billing/billing.spec.md")
+            .expect_err("a registry linked outside the project is refused");
+
+        assert!(
+            error.contains(".specsync/registry.toml is a symbolic link that leaves the project"),
+            "{error}"
+        );
+        assert_eq!(
+            fs::read_to_string(outside.join("registry.toml")).unwrap(),
+            registry
+        );
+    }
+
+    /// Verifies REQ-registry-003. A regular registry is appended to as before.
+    #[test]
+    fn register_module_appends_once_to_a_regular_registry() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let path = root.join(".specsync/registry.toml");
+        fs::write(&path, "[registry]\nname = \"here\"\n\n[specs]\n").unwrap();
+
+        assert_eq!(
+            register_module(root, "billing", "specs/billing/billing.spec.md"),
+            Ok(true)
+        );
+        assert_eq!(
+            register_module(root, "billing", "specs/billing/billing.spec.md"),
+            Ok(false)
+        );
+        let written = fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            written
+                .matches("billing = \"specs/billing/billing.spec.md\"")
+                .count(),
+            1,
+            "{written}"
+        );
+
+        let empty = tempfile::tempdir().unwrap();
+        assert_eq!(
+            register_module(empty.path(), "billing", "specs/billing/billing.spec.md"),
+            Ok(false),
+            "a project with no registry has nothing to append to"
+        );
+    }
 
     #[test]
     fn test_parse_registry() {

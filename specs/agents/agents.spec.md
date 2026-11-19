@@ -9,7 +9,8 @@ files:
   - .cursor/skills/spec-sync/SKILL.md
   - .gemini/skills/spec-sync/SKILL.md
 db_tables: []
-depends_on: []
+depends_on:
+  - specs/util/util.spec.md
 ---
 
 # Agents
@@ -65,6 +66,7 @@ managed bytes from user customization.
 9. `cmd_install` exits with code 1 if any tool installation fails.
 10. Generated create-spec and create-change assets preserve complete arguments using each tool's native placeholder and quote free-text interview answers as one CLI argument.
 11. Repository-owned native create-spec commands are exact installer outputs, strip supported flags before complete-input classification, and cannot silently drift from their shared templates.
+12. Generated artifacts and `.specsync/agent-artifacts.json` are inspected, written and removed through `util`'s project file functions. `install` reads the manifest and every artifact before it writes one, so a path that leaves the project through a symbolic link, is a dangling link, or is not a regular file fails the install with an error naming it before any write (REQ-agents-011).
 
 ## Behavioral Examples
 
@@ -111,6 +113,7 @@ managed bytes from user customization.
 | Cannot write skill/command file | Returns `Err` with descriptive message |
 | Cannot remove skill directory or command file | Returns `Err` with descriptive message |
 | Generated artifact was customized | Preserves every customized artifact and returns one actionable conflict report |
+| An artifact path, the manifest, or a directory on the way leaves the project through a symbolic link, is a dangling link, or is not a regular file | `install` and `uninstall` fail naming the path before writing or removing anything; nothing is created at a link's target |
 
 ## Dependencies
 

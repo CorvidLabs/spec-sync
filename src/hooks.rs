@@ -475,15 +475,16 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         HookTarget::Claude => {
             // Remove the spec-sync section from CLAUDE.md
             let path = root.join("CLAUDE.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET)
+            remove_section_from_file(root, &path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET)
         }
         HookTarget::Cursor => {
             let path = root.join(".cursorrules");
-            remove_section_from_file(&path, "# Spec-Sync Rules", CURSORRULES_SNIPPET)
+            remove_section_from_file(root, &path, "# Spec-Sync Rules", CURSORRULES_SNIPPET)
         }
         HookTarget::Copilot => {
             let path = root.join(".github").join("copilot-instructions.md");
             remove_section_from_file(
+                root,
                 &path,
                 "# Spec-Sync Integration",
                 COPILOT_INSTRUCTIONS_SNIPPET,
@@ -491,7 +492,7 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         }
         HookTarget::Agents => {
             let path = root.join("AGENTS.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration", AGENTS_MD_SNIPPET)
+            remove_section_from_file(root, &path, "# Spec-Sync Integration", AGENTS_MD_SNIPPET)
         }
         HookTarget::Precommit => unreachable!("pre-commit uninstall handled above"),
         HookTarget::ClaudeCodeHook => {
@@ -531,31 +532,60 @@ fn wrap_snippet(snippet: &str) -> String {
     format!("{HOOK_BEGIN}\n{}\n{HOOK_END}", snippet.trim())
 }
 
+/// Read a hook target as text, `None` when it does not exist.
+///
+/// Every file `hooks` writes is read, written and removed through the project file functions:
+/// each can be committed as a symbolic link, so a link that leaves the project, a dangling link
+/// and a non-regular file are refused with an error naming the path, and a link that stays
+/// inside the project is followed (REQ-hooks-006).
+fn read_hook_target(root: &Path, path: &Path, label: &str) -> Result<Option<String>, String> {
+    match crate::util::read_project_file(root, path) {
+        Ok(Some(bytes)) => String::from_utf8(bytes)
+            .map(Some)
+            .map_err(|e| format!("Failed to read {label}: {e}")),
+        Ok(None) => Ok(None),
+        Err(e) => Err(format!("Failed to read {label}: {e}")),
+    }
+}
+
 /// Append the sentinel-wrapped snippet to `path`, or create the file with it.
 /// No-op (Ok(false)) if a spec-sync block is already present.
-fn install_markdown_snippet(path: &Path, snippet: &str, label: &str) -> Result<bool, String> {
+fn install_markdown_snippet(
+    root: &Path,
+    path: &Path,
+    snippet: &str,
+    label: &str,
+) -> Result<bool, String> {
     let wrapped = wrap_snippet(snippet);
-    if path.exists() {
-        let existing =
-            fs::read_to_string(path).map_err(|e| format!("Failed to read {label}: {e}"))?;
-        if existing.contains("Spec-Sync") {
-            return Ok(false);
+    match read_hook_target(root, path, label)? {
+        Some(existing) => {
+            if existing.contains("Spec-Sync") {
+                return Ok(false);
+            }
+            let new_content = format!("{}\n\n{wrapped}\n", existing.trim_end());
+            crate::util::write_project_file(root, path, new_content.as_bytes())
+                .map_err(|e| format!("Failed to write {label}: {e}"))?;
         }
-        let new_content = format!("{}\n\n{wrapped}\n", existing.trim_end());
-        fs::write(path, new_content).map_err(|e| format!("Failed to write {label}: {e}"))?;
-    } else {
-        fs::write(path, format!("{wrapped}\n"))
-            .map_err(|e| format!("Failed to create {label}: {e}"))?;
+        None => {
+            crate::util::write_project_file(root, path, format!("{wrapped}\n").as_bytes())
+                .map_err(|e| format!("Failed to create {label}: {e}"))?;
+        }
     }
     Ok(true)
 }
 
 fn install_claude_md(root: &Path) -> Result<bool, String> {
-    install_markdown_snippet(&root.join("CLAUDE.md"), CLAUDE_MD_SNIPPET, "CLAUDE.md")
+    install_markdown_snippet(
+        root,
+        &root.join("CLAUDE.md"),
+        CLAUDE_MD_SNIPPET,
+        "CLAUDE.md",
+    )
 }
 
 fn install_cursorrules(root: &Path) -> Result<bool, String> {
     install_markdown_snippet(
+        root,
         &root.join(".cursorrules"),
         CURSORRULES_SNIPPET,
         ".cursorrules",
@@ -563,19 +593,22 @@ fn install_cursorrules(root: &Path) -> Result<bool, String> {
 }
 
 fn install_copilot(root: &Path) -> Result<bool, String> {
-    let github_dir = root.join(".github");
-    if !github_dir.exists() {
-        fs::create_dir_all(&github_dir).map_err(|e| format!("Failed to create .github/: {e}"))?;
-    }
+    // `.github/` is created with the file, through the same project file functions.
     install_markdown_snippet(
-        &github_dir.join("copilot-instructions.md"),
+        root,
+        &root.join(".github").join("copilot-instructions.md"),
         COPILOT_INSTRUCTIONS_SNIPPET,
         "copilot-instructions.md",
     )
 }
 
 fn install_agents_md(root: &Path) -> Result<bool, String> {
-    install_markdown_snippet(&root.join("AGENTS.md"), AGENTS_MD_SNIPPET, "AGENTS.md")
+    install_markdown_snippet(
+        root,
+        &root.join("AGENTS.md"),
+        AGENTS_MD_SNIPPET,
+        "AGENTS.md",
+    )
 }
 
 fn install_precommit(root: &Path) -> Result<bool, String> {
@@ -711,17 +744,10 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
 }
 
 fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
-    let claude_dir = root.join(".claude");
-    if !claude_dir.exists() {
-        fs::create_dir_all(&claude_dir).map_err(|e| format!("Failed to create .claude/: {e}"))?;
-    }
+    // `.claude/` is created with the file, through the same project file functions.
+    let path = root.join(".claude").join("settings.json");
 
-    let path = claude_dir.join("settings.json");
-
-    if path.exists() {
-        let existing = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read .claude/settings.json: {e}"))?;
-
+    if let Some(existing) = read_hook_target(root, &path, ".claude/settings.json")? {
         // Precise marker (the full hook command), not a bare "specsync" substring —
         // otherwise a user who merely allows `Bash(specsync:*)` in `permissions`, or
         // references specsync anywhere else, is wrongly treated as already-installed
@@ -745,11 +771,15 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
 
         let new_content = serde_json::to_string_pretty(&parsed)
             .map_err(|e| format!("Failed to serialize settings: {e}"))?;
-        fs::write(&path, format!("{new_content}\n"))
+        crate::util::write_project_file(root, &path, format!("{new_content}\n").as_bytes())
             .map_err(|e| format!("Failed to write .claude/settings.json: {e}"))?;
     } else {
-        fs::write(&path, format!("{CLAUDE_CODE_HOOK_SETTINGS}\n"))
-            .map_err(|e| format!("Failed to create .claude/settings.json: {e}"))?;
+        crate::util::write_project_file(
+            root,
+            &path,
+            format!("{CLAUDE_CODE_HOOK_SETTINGS}\n").as_bytes(),
+        )
+        .map_err(|e| format!("Failed to create .claude/settings.json: {e}"))?;
     }
 
     Ok(true)
@@ -818,13 +848,15 @@ fn position_of_slice(haystack: &[&str], needle: &[&str]) -> Option<usize> {
 /// 3. **Heuristic** — only when the snippet has drifted beyond recognition: remove
 ///    from the marker to the next LEVEL-1 heading that isn't ours, or end-of-file.
 ///    Never deletes a file that had content before the block.
-fn remove_section_from_file(path: &Path, marker: &str, snippet: &str) -> Result<bool, String> {
-    if !path.exists() {
+fn remove_section_from_file(
+    root: &Path,
+    path: &Path,
+    marker: &str,
+    snippet: &str,
+) -> Result<bool, String> {
+    let Some(content) = read_hook_target(root, path, &path.display().to_string())? else {
         return Ok(false);
-    }
-
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+    };
 
     if !content.contains(marker) {
         return Ok(false);
@@ -879,13 +911,14 @@ fn remove_section_from_file(path: &Path, marker: &str, snippet: &str) -> Result<
         // block: a precise removal (sentinel or exact snippet), or a legacy block
         // that began at the very top. If any content preceded the block, keep it.
         if precise || actual_start == 0 {
-            fs::remove_file(path)
+            crate::util::remove_project_file(root, path)
                 .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
         } else {
-            fs::write(path, "").map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+            crate::util::write_project_file(root, path, b"")
+                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
         }
     } else {
-        fs::write(path, format!("{trimmed}{newline}"))
+        crate::util::write_project_file(root, path, format!("{trimmed}{newline}").as_bytes())
             .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
     }
 
@@ -959,6 +992,7 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
     );
 
     let mut removed = 0;
+    let mut refused = 0;
 
     for target in &targets {
         match uninstall_hook(root, *target) {
@@ -971,6 +1005,13 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
             }
             Err(e) => {
                 println!("  {} {}: {e}", "!".yellow(), target.description());
+                // A file `uninstall` would rewrite and refuses to, because it leaves the
+                // project through a link, is the command failing, not a note (REQ-hooks-006).
+                if uninstalled_file(root, *target)
+                    .is_some_and(|path| crate::util::project_path_refusal(root, &path).is_some())
+                {
+                    refused += 1;
+                }
             }
         }
     }
@@ -980,6 +1021,23 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
         println!("{removed} hook(s) removed.");
     } else {
         println!("No hooks to remove.");
+    }
+    if refused > 0 {
+        println!("{refused} hook(s) refused.");
+        std::process::exit(1);
+    }
+}
+
+/// The project file `uninstall` rewrites or removes for a target. `None` for the pre-commit hook,
+/// which lives in the Git hooks directory and has its own guard, and for the Claude Code hook,
+/// which `uninstall` never touches.
+fn uninstalled_file(root: &Path, target: HookTarget) -> Option<PathBuf> {
+    match target {
+        HookTarget::Claude => Some(root.join("CLAUDE.md")),
+        HookTarget::Cursor => Some(root.join(".cursorrules")),
+        HookTarget::Copilot => Some(root.join(".github").join("copilot-instructions.md")),
+        HookTarget::Agents => Some(root.join("AGENTS.md")),
+        HookTarget::Precommit | HookTarget::ClaudeCodeHook => None,
     }
 }
 
@@ -1789,8 +1847,13 @@ mod tests {
         let tmp = setup();
         let path = tmp.path().join("test.md");
         fs::write(&path, "# Spec-Sync Integration\nSome content\n").unwrap();
-        let result =
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        let result = remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         assert!(result);
         assert!(!path.exists());
     }
@@ -1804,7 +1867,13 @@ mod tests {
             "# My Project\n\nKeep this.\n\n# Spec-Sync Integration\nRemove this.\n",
         )
         .unwrap();
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("My Project"));
         assert!(content.contains("Keep this"));
@@ -1817,7 +1886,13 @@ mod tests {
         let path = tmp.path().join("test.md");
         fs::write(&path, "# No marker here\n").unwrap();
         assert!(
-            !remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            !remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
     }
 
@@ -1826,7 +1901,13 @@ mod tests {
         let tmp = setup();
         let path = tmp.path().join("nonexistent.md");
         assert!(
-            !remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            !remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
     }
 
@@ -1839,7 +1920,13 @@ mod tests {
             "# Before\n\nKeep.\n\n# Spec-Sync Integration\nRemove.\n\n# After\n\nAlso keep.\n",
         )
         .unwrap();
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("Before"));
         assert!(content.contains("Also keep"));
@@ -1856,7 +1943,13 @@ mod tests {
         fs::write(&path, format!("{block}\n\n## Deploy Notes\nkeep me\n")).unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         let content = fs::read_to_string(&path).unwrap();
         assert!(
@@ -1874,7 +1967,13 @@ mod tests {
         let block = wrap_snippet("# Spec-Sync Integration\nbody");
         fs::write(&path, format!("# Mine\n\nbefore\n\n{block}\n\nafter\n")).unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(
             content.contains("Mine") && content.contains("before") && content.contains("after")
@@ -1892,7 +1991,13 @@ mod tests {
         )
         .unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         assert!(
             !path.exists(),
             "a file holding only our block should be removed"
@@ -1913,7 +2018,13 @@ mod tests {
         .unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         assert!(
             path.exists(),
@@ -1938,7 +2049,13 @@ mod tests {
         )
         .unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let after = fs::read_to_string(&path).unwrap();
         assert!(after.contains("# Mine") && after.contains("before") && after.contains("after"));
         assert!(!after.contains("Spec-Sync"));
@@ -2029,7 +2146,13 @@ mod tests {
         fs::write(&path, sentinel_fixture(BEGIN_NEW)).unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
@@ -2045,7 +2168,13 @@ mod tests {
         fs::write(&path, sentinel_fixture(BEGIN_6_1_1)).unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         assert_eq!(
             fs::read_to_string(&path).unwrap(),

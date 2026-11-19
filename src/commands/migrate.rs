@@ -214,7 +214,8 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
         return Ok(());
     }
 
-    fs::create_dir_all(&backup_dir).map_err(|e| format!("Failed to create backup dir: {e}"))?;
+    crate::util::create_project_dir(&ctx.root, &backup_dir)
+        .map_err(|e| format!("Failed to create backup dir: {e}"))?;
 
     let mut manifest_entries: Vec<serde_json::Value> = Vec::new();
     let timestamp = iso_timestamp();
@@ -224,7 +225,8 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
         let src = ctx.root.join(filename);
         if src.exists() {
             let dst = backup_dir.join(filename);
-            fs::copy(&src, &dst).map_err(|e| format!("Failed to backup {filename}: {e}"))?;
+            copy_project_file(&ctx.root, &src, &dst)
+                .map_err(|e| format!("Failed to backup {filename}: {e}"))?;
             manifest_entries.push(serde_json::json!({
                 "file": filename,
                 "type": "config",
@@ -242,10 +244,10 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
             let rel = spec_file.strip_prefix(&ctx.root).unwrap_or(spec_file);
             let dst = specs_backup_dir.join(rel);
             if let Some(parent) = dst.parent() {
-                fs::create_dir_all(parent)
+                crate::util::create_project_dir(&ctx.root, parent)
                     .map_err(|e| format!("Failed to create backup subdir: {e}"))?;
             }
-            fs::copy(spec_file, &dst)
+            copy_project_file(&ctx.root, spec_file, &dst)
                 .map_err(|e| format!("Failed to backup {}: {e}", rel.display()))?;
             manifest_entries.push(serde_json::json!({
                 "file": rel.display().to_string(),
@@ -263,9 +265,10 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
         "files": manifest_entries,
     });
     let manifest_path = backup_dir.join("manifest.json");
-    fs::write(
+    crate::util::write_project_file(
+        &ctx.root,
         &manifest_path,
-        serde_json::to_string_pretty(&manifest).unwrap(),
+        serde_json::to_string_pretty(&manifest).unwrap().as_bytes(),
     )
     .map_err(|e| format!("Failed to write backup manifest: {e}"))?;
 
@@ -306,7 +309,8 @@ fn apply_create_directories(
     for dir in &dirs {
         let path = ctx.root.join(dir);
         if !path.exists() {
-            fs::create_dir_all(&path).map_err(|e| format!("Failed to create {dir}: {e}"))?;
+            crate::util::create_project_dir(&ctx.root, &path)
+                .map_err(|e| format!("Failed to create {dir}: {e}"))?;
             report.dirs_created.push(dir.to_string());
         }
     }
@@ -369,10 +373,11 @@ fn apply_relocate_config(
 
     // Ensure parent dir exists
     if let Some(parent) = new_toml.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create .specsync/: {e}"))?;
+        crate::util::create_project_dir(&ctx.root, parent)
+            .map_err(|e| format!("Failed to create .specsync/: {e}"))?;
     }
 
-    fs::write(&new_toml, &toml_content)
+    crate::util::write_project_file(&ctx.root, &new_toml, toml_content.as_bytes())
         .map_err(|e| format!("Failed to write .specsync/config.toml: {e}"))?;
 
     let source_name = source_path
@@ -383,14 +388,14 @@ fn apply_relocate_config(
 
     // Remove old config files
     if old_json.exists() {
-        let _ = fs::remove_file(&old_json);
+        let _ = crate::util::remove_project_file(&ctx.root, &old_json);
     }
     if old_toml_root.exists() {
-        let _ = fs::remove_file(&old_toml_root);
+        let _ = crate::util::remove_project_file(&ctx.root, &old_toml_root);
     }
     // Remove intermediate v4 JSON if it existed
     if new_json.exists() {
-        let _ = fs::remove_file(&new_json);
+        let _ = crate::util::remove_project_file(&ctx.root, &new_json);
     }
 
     report
@@ -436,10 +441,13 @@ fn apply_relocate_registry(
     }
 
     if let Some(parent) = new.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create .specsync/: {e}"))?;
+        crate::util::create_project_dir(&ctx.root, parent)
+            .map_err(|e| format!("Failed to create .specsync/: {e}"))?;
     }
-    fs::copy(&old, &new).map_err(|e| format!("Failed to copy registry: {e}"))?;
-    fs::remove_file(&old).map_err(|e| format!("Failed to remove old registry: {e}"))?;
+    copy_project_file(&ctx.root, &old, &new)
+        .map_err(|e| format!("Failed to copy registry: {e}"))?;
+    crate::util::remove_project_file(&ctx.root, &old)
+        .map_err(|e| format!("Failed to remove old registry: {e}"))?;
     report.files_moved.push((
         "specsync-registry.toml".to_string(),
         ".specsync/registry.toml".to_string(),
@@ -493,7 +501,7 @@ fn apply_extract_lifecycle(
     report: &mut MigrationReport,
 ) -> Result<(), String> {
     let lifecycle_dir = ctx.root.join(".specsync/lifecycle");
-    fs::create_dir_all(&lifecycle_dir)
+    crate::util::create_project_dir(&ctx.root, &lifecycle_dir)
         .map_err(|e| format!("Failed to create lifecycle dir: {e}"))?;
 
     for spec_file in &ctx.spec_files {
@@ -576,9 +584,12 @@ fn apply_extract_lifecycle(
         });
 
         let out_path = lifecycle_dir.join(format!("{module}.json"));
-        fs::write(
+        crate::util::write_project_file(
+            &ctx.root,
             &out_path,
-            serde_json::to_string_pretty(&lifecycle_data).unwrap(),
+            serde_json::to_string_pretty(&lifecycle_data)
+                .unwrap()
+                .as_bytes(),
         )
         .map_err(|e| format!("Failed to write lifecycle/{module}.json: {e}"))?;
 
@@ -634,7 +645,7 @@ fn apply_cleanup_frontmatter(
         // Clean up any resulting double newlines in frontmatter
         let cleaned = cleaned.replace("\n\n---", "\n---");
 
-        fs::write(spec_file, &cleaned).map_err(|e| {
+        crate::util::write_project_file(&ctx.root, spec_file, cleaned.as_bytes()).map_err(|e| {
             format!(
                 "Failed to clean frontmatter in {}: {e}",
                 spec_file.display()
@@ -690,7 +701,9 @@ fn apply_write_gitignore(
     ]
     .join("\n");
 
-    fs::write(&gitignore, content)
+    // An exclusive create: `exists()` above passes a dangling link, and this never creates
+    // through one (REQ-cmd-migrate-005).
+    crate::util::create_project_file(&ctx.root, &gitignore, content.as_bytes())
         .map_err(|e| format!("Failed to write .specsync/.gitignore: {e}"))?;
 
     report
@@ -810,8 +823,12 @@ fn apply_scan_cross_project(
         "references": refs,
     });
 
-    fs::write(&xref_path, serde_json::to_string_pretty(&manifest).unwrap())
-        .map_err(|e| format!("Failed to write cross-project-refs.json: {e}"))?;
+    crate::util::write_project_file(
+        &ctx.root,
+        &xref_path,
+        serde_json::to_string_pretty(&manifest).unwrap().as_bytes(),
+    )
+    .map_err(|e| format!("Failed to write cross-project-refs.json: {e}"))?;
 
     report.steps_completed.push(format!(
         "Found {} cross-project reference(s) across {} remote repo(s)",
@@ -839,10 +856,14 @@ fn check_stamp_version(ctx: &MigrationContext) -> StepStatus {
 
 fn apply_stamp_version(ctx: &MigrationContext, report: &mut MigrationReport) -> Result<(), String> {
     let version_file = ctx.root.join(".specsync/version");
-    fs::create_dir_all(ctx.root.join(".specsync"))
+    crate::util::create_project_dir(&ctx.root, &ctx.root.join(".specsync"))
         .map_err(|e| format!("Failed to create .specsync/: {e}"))?;
-    fs::write(&version_file, format!("{V4_VERSION}\n"))
-        .map_err(|e| format!("Failed to write version file: {e}"))?;
+    crate::util::write_project_file(
+        &ctx.root,
+        &version_file,
+        format!("{V4_VERSION}\n").as_bytes(),
+    )
+    .map_err(|e| format!("Failed to write version file: {e}"))?;
     report
         .steps_completed
         .push(format!("Stamped version {V4_VERSION}"));
@@ -857,6 +878,78 @@ fn apply_stamp_version(ctx: &MigrationContext, report: &mut MigrationReport) -> 
 /// its hand-rolled parser is lenient and never hard-fails. Returns `None` when
 /// nothing would be converted, so we don't refuse a run that wouldn't touch the
 /// (leftover) file anyway.
+/// Copy one project file to another through the project file functions (REQ-cmd-migrate-005).
+fn copy_project_file(root: &Path, from: &Path, to: &Path) -> std::io::Result<()> {
+    let contents = crate::util::read_project_file(root, from)?.ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("{} does not exist", from.display()),
+        )
+    })?;
+    crate::util::write_project_file(root, to, &contents)
+}
+
+/// Every fixed path the migration steps write, move, copy, create or remove.
+const MIGRATION_PATHS: &[&str] = &[
+    ".specsync",
+    ".specsync/lifecycle",
+    ".specsync/changes",
+    ".specsync/archive",
+    ".specsync/backup-3x",
+    ".specsync/backup-3x/manifest.json",
+    ".specsync/backup-3x/specs",
+    ".specsync/backup-3x/specsync.json",
+    ".specsync/backup-3x/specsync-registry.toml",
+    ".specsync/config.toml",
+    ".specsync/config.json",
+    ".specsync/registry.toml",
+    ".specsync/.gitignore",
+    ".specsync/cross-project-refs.json",
+    ".specsync/version",
+    "specsync.json",
+    ".specsync.toml",
+    "specsync-registry.toml",
+];
+
+/// Every symbolic link beneath `directory`, found without following one.
+fn links_beneath(directory: &Path, found: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => found.push(path),
+            Ok(metadata) if metadata.is_dir() => links_beneath(&path, found),
+            _ => {}
+        }
+    }
+}
+
+/// The paths the migration would touch that the project file functions refuse: a symbolic link
+/// that leaves the project, a dangling link, or something that is not a regular file or a
+/// directory. A 3.x project is a repository like any other, and each of these paths can have been
+/// committed as a link, so they are all looked at before the first step writes anything
+/// (REQ-cmd-migrate-005).
+fn preflight_project_links(root: &Path, spec_files: &[PathBuf]) -> Vec<String> {
+    let mut candidates: Vec<PathBuf> = MIGRATION_PATHS.iter().map(|path| root.join(path)).collect();
+    candidates.extend(spec_files.iter().cloned());
+    // Lifecycle files and backups are named after modules and specs, so links already planted
+    // under those two directories are found by looking.
+    for directory in [".specsync/lifecycle", ".specsync/backup-3x"] {
+        if crate::util::project_path_refusal(root, Path::new(directory)).is_none() {
+            links_beneath(&root.join(directory), &mut candidates);
+        }
+    }
+    let mut refusals: Vec<String> = candidates
+        .iter()
+        .filter_map(|path| crate::util::project_path_refusal(root, path))
+        .collect();
+    refusals.sort();
+    refusals.dedup();
+    refusals
+}
+
 fn config_source_to_validate(root: &Path) -> Option<PathBuf> {
     let old_json = root.join("specsync.json");
     let old_toml = root.join(".specsync.toml");
@@ -1083,6 +1176,38 @@ pub fn cmd_migrate(
             }
         }
         return;
+    }
+
+    // Refuse before the first write when a path the migration would touch leaves the project
+    // through a symbolic link, is a dangling link, or is not a regular file. Nothing has been
+    // changed at this point.
+    let refused_paths = preflight_project_links(root, &ctx.spec_files);
+    if !refused_paths.is_empty() {
+        match format {
+            OutputFormat::Json => {
+                let output = serde_json::json!({
+                    "status": "error",
+                    "error": "Cannot migrate: the migration would write through a path it refuses",
+                    "refused_paths": refused_paths,
+                    "hint": "Remove or replace these paths and re-run `specsync migrate`. Nothing was changed.",
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            _ => {
+                eprintln!(
+                    "{} Cannot migrate: the migration would write through a path it refuses:",
+                    "✗".red()
+                );
+                for refused in &refused_paths {
+                    eprintln!("    {refused}");
+                }
+                eprintln!(
+                    "  Remove or replace these paths and re-run {}. Nothing was changed.",
+                    "specsync migrate".cyan()
+                );
+            }
+        }
+        process::exit(1);
     }
 
     // Refuse to migrate a config we cannot parse. Otherwise the parse error is

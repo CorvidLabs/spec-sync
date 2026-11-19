@@ -149,12 +149,12 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
 
     let spec_content = importer::render_spec(&item);
 
-    if let Err(e) = fs::create_dir_all(&spec_dir) {
+    if let Err(e) = crate::util::create_project_dir(root, &spec_dir) {
         eprintln!("Failed to create {}: {e}", spec_dir.display());
         process::exit(1);
     }
 
-    match fs::write(&spec_file, &spec_content) {
+    match generator::create_spec_file(root, &spec_file, &spec_content) {
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("  {} Created {rel}", "✓".green());
@@ -166,6 +166,7 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
                 );
             }
             generator::generate_companion_files_for_spec(
+                root,
                 &spec_dir,
                 &item.module_name,
                 config.companions.design,
@@ -308,11 +309,17 @@ fn write_batch_item(
 
     let spec_content = importer::render_spec(item);
 
-    fs::create_dir_all(&spec_dir).map_err(|error| format!("Failed to create dir: {error}"))?;
-    fs::write(&spec_file, &spec_content)
+    crate::util::create_project_dir(root, &spec_dir)
+        .map_err(|error| format!("Failed to create dir: {error}"))?;
+    generator::create_spec_file(root, &spec_file, &spec_content)
         .map_err(|error| format!("Failed to write spec: {error}"))?;
 
-    generator::generate_companion_files_for_spec(&spec_dir, &item.module_name, design_enabled);
+    generator::generate_companion_files_for_spec(
+        root,
+        &spec_dir,
+        &item.module_name,
+        design_enabled,
+    );
 
     if item.preserved.as_ref().is_none_or(|p| p.files.is_empty()) {
         println!(
@@ -611,5 +618,60 @@ mod tests {
                 .is_file()
         );
         assert!(!temporary.path().join("specs/con").exists());
+    }
+
+    /// Verifies REQ-cmd-import-003. An imported item's spec path was guarded by `exists()`, which
+    /// a dangling link passes, and its spec directory can be a link too.
+    #[cfg(unix)]
+    #[test]
+    fn import_item_refuses_a_dangling_spec_link_and_a_linked_spec_directory() {
+        use std::os::unix::fs::symlink;
+        let temporary = TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        let outside = temporary.path().join("outside");
+        let specs_dir = root.join("specs");
+        std::fs::create_dir_all(specs_dir.join("billing")).unwrap();
+        std::fs::create_dir_all(outside.join("elsewhere")).unwrap();
+        let entries = |directory: &Path| std::fs::read_dir(directory).unwrap().count();
+
+        symlink(
+            outside.join("planted.md"),
+            specs_dir.join("billing/billing.spec.md"),
+        )
+        .unwrap();
+        let dangling = write_batch_item(&root, &specs_dir, false, &imported_item("billing", 7));
+        assert_eq!(
+            entries(&outside),
+            1,
+            "import created the target of a dangling spec link"
+        );
+        let error = dangling.err().expect("a dangling spec link is refused");
+        assert!(
+            error.contains(
+                "specs/billing/billing.spec.md is a symbolic link that leaves the project"
+            ),
+            "{error}"
+        );
+
+        symlink(outside.join("elsewhere"), specs_dir.join("payments")).unwrap();
+        let linked = write_batch_item(&root, &specs_dir, false, &imported_item("payments", 8));
+        assert_eq!(
+            entries(&outside.join("elsewhere")),
+            0,
+            "import wrote into a directory outside the project"
+        );
+        let error = linked
+            .err()
+            .expect("a spec directory linked outside is refused");
+        assert!(
+            error.contains("specs/payments is a symbolic link that leaves the project"),
+            "{error}"
+        );
+
+        assert!(matches!(
+            write_batch_item(&root, &specs_dir, false, &imported_item("orders", 9)),
+            Ok(BatchItemOutcome::Imported(_))
+        ));
+        assert!(specs_dir.join("orders/orders.spec.md").is_file());
     }
 }

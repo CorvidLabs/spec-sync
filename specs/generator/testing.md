@@ -55,3 +55,11 @@ Run `cargo test --locked --offline --bin specsync creation_source_selection` for
 The preserved f72 optimized CLI produced `files: []` after init then new/scaffold for root lib.rs; subsequent ordinary check failed, while src/lib.rs controls bound their file. Root owns the real process regressions for all three creation commands and final full qualification. Passing draft checks do not represent authored prose or human implementation acceptance.
 
 The root-owned process regressions are `create_commands_bind_exact_cargo_sources_without_widening_roots` and `creation_commands_keep_two_distinct_exact_sources_ambiguous`; they remain separate from the inline selector tests.
+
+## Symbolic links (REQ-generator-010)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/generator.rs`: `companion_files_are_never_created_through_a_link_that_leaves_the_project`; `tests/integration/project_links.rs`: `scaffold_refuses_a_dangling_companion_link_and_creates_the_others` |

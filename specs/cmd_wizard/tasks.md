@@ -12,6 +12,7 @@ spec: cmd_wizard.spec.md
 
 - [x] Initial spec creation with all required sections
 - [x] Requirements and acceptance criteria documented
+- [x] Write the wizard's spec through `generator::create_spec_file`, in a step that can be tested without a terminal (REQ-cmd-wizard-003). Evidence: `wizard_write_refuses_a_dangling_spec_link_and_a_linked_spec_directory`.
 
 ## Gaps
 

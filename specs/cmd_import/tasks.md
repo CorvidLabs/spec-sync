@@ -23,6 +23,7 @@ spec: cmd_import.spec.md
 - [x] Prove single and batch GitHub imports fail without a token and create no spec output.
 - [x] Validate every single/batch output module name before filesystem writes
 - [x] Continue batch imports after item failures while returning exit 1 for any error, with partial
+- [x] Create each imported spec through `generator::create_spec_file` (REQ-cmd-import-003). Evidence: `import_item_refuses_a_dangling_spec_link_and_a_linked_spec_directory`.
   success and unsafe-path regression coverage
 
 ## Review Status

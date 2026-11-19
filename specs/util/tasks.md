@@ -5,6 +5,7 @@ spec: util.spec.md
 ## Tasks
 
 - [x] Document shared utility helpers in a dedicated spec
+- [x] Project file functions: read, write, create and remove beneath the project root without leaving it through a link (REQ-util-002). Evidence: the five `project_file_functions_*` tests.
 
 ## Gaps
 

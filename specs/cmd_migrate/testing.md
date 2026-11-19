@@ -44,3 +44,11 @@ spec: cmd_migrate.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Symbolic links (REQ-cmd-migrate-005)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `migrate_refuses_a_dangling_gitignore_link_before_its_first_write`, `migrate_refuses_a_spec_linked_outside_the_project`, `migrate_creates_nothing_in_a_specsync_directory_linked_outside_the_project`, `migrate_still_migrates_a_project_with_no_link` |

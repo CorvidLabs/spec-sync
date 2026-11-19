@@ -98,5 +98,6 @@ spec: mcp.spec.md
 - [x] Make MCP integration helpers fail when the server process exits unsuccessfully
 - [x] Split the MCP server into purpose-named private modules for protocol, confinement, manifest preflight, snapshots, tools, and publication without changing the external entry points
 - [x] Import `std::fs` in the protocol and snapshot test modules so release-profile unit tests compile when debug assertions are disabled
+- [x] Write the tools lock through `util::write_project_file` (REQ-mcp-011). Evidence: `tests/integration/project_links.rs` `mcp_lock_write_*`.
 - [ ] Add hosted-Windows junction/reparse runtime coverage for the final exact tree.
 - [ ] Pass fresh Windows reparse-point CI

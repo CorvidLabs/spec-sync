@@ -9,6 +9,8 @@ families: [SETUP]
 
 Adopting this on a real project should be a small, reversible decision, not a migration. One command lays out sensible defaults and asks nothing, the heavier change workflow stays off until somebody deliberately turns it on, and configuration is one readable file where every setting already has a default worth keeping. Work that already exists somewhere else — an issue backlog, a folder of documents, another spec-driven tool's output — should be something I can bring in rather than retype.
 
+SETUP-6 comes from a private security sweep done with GHSA-7q5v-8jcc-rx54: install, scaffold, import, lifecycle and migrate commands wrote through symbolic links a repository can commit. Leif decided "Fold into the same private fix" and, asked whether a link that stays inside the repository may still be written through, "Allow links that stay inside" (Claude Code chat with his planning session, hc t4c, 2026-11-19 at about 04:53Z). His planning session put that answer into the criterion's wording and relayed it as his. Recorded by the security builder agent (hc t5r).
+
 ## Criteria
 
 - **SETUP-1**  One command sets a project up with defaults that work and nothing I have to answer.
@@ -29,3 +31,4 @@ Adopting this on a real project should be a small, reversible decision, not a mi
   - **SETUP-5.a**  An imported draft is honestly marked incomplete rather than presented as a passing contract.
   - **SETUP-5.b**  Work already laid out by another spec-driven tool can be adopted rather than retyped.
   - **SETUP-5.c**  I can bring in a whole backlog in one go rather than an item at a time.
+- **SETUP-6**  A command I run in a repository somebody else wrote never writes outside it through a link it found there.

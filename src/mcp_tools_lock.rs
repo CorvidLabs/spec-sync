@@ -10,7 +10,6 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const LOCK_RELATIVE_PATH: &str = ".specsync/mcp-tools.lock.json";
@@ -42,17 +41,11 @@ pub fn cmd_lock_print(allow_write: bool) -> Result<(), String> {
 pub fn cmd_lock_write(root: &Path, allow_write: bool) -> Result<(), String> {
     let lock = build_lock(allow_write);
     let path = lock_path(root);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Cannot create {}: {e}", parent.display()))?;
-    }
     let text = serde_json::to_string_pretty(&lock)
         .map_err(|e| format!("Failed to serialize MCP tools lock: {e}"))?;
-    let mut file =
-        fs::File::create(&path).map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
-    file.write_all(text.as_bytes())
-        .map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
-    file.write_all(b"\n")
+    // The lock is a committed file, so it can be committed as a symbolic link: written through
+    // one that stays inside the project, refused when it leaves (REQ-mcp-011).
+    crate::util::write_project_file(root, &path, format!("{text}\n").as_bytes())
         .map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
     eprintln!("Wrote {}", path.display());
     Ok(())

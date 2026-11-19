@@ -136,7 +136,9 @@ file is refused, by name, unless an approved `## REMOVED` item of a change on th
 requirement moved to another file under the same id is not lost; a renumbered one is lost under its
 old id, because a requirement id is permanent. To put a lost block back, `git show <commit>:<file>`
 prints it as the merge-base held it; to remove it on purpose, name it in a `## REMOVED` delta and
-approve the change again. `change audit` reports the same refusal, and `change ship-status` lists it
+approve the change again. When the default branch has removed it too, because the branch took that
+removal by a cherry-pick or by hand instead of a merge, the refusal says so and names the way out:
+merge the default branch into this one (`git merge origin/main`). `change audit` reports the same refusal, and `change ship-status` lists it
 as a blocker and exits 1 (REQ-change-169, #1081).
 
 The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold

@@ -417,9 +417,71 @@ fn lost_requirements_check(
         )
     };
     let id = shell_word(&record.id);
+    // A lost id the default branch's tip no longer holds is a removal the default branch made,
+    // brought in some other way than a merge (a cherry-pick, or the same edit made by hand). The
+    // way out is to merge it, not to restore the block or approve a REMOVED delta (Leif's rule 3;
+    // the tester's L2b). When the tip cannot be read, the general way out stands.
+    let (main_removed, others): (Vec<&str>, Vec<&str>) = match default_branch_requirement_ids(root, &directories) {
+        Some((_, held)) => unaccounted
+            .iter()
+            .map(|(lost, _, _)| lost.as_str())
+            .partition(|lost| !held.contains(*lost)),
+        None => (Vec::new(), unaccounted.iter().map(|(lost, _, _)| lost.as_str()).collect()),
+    };
+    let restore_or_remove = format!(
+        "restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`"
+    );
+    let way_out = match (main_removed.is_empty(), remote_default_ref(root)) {
+        (false, Some(default)) if others.is_empty() => format!(
+            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `specsync change check {id}`",
+            main_removed.join(", ")
+        ),
+        (false, Some(default)) => format!(
+            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`). For {}, {restore_or_remove}. Then run `specsync change check {id}`",
+            main_removed.join(", "),
+            others.join(", ")
+        ),
+        _ => {
+            let mut way = restore_or_remove;
+            if let Some(first) = way.get_mut(0..1) {
+                first.make_ascii_uppercase();
+            }
+            format!("{way}, then `specsync change check {id}`")
+        }
+    };
     Err(LostRequirementsRefusal::Lost(format!(
-        "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. Restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`, then `specsync change check {id}`{renumber_hint}"
+        "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. {way_out}{renumber_hint}"
     )))
+}
+
+/// The default branch and the requirement ids its tip holds in the requirements files under
+/// `directories` (outside the excluded directories); `None` when there is no default branch or
+/// Git cannot read its tip.
+fn default_branch_requirement_ids(
+    root: &Path,
+    directories: &[String],
+) -> Option<(String, BTreeSet<String>)> {
+    let default = remote_default_ref(root)?;
+    let prefix = git_repo_prefix(root).ok()?;
+    let excluded = excluded_requirement_directories(root);
+    let pathspecs: Vec<String> = directories
+        .iter()
+        .map(|directory| format!(":(literal){directory}"))
+        .collect();
+    let mut args = vec!["ls-tree", "-r", "--name-only", "--end-of-options", default.as_str(), "--"];
+    args.extend(pathspecs.iter().map(String::as_str));
+    let listed = git_output_allow_empty(root, &args)?;
+    let mut held = BTreeSet::new();
+    for path in listed
+        .lines()
+        .map(str::trim)
+        .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
+    {
+        let object = format!("{default}:{prefix}{path}");
+        let text = git_output_allow_empty(root, &["show", object.as_str()])?;
+        held.extend(requirement_blocks(&text).into_iter().map(|(id, _)| id));
+    }
+    Some((default, held))
 }
 
 /// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042).

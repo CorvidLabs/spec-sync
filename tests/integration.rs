@@ -136,3 +136,10 @@ mod project_links;
 #[cfg(unix)]
 #[path = "integration/project_reads.rs"]
 mod project_reads;
+
+#[cfg(unix)]
+#[path = "integration/project_writes.rs"]
+mod project_writes;
+
+#[path = "integration/repository_inputs.rs"]
+mod repository_inputs;

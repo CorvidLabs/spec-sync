@@ -441,16 +441,18 @@ fn change_new_never_replays_a_committed_journal_into_git() {
 /// Files whose every read is outside this rule: `util` holds the bounded read itself; the others
 /// already read through a confined handle with their own bounds, read Git's output, or read only a
 /// path the person names on the command line.
-const ALLOWED_FILES: &[&str] = &[
-    "src/util.rs",
-    "src/watch.rs",
-    "src/git_utils.rs",
-    "src/commands/issues.rs",
-    "src/commands/import.rs",
-    "src/mcp/confinement.rs",
-    "src/mcp/snapshot.rs",
-    "src/manifest/max_gradle_manifest_bytes.rs",
-    "src/validator/consumed_by_re.rs",
+/// Files whose every read is exempt, each with the reason. Everything else marks each direct read
+/// on its own line (REQ-util-003).
+const ALLOWED_FILES: &[(&str, &str)] = &[
+    ("src/util.rs", "the bounded project read itself lives here"),
+    (
+        "src/git_utils.rs",
+        "reads the pipes of the Git processes it starts, never a project file",
+    ),
+    (
+        "src/mcp/confinement.rs",
+        "the MCP server's own confined, bounded reads beneath its retained root",
+    ),
 ];
 
 /// A direct read elsewhere carries this marker, on its line or the line above, with the reason
@@ -464,10 +466,14 @@ const READ_CALLS: &[&str] = &[
     ".read_to_end(",
     ".read_to_string(",
     "from_reader(",
+    "fs::copy(",
+    ".read(true)",
+    "BufReader::new(",
+    "io::copy(",
 ];
 
 /// The lines of `text` outside `#[cfg(test)]` items, numbered from 1.
-fn non_test_lines(text: &str) -> Vec<(usize, &str)> {
+pub(crate) fn non_test_lines(text: &str) -> Vec<(usize, &str)> {
     let lines: Vec<&str> = text.lines().collect();
     let mut kept = Vec::new();
     let mut index = 0;
@@ -506,7 +512,7 @@ fn non_test_lines(text: &str) -> Vec<(usize, &str)> {
     kept
 }
 
-fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
+pub(crate) fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(directory).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
@@ -534,7 +540,7 @@ fn no_project_file_is_read_outside_the_bounded_read() {
             .to_string_lossy()
             .replace('\\', "/");
         let name = path.file_name().unwrap().to_string_lossy();
-        if ALLOWED_FILES.contains(&relative.as_str())
+        if ALLOWED_FILES.iter().any(|(file, _)| *file == relative)
             || name == "tests.rs"
             || relative.contains("_tests")
             || relative.contains("test_support")

@@ -968,6 +968,99 @@ mod tests {
         assert!(!cache.hashes.contains_key("gone.txt"));
     }
 
+    fn git(root: &Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    }
+
+    /// Verifies REQ-hash-cache-009. A cache a repository commits can carry a pass for a spec that
+    /// fails: every digest in it is over public inputs. Once Git tracks the cache it is read as
+    /// empty, refused with the reason, and never saved over.
+    #[test]
+    fn a_forged_pass_in_a_cache_git_tracks_is_never_replayed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        let spec_path = root.join("specs/auth/auth.spec.md");
+        fs::write(&spec_path, "---\nfiles:\n  - src/missing.rs\n---\n").unwrap();
+        let inventory = vec!["specs/auth/auth.spec.md".to_string()];
+        let mut forged = HashCache::default();
+        let input_digest =
+            HashCache::current_validation_input_digest(root, &spec_path, &[], &inventory);
+        forged.record_validation_snapshot(
+            root,
+            &spec_path,
+            &[],
+            &inventory,
+            &input_digest,
+            ValidationDiagnostics {
+                errors: vec![],
+                warnings: vec![],
+                notices: vec![],
+            },
+        );
+        forged.save(root).unwrap();
+        // CONTROL: untracked, the forged snapshot replays, which is why tracking must matter.
+        assert!(
+            HashCache::load(root)
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some()
+        );
+        git(root, &["init", "-q", "-b", "main"]);
+        git(root, &["add", "-f", ".specsync/hashes.json"]);
+        let committed = fs::read(root.join(".specsync/hashes.json")).unwrap();
+
+        let loaded = HashCache::load(root);
+
+        assert!(
+            loaded
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "a tracked cache replayed a forged pass"
+        );
+        let refusal = HashCache::refusal(root).unwrap_or_default();
+        assert!(
+            refusal.contains("tracked by Git") && refusal.contains("git rm --cached"),
+            "{refusal}"
+        );
+        assert!(HashCache::default().save(root).is_err());
+        assert_eq!(
+            fs::read(root.join(".specsync/hashes.json")).unwrap(),
+            committed
+        );
+    }
+
+    /// Verifies REQ-hash-cache-010. `prune` keeps an entry only for a project file it can reach:
+    /// a key the repository chose as an absolute path or with `..` is dropped without looking at
+    /// the path it names.
+    #[test]
+    fn prune_drops_keys_that_leave_the_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        fs::create_dir_all(&root).unwrap();
+        let outside = dir.path().join("outside.txt");
+        fs::write(&outside, "hi").unwrap();
+        fs::write(root.join("exists.txt"), "hi").unwrap();
+        let mut cache = HashCache::default();
+        cache.hashes.insert("exists.txt".into(), "aaa".into());
+        cache
+            .hashes
+            .insert(outside.to_string_lossy().into_owned(), "bbb".into());
+        cache.hashes.insert("../outside.txt".into(), "ccc".into());
+
+        cache.prune(&root);
+
+        assert!(cache.hashes.contains_key("exists.txt"));
+        assert_eq!(cache.hashes.len(), 1, "{:?}", cache.hashes.keys());
+    }
+
     #[test]
     fn classify_detects_spec_change() {
         let dir = tempfile::tempdir().unwrap();

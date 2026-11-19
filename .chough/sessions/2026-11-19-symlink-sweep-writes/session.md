@@ -41,7 +41,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T05:31:02Z
 run_consents: []
-next: Read the verify lane and the Linux container results, commit, run chough change check for both changes, push to the private fork, update the PR, ask Leif for the two reviews through t4c
+next: "Both changes are verified, pushed to the private advisory fork and on draft PR 1. Wait for the human's implementation review of each, relayed by the planning session. On a yes: chough change ship <id> --close-gate with their words, one change at a time (hash cache first), commit each archive, re-run chough change check for the other change if it went stale, push, then mark the PR ready. Publishing the advisory, releasing and a 5.x backport are the human's decisions."
 ---
 # No install, scaffold, import, lifecycle, migrate, lock or remote-cache command writes through a symbolic link it finds in the repository (private sweep, handled with GHSA-7q5v-8jcc-rx54)
 

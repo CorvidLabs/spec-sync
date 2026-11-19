@@ -27,7 +27,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T04:48:26Z
 run_consents: []
-next: Read the verify lane result, commit source with Chough records, run chough change check, open the PR in the private advisory fork, then ask Leif through t4c for the implementation review
+next: "Both changes are verified, pushed to the private advisory fork and on draft PR 1. Wait for the human's implementation review of each, relayed by the planning session. On a yes: chough change ship <id> --close-gate with their words, one change at a time (hash cache first), commit each archive, re-run chough change check for the other change if it went stale, push, then mark the PR ready. Publishing the advisory, releasing and a 5.x backport are the human's decisions."
 ---
 # specsync check and rehash never read or write the hash cache through a symbolic link, so a cloned repository cannot make them overwrite a file outside it (GHSA-7q5v-8jcc-rx54)
 

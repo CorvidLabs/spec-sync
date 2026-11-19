@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -37,13 +37,9 @@ observations:
   - 2026-11-19-1091-verify-lane-at-a768326c
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
-    holds: accept
-    drives: review
-    opened: 2026-11-19T06:37:41Z
+waiting_on_human: []
 run_consents: []
-next: "Pushed on feat/1091-approve-dry-run (PR #1100). Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that."
+next: Continue done
 ---
 # specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 
@@ -78,6 +74,7 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - 0xLeif decided "Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing for REQ-change-163's lock-check wording, under Leif's standing OK": "Leif's six rules, rule 6 (a) and (c)" (a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact wording of REQ-change-163 on 2026-11-19 after the build. These are not his words about this text); recorded by claude-code-t59; a relayed claim, not authenticated
 - 0xLeif decided "Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "Leif's six rules, rule 6 (a) and (c)" (a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of REQ-change-163 (the lock-check sentence and its criterion) on 2026-11-19. These are not his words about this text); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
 - decided: the 14:32Z approval of this change no longer stands: the send-back of 2026-11-19 under Leif's standing OK (rule 6 (a) and (c)) cancelled it; REQ-change-163's lock-check sentence and its criterion now carry the text ss-lead gave, word for word, matching the tested lock check; the approval recorded under that standing OK is the current one
+- 0xLeif decided "Implementation review of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "All as recommended" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on t4c's table of recommendations, in which #1100's review passing was the recommendation, on the frozen ss-lead/gates/1100-review-request.md at PR #1100 head 3fb40d8f; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code (hc t59); a relayed claim, not authenticated; ran specsync change review change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -348,4 +345,20 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
   - gate: native:verifying
   - revision: a768326cb740bf0b18695a809e780a09ad148436
+  - by: claude-code (hc t59)
+- 2026-11-19T19:50:20Z · gate-closed · accept → accept · Implementation review of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-b6de8d
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 58145c5a54e9ea1618c89be4ccc64b84b3e6109e
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: All as recommended
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on t4c's table of recommendations, in which #1100's review passing was the recommendation, on the frozen ss-lead/gates/1100-review-request.md at PR #1100 head 3fb40d8f; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code (hc t59)
+    - native: specsync change review change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T19:50:23Z · advance · accept → done · native:archived ^t-590c53
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:archived
+  - revision: 58145c5a54e9ea1618c89be4ccc64b84b3e6109e
   - by: claude-code (hc t59)

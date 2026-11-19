@@ -6022,6 +6022,70 @@ if the floor call is removed from this function"
         assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
     }
 
+    /// The fixture of the test above: a change `release` with its package still active and an
+    /// archive package of the same id beside it, as after a reopen, committed.
+    fn reopened_beside_its_archive_fixture(root: &Path) -> (PathBuf, PathBuf) {
+        git_in(root, &["init", "-q", "-b", "main"]);
+        git_in(root, &["config", "user.email", "t@example.com"]);
+        git_in(root, &["config", "user.name", "T"]);
+        let active = root.join(".specsync/changes/release");
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&active).unwrap();
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(active.join("change.md"), "# reopened\n").unwrap();
+        fs::write(active.join("tasks.md"), "- [x] done\n").unwrap();
+        fs::write(
+            archive.join("state.json"),
+            r#"{"id":"release","state":"archived"}"#,
+        )
+        .unwrap();
+        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "reopened"]);
+        (active, archive)
+    }
+
+    /// #1038, from the review of #1093: the own-package exemption is CI's, no looser. CI's
+    /// classify-ci-paths.sh counts a path under `.specsync/changes/<id>/` as archive work only
+    /// when the tip deleted it (or renamed it into the archive) and the package directory is
+    /// gone. A tip that modifies the package, or leaves part of it, is a product tip there, so
+    /// it is one here.
+    #[test]
+    fn an_archive_tip_whose_package_is_still_present_is_product() {
+        // Modified, still present: the case the review reproduced as `archive_only`.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let (active, archive) = reopened_beside_its_archive_fixture(root);
+        fs::write(active.join("change.md"), "# reopened, edited\n").unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "edit the package"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+
+        // One file deleted, the package directory still there.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let (active, archive) = reopened_beside_its_archive_fixture(root);
+        fs::remove_file(active.join("tasks.md")).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "delete one package file"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+
+        // The tip removed the whole package, but the working tree holds one again.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let (active, archive) = reopened_beside_its_archive_fixture(root);
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
+        fs::create_dir_all(&active).unwrap();
+        fs::write(active.join("change.md"), "# back again\n").unwrap();
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+    }
+
     /// #1038 (Leif, 2026-11-13: "For an archived change, report the review as done by finalize and
     /// suggest nothing."). `change review` refuses an archived change, and finalize already
     /// required a current review, so ship-status must not call it stale or suggest re-recording it.
@@ -6054,6 +6118,102 @@ if the floor call is removed from this function"
                 "an archived change is told to re-review: {text}"
             );
         }
+        // With #654 any blocker is exit 1, so an archived change must list none for its review.
+        assert_eq!(report["blockers"], serde_json::json!([]), "{report}");
+    }
+
+    /// #1038, from the review of #1093: a workflow-v1 change is closed by `change accept` and
+    /// `change archive`, which bind no scoped review, and `change finalize` refuses it. A
+    /// `review.json` in its archive is therefore not "done by finalize". It is still archived, so
+    /// it is not told to run `change review`, which refuses an archived change, and it lists no
+    /// blocker.
+    #[test]
+    fn a_workflow_v1_archive_is_not_done_by_finalize_and_suggests_no_review() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        // A project that never adopted workflow v2: policy version 1 and no v2 baseline.
+        let policy_path = root.join(".specsync/sdd.json");
+        let mut policy: serde_json::Value =
+            serde_json::from_slice(&fs::read(&policy_path).unwrap()).unwrap();
+        policy["version"] = serde_json::json!(1);
+        fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "a workflow-v1 policy"]);
+        git_in(root, &["switch", "-c", "feature"]);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "A workflow v1 change".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        assert_eq!(record.workflow_version, 1, "the fixture is workflow v1");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "implement"]);
+        change::verify_change(root, &id).expect("verify");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "record verification"]);
+        change::verify_change(root, &id).expect("verify the committed tree");
+        // `change review` asks only for the verifying state, so a v1 change can hold a review.
+        change::record_scoped_review(root, &id, "Independent".into()).expect("review");
+        change::accept_change(root, &id, Some("Owner".into()), None).expect("accept");
+        change::archive_change(root, &id).expect("archive");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+        assert_eq!(record.workflow_version, 1);
+        assert_eq!(
+            report_review_present(root, &record),
+            Some(true),
+            "the archive holds review.json"
+        );
+
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_ne!(report["review_currency"], "current", "{report}");
+        assert!(
+            !report["review_currency_reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("finalize"),
+            "{report}"
+        );
+        let review = report["stages"]
+            .as_array()
+            .expect("stages")
+            .iter()
+            .find(|stage| stage["id"] == "review_tip")
+            .expect("review stage");
+        assert_eq!(review["status"], "done", "{report}");
+        let action = review["action"].as_str().unwrap_or_default();
+        assert!(
+            action.starts_with("no scoped review to record"),
+            "a v1 archive is told there is nothing to record: {action}"
+        );
+        assert!(!action.contains("done by finalize"), "{action}");
+        for text in [action.to_string(), report["blockers"].to_string()] {
+            assert!(
+                !text.contains("change review"),
+                "an archived change is told to review: {text}"
+            );
+        }
+        assert_eq!(report["blockers"], serde_json::json!([]), "{report}");
+    }
+
+    /// Whether ship-status sees a `review.json` in the change's package.
+    fn report_review_present(root: &Path, record: &ChangeRecord) -> Option<bool> {
+        let _scope = change::begin_change_read_scope(root);
+        ship_status_report(root, record).ok()?["review_present"].as_bool()
     }
 
     /// #687: the warning must name the cost that lands on OTHER changes, not only this one.

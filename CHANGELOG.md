@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).
 
-- A `## MODIFIED` delta no longer replaces a fenced example that quotes a requirement's header instead of the real requirement, and a heading inside a fenced example no longer ends the block a delta replaces: the materializer skips fenced code, as the shared requirement reader does (#1050).
+- A `## MODIFIED` delta no longer replaces a fenced example that quotes a requirement's header instead of the real requirement, and a heading inside a fenced example no longer ends the block a delta replaces: the materializer skips fenced code, as the shared requirement reader does. A requirement that holds a fenced heading therefore ends where the requirement ends. A change approved by an older SpecSync whose `## MODIFIED` delta targets such a requirement is refused by `change check` as approved against text that has changed since: read the delta against the whole requirement, edit its body, and run `change approve` again. `change approve` refuses the delta while its body is unchanged, also after a send-back; any edit to the delta file, even a blank line, lets it pass, and no send-back is needed (#1050).
 
 ## [6.3.0] - 2026-11-12
 

@@ -1,8 +1,11 @@
 //! #574 (SPEED-1.b): `specsync check` time grows with the number of undocumented exports, not
 //! with its square. Each undocumented export used to rescan every export to name its file.
 //!
-//! Wall-clock, so it compares two sizes on the same machine in the same run rather than against
-//! a fixed budget: four times the exports may cost about four times as long, never sixteen.
+//! Wall-clock, so it is a ratio and not a budget: it compares two sizes on the same machine in
+//! the same run. Four times the exports may cost about four times as long, never sixteen. A
+//! fixed number of seconds would fail on a slow or busy machine for no fault of the code (#707);
+//! a ratio moves only when the growth does. The two sizes are run in turn, small then large,
+//! three times, and each keeps its fastest run, so a change in load during the test reaches both.
 
 use crate::helpers::{specsync_std, valid_spec, write_config};
 use std::fs;
@@ -28,34 +31,33 @@ fn project_with_undocumented_exports(count: usize) -> TempDir {
     temp
 }
 
-/// The faster of two `check` runs, so one scheduling hiccup does not decide the ratio.
+/// One timed `check` run.
 fn check_time(root: &Path) -> Duration {
-    (0..2)
-        .map(|_| {
-            let started = Instant::now();
-            let output = specsync_std()
-                .args(["check", "--force", "--root"])
-                .arg(root)
-                .output()
-                .unwrap();
-            let elapsed = started.elapsed();
-            assert!(
-                String::from_utf8_lossy(&output.stdout).contains("undocumented_export_")
-                    || String::from_utf8_lossy(&output.stderr).contains("undocumented_export_"),
-                "check did not report the undocumented exports"
-            );
-            elapsed
-        })
-        .min()
-        .unwrap()
+    let started = Instant::now();
+    let output = specsync_std()
+        .args(["check", "--force", "--root"])
+        .arg(root)
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("undocumented_export_")
+            || String::from_utf8_lossy(&output.stderr).contains("undocumented_export_"),
+        "check did not report the undocumented exports"
+    );
+    elapsed
 }
 
 #[test]
 fn check_time_grows_linearly_with_undocumented_exports() {
     let small = project_with_undocumented_exports(8_000);
     let large = project_with_undocumented_exports(32_000);
-    let small_time = check_time(small.path());
-    let large_time = check_time(large.path());
+    let mut small_time = Duration::MAX;
+    let mut large_time = Duration::MAX;
+    for _ in 0..3 {
+        small_time = small_time.min(check_time(small.path()));
+        large_time = large_time.min(check_time(large.path()));
+    }
     let ratio = large_time.as_secs_f64() / small_time.as_secs_f64().max(0.001);
     eprintln!(
         "check: 8,000 exports {small_time:?}, 32,000 exports {large_time:?}, ratio {ratio:.1}"

@@ -19,6 +19,7 @@ files: []
 observations:
   - 2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked
   - 2026-11-19-after-codex-s-and-corvid-agent-s-1088-findings-a-change-log
+  - 2026-11-19-after-codex-s-second-1088-review-a-change-log-cell-records-a
 bugs: []
 blockers: []
 waiting_on_human:
@@ -52,6 +53,7 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
 
 - [Covers REQ-change-159, -160 and REQ-hash-cache-006 (not linked: chough 0.6.0 looks up specs/hash-cache). Red first on 979c3fe9: the four new tests (quoted change id round-trip, boundary-aware matcher, Change Log delta refusal, symlink-swapped fragment cache replay) all failed. Now fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null (fmt, clippy -D warnings, 3081 unit and 627 integration tests, release build, strict specs 62/62, CI script tests). An older test that approved a MODIFIED Change Log delta now asserts the check-time refusal instead. change audit --strict and fledge trust verify passed.](evidence/2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked.md)
 - [After Codex's and corvid-agent's #1088 findings: a Change Log row records a change only when a table cell begins with <id>: after any leading *, _ or backtick (prose mentions count for nothing; corvid-agent's exact case, a 'session:' in another row's prose beside history/session.md, is no double record); the refusal's approve command is shell-quoted; a check refused for a Change Log item records a refused attempt; lessons in change.3md and hash_cache.3md; deltas.md names verification. New tests fail on 1821f1e3 and pass. fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3083 unit and 627 integration tests, strict specs 62/62. Re-approved under Leif's relayed 'Approve' of the new REQ-change-159 wording; change audit --strict and fledge trust verify passed.](evidence/2026-11-19-after-codex-s-and-corvid-agent-s-1088-findings-a-change-log.md)
+- [After Codex's second #1088 review: a Change Log cell records a change when it begins with <id>: as written, or inside one Markdown marker pair that closes right after the id, so an id that itself begins with *, _ or a backtick is no longer mangled; a double-quoted change: in a fragment decodes YAML's double-quoted escapes (\u0061 is a). Both new tests fail on 939cfa36 and pass. fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3085 unit and 627 integration tests, strict specs 62/62. change audit --strict and fledge trust verify passed; pre-push green.](evidence/2026-11-19-after-codex-s-second-1088-review-a-change-log-cell-records-a.md)
 
 ## Open threads
 

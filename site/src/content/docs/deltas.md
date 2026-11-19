@@ -103,7 +103,7 @@ recorded before SpecSync carried this field keep their earlier behaviour, but on
 recorded these bases, a later approval cannot drop them.
 
 A delta cannot target the `## Change Log` section. The table is frozen, and each change is recorded
-in its own history fragment, so `change approve`, `change check` and acceptance refuse an `ADDED`,
+in its own history fragment, so `change approve`, `change check`, verification and acceptance refuse an `ADDED`,
 `MODIFIED` or `REMOVED` `SPEC SECTION Change Log` item and name it. A change archived before this
 rule is not re-judged.
 

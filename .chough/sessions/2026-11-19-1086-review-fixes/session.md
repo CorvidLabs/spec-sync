@@ -5,7 +5,7 @@ aliases: [1086-review-fixes]
 objective: "Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)"
 intent_scope: ""
 modules: [change]
-stage: test
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -19,13 +19,9 @@ files: []
 observations: [2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked]
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of the #1086 review fixes (PR #1088)"
-    holds: accept
-    drives: review
-    opened: 2026-11-19T02:36:45Z
+waiting_on_human: []
 run_consents: []
-next: Continue test
+next: Continue build
 ---
 # Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)
 
@@ -43,6 +39,7 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
 - Authorization: Leif approved spec-sync #1084 on 2026-11-18 (written on the issue) and, on PR #1086's review findings, chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c on 2026-11-18; scope is exactly the four Codex findings on #1086; limits: no release, tag or publish, no merge without his relayed yes
 - Process note: the four red-first tests and the fixes were written in this clone before this session and its native change were opened, so the follow-up PR could be linked from #1086's threads before #1086 merged; the native change is opened now on the rebased branch and its check verifies the same code
 - 0xLeif decided "Scope approval of fix-the-four-pr-1086-review-findings-on-history-fragments": "Merge, fix all 4 in a follow-up before release" (Leif's decision on PR #1086's four Codex review findings, 2026-11-18, relayed by his planning session hc t4c; under his approval of spec-sync #1084 written on the issue); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments as 0xLeif
+- 0xLeif decided "Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 wording)": "Approve" (Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-159 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments as 0xLeif
 
 ## What was verified
 
@@ -93,4 +90,35 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
   - revision: de6a78796022977c87002ea9610fb0911a406f8e
   - holds: accept
   - drives: review
+  - by: claude-code (hc t4t)
+- 2026-11-19T03:41:37Z · gate-closed · test → test · Leif's review of the #1086 review fixes (PR #1088) ^t-0bd6a2
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 1821f1e3769e89c558e8b7b34c6048cd38efe0fe
+  - by: claude-code (hc t4t)
+- 2026-11-19T03:41:44Z · back · test → plan · REQ-change-159's wording changed for Codex's #1088 findings (cell-start matcher; refused attempt recorded); Leif approved the new wording ^t-5dbd71
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 1821f1e3769e89c558e8b7b34c6048cd38efe0fe
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, checkpoint references: 0 case(s) and 1 observation(s) to re-check with `chough status`, native: the definition is verifying; changing intent, contract, acceptance criteria or scope needs native reapproval. Follow `specsync change status fix-the-four-pr-1086-review-findings-on-history-fragments`; Chough does not change native state.
+  - by: claude-code (hc t4t)
+- 2026-11-19T03:41:44Z · gate-opened · plan → plan · Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 wording) ^t-dc1902
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 1821f1e3769e89c558e8b7b34c6048cd38efe0fe
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t4t)
+- 2026-11-19T03:41:44Z · gate-closed · plan → plan · Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 wording) ^t-272b1f
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 1821f1e3769e89c558e8b7b34c6048cd38efe0fe
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve
+    - where: Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-159 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58
+    - recorded_by: claude-code-t4t
+    - native: specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments
+    - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-19T03:42:56Z · advance · plan → build · native:verifying ^t-cd4605
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:verifying
+  - revision: 1821f1e3769e89c558e8b7b34c6048cd38efe0fe
   - by: claude-code (hc t4t)

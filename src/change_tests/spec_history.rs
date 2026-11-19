@@ -216,3 +216,37 @@ fn a_delta_that_targets_the_change_log_is_refused() {
     assert_eq!(fs::read_to_string(&spec_path).unwrap(), spec);
     assert!(load_approvals(root, &record).unwrap().approvals.is_empty());
 }
+
+/// Codex's review of #1088: an id mentioned in another row's prose is not a record of that change,
+/// so a valid fragment beside such a row is not a double record.
+#[test]
+fn an_id_in_another_row_s_prose_is_not_a_record() {
+    let spec = "---\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-11-18 | other-change: follows add-passkeys: and reuses its wording |\n";
+    assert!(changelog_records_change(spec, "other-change"));
+    assert!(!changelog_records_change(spec, "add-passkeys"));
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    fs::create_dir_all(root.join("specs/auth/history")).unwrap();
+    fs::write(&spec_path, spec).unwrap();
+    fs::write(
+        history_fragment_path(&spec_path, "add-passkeys"),
+        history_fragment_content("add-passkeys", "2026-11-19", "Add passkeys"),
+    )
+    .unwrap();
+    let (_, errors) = scan_history_fragments(root, &spec_path, spec);
+    assert!(errors.is_empty(), "{errors:?}");
+
+    // corvid-agent's review of #1088, its exact case: `session:` in a legacy row's prose, beside a
+    // valid history/session.md, is not a double record.
+    let legacy = "---\nversion: 3\n---\n\n## Change Log\n\n| Version | Date | Change |\n|---------|------|--------|\n| 3 | 2026-10-01 | one-session: Document session: handling |\n";
+    fs::write(&spec_path, legacy).unwrap();
+    fs::write(
+        history_fragment_path(&spec_path, "session"),
+        history_fragment_content("session", "2026-11-19", "Sessions"),
+    )
+    .unwrap();
+    assert!(!changelog_records_change(legacy, "session"));
+    let (_, errors) = scan_history_fragments(root, &spec_path, legacy);
+    assert!(errors.is_empty(), "{errors:?}");
+}

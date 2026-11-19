@@ -516,6 +516,37 @@ fn a_change_log_delta_an_older_specsync_approved_is_refused_at_check() {
     assert!(error.contains("`## Change Log`"), "{error}");
     assert!(error.contains(&format!("history/{}.md", record.id)), "{error}");
     assert_eq!(fs::read_to_string(spec_path(root)).unwrap(), spec);
+    // #847 (Codex's review of #1088): the refused check leaves a refused attempt behind.
+    let (_, history) = load_verification_attempt_ledger(root, &record).unwrap();
+    assert!(
+        history.attempts.last().is_some_and(|attempt| !attempt.passed),
+        "{:?}",
+        history.attempts
+    );
+}
+
+/// Codex's review of #1088: the approve command the refusal prints runs as printed whatever the
+/// change id holds.
+#[test]
+fn the_change_log_refusal_prints_a_runnable_approve_command() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = approved_change_with_delta(root, STALE_MODIFIED_DELTA);
+    record.id = "add passkeys; now".into();
+    let delta = delta_path(root, &record, "auth");
+    fs::create_dir_all(delta.parent().unwrap()).unwrap();
+    fs::write(
+        &delta,
+        "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n",
+    )
+    .unwrap();
+
+    let error = refuse_change_log_delta_items(root, &record).unwrap_err();
+
+    assert!(
+        error.contains("specsync change approve 'add passkeys; now'"),
+        "{error}"
+    );
 }
 
 /// DISCRIMINATOR (review nit on #845): a canonical file that exists but cannot be read is an

@@ -2662,11 +2662,12 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
 ///
 /// The row described the change as `{id}: {title}` in whichever column the table calls its
 /// description, so it is found by that prefix inside the `## Change Log` section rather than by
-/// rebuilding a row and comparing it. A table that `specsync compact` or a human has since
-/// reformatted still counts (`**{id}:**` too), the trailing colon keeps one slug from matching
-/// another that merely extends it, and the character before the id must not belong to an id, so
-/// `one-session:` is not a row for `session`. This one matcher decides both "the module records
-/// the change" and "the change is recorded twice" (#1086 review).
+/// rebuilding a row and comparing it. A row names the change when one of its table cells begins
+/// with `{id}:`, after any leading `*`, `_` or backtick, so a row `specsync compact` or a human has
+/// reformatted (`**{id}:**`) still counts. Anything else does not: the id mentioned in another
+/// row's prose (Codex's review of #1088), or a longer id that merely ends with it, so `one-session:`
+/// is not a row for `session`. This one matcher decides both "the module records the change" and
+/// "the change is recorded twice" (#1086 review).
 fn changelog_records_change(spec: &str, id: &str) -> bool {
     let Some(position) = spec.rfind("## Change Log") else {
         return false;
@@ -2675,13 +2676,18 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     let end = spec[start..]
         .find("\n## ")
         .map_or(spec.len(), |offset| start + offset);
-    let section = &spec[start..end];
     let needle = format!("{id}:");
-    section.match_indices(needle.as_str()).any(|(index, _)| {
-        section[..index].chars().next_back().is_none_or(|before| {
-            !(before.is_alphanumeric() || matches!(before, '-' | '_' | '.'))
+    spec[start..end]
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('|'))
+        .any(|row| {
+            row.trim_matches('|').split('|').any(|cell| {
+                cell.trim()
+                    .trim_start_matches(['*', '_', '`'])
+                    .starts_with(needle.as_str())
+            })
         })
-    })
 }
 
 /// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the
@@ -2700,9 +2706,11 @@ fn refuse_change_log_delta_items(root: &Path, record: &ChangeRecord) -> Result<(
             continue;
         };
         if items.iter().any(is_change_log_section) {
+            // The printed command runs as printed whatever the id holds (Codex's review of #1088).
             return Err(format!(
-                "semantic delta for `{module}` targets its `## Change Log` section, which SpecSync no longer writes: the table is frozen, and `change check` records this change in `history/{id}.md` beside the spec; take the `SPEC SECTION Change Log` item out of `.specsync/changes/{id}/deltas/{module}.md`, then run `specsync change approve {id}`",
-                id = record.id
+                "semantic delta for `{module}` targets its `## Change Log` section, which SpecSync no longer writes: the table is frozen, and `change check` records this change in `history/{id}.md` beside the spec; take the `SPEC SECTION Change Log` item out of `.specsync/changes/{id}/deltas/{module}.md`, then run `specsync change approve {word}`",
+                id = record.id,
+                word = shell_word(&record.id)
             ));
         }
     }

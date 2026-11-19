@@ -15,6 +15,10 @@ artifact: tasks
 - [x] Public API rows and `files:` entries in the `change`, `cmd_change` and `cli_args` specs
 - [x] Docs: `cli.md`, `CHANGELOG.md`, the `AGENTS.md` command table, a lesson plane in `change.3md`
 - [x] `fledge lanes run verify` and the pre-push gate
+- [x] After the send-back of 2026-11-19: failing tests for the `fix` field (definition and ownership, the placeholder, run as printed, none elsewhere), a lock path approve cannot open, and one text line per refused check
+- [x] The `fix` field from `answer_command` and `declare_owners_command`, the bare forms of the helpers that write the message; the lock path opened as approve opens it; text output joins a message's lines
+- [x] Docs for the `fix` field and the lock check: `cli.md`, `CHANGELOG.md`, the `ApprovalCheckReport` row
+- [ ] `fledge lanes run verify` and the pre-push gate on the re-scoped change
 
 Human gates and Chough's own records are not tasks here: Leif's scope approval and implementation review
 are recorded through Chough when he gives them.

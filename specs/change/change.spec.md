@@ -191,7 +191,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `HistoryFragment` | One change's record in a module's history: change id, `YYYY-MM-DD` date and one-line summary (REQ-change-160) |
 | `SpecHistory` | A module's whole history for `specsync history`: module, spec path, frozen `version:`, the Change Log table header and rows as written, and the fragments in date then change-id order (REQ-cmd-change-037) |
 | `ApprovalDryRun` | What `change approve --dry-run` found: the change id, `dry_run: true`, `would_approve`, and one `ApprovalCheckReport` per check in approval order. Nothing was written to produce it (REQ-change-163) |
-| `ApprovalCheckReport` | One check of an approval dry run: its stable `check` name, its `result`, the `message` of a refused check in `change approve`'s own words, and the `skipped_because` check of a skipped one (REQ-change-163) |
+| `ApprovalCheckReport` | One check of an approval dry run: its stable `check` name, its `result`, the `message` of a refused check in `change approve`'s own words, the `skipped_because` check of a skipped one, and for a refused `definition` or `ownership` check whose message names the command that fixes it, that command as `fix`, which may hold a placeholder (REQ-change-163, REQ-cmd-change-040) |
 | `ApprovalCheckResult` | How one check of an approval dry run ended: `Passed`, `Refused` or `Skipped`, serialized in lower case (REQ-change-163) |
 | `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
 | `DoctorFinding` | One problem doctor found: its kind, change (or none for the project), location, reason and fix |

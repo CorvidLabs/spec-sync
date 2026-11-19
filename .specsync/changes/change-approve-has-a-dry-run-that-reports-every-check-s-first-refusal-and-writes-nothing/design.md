@@ -59,6 +59,14 @@ when no step is refused.
 prints one line per refused step, one per skipped step, and a closing line. It exits 1 when
 `would_approve` is false, after printing, without the `error` document.
 
+## The `fix` field (after the send-back of 2026-11-19)
+
+`validate_definition` and `validate_declared_path_ownership` gain `_with_fix` forms that return a
+`RefusalWithFix`: the message, and the bare command it names. The command comes from
+`answer_command` and `declare_owners_command`, the plain forms of `answer_command_hint` and
+`declare_owners_answer`, which now build their text from them, so no message changes. The approval
+reduces the refusal to its message; the dry run also reports the command as `fix`.
+
 ## Not changed
 
 No validator changes what it accepts or what it says. `change approve` without `--dry-run` keeps its

@@ -30,5 +30,5 @@ an argument `change approve` takes.
 | Requirement | Evidence |
 |-------------|----------|
 | `REQ-change-163` | `tests/integration/approve_dry_run.rs`: the refused-draft table, the clean draft, the unchanged tree, two problems in one run, the missing id and the sent-back change; `src/change_tests/approval_dry_run.rs`: the skip rules, the in-memory binding and the interrupted write |
-| `REQ-cmd-change-040` | `tests/integration/approve_dry_run.rs`: text lines and exit codes, JSON as one document, the first refused message equal to the real approve's `error`, the relay flags |
+| `REQ-cmd-change-040` | `tests/integration/approve_dry_run.rs`: the `fix` field (a definition refusal's command with its placeholder, an ownership refusal's command run as printed, no `fix` elsewhere), one text line per refused check, text lines and exit codes, JSON as one document, the first refused message equal to the real approve's `error`, the relay flags |
 | `REQ-cli-args-027` | the `change approve --dry-run` parsing test in `src/cli.rs` |

@@ -505,3 +505,44 @@ fn an_accepted_change_may_append_only_the_closing_records_of_its_accepting_step(
         "a closing record does not excuse a change to a committed one"
     );
 }
+
+// Rule 3 for #428: a ledger version Git cannot read, as in a blobless clone of a private
+// repository or a damaged repository, is refused with the way out, not only the failure.
+#[test]
+fn a_ledger_version_git_cannot_read_is_refused_with_the_way_out() {
+    let mut earlier_blob = String::new();
+    let (temp, record) = reviewed_after(|root, record| {
+        // Keep every object loose, so the one this test removes is not packed first.
+        quiet_git(root, &["config", "gc.auto", "0"]);
+        quiet_git(root, &["config", "maintenance.auto", "false"]);
+        earlier_blob = quiet_git(
+            root,
+            &["rev-parse", &format!("HEAD:{}", approvals_display(record))],
+        )
+        .trim()
+        .to_string();
+        let relay = serde_json::json!({
+            "decided_by": "Scope owner",
+            "words": "Approve it.",
+            "where": "a meeting",
+            "recorded_by": "an agent"
+        });
+        edit_first_approval(root, record, "relayed_by", relay);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "record the relay"]);
+    });
+    let root = temp.path();
+    let loose = root
+        .join(".git/objects")
+        .join(&earlier_blob[..2])
+        .join(&earlier_blob[2..]);
+    assert!(loose.is_file(), "the earlier ledger is a loose object");
+    fs::remove_file(&loose).unwrap();
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    assert!(
+        refused.contains("failed to read")
+            && refused.contains("repair the repository or fetch the missing objects, then run the command again"),
+        "{refused}"
+    );
+    assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
+}

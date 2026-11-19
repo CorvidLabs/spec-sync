@@ -238,7 +238,8 @@ fn fix_with_json_output() {
     )
     .unwrap();
 
-    // --fix with --json should still work and produce valid JSON
+    // --fix with --json prints exactly one JSON document on stdout; the per-spec progress line
+    // goes to stderr (#475).
     let output = specsync()
         .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
         .output()
@@ -246,12 +247,65 @@ fn fix_with_json_output() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // The auto_fix_specs function may print non-JSON lines before the JSON output,
-    // so find the JSON object in the output
-    let json_start = stdout.find('{').expect("Expected JSON in output");
-    let json_str = &stdout[json_start..];
-    let json: serde_json::Value = serde_json::from_str(json_str.trim()).unwrap();
+    let json: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}):\n{stdout}"));
     assert!(json["specs_checked"].is_number());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("added 1 export(s)"),
+        "the progress line moves to stderr: {stderr}"
+    );
+    let fixed = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(fixed.contains("`login`"), "--fix still writes: {fixed}");
+}
+
+// #475: `check --strict --force --fix --dry-run --json` printed `would add N export(s)` on stdout
+// before the JSON result, so a consumer parsing stdout failed.
+#[test]
+fn fix_dry_run_with_json_output_is_one_json_document() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = valid_spec("auth", &["src/auth/service.ts"]);
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+    fs::write(root.join("specs/auth/requirements.md"), "# Requirements\n").unwrap();
+
+    let output = specsync()
+        .args([
+            "check",
+            "--strict",
+            "--force",
+            "--fix",
+            "--dry-run",
+            "--json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}):\n{stdout}"));
+    assert!(json["specs_checked"].is_number(), "{json}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("would add 1 export(s)"),
+        "the dry-run progress line moves to stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        spec,
+        "--dry-run writes nothing"
+    );
 }
 
 // Regression: --fix used to insert new rows at the end of ## Public API, which put

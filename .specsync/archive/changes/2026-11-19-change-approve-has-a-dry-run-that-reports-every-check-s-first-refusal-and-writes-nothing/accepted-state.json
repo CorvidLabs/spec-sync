@@ -7,11 +7,11 @@
   "title": "Change approve has a dry run that reports every check's first refusal and writes nothing",
   "description": "change approve has a dry run that reports every check's first refusal and writes nothing",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "3bebe8b03094b2079630801584b56f94a1e460c5",
   "created_at": 1795064998,
-  "updated_at": 1795106143,
+  "updated_at": 1795117671,
   "affected_specs": [
     "change",
     "cmd_change",

@@ -196,6 +196,13 @@
         "where": "a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of REQ-change-163 (the lock-check sentence and its criterion) on 2026-11-19. These are not his words about this text",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795117671,
+      "digest": "9367e3c0b37795bc018e34c6c29530f83d4dd9aa561574228b568f475e61ac6d",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

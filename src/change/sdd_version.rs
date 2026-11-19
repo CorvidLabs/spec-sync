@@ -698,10 +698,13 @@ fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
     )
 }
 
-fn recover_pending_transaction(root: &Path) -> Result<(), String> {
+/// The entries of the pending transaction journal, read and checked the way recovery reads it:
+/// `None` with no journal, the entries of one that reads, and recovery's own refusal for one that
+/// does not. It writes nothing, so `change approve --dry-run` asks it too (REQ-change-163).
+fn read_pending_transaction(root: &Path) -> Result<Option<Vec<TransactionEntry>>, String> {
     let journal_path = root.join(TRANSACTION_PATH);
     if !journal_path.exists() {
-        return Ok(());
+        return Ok(None);
     }
     let content = fs::read_to_string(&journal_path)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
@@ -722,10 +725,25 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
             journal.entries
         }
     };
+    Ok(Some(entries))
+}
+
+/// Where one journal entry is restored, or recovery's refusal of a path outside the project.
+fn pending_transaction_entry_path(root: &Path, entry: &TransactionEntry) -> Result<PathBuf, String> {
+    safe_project_path(root, &entry.path).map_err(|error| {
+        invalid_journal_error(
+            &root.join(TRANSACTION_PATH),
+            &format!("entry `{}`: {error}", entry.path),
+        )
+    })
+}
+
+fn recover_pending_transaction(root: &Path) -> Result<(), String> {
+    let Some(entries) = read_pending_transaction(root)? else {
+        return Ok(());
+    };
     for entry in entries {
-        let path = safe_project_path(root, &entry.path).map_err(|error| {
-            invalid_journal_error(&journal_path, &format!("entry `{}`: {error}", entry.path))
-        })?;
+        let path = pending_transaction_entry_path(root, &entry)?;
         if let Some(original) = entry.original {
             atomic_write_durable(&path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
@@ -735,7 +753,7 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
             remove_empty_transaction_directories(root, path.parent());
         }
     }
-    remove_file_durable(&journal_path)
+    remove_file_durable(&root.join(TRANSACTION_PATH))
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 

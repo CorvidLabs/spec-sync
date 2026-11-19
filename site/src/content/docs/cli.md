@@ -493,8 +493,11 @@ Only three things skip a check. When the change does not load, or its state does
 approval, every later check is skipped. When `deltas` refuses, `approval_record` is skipped,
 because it digests the same delta bodies. `lifecycle_lock` refuses when an interrupted lifecycle
 write is waiting to be recovered: a real approval recovers it first, which is a write, so the dry
-run says so, runs nothing else, and leaves it alone. Without `--actor` the actor comes from Git
-or `$USER`, as in a real approval, and `actor` is its own check so a caller can set it aside.
+run says so, runs nothing else, and leaves it alone. A journal that cannot be replayed, because
+it does not read or names a path outside the project, is different: `change approve` refuses it
+with `invalid transaction journal at <path>`, and the dry run gives that same refusal. Without
+`--actor` the actor comes from Git or `$USER`, as in a real approval, and `actor` is its own
+check so a caller can set it aside.
 
 For a separately created draft successor called `update-ui`, dependency and exact succession
 are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full

@@ -808,6 +808,10 @@ fn the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay() 
             "a journal entry outside the project",
             "[{\"path\": \"../outside.txt\", \"original\": \"x\"}]\n",
         ),
+        (
+            "a journal whose integrity envelope does not hold",
+            "{\"schema_version\": 1, \"entry_count\": 2, \"entries_digest\": \"0\", \"entries\": []}\n",
+        ),
     ] {
         let project = Project::new();
         let id = project.clean_draft();

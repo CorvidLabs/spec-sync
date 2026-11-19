@@ -356,20 +356,23 @@ impl<'a> ApprovalRun<'a> {
 /// Whether the lifecycle lock could be taken, without taking it (REQ-change-163).
 ///
 /// Acquiring the lock creates `.specsync/change.lock` and recovers an interrupted lifecycle
-/// write, and a dry run writes nothing. So it runs the lock's own no-symlink walk on the lock
-/// path, which predicts that refusal, and it refuses when a write is waiting to be recovered:
-/// a real approval recovers it first, and what the tree holds after that is not known here.
+/// write, and a dry run writes nothing. So it asks what the lock asks, read-only. The lock's own
+/// no-symlink walk on the lock path predicts that refusal. A journal recovery cannot replay,
+/// because it does not read or names a path outside the project, is a refusal the real approval
+/// gives too, so it is reported in recovery's own words. A journal that reads is the one case
+/// with no counterpart: a real approval recovers it first, and what the tree holds after that is
+/// not known here, so the dry run says a write is waiting and checks nothing else.
 fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
     reject_symlink_components_for(root, &root.join(LOCK_PATH), "lifecycle lock path")?;
-    if fs::symlink_metadata(root.join(TRANSACTION_PATH)).is_ok() {
-        return Err(format!(
-            "an interrupted lifecycle write is waiting to be recovered (`{TRANSACTION_PATH}`); the next \
-             lifecycle command that writes recovers it before it checks anything, and a dry run writes \
-             nothing, so it cannot say what `change approve` would find. Run the dry run again once that \
-             write is recovered"
-        ));
+    let Some(entries) = read_pending_transaction(root)? else {
+        return Ok(());
+    };
+    for entry in &entries {
+        pending_transaction_entry_path(root, entry)?;
     }
-    Ok(())
+    Err(format!(
+        "an interrupted lifecycle write is waiting to be recovered (`{TRANSACTION_PATH}`); the next          lifecycle command that writes recovers it before it checks anything, and a dry run writes          nothing, so it cannot say what `change approve` would find. Run the dry run again once that          write is recovered"
+    ))
 }
 
 /// Record a definition approval, or the portable 5.0.1 pair, carrying an optional relayed

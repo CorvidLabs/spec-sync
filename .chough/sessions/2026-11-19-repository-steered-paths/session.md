@@ -21,7 +21,7 @@ modules:
   - commands
   - generator
   - merge
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -32,12 +32,19 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-19-on-base-1b3974e9-with-only-the-new-tests-added-dfdaf4f6-22-of]
-bugs: []
+observations:
+  - 2026-11-19-on-base-1b3974e9-with-only-the-new-tests-added-dfdaf4f6-22-of
+  - 2026-11-19-with-the-fix-at-e60fbf8e-all-24-new-integration-tests-both-new
+  - 2026-11-19-on-linux-at-e60fbf8e-change-5-a-clean-copy-in-a-local-rust-1
+bugs: [2026-11-19-repository-steered-writes-reads-and-caches]
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+    holds: accept
+    drives: review
+    opened: 2026-11-19T20:34:07Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # Writes, reads and caches a repository can steer stay inside its Git work tree, never reach the Git directory, and never hide a failure (F2-F9, R1, R2, G1 and point 6 of the independent review, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -56,6 +63,8 @@ Writes, reads and caches a repository can steer stay inside its Git work tree, n
 ## What was verified
 
 - [On base 1b3974e9 with only the new tests added (dfdaf4f6): 22 of 24 new integration tests and both new hash_cache unit tests fail (also REQ-cmd-check-020/021, REQ-hash-cache-009/010, REQ-cmd-import-004, REQ-cmd-init-registry-004). change answer and change approve wrote change.md through a committed link out and into a pre-commit hook; change answer created a dangling artifact link's outside target; change new built its workspace in a linked .specsync/changes; check --fix --backup copied into a linked backup-fix and over a linked backup file; init-registry created its registry in a linked .specsync; hooks install appended into a Git hook through CLAUDE.md; a subproject's links that stay in the repository were refused, and an absolute link was not refused as one; a tracked hashes.json was used by check and rewritten by rehash, and a forged pass in it replayed; a configured directory outside the project was not a config error, and a specs link out and a 257-level tree did not stop discovery; changelog gave no skip for an over-bound blob; import --from-dir imported through links out; prune kept keys outside the project; the write scan found 117 direct writes and the read scan 27 direct reads outside the helpers. The two controls (a subproject link out still refused; a backup with no link) pass.](evidence/2026-11-19-on-base-1b3974e9-with-only-the-new-tests-added-dfdaf4f6-22-of.md)
+- [With the fix at e60fbf8e, all 24 new integration tests, both new hash_cache unit tests and the 7 new util unit tests pass (also REQ-cmd-check-020/021, REQ-hash-cache-009/010, REQ-cmd-import-004, REQ-cmd-init-registry-004, REQ-git-utils-012/013, REQ-agents-013 and the write-scan requirements), the write and read scans find no direct project file write or read outside the helpers, and the full verify lane passes: unit 3116 passed, 0 failed, 2 ignored; integration 689 passed, 0 failed; fmt, clippy, the release build, the strict spec check at 62 specs and 100 percent coverage, and the gate scripts.](evidence/2026-11-19-with-the-fix-at-e60fbf8e-all-24-new-integration-tests-both-new.md)
+- [On Linux at e60fbf8e (change 5), a clean copy in a local rust:1.89-bookworm container, run as a normal user with jq installed: cargo clippy --all-targets -D warnings passes; cargo test --no-fail-fast passes with the unit suite at 3120 passed, 0 failed, 2 ignored and the integration suite at 692 passed, 0 failed.](evidence/2026-11-19-on-linux-at-e60fbf8e-change-5-a-clean-copy-in-a-local-rust-1.md)
 
 ## Open threads
 
@@ -118,4 +127,20 @@ Writes, reads and caches a repository can steer stay inside its Git work tree, n
   - native_change: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
   - gate: native:approved
   - revision: 1b3974e9a025f37ce712d4ad627e99f780d6f207
+  - by: claude-code (hc t5r)
+- 2026-11-19T20:34:04Z · advance · build → test · native:verifying ^t-70a4a2
+  - native_change: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+  - gate: native:verifying
+  - revision: e60fbf8e02faa643254590c1b4b5f5a659aa54d9
+  - by: claude-code (hc t5r)
+- 2026-11-19T20:34:07Z · advance · test → accept · native:verifying ^t-e497ec
+  - native_change: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+  - gate: native:verifying
+  - revision: e60fbf8e02faa643254590c1b4b5f5a659aa54d9
+  - by: claude-code (hc t5r)
+- 2026-11-19T20:34:07Z · gate-opened · accept → accept · Implementation review of keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree ^t-1d5e34
+  - native_change: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+  - revision: e60fbf8e02faa643254590c1b4b5f5a659aa54d9
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

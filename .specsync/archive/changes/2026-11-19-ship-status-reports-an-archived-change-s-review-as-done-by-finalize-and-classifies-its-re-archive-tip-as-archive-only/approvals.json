@@ -1,0 +1,110 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1794545475,
+      "digest": "4a1c7a98094c553bf49cff0999aa75b445e2282ba028bee150b686d36d190437",
+      "note": "Leif classed #1038 a bug fix and chose its behaviour himself on 2026-11-13. This change reports an archived change's review as done by finalize with no re-review, and classifies a re-archive tip that removes its own package files as archive_only, as CI does. Prepared and recorded by claude-code-t38p.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+        "title": "Ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+        "description": "ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-cmd-change-007's tip class mirrors CI's archive-only lane, which counts the archived change's own package paths as archive work; SHIP-9.a names the one command when it is not time, never a review that refuses. Leif classed #1038 a bug fix on 2026-11-13: for an archived change, report the review as done by finalize and suggest nothing",
+        "acceptance_criteria": [
+          "on an archived change whose archive authenticates, ship-status reports review_currency current with a finalize reason, a done review stage and no change review suggestion; an archive commit that also removes the archived change's own package files is archive_only, and another change's package beside it is product"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Asked 'SpecSync #1038: ship-status on an already-archived change says the review is stale and suggests a review that's refused. How to treat it?', he chose \"Bug fix (Recommended)\" (option text: 'For an archived change, report the review as done by finalize and suggest nothing.').",
+        "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T04:39Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
+        "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795097306,
+      "digest": "73009a7e4a492cf6692d3986b9ae9548a3deea301b73dad4eb5394e36329a085",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only\": \"Approve\" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:21Z, on the new acceptance criterion line for #1038's change in ss-lead/gates/1093-1038-criterion.md ('New'); relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T14:08:25Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+        "title": "Ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+        "description": "ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "REQ-cmd-change-007's tip class mirrors CI's archive-only lane, which counts the archived change's own package paths as archive work; SHIP-9.a names the one command when it is not time, never a review that refuses. Leif classed #1038 a bug fix on 2026-11-13: for an archived change, report the review as done by finalize and suggest nothing",
+        "acceptance_criteria": [
+          "on an archived change that finalize archived and whose archive authenticates, ship-status reports review_currency current with a finalize reason, a done review stage and no change review suggestion; an archived change that finalize did not archive gets a done review stage and no change review suggestion; an archive commit that also removes the archived change's own package files is archive_only, and another change's package beside it is product"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:21Z, on the new acceptance criterion line for #1038's change in ss-lead/gates/1093-1038-criterion.md ('New'); relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795099146,
+      "digest": "fe5b91c76916305534153d5d9fd153764ec827faaf4beb4ace19f94a236aff93",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only",
+      "actor": "0xLeif",
+      "reason": "The first acceptance criterion gains 'that finalize archived': a workflow-v1 archive is not done by finalize (review of PR #1093)",
+      "timestamp": 1795097252,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true
+    }
+  ]
+}

@@ -2705,9 +2705,15 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
 ///
 /// The row described the change as `{id}: {title}` in whichever column the table calls its
 /// description, so it is found by that prefix inside the `## Change Log` section rather than by
-/// rebuilding a row and comparing it. A table that `specsync compact` or a human has since
-/// reformatted still counts, and the trailing colon keeps one slug from matching another that
-/// merely extends it.
+/// rebuilding a row and comparing it. A row names the change when one of its table cells begins
+/// with `{id}:` as written, or just inside the one Markdown marker that opens the cell where that
+/// marker closes right after it or at the cell's end (`cell_names_change`), so a row
+/// `specsync compact` or a human has reformatted (`**{id}:**`) still counts. A cell's padding is
+/// not part of its text, so an id's leading spaces are not compared. Anything else does not: the id
+/// mentioned in another
+/// row's prose (Codex's review of #1088), or a longer id that merely ends with it, so `one-session:`
+/// is not a row for `session`. This one matcher decides both "the module records the change" and
+/// "the change is recorded twice" (#1086 review).
 fn changelog_records_change(spec: &str, id: &str) -> bool {
     let Some(position) = spec.rfind("## Change Log") else {
         return false;
@@ -2716,7 +2722,88 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     let end = spec[start..]
         .find("\n## ")
         .map_or(spec.len(), |offset| start + offset);
-    spec[start..end].contains(&format!("{id}:"))
+    // A cell's surrounding spaces are padding, so an id's leading spaces, which stand where that
+    // padding is, are not compared (Codex's review of 8266e6c6); its trailing ones meet the `:`.
+    let needle = format!("{}:", id.trim_start());
+    spec[start..end]
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('|'))
+        .any(|row| {
+            table_row_cells(row)
+                .iter()
+                .any(|cell| cell_names_change(cell.trim(), &needle))
+        })
+}
+
+/// A Markdown table row's cells as Markdown reads them: split on pipes no backslash escapes, each
+/// `\|` a pipe inside its cell (Codex's review of 0cdd7f41: the cell `a\|b: Title` is the row of
+/// the id `a|b`). The empty text before a row's leading pipe and after its trailing one is kept;
+/// an empty cell never begins with an id.
+fn table_row_cells(row: &str) -> Vec<String> {
+    let mut cells = Vec::new();
+    let mut cell = String::new();
+    let mut characters = row.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' if characters.peek() == Some(&'|') => {
+                characters.next();
+                cell.push('|');
+            }
+            '|' => cells.push(std::mem::take(&mut cell)),
+            other => cell.push(other),
+        }
+    }
+    cells.push(cell);
+    cells
+}
+
+/// Whether a Change Log cell begins with `needle` (`<id>:`): the raw cell first, so an id that
+/// itself begins with `*`, `_` or a backtick is matched as written, then `needle` just inside the
+/// one Markdown marker that opens the cell (`**`, `__`, `*`, `_` or a backtick, the longest that
+/// fits) when that marker closes right after it (`**<id>:** Title`) or at the end of the cell
+/// (`**<id>: Title**`). A marker that never closes belongs to the id, so `*hotfix: Hot` is the row
+/// of `*hotfix` and not of `hotfix` (Codex's and ss-lead's reviews of #1088).
+fn cell_names_change(cell: &str, needle: &str) -> bool {
+    if cell.starts_with(needle) {
+        return true;
+    }
+    let Some(marker) = ["**", "__", "*", "_", "`"]
+        .into_iter()
+        .find(|marker| cell.starts_with(marker))
+    else {
+        return false;
+    };
+    cell[marker.len()..]
+        .strip_prefix(needle)
+        .is_some_and(|after| after.starts_with(marker) || after.trim_end().ends_with(marker))
+}
+
+/// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the
+/// lifecycle never writes that table, which is frozen, and a change's history goes to its own
+/// fragment (#1086 review). Approve, check, verify and accept ask it; an archive is never re-judged.
+fn refuse_change_log_delta_items(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if record.no_spec_change {
+        return Ok(());
+    }
+    for module in &record.affected_specs {
+        let path = delta_path_checked(root, record, module)?;
+        let Ok(delta) = read_bounded_change_text(&path, "semantic delta") else {
+            continue;
+        };
+        let Ok(items) = parse_delta(&delta) else {
+            continue;
+        };
+        if items.iter().any(is_change_log_section) {
+            // The printed command runs as printed whatever the id holds (Codex's review of #1088).
+            return Err(format!(
+                "semantic delta for `{module}` targets its `## Change Log` section, which SpecSync no longer writes: the table is frozen, and `change check` records this change in `history/{id}.md` beside the spec; take the `SPEC SECTION Change Log` item out of `.specsync/changes/{id}/deltas/{module}.md`, then run `specsync change approve {word}`",
+                id = record.id,
+                word = shell_word(&record.id)
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Materialization writes TWO outputs per module, and the `canonical_applied` short-circuit

@@ -600,6 +600,21 @@ Acceptance Criteria
 - `--format json` lists the table rows and the fragments separately.
 - An unknown module and a malformed fragment each exit 1 and name the module or the file.
 
+### REQ-cmd-change-039
+
+`change ship-status` SHALL exit 1 whenever its report names a blocker, after printing the whole
+report, for one change and for the roster. JSON output SHALL stay one document. A report with no
+blocker SHALL exit 0 as before (#654).
+
+#### Acceptance Criteria
+
+- An approved change with no verification evidence: `change ship-status <id>` prints its
+  `Blocker:` line and exits 1, and `--json` prints one document with a non-empty `blockers`
+  list and exits 1.
+- `change ship-status` with no id exits 1, in text and in JSON, when any listed change has a
+  blocker.
+- A change ready to finalize, and a closed-late change, exit 0 as before.
+
 ### REQ-cmd-change-040
 
 `specsync change approve <id> --dry-run` SHALL print the dry run of REQ-change-163 and record nothing. It SHALL take the flags `change approve` takes and check them as the approval does. In text it SHALL print one line for each refused check, with the check's name and its message, one line for each skipped check naming the refused check it waits on, and a closing line that says whether the change would be approved and that nothing was written. With `--json` it SHALL print one document holding the change id, `dry_run: true`, `would_approve`, and `checks`: one entry per check in approval order, with its `check` name, its `result` (`passed`, `refused` or `skipped`), the `message` of a refused check and the `skipped_because` check of a skipped one. A refused `definition` entry for a draft with an unanswered interview question, and a refused `ownership` entry whose message names the `change answer … affected_specs` command that declares the owning modules, SHALL also carry `fix`: that same command as plain text, built by the code that writes it into the message and never read back out of the message; no other entry SHALL carry `fix`. A `fix` MAY hold a placeholder in angle brackets, such as `<observable outcome>` or `<yes|no>`, that the caller must fill in, so a `fix` SHALL NOT be described as safe to run as printed. It SHALL exit 0 when no check refuses and 1 when any does, and SHALL NOT print a refusal as the `error` document a real refusal prints.

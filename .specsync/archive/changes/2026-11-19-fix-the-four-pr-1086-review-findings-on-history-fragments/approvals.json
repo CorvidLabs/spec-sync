@@ -1,0 +1,177 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795054316,
+      "digest": "57ff43bb2e09d21903abb28da75802293dafbbb2d860ff9780b9157c0a80b000",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of fix-the-four-pr-1086-review-findings-on-history-fragments\": \"Merge, fix all 4 in a follow-up before release\" (Leif's decision on PR #1086's four Codex review findings, 2026-11-18, relayed by his planning session hc t4c; under his approval of spec-sync #1084 written on the issue). Relayed and recorded by claude-code-t4t at 2026-11-19T02:11:54Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+        "title": "Fix the four PR 1086 review findings on history fragments",
+        "description": "Fix the four PR 1086 review findings on history fragments",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/hash_cache/",
+          "src/change/",
+          "src/change_tests/",
+          "src/hash_cache.rs",
+          "tests/integration/spec_history.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Every valid change id round-trips through its fragment; a fragment swapped for a same-bytes symlink is re-validated instead of replaying a cached pass; a delta item that targets the Change Log is refused at approve, check, verify and accept; a reformatted legacy row plus a fragment is refused as a double record and a row for one-session does not count for session"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-159 and REQ-change-160 (#1084), REQ-hash-cache-006, and the #741 lesson that the record of a change in a module is the evidence that materialization ran",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "598fd5b9280aec5c6e80227e069e3551887f763a5cf7900b7010efdf94c31185",
+        "hash_cache": "aa6897578e9ea3408528ef2fb227a67777b65fd2051cef095ea355ee16ab307d"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-159": "f5a5526ece78d22dfa17f238099bea752b9bcb4277fdf2be36baf57ef518bcbd",
+        "change: REQUIREMENT REQ-change-160": "b67bf93d0eae8313aef93f0da747a534f9eae08abbfe455be3579079a6928be4",
+        "hash_cache: REQUIREMENT REQ-hash-cache-006": "a99f9fee2894e6e35a70e8f472f8a0afd6e9401736667d62ee01f67208190931"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Merge, fix all 4 in a follow-up before release",
+        "where": "Leif's decision on PR #1086's four Codex review findings, 2026-11-18, relayed by his planning session hc t4c; under his approval of spec-sync #1084 written on the issue",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795059710,
+      "digest": "57ff43bb2e09d21903abb28da75802293dafbbb2d860ff9780b9157c0a80b000",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 wording)\": \"Approve\" (Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-159 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58). Relayed and recorded by claude-code-t4t at 2026-11-19T03:41:44Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+        "title": "Fix the four PR 1086 review findings on history fragments",
+        "description": "Fix the four PR 1086 review findings on history fragments",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/hash_cache/",
+          "src/change/",
+          "src/change_tests/",
+          "src/hash_cache.rs",
+          "tests/integration/spec_history.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Every valid change id round-trips through its fragment; a fragment swapped for a same-bytes symlink is re-validated instead of replaying a cached pass; a delta item that targets the Change Log is refused at approve, check, verify and accept; a reformatted legacy row plus a fragment is refused as a double record and a row for one-session does not count for session"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-159 and REQ-change-160 (#1084), REQ-hash-cache-006, and the #741 lesson that the record of a change in a module is the evidence that materialization ran",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1155614e9963087a858da5572d0c747beccee53b228f8b19273e719760f5b9bf",
+        "hash_cache": "aa6897578e9ea3408528ef2fb227a67777b65fd2051cef095ea355ee16ab307d"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-159": "d36bd873c7981b0ab3831e7d82149317c25dfc606a4530ea3a108c4ee451edef",
+        "change: REQUIREMENT REQ-change-160": "8bb65743ae4646fda39f0c9e860dd0c0a29415fea174722dc159bf7d06d6cdb0",
+        "hash_cache: REQUIREMENT REQ-hash-cache-006": "a99f9fee2894e6e35a70e8f472f8a0afd6e9401736667d62ee01f67208190931"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-159 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795065575,
+      "digest": "57ff43bb2e09d21903abb28da75802293dafbbb2d860ff9780b9157c0a80b000",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 matcher clause, round 3)\": \"Approve\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T05:19:30Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+        "title": "Fix the four PR 1086 review findings on history fragments",
+        "description": "Fix the four PR 1086 review findings on history fragments",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/hash_cache/",
+          "src/change/",
+          "src/change_tests/",
+          "src/hash_cache.rs",
+          "tests/integration/spec_history.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Every valid change id round-trips through its fragment; a fragment swapped for a same-bytes symlink is re-validated instead of replaying a cached pass; a delta item that targets the Change Log is refused at approve, check, verify and accept; a reformatted legacy row plus a fragment is refused as a double record and a row for one-session does not count for session"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-159 and REQ-change-160 (#1084), REQ-hash-cache-006, and the #741 lesson that the record of a change in a module is the evidence that materialization ran",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c98dc0650c11cdac0cc57a77d1984e58b276932bdf9a6922bfa31066ec830f6e",
+        "hash_cache": "aa6897578e9ea3408528ef2fb227a67777b65fd2051cef095ea355ee16ab307d"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-159": "06334feb3c4b0b086f4322be341e51b0951294bbb18d58b808624dfe4361b532",
+        "change: REQUIREMENT REQ-change-160": "8bb65743ae4646fda39f0c9e860dd0c0a29415fea174722dc159bf7d06d6cdb0",
+        "hash_cache: REQUIREMENT REQ-hash-cache-006": "a99f9fee2894e6e35a70e8f472f8a0afd6e9401736667d62ee01f67208190931"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795097211,
+      "digest": "b32a20290b705add7a60f3b323fb79d809f2e3d63803decb17eec9a6cccf6c83",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

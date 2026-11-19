@@ -3471,6 +3471,12 @@ fn materialize_change_deltas_inner(
     ensure_definition_approval_valid(root, &record)?;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
+    if let Err(error) = refuse_change_log_delta_items(root, &record) {
+        // #847: a refusal before verification still leaves a record of itself (Codex's review of
+        // #1088).
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
+    }
     // Deliberately ABOVE the `canonical_applied` short-circuit. Once the deltas are applied this
     // function stops writing specs, so a check placed below would never see a swap on any run
     // after the first — and the workspace would keep shipping a delta that no longer describes
@@ -3669,6 +3675,12 @@ fn verify_change_locked(
     ensure_definition_approval_valid(root, &record)?;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
+    if let Err(error) = refuse_change_log_delta_items(root, &record) {
+        // #847: a refusal before verification still leaves a record of itself (Codex's review of
+        // #1088).
+        let _ = record_refused_attempt(root, &record, &error);
+        return Err(error);
+    }
     ensure_no_orphaned_applied_text(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;

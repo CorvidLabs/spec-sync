@@ -30,3 +30,6 @@ Stable and complete. Used by `cmd_check` for incremental validation. Public API 
 - Depends on `sha2` (hashing) and `serde`/`serde_json` (cache serialization); conceptually pairs with `parser` for frontmatter.
 - `ChangeClassification::has` takes `&ChangeKind`; `is_changed(&self)` reports whether any change was recorded.
 - Cache lives under `.specsync/` alongside other spec-sync state.
+
+@plane z=5 label="Bind what the check judges, not only the bytes (#1088)"
+The validation snapshot replays a stored verdict when its inputs are unchanged. #1084 made `check` validate a spec's `history/` fragments, so their names and bytes joined the digest, but `check` also refuses an entry that is not a regular file, and a fragment swapped for a symlink to the same bytes left the digest unchanged and replayed a clean verdict over it. The digest frames each `history/` entry's type (file, directory, symlink, other) beside its bytes, and the type of the folder itself. When a new rule makes `check` judge something about a file, that something belongs in the digest.

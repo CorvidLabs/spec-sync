@@ -283,7 +283,11 @@ impl<'a> ApprovalRun<'a> {
                     refusal.message
                 })
             }
-            ApprovalStep::Deltas => validate_delta_files(self.root, self.loaded()?),
+            ApprovalStep::Deltas => {
+                validate_delta_files(self.root, self.loaded()?)?;
+                // #1088: a delta aimed at the frozen `## Change Log` section is refused here.
+                refuse_change_log_delta_items(self.root, self.loaded()?)
+            }
             ApprovalStep::Ownership => {
                 validate_declared_path_ownership_with_fix(self.root, self.loaded()?).map_err(
                     |refusal| {

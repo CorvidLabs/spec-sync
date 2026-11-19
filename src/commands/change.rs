@@ -77,6 +77,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     // Set when `change approve --dry-run` reports a refusal; the command exits 1 once its report
     // is printed (REQ-cmd-change-040).
     let mut approval_dry_run_refused = false;
+    // Set when `change ship-status` reports a blocker; the command exits 1 once its report is
+    // printed (#654).
+    let mut ship_status_blocked = false;
     let result = (|| {
         match action {
         ChangeAction::New {
@@ -182,6 +185,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 closed_late_report(root, &id, format, "change ship-status").unwrap_or_else(|| {
                     change::load_change(root, &id)
                         .and_then(|record| print_ship_status(root, &record, format))
+                        .map(|blocked| ship_status_blocked |= blocked)
                 })
             } else {
                 change::list_changes(root).and_then(|roster| {
@@ -198,6 +202,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         .map(|record| ship_status_report(root, record))
                         .collect::<Result<Vec<_>, _>>()
                         .map(|reports| {
+                            ship_status_blocked |= reports.iter().any(reports_a_blocker);
                             let error = unreadable_error(&roster).err();
                             let degraded = roster.is_degraded();
                             print_json(&serde_json::json!({
@@ -215,7 +220,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     records
                         .iter()
                         .try_for_each(|record| {
-                            print_ship_status(root, record, format)?;
+                            ship_status_blocked |= print_ship_status(root, record, format)?;
                             println!();
                             Ok(())
                         })
@@ -821,6 +826,11 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
     if approval_dry_run_refused {
         process::exit(1);
     }
+    // The report is already out, with its blockers named; exiting here rather than returning Err
+    // keeps JSON stdout one document (#654).
+    if ship_status_blocked {
+        process::exit(1);
+    }
 }
 
 /// Print what `change approve --dry-run` found (REQ-cmd-change-040). JSON is the report itself.
@@ -870,6 +880,13 @@ fn print_approval_dry_run(report: &change::ApprovalDryRun, format: OutputFormat)
             report.id
         );
     }
+}
+
+/// Whether a ship-status report names at least one blocker.
+fn reports_a_blocker(report: &serde_json::Value) -> bool {
+    report["blockers"]
+        .as_array()
+        .is_some_and(|blockers| !blockers.is_empty())
 }
 
 /// The read deadline for a read-only command, from `--timeout` or `SPECSYNC_TIMEOUT`
@@ -1345,6 +1362,12 @@ fn print_change_text_answers(record: &ChangeRecord) {
 /// `approval_current_for_guidance` returns.
 fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
     let id = record.id.as_str();
+    // A project-wide sequence-ledger freeze blocks every verb, so it comes first, in the same
+    // order as JSON status: before the `verification_ignored_paths` repair and the upstream
+    // archive (REQ-change-138, REQ-cmd-change-034, #908, #937).
+    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
+        return remediation;
+    }
     // The same refusal every later verb would give, named before any state-local step
     // (REQ-change-115). It carries entry paths and rule text only, never a digest.
     if record.state != ChangeState::Archived
@@ -1353,11 +1376,6 @@ fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
         return format!(
             "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
         );
-    }
-    // A project-wide sequence-ledger freeze blocks every verb, so it outranks the upstream
-    // archive, in the same order as JSON status (#908, REQ-cmd-change-034).
-    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
-        return remediation;
     }
     // After the project-wide refusals above, in the same order as JSON status: an archive of
     // this id on the remote default makes review and finalize refuse (REQ-cmd-change-029).
@@ -1497,7 +1515,17 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // read-only command in between. #689 moved the verification half of this very conjunction
     // onto content and left the review half asking whether a file was on disk.
     let review_currency = change::recorded_scoped_review_currency(root, record);
-    let review_status = ShipReviewStatus::resolve(review_currency.as_ref(), review_present);
+    // An archived change's review was required current by finalize, and an authenticating archive
+    // still holds it. The descendant walk always reads the archive commit as a later change, so it
+    // is not asked here, and no re-review is suggested: `change review` refuses an archived
+    // change (#1038).
+    let review_finalized =
+        review_present && change::archived_review_is_settled_by_finalize(root, record);
+    let review_status = if review_finalized {
+        ShipReviewStatus::Current
+    } else {
+        ShipReviewStatus::resolve(review_currency.as_ref(), review_present)
+    };
 
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
@@ -1739,7 +1767,11 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "verification_ancestor_of_head": verification_ancestor,
         "review_present": review_present,
         "review_currency": review_status.label(),
-        "review_currency_reason": review_currency.as_ref().and_then(|currency| currency.reason()),
+        "review_currency_reason": if review_finalized {
+            Some("finalize recorded this scoped review when it archived the change")
+        } else {
+            review_currency.as_ref().and_then(|currency| currency.reason())
+        },
         "ready_to_finalize": ready_to_finalize,
         "blockers": blockers,
         "warnings": warnings,
@@ -2306,7 +2338,9 @@ fn ship_stages(
     // `ready_to_finalize: false` is the same recommend-then-refuse contradiction one line
     // lower, and it is also what leaves `current_stage` empty — which drops `ship_next` back
     // to the generic lifecycle line instead of naming the recovery.
-    let review_status = if retired || review.current() {
+    // An archived change has no review left to record: `change review` refuses it (#1038).
+    let archived = record.state == ChangeState::Archived;
+    let review_status = if retired || review.current() || archived {
         "done"
     } else if product_done {
         "current"
@@ -2319,6 +2353,12 @@ fn ship_stages(
         "status": review_status,
         "action": if retired {
             "no scoped review applies; the change was retired without implementation acceptance".to_string()
+        } else if review.current() && archived {
+            "done by finalize: the scoped review was current when this change was archived".to_string()
+        } else if archived {
+            // Not settled by finalize: a workflow-v1 archive, or one whose finalization record
+            // does not hold. Nothing is suggested, least of all a review that refuses.
+            "no scoped review to record: this change is archived, and its archive holds no review bound by `change finalize` (a change closed by `change accept` and `change archive` has none)".to_string()
         } else if review.current() {
             "scoped review is recorded and current".to_string()
         } else if product_done && review.present() {
@@ -2395,22 +2435,39 @@ fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
 
     let paths = if let Some(tip) = tip_sha.as_ref() {
         if let Some(parent) = parent_sha.as_ref() {
-            git_diff_name_only(root, parent, tip).unwrap_or_default()
+            git_diff_name_status(root, parent, tip).unwrap_or_default()
         } else {
-            git_show_name_only(root, tip).unwrap_or_default()
+            git_show_name_status(root, tip).unwrap_or_default()
         }
     } else {
         Vec::new()
     };
 
-    // Dirty working tree paths also count as product when present.
-    let mut dirty = git_status_name_only(root).unwrap_or_default();
-    let mut all_paths = paths;
-    all_paths.append(&mut dirty);
-    all_paths.sort();
-    all_paths.dedup();
+    // Dirty working tree paths also count as product when present. A path the tip and the dirty
+    // tree change in different ways is neither a clean addition nor a clean removal.
+    let dirty = git_status_name_status(root).unwrap_or_default();
+    let mut change_by_path = std::collections::BTreeMap::new();
+    for TipPath { path, change } in paths.into_iter().chain(dirty) {
+        change_by_path
+            .entry(path)
+            .and_modify(|seen| {
+                if *seen != change {
+                    *seen = TipChange::Other;
+                }
+            })
+            .or_insert(change);
+    }
+    let all_paths: Vec<TipPath> = change_by_path
+        .into_iter()
+        .map(|(path, change)| TipPath { path, change })
+        .collect();
 
-    let tip_class = classify_paths(&all_paths).to_string();
+    let tip_class = classify_paths_with(
+        &all_paths,
+        |directory| archived_package_identity(root, directory),
+        |id| root.join(".specsync/changes").join(id).exists(),
+    )
+    .to_string();
     Ok(HeadTip {
         tip_class,
         tip_sha,
@@ -2418,15 +2475,117 @@ fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
     })
 }
 
+/// The `id` and workflow version an archived package's `state.json` records, the identity CI's
+/// classifier reads too. A state with no `workflow_version` is workflow v1, as it is there.
+fn archived_package_identity(root: &Path, directory: &str) -> Option<(String, u64)> {
+    let state = fs::read_to_string(
+        root.join(".specsync/archive/changes")
+            .join(directory)
+            .join("state.json"),
+    )
+    .ok()?;
+    let state = serde_json::from_str::<serde_json::Value>(&state).ok()?;
+    let id = state.get("id")?.as_str()?.to_string();
+    let workflow_version = match state.get("workflow_version") {
+        None => 1,
+        Some(version) => version.as_u64()?,
+    };
+    Some((id, workflow_version))
+}
+
+/// How the tip changed one path, as far as the archive-only shape cares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TipChange {
+    /// Added, or the target of a rename.
+    Added,
+    /// Deleted.
+    Removed,
+    /// Modified, copied, or anything else.
+    Other,
+}
+
+/// One path the tip touched, in its commit or dirty in the working tree, and how it changed.
+#[derive(Debug, Clone)]
+struct TipPath {
+    path: String,
+    change: TipChange,
+}
+
+#[cfg(test)]
 fn classify_paths(paths: &[String]) -> &'static str {
+    let paths: Vec<TipPath> = paths
+        .iter()
+        .map(|path| TipPath {
+            path: path.clone(),
+            change: TipChange::Other,
+        })
+        .collect();
+    classify_paths_with(&paths, |_| None, |_| true)
+}
+
+/// `archive_identity` gives the change an archive directory holds and its workflow version, and
+/// `package_exists` says whether `.specsync/changes/<id>` is still there.
+///
+/// A change's own package paths under `.specsync/changes/<id>/` are archive work too, but only
+/// when the tip has the one shape `.github/scripts/classify-ci-paths.sh` accepts in its
+/// name-status mode (#1038): every archive path is an addition or a rename target, in one archive
+/// directory whose `state.json` names that change at workflow v2; every package path the tip
+/// lists is a deletion; and the package directory is gone. With a file modified inside an archive
+/// that already existed, or a package still present, the exemption is not granted and the package
+/// paths are judged as before. A tip that lists no package path is judged as before, too.
+fn classify_paths_with(
+    paths: &[TipPath],
+    archive_identity: impl Fn(&str) -> Option<(String, u64)>,
+    package_exists: impl Fn(&str) -> bool,
+) -> &'static str {
     if paths.is_empty() {
         return "other";
     }
+    let directory_under = |path: &str, root: &str| -> Option<String> {
+        path.strip_prefix(root)?
+            .split_once('/')
+            .map(|(directory, _)| directory.to_string())
+    };
+    let archive_directories: std::collections::BTreeSet<String> = paths
+        .iter()
+        .filter_map(|tip| directory_under(&tip.path, ".specsync/archive/changes/"))
+        .collect();
+    let active_ids: std::collections::BTreeSet<String> = paths
+        .iter()
+        .filter_map(|tip| directory_under(&tip.path, ".specsync/changes/"))
+        .collect();
+    let archived_package = (active_ids.len() == 1 && archive_directories.len() == 1)
+        .then(|| active_ids.first().cloned())
+        .flatten()
+        .filter(|id| {
+            archive_directories.iter().all(|directory| {
+                archive_identity(directory).is_some_and(|(archived, workflow_version)| {
+                    archived == *id && workflow_version == 2
+                })
+            })
+        })
+        .filter(|id| !package_exists(id))
+        .map(|id| format!(".specsync/changes/{id}/"))
+        .filter(|package| {
+            paths.iter().all(|tip| {
+                if tip.path.starts_with(package.as_str()) {
+                    tip.change == TipChange::Removed
+                } else if tip.path.starts_with(".specsync/archive/changes/") {
+                    tip.change == TipChange::Added
+                } else {
+                    true
+                }
+            })
+        });
     let mut has_archive = false;
     let mut has_review = false;
     let mut has_product = false;
-    for path in paths {
-        if path.starts_with(".specsync/archive/changes/") {
+    for path in paths.iter().map(|tip| tip.path.as_str()) {
+        if path.starts_with(".specsync/archive/changes/")
+            || archived_package
+                .as_deref()
+                .is_some_and(|package| path.starts_with(package))
+        {
             has_archive = true;
             continue;
         }
@@ -2464,16 +2623,19 @@ fn classify_paths(paths: &[String]) -> &'static str {
     }
 }
 
+/// Print one change's ship-status report. `Ok(true)` when the report names a blocker, so the
+/// command exits 1 after printing (#654).
 fn print_ship_status(
     root: &Path,
     record: &ChangeRecord,
     format: OutputFormat,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let report = ship_status_report(root, record)?;
+    let blocked = reports_a_blocker(&report);
     match format {
         OutputFormat::Json => {
             print_json(&report);
-            Ok(())
+            Ok(blocked)
         }
         _ => {
             println!(
@@ -2582,7 +2744,7 @@ fn print_ship_status(
             if let Some(next) = report["ship_next"].as_str() {
                 println!("  Next: {next}");
             }
-            Ok(())
+            Ok(blocked)
         }
     }
 }
@@ -3190,41 +3352,64 @@ fn git_rev_parse(root: &Path, rev: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn git_diff_name_only(root: &Path, from: &str, to: &str) -> Result<Vec<String>, String> {
+/// The paths `git diff --name-status -z` or `git show --name-status -z` printed. A rename or a
+/// copy is listed by its new path, as `--name-only` lists it. An addition and a rename target
+/// are `Added`, a deletion is `Removed`, and a copy or anything else is `Other`.
+fn tip_paths_from_name_status(stdout: &[u8]) -> Vec<TipPath> {
+    let mut fields = stdout
+        .split(|byte| *byte == 0)
+        .filter(|field| !field.is_empty())
+        .map(|field| String::from_utf8_lossy(field).into_owned());
+    let mut paths = Vec::new();
+    while let Some(status) = fields.next() {
+        let Some(first) = fields.next() else {
+            break;
+        };
+        let path = if status.starts_with('R') || status.starts_with('C') {
+            let Some(renamed_to) = fields.next() else {
+                break;
+            };
+            renamed_to
+        } else {
+            first
+        };
+        let change = match status.chars().next() {
+            Some('A' | 'R') => TipChange::Added,
+            Some('D') => TipChange::Removed,
+            _ => TipChange::Other,
+        };
+        paths.push(TipPath { path, change });
+    }
+    paths
+}
+
+fn git_diff_name_status(root: &Path, from: &str, to: &str) -> Result<Vec<TipPath>, String> {
     let output = crate::git_utils::output_after_child_exits(
         std::process::Command::new("git")
-            .args(["diff", "--name-only", from, to])
+            .args(["diff", "--name-status", "-z", from, to])
             .current_dir(root),
     )
     .map_err(|error| format!("git diff failed: {error}"))?;
     if !output.status.success() {
-        return Err("git diff --name-only failed".into());
+        return Err("git diff --name-status failed".into());
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(str::to_owned)
-        .collect())
+    Ok(tip_paths_from_name_status(&output.stdout))
 }
 
-fn git_show_name_only(root: &Path, commit: &str) -> Result<Vec<String>, String> {
+fn git_show_name_status(root: &Path, commit: &str) -> Result<Vec<TipPath>, String> {
     let output = crate::git_utils::output_after_child_exits(
         std::process::Command::new("git")
-            .args(["show", "--pretty=format:", "--name-only", commit])
+            .args(["show", "--pretty=format:", "--name-status", "-z", commit])
             .current_dir(root),
     )
     .map_err(|error| format!("git show failed: {error}"))?;
     if !output.status.success() {
-        return Err("git show --name-only failed".into());
+        return Err("git show --name-status failed".into());
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(str::to_owned)
-        .collect())
+    Ok(tip_paths_from_name_status(&output.stdout))
 }
 
-fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
+fn git_status_name_status(root: &Path) -> Result<Vec<TipPath>, String> {
     let output = crate::git_utils::output_after_child_exits(
         std::process::Command::new("git")
             .args(["status", "--porcelain", "-z"])
@@ -3244,7 +3429,17 @@ fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
         // "XY path" or "R  old\0new" handled loosely: take path after first three bytes.
         let path = text.get(3..).unwrap_or("").trim();
         if !path.is_empty() {
-            paths.push(path.to_string());
+            // A deletion in the index (`D `) or in the working tree (` D`); an untracked file
+            // (`??`) or one added to the index (`A `).
+            let change = match text.get(..2) {
+                Some(status) if status.contains('D') => TipChange::Removed,
+                Some("??" | "A ") => TipChange::Added,
+                _ => TipChange::Other,
+            };
+            paths.push(TipPath {
+                path: path.to_string(),
+                change,
+            });
         }
     }
     Ok(paths)
@@ -5964,6 +6159,544 @@ if the floor call is removed from this function"
             ]),
             "product"
         );
+    }
+
+    /// A change `release` whose package is active and committed, as it is after a reopen:
+    /// `change reopen` moves the package out of the archive, so no archive directory is left.
+    fn reopened_package_fixture(root: &Path) -> PathBuf {
+        git_in(root, &["init", "-q", "-b", "main"]);
+        git_in(root, &["config", "user.email", "t@example.com"]);
+        git_in(root, &["config", "user.name", "T"]);
+        let active = root.join(".specsync/changes/release");
+        fs::create_dir_all(&active).unwrap();
+        fs::write(active.join("change.md"), "# release\n\nReopened.\n").unwrap();
+        fs::write(active.join("tasks.md"), "# Tasks\n\n- [x] done\n").unwrap();
+        fs::write(
+            active.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"verifying\"\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            active.join("finalization.json"),
+            "{\"closing\": \"first\"}\n",
+        )
+        .unwrap();
+        fs::write(
+            active.join("verification.json"),
+            "{\"commit\": \"first\"}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "reopened"]);
+        active
+    }
+
+    /// Archive `release` the way `change finalize` leaves the tree: every package file moves
+    /// into the dated archive, `state.json` says archived, and `finalization.json` and
+    /// `verification.json` are written anew. Git then shows renames, two additions in the
+    /// archive and two deletions in the package. Not committed.
+    fn archive_the_reopened_package(root: &Path) -> PathBuf {
+        let active = root.join(".specsync/changes/release");
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(archive.parent().unwrap()).unwrap();
+        fs::rename(&active, &archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            archive.join("finalization.json"),
+            "{\"closing\": \"second\", \"implementation_commit\": \"0123456789abcdef\"}\n",
+        )
+        .unwrap();
+        fs::write(
+            archive.join("verification.json"),
+            "{\"commit\": \"second\", \"passed\": true, \"acceptance_input_digest\": \"fedcba\"}\n",
+        )
+        .unwrap();
+        archive
+    }
+
+    /// #1038: the archive commit of a change that was reopened is an archive-only tip. Git pairs
+    /// most package files as renames into the archive, but `finalization.json` and
+    /// `verification.json` are rewritten, so they show as deletions under
+    /// `.specsync/changes/<id>/` beside additions in the archive, and main read those deletions
+    /// as product work. Another change's package beside it is not this archive's work.
+    #[test]
+    fn an_archive_tip_that_removes_its_own_package_files_is_archive_only() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        reopened_package_fixture(root);
+        let archive = archive_the_reopened_package(root);
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
+
+        // A different change's package in the same commit is not this archive's work.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        reopened_package_fixture(root);
+        archive_the_reopened_package(root);
+        let other = root.join(".specsync/changes/other");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("change.md"), "# other\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "archive beside another change"],
+        );
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+        drop(archive);
+    }
+
+    /// #1038, from the review of #1093: a change's own package paths count as archive work only
+    /// when the tip has the shape `.github/scripts/classify-ci-paths.sh` asks for, by status. Its
+    /// archive paths must be additions or rename targets. With a file modified inside an archive
+    /// that already existed, the tip is not an archive move, so the deleted package files are
+    /// product work, as they are for the script.
+    #[test]
+    fn deleted_package_files_beside_a_modified_archive_file_are_product() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        // An archive of the same change beside its package, which no command leaves behind.
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "an archive beside the package"],
+        );
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "delete the package, edit the archive"],
+        );
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+
+        // A tip that touches only an archived package, and no active one, is left as main has
+        // it: archive-only. The stricter shape is the condition for the exemption alone.
+        fs::write(
+            archive.join("review.json"),
+            "{\"verdict\":\"pass\",\"note\":1}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "edit the archive"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
+    }
+
+    /// #1038, from the review of #1093: the own-package exemption is CI's, no looser. CI's
+    /// classify-ci-paths.sh counts a path under `.specsync/changes/<id>/` as archive work only
+    /// when the tip deleted it (or renamed it into the archive) and the package directory is
+    /// gone. A tip that modifies the package, or leaves part of it, is a product tip there, so
+    /// it is one here.
+    #[test]
+    fn an_archive_tip_whose_package_is_still_present_is_product() {
+        // Modified, still present: the case the review reproduced as `archive_only`.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(active.join("change.md"), "# release\n\nReopened, edited.\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "edit the package"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+
+        // One package file deleted and an archive file added, the package directory still there.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::remove_file(active.join("tasks.md")).unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "delete one package file"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+
+        // The tip archived the whole package, but the working tree holds one again.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        archive_the_reopened_package(root);
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
+        fs::create_dir_all(&active).unwrap();
+        fs::write(active.join("change.md"), "# back again\n").unwrap();
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+    }
+
+    /// The status of one path, as the table below spells a tip.
+    fn tip(change: TipChange, path: &str) -> TipPath {
+        TipPath {
+            path: path.to_string(),
+            change,
+        }
+    }
+
+    /// #1038: the statuses that grant the own-package exemption, against the shape
+    /// `.github/scripts/classify-ci-paths.sh` asks for: additions (or rename targets) in one
+    /// archive directory, deletions of the one package that archive names, at workflow v2, with
+    /// the package directory gone. Without the exemption the package paths are judged as main
+    /// always judged them.
+    #[test]
+    fn only_an_exact_archive_move_makes_package_paths_archive_work() {
+        use TipChange::{Added, Other, Removed};
+        const ARCHIVE: &str = ".specsync/archive/changes/2026-11-10-release";
+        const PACKAGE: &str = ".specsync/changes/release";
+        let archived = |directory: &str| {
+            (directory == "2026-11-10-release").then(|| ("release".to_string(), 2))
+        };
+        let gone = |_: &str| false;
+        let classify = |paths: &[TipPath]| classify_paths_with(paths, archived, gone);
+        let moved = || {
+            vec![
+                tip(Added, &format!("{ARCHIVE}/state.json")),
+                tip(Added, &format!("{ARCHIVE}/finalization.json")),
+                tip(Removed, &format!("{PACKAGE}/change.md")),
+                tip(Removed, &format!("{PACKAGE}/finalization.json")),
+            ]
+        };
+        assert_eq!(classify(&moved()), "archive_only");
+
+        // An archive path that is not an addition, or a package path that is not a deletion.
+        for (status, path) in [
+            (Other, format!("{ARCHIVE}/review.json")),
+            (Removed, format!("{ARCHIVE}/review.json")),
+            (Other, format!("{PACKAGE}/tasks.md")),
+            (Added, format!("{PACKAGE}/tasks.md")),
+        ] {
+            let mut paths = moved();
+            paths.push(tip(status, &path));
+            assert_eq!(classify(&paths), "product", "{status:?} {path}");
+        }
+        // A path outside the two directories.
+        let mut paths = moved();
+        paths.push(tip(Other, "src/lib.rs"));
+        assert_eq!(classify(&paths), "product");
+        // A second archive directory, or a second package.
+        let mut paths = moved();
+        paths.push(tip(
+            Added,
+            ".specsync/archive/changes/2026-11-10-other/state.json",
+        ));
+        assert_eq!(classify(&paths), "product");
+        let mut paths = moved();
+        paths.push(tip(Removed, ".specsync/changes/other/change.md"));
+        assert_eq!(classify(&paths), "product");
+        // The archive names another change, has no readable identity, or is workflow v1.
+        assert_eq!(
+            classify_paths_with(&moved(), |_| Some(("other".to_string(), 2)), gone),
+            "product"
+        );
+        assert_eq!(classify_paths_with(&moved(), |_| None, gone), "product");
+        assert_eq!(
+            classify_paths_with(&moved(), |_| Some(("release".to_string(), 1)), gone),
+            "product"
+        );
+        // The package directory is still there.
+        assert_eq!(classify_paths_with(&moved(), archived, |_| true), "product");
+
+        // No package path at all: main's rule is untouched, whatever the statuses.
+        assert_eq!(classify(&moved()[..2]), "archive_only");
+        assert_eq!(
+            classify(&[tip(Other, &format!("{ARCHIVE}/review.json"))]),
+            "archive_only"
+        );
+    }
+
+    /// #1038: one tip that touches a change's own package, asked of
+    /// `.github/scripts/classify-ci-paths.sh` in its name-status mode and of `classify_head_tip`.
+    /// They must agree on whether it is archive-only. The script needs `bash` and `jq`, which CI
+    /// has; where either is missing this test says so and checks nothing.
+    #[test]
+    fn the_own_package_exemption_agrees_with_the_ci_classifier_script() {
+        let runs = |program: &str, argument: &str| {
+            std::process::Command::new(program)
+                .arg(argument)
+                .output()
+                .is_ok_and(|output| output.status.success())
+        };
+        if !runs("bash", "--version") || !runs("jq", "--version") {
+            eprintln!("skipped: the CI classifier script needs bash and jq");
+            return;
+        }
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let script = repository.join(".github/scripts/classify-ci-paths.sh");
+        let limits = repository.join(".github/scripts/lifecycle-validation-limits.json");
+        // What the script says of `HEAD` against its first parent, given Git's status diff.
+        let script_says_archive_only = |root: &Path| -> bool {
+            use std::io::Write;
+            fs::create_dir_all(root.join(".github/scripts")).unwrap();
+            fs::copy(
+                &limits,
+                root.join(".github/scripts/lifecycle-validation-limits.json"),
+            )
+            .unwrap();
+            let diff = std::process::Command::new("git")
+                .args(["diff", "--name-status", "-z", "HEAD~1", "HEAD"])
+                .current_dir(root)
+                .output()
+                .unwrap();
+            assert!(diff.status.success());
+            let mut child = std::process::Command::new("bash")
+                .arg(&script)
+                .args([root.to_str().unwrap(), "false", "name-status", "HEAD~1"])
+                .current_dir(root)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            child.stdin.take().unwrap().write_all(&diff.stdout).unwrap();
+            let output = child.wait_with_output().unwrap();
+            let printed = String::from_utf8_lossy(&output.stdout).to_string();
+            assert!(
+                output.status.success(),
+                "the classifier failed: {printed}{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let verdict = printed
+                .lines()
+                .find_map(|line| line.strip_prefix("archive_only="))
+                .unwrap_or_else(|| panic!("no archive_only in {printed}"));
+            fs::remove_dir_all(root.join(".github")).unwrap();
+            verdict == "true"
+        };
+        let agree = |root: &Path, case: &str, expected: bool| {
+            let script_verdict = script_says_archive_only(root);
+            let here = classify_head_tip(root).unwrap().tip_class == "archive_only";
+            assert_eq!(script_verdict, expected, "{case}: what the script says");
+            assert_eq!(here, script_verdict, "{case}: ship-status and the script");
+        };
+
+        // The real archive move after a reopen.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        reopened_package_fixture(root);
+        archive_the_reopened_package(root);
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        agree(root, "an archive move", true);
+
+        // The package deleted, and a file modified in an archive that already existed.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "an archive beside the package"],
+        );
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "delete the package, edit the archive"],
+        );
+        agree(root, "a modified archive file", false);
+
+        // The package modified and still present.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 2,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        fs::write(active.join("change.md"), "# release\n\nReopened, edited.\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "edit the package"]);
+        agree(root, "a package still present", false);
+
+        // A workflow-v1 archive move: the script sends it to the full lane.
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let active = reopened_package_fixture(root);
+        fs::write(
+            active.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 1,\n  \"state\": \"verifying\"\n}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "a workflow-v1 package"]);
+        let archive = archive_the_reopened_package(root);
+        fs::write(
+            archive.join("state.json"),
+            "{\n  \"id\": \"release\",\n  \"workflow_version\": 1,\n  \"state\": \"archived\"\n}\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "archive a workflow-v1 change"],
+        );
+        agree(root, "a workflow-v1 archive move", false);
+    }
+
+    /// #1038 (Leif, 2026-11-13: "For an archived change, report the review as done by finalize and
+    /// suggest nothing."). `change review` refuses an archived change, and finalize already
+    /// required a current review, so ship-status must not call it stale or suggest re-recording it.
+    #[test]
+    fn an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        change::finalize_change(root, &id).expect("finalize");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        assert_eq!(report["review_currency"], "current", "{report}");
+        let review = report["stages"]
+            .as_array()
+            .expect("stages")
+            .iter()
+            .find(|stage| stage["id"] == "review_tip")
+            .expect("review stage");
+        assert_eq!(review["status"], "done", "{report}");
+        for text in [review["action"].to_string(), report["blockers"].to_string()] {
+            assert!(
+                !text.contains("change review"),
+                "an archived change is told to re-review: {text}"
+            );
+        }
+        // With #654 any blocker is exit 1, so an archived change must list none for its review.
+        assert_eq!(report["blockers"], serde_json::json!([]), "{report}");
+    }
+
+    /// #1038, from the review of #1093: a workflow-v1 change is closed by `change accept` and
+    /// `change archive`, which bind no scoped review, and `change finalize` refuses it. A
+    /// `review.json` in its archive is therefore not "done by finalize". It is still archived, so
+    /// it is not told to run `change review`, which refuses an archived change, and it lists no
+    /// blocker.
+    #[test]
+    fn a_workflow_v1_archive_is_not_done_by_finalize_and_suggests_no_review() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        // A project that never adopted workflow v2: policy version 1 and no v2 baseline.
+        let policy_path = root.join(".specsync/sdd.json");
+        let mut policy: serde_json::Value =
+            serde_json::from_slice(&fs::read(&policy_path).unwrap()).unwrap();
+        policy["version"] = serde_json::json!(1);
+        fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "a workflow-v1 policy"]);
+        git_in(root, &["switch", "-c", "feature"]);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "A workflow v1 change".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        assert_eq!(record.workflow_version, 1, "the fixture is workflow v1");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "implement"]);
+        change::verify_change(root, &id).expect("verify");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "record verification"]);
+        change::verify_change(root, &id).expect("verify the committed tree");
+        // `change review` asks only for the verifying state, so a v1 change can hold a review.
+        change::record_scoped_review(root, &id, "Independent".into()).expect("review");
+        change::accept_change(root, &id, Some("Owner".into()), None).expect("accept");
+        change::archive_change(root, &id).expect("archive");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+        assert_eq!(record.workflow_version, 1);
+        assert_eq!(
+            report_review_present(root, &record),
+            Some(true),
+            "the archive holds review.json"
+        );
+
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_ne!(report["review_currency"], "current", "{report}");
+        assert!(
+            !report["review_currency_reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("finalize"),
+            "{report}"
+        );
+        let review = report["stages"]
+            .as_array()
+            .expect("stages")
+            .iter()
+            .find(|stage| stage["id"] == "review_tip")
+            .expect("review stage");
+        assert_eq!(review["status"], "done", "{report}");
+        let action = review["action"].as_str().unwrap_or_default();
+        assert!(
+            action.starts_with("no scoped review to record"),
+            "a v1 archive is told there is nothing to record: {action}"
+        );
+        assert!(!action.contains("done by finalize"), "{action}");
+        for text in [action.to_string(), report["blockers"].to_string()] {
+            assert!(
+                !text.contains("change review"),
+                "an archived change is told to review: {text}"
+            );
+        }
+        assert_eq!(report["blockers"], serde_json::json!([]), "{report}");
+    }
+
+    /// Whether ship-status sees a `review.json` in the change's package.
+    fn report_review_present(root: &Path, record: &ChangeRecord) -> Option<bool> {
+        let _scope = change::begin_change_read_scope(root);
+        ship_status_report(root, record).ok()?["review_present"].as_bool()
     }
 
     /// #687: the warning must name the cost that lands on OTHER changes, not only this one.

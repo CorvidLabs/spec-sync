@@ -3808,6 +3808,28 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
 }
 
+/// Whether an archived change's scoped review is settled by its finalization: finalize required a
+/// current review to archive the change, and the archive still authenticates, so ship-status never
+/// asks for another review of an archived change, which `change review` refuses (#1038).
+///
+/// Only `finalize` settles a review. A workflow-v1 change is closed by `accept` and `archive`,
+/// which bind no scoped review, and `finalize` refuses it, so a `review.json` in its archive
+/// settles nothing. The archive must therefore be workflow v2 and still hold the finalization
+/// record that binds a passing review to the accepted verification, the check `finalize` itself
+/// makes before it resumes (review of #1093).
+pub(crate) fn archived_review_is_settled_by_finalize(root: &Path, record: &ChangeRecord) -> bool {
+    record.state == ChangeState::Archived
+        && record.workflow_version >= 2
+        && matches!(
+            terminal_evidence_summary(root, record).validity,
+            TerminalEvidenceValidity::AuthenticatedHistory
+                | TerminalEvidenceValidity::HistoricalTransitionUnproven
+        )
+        && load_verification(root, record)
+            .and_then(|verification| validate_finalization_evidence(root, record, &verification))
+            .is_ok()
+}
+
 /// Terminal evidence for one archived record inside a read scope.
 ///
 /// An archived record's verdict depends only on its own package and history, never on the other

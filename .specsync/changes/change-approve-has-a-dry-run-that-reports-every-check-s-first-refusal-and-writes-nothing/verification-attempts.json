@@ -200,6 +200,46 @@
         "REQ-cli-args-027",
         "REQ-cmd-change-040"
       ]
+    },
+    {
+      "timestamp": 1795102334,
+      "commit": "0fb0295c9f9f63d080561035052454cc9e1c670e",
+      "contract_digest": "1d9b8dacfd4f3310010a218dccd3efc89653b1e988681c16066194a03bf41e3d",
+      "execution_digest": "fac2f90f16e40b127b4f3a1a41f89856f66fee04faf5727c58230b868f52dc14",
+      "workspace_digest": "b1b1377bb5085e527b41c1b0f3ddc290f8fcbda0cd9748941c3164610daa8c25",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-163",
+        "REQ-cli-args-027",
+        "REQ-cmd-change-040"
+      ]
+    },
+    {
+      "timestamp": 1795102348,
+      "commit": "0fb0295c9f9f63d080561035052454cc9e1c670e",
+      "contract_digest": "1d9b8dacfd4f3310010a218dccd3efc89653b1e988681c16066194a03bf41e3d",
+      "execution_digest": "fac2f90f16e40b127b4f3a1a41f89856f66fee04faf5727c58230b868f52dc14",
+      "workspace_digest": "b1b1377bb5085e527b41c1b0f3ddc290f8fcbda0cd9748941c3164610daa8c25",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-163",
+        "REQ-cli-args-027",
+        "REQ-cmd-change-040"
+      ]
     }
   ]
 }

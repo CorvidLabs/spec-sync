@@ -18,7 +18,7 @@ modules:
   - cmd_wizard
   - cmd_import
   - cmd_lifecycle
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -35,13 +35,9 @@ observations:
   - 2026-11-19-the-full-verify-lane-passes-on-the-code-of-the-pushed-tip-with
 bugs: [2026-11-19-install-scaffold-import-and-migrate-commands-write-through]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of never-write-a-project-file-through-a-symbolic-link
-    holds: accept
-    drives: review
-    opened: 2026-11-19T05:31:02Z
+waiting_on_human: []
 run_consents: []
-next: "Both changes are verified, pushed to the private advisory fork and on draft PR 1. Wait for the human's implementation review of each, relayed by the planning session. On a yes: chough change ship <id> --close-gate with their words, one change at a time (hash cache first), commit each archive, re-run chough change check for the other change if it went stale, push, then mark the PR ready. Publishing the advisory, releasing and a 5.x backport are the human's decisions."
+next: Continue done
 title: Project file writes never leave the project
 summary:
   - Install, scaffold, import, lifecycle-free spec creation, migrate, MCP lock and remote-cache commands wrote fixed project paths with writes that follow symbolic links, so a cloned repository could make them change or create files outside it. Found by the private sweep after GHSA-7q5v-8jcc-rx54.
@@ -67,6 +63,7 @@ No install, scaffold, import, lifecycle, migrate, lock or remote-cache command w
 - agent choice (claude-code-t5r): hooks uninstall exits 1 only for a refused path, because every other uninstall error was a note with exit 0 before and the Claude Code settings notice must stay one
 - agent choice (claude-code-t5r): a path that leaves the project by its own spelling (.. or another absolute path, such as a specs_dir configured outside the root) is refused too, because it reaches the same place a link would
 - rejected: hardening lifecycle promote and demote because a test on released 6.3.0 showed discovery already refuses a linked spec file
+- 0xLeif decided "Implementation review of never-write-a-project-file-through-a-symbolic-link": "Approve" (Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:04Z, after t4c walked him through the change in plain words from its own read of the code at a33dcc6f, with its side effects and limits (hooks uninstall exits 1 on a refused path, a specs_dir outside the project is refused, migrate refuses before its first step, hard links not caught, no x86 or Ubuntu run); relayed by t4c over hc to t5r as his implementation approval); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review never-write-a-project-file-through-a-symbolic-link as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -141,4 +138,20 @@ No install, scaffold, import, lifecycle, migrate, lock or remote-cache command w
   - revision: a33dcc6ffd6210e4998c376edab1d331083bcd7f
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-19T14:09:01Z · gate-closed · accept → accept · Implementation review of never-write-a-project-file-through-a-symbolic-link ^t-1b40f1
+  - native_change: never-write-a-project-file-through-a-symbolic-link
+  - revision: eda76b6083162618fb01fe3592f86570f8334cea
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve
+    - where: Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:04Z, after t4c walked him through the change in plain words from its own read of the code at a33dcc6f, with its side effects and limits (hooks uninstall exits 1 on a refused path, a specs_dir outside the project is refused, migrate refuses before its first step, hard links not caught, no x86 or Ubuntu run); relayed by t4c over hc to t5r as his implementation approval
+    - recorded_by: claude-code-t5r
+    - native: specsync change review never-write-a-project-file-through-a-symbolic-link
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-19T14:09:02Z · advance · accept → done · native:archived ^t-42152a
+  - native_change: never-write-a-project-file-through-a-symbolic-link
+  - gate: native:archived
+  - revision: eda76b6083162618fb01fe3592f86570f8334cea
   - by: claude-code (hc t5r)

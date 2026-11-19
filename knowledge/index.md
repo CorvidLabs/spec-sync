@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [Project file writes never leave the project](journal/2026-11-19-project-file-writes-never-leave-the-project.md) (2026-11-19, shipped)
 - [Hash cache never read or written through a link](journal/2026-11-19-hash-cache-never-read-or-written-through-a-link.md) (2026-11-19, shipped)
 - [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
 
@@ -246,9 +247,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [never-write-a-project-file-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-write-a-project-file-through-a-symbolic-link/lesson-bundle.md), Never write a project file through a symbolic link
 - [never-read-or-write-the-hash-cache-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-read-or-write-the-hash-cache-through-a-symbolic-link/lesson-bundle.md), Never read or write the hash cache through a symbolic link
 - [record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump](../.specsync/archive/changes/2026-11-19-record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump/lesson-bundle.md), Record each shipped change in a history fragment file instead of a Change Log row and a version bump
-- [list-chough-0-6-0-record-folders-in-verification-ignored-paths](../.specsync/archive/changes/2026-11-13-list-chough-0-6-0-record-folders-in-verification-ignored-paths/lesson-bundle.md), List Chough 0.6.0 record folders in verification_ignored_paths
 
 ## Snapshots and briefs
 

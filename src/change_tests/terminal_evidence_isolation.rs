@@ -174,3 +174,38 @@ fn an_unreadable_state_counts_only_against_a_successor_search() {
         );
     }
 }
+
+// #1104, criterion 4: a retired change's validity reads its replacement, so a replacement whose
+// records fail is still reported in the retired change's own status. This read is not changed by
+// #1104; the test holds it there.
+#[test]
+fn a_retired_change_whose_replacement_fails_still_reports_it() {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let before_archive = quiet_git(root, &["rev-parse", "HEAD~1"]).trim().to_string();
+    retire_change(
+        root,
+        &old.id,
+        "Synthetic operator".into(),
+        "Obsolete intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic test authority, not a real human decision".into(),
+    )
+    .unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "retire the obsolete change"]);
+    leave_open_and_archived_at_one_commit(root, &replacement, &before_archive);
+    let status = load_change(root, &old.id).and_then(|record| {
+        serde_json::to_string(&summarize_change_with_strict(root, &record, false))
+            .map_err(|error| error.to_string())
+    });
+    let reported = match status {
+        Ok(json) => json,
+        Err(error) => error,
+    };
+    assert!(
+        reported.contains("duplicates state at commit"),
+        "the retired change's status reports its replacement's failure: {reported}"
+    );
+}

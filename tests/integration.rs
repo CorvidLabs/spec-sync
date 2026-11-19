@@ -128,3 +128,6 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+
+#[path = "integration/terminal_evidence_isolation.rs"]
+mod terminal_evidence_isolation;

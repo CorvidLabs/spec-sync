@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.
 
+### Fixed
+
+- A Git query that fails, such as `rev-parse --verify HEAD` before the first commit, is no longer remembered for the rest of the command, so the next read asks again. Definite answers are still remembered: an unset config key, and an absent ref read with `symbolic-ref -q` or `rev-parse --verify --quiet` (REQ-git-utils-009, #887).
+- In a SHA-256 repository, `show` and `ls-tree` reads at a full 64-character commit id are answered by the one batched `cat-file` reader, byte for byte equal to per-file reads, instead of a `git show` each; a missing path still reads as absent (REQ-git-utils-010, #985).
+- The build fingerprint covers the compile configuration as well as the sources: target, profile, optimization and debug settings, and every `cfg` and feature flag. A build of the same tree for another target, profile or feature set no longer replays another build's cached results (REQ-hash-cache-005, #981).
+- A lifecycle-state history index that fails to build is retried in the next read scope at the same `HEAD`, instead of being skipped for the rest of the thread. Within one scope a failed build still falls back per archive (REQ-change-140, #982).
+
 ## [6.3.0] - 2026-11-12
 
 ### Added

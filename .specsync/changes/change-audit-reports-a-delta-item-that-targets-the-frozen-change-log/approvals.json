@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795107250,
+      "digest": "164b24d36d3b660d618ad4fe2b1623cade0622ba9ee1c57c5c7fb8002226498f",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of change-audit-reports-a-delta-item-that-targets-the-frozen-change-log\": \"Approve as written\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:19Z, on the frozen ss-lead/gates/1090-definition.md (REQ-change-170 ADDED; affected spec change; paths src/change/historical_definition_digest_matches.rs, src/change_tests/stale_modified_delta.rs, specs/change/, CHANGELOG.md; to be built after #1088 merged); relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T16:54:06Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-audit-reports-a-delta-item-that-targets-the-frozen-change-log",
+        "title": "Change audit reports a delta item that targets the frozen Change Log",
+        "description": "change audit reports a delta item that targets the frozen Change Log",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/change/",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests/stale_modified_delta.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) change audit reports, for an approved, implementing or verifying change, the Change Log refusal change check gives, prefixed by the change id, and change audit --strict exits 1. (2) An archived change is not judged again. (3) A project with no such item audits as before."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-159 stays as approved (a separate sentence, REQ-change-170); CHANGE-11.b: audit reports the same problem check refuses, in check's order",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1f549cd7168e1ea63d61bc273d420de6c7b19e47a039f358920a34981fb92973"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve as written",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:19Z, on the frozen ss-lead/gates/1090-definition.md (REQ-change-170 ADDED; affected spec change; paths src/change/historical_definition_digest_matches.rs, src/change_tests/stale_modified_delta.rs, specs/change/, CHANGELOG.md; to be built after #1088 merged); relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    }
+  ],
+  "reopenings": []
+}

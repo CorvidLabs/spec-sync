@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "change-audit-reports-a-delta-item-that-targets-the-frozen-change-log",
+  "slug": "change-audit-reports-a-delta-item-that-targets-the-frozen-change-log",
+  "title": "Change audit reports a delta item that targets the frozen Change Log",
+  "description": "change audit reports a delta item that targets the frozen Change Log",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "2cc0897fc00eee7db2b07f5134ba05639af39018",
+  "created_at": 1795107113,
+  "updated_at": 1795107250,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/stale_modified_delta.rs",
+    "specs/change/",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "(1) change audit reports, for an approved, implementing or verifying change, the Change Log refusal change check gives, prefixed by the change id, and change audit --strict exits 1. (2) An archived change is not judged again. (3) A project with no such item audits as before."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-159 stays as approved (a separate sentence, REQ-change-170); CHANGE-11.b: audit reports the same problem check refuses, in check's order",
+    "public_contract": "yes"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 id: never-write-a-project-file-through-a-symbolic-link
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7b6e4779ba5b7d0fedd621c04a917fcb02e28c25
 ---

@@ -7,11 +7,11 @@
   "title": "Never write a project file through a symbolic link",
   "description": "Never write a project file through a symbolic link",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "7b6e4779ba5b7d0fedd621c04a917fcb02e28c25",
   "created_at": 1795064208,
-  "updated_at": 1795097226,
+  "updated_at": 1795097270,
   "affected_specs": [
     "util",
     "hooks",

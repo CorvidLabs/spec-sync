@@ -92,6 +92,13 @@
         "where": "Four Claude Code chat answers to his planning session (hc t4c), each relayed by t4c over hc to t5r. 2026-11-18 evening MST: 'Fold into the same private fix', on the six other symlink-following writes the private sweep found. 2026-11-19 at about 04:50Z: 'Yes, fold them in', on the sibling spec-creating commands the builder found, and 'OK as proposed', on refusing with an error that names the path and skipping the resolve --remote cache with a stderr warning. 2026-11-19 at about 04:53Z: 'Allow links that stay inside', narrowing the refusal to links that leave the repository, dangling links and non-regular targets. lifecycle promote and demote, named among the siblings, were dropped after a test on 6.3.0 showed they are not affected",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795097268,
+      "digest": "3fe436220f3e6d59477af826f7889e6554b3f0f84d57967698f1f0499d7f248b",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

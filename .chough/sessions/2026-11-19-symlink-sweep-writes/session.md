@@ -42,6 +42,11 @@ waiting_on_human:
     opened: 2026-11-19T05:31:02Z
 run_consents: []
 next: "Both changes are verified, pushed to the private advisory fork and on draft PR 1. Wait for the human's implementation review of each, relayed by the planning session. On a yes: chough change ship <id> --close-gate with their words, one change at a time (hash cache first), commit each archive, re-run chough change check for the other change if it went stale, push, then mark the PR ready. Publishing the advisory, releasing and a 5.x backport are the human's decisions."
+title: Project file writes never leave the project
+summary:
+  - Install, scaffold, import, lifecycle-free spec creation, migrate, MCP lock and remote-cache commands wrote fixed project paths with writes that follow symbolic links, so a cloned repository could make them change or create files outside it. Found by the private sweep after GHSA-7q5v-8jcc-rx54.
+  - "util now reads and writes through a cap-std handle on the project root: a link inside the project is followed, a link out, a dangling link or a non-regular target is refused naming the path; migrate refuses before its first step; the remote cache refuses any link."
+  - "Verified: 15 integration and 3 unit tests failed first and pass; full macOS verify lane green; Linux arm64 container green. Next: advisory text, then publishing and release on Leif's yes."
 ---
 # No install, scaffold, import, lifecycle, migrate, lock or remote-cache command writes through a symbolic link it finds in the repository (private sweep, handled with GHSA-7q5v-8jcc-rx54)
 

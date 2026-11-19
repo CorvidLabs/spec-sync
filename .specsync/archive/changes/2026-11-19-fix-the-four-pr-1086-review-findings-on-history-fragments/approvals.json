@@ -164,6 +164,13 @@
         "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795097211,
+      "digest": "b32a20290b705add7a60f3b323fb79d809f2e3d63803decb17eec9a6cccf6c83",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

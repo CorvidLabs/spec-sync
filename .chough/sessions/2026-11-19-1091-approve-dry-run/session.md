@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -26,6 +26,8 @@ files:
 observations:
   - 2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists
   - 2026-11-19-1091-verify-lane-at-c4dba3f6
+  - 2026-11-19-1091-red-unreplayable-journal-at-b3573eaa
+  - 2026-11-19-1091-verify-lane-at-003a14e6
 bugs: []
 blockers: []
 waiting_on_human:
@@ -34,7 +36,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T06:37:41Z
 run_consents: []
-next: "Pushed, no PR until ss-lead says. Then Leif's implementation review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. When the branch is updated against main: renumber the change.3md plane (54 is also taken by #1088 and #1089) and re-run change check."
+next: Pushed on feat/1091-approve-dry-run; no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record no review before that.
 ---
 # specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 
@@ -49,6 +51,7 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - Failing tests: 1f5c09de
 - Split building the approval record from writing it, for the plain and the portable approval (uncommitted, compiles)
 - Implemented the dry run (f61bbf0f) after the failing tests (1f5c09de); change check materialized REQ-change-163, REQ-cmd-change-040 and REQ-cli-args-027 with their history fragments; verify lane green at c4dba3f6
+- Tester's finding on 37496bdf fixed, red test first: the dry run gives change approve's own refusal for a journal recovery cannot replay; recovery split into its reading and restoring halves; re-checked; lane 10/10 at 003a14e6; site checks pass
 
 ## Decisions and why
 
@@ -61,6 +64,8 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 
 - [Red first: on main 3bebe8b0 with the approved #1091 change and only the new tests, all 8 tests of tests/integration/approve_dry_run.rs fail with 'unexpected argument --dry-run found', and cli::tests::change_approve_accepts_a_dry_run fails to parse the flag. The feature does not exist yet; this is the expected failure, not a bug.](evidence/2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists.md)
 - [At c4dba3f6 (#1091 on main 3bebe8b0), fledge lanes run verify passed 10/10 steps in 10m37s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 635 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. It includes the 8 tests of tests/integration/approve_dry_run.rs (each faulty draft from the Chough tester's list gets one message from the dry run and from the real approve, with not one file changed; a clean draft; two problems in one run; a missing change; a sent-back change; the relay flags; an interrupted write), the 5 unit tests for the in-memory binding and raise and the skip rules, and the flag's parsing test. The lane's processes ran with a neutral global git config (#1092).](evidence/2026-11-19-1091-verify-lane-at-c4dba3f6.md)
+- [Red-first, for the tester's finding on 37496bdf: at b3573eaa (the test alone) approve_dry_run::the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay fails. With a change-transaction.json that does not parse, the dry run says an interrupted write is 'waiting to be recovered', where change approve refuses with 'invalid transaction journal at ...'. Fixed in e24bdbf9; not a new bug.](evidence/2026-11-19-1091-red-unreplayable-journal-at-b3573eaa.md)
+- [At 003a14e6 (fix e24bdbf9, change re-checked), fledge lanes run verify passed 10/10 steps in 11m04s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. It includes the nine approve_dry_run tests; the new one covers a journal that does not parse, one whose integrity envelope does not hold and one that names a path outside the project, each compared word for word with the real approve. The site's tests (48), lint and build pass for the edited cli.md (site-1091b.log). The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-003a14e6.md)
 
 ## Open threads
 
@@ -143,4 +148,14 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - gate: native:verifying
   - revision: 37496bdf7423ebcbdc85c80096e4f14f8101801d
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T07:32:13Z · advance · build → test · native:verifying ^t-390994
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
+  - by: claude-code (hc t59)
+- 2026-11-19T07:32:14Z · advance · test → accept · native:verifying ^t-cec9ae
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
   - by: claude-code (hc t59)

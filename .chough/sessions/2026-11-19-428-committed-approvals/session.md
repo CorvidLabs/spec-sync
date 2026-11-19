@@ -5,7 +5,7 @@ aliases: [428-committed-approvals]
 objective: finalize, ship and archive refuse an approvals ledger that Git history does not hold (#428)
 intent_scope: CHANGE
 modules: [change, cmd_change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -133,4 +133,10 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
   - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
   - gate: native:verifying
   - revision: 45b8f9dcc745b1ef6b50a9bf304e1c73b455adfc
+  - by: claude-code (hc t59)
+- 2026-11-19T19:34:20Z · back · accept → build · tester2's interim run at 999f55a3: the ways out for an ignored, a re-created and a missing ledger ^t-fffc25
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: 88cb285784d5c4b8ea0f975afed386f2af4434aa
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

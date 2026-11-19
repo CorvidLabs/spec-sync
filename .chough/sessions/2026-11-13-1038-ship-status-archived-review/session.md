@@ -5,7 +5,7 @@ aliases: [1038-ship-status-archived-review]
 objective: ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -25,6 +25,9 @@ observations:
   - 2026-11-19-1038-verify-lane-at-4d439b39
   - 2026-11-19-1038-red-control-for-the-review-fixes-at-7052e227
   - 2026-11-19-1038-verify-lane-at-612d255d
+  - 2026-11-19-1038-red-control-for-the-archive-side-at-d14fcad3
+  - 2026-11-19-1038-verify-lane-at-5f5cdf8d
+  - 2026-11-19-1038-the-real-archive-reopen-and-re-ship-case
 bugs: []
 blockers: []
 waiting_on_human:
@@ -46,6 +49,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
 - Refreshed onto main 3bebe8b0 on branch fix/ship-status-654-1038-937 with #654 and #937: merged the 11-13 branch with no conflict and re-ran change check; no delta, so no history fragment; red control on main and the verify lane recorded
 - Fixed the two review findings on PR #1093 (failing tests 7052e227, fix c697bbde): the own-package tip exemption now needs a deletion and an absent package directory, as CI's classifier does; only a workflow-v2 archive with a valid finalization record reads done by finalize, and any other archived change gets a done review stage that names no review; added the CHANGELOG Fixed line
+- Second parity finding on PR #1093 fixed (failing tests d14fcad3, fix e54bc636): a change's own package paths are archive work only in the shape CI's script accepts by status; main's rule for tips with no package path is left as it was; the positive test now builds the real tip of a change archived after a reopen
 
 ## Decisions and why
 
@@ -65,6 +69,9 @@ ship-status reports an archived change's review as done by finalize and classifi
 - [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including commands::change::tests::an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review and an_archive_tip_that_removes_its_own_package_files_is_archive_only. The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-1038-verify-lane-at-4d439b39.md)
 - [Red-first control for the review of PR #1093, at 7052e227 with only the new tests: an_archive_tip_whose_package_is_still_present_is_product fails (a tip that modifies the change's package, still present, reads archive_only where CI picks the product lane), and a_workflow_v1_archive_is_not_done_by_finalize_and_suggests_no_review fails (a workflow-v1 archive holding a review.json reads review_currency current). These are the two review findings, fixed in c697bbde; not new bugs.](evidence/2026-11-19-1038-red-control-for-the-review-fixes-at-7052e227.md)
 - [At 612d255d (PR #1093 after the review fixes c697bbde, each change re-checked there), fledge lanes run verify passed 10/10 steps in 29m34s on a busy machine: fmt, lint and check-types, cargo test (unit 3081 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes the four #1038 tests: the archived review stage done by finalize with no blocker, the workflow-v1 archive that is not done by finalize and is told no review, the archive-only tip, and the tip whose package is still present reading product.](evidence/2026-11-19-1038-verify-lane-at-612d255d.md)
+- [Red-first control for the second parity finding on PR #1093, at d14fcad3 with only the new tests: deleted_package_files_beside_a_modified_archive_file_are_product fails (the tip reads archive_only), and the_own_package_exemption_agrees_with_the_ci_classifier_script fails on that same tip (the script says archive_only=false). Fixed in e54bc636; not a new bug.](evidence/2026-11-19-1038-red-control-for-the-archive-side-at-d14fcad3.md)
+- [At 5f5cdf8d (PR #1093 after the archive-side fix e54bc636, each change re-checked there), fledge lanes run verify passed 10/10 steps in 9m42s: fmt, lint and check-types, cargo test (unit 3084 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes the #1038 tests: the archive tip of a reopened change on its real shape, deleted package files beside a modified archive file, a package still present, the status table, the agreement with CI's classifier script (run with bash and jq), and the two archived review-stage tests.](evidence/2026-11-19-1038-verify-lane-at-5f5cdf8d.md)
+- [The real case of #1038, driven through the release binary built at e54bc636 on a throwaway project: a change approved, checked, reviewed and shipped; its delivered file edited; change reopen; check, review and ship again. The re-archive tip is 14 renames into the archive, 2 additions there (finalization.json, verification.json) and 2 deletions from the package, with no modified archive file. CI's classify-ci-paths.sh in name-status mode says archive_only=true, and ship-status says tip_class archive_only, review_currency current, no blockers. The first archive tip agrees too.](evidence/2026-11-19-1038-the-real-archive-reopen-and-re-ship-case.md)
 
 ## Open threads
 
@@ -123,4 +130,14 @@ ship-status reports an archived change's review as done by finalize and classifi
   - gate: native:verifying
   - revision: d4f6bee6c60c919e9c1ee805e8eb4d2ec03de5e3
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 8 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T06:20:41Z · advance · build → test · native:verifying ^t-3d4d32
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 5f5cdf8d41eb8ca4e8f3c3b229e8c5f24f10c5c7
+  - by: claude-code (hc t59)
+- 2026-11-19T06:20:44Z · advance · test → accept · native:verifying ^t-e15c02
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 5f5cdf8d41eb8ca4e8f3c3b229e8c5f24f10c5c7
   - by: claude-code (hc t59)

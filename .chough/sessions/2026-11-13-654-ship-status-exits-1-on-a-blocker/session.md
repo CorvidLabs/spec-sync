@@ -27,6 +27,7 @@ observations:
   - 2026-11-19-red-first-control-on-main-3bebe8b0-with-only-the-new-tests
   - 2026-11-19-654-verify-lane-at-4d439b39
   - 2026-11-19-654-verify-lane-at-612d255d
+  - 2026-11-19-654-verify-lane-at-5f5cdf8d
 bugs: []
 blockers: []
 waiting_on_human:
@@ -64,6 +65,7 @@ change ship-status exits 1 when it reports a blocker, so scripts and CI can act 
 - [Red-first control: on main 3bebe8b0 with only the new tests, change::ship_status_exits_one_when_it_reports_a_blocker fails (ship-status printed its Blocker line and exited 0), and the three existing tests that now expect exit 1 from a blocked ship-status fail the same way. The failure is the defect #654 reports, fixed by this change; not a new bug.](evidence/2026-11-19-red-first-control-on-main-3bebe8b0-with-only-the-new-tests.md)
 - [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including change::ship_status_exits_one_when_it_reports_a_blocker and the three tests that now expect exit 1 from a blocked ship-status (REQ-cmd-change-039). The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-654-verify-lane-at-4d439b39.md)
 - [At 612d255d (PR #1093 after the review fixes for #1038 in c697bbde, each change re-checked there), fledge lanes run verify passed 10/10 steps in 29m34s on a busy machine: fmt, lint and check-types, cargo test (unit 3081 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes change::ship_status_exits_one_when_it_reports_a_blocker (REQ-cmd-change-039); this change's source is unchanged since 4d439b39.](evidence/2026-11-19-654-verify-lane-at-612d255d.md)
+- [At 5f5cdf8d (PR #1093 after the archive-side fix e54bc636, each change re-checked there), fledge lanes run verify passed 10/10 steps in 9m42s: fmt, lint and check-types, cargo test (unit 3084 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes change::ship_status_exits_one_when_it_reports_a_blocker (REQ-cmd-change-039); this change's source is unchanged since 4d439b39.](evidence/2026-11-19-654-verify-lane-at-5f5cdf8d.md)
 
 ## Open threads
 

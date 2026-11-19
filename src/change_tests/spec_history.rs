@@ -263,6 +263,12 @@ fn a_row_matches_the_raw_id_before_any_markdown_around_it() {
     assert!(!changelog_records_change(&spec("| 2026 | *hotfix: Hot |"), "hotfix"));
     assert!(changelog_records_change(&spec("| 2026 | _draft: Draft |"), "_draft"));
     assert!(!changelog_records_change(&spec("| 2026 | _draft: Draft |"), "draft"));
+    // ss-lead's review of 8266e6c6: a whole cell in emphasis is a row, and the longest marker that
+    // opens the cell is the one that must close, so `**hotfix: Hot**` is no row of `*hotfix`.
+    assert!(changelog_records_change(&spec("| 2026 | **my-change: Title** |"), "my-change"));
+    assert!(changelog_records_change(&spec("| 2026 | *hotfix: Hot* |"), "hotfix"));
+    assert!(!changelog_records_change(&spec("| 2026 | **hotfix: Hot** |"), "*hotfix"));
+    assert!(!changelog_records_change(&spec("| 2026 | **my-change: Title |"), "my-change"));
     for wrapped in ["**add-passkeys:**", "*add-passkeys:*", "__add-passkeys:__", "`add-passkeys:`"] {
         assert!(
             changelog_records_change(&spec(&format!("| 2026 | {wrapped} Passkeys |")), "add-passkeys"),

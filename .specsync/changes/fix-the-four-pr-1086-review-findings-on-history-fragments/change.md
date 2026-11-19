@@ -1,6 +1,6 @@
 ---
 id: fix-the-four-pr-1086-review-findings-on-history-fragments
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: 069e6eaa9565a8ebf4837b0fb1f4f95c51234d0d
 ---

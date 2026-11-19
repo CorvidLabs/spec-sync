@@ -2689,19 +2689,24 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
 }
 
 /// Whether a Change Log cell begins with `needle` (`<id>:`): the raw cell first, so an id that
-/// itself begins with `*`, `_` or a backtick is matched as written, then the same text wrapped in
-/// one Markdown marker pair (`**<id>:**`, `*<id>:*`, `__<id>:__`, `_<id>:_`, `` `<id>:` ``). A
-/// marker that does not close after the id belongs to another id, so `_draft:` is not a row for
-/// `draft` (Codex's review of #1088).
+/// itself begins with `*`, `_` or a backtick is matched as written, then `needle` just inside the
+/// one Markdown marker that opens the cell (`**`, `__`, `*`, `_` or a backtick, the longest that
+/// fits) when that marker closes right after it (`**<id>:** Title`) or at the end of the cell
+/// (`**<id>: Title**`). A marker that never closes belongs to the id, so `*hotfix: Hot` is the row
+/// of `*hotfix` and not of `hotfix` (Codex's and ss-lead's reviews of #1088).
 fn cell_names_change(cell: &str, needle: &str) -> bool {
     if cell.starts_with(needle) {
         return true;
     }
-    ["**", "__", "*", "_", "`"].iter().any(|marker| {
-        cell.strip_prefix(marker)
-            .and_then(|rest| rest.strip_prefix(needle))
-            .is_some_and(|after| after.starts_with(marker))
-    })
+    let Some(marker) = ["**", "__", "*", "_", "`"]
+        .into_iter()
+        .find(|marker| cell.starts_with(marker))
+    else {
+        return false;
+    };
+    cell[marker.len()..]
+        .strip_prefix(needle)
+        .is_some_and(|after| after.starts_with(marker) || after.trim_end().ends_with(marker))
 }
 
 /// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the

@@ -35,6 +35,7 @@ files: []
 observations:
   - 2026-11-19-on-base-3a02a5d5-with-only-the-new-tests-added-11-of-17
   - 2026-11-19-with-the-fix-all-17-project-read-integration-tests-and-the-3
+  - 2026-11-19-on-linux-at-3daf6ba0-a-clean-copy-in-a-local-rust-1-89
 bugs: [2026-11-19-specsync-reads-project-files-through-links-waits-on-fifos-and]
 blockers: []
 waiting_on_human:
@@ -66,6 +67,7 @@ No SpecSync read of a project file follows a link out of the project, waits on a
 
 - [On base 3a02a5d5 with only the new tests added: 11 of 17 project-read integration tests fail. A FIFO at .specsync/sdd.json, the transaction journal, .specsync/config.toml, .specsyncignore, the MCP lock or CLAUDE.md made change status, change audit, change new, check, mcp diff and hooks status wait until the 20 s timeout killed them; sdd.json linked outside the project and a 4 MiB+1 sdd.json were read; a 64 MiB+1 hashes.json was read; and the source scan found 187 direct file read(s) bypassing a bounded read.](evidence/2026-11-19-on-base-3a02a5d5-with-only-the-new-tests-added-11-of-17.md)
 - [With the fix, all 17 project-read integration tests and the 3 new util unit tests pass, the source scan finds no direct project file read left, and the full verify lane passes: unit 3098 passed, 0 failed, 2 ignored; integration 665 passed, 0 failed; fmt, clippy on all targets, the release build, the strict spec check at 62 specs and 100 percent coverage, and the gate scripts.](evidence/2026-11-19-with-the-fix-all-17-project-read-integration-tests-and-the-3.md)
+- [On Linux at 3daf6ba0, a clean copy in a local rust:1.89-bookworm container, run as a normal user with jq installed: cargo clippy --all-targets -D warnings passes; cargo test --no-fail-fast passes with the unit suite at 3102 passed, 0 failed, 2 ignored and the integration suite at 668 passed, 0 failed.](evidence/2026-11-19-on-linux-at-3daf6ba0-a-clean-copy-in-a-local-rust-1-89.md)
 
 ## Open threads
 

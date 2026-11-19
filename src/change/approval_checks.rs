@@ -371,7 +371,10 @@ fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
         pending_transaction_entry_path(root, entry)?;
     }
     Err(format!(
-        "an interrupted lifecycle write is waiting to be recovered (`{TRANSACTION_PATH}`); the next          lifecycle command that writes recovers it before it checks anything, and a dry run writes          nothing, so it cannot say what `change approve` would find. Run the dry run again once that          write is recovered"
+        "an interrupted lifecycle write is waiting to be recovered (`{TRANSACTION_PATH}`); the next \
+         lifecycle command that writes recovers it before it checks anything, and a dry run writes \
+         nothing, so it cannot say what `change approve` would find. Run the dry run again once that \
+         write is recovered"
     ))
 }
 

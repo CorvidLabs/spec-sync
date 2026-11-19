@@ -143,6 +143,13 @@ line of its spec for their history, so they merge with plain Git, including GitH
 which runs no merge driver. A Change Log table written by an earlier SpecSync stays exactly as it
 is; `specsync history <module>` prints it followed by one row per fragment.
 
+SpecSync 6.3.0 and older do not know history fragments. Their `check` ignores them, but their
+`change audit` fails on a tree that has one (it reads the fragment as a path no active change
+covers), and their `change check` on a change recorded by a fragment appends a Change Log row and
+bumps `version:` as well, which a newer `check` reports as a change recorded twice. A repository
+that pins SpecSync must move the pin in the same pull request that first ships a change with
+history fragments.
+
 Application is protected against double-apply: if a block already exists in the canonical spec
 (for example because it was hand-applied outside the lifecycle), checking fails rather than
 duplicating it:

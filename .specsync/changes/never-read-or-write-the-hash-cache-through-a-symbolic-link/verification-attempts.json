@@ -57,6 +57,25 @@
         "REQ-cmd-check-018",
         "REQ-hash-cache-007"
       ]
+    },
+    {
+      "timestamp": 1795065710,
+      "commit": "bd6a28f36261aad48e942dbc9aaa701e8d1de8c8",
+      "contract_digest": "97ad086a3daca40ce717abbbefc2a2ff3a3db89473468d4a959591171eb58c6d",
+      "execution_digest": "f9b1b5f5f4f6c54689330c769f7805956c3a273f0d152eefc0b20b873677d7bb",
+      "workspace_digest": "b755b968881361257774a19601544a69df0d71fcc048885766fe07f06989b776",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec hash_cache",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-018",
+        "REQ-hash-cache-007"
+      ]
     }
   ]
 }

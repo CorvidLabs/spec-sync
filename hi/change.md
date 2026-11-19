@@ -33,6 +33,8 @@ CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05
 
 CHANGE-14.c was drafted by the agent after a fixture showed a task reopened after a passing check being reviewed and finalized (#892). Leif approved it in the Herdr orc tab on 2026-11-05 at 20:24 MST ("Widen S6"), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
+CHANGE-16, CHANGE-16.a, CHANGE-16.b and CHANGE-16.c were drafted by an agent for issue #428, from Leif's choice on 2026-11-13 at about 04:04Z, "Every committed version": finalize, ship and archive refuse a change whose `approvals.json` is uncommitted or differs from `HEAD`, or where any committed version fails to extend the one before it. Leif approved the definition that carries them, with these four sentences marked as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:17Z: "Approve as written". They are the agent's wording, which he chose with those words; he did not write them. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -85,6 +87,10 @@ CHANGE-14.c was drafted by the agent after a fixture showed a task reopened afte
   - **CHANGE-14.a**  The refusal names each open task and the command to run once it is done.
   - **CHANGE-14.b**  The change's status names that same way forward instead of telling me to run the check again.
   - **CHANGE-14.c**  A task reopened after a passing check stops the change from being reviewed or finalized until it is done again.
+- **CHANGE-16**  A change is archived only with approvals that Git history holds.
+  - **CHANGE-16.a**  An approval edited after its commit, or never committed, stops the archive, and I am told how to put it back.
+  - **CHANGE-16.b**  A commit that rewrites or drops an earlier approval, reopening or send-back stops the archive, and I am told which commit did it.
+  - **CHANGE-16.c**  What the tool itself writes to that file never stops it: a reopen, a send-back and fresh approval, a repaired relay, a migration's backfill.
 
 ## Retired
 

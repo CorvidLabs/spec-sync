@@ -19,6 +19,8 @@ files: [src/change/consider_accepted_evidence_anchor.rs, src/change_tests/upstre
 observations:
   - 2026-11-13-at-57bc249e1-fix-945-961-with-origin-main-bb7682a78-merged-in
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-tests-an
+  - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-an
+  - 2026-11-19-refreshed-onto-main-3bebe8b0-with-965-both-red-tests-pass-at
 bugs: []
 blockers: []
 waiting_on_human:
@@ -43,11 +45,14 @@ The upstream archive lookup reads tree entries as bytes and knows an archive HEA
 
 - decided: authorization is Leif's own scope approval ('#945 + #961 (one PR)', coordinator chat 2026-11-13T04:39Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: no new lesson for change.3md, because the change is narrow and an existing lesson covers it
+- Refreshed onto main 3bebe8b0 (batch 5) under Leif's relayed answer of 2026-11-18 that the 2026-11-13 approvals stand, 'Yes, they stand' (from his planning session hc t4c, relayed through ss-lead t58); no approved sentence changed, and no review, approval or gate close was recorded
 
 ## What was verified
 
 - [At 57bc249e1 (fix/945-961 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3072 passed, 2 ignored; integration 619 passed), release build, strict spec check, and the CI script tests, including the upstream_archive tests for a non-UTF-8 package and an upstream rename HEAD already holds.](evidence/2026-11-13-at-57bc249e1-fix-945-961-with-origin-main-bb7682a78-merged-in.md)
 - [Red-first control: on main 18385ef5e with only the new tests, an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup and an_upstream_rename_of_an_archive_head_already_contains_is_not_reported fail. These are the defects #945 and #961 report, fixed by this change; not new bugs.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-tests-an.md)
+- [Red-first control for the refresh onto main 3bebe8b0: an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup (#961) and an_upstream_rename_of_an_archive_head_already_contains_is_not_reported (#945) both fail, the defects the issues report.](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-an.md)
+- [Refreshed onto main 3bebe8b0 with #965; both red tests pass at the tip. fledge lanes run verify at e816e662 with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10 of 10 steps in 10m29s, 3079 unit and 627 integration tests passed, strict specs 62/62, file and LOC coverage 100%; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-965-both-red-tests-pass-at.md)
 
 ## Open threads
 

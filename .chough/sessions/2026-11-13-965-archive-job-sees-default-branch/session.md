@@ -22,6 +22,8 @@ files:
 observations:
   - 2026-11-13-at-1085663ce-fix-965-with-origin-main-bb7682a78-merged-in
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-test
+  - 2026-11-19-refreshed-onto-main-3bebe8b0-with-945-and-961-test-required-ci
 bugs: []
 blockers: []
 waiting_on_human:
@@ -46,11 +48,14 @@ The Archive CI job fetches full history, so it sees the default branch and never
 
 - decided: authorization is Leif's own scope approval ('#965 CI archive check', coordinator chat 2026-11-13T04:39Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: no new lesson for change.3md, because the fix is a narrow correction an existing lesson already covers
+- Refreshed onto main 3bebe8b0 (batch 5) under Leif's relayed answer of 2026-11-18 that the 2026-11-13 approvals stand, 'Yes, they stand' (from his planning session hc t4c, relayed through ss-lead t58); no approved sentence changed, and no review, approval or gate close was recorded
 
 ## What was verified
 
 - [At 1085663ce (fix/965 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps under the shared heavy-test lock: fmt, lint and check-types, cargo test (unit 3070 passed, 2 ignored; integration 619 passed), release build, strict spec check, and the CI script tests, including ArchiveGateHistoryTests.test_every_archive_gate_job_checks_out_full_history in .github/scripts/test-required-ci-gate.py.](evidence/2026-11-13-at-1085663ce-fix-965-with-origin-main-bb7682a78-merged-in.md)
 - [Red-first control: on main 18385ef5e with only the new test, ArchiveGateHistoryTests.test_every_archive_gate_job_checks_out_full_history in .github/scripts/test-required-ci-gate.py fails. The failure is the defect #965 reports, fixed by this change; it is not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- [Red-first control for the refresh onto main 3bebe8b0: test_every_archive_gate_job_checks_out_full_history fails against main's ci.yml and trust.yml (the Archive jobs check out one commit), the defect #965 reports; test_a_single_commit_checkout_before_the_archive_gate_fails passes there, as it tests the checker on a synthetic job.](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-test.md)
+- [Refreshed onto main 3bebe8b0 with #945 and #961; test-required-ci-gate.py passes all 38 tests at the tip. fledge lanes run verify at e816e662 with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10 of 10 steps in 10m29s, 3079 unit and 627 integration tests passed, strict specs 62/62, file and LOC coverage 100%; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-945-and-961-test-required-ci.md)
 
 ## Open threads
 

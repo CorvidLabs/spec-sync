@@ -22,6 +22,8 @@ files:
 observations:
   - 2026-11-13-at-e4e0e229a-fix-982-with-origin-main-bb7682a78-merged-in
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-change
+  - 2026-11-19-refreshed-onto-main-3bebe8b0-with-887-985-and-981-the-red-test
 bugs: []
 blockers: []
 waiting_on_human:
@@ -46,11 +48,15 @@ A failed lifecycle-state history index build is retried in the next read scope i
 
 - decided: authorization is Leif's own scope approval ('#982 retry history index', coordinator chat 2026-11-13T04:03Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form; file list grew under the standing file-list rule (04:35Z)
 - decided: no new lesson for change.3md, because the change is narrow and an existing lesson covers it
+- Refreshed onto main 3bebe8b0 (batch 7a) under Leif's relayed answer of 2026-11-18 that the 2026-11-13 approvals stand, 'Yes, they stand' (from his planning session hc t4c, relayed through ss-lead t58); no approved sentence changed, and no review, approval or gate close was recorded
 
 ## What was verified
 
 - [At e4e0e229a (fix/982 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3071 passed, 2 ignored; integration 619 passed), release build, strict spec check, and the CI script tests, including change::tests::a_failed_lifecycle_state_history_build_is_retried_in_the_next_read_scope.](evidence/2026-11-13-at-e4e0e229a-fix-982-with-origin-main-bb7682a78-merged-in.md)
 - [Red-first control: on main 18385ef5e with only the new test, change::tests::a_failed_lifecycle_state_history_build_is_retried_in_the_next_read_scope fails: a failed index build stayed failed for later read scopes. The failure is the defect #982 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+- [Red-first control for the refresh onto main 3bebe8b0: change::tests::a_failed_lifecycle_state_history_build_is_retried_in_the_next_read_scope fails (a failed index build stayed failed for later scopes), the defect #982 reports.](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-change.md)
+- [Refreshed onto main 3bebe8b0 with #887, #985 and #981; the red test passes. fledge lanes run verify at 42dda911 with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10/10 steps, 3085 unit and 627 integration tests, strict specs 62/62, 100% file and LOC coverage; lifecycle_commands_stay_within_git_spawn_ceilings passes; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-887-985-and-981-the-red-test.md)
 
 ## Open threads
 

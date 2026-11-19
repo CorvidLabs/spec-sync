@@ -20,6 +20,8 @@ observations:
   - 2026-11-13-at-3810ab929-fix-887-with-origin-main-merged-in-the-verify
   - 2026-11-13-at-1898dc4bb-after-the-fix-fledge-lanes-run-verify-passed-10
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test-git
+  - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-git-utils
+  - 2026-11-19-refreshed-onto-main-3bebe8b0-with-985-981-and-982-a-failed
 bugs: []
 blockers: []
 waiting_on_human:
@@ -44,12 +46,17 @@ The repository-fact memo keeps definite answers and never a failed Git query, so
 
 - decided: authorization is Leif's own scope approval ('#887 retry failed git', coordinator chat 2026-11-13T14:01Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: a show of a path the revision does not hold is a definite answer when the batch reader reports it missing or Git names the path, because both name the absence; a process 'bad revision' stays a failure since it is the same for a missing commit
+- Refreshed onto main 3bebe8b0 (batch 7a) under Leif's relayed answer of 2026-11-18 that the 2026-11-13 approvals stand, 'Yes, they stand' (from his planning session hc t4c, relayed through ss-lead t58); no approved sentence changed, and no review, approval or gate close was recorded
 
 ## What was verified
 
 - [At 3810ab929 (fix/887 with origin/main merged in), the verify lane's cargo test failed one test: cold_archived_status_prefetch_workers_reuse_repository_facts, 237 Git processes with six archives against main's 222, because a show <rev>:<path> of a path the revision does not hold was no longer memoized. Fixed in 1898dc4bb in this session by keeping the batch reader's missing answer, and Git's 'does not exist in', as definite; found and fixed before review, so no bug record.](evidence/2026-11-13-at-3810ab929-fix-887-with-origin-main-merged-in-the-verify.md)
 - [At 1898dc4bb, after the fix, fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3072 passed, 2 ignored; integration 619 passed, including the REQ-change-127 spawn-ceiling tests), release build, strict spec check, and the CI script tests. The cold archived status test reads 227 with six archives; a_failed_fact_is_not_memoized_but_a_definite_absence_is and a_missing_path_answer_is_definite_but_a_bad_revision_is_not pass.](evidence/2026-11-13-at-1898dc4bb-after-the-fix-fledge-lanes-run-verify-passed-10.md)
 - [Red-first control: on main 18385ef5e with only the new test, git_utils::tests::a_failed_fact_is_not_memoized_but_a_definite_absence_is fails: a rev-parse that failed with 128 was memoized. The failure is the defect #887 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test-git.md)
+- 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test-git
+- [Red-first control for the refresh onto main 3bebe8b0: git_utils::tests::a_failed_fact_is_not_memoized_but_a_definite_absence_is fails (a failed rev-parse was memoized), the defect #887 reports. Spawn count for eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci by the 11-13 PATH shim: 6,400 on main.](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-git-utils.md)
+- [Refreshed onto main 3bebe8b0 with #985, #981 and #982: a_failed_fact_is_not_memoized_but_a_definite_absence_is and a_missing_path_answer_is_definite_but_a_bad_revision_is_not pass. REQ-change-127: the suite's ceiling test passes on main and at the tip; the PATH shim counts 6,401 spawns for the eight-change test at the tip against 6,400 on main, so #887 costs one. fledge lanes run verify at 42dda911 with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10/10 steps, 3085 unit and 627 integration tests, strict specs 62/62, 100% file and LOC coverage; lifecycle_commands_stay_within_git_spawn_ceilings passes; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-985-981-and-982-a-failed.md)
+- 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-git-utils
 
 ## Open threads
 

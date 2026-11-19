@@ -24,6 +24,8 @@ files:
 observations:
   - 2026-11-13-at-f4f8a0e75-fix-981-with-origin-main-bb7682a78-merged-in
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-hash
+  - 2026-11-19-refreshed-onto-main-3bebe8b0-with-887-985-and-982-per-ss-lead
 bugs: []
 blockers: []
 waiting_on_human:
@@ -48,11 +50,15 @@ The build fingerprint frames the compile configuration as well as the sources, s
 
 - decided: authorization is Leif's own scope approval ('#981 cache per build', coordinator chat 2026-11-13T04:55Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: no new lesson, because the change is narrow and an existing lesson covers it
+- Refreshed onto main 3bebe8b0 (batch 7a) under Leif's relayed answer of 2026-11-18 that the 2026-11-13 approvals stand, 'Yes, they stand' (from his planning session hc t4c, relayed through ss-lead t58); no approved sentence changed, and no review, approval or gate close was recorded
 
 ## What was verified
 
 - [At f4f8a0e75 (fix/981 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3073 passed, 2 ignored; integration 619 passed), release build, strict spec check, and the CI script tests, including hash_cache::tests::the_build_fingerprint_frames_the_compile_configuration.](evidence/2026-11-13-at-f4f8a0e75-fix-981-with-origin-main-bb7682a78-merged-in.md)
 - [Red-first control: on main 18385ef5e with only the new test, hash_cache::tests::the_build_fingerprint_frames_the_compile_configuration fails: the fingerprint covered the sources but not the build configuration. The failure is the defect #981 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+- [Red-first control for the refresh onto main 3bebe8b0: hash_cache::tests::the_build_fingerprint_frames_the_compile_configuration (the option_env! version from d6489e8f) fails, the defect #981 reports. Also measured: cargo 1.89.0 passes a build script PROFILE and DEBUG but no CARGO_CFG_DEBUG_ASSERTIONS (three-line probe crate), so the branch's final test, which asserted it, failed at the batch tip 5587c03b; a_snapshot_from_a_build_with_other_debug_assertions_is_not_replayed failed before the snapshot input digest framed cfg!(debug_assertions).](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-hash.md)
+- [Refreshed onto main 3bebe8b0 with #887, #985 and #982. Per ss-lead's option (1): the validation snapshot's input digest frames cfg!(debug_assertions) at run time; the configuration test asserts the four names build.rs frames; the read cache's identity half is issue #1098 (src/change/read_cache.rs is outside #981's declared paths). the_build_fingerprint_frames_the_compile_configuration, a_snapshot_from_a_build_with_other_debug_assertions_is_not_replayed and both build_fingerprint tests pass. A cache written under the old fingerprint is ignored and replaced, not deleted. fledge lanes run verify at 42dda911 with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10/10 steps, 3085 unit and 627 integration tests, strict specs 62/62, 100% file and LOC coverage; lifecycle_commands_stay_within_git_spawn_ceilings passes; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-887-985-and-982-per-ss-lead.md)
 
 ## Open threads
 

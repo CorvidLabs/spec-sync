@@ -91,6 +91,33 @@
         "REQ-hash-cache-006",
         "REQ-validator-048"
       ]
+    },
+    {
+      "timestamp": 1795052674,
+      "commit": "bf34ced1d6e41631b71f91b1e69083aad25c31e6",
+      "contract_digest": "90fa46185ff32dfd2ec6d4d7551c0c7da614875d143dd0afccbeceb9aacccf10",
+      "execution_digest": "51877b06cec28fdd2c704037de1aa8c26913822190bb7acfc9aea89f84e4d2ae",
+      "workspace_digest": "69d4f906acd833024285b48a058973c7dd1091f6864f88251fb6cc82da2da0ba",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli --spec cli_args --spec cmd_change --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-021",
+        "REQ-change-092",
+        "REQ-change-123",
+        "REQ-change-159",
+        "REQ-change-160",
+        "REQ-cli-014",
+        "REQ-cli-args-026",
+        "REQ-cmd-change-037",
+        "REQ-hash-cache-006",
+        "REQ-validator-048"
+      ]
     }
   ]
 }

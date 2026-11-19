@@ -332,15 +332,23 @@ fn validation_input_digest_for_build(
     }
     // `check` validates the spec's history fragments (REQ-validator-048), so the verdict binds
     // the `history/` path and the name and bytes of every entry in it (REQ-hash-cache-006).
+    // Each entry's type is bound too, because `check` refuses an entry that is not a regular
+    // file: a fragment swapped for a symlink to the same bytes must re-validate (#1086 review).
     let history = crate::change::spec_history_dir(spec_path);
-    input_paths.insert(normalize_rel(
-        history.strip_prefix(root).unwrap_or(&history),
-    ));
+    let history_rel = normalize_rel(history.strip_prefix(root).unwrap_or(&history));
+    let mut history_kinds = vec![format!("{history_rel}={}", entry_kind(&history))];
+    input_paths.insert(history_rel);
     if let Ok(entries) = fs::read_dir(&history) {
         for entry in entries.flatten() {
             let path = entry.path();
-            input_paths.insert(normalize_rel(path.strip_prefix(root).unwrap_or(&path)));
+            let rel = normalize_rel(path.strip_prefix(root).unwrap_or(&path));
+            history_kinds.push(format!("{rel}={}", entry_kind(&path)));
+            input_paths.insert(rel);
         }
+    }
+    history_kinds.sort();
+    for kind in history_kinds {
+        update_digest(&mut hasher, "history_entry", &kind);
     }
     input_paths.extend(global_inputs.iter().cloned());
 
@@ -352,6 +360,18 @@ fn validation_input_digest_for_build(
         update_digest(&mut hasher, "input_state", &state);
     }
     format!("{:x}", hasher.finalize())
+}
+
+/// What a path is, without following a symlink: `file`, `directory`, `symlink`, `other` or
+/// `missing`.
+fn entry_kind(path: &Path) -> &'static str {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => "symlink",
+        Ok(metadata) if metadata.is_file() => "file",
+        Ok(metadata) if metadata.is_dir() => "directory",
+        Ok(_) => "other",
+        Err(_) => "missing",
+    }
 }
 
 /// Full path to the cache file.
@@ -1188,5 +1208,38 @@ mod tests {
         let edited = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
         fs::remove_file(&fragment).unwrap();
         assert!(!replays(&edited), "a removed fragment re-validates");
+    }
+
+    /// #1086 review (Codex, hash_cache.rs:342): `check` refuses a history entry that is not a
+    /// regular file, so the snapshot binds each entry's type as well as its bytes. A fragment
+    /// swapped for a symlink to the same bytes re-validates.
+    #[cfg(unix)]
+    #[test]
+    fn a_snapshot_is_not_replayed_over_a_fragment_swapped_for_a_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        let fragment = root.join("specs/auth/history/add-passkeys.md");
+        let content = "---\nchange: add-passkeys\ndate: 2026-11-19\n---\n\nAdd\n";
+        fs::create_dir_all(fragment.parent().unwrap()).unwrap();
+        fs::write(&fragment, content).unwrap();
+        let snapshot = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        let replays = || {
+            let mut cache = HashCache::default();
+            cache
+                .snapshots
+                .insert("specs/auth/auth.spec.md".into(), snapshot.clone());
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some()
+        };
+        assert!(replays());
+
+        let copy = root.join("elsewhere.md");
+        fs::write(&copy, content).unwrap();
+        fs::remove_file(&fragment).unwrap();
+        std::os::unix::fs::symlink(&copy, &fragment).unwrap();
+
+        assert!(!replays(), "a symlink with the same bytes re-validates");
     }
 }

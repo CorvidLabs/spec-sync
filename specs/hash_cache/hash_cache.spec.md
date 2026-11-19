@@ -69,7 +69,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 6. Companion file detection covers all five companion types (requirements.md, context.md, tasks.md, testing.md, design.md) in both naming conventions: plain (`requirements.md`) and prefixed (`{module}.req.md`)
 7. `update_cache` prunes entries for deleted files to prevent unbounded cache growth
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
-9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
+9. The validation snapshot input digest frames the name, type and content of every entry in the spec's `history/` directory, and the type of the directory itself, so a cached verdict never replays over an added, edited, removed or replaced history fragment, including one swapped for a symlink to the same bytes (REQ-hash-cache-006).
 
 ## Behavioral Examples
 
@@ -108,6 +108,12 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 - **Given** `testing.md` or `design.md` has been modified
 - **When** `classify_changes` is called for the parent spec
 - **Then** returns `ChangeClassification` with `ChangeKind::Companion`
+
+### Scenario: A history fragment replaced by a symlink or a directory re-validates
+
+- **Given** a snapshot recorded while `specs/auth/history/add-passkeys.md` was a regular file
+- **When** that fragment is replaced by a symlink to a copy of the same bytes, or by a directory of the same name, and `replayable_validation_snapshot` is called
+- **Then** it returns `None`: the entry's type is part of the snapshot input digest, so `check` validates the spec again instead of replaying the earlier verdict
 
 ## Error Cases
 

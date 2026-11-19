@@ -24,7 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
-- none yet
+- [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
 
 ## Where things live
 
@@ -179,7 +179,7 @@ Each module's lessons stay in its lesson source:
 - agents: [specs/agents/agents.3md](../specs/agents/agents.3md), 7 lessons
 - ai: [specs/ai/ai.3md](../specs/ai/ai.3md), 3 lessons
 - archive: [specs/archive/archive.3md](../specs/archive/archive.3md), 3 lessons
-- change: [specs/change/change.3md](../specs/change/change.3md), 52 lessons
+- change: [specs/change/change.3md](../specs/change/change.3md), 53 lessons
 - changelog: [specs/changelog/changelog.3md](../specs/changelog/changelog.3md), 3 lessons
 - cli: [specs/cli/cli.3md](../specs/cli/cli.3md), 8 lessons
 - cli_args: [specs/cli_args/cli_args.3md](../specs/cli_args/cli_args.3md), 7 lessons
@@ -245,9 +245,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump](../.specsync/archive/changes/2026-11-19-record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump/lesson-bundle.md), Record each shipped change in a history fragment file instead of a Change Log row and a version bump
 - [list-chough-0-6-0-record-folders-in-verification-ignored-paths](../.specsync/archive/changes/2026-11-13-list-chough-0-6-0-record-folders-in-verification-ignored-paths/lesson-bundle.md), List Chough 0.6.0 record folders in verification_ignored_paths
 - [advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0](../.specsync/archive/changes/2026-11-12-advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0/lesson-bundle.md), Advance the Action default and current guidance to published SpecSync 6.3.0
-- [prepare-specsync-6-3-0-package-metadata-and-release-handoff](../.specsync/archive/changes/2026-11-12-prepare-specsync-6-3-0-package-metadata-and-release-handoff/lesson-bundle.md), Prepare SpecSync 6.3.0 package metadata and release handoff
 
 ## Snapshots and briefs
 

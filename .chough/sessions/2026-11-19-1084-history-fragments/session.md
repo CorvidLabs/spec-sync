@@ -5,7 +5,7 @@ aliases: [1084-history-fragments]
 objective: At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Change Log row and a version bump; check validates the fragments; specsync history renders the table; existing tables are frozen as written, no row rewritten (#1084, Leif's approval on the issue, relayed by hc t4c)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -18,13 +18,9 @@ design: []
 files: []
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of #1084 (PR #1086)"
-    holds: accept
-    drives: review
-    opened: 2026-11-19T01:31:01Z
+waiting_on_human: []
 run_consents: []
-next: "Tester checks PR #1086; Leif reviews through t4c; on his pass, chough change ship <id> --close-gate with his words, then push the archive tip and mark the PR ready"
+next: Continue done
 observations: [2026-11-19-covers-req-change-159-160-req-validator-048-req-hash-cache-006]
 ---
 # At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Change Log row and a version bump; check validates the fragments; specsync history renders the table; existing tables are frozen as written, no row rewritten (#1084, Leif's approval on the issue, relayed by hc t4c)
@@ -50,6 +46,7 @@ At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Chang
 - 0xLeif decided "Scope re-approval at plan of record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump": "Leif's decision (2026-11-18): approved." (Written on spec-sync issue #1084 on 2026-11-18; relayed by hc t4c on 2026-11-18 as his scope approval of the issue's three bullets; re-recorded after the delta added MODIFIED REQ-change-021, -092 and -123, which that scope requires); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump as 0xLeif
 - decided: a module owns every .md file in its history/ directory for coverage and acceptance ownership, as it owns its companions, because a successor's manifest can name a predecessor's fragment; commit staging stays limited to the change's own fragment
 - Environment note: this Mac's global git config sets tag.gpgsign, so changelog::tests' lightweight git tag fails; they pass with GIT_CONFIG_GLOBAL=/dev/null and do not touch this change
+- 0xLeif decided "Leif's review of #1084 (PR #1086)": "Approve, merge when green" (Leif's implementation review of PR #1086 on 2026-11-18, after the tester's PASS (prs/ss1086/notes.md); relayed by his planning session hc t4c); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change review record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -148,4 +145,20 @@ At ship SpecSync writes specs/<module>/history/<change-id>.md instead of a Chang
   - revision: b2dcb5a54e59666cc98dcc91f3996dd5e96533f2
   - holds: accept
   - drives: review
+  - by: claude-code (hc t4t)
+- 2026-11-19T01:46:33Z · gate-closed · accept → accept · Leif's review of #1084 (PR #1086) ^t-4221b3
+  - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
+  - revision: 34abea1031322cda830c79d199123dbba85c8053
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve, merge when green
+    - where: Leif's implementation review of PR #1086 on 2026-11-18, after the tester's PASS (prs/ss1086/notes.md); relayed by his planning session hc t4c
+    - recorded_by: claude-code-t4t
+    - native: specsync change review record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
+    - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-19T01:46:35Z · advance · accept → done · native:archived ^t-d90277
+  - native_change: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
+  - gate: native:archived
+  - revision: 34abea1031322cda830c79d199123dbba85c8053
   - by: claude-code (hc t4t)

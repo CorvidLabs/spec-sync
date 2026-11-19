@@ -5,7 +5,7 @@ aliases: [1060-unparseable-3md-reported]
 objective: check reports a module's .3md lesson file that does not parse (#1060)
 intent_scope: THREE
 modules: [validator]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,6 +19,7 @@ files: []
 observations:
   - 2026-11-19-1060-red-control-on-main-3bebe8b0
   - 2026-11-19-1060-verify-lane-at-c2b19a91
+  - 2026-11-19-1060-verify-lane-at-76a66032
 bugs: []
 blockers: []
 waiting_on_human:
@@ -39,6 +40,7 @@ check reports a module's .3md lesson file that does not parse (#1060)
 
 - Merged the 11-13 branch onto main 3bebe8b0 on branch fix/validation-1071-1076-1050-1060-574
 - Refreshed onto main 3bebe8b0 with the other four; the cmd_check and validator spec files kept as main has them and re-materialized the #1086 way: REQ-cmd-check-018 (text unchanged), the validator's Error Cases row and two history fragments, no version bump or Change Log row; the validator conflict kept main's history-fragment check and this change's .3md warning; re-checked; red control and the verify lane recorded
+- The lead's and the tester's review points on f4de84fc are in (f52d7f3c, 6ffa715e): #574's timing test is interleaved and resized so it is red on main in release and debug; #1050's and #1060's CHANGELOG entries say what an upgrade does and what is left out; re-checked; lane 10/10 at 76a66032
 
 ## Decisions and why
 
@@ -49,6 +51,7 @@ check reports a module's .3md lesson file that does not parse (#1060)
 
 - [Red-first control: on main 3bebe8b0 with only the new tests, check::an_unparseable_3md_is_a_check_warning_and_fails_strict fails: check prints no warning for a .3md with two planes at one z, and check --strict passes. This is the defect #1060 reports, fixed by this change; not a new bug.](evidence/2026-11-19-1060-red-control-on-main-3bebe8b0.md)
 - [At c2b19a91 (#1071, #1076, #1050, #1060 and #574 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 12m28s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes check::an_unparseable_3md_is_a_check_warning_and_fails_strict (REQ-cmd-check-018).](evidence/2026-11-19-1060-verify-lane-at-c2b19a91.md)
+- [At 76a66032 (the two small commits f52d7f3c and 6ffa715e from the lead's and the tester's reviews, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m09s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs) and the CI script tests. A run of the same head beside another lane failed once on archived_upstream::the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root, a test from main that races Git's background packing (#1097); this run was alone. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1060-verify-lane-at-76a66032.md)
 
 ## Open threads
 
@@ -91,4 +94,14 @@ check reports a module's .3md lesson file that does not parse (#1060)
   - gate: native:verifying
   - revision: 0d0840fd24cc099b68f4d5c9b4b009640429109b
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T08:42:12Z · advance · build → test · native:verifying ^t-c7f02d
+  - native_change: check-reports-a-module-s-3md-lesson-file-that-does-not-parse
+  - gate: native:verifying
+  - revision: 76a6603257a1efec6ba25d83c603617ce7434c46
+  - by: claude-code (hc t59)
+- 2026-11-19T08:42:16Z · advance · test → accept · native:verifying ^t-dd8e09
+  - native_change: check-reports-a-module-s-3md-lesson-file-that-does-not-parse
+  - gate: native:verifying
+  - revision: 76a6603257a1efec6ba25d83c603617ce7434c46
   - by: claude-code (hc t59)

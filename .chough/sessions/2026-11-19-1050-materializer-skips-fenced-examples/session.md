@@ -5,7 +5,7 @@ aliases: [1050-materializer-skips-fenced-examples]
 objective: The delta materializer skips fenced examples when it matches a requirement block (#1050)
 intent_scope: CHANGE
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,6 +19,7 @@ files: []
 observations:
   - 2026-11-19-1050-red-control-on-main-3bebe8b0
   - 2026-11-19-1050-verify-lane-at-c2b19a91
+  - 2026-11-19-1050-verify-lane-at-76a66032
 bugs: []
 blockers: []
 waiting_on_human:
@@ -39,6 +40,7 @@ The delta materializer skips fenced examples when it matches a requirement block
 
 - Merged the 11-13 branch onto main 3bebe8b0 on branch fix/validation-1071-1076-1050-1060-574
 - Refreshed onto main 3bebe8b0 with the other four; three conflicts, each a line added beside #1071's (CHANGELOG entry, the test file in the change spec's files list, its include), both lines kept; re-checked; red control and the verify lane recorded
+- The lead's and the tester's review points on f4de84fc are in (f52d7f3c, 6ffa715e): #574's timing test is interleaved and resized so it is red on main in release and debug; #1050's and #1060's CHANGELOG entries say what an upgrade does and what is left out; re-checked; lane 10/10 at 76a66032
 
 ## Decisions and why
 
@@ -49,6 +51,7 @@ The delta materializer skips fenced examples when it matches a requirement block
 
 - [Red-first control: on main 3bebe8b0 with only the new tests, both fenced_requirement_example_delta tests fail: a MODIFIED delta replaces the fenced example instead of the real requirement, and a heading inside a fenced example ends the block. This is the defect #1050 reports, fixed by this change; not a new bug.](evidence/2026-11-19-1050-red-control-on-main-3bebe8b0.md)
 - [At c2b19a91 (#1071, #1076, #1050, #1060 and #574 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 12m28s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes both fenced_requirement_example_delta tests.](evidence/2026-11-19-1050-verify-lane-at-c2b19a91.md)
+- [At 76a66032 (the two small commits f52d7f3c and 6ffa715e from the lead's and the tester's reviews, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m09s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs) and the CI script tests. A run of the same head beside another lane failed once on archived_upstream::the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root, a test from main that races Git's background packing (#1097); this run was alone. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1050-verify-lane-at-76a66032.md)
 
 ## Open threads
 
@@ -91,4 +94,14 @@ The delta materializer skips fenced examples when it matches a requirement block
   - gate: native:verifying
   - revision: f4de84fc72a02214003261bb9e01648dbd9916c6
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T08:42:06Z · advance · build → test · native:verifying ^t-9a1abb
+  - native_change: the-delta-materializer-skips-fenced-examples-when-it-matches-a-requirement-block
+  - gate: native:verifying
+  - revision: 76a6603257a1efec6ba25d83c603617ce7434c46
+  - by: claude-code (hc t59)
+- 2026-11-19T08:42:09Z · advance · test → accept · native:verifying ^t-55a794
+  - native_change: the-delta-materializer-skips-fenced-examples-when-it-matches-a-requirement-block
+  - gate: native:verifying
+  - revision: 76a6603257a1efec6ba25d83c603617ce7434c46
   - by: claude-code (hc t59)

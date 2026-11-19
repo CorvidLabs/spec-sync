@@ -5,7 +5,7 @@ aliases: [428-committed-approvals]
 objective: finalize, ship and archive refuse an approvals ledger that Git history does not hold (#428)
 intent_scope: CHANGE
 modules: [change, cmd_change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -115,4 +115,10 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
   - revision: b70c28033539420c937ddb44d64a12ddcb35b63d
   - holds: accept
   - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-19T17:34:23Z · back · accept → build · ss-lead's review at 35090439: the Git-read refusals name the way out ^t-ba1bfe
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: cb0b4fc3273a3ca9a62110362773cf386a9f6601
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 3 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

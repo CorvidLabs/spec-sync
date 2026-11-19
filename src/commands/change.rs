@@ -1434,7 +1434,17 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // read-only command in between. #689 moved the verification half of this very conjunction
     // onto content and left the review half asking whether a file was on disk.
     let review_currency = change::recorded_scoped_review_currency(root, record);
-    let review_status = ShipReviewStatus::resolve(review_currency.as_ref(), review_present);
+    // An archived change's review was required current by finalize, and an authenticating archive
+    // still holds it. The descendant walk always reads the archive commit as a later change, so it
+    // is not asked here, and no re-review is suggested: `change review` refuses an archived
+    // change (#1038).
+    let review_finalized =
+        review_present && change::archived_review_is_settled_by_finalize(root, record);
+    let review_status = if review_finalized {
+        ShipReviewStatus::Current
+    } else {
+        ShipReviewStatus::resolve(review_currency.as_ref(), review_present)
+    };
 
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
@@ -1676,7 +1686,11 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "verification_ancestor_of_head": verification_ancestor,
         "review_present": review_present,
         "review_currency": review_status.label(),
-        "review_currency_reason": review_currency.as_ref().and_then(|currency| currency.reason()),
+        "review_currency_reason": if review_finalized {
+            Some("finalize recorded this scoped review when it archived the change")
+        } else {
+            review_currency.as_ref().and_then(|currency| currency.reason())
+        },
         "ready_to_finalize": ready_to_finalize,
         "blockers": blockers,
         "warnings": warnings,
@@ -2256,6 +2270,8 @@ fn ship_stages(
         "status": review_status,
         "action": if retired {
             "no scoped review applies; the change was retired without implementation acceptance".to_string()
+        } else if review.current() && record.state == ChangeState::Archived {
+            "done by finalize: the scoped review was current when this change was archived".to_string()
         } else if review.current() {
             "scoped review is recorded and current".to_string()
         } else if product_done && review.present() {
@@ -2347,7 +2363,9 @@ fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
     all_paths.sort();
     all_paths.dedup();
 
-    let tip_class = classify_paths(&all_paths).to_string();
+    let tip_class =
+        classify_paths_with(&all_paths, |directory| archived_package_id(root, directory))
+            .to_string();
     Ok(HeadTip {
         tip_class,
         tip_sha,
@@ -2355,15 +2373,67 @@ fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
     })
 }
 
+/// The `id` an archived package's `state.json` records, the identity CI's classifier reads too.
+fn archived_package_id(root: &Path, directory: &str) -> Option<String> {
+    let state = fs::read_to_string(
+        root.join(".specsync/archive/changes")
+            .join(directory)
+            .join("state.json"),
+    )
+    .ok()?;
+    serde_json::from_str::<serde_json::Value>(&state)
+        .ok()?
+        .get("id")?
+        .as_str()
+        .map(str::to_string)
+}
+
+#[cfg(test)]
 fn classify_paths(paths: &[String]) -> &'static str {
+    classify_paths_with(paths, |_| None)
+}
+
+/// `archive_id` names the change an archive directory holds. When a tip archives exactly one
+/// change, that change's own package paths under `.specsync/changes/<id>/` are archive work too,
+/// as `.github/scripts/classify-ci-paths.sh` counts them (#1038).
+fn classify_paths_with(
+    paths: &[String],
+    archive_id: impl Fn(&str) -> Option<String>,
+) -> &'static str {
     if paths.is_empty() {
         return "other";
     }
+    let directory_under = |path: &str, root: &str| -> Option<String> {
+        path.strip_prefix(root)?
+            .split_once('/')
+            .map(|(directory, _)| directory.to_string())
+    };
+    let archive_directories: std::collections::BTreeSet<String> = paths
+        .iter()
+        .filter_map(|path| directory_under(path, ".specsync/archive/changes/"))
+        .collect();
+    let active_ids: std::collections::BTreeSet<String> = paths
+        .iter()
+        .filter_map(|path| directory_under(path, ".specsync/changes/"))
+        .collect();
+    let archived_package = (active_ids.len() == 1 && !archive_directories.is_empty())
+        .then(|| active_ids.first().cloned())
+        .flatten()
+        .filter(|id| {
+            archive_directories
+                .iter()
+                .all(|directory| archive_id(directory).as_deref() == Some(id.as_str()))
+        })
+        .map(|id| format!(".specsync/changes/{id}/"));
     let mut has_archive = false;
     let mut has_review = false;
     let mut has_product = false;
     for path in paths {
-        if path.starts_with(".specsync/archive/changes/") {
+        if path.starts_with(".specsync/archive/changes/")
+            || archived_package
+                .as_deref()
+                .is_some_and(|package| path.starts_with(package))
+        {
             has_archive = true;
             continue;
         }
@@ -5904,6 +5974,85 @@ if the floor call is removed from this function"
             ]),
             "product"
         );
+    }
+
+    /// #1038: an archive commit that also removes the change's own package files under
+    /// `.specsync/changes/<id>/` (Git pairs no rename because the archive package already exists,
+    /// as after a reopen) is still archive work, as CI's classify-ci-paths.sh counts it by the
+    /// archive's `state.json` id. Another change's package beside it is not.
+    #[test]
+    fn an_archive_tip_that_removes_its_own_package_files_is_archive_only() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_in(root, &["init", "-q", "-b", "main"]);
+        git_in(root, &["config", "user.email", "t@example.com"]);
+        git_in(root, &["config", "user.name", "T"]);
+        let active = root.join(".specsync/changes/release");
+        let archive = root.join(".specsync/archive/changes/2026-11-10-release");
+        fs::create_dir_all(&active).unwrap();
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(active.join("change.md"), "# reopened\n").unwrap();
+        fs::write(active.join("tasks.md"), "- [x] done\n").unwrap();
+        fs::write(
+            archive.join("state.json"),
+            r#"{"id":"release","state":"archived"}"#,
+        )
+        .unwrap();
+        fs::write(archive.join("review.json"), "{}\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "reopened"]);
+        fs::remove_dir_all(&active).unwrap();
+        fs::write(archive.join("review.json"), "{\"verdict\":\"pass\"}\n").unwrap();
+        fs::write(archive.join("accepted-state.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive again"]);
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "archive_only");
+
+        // A different change's package in the same commit is not this archive's work.
+        let other = root.join(".specsync/changes/other");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("change.md"), "# other\n").unwrap();
+        fs::write(archive.join("finalization.json"), "{}\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "archive beside another change"],
+        );
+        assert_eq!(classify_head_tip(root).unwrap().tip_class, "product");
+    }
+
+    /// #1038 (Leif, 2026-11-13: "For an archived change, report the review as done by finalize and
+    /// suggest nothing."). `change review` refuses an archived change, and finalize already
+    /// required a current review, so ship-status must not call it stale or suggest re-recording it.
+    #[test]
+    fn an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        change::finalize_change(root, &id).expect("finalize");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        assert_eq!(report["review_currency"], "current", "{report}");
+        let review = report["stages"]
+            .as_array()
+            .expect("stages")
+            .iter()
+            .find(|stage| stage["id"] == "review_tip")
+            .expect("review stage");
+        assert_eq!(review["status"], "done", "{report}");
+        for text in [review["action"].to_string(), report["blockers"].to_string()] {
+            assert!(
+                !text.contains("change review"),
+                "an archived change is told to re-review: {text}"
+            );
+        }
     }
 
     /// #687: the warning must name the cost that lands on OTHER changes, not only this one.

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1794544984,
+      "commit": "23be0aaf40c88a71291925a988112bf356c1e033",
+      "contract_digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+      "execution_digest": "6ab4a98bc2ca9ec9993987d761733ee41692958ede2d850f3c451b4bbc7c4069",
+      "workspace_digest": "cf79b0d6c7333a25d8c930774885798a282539e5abd970a7b682904307231835",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794544989,
+      "commit": "a95acc1686a15332549d78ad40fe83ead507c6ed",
+      "contract_digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+      "execution_digest": "6ab4a98bc2ca9ec9993987d761733ee41692958ede2d850f3c451b4bbc7c4069",
+      "workspace_digest": "cf79b0d6c7333a25d8c930774885798a282539e5abd970a7b682904307231835",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794592306,
+      "commit": "3c0fd4e9675538d0f432bbceb071ce2285d22833",
+      "contract_digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+      "execution_digest": "6ab4a98bc2ca9ec9993987d761733ee41692958ede2d850f3c451b4bbc7c4069",
+      "workspace_digest": "90a85a2f7e6dc804a128369e47ede6ad68c0210b45a2cd25133e3f9cbb52a5e3",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1794592309,
+      "commit": "a182c0af5130a9fadf3b36f3fa0ca9ac8ad811ce",
+      "contract_digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+      "execution_digest": "6ab4a98bc2ca9ec9993987d761733ee41692958ede2d850f3c451b4bbc7c4069",
+      "workspace_digest": "90a85a2f7e6dc804a128369e47ede6ad68c0210b45a2cd25133e3f9cbb52a5e3",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

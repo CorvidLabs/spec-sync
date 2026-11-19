@@ -134,6 +134,12 @@ pub struct ApprovalCheckReport {
     /// For a skipped check, the refused check it waits on.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skipped_because: Option<&'static str>,
+    /// For a refused `definition` or `ownership` check whose message names the `specsync change
+    /// answer` command that fixes it, that command as plain text (REQ-cmd-change-040). It may hold
+    /// a placeholder in angle brackets, such as `<observable outcome>` or `<yes|no>`, that the
+    /// caller must fill in, so it is not safe to run as printed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fix: Option<String>,
 }
 
 /// What `change approve --dry-run` found: every check in approval order, and whether the
@@ -173,6 +179,8 @@ struct ApprovalRun<'a> {
     record: Option<ChangeRecord>,
     prepared: Option<PreparedApproval>,
     resolved_actor: Option<String>,
+    /// The command the last refused step's message names as its fix, if it names one.
+    fix: Option<String>,
 }
 
 impl<'a> ApprovalRun<'a> {
@@ -195,6 +203,7 @@ impl<'a> ApprovalRun<'a> {
             record: None,
             prepared: None,
             resolved_actor: None,
+            fix: None,
         }
     }
 
@@ -268,10 +277,20 @@ impl<'a> ApprovalRun<'a> {
                 })?;
                 bind_legacy_archive_baseline_authority(root, record)
             }
-            ApprovalStep::Definition => validate_definition(self.root, self.loaded()?),
+            ApprovalStep::Definition => {
+                validate_definition_with_fix(self.root, self.loaded()?).map_err(|refusal| {
+                    self.fix = refusal.fix;
+                    refusal.message
+                })
+            }
             ApprovalStep::Deltas => validate_delta_files(self.root, self.loaded()?),
             ApprovalStep::Ownership => {
-                validate_declared_path_ownership(self.root, self.loaded()?)
+                validate_declared_path_ownership_with_fix(self.root, self.loaded()?).map_err(
+                    |refusal| {
+                        self.fix = refusal.fix;
+                        refusal.message
+                    },
+                )
             }
             ApprovalStep::VerificationIgnoredPaths => {
                 ensure_change_clear_of_verification_ignored(self.root, self.loaded()?).map(|_| ())
@@ -357,13 +376,25 @@ impl<'a> ApprovalRun<'a> {
 ///
 /// Acquiring the lock creates `.specsync/change.lock` and recovers an interrupted lifecycle
 /// write, and a dry run writes nothing. So it asks what the lock asks, read-only. The lock's own
-/// no-symlink walk on the lock path predicts that refusal. A journal recovery cannot replay,
+/// no-symlink walk on the lock path predicts that refusal, and an existing lock path is opened
+/// the way the lock opens it, minus creating it. A journal recovery cannot replay,
 /// because it does not read or names a path outside the project, is a refusal the real approval
 /// gives too, so it is reported in recovery's own words. A journal that reads is the one case
 /// with no counterpart: a real approval recovers it first, and what the tree holds after that is
 /// not known here, so the dry run says a write is waiting and checks nothing else.
 fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
-    reject_symlink_components_for(root, &root.join(LOCK_PATH), "lifecycle lock path")?;
+    let path = root.join(LOCK_PATH);
+    reject_symlink_components_for(root, &path, "lifecycle lock path")?;
+    // An existing lock path is opened as the approval opens it, without creating or truncating
+    // anything, so a lock the approval cannot open, such as a directory, is refused in the
+    // approval's own words (Codex on #1100). Opening it changes no byte and no timestamp.
+    if fs::symlink_metadata(&path).is_ok() {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .map_err(|error| format!("failed to open lifecycle lock {}: {error}", path.display()))?;
+    }
     let Some(entries) = read_pending_transaction(root)? else {
         return Ok(());
     };
@@ -444,6 +475,7 @@ pub fn approve_definition_dry_run(
                 result: ApprovalCheckResult::Skipped,
                 message: None,
                 skipped_because: Some(waits_on.name()),
+                fix: None,
             });
             continue;
         }
@@ -451,12 +483,14 @@ pub fn approve_definition_dry_run(
             // The approval saves this raise before it builds the record. Here it stays in memory.
             run.raise_for_relay();
         }
+        run.fix = None;
         match run.check(step) {
             Ok(()) => checks.push(ApprovalCheckReport {
                 check: step.name(),
                 result: ApprovalCheckResult::Passed,
                 message: None,
                 skipped_because: None,
+                fix: None,
             }),
             Err(message) => {
                 refused.push(step);
@@ -465,6 +499,7 @@ pub fn approve_definition_dry_run(
                     result: ApprovalCheckResult::Refused,
                     message: Some(message),
                     skipped_because: None,
+                    fix: run.fix.take(),
                 });
             }
         }

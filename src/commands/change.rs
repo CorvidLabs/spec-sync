@@ -835,10 +835,20 @@ fn print_approval_dry_run(report: &change::ApprovalDryRun, format: OutputFormat)
     for check in &report.checks {
         match check.result {
             change::ApprovalCheckResult::Passed => {}
+            // One line per refused check (REQ-cmd-change-040): a message with line breaks, as
+            // the ownership refusal's has, is joined onto one line. `--json` keeps it as written.
             change::ApprovalCheckResult::Refused => println!(
                 "  {}: {}",
                 check.check,
-                check.message.as_deref().unwrap_or("refused")
+                check
+                    .message
+                    .as_deref()
+                    .unwrap_or("refused")
+                    .lines()
+                    .map(str::trim)
+                    .filter(|line| !line.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" ")
             ),
             change::ApprovalCheckResult::Skipped => println!(
                 "  {}: skipped, it waits on `{}`",

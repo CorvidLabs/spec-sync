@@ -5192,7 +5192,13 @@ fn acceptance_owner_spec_evidence(
 ///
 /// Every offending path is reported together: discovering them one per
 /// verification pass is what made the original failure expensive.
-fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+///
+/// For a draft, the refusal also carries the `change answer … affected_specs` command its message
+/// names to declare the owning modules, for the approval dry run's `fix` (REQ-cmd-change-040).
+fn validate_declared_path_ownership_with_fix(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), RefusalWithFix> {
     if record.affected_paths.is_empty() {
         return Ok(());
     }
@@ -5246,9 +5252,16 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         unowned.join(", "),
         hints.join("\n")
     );
+    let mut fix = None;
     if record.state == ChangeState::Draft {
-        match declare_owners_answer(root, record, &unowned, &index) {
-            Some(answer) => message.push_str(&format!("\nOn this draft, declare them with {answer}.")),
+        match declare_owners_command(root, record, &unowned, &index) {
+            Some(command) => {
+                message.push_str(&format!(
+                    "\nOn this draft, declare them with {}.",
+                    declare_owners_guidance(record, &command)
+                ));
+                fix = Some(command);
+            }
             None => {
                 if let Some(missing) = declared_modules_without_spec(root, record) {
                     message.push_str(&format!("\n{missing}."));
@@ -5256,7 +5269,7 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
             }
         }
     }
-    Err(message)
+    Err(RefusalWithFix { message, fix })
 }
 
 /// The sentence naming every declared module with no spec at its canonical path, which keeps the
@@ -5336,6 +5349,32 @@ fn declare_owners_answer(
     paths: &[&str],
     index: &SpecListingIndex,
 ) -> Option<String> {
+    declare_owners_command(root, record, paths, index)
+        .map(|command| declare_owners_guidance(record, &command))
+}
+
+/// The guidance `declare_owners_answer` prints for `command`: the command between backticks, and
+/// the constraints renewal when the record carries a constraints answer.
+fn declare_owners_guidance(record: &ChangeRecord, command: &str) -> String {
+    let mut guidance = format!("`{command}`");
+    if record.answers.contains_key("constraints") {
+        guidance.push_str(&format!(
+            ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
+            shell_quote(&record.id)
+        ));
+    }
+    guidance
+}
+
+/// The bare `specsync change answer <id> affected_specs <modules>` command of
+/// `declare_owners_answer`, or `None` when it would print none: the approval dry run's `fix`
+/// for an ownership refusal (REQ-cmd-change-040).
+fn declare_owners_command(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> Option<String> {
     if index.truncated {
         return None;
     }
@@ -5371,19 +5410,11 @@ fn declare_owners_answer(
     {
         return None;
     }
-    let mut guidance = String::new();
-    guidance.push_str(&format!(
-        "`specsync change answer {} affected_specs {}`",
+    Some(format!(
+        "specsync change answer {} affected_specs {}",
         shell_quote(&record.id),
         shell_quote(&modules.join(","))
-    ));
-    if record.answers.contains_key("constraints") {
-        guidance.push_str(&format!(
-            ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
-            shell_quote(&record.id)
-        ));
-    }
-    Some(guidance)
+    ))
 }
 
 /// The ship-preflight blocker for production source in the change's delivery that no declared

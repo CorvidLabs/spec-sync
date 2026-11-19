@@ -858,3 +858,250 @@ fn the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay() 
         );
     }
 }
+
+/// Run a `fix` exactly as printed, with this build first on `PATH` as `specsync`, from the
+/// project root, the way a person or a tool would paste it.
+fn run_as_printed(project: &Project, fix: &str) -> Output {
+    let binary = assert_cmd::cargo::cargo_bin("specsync");
+    let path = format!(
+        "{}:{}",
+        binary.parent().unwrap().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let mut command = Command::new("sh");
+    command
+        .args(["-c", fix])
+        .current_dir(&project.root)
+        .env("PATH", path)
+        .env_remove("GITHUB_EVENT_NAME")
+        .env_remove("GITHUB_BASE_REF");
+    for (key, _) in std::env::vars() {
+        if key.starts_with("SPECSYNC_") {
+            command.env_remove(key);
+        }
+    }
+    command.output().unwrap()
+}
+
+// REQ-cmd-change-040, the `fix` field: a refused `definition` entry for a draft with an
+// unanswered question carries the `change answer` command its message names, as plain text. It
+// may hold a placeholder, so it is not always runnable as printed.
+#[test]
+fn a_definition_refusal_for_an_open_question_carries_its_command_as_fix() {
+    let project = Project::new();
+    let id = project.draft("add passkeys", &SPEC_ARGS, Some(&clean_delta()), false);
+    let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    assert_eq!(code, 1, "{document}");
+    let definition = check(&document, "definition");
+    assert_eq!(definition["result"], "refused", "{document}");
+    let expected =
+        format!("specsync change answer {id} acceptance_criteria \"<observable outcome>\"");
+    assert_eq!(definition["fix"], expected.as_str(), "{document}");
+    assert!(
+        definition["message"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("`{expected}`")),
+        "the message names the same command: {document}"
+    );
+
+    // Only `public_contract` still open: its two choices are the placeholder.
+    project.run(&[
+        "change",
+        "answer",
+        &id,
+        "acceptance_criteria",
+        "The auth contract says it",
+    ]);
+    project.run(&["change", "answer", &id, "architecture_risk", "no"]);
+    let (_, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    let definition = check(&document, "definition");
+    let expected = format!("specsync change answer {id} public_contract <yes|no>");
+    assert_eq!(definition["fix"], expected.as_str(), "{document}");
+    assert!(
+        definition["message"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("`{expected}`")),
+        "{document}"
+    );
+}
+
+// REQ-cmd-change-040, the `fix` field: a refused `ownership` entry whose message names the
+// `change answer … affected_specs` command that declares the owning module carries that command,
+// and run as printed it clears the ownership refusal.
+#[test]
+fn an_ownership_refusal_carries_the_declaring_command_as_fix_and_it_runs_as_printed() {
+    let project = Project::new();
+    let id = project.draft(
+        "tidy auth",
+        &[
+            "--kind",
+            "bug-fix",
+            "--no-spec-change",
+            "--rationale",
+            "internal",
+            "--path",
+            "src/auth.rs",
+        ],
+        None,
+        true,
+    );
+    let (_, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    let ownership = check(&document, "ownership");
+    assert_eq!(ownership["result"], "refused", "{document}");
+    let fix = ownership["fix"]
+        .as_str()
+        .unwrap_or_else(|| panic!("the ownership refusal carries a fix: {document}"));
+    assert!(
+        fix.starts_with("specsync change answer ") && fix.contains("affected_specs"),
+        "{fix}"
+    );
+    assert!(
+        ownership["message"].as_str().unwrap().contains(fix),
+        "the message names the same command: {document}"
+    );
+    let output = run_as_printed(&project, fix);
+    assert!(
+        output.status.success(),
+        "`{fix}` runs as printed: {}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let (_, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    assert_eq!(
+        check(&document, "ownership")["result"],
+        "passed",
+        "{document}"
+    );
+}
+
+// REQ-cmd-change-040, the `fix` field: no other refused entry carries one, and the text output
+// shows none.
+#[test]
+fn only_definition_and_ownership_refusals_carry_a_fix() {
+    let project = Project::new();
+    let id = project.draft(
+        "add passkeys",
+        &SPEC_ARGS,
+        Some(&format!("## CHANGED\n\n{ITEM}")),
+        true,
+    );
+    let (_, document) =
+        project.dry_run_leaving_the_tree(&id, &["--actor", "Scope owner", "--words", "Approve it"]);
+    let refused: Vec<&Value> = document["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["result"] == "refused")
+        .collect();
+    assert!(
+        refused.iter().any(|entry| entry["check"] == "deltas")
+            && refused.iter().any(|entry| entry["check"] == "relay"),
+        "{document}"
+    );
+    for entry in &refused {
+        assert!(entry.get("fix").is_none(), "no fix on {entry}");
+    }
+    let output = project.invoke(&[
+        "change",
+        "approve",
+        &id,
+        "--dry-run",
+        "--actor",
+        "Scope owner",
+    ]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !text.contains("fix"),
+        "the text output shows no fix: {text}"
+    );
+}
+
+// REQ-change-163, the lifecycle-lock check (Codex on #1100): a lock path the approval cannot open
+// is refused in the approval's own words, not reported as one it could take.
+#[test]
+fn a_lock_path_the_approval_cannot_open_is_refused_in_its_words() {
+    let project = Project::new();
+    let id = project.clean_draft();
+    // Opening the draft took the lock, which leaves the lock file behind.
+    let lock = project.root.join(".specsync/change.lock");
+    if lock.exists() {
+        fs::remove_file(&lock).unwrap();
+    }
+    fs::create_dir_all(&lock).unwrap();
+    let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    assert_eq!(code, 1, "{document}");
+    let refused = refusals(&document);
+    assert_eq!(refused.len(), 1, "{document}");
+    assert_eq!(refused[0].0, "lifecycle_lock", "{document}");
+    let real = project
+        .approve(&id, &ACTOR)
+        .expect_err("approve cannot open a directory");
+    assert_eq!(
+        real, refused[0].1,
+        "the dry run and the real approve give one message"
+    );
+}
+
+// REQ-cmd-change-040, text output (Codex on #1100): one line for each refused check, even when its
+// message holds line breaks, as the ownership refusal's does.
+#[test]
+fn each_refused_check_is_one_line_of_text() {
+    let project = Project::new();
+    let id = project.draft(
+        "add passkeys",
+        &[
+            "--kind",
+            "feature",
+            "--spec",
+            "auth",
+            "--path",
+            "src/other.rs",
+        ],
+        Some(&clean_delta()),
+        true,
+    );
+    let (_, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    let ownership = check(&document, "ownership")["message"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        ownership.contains('\n'),
+        "the fixture's message holds a line break: {ownership}"
+    );
+    let refused = refusals(&document).len();
+    let skipped = document["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["result"] == "skipped")
+        .count();
+    let output = project.invoke(&[
+        "change",
+        "approve",
+        &id,
+        "--dry-run",
+        "--actor",
+        "Scope owner",
+    ]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    assert_eq!(
+        lines.len(),
+        refused + skipped + 1,
+        "one line per refused check, one per skipped check and the closing line: {text}"
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| line.starts_with("  ownership: "))
+            .count(),
+        1,
+        "{text}"
+    );
+}

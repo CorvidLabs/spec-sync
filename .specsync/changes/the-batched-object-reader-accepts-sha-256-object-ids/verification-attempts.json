@@ -112,6 +112,22 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795075546,
+      "commit": "86153f78e621472fd6fbe0295a397a74ca8caa79",
+      "contract_digest": "f604c7b007faf5c4d8c8496ffdf70e179aae9901bf15cef5e3ae33c994894a9e",
+      "execution_digest": "a7b64b24b7b960cb68b3261dd3654a28fe52d6abfa1fcbbb3327c6a35fa9ccd9",
+      "workspace_digest": "382cd3adbb99a53f4cbb571f9c4c33ca9dd50944c846f2772318c0ed63a80e71",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

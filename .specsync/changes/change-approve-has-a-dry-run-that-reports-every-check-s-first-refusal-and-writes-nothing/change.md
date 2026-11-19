@@ -1,6 +1,6 @@
 ---
 id: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
-state: implementing
+state: approved
 type: feature
 base_commit: 3bebe8b03094b2079630801584b56f94a1e460c5
 ---
@@ -26,6 +26,7 @@ change approve has a dry run that reports every check's first refusal and writes
 - It works on a draft and on a change that was sent back.
 - It runs every check that can run on its own, reports the first problem from each, and names each check it skipped with the refused check it waits on.
 - `change approve` without `--dry-run` refuses exactly what it refused before, with the same messages, and approves what it approved before.
+- With `--json`, a refused `definition` or `ownership` check whose message names a `specsync change answer` command carries that command as `fix`, taken from the code that writes the message. A `fix` may hold a placeholder, and the docs say it must not be run blindly.
 
 ## No-spec Rationale
 

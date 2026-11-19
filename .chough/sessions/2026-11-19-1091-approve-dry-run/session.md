@@ -5,13 +5,13 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
 native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
 pr: ""
-criteria: [CHANGE-15, CHANGE-15.a, CHANGE-15.b, CHANGE-15.c]
+criteria: [CHANGE-15, CHANGE-15.a, CHANGE-15.b, CHANGE-15.c, CHANGE-15.d]
 requirements: []
 cases: []
 design: []
@@ -38,7 +38,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T06:37:41Z
 run_consents: []
-next: Pushed on feat/1091-approve-dry-run; no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record no review before that.
+next: Continue build
 ---
 # specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 
@@ -55,6 +55,7 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - Implemented the dry run (f61bbf0f) after the failing tests (1f5c09de); change check materialized REQ-change-163, REQ-cmd-change-040 and REQ-cli-args-027 with their history fragments; verify lane green at c4dba3f6
 - Tester's finding on 37496bdf fixed, red test first: the dry run gives change approve's own refusal for a journal recovery cannot replay; recovery split into its reading and restoring halves; re-checked; lane 10/10 at 003a14e6; site checks pass
 - ss-lead's finding on e24bdbf9 fixed, red test first: the 'waiting to be recovered' sentence has its line continuations back and is pinned word for word in the JSON message and the text output; re-checked; lane 10/10 at fd02224d
+- Ran the send-back on Leif's relayed word (gate above): specsync change send-back change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing --actor 0xLeif with the reason ending '(run by the builder on Leif's relayed word, via t4c, 2026-11-19)'; it exited 0 at 14:44:50Z and returned the change to draft with its approval cancelled
 
 ## Decisions and why
 
@@ -62,6 +63,9 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - decided: REQ-change-163's first-problem sentence carries the exception 'except when an interrupted lifecycle write is waiting to be recovered' because that is the exception Leif approved with 'OK, with (a) fixed' and t4c confirmed the sentence (relayed through ss-lead hc t58, 2026-11-19)
 - 0xLeif decided "Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "Approve" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
 - decided: the second check is named lifecycle_lock, not pending_write as in the working JSON shape, because it reports both things the lock step can refuse on: a symlink in the lock path and an interrupted write (the builder's choice inside the approved shape, which Leif saw marked as working)
+- 0xLeif decided "Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing, run by the builder on Leif's word": "all as recommended, builder runs the send-back" (Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the send-back for PR #1100 to take the wording in ss-lead/gates/1091-fix-field-and-lock-check.md; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated
+- 0xLeif decided "Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "all as recommended, builder runs the send-back" (Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the frozen ss-lead/gates/1091-fix-field-and-lock-check.md: Part 1 (REQ-cmd-change-040's added sentence, its three criteria and the change criterion) and Part 2 (REQ-change-163's list and skip rule, with the lock-check criterion), and CHANGE-15.d as the builder drafted it; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
+- decided: the 05:06Z approval of this change no longer stands: the send-back of 2026-11-19 14:44:50Z (run by the builder on Leif's relayed word) cancelled it; the deltas now carry the text of ss-lead/gates/1091-fix-field-and-lock-check.md word for word, the change has an eighth criterion, CHANGE-15.d is captured, and Leif's relayed approval of 14:32Z is the current one
 
 ## What was verified
 
@@ -179,4 +183,57 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
   - gate: native:verifying
   - revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
+  - by: claude-code (hc t59)
+- 2026-11-19T14:44:38Z · gate-opened · accept → accept · Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing, run by the builder on Leif's word ^t-cdfecd
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - holds: accept
+  - drives: none
+  - by: claude-code (hc t59)
+- 2026-11-19T14:44:39Z · gate-closed · accept → accept · Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing, run by the builder on Leif's word ^t-89e089
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the send-back for PR #1100 to take the wording in ss-lead/gates/1091-fix-field-and-lock-check.md; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+  - by: claude-code (hc t59)
+- 2026-11-19T14:45:12Z · direct-native-write · accept → accept · change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-899a0c
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - direct_write:
+    - change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-19T14:45:12Z · back · accept → plan · The send-back returned the change to draft; the delta and one criterion take the text Leif approved at 14:32Z, and his approval is recorded at plan ^t-11278e
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 6 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T14:46:02Z · gate-opened · plan → plan · Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-ad8b87
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-19T14:46:02Z · gate-closed · plan → plan · Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-805b31
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the frozen ss-lead/gates/1091-fix-field-and-lock-check.md: Part 1 (REQ-cmd-change-040's added sentence, its three criteria and the change criterion) and Part 2 (REQ-change-163's list and skip rule, with the lock-check criterion), and CHANGE-15.d as the builder drafted it; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T14:46:14Z · advance · plan → build · native:approved ^t-b37da5
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:approved
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
   - by: claude-code (hc t59)

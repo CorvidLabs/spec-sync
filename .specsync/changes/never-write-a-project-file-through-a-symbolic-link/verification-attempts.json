@@ -87,6 +87,35 @@
         "REQ-registry-003",
         "REQ-util-002"
       ]
+    },
+    {
+      "timestamp": 1795097220,
+      "commit": "24009489d6b311b74b1717da38c02bc2d7e4b45b",
+      "contract_digest": "9b8710ab478c336ea5f18f4907a5c45fd7c2197585f949b578cf7151ceefa30c",
+      "execution_digest": "a6cfd8aadef7e0502651ddb4cc40104d39c73c6de578c30867946d7fa029dc99",
+      "workspace_digest": "fd86ee8fe25ae137fe35d4ba955723ce8235226b769b649b744abafbdc281c53",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec cmd_import --spec cmd_migrate --spec cmd_new --spec cmd_resolve --spec cmd_scaffold --spec cmd_wizard --spec generator --spec hooks --spec mcp --spec registry --spec util",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-011",
+        "REQ-cmd-import-003",
+        "REQ-cmd-migrate-005",
+        "REQ-cmd-new-006",
+        "REQ-cmd-resolve-002",
+        "REQ-cmd-scaffold-007",
+        "REQ-cmd-wizard-003",
+        "REQ-generator-010",
+        "REQ-hooks-006",
+        "REQ-mcp-011",
+        "REQ-registry-003",
+        "REQ-util-002"
+      ]
     }
   ]
 }

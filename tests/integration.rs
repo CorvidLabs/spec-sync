@@ -128,3 +128,6 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+
+#[path = "integration/committed_approvals.rs"]
+mod committed_approvals;

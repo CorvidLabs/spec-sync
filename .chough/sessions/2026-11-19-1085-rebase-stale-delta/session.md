@@ -5,7 +5,7 @@ aliases: [1085-rebase-stale-delta]
 objective: When a MODIFIED delta is stale only because main edited the same requirement, change check merges base, main and the delta word by word; non-overlapping edits rebase the delta automatically, keep the approval and record the rebase; overlapping edits are refused as today (#1085, Leif's approval on the issue, relayed by hc t4c)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -16,12 +16,16 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-19-covers-req-change-161-req-change-122-and-req-cmd-change-038]
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1085"
+    holds: accept
+    drives: review
+    opened: 2026-11-19T02:47:44Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # When a MODIFIED delta is stale only because main edited the same requirement, change check merges base, main and the delta word by word; non-overlapping edits rebase the delta automatically, keep the approval and record the rebase; overlapping edits are refused as today (#1085, Leif's approval on the issue, relayed by hc t4c)
 
@@ -32,6 +36,7 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
 ## Where it stands
 
 - Change opened with deltas for change and cmd_change and its artifacts; tests/integration/rebase_stale_delta.rs fails on 99f61b2b: change check refuses the non-overlapping stale delta (the overlapping control passes, as it should)
+- Rebased onto main 3bebe8b0 (CHANGELOG conflict resolved keeping both entries); change check --commit, verify lane on rust 1.89.0, audit --strict and trust verify passed
 
 ## Decisions and why
 
@@ -40,6 +45,8 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
 - 0xLeif decided "Scope approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval": "Leif's decision (2026-11-18): approved." (Written on spec-sync issue #1085 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval as 0xLeif
 
 ## What was verified
+
+- [Covers REQ-change-161, REQ-change-122 and REQ-cmd-change-038 (the last not linked: chough 0.6.0 looks up specs/cmd-change). Red first on 99f61b2b: tests/integration/rebase_stale_delta.rs's discriminator failed (change check refused the non-overlapping stale delta); the overlapping control passed. Now fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null (fmt, clippy -D warnings, 3084 unit and 630 integration tests, release build, strict specs 62/62, CI script tests): 3 integration and 7 unit tests cover the rebase, status text and JSON, a tampered record, re-approval and acceptance after a rebase, and the refusing controls (overlap, spec section, workflow v1, no history, CI). change audit --strict and fledge trust verify passed.](evidence/2026-11-19-covers-req-change-161-req-change-122-and-req-cmd-change-038.md)
 
 ## Open threads
 
@@ -75,4 +82,20 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
   - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
   - gate: native:approved
   - revision: 32cc5e0295db17d38f6164b683214e7a719e8bbd
+  - by: claude-code (hc t4t)
+- 2026-11-19T02:47:30Z · advance · build → test · native:verifying ^t-2e1836
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - gate: native:verifying
+  - revision: 101edcf006e0b8f366a031bf22d89452d6c89daa
+  - by: claude-code (hc t4t)
+- 2026-11-19T02:47:44Z · advance · test → accept · native:verifying ^t-31acae
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - gate: native:verifying
+  - revision: 101edcf006e0b8f366a031bf22d89452d6c89daa
+  - by: claude-code (hc t4t)
+- 2026-11-19T02:47:44Z · gate-opened · accept → accept · Leif's review of #1085 ^t-f3d76a
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: 101edcf006e0b8f366a031bf22d89452d6c89daa
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

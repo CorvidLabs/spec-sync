@@ -4,6 +4,7 @@ version: 11
 status: stable
 files:
   - src/hash_cache.rs
+  - src/build_fingerprint.rs
   - build.rs
 db_tables: []
 tracks: [90]
@@ -23,7 +24,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 | Name | Description |
 |------|-------------|
-| `BUILD_FINGERPRINT` | SHA-256 of `src/`, `Cargo.toml`, `Cargo.lock` and `build.rs` as this binary was compiled (from `build.rs`). The validation snapshot digest and the read-cache identity frame it, so neither cache crosses builds (REQ-hash-cache-005, REQ-change-134) |
+| `BUILD_FINGERPRINT` | SHA-256 of `src/`, `Cargo.toml`, `Cargo.lock` and `build.rs` as this binary was compiled, and of its compile configuration: target, profile, optimization and debug settings, `cfg`s and features (from `build.rs`, #981). The validation snapshot digest and the read-cache identity frame it, so neither cache crosses builds (REQ-hash-cache-005, REQ-change-134) |
 
 **Exported Structs**
 
@@ -38,6 +39,8 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `load` | `root: &Path` | `Self` | HashCache: load from `.specsync/hashes.json`; returns empty cache if missing |
+| `configuration_frames` | `variables: impl IntoIterator<Item = (String, String)>` | `Vec<(String, String)>` | `src/build_fingerprint.rs` (shared with `build.rs`): the compile-configuration variables framed into `BUILD_FINGERPRINT` (TARGET, PROFILE, OPT_LEVEL, DEBUG, every `CARGO_CFG_*` and `CARGO_FEATURE_*`), sorted by name (#981) |
+| `configuration_record` | `frames: &[(String, String)]` | `String` | `src/build_fingerprint.rs`: the frames as one `NAME=value;NAME=value` line, compiled in as `SPECSYNC_BUILD_CONFIGURATION` (#981) |
 | `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write to `.specsync/hashes.json` with pretty JSON |
 | `hash_file` | `path: &Path` | `Option<String>` | HashCache: compute SHA-256 of file in 8KB chunks; returns hex string |
 | `is_changed` | `&self, root: &Path, rel_path: &str` | `bool` | HashCache: true if file is new or hash differs from cached value |

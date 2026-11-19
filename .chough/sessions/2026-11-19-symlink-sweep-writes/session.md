@@ -18,7 +18,7 @@ modules:
   - cmd_wizard
   - cmd_import
   - cmd_lifecycle
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -29,10 +29,16 @@ requirements: []
 cases: []
 design: []
 files: [src/util.rs, tests/integration/project_links.rs]
-observations: [2026-11-19-on-base-7b6e4779-with-only-the-new-tests-added-15-of-19]
+observations:
+  - 2026-11-19-on-base-7b6e4779-with-only-the-new-tests-added-15-of-19
+  - 2026-11-19-with-the-fix-at-a33dcc6f-all-19-project-link-integration-tests
 bugs: [2026-11-19-install-scaffold-import-and-migrate-commands-write-through]
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of never-write-a-project-file-through-a-symbolic-link
+    holds: accept
+    drives: review
+    opened: 2026-11-19T05:31:02Z
 run_consents: []
 next: Read the verify lane and the Linux container results, commit, run chough change check for both changes, push to the private fork, update the PR, ask Leif for the two reviews through t4c
 ---
@@ -59,6 +65,7 @@ No install, scaffold, import, lifecycle, migrate, lock or remote-cache command w
 ## What was verified
 
 - [On base 7b6e4779 with only the new tests added: 15 of 19 project-link integration tests and 3 unit tests fail. hooks install and uninstall, agents install, mcp lock --write, scaffold, add-spec, new, import and migrate write, create or rewrite files outside the project through a committed link; the resolve --remote cache is written and read through one.](evidence/2026-11-19-on-base-7b6e4779-with-only-the-new-tests-added-15-of-19.md)
+- [With the fix at a33dcc6f, all 19 project-link integration tests pass and the unit tests of every touched module pass (239). The same suite passes on Linux arm64 in a local container as a normal user: unit 3099 passed, integration 650 passed plus one test that needs jq and passes once jq is installed.](evidence/2026-11-19-with-the-fix-at-a33dcc6f-all-19-project-link-integration-tests.md)
 
 ## Open threads
 
@@ -111,4 +118,20 @@ No install, scaffold, import, lifecycle, migrate, lock or remote-cache command w
   - native_change: never-write-a-project-file-through-a-symbolic-link
   - gate: native:approved
   - revision: 7b6e4779ba5b7d0fedd621c04a917fcb02e28c25
+  - by: claude-code (hc t5r)
+- 2026-11-19T05:30:45Z · advance · build → test · native:verifying ^t-2ec0f8
+  - native_change: never-write-a-project-file-through-a-symbolic-link
+  - gate: native:verifying
+  - revision: a33dcc6ffd6210e4998c376edab1d331083bcd7f
+  - by: claude-code (hc t5r)
+- 2026-11-19T05:31:01Z · advance · test → accept · native:verifying ^t-124de7
+  - native_change: never-write-a-project-file-through-a-symbolic-link
+  - gate: native:verifying
+  - revision: a33dcc6ffd6210e4998c376edab1d331083bcd7f
+  - by: claude-code (hc t5r)
+- 2026-11-19T05:31:02Z · gate-opened · accept → accept · Implementation review of never-write-a-project-file-through-a-symbolic-link ^t-4ad045
+  - native_change: never-write-a-project-file-through-a-symbolic-link
+  - revision: a33dcc6ffd6210e4998c376edab1d331083bcd7f
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

@@ -27,6 +27,7 @@ Newest posts:
 - [Text change status names a sequence-ledger freeze before the…](journal/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md) (2026-11-19, shipped)
 - [ship-status reports an archived change's review as done by finalize…](journal/2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md) (2026-11-19, shipped)
 - [change ship-status exits 1 when it reports a blocker](journal/2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md) (2026-11-19, shipped)
+- [Fix the four #1086 review findings on history fragments](journal/2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md) (2026-11-19, shipped)
 - [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
 
 ## Where things live
@@ -182,7 +183,7 @@ Each module's lessons stay in its lesson source:
 - agents: [specs/agents/agents.3md](../specs/agents/agents.3md), 7 lessons
 - ai: [specs/ai/ai.3md](../specs/ai/ai.3md), 3 lessons
 - archive: [specs/archive/archive.3md](../specs/archive/archive.3md), 3 lessons
-- change: [specs/change/change.3md](../specs/change/change.3md), 53 lessons
+- change: [specs/change/change.3md](../specs/change/change.3md), 54 lessons
 - changelog: [specs/changelog/changelog.3md](../specs/changelog/changelog.3md), 3 lessons
 - cli: [specs/cli/cli.3md](../specs/cli/cli.3md), 8 lessons
 - cli_args: [specs/cli_args/cli_args.3md](../specs/cli_args/cli_args.3md), 7 lessons
@@ -223,7 +224,7 @@ Each module's lessons stay in its lesson source:
 - generator: [specs/generator/generator.3md](../specs/generator/generator.3md), 9 lessons
 - git_utils: [specs/git_utils/git_utils.3md](../specs/git_utils/git_utils.3md), 6 lessons
 - github: [specs/github/github.3md](../specs/github/github.3md), 12 lessons
-- hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 4 lessons
+- hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 5 lessons
 - hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 6 lessons
 - ignore: [specs/ignore/ignore.3md](../specs/ignore/ignore.3md), 4 lessons
 - importer: [specs/importer/importer.3md](../specs/importer/importer.3md), 5 lessons

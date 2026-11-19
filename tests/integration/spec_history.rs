@@ -171,7 +171,7 @@ fn frontmatter_value<'a>(fragment: &'a str, key: &str) -> Option<&'a str> {
     body[..end]
         .lines()
         .find_map(|line| line.strip_prefix(&format!("{key}:")))
-        .map(str::trim)
+        .map(|value| value.trim().trim_matches('"'))
 }
 
 fn is_iso_date(value: &str) -> bool {

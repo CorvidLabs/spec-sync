@@ -27,6 +27,13 @@
 <category term="shipped"/>
 </entry>
   <entry>
+<title>Fix the four #1086 review findings on history fragments</title>
+<id>urn:chough:journal:2026-11-19-fix-the-four-1086-review-findings-on-history-fragments</id>
+<updated>2026-11-19T14:07:59Z</updated>
+<link href="2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
 <title>At ship SpecSync writes specs/&lt;module&gt;/history/&lt;change-id&gt;.md…</title>
 <id>urn:chough:journal:2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md</id>
 <updated>2026-11-19T01:46:35Z</updated>

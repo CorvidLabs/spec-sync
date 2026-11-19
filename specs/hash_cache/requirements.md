@@ -88,3 +88,10 @@ A validation snapshot SHALL be replayed only by the build that recorded it. The 
 - A clean snapshot under another build fingerprint at the same package version is not replayable, while the same snapshot under this build's fingerprint is.
 - Removing the fingerprint from the digest fails these tests.
 
+### REQ-hash-cache-006
+
+A validation snapshot SHALL be bound to the spec's history fragments: the snapshot input digest SHALL frame the name and content of every entry in the spec's `history/` directory, so adding, editing or removing a fragment re-validates the spec instead of replaying the earlier verdict.
+
+Acceptance Criteria
+- A snapshot recorded before a fragment was added, edited or removed is not replayable; with no fragment change it is.
+

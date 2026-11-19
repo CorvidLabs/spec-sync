@@ -390,6 +390,7 @@ fn run() {
                 commands::merge::cmd_merge(&root, dry_run, all, format);
             }
         }
+        Command::History { module } => commands::change::cmd_history(&root, &module, format),
         Command::Doctor {
             fix,
             dry_run,

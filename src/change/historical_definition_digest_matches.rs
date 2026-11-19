@@ -2418,7 +2418,8 @@ fn work_paths_for_verification_commit(
         let specs_dir = crate::config::load_config(root).specs_dir;
         for module in &record.affected_specs {
             let (spec, requirements) = canonical_module_paths(root, &specs_dir, module)?;
-            for canonical in [spec, requirements] {
+            let fragment = history_fragment_path(&spec, &record.id);
+            for canonical in [spec, requirements, fragment] {
                 let relative = portable_project_path(root, &canonical);
                 if !path_is_under_specsync(&relative) {
                     paths.insert(relative);
@@ -3342,9 +3343,10 @@ pub(crate) struct LifecycleCommitScope {
 /// - the active workspace. `finalize` empties it by moving it, so staging the removal of its
 ///   tracked files needs this path as well;
 /// - the archive package, once `finalize` has moved the workspace there;
-/// - each affected spec's canonical spec file and its companions, resolved through the same
-///   registry-aware resolver materialization writes through, so the two cannot name different
-///   files. Only those files, never the whole directory: a stray file there is not a spec;
+/// - each affected spec's canonical spec file, its companions and this change's history
+///   fragment (REQ-change-159), resolved through the same registry-aware resolver materialization
+///   writes through, so the two cannot name different files. Only those files, never the whole
+///   directory: a stray file there is not a spec;
 /// - the lifecycle ledgers: the sequence ledger the staging path floors, the workflow-v2 and
 ///   legacy-archive baselines, the bootstrap record, and the hash cache. `change new` writes the
 ///   workflow-v2 baseline in a freshly adopted project, and it has to reach history with the first
@@ -3369,6 +3371,10 @@ pub(crate) fn lifecycle_commit_scope(
     for module in &record.affected_specs {
         let (spec, _) = canonical_module_paths(root, &specs_dir, module)?;
         owned.insert(portable_project_path(root, &spec));
+        owned.insert(portable_project_path(
+            root,
+            &history_fragment_path(&spec, &record.id),
+        ));
         if let Some(directory) = spec.parent() {
             for companion in canonical_companion_names(module) {
                 owned.insert(portable_project_path(root, &directory.join(companion)));

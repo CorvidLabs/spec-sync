@@ -1617,10 +1617,11 @@ fn read_canonical_or_absent(root: &Path, path: &Path) -> Result<String, String> 
     }
 }
 
-/// Whether an item targets the module spec's `## Change Log` section. Materialization appends
-/// this change's own row to that section, so after the first check the block never equals the
-/// approved body and a recorded base could only ever refuse the change's own text. The Change Log
-/// therefore records no base and is not guarded against a stale body (documented in deltas.md).
+/// Whether an item targets the module spec's `## Change Log` section. Until #1084 materialization
+/// appended the change's own row to that section, so after the first check the block never equals
+/// the approved body and a recorded base could only ever refuse the change's own text. Changes
+/// materialized then still carry those rows, so the Change Log records no base and is not guarded
+/// against a stale body (documented in deltas.md); a change now writes a history fragment instead.
 fn is_change_log_section(item: &DeltaItem) -> bool {
     item.target == DeltaTarget::SpecSection && item.key == "Change Log"
 }
@@ -2651,18 +2652,19 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
     }
 }
 
-/// Whether a module spec's Change Log already carries a row for this change.
+/// Whether a module spec's Change Log carries a row for this change, the record an earlier
+/// SpecSync wrote when it materialized the change.
 ///
-/// The version bump and the Change Log row are written together, by the same two lines, exactly
-/// once per (change, module). The row is therefore the only durable evidence that BOTH happened:
-/// a bumped `version:` leaves nothing behind naming the change that bumped it, so an integer on
-/// its own cannot distinguish "this change bumped it" from "some other change did".
+/// Before #1084 the version bump and the Change Log row were written together, exactly once per
+/// (change, module), so the row was the durable evidence that materialization ran: a bumped
+/// `version:` leaves nothing behind naming the change that bumped it. A change materialized then
+/// is still recorded by its row; [`module_records_change`] asks this and the fragment together.
 ///
-/// `append_changelog` writes the description as `{id}: {title}` into whichever column the table
-/// calls its description, so the row is found by that prefix inside the `## Change Log` section
-/// rather than by rebuilding a row and comparing it. A table that `specsync compact` or a human
-/// has since reformatted still counts, and the trailing colon keeps one slug from matching
-/// another that merely extends it.
+/// The row described the change as `{id}: {title}` in whichever column the table calls its
+/// description, so it is found by that prefix inside the `## Change Log` section rather than by
+/// rebuilding a row and comparing it. A table that `specsync compact` or a human has since
+/// reformatted still counts, and the trailing colon keeps one slug from matching another that
+/// merely extends it.
 fn changelog_records_change(spec: &str, id: &str) -> bool {
     let Some(position) = spec.rfind("## Change Log") else {
         return false;
@@ -2674,24 +2676,26 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     spec[start..end].contains(&format!("{id}:"))
 }
 
-/// Materialization writes THREE outputs per module, and the `canonical_applied` short-circuit
-/// above this function used to skip all three (#741): the delta applied to the canonical files,
-/// the spec's `version:` bump, and the spec's Change Log row. `bump_spec_version` and
-/// `append_changelog` have no other caller anywhere, so a delta corrected after review and
-/// re-approved produced changed contract text with neither a bump nor a row — and every gate
-/// downstream passed, because nothing below the flag ever ran to ask.
+/// Materialization writes TWO outputs per module, and the `canonical_applied` short-circuit
+/// above this function used to skip them (#741): the delta applied to the canonical files, and
+/// the module's record of the change. Until #1084 that record was a `version:` bump and a Change
+/// Log row; it is now the change's history fragment, `history/<id>.md` beside the spec
+/// (REQ-change-159). A delta corrected after review and re-approved once produced changed
+/// contract text with no record at all, and every gate downstream passed, because nothing below
+/// the flag ever ran to ask.
 ///
 /// So the flag alone stopped being the answer to "is the canonical tree current?". The artefacts
 /// answer it, per module and per output:
 ///
 /// * the delta is applied when every item it declares is already reflected — a `## REMOVED` block
 ///   absent, an `## ADDED`/`## MODIFIED` block present with matching content;
-/// * the bump and the row were written together, so the Change Log naming this change is the
-///   evidence that both of them happened.
+/// * the module records the change when its fragment exists or, for a change an earlier SpecSync
+///   materialized, when its Change Log names it ([`module_records_change`]).
 ///
 /// A module with both is not rewritten at all. A module missing either is materialized again, and
-/// given only the halves it is missing: a corrected delta re-applies its wording without a second
-/// bump and a second row, because one change bumps one module's version exactly once.
+/// given only the half it is missing: a corrected delta re-applies its wording without a second
+/// record, because one change is recorded in one module exactly once. The spec's `version:` and
+/// its Change Log are never written: a table written before #1084 stays frozen as it is.
 ///
 /// Convergence is scoped to `canonical_applied`. On a FIRST materialization every refusal
 /// `apply_markdown_block` makes today still fires, unchanged — removing a block that was never
@@ -2748,8 +2752,9 @@ fn prepare_module_application(
     let mut requirements = fs::read_to_string(&requirements_path)
         .unwrap_or_else(|_| format!("---\nspec: {module}.spec.md\n---\n\n# Requirements\n"));
     // Read BEFORE applying. A delta may legitimately target `## Change Log`, and the question
-    // is whether the row was already there, never whether this run has just written one.
-    let recorded = changelog_records_change(&spec, &record.id);
+    // is whether the record was already there, never whether this run has just written one.
+    let fragment_path = history_fragment_path(&spec_path, &record.id);
+    let recorded = module_records_change(&spec_path, &spec, &record.id);
     if converging
         && recorded
         && items
@@ -2789,12 +2794,14 @@ fn prepare_module_application(
             }
         }
     }
-    if !recorded {
-        spec = bump_spec_version(&spec)?;
-        spec = append_changelog(&spec, &record.id, &record.title);
-    }
     prepared.files.push((spec_path, spec));
     prepared.files.push((requirements_path, requirements));
+    if !recorded {
+        prepared.files.push((
+            fragment_path,
+            history_fragment_content(&record.id, &today(), &record.title),
+        ));
+    }
     prepared.pending.push(module.to_string());
     Ok(())
 }
@@ -3002,131 +3009,6 @@ fn markdown_heading_level(line: &str) -> Option<usize> {
         return None;
     }
     Some(level)
-}
-
-fn bump_spec_version(content: &str) -> Result<String, String> {
-    let mut found = false;
-    let mut output = Vec::new();
-    for line in content.lines() {
-        if !found && line.starts_with("version:") {
-            let version = line.trim_start_matches("version:").trim();
-            let bumped = bump_version_scalar(version)?;
-            output.push(format!("version: {bumped}"));
-            found = true;
-        } else {
-            output.push(line.to_string());
-        }
-    }
-    if !found {
-        return Err("spec frontmatter is missing version".into());
-    }
-    Ok(format!("{}\n", output.join("\n")))
-}
-
-fn bump_version_scalar(raw: &str) -> Result<String, String> {
-    let (value, prefix, suffix) = if let Some(quote) = raw
-        .chars()
-        .next()
-        .filter(|value| *value == '\'' || *value == '"')
-    {
-        let close = raw[quote.len_utf8()..]
-            .find(quote)
-            .map(|index| index + quote.len_utf8())
-            .ok_or_else(|| "spec version has an unterminated quoted scalar".to_string())?;
-        let suffix = &raw[close + quote.len_utf8()..];
-        if !suffix.trim().is_empty() && !suffix.trim_start().starts_with('#') {
-            return Err("spec version has unsupported YAML scalar syntax".into());
-        }
-        (
-            &raw[quote.len_utf8()..close],
-            quote.to_string(),
-            format!("{quote}{suffix}"),
-        )
-    } else {
-        let comment = raw.find(" #").unwrap_or(raw.len());
-        (&raw[..comment], String::new(), raw[comment..].to_string())
-    };
-    let bumped = if let Ok(integer) = value.trim().parse::<u64>() {
-        (integer + 1).to_string()
-    } else {
-        let components: Vec<&str> = value.trim().split('.').collect();
-        if components.len() != 3 {
-            return Err("spec version must be an integer or major.minor.patch".into());
-        }
-        let major = components[0]
-            .parse::<u64>()
-            .map_err(|_| "spec version must be an integer or major.minor.patch")?;
-        let minor = components[1]
-            .parse::<u64>()
-            .map_err(|_| "spec version must be an integer or major.minor.patch")?;
-        let patch = components[2]
-            .parse::<u64>()
-            .map_err(|_| "spec version must be an integer or major.minor.patch")?;
-        format!("{major}.{minor}.{}", patch + 1)
-    };
-    Ok(format!("{prefix}{bumped}{suffix}"))
-}
-
-fn append_changelog(content: &str, id: &str, title: &str) -> String {
-    let description = format!("{id}: {}", title.replace('|', "\\|"));
-    let default_row = format!("| {} | {description} |", today());
-    if let Some(position) = content.rfind("## Change Log") {
-        let search_start = position + "## Change Log".len();
-        let section_end = content[search_start..]
-            .find("\n## ")
-            .map(|offset| search_start + offset)
-            .unwrap_or(content.len());
-        let row = changelog_table_row(&content[search_start..section_end], content, &description)
-            .unwrap_or(default_row);
-        let before = content[..section_end].trim_end();
-        let after = &content[section_end..];
-        return format!("{before}\n{row}\n{after}");
-    }
-    format!(
-        "{}\n## Change Log\n\n| Date | Change |\n|------|--------|\n{row}\n",
-        content.trim_end(),
-        row = default_row,
-    )
-}
-
-fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<String> {
-    let header = section
-        .lines()
-        .map(str::trim)
-        .find(|line| line.starts_with('|') && line.ends_with('|'))?;
-    let columns: Vec<&str> = header.trim_matches('|').split('|').map(str::trim).collect();
-    if columns.len() < 2 {
-        return None;
-    }
-
-    let version = spec.lines().find_map(|line| {
-        let raw = line.strip_prefix("version:")?.trim();
-        let without_comment = raw.split_once(" #").map_or(raw, |(value, _)| value);
-        Some(without_comment.trim().trim_matches(['\'', '"']).to_string())
-    });
-    let mut recognized_description = false;
-    let cells: Vec<String> = columns
-        .iter()
-        .map(|column| {
-            let normalized = column.to_ascii_lowercase();
-            if normalized == "version" {
-                version.clone().unwrap_or_default()
-            } else if normalized == "date" {
-                today()
-            } else if matches!(
-                normalized.as_str(),
-                "change" | "changes" | "description" | "notes"
-            ) {
-                recognized_description = true;
-                description.to_string()
-            } else if normalized == "author" {
-                "SpecSync".to_string()
-            } else {
-                String::new()
-            }
-        })
-        .collect();
-    recognized_description.then(|| format!("| {} |", cells.join(" | ")))
 }
 
 fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {

@@ -2209,6 +2209,11 @@ fn validate_spec_content_internal(
                 .errors
                 .extend(duplicate_requirement_errors_in(&text, &relative));
         }
+        // Each change's record in the module's history is a fragment beside the spec
+        // (REQ-change-160); a malformed one, or one whose change the Change Log also records,
+        // is an error naming the file (REQ-validator-048).
+        let (_, history_errors) = crate::change::scan_history_fragments(root, spec_path, content);
+        result.errors.extend(history_errors);
     }
 
     let config_hint = config

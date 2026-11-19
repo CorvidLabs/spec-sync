@@ -330,6 +330,18 @@ fn validation_input_digest_for_build(
     if let Ok(content) = fs::read_to_string(spec_path) {
         input_paths.extend(extract_frontmatter_files(&content));
     }
+    // `check` validates the spec's history fragments (REQ-validator-048), so the verdict binds
+    // the `history/` path and the name and bytes of every entry in it (REQ-hash-cache-006).
+    let history = crate::change::spec_history_dir(spec_path);
+    input_paths.insert(normalize_rel(
+        history.strip_prefix(root).unwrap_or(&history),
+    ));
+    if let Ok(entries) = fs::read_dir(&history) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            input_paths.insert(normalize_rel(path.strip_prefix(root).unwrap_or(&path)));
+        }
+    }
     input_paths.extend(global_inputs.iter().cloned());
 
     for input in input_paths {
@@ -1133,5 +1145,48 @@ mod tests {
             ],
             "re-validation is what reports the refusal the replay would have hidden"
         );
+    }
+
+    /// Verifies REQ-hash-cache-006 (#1084). `check` validates a spec's history fragments, so a
+    /// snapshot is replayed only while every entry of its `history/` directory is as it was:
+    /// adding, editing or removing a fragment re-validates the spec.
+    #[test]
+    fn a_snapshot_is_not_replayed_over_a_changed_history_fragment() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        let replays = |snapshot: &CachedValidationSnapshot| {
+            let mut cache = HashCache::default();
+            cache
+                .snapshots
+                .insert("specs/auth/auth.spec.md".into(), snapshot.clone());
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some()
+        };
+        let fragment = root.join("specs/auth/history/add-passkeys.md");
+
+        let before = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        assert!(replays(&before), "nothing changed, so the snapshot replays");
+        fs::create_dir_all(fragment.parent().unwrap()).unwrap();
+        fs::write(
+            &fragment,
+            "---\nchange: add-passkeys\ndate: 2026-11-19\n---\n\nAdd\n",
+        )
+        .unwrap();
+        assert!(!replays(&before), "an added fragment re-validates");
+
+        let added = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        assert!(replays(&added));
+        fs::write(
+            &fragment,
+            "---\nchange: add-passkeys\ndate: not-a-date\n---\n\nAdd\n",
+        )
+        .unwrap();
+        assert!(!replays(&added), "an edited fragment re-validates");
+
+        let edited = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        fs::remove_file(&fragment).unwrap();
+        assert!(!replays(&edited), "a removed fragment re-validates");
     }
 }

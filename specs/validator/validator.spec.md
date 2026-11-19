@@ -133,6 +133,7 @@ still apply to regular files;
 links and special files retain their existing fatal safety checks. Explicit
 directory-only lists can still complete with a manifest notice when discovery
 degrades. This does not admit arbitrary configured files as exact Cargo targets.
+25. `specsync check` validates the history fragments beside every spec it validates (REQ-validator-048): each `history/` entry must be a regular `<change-id>.md` fragment with a matching `change:`, a calendar `date:` and a one-line summary, and no change may be recorded both by a fragment and by a Change Log row. Each violation is an error naming the file.
 
 ## Behavioral Examples
 

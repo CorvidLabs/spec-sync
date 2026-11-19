@@ -199,3 +199,10 @@ Acceptance Criteria
 - A `specsync` run with any of those variables set spawns Git processes that do not see them.
 - `change status` under `GIT_REPLACE_REF_BASE` or `GIT_NO_REPLACE_OBJECTS` gives the plain read.
 
+### REQ-cli-014
+
+`specsync history <module>` SHALL be routed to its handler (REQ-cmd-change-037) with the resolved output format.
+
+Acceptance Criteria
+- `specsync history <module>` runs the handler and exits with its status.
+

@@ -69,6 +69,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 6. Companion file detection covers all five companion types (requirements.md, context.md, tasks.md, testing.md, design.md) in both naming conventions: plain (`requirements.md`) and prefixed (`{module}.req.md`)
 7. `update_cache` prunes entries for deleted files to prevent unbounded cache growth
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
+9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
 
 ## Behavioral Examples
 

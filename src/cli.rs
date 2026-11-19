@@ -221,6 +221,11 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
+    /// Print a module's Change Log: its frozen table, then one row per history fragment
+    History {
+        /// The spec module whose history to print
+        module: String,
+    },
     /// Report every problem in the change records with its fix; `--fix` applies the safe ones
     Doctor {
         /// Apply the safe fixes, and every late close named with --close-late
@@ -1036,6 +1041,18 @@ mod tests {
             );
         }
         assert!(Cli::try_parse_from(["specsync", "merge", "--install"]).is_ok());
+    }
+
+    /// REQ-cli-args-026: `history` takes one required module and the global output flags.
+    #[test]
+    fn history_takes_one_required_module() {
+        let cli = Cli::try_parse_from(["specsync", "history", "auth"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::History { ref module }) if module == "auth"));
+        let json =
+            Cli::try_parse_from(["specsync", "--format", "json", "history", "auth"]).unwrap();
+        assert_eq!(json.format, types::OutputFormat::Json);
+        assert!(Cli::try_parse_from(["specsync", "history"]).is_err());
+        assert!(Cli::try_parse_from(["specsync", "history", "auth", "billing"]).is_err());
     }
 
     #[test]

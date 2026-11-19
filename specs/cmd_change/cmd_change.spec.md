@@ -5,6 +5,7 @@ status: active
 files:
   - src/commands/change.rs
   - src/commands/doctor.rs
+  - src/commands/history.rs
   - docs/ADOPTING.md
 db_tables: []
 tracks: []
@@ -44,6 +45,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
 | `cmd_change` | `root: &Path, action: ChangeAction, format: OutputFormat, strict: bool` | `()` | Dispatch every change lifecycle command, additive strict validators, and equivalent text/JSON output |
+| `cmd_history` | `root: &Path, module: &str, format: OutputFormat` | `()` | `specsync history <module>`: print the module's Change Log as one table, the frozen rows unchanged and then one row per history fragment, or `--format json` with the rows and fragments apart; exit 1 naming an unknown module or an invalid fragment (REQ-cmd-change-037) |
 | `cmd_doctor` | `root: &Path, request: DoctorRequest, format: OutputFormat` | `()` | `specsync doctor`: print the findings, the actions `--fix` applied and what `--dry-run` would do, in text or JSON; exit 1 when a late close is refused or a fix failed (REQ-cmd-change-035) |
 
 ## Invariants

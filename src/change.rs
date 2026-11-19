@@ -8,6 +8,7 @@ include!("change/historical_reconciliation.rs");
 include!("change/read_cache.rs");
 include!("change/read_deadline.rs");
 include!("change/send_back.rs");
+include!("change/spec_history.rs");
 include!("change/relayed_decision.rs");
 include!("change/unknown_members.rs");
 include!("change/doctor.rs");

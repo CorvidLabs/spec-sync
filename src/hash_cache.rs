@@ -287,6 +287,7 @@ fn validation_input_digest(
 ) -> String {
     validation_input_digest_for_build(
         BUILD_FINGERPRINT,
+        cfg!(debug_assertions),
         root,
         spec_path,
         global_inputs,
@@ -294,9 +295,11 @@ fn validation_input_digest(
     )
 }
 
-/// [`validation_input_digest`] as the build with `build_fingerprint` computes it.
+/// [`validation_input_digest`] as the build with `build_fingerprint` and `debug_assertions`
+/// computes it.
 fn validation_input_digest_for_build(
     build_fingerprint: &str,
+    debug_assertions: bool,
     root: &Path,
     spec_path: &Path,
     global_inputs: &[String],
@@ -310,6 +313,14 @@ fn validation_input_digest_for_build(
     );
     update_digest(&mut hasher, "specsync_version", env!("CARGO_PKG_VERSION"));
     update_digest(&mut hasher, "build_fingerprint", build_fingerprint);
+    // A build script cannot see the debug-assertions setting (cargo 1.89 passes no
+    // `CARGO_CFG_DEBUG_ASSERTIONS`), so the running binary frames it: a build that differs only
+    // there is another build (#981, REQ-hash-cache-005).
+    update_digest(
+        &mut hasher,
+        "debug_assertions",
+        if debug_assertions { "true" } else { "false" },
+    );
 
     let mut inventory = spec_inventory.to_vec();
     inventory.sort();
@@ -633,13 +644,10 @@ mod tests {
                 "{name} is not framed: {configuration}"
             );
         }
-        assert_eq!(
-            configuration
-                .split(';')
-                .any(|frame| frame.starts_with("CARGO_CFG_DEBUG_ASSERTIONS=")),
-            cfg!(debug_assertions),
-            "{configuration}"
-        );
+        // The debug-assertions setting is not asserted here: cargo 1.89 passes a build script
+        // `PROFILE` and `DEBUG` but no `CARGO_CFG_DEBUG_ASSERTIONS`, so `build.rs` cannot know it.
+        // The cache identity frames it at run time instead (see
+        // `a_snapshot_from_a_build_with_other_debug_assertions_is_not_replayed`).
     }
 
     #[test]
@@ -1064,9 +1072,27 @@ mod tests {
         (spec_path, vec!["specs/auth/auth.spec.md".to_string()])
     }
 
-    /// A clean snapshot for the duplicated-ID project, bound to the build with `build_fingerprint`.
+    /// A clean snapshot for the duplicated-ID project, bound to the build with `build_fingerprint`
+    /// and this binary's debug-assertions setting.
     fn clean_snapshot_from_build(
         build_fingerprint: &str,
+        root: &Path,
+        spec_path: &Path,
+        inventory: &[String],
+    ) -> CachedValidationSnapshot {
+        clean_snapshot_from_build_with(
+            build_fingerprint,
+            cfg!(debug_assertions),
+            root,
+            spec_path,
+            inventory,
+        )
+    }
+
+    /// [`clean_snapshot_from_build`] for a build with `debug_assertions`.
+    fn clean_snapshot_from_build_with(
+        build_fingerprint: &str,
+        debug_assertions: bool,
         root: &Path,
         spec_path: &Path,
         inventory: &[String],
@@ -1079,6 +1105,7 @@ mod tests {
             notices: vec![],
             input_digest: validation_input_digest_for_build(
                 build_fingerprint,
+                debug_assertions,
                 root,
                 spec_path,
                 &[],
@@ -1125,6 +1152,34 @@ mod tests {
                 .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
                 .is_some(),
             "this build replays its own snapshot"
+        );
+    }
+
+    /// #981 (REQ-hash-cache-005): a build that differs only in debug assertions is another build.
+    /// `build.rs` cannot see that setting (cargo 1.89 passes no `CARGO_CFG_DEBUG_ASSERTIONS` to a
+    /// build script), so the snapshot input digest frames it at run time, and a snapshot recorded
+    /// with the other setting is not replayed.
+    #[test]
+    fn a_snapshot_from_a_build_with_other_debug_assertions_is_not_replayed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        let mut cache = HashCache::default();
+        cache.snapshots.insert(
+            "specs/auth/auth.spec.md".into(),
+            clean_snapshot_from_build_with(
+                BUILD_FINGERPRINT,
+                !cfg!(debug_assertions),
+                root,
+                &spec_path,
+                &inventory,
+            ),
+        );
+        assert!(
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "a build with the other debug-assertions setting must re-validate"
         );
     }
 

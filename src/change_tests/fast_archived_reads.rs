@@ -1956,3 +1956,18 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+/// #981 (REQ-hash-cache-005, REQ-change-134): the read cache's build identity names this binary's
+/// debug-assertions setting, which `build.rs` cannot see, so a build that differs only there never
+/// reuses another build's verdicts.
+#[test]
+fn the_read_cache_identity_names_the_debug_assertions_setting() {
+    assert!(
+        read_cache_build_identity().ends_with(&format!(
+            "+debug-assertions={}",
+            cfg!(debug_assertions)
+        )),
+        "{}",
+        read_cache_build_identity()
+    );
+}

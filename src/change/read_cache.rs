@@ -103,12 +103,14 @@ fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
 /// The package version plus the build fingerprint, so a build that judges history differently
 /// never reuses another build's verdicts (REQ-change-134). The version alone named no code: every
 /// build of one version shared it, sibling worktrees included, since the cache lives in the Git
-/// common directory (#878). The fingerprint covers the bundled validation limits too.
+/// common directory (#878). The fingerprint covers the bundled validation limits too. The
+/// debug-assertions setting is added here because a build script cannot see it (#981).
 fn read_cache_build_identity() -> String {
     format!(
-        "{}+{}",
+        "{}+{}+debug-assertions={}",
         env!("CARGO_PKG_VERSION"),
-        crate::hash_cache::BUILD_FINGERPRINT
+        crate::hash_cache::BUILD_FINGERPRINT,
+        cfg!(debug_assertions)
     )
 }
 

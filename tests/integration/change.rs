@@ -3866,7 +3866,14 @@ fn a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes() {
             .contains(&format!("specsync change review {id}")),
         "{status}"
     );
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     let review_line = ship_status
         .lines()
         .find(|line| line.trim_start().starts_with("Review:"))
@@ -4412,7 +4419,14 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
             .contains(&format!("specsync change review {id}")),
         "after a send-back the next action is a fresh review:\n{status}"
     );
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     let review_line = ship_status
         .lines()
         .find(|line| line.trim_start().starts_with("Review:"))
@@ -4606,7 +4620,14 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     );
 
     // Readiness tells the truth before finalize does.
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     assert!(
         !ship_status.contains("ready to finalize"),
         "a change finalize refuses on ownership is not ready:\n{ship_status}"
@@ -7938,4 +7959,113 @@ fn uncommitted_specsync_evidence_alone_does_not_refuse_review() {
         String::from_utf8_lossy(&ship.stdout),
         String::from_utf8_lossy(&ship.stderr)
     );
+}
+
+// #654: `change ship-status` exits 1 whenever it reports a blocker, in text and in JSON, for one
+// change and for the roster, after printing its whole report. A script that runs it no longer
+// reads "Blocker" alongside success. JSON stays one document.
+#[test]
+fn ship_status_exits_one_when_it_reports_a_blocker() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    };
+    let invoke = |args: &[&str]| {
+        super::helpers::specsync_std()
+            .arg("--root")
+            .arg(root)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let run = |args: &[&str]| {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "{args:?}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "# probe\n").unwrap();
+    run(&["init"]);
+    run(&["change", "adopt"]);
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "adopt"]);
+    run(&[
+        "change",
+        "new",
+        "probe ship status exit",
+        "--kind",
+        "bug-fix",
+        "--no-spec-change",
+        "--rationale",
+        "probe",
+        "--path",
+        "README.md",
+    ]);
+    let id = "probe-ship-status-exit";
+    for (question, answer) in [
+        ("acceptance_criteria", "the probe reads"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+        ("constraints", "none"),
+    ] {
+        run(&["change", "answer", id, question, answer]);
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    for artifact in ["context", "tasks", "testing"] {
+        let path = dir.join(format!("{artifact}.md"));
+        if path.exists() {
+            fs::write(
+                &path,
+                format!("---\nchange: {id}\nartifact: {artifact}\n---\n\n# Probe\n\nProbe text.\n"),
+            )
+            .unwrap();
+        }
+    }
+    run(&["change", "approve", id, "--actor", "Probe"]);
+
+    // Approved, never verified: ship-status names a blocker.
+    let text = invoke(&["change", "ship-status", id]);
+    let printed = String::from_utf8_lossy(&text.stdout);
+    assert!(printed.contains("Blocker:"), "{printed}");
+    assert_eq!(text.status.code(), Some(1), "text ship-status: {printed}");
+
+    let json = invoke(&["--json", "change", "ship-status", id]);
+    let report: Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|error| panic!("one JSON document: {error}"));
+    assert!(
+        report["blockers"]
+            .as_array()
+            .is_some_and(|blockers| !blockers.is_empty()),
+        "{report}"
+    );
+    assert_eq!(json.status.code(), Some(1), "JSON ship-status: {report}");
+
+    for args in [
+        &["change", "ship-status"][..],
+        &["--json", "change", "ship-status"][..],
+    ] {
+        let roster = invoke(args);
+        if args[0] == "--json" {
+            let _: Value = serde_json::from_slice(&roster.stdout)
+                .unwrap_or_else(|error| panic!("one JSON document: {error}"));
+        }
+        assert_eq!(
+            roster.status.code(),
+            Some(1),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&roster.stdout)
+        );
+    }
 }

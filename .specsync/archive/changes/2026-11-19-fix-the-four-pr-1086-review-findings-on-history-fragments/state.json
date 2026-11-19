@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+  "slug": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+  "title": "Fix the four PR 1086 review findings on history fragments",
+  "description": "Fix the four PR 1086 review findings on history fragments",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "069e6eaa9565a8ebf4837b0fb1f4f95c51234d0d",
+  "created_at": 1795054265,
+  "updated_at": 1795097212,
+  "affected_specs": [
+    "change",
+    "hash_cache"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "src/change_tests/",
+    "src/hash_cache.rs",
+    "tests/integration/spec_history.rs",
+    "specs/change/",
+    "specs/hash_cache/",
+    "site/src/content/docs/deltas.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Every valid change id round-trips through its fragment; a fragment swapped for a same-bytes symlink is re-validated instead of replaying a cached pass; a delta item that targets the Change Log is refused at approve, check, verify and accept; a reformatted legacy row plus a fragment is refused as a double record and a row for one-session does not count for session"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-159 and REQ-change-160 (#1084), REQ-hash-cache-006, and the #741 lesson that the record of a change in a module is the evidence that materialization ran",
+    "public_contract": "yes"
+  }
+}

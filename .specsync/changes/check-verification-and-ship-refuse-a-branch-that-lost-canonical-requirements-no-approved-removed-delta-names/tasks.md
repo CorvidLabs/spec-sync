@@ -11,3 +11,4 @@ artifact: tasks
 - [x] Tests for accounted removals, merged-in removals, moves, renumbers, deleted and legacy files, the fallback, skip and unreadable cases, and audit.
 - [x] Docs (`deltas.md`), CHANGELOG, spec invariant and lesson.
 - [x] `change check --commit`, verify lane, `change audit --strict`, trust.
+- [x] ss-lead's review of b8018cc0 and the tester's run: skip .git, .specsync and exclude_dirs; assert ship-status's exit 1 with #654 on main; skip an unreadable change; natural id order; name the way out of every unreadable Git read, unshallowing a shallow clone.

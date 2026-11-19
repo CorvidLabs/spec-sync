@@ -18,11 +18,7 @@ fn lost_requirements_reference(root: &Path, record: &ChangeRecord) -> Result<Opt
             .map(|text| text.trim().to_string())
             .filter(|commit| is_canonical_commit_id(commit))
             .map(Some)
-            .ok_or_else(|| {
-                format!(
-                    "cannot tell whether this branch lost canonical requirements: Git cannot read the merge-base of HEAD and {default}"
-                )
-            });
+            .ok_or_else(|| format!("Git cannot read the merge-base of HEAD and {default}"));
     }
     Ok(record
         .base_commit
@@ -56,9 +52,44 @@ fn requirements_directories(root: &Path) -> Vec<String> {
     directories
 }
 
-/// How two requirement ids sort for a person (stub: plain string order).
+/// How two requirement ids sort for a person: runs of digits compare as numbers, so
+/// `REQ-a-2` comes before `REQ-a-10` (ss-lead's review of #1081). Equal numbers with different
+/// zero padding fall back to the text, so the order is total.
 fn natural_order(left: &str, right: &str) -> std::cmp::Ordering {
-    left.cmp(right)
+    fn runs(text: &str) -> Vec<(bool, &str)> {
+        let mut runs = Vec::new();
+        let mut start = 0;
+        let mut digits = None;
+        for (index, character) in text.char_indices() {
+            let digit = character.is_ascii_digit();
+            if digits.is_some_and(|previous| previous != digit) {
+                runs.push((digits.unwrap_or(false), &text[start..index]));
+                start = index;
+            }
+            digits = Some(digit);
+        }
+        if start < text.len() {
+            runs.push((digits.unwrap_or(false), &text[start..]));
+        }
+        runs
+    }
+    let (left_runs, right_runs) = (runs(left), runs(right));
+    for (a, b) in left_runs.iter().zip(&right_runs) {
+        let order = match (a, b) {
+            ((true, a), (true, b)) => {
+                let (a, b) = (a.trim_start_matches('0'), b.trim_start_matches('0'));
+                a.len().cmp(&b.len()).then_with(|| a.cmp(b))
+            }
+            ((_, a), (_, b)) => a.cmp(b),
+        };
+        if order != std::cmp::Ordering::Equal {
+            return order;
+        }
+    }
+    left_runs
+        .len()
+        .cmp(&right_runs.len())
+        .then_with(|| left.cmp(right))
 }
 
 /// The `### REQ-` heading ids of `text`, outside fenced blocks, each with its block body
@@ -100,12 +131,29 @@ fn requirement_blocks(text: &str) -> Vec<(String, String)> {
     blocks
 }
 
-/// Every requirements file on disk under `directories`, project-relative, with its blocks.
+/// The directory names the check never reads requirements from, wherever they sit: Git's own
+/// directory, SpecSync's (whose change workspaces and archives hold `requirements.md` artifacts,
+/// not canonical requirements), and the project's `exclude_dirs` (ss-lead's review of #1081).
+fn excluded_requirement_directories(root: &Path) -> BTreeSet<String> {
+    let mut excluded: BTreeSet<String> = [".git", ".specsync"].map(String::from).into();
+    excluded.extend(crate::config::load_config(root).exclude_dirs);
+    excluded
+}
+
+/// Whether the project-relative `path` lies under none of the `excluded` directory names.
+fn is_scanned_requirements_path(path: &str, excluded: &BTreeSet<String>) -> bool {
+    let mut components: Vec<&str> = path.split('/').collect();
+    components.pop();
+    components.iter().all(|component| !excluded.contains(*component))
+}
+
+/// Every requirements file on disk under `directories`, project-relative, with its blocks. Symlinks
+/// are not followed, and no directory named in `excluded_requirement_directories` is entered.
 fn working_tree_requirement_blocks(
     root: &Path,
     directories: &[String],
 ) -> Vec<(String, Vec<(String, String)>)> {
-    fn walk(directory: &Path, depth: usize, found: &mut Vec<PathBuf>) {
+    fn walk(directory: &Path, depth: usize, excluded: &BTreeSet<String>, found: &mut Vec<PathBuf>) {
         if depth > 16 {
             return;
         }
@@ -118,7 +166,9 @@ fn working_tree_requirement_blocks(
             };
             let path = entry.path();
             if kind.is_dir() {
-                walk(&path, depth + 1, found);
+                if !excluded.contains(entry.file_name().to_string_lossy().as_ref()) {
+                    walk(&path, depth + 1, excluded, found);
+                }
             } else if kind.is_file()
                 && is_requirements_file(&entry.file_name().to_string_lossy())
             {
@@ -126,17 +176,22 @@ fn working_tree_requirement_blocks(
             }
         }
     }
+    let excluded = excluded_requirement_directories(root);
     let mut files = Vec::new();
     for directory in directories {
-        walk(&root.join(directory), 0, &mut files);
+        walk(&root.join(directory), 0, &excluded, &mut files);
     }
     files.sort();
     files.dedup();
     files
         .into_iter()
         .filter_map(|path| {
+            let relative = portable_project_path(root, &path);
+            if !is_scanned_requirements_path(&relative, &excluded) {
+                return None;
+            }
             let text = fs::read_to_string(&path).ok()?;
-            Some((portable_project_path(root, &path), requirement_blocks(&text)))
+            Some((relative, requirement_blocks(&text)))
         })
         .collect()
 }
@@ -157,7 +212,11 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
             }
         }
     };
-    for change in list_changes_checked(root)? {
+    // A change that cannot be read accounts for no removal, and never turns this refusal into its
+    // own error (ss-lead's review of #1081, #1104's pattern); so is every change when the changes
+    // directory itself cannot be read. Either way the lost ids are still named.
+    let readable = list_changes(root).map(|roster| roster.records).unwrap_or_default();
+    for change in readable {
         if change.state == ChangeState::Archived || change.state == ChangeState::Draft {
             continue;
         }
@@ -206,10 +265,51 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
     Ok(removed)
 }
 
+/// The way out of a refusal that could not read Git (Leif's rule 3): repair the repository or
+/// fetch the default branch, unshallowing a shallow clone, then check again.
+fn lost_requirements_way_out(root: &Path, record: &ChangeRecord) -> String {
+    let shallow = git_output_allow_empty(root, &["rev-parse", "--is-shallow-repository"])
+        .is_some_and(|text| text.trim() == "true");
+    let fetch = if shallow {
+        "`git fetch --unshallow origin`"
+    } else {
+        "`git fetch origin`"
+    };
+    format!(
+        "repair the repository or fetch the default branch ({fetch}), then run `specsync change check {}` again",
+        shell_word(&record.id)
+    )
+}
+
 /// REQ-change-169: refuse a change on a branch that lost a canonical requirement that no approved
 /// `## REMOVED` delta names. `Ok(None)` when nothing is lost or every loss is accounted for;
 /// `Ok(Some(note))` when there is nothing to compare with; `Err` with the refusal otherwise.
 fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Option<String>, String> {
+    lost_requirements_check(root, record).map_err(|refusal| match refusal {
+        LostRequirementsRefusal::Lost(message) => message,
+        LostRequirementsRefusal::Unreadable(what) => format!(
+            "cannot tell whether this branch lost canonical requirements: {what}; {}",
+            lost_requirements_way_out(root, record)
+        ),
+    })
+}
+
+/// Why `lost_requirements_check` refuses: requirements were lost, or Git could not be read.
+enum LostRequirementsRefusal {
+    Lost(String),
+    Unreadable(String),
+}
+
+impl From<String> for LostRequirementsRefusal {
+    fn from(what: String) -> Self {
+        Self::Unreadable(what)
+    }
+}
+
+fn lost_requirements_check(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<String>, LostRequirementsRefusal> {
     let Some(reference) = lost_requirements_reference(root, record)? else {
         return Ok(Some(
             "note: there is no default branch and no change base commit in HEAD's history, so lost canonical requirements were not checked (REQ-change-169)".to_string(),
@@ -230,13 +330,13 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
         "--",
     ];
     args.extend(pathspecs.iter().map(String::as_str));
-    let changed = git_output_allow_empty(root, &args).ok_or_else(|| {
-        format!("cannot tell whether this branch lost canonical requirements: Git cannot compare it with {short}")
-    })?;
+    let changed = git_output_allow_empty(root, &args)
+        .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
+    let excluded = excluded_requirement_directories(root);
     let changed: Vec<&str> = changed
         .lines()
         .map(str::trim)
-        .filter(|path| is_requirements_file(path))
+        .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
         .collect();
     if changed.is_empty() {
         return Ok(None);
@@ -281,7 +381,7 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
     if unaccounted.is_empty() {
         return Ok(None);
     }
-    unaccounted.sort();
+    unaccounted.sort_by(|a, b| natural_order(&a.0, &b.0).then_with(|| a.1.cmp(&b.1)));
     unaccounted.dedup_by(|a, b| a.0 == b.0);
     let mut by_file: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for (id, path, _) in &unaccounted {
@@ -317,9 +417,9 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
         )
     };
     let id = shell_word(&record.id);
-    Err(format!(
+    Err(LostRequirementsRefusal::Lost(format!(
         "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. Restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`, then `specsync change check {id}`{renumber_hint}"
-    ))
+    )))
 }
 
 /// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042).

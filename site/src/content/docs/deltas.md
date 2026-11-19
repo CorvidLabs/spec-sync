@@ -137,7 +137,15 @@ requirement moved to another file under the same id is not lost; a renumbered on
 old id, because a requirement id is permanent. To put a lost block back, `git show <commit>:<file>`
 prints it as the merge-base held it; to remove it on purpose, name it in a `## REMOVED` delta and
 approve the change again. `change audit` reports the same refusal, and `change ship-status` lists it
-as a blocker (REQ-change-169, #1081).
+as a blocker and exits 1 (REQ-change-169, #1081).
+
+The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold
+`requirements.md` artifacts, not canonical requirements) or any `exclude_dirs` directory, even when
+`specs_dir` is the project root, and a change workspace it cannot read accounts for no removal. When
+Git cannot answer, for example in a shallow clone that lacks the merge-base, the check refuses and
+says so: repair the repository or fetch the default branch (`git fetch --unshallow origin` in a
+shallow clone, `git fetch origin` otherwise), then run `change check` again. With no default branch
+and no base commit in `HEAD`'s history, as in a depth-1 CI checkout, it is skipped with a note.
 
 ---
 

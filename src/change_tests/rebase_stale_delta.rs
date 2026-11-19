@@ -121,6 +121,7 @@ fn a_rebase_moves_the_bound_delta_and_base_and_materializes_the_merge() {
     assert_eq!(rebase.delta_before, REBASE_DELTA);
     assert!(rebase.base_block.contains("after one day."), "{rebase:?}");
     assert!(rebase.main_block.contains("after twelve hours."), "{rebase:?}");
+    assert_eq!(rebase.main_commit, rev(root, "origin/main"), "main's block is read at the merge-base");
     assert!(changed_approved_delta_modules(root, &record).unwrap().is_empty());
     ensure_approved_delta_bases_current(root, &record).unwrap();
     assert_eq!(
@@ -523,3 +524,373 @@ fn status_lists_no_rebase_that_does_not_recompute() {
     assert!(recorded_delta_rebases(root, &record).is_empty());
     assert!(!summarize_change(root, &record).approval_valid);
 }
+
+/// ss-lead's review of #1089 (F2): "text the default branch held" means main's own line, walked
+/// with `--first-parent`. An intermediate text of a side branch that its merge did not keep was
+/// never main's, so a working tree holding it is refused, not rebased.
+#[test]
+fn a_side_branch_text_its_merge_did_not_keep_is_never_main_s_block() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_repository_with_origin(root, REBASE_DELTA);
+    let git = git_in(root);
+    git(&["checkout", "-q", "-b", "side"]);
+    edit_requirements(root, "after one day.", "after one day, or at sign-out.");
+    git(&["commit", "-qam", "side: an intermediate text"]);
+    edit_requirements(root, "after one day, or at sign-out.", "after twelve hours.");
+    git(&["commit", "-qam", "side: the text the merge keeps"]);
+    git(&["checkout", "-q", "main"]);
+    git(&["merge", "-q", "--no-ff", "-m", "merge side", "side"]);
+    git(&["push", "-q", "origin", "main"]);
+    // The change's branch holds the side branch's intermediate text.
+    edit_requirements(root, "after twelve hours.", "after one day, or at sign-out.");
+    git(&["commit", "-qam", "the intermediate text on the change's branch"]);
+    let delta = fs::read_to_string(delta_path(root, &record, "auth")).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("has changed since"), "{error}");
+    assert_eq!(fs::read_to_string(delta_path(root, &record, "auth")).unwrap(), delta);
+    assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
+}
+
+/// ss-lead's review of #1089 (F1): a commit of the default branch whose tree lists the
+/// requirement's file but whose text cannot be read refuses the rebase. Skipping it could walk past
+/// the approval-time text to an older one. Here the approval-time commit's file object is gone,
+/// the branch's own approval commit still lets the base be recovered, and the working tree holds
+/// the older text: without the refusal it would be merged, reverting main's edit.
+#[test]
+fn an_unreadable_default_branch_text_refuses_the_rebase() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let record = completed_section_only_current_record(root, REBASE_DELTA);
+    let v1 = REBASE_BASE_REQUIREMENTS.replace("after one day.", "after two days.");
+    fs::write(requirements_path(root), &v1).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "v1"]);
+    let origin = root.join(".git/test-origin.git");
+    git(&["init", "-q", "--bare", "-b", "main", origin.to_str().unwrap()]);
+    git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+    fs::write(requirements_path(root), REBASE_BASE_REQUIREMENTS).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "v2, the approval-time text"]);
+    git(&["push", "-q", "origin", "main"]);
+    let main_blob = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "HEAD:specs/auth/requirements.md"])
+            .current_dir(root)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_string();
+    // The change's branch: approved against v2, with a note of its own outside the requirement,
+    // so its file is a different object that still holds the approval-time block.
+    let noted = |text: &str| text.replace("# Requirements\n", "# Requirements\n\nBranch note.\n");
+    fs::write(requirements_path(root), noted(REBASE_BASE_REQUIREMENTS)).unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "approved on the branch"]);
+    fs::write(requirements_path(root), noted(&v1)).unwrap();
+    git(&["commit", "-qam", "the older text on the branch"]);
+    // Main's approval-time object can no longer be read.
+    let loose = root
+        .join(".git/objects")
+        .join(&main_blob[..2])
+        .join(&main_blob[2..]);
+    fs::remove_file(&loose).unwrap();
+    let delta = fs::read_to_string(delta_path(root, &record, "auth")).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("has changed since"), "{error}");
+    assert_eq!(fs::read_to_string(delta_path(root, &record, "auth")).unwrap(), delta);
+    assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
+}
+
+/// Codex's review of #1089 (P1 at the merge): a word one side deleted never comes back through the
+/// other side's insertion, so a moved word against a deletion refuses, in either direction.
+#[test]
+fn a_word_one_side_deleted_is_never_put_back_by_the_other() {
+    assert_eq!(merge_words("a b c", "a c", "b a c"), None);
+    assert_eq!(merge_words("a b c", "b a c", "a c"), None);
+    // An insertion of a word nobody deleted still merges.
+    assert_eq!(merge_words("a b c x", "a c x", "a b c d x").as_deref(), Some("a c d x"));
+}
+
+/// Codex's review of #1089 (P2 at the record): a record copies the module's whole delta, so a
+/// delta over the bound, or a change already holding the most records, keeps today's refusal.
+#[test]
+fn a_rebase_past_the_size_or_count_bound_keeps_the_refusal() {
+    // A delta over 256 KiB.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    // The requirement itself is small; a spec section the change also rewrites makes the delta big.
+    let padding = "word ".repeat(60_000);
+    let big = format!(
+        "{REBASE_DELTA}\n### SPEC SECTION Legacy Notes\n\nRetained for compatibility, {padding}.\n"
+    );
+    let record = rebase_repository(root, &big, "after one day.", "after twelve hours.");
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(error.contains("has changed since"), "{error}");
+    assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
+
+    // A change that already holds the most records (here under another approval, so they are not
+    // folded into this one's claims, but they still count).
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = rebased_repository(root);
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    let mut ledger = load_approvals(root, &record).unwrap();
+    let filler = DeltaRebaseRecord {
+        schema_version: 1,
+        module: "auth".into(),
+        item: "auth: REQUIREMENT REQ-auth-001".into(),
+        approval_index: usize::MAX,
+        approval_timestamp: 0,
+        approval_digest: "another approval".into(),
+        actor: DELTA_REBASE_ACTOR.into(),
+        timestamp: 0,
+        base_block: String::new(),
+        main_block: String::new(),
+        main_commit: String::new(),
+        delta_before: String::new(),
+        delta_after_digest: String::new(),
+    };
+    ledger.delta_rebases = vec![filler; MAX_DELTA_REBASES];
+    write_json(&ledger_path, &ledger).unwrap();
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(error.contains("has changed since"), "{error}");
+    assert_eq!(load_approvals(root, &record).unwrap().delta_rebases.len(), MAX_DELTA_REBASES);
+}
+
+/// Codex's review of #1089 (P2 at the hint): the way on names the file of a module with a stale
+/// requirement, never one whose only stale item is a section. `auth` sorts first and has only a
+/// stale section; `billing` has the stale requirement.
+#[test]
+fn the_rebase_hint_names_the_module_with_the_stale_requirement() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let mut record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n\n### SPEC SECTION Legacy Notes\n\nRetained for compatibility with every client.\n",
+    );
+    fs::write(requirements_path(root), REBASE_BASE_REQUIREMENTS).unwrap();
+    fs::create_dir_all(root.join("specs/billing")).unwrap();
+    fs::write(root.join("src/billing.rs"), "// Billing module.\n").unwrap();
+    let billing_spec = fs::read_to_string(root.join("specs/auth/auth.spec.md"))
+        .unwrap()
+        .replace("module: auth", "module: billing")
+        .replace("src/auth.rs", "src/billing.rs")
+        .replace("# Auth\n", "# Billing\n");
+    fs::write(root.join("specs/billing/billing.spec.md"), &billing_spec).unwrap();
+    let billing = "---\nspec: billing.spec.md\n---\n\n# Requirements\n\n### REQ-billing-001\n\nThe system SHALL bill once per month.\n\nAcceptance Criteria\n- One bill per month.\n";
+    fs::write(root.join("specs/billing/requirements.md"), billing).unwrap();
+    record.affected_specs = vec!["auth".into(), "billing".into()];
+    save_change(root, &record).unwrap();
+    fs::write(
+        delta_path(root, &record, "billing"),
+        "## MODIFIED\n\n### REQUIREMENT REQ-billing-001\n\nThe system SHALL bill exactly once per month.\n\nAcceptance Criteria\n- One bill per month.\n",
+    )
+    .unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "approved"]);
+    let origin = root.join(".git/test-origin.git");
+    git(&["init", "-q", "--bare", "-b", "main", origin.to_str().unwrap()]);
+    git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+    git(&["push", "-q", "origin", "main"]);
+    let spec = root.join("specs/auth/auth.spec.md");
+    let moved = fs::read_to_string(&spec)
+        .unwrap()
+        .replace("Retained for compatibility.", "Kept, retained for compatibility.");
+    fs::write(&spec, moved).unwrap();
+    fs::write(
+        root.join("specs/billing/requirements.md"),
+        billing.replace("- One bill per month.\n", "- One bill per month.\n- Bills are emailed.\n"),
+    )
+    .unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("git show origin/main:specs/billing/requirements.md"), "{error}");
+    assert!(!error.contains("specs/auth/requirements.md"), "{error}");
+}
+
+/// Run Git, failing with its output.
+fn git_shown(root: &Path, args: &[&str]) {
+    let output = Command::new("git").args(args).current_dir(root).output().unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?} failed:\n{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn rev(root: &Path, revision: &str) -> String {
+    let output = Command::new("git")
+        .args(["rev-parse", revision])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
+
+/// The change on its own branch `change`, materialized and committed; then main replaces `from`
+/// with `to` on `main`, commits and pushes it, and `change` is checked out again, not yet merged.
+fn materialized_then_main_edits(root: &Path, record: &ChangeRecord, from: &str, to: &str) {
+    let git = git_in(root);
+    git(&["checkout", "-q", "-b", "change"]);
+    materialize_change_deltas(root, &record.id).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "materialize on the change's branch"]);
+    git(&["checkout", "-q", "main"]);
+    edit_requirements(root, from, to);
+    git(&["commit", "-qam", "main edits REQ-auth-001"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+}
+
+/// The tester's #1089 regression, first half: the delta was materialized before main's first
+/// edit, and then the branch merged main. Main's block is read at HEAD's merge-base with the
+/// default branch, never from the working tree, so each of the three working-tree texts a rebase
+/// accepts is rebased to the merge: Git's own clean merge, a resolution to the change's side, and
+/// a resolution to main's side.
+#[test]
+fn a_materialized_change_that_merged_main_is_rebased_whichever_side_the_merge_kept() {
+    for (how, merge) in [
+        ("Git's clean merge", &["merge", "-q", "--no-edit", "origin/main"][..]),
+        ("resolved to the change's side", &["merge", "-q", "-s", "ours", "--no-edit", "origin/main"][..]),
+        ("resolved to main's side", &["merge", "-q", "--no-edit", "origin/main"][..]),
+    ] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = approved_repository_with_origin(root, REBASE_DELTA);
+        // Main edits a line the change's materialization leaves apart (it adds a blank line at the
+        // end of the file, which a last-line edit would touch), so Git merges it cleanly.
+        materialized_then_main_edits(
+            root,
+            &record,
+            "- One session per user.",
+            "- One session per user and device.",
+        );
+        let git = git_in(root);
+        git_shown(root, merge);
+        if how == "resolved to main's side" {
+            git(&["checkout", "origin/main", "--", "specs/auth/requirements.md"]);
+            git(&["commit", "-qm", "take main's requirement"]);
+        }
+        let approvals = load_approvals(root, &record).unwrap().approvals.len();
+
+        materialize_change_deltas(root, &record.id).unwrap_or_else(|error| panic!("{how}: {error}"));
+
+        let merged = "The system SHALL keep exactly one session per user.\n\nAcceptance Criteria\n- One session per user and device.\n- A session expires after one day.";
+        let requirements = fs::read_to_string(requirements_path(root)).unwrap();
+        assert!(requirements.contains(merged), "{how}: {requirements}");
+        let delta = fs::read_to_string(delta_path(root, &record, "auth")).unwrap();
+        assert!(delta.contains(merged), "{how}: {delta}");
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.approvals.len(), approvals, "{how}: no approval is added");
+        assert_eq!(ledger.delta_rebases.len(), 1, "{how}");
+        assert_eq!(ledger.delta_rebases[0].main_commit, rev(root, "origin/main"), "{how}");
+        ensure_approved_delta_bases_current(root, &record).unwrap();
+    }
+}
+
+/// The tester's #1089 regression, second half: a second real main edit after the first rebase was
+/// materialized. The branch's block is then the change's text plus both of main's edits, which
+/// main never held; it is already the merge of the last rebase's main block, main's new block and
+/// the rebased body, so it is rebased again over the last rebase's main block.
+#[test]
+fn a_second_main_edit_after_a_materialized_rebase_is_rebased_again() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = rebased_repository(root);
+    materialized_then_main_edits(
+        root,
+        &record,
+        "- One session per user.",
+        "- One session per user and device.",
+    );
+    let first_main = rev(root, "change~1");
+    git_shown(root, &["merge", "-q", "--no-edit", "origin/main"]);
+
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    let twice = MERGED_BODY.replace("- One session per user.", "- One session per user and device.");
+    let requirements = fs::read_to_string(requirements_path(root)).unwrap();
+    assert!(requirements.contains(&twice), "{requirements}");
+    let delta = fs::read_to_string(delta_path(root, &record, "auth")).unwrap();
+    assert!(delta.contains(&twice), "{delta}");
+    let ledger = load_approvals(root, &record).unwrap();
+    assert_eq!(ledger.delta_rebases.len(), 2, "{ledger:?}");
+    assert_eq!(ledger.delta_rebases[0].main_commit, first_main);
+    assert_eq!(ledger.delta_rebases[1].main_commit, rev(root, "origin/main"));
+    assert!(ledger.delta_rebases[1].base_block.contains("twelve hours."));
+    assert!(!ledger.delta_rebases[1].base_block.contains("exactly"));
+    ensure_approved_delta_bases_current(root, &record).unwrap();
+}
+
+/// ss-lead's #1089 rule (3): the item is stale while the default branch's block at HEAD's
+/// merge-base differs from the last rebase's main block. When main's next edit overlaps the
+/// change's words and the branch kept its own text, keeping it would drop main's edit, so the
+/// check refuses and writes nothing, although the working tree carries the change's body.
+#[test]
+fn an_overlapping_main_edit_after_a_rebase_is_refused_even_when_the_branch_kept_its_text() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = rebased_repository(root);
+    materialized_then_main_edits(root, &record, "keep one session", "keep a single session");
+    git_in(root)(&["merge", "-q", "-s", "ours", "--no-edit", "origin/main"]);
+    let requirements = fs::read_to_string(requirements_path(root)).unwrap();
+    let delta = fs::read_to_string(delta_path(root, &record, "auth")).unwrap();
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    let ledger = fs::read_to_string(&ledger_path).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("has changed since") && error.contains("REQ-auth-001"), "{error}");
+    assert_eq!(fs::read_to_string(requirements_path(root)).unwrap(), requirements);
+    assert_eq!(fs::read_to_string(delta_path(root, &record, "auth")).unwrap(), delta);
+    assert_eq!(fs::read_to_string(&ledger_path).unwrap(), ledger);
+}
+
+/// ss-lead's #1089 rule (3), reader side: a record's main commit must be a commit of the default
+/// branch's first-parent line in HEAD's history that holds the record's main block. A record that
+/// names another commit, or none, is refused by `change check` and named by `change status`.
+#[test]
+fn a_rebase_record_naming_the_wrong_main_commit_is_refused_and_named() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = rebased_repository(root);
+    materialize_change_deltas(root, &record.id).unwrap();
+    assert_eq!(refused_delta_rebase(root, &record), None);
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    for (commit, why) in [
+        (rev(root, "HEAD~1"), "does not hold its main block"),
+        (String::new(), "names no main commit"),
+    ] {
+        let mut ledger = load_approvals(root, &record).unwrap();
+        ledger.delta_rebases[0].main_commit = commit;
+        write_json(&ledger_path, &ledger).unwrap();
+
+        let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+        assert!(error.contains("delta rebase 1") && error.contains(why), "{error}");
+        let named = refused_delta_rebase(root, &record).expect("status names the refusal");
+        assert!(named.contains("delta rebase 1") && named.contains(why), "{named}");
+        assert!(!summarize_change(root, &record).approval_valid);
+    }
+}
+

@@ -15,6 +15,7 @@ files:
   - src/change/relayed_decision.rs
   - src/change/sdd_version.rs
   - src/change/send_back.rs
+  - src/change/delta_rebase.rs
   - src/change/spec_history.rs
   - src/change/unknown_members.rs
   - src/change/validate_loaded_change.rs
@@ -40,6 +41,7 @@ files:
   - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/spec_history.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/rebase_stale_delta.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
   - src/change_tests/inert_ignored_paths.rs
@@ -186,6 +188,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `LateCloseRecord` | What a late close writes beside the package it moved: actor, reason, timestamp, the state the package still holds, workflow version, the path it came from, the remote default reference and commit, the commit that merged it and its date, `verified: false`, and any dropped collision acknowledgement (REQ-change-143) |
 | `LateCloseCollision` | The acknowledged sequence collision a late close removed from `.specsync/change-sequence.json` because its member left the enumerated directories (REQ-change-143) |
 | `DoctorRequest` | What `specsync doctor` was asked to do: `fix`, `dry_run`, the IDs (or `all`) to close late, and the actor and reason a late close needs (REQ-cmd-change-035) |
+| `DeltaRebaseRecord` | One rebase of a stale `## MODIFIED` requirement delta over main's edit, kept in `approvals.json` under `delta_rebases`: module, item, the approval it extends, the approval-time block, main's block, the delta before and the rebased delta's digest, so every reader recomputes it (REQ-change-161) |
+| `DeltaRebaseSummary` | One rebase as `change status` shows it: module, requirement and when (REQ-cmd-change-038) |
 | `HistoryFragment` | One change's record in a module's history: change id, `YYYY-MM-DD` date and one-line summary (REQ-change-160) |
 | `SpecHistory` | A module's whole history for `specsync history`: module, spec path, frozen `version:`, the Change Log table header and rows as written, and the fragments in date then change-id order (REQ-cmd-change-037) |
 | `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
@@ -208,6 +212,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `validate_retirement` | root, record | Result<(), String> | Authenticate retained original package, committed disposition and receipt integrity, and prove custody still holds: every retained input is bound to the frozen prior manifest and still carried under its recorded signed owners in the custodian's authenticated evidence — the current acceptance, or the last accepted manifest during an audited post-acceptance reopen — with receipt classifications read as historical fact. The custodian's own freshness stays terminal-evidence data on its record, so the reopen remedy stays reachable (#1021); supplies no acceptance credit |
 | `retirement_record` | root, record | Result<RetirementRecord, String> | Read disposition details after caller validates retirement custody |
 | `retirement_next_action` | root, record | String | Explain explicitly unproven nonacceptance and any invalid custody hold |
+| `recorded_delta_rebases` | `root: &Path, record: &ChangeRecord` | `Vec<DeltaRebaseSummary>` | The rebases recorded under the change's effective definition approval, for `change status` (REQ-cmd-change-038) |
+| `utc_date_of` | `seconds: u64` | `String` | The UTC calendar date of a Unix timestamp, for status lines |
 | `spec_history_dir` | `spec_path: &Path` | `PathBuf` | The `history/` directory beside a spec |
 | `history_fragment_path` | `spec_path: &Path, change_id: &str` | `PathBuf` | Where a change's fragment for that spec's module lives (REQ-change-159) |
 | `history_fragment_content` | `change_id: &str, date: &str, summary: &str` | `String` | The fragment `change check` writes, with the summary folded to one line |
@@ -394,6 +400,7 @@ Acceptance Criteria
 59. After definition approval, the guided next action for an approved or implementing change names `specsync change check <id> --commit`. `change review` and `change ship` refuse when the recorded verification commit does not contain the change's own work — the current contents of its `affected_paths` and any canonical specs it materialized — and they do not record a review bound to such a commit. Uncommitted files under `.specsync/` alone do not trigger that refusal (#535, REQ-change-156, REQ-change-157).
 60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
 61. A change's record in a module's history is its own file, `history/<change-id>.md` beside the spec, so two changes to one module never edit the same line of its spec and merge without a merge driver (#1084, MERGE-1). A Change Log table written before this is frozen as it is: no row is rewritten, and `specsync check` refuses a change recorded both by a fragment and by a row.
+62. A stale `## MODIFIED` requirement delta of a workflow-v2 change is rebased by `change check`, never by acceptance, audit or CI, and only when a word-level three-way merge of its approval-time block, main's block and the approved body finds no overlap (REQ-change-161). The rebase adds no approval: it appends a record that moves the delta digest and item base the effective approval binds, and the binding, the base check, re-approval and acceptance all fold the records in by recomputing each one from the texts it holds. Overlapping edits, spec sections, REMOVED items, workflow v1 and an approval-time block Git cannot give back keep the #843 refusal.
 
 ## Behavioral Examples
 

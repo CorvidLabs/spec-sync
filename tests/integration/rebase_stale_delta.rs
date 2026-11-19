@@ -119,7 +119,10 @@ impl Project {
         .unwrap();
         let id = created["change"]["id"].as_str().unwrap().to_string();
         for (question, answer) in [
-            ("acceptance_criteria", "The requirement says exactly one session"),
+            (
+                "acceptance_criteria",
+                "The requirement says exactly one session",
+            ),
             ("public_contract", "no"),
             ("architecture_risk", "no"),
         ] {
@@ -205,10 +208,11 @@ fn a_non_overlapping_main_edit_is_rebased_by_change_check_and_shown_in_status() 
     let status: Value =
         serde_json::from_str(&project.run(&["--json", "change", "status", &id])).unwrap();
     assert_eq!(status["summary"]["approval_valid"], true, "{status}");
-    assert_eq!(
-        status["summary"]["changed_approved_deltas"],
-        serde_json::json!([]),
-        "{status}"
+    assert!(
+        status["summary"]["changed_approved_deltas"]
+            .as_array()
+            .is_none_or(Vec::is_empty),
+        "the rebased delta is the approved delta: {status}"
     );
     let listed = status["summary"]["delta_rebases"].as_array().unwrap();
     assert_eq!(listed.len(), 1, "{status}");
@@ -222,7 +226,13 @@ fn a_non_overlapping_main_edit_is_rebased_by_change_check_and_shown_in_status() 
 
     // Checking again changes nothing and records no second rebase.
     project.run(&["change", "check", &id]);
-    assert_eq!(project.ledger(&id)["delta_rebases"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        project.ledger(&id)["delta_rebases"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 /// REQ-change-122 still holds when the edits overlap: the same words changed on both sides.
@@ -248,6 +258,43 @@ fn an_overlapping_main_edit_is_still_refused_and_writes_nothing() {
         "{text}"
     );
     assert_eq!(project.read("specs/auth/requirements.md"), requirements);
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/approvals.json")),
+        ledger
+    );
+}
+
+/// REQ-change-161: CI never writes, so a CI run of `change check` does not rebase; the delta stays
+/// refused there until it is checked locally.
+#[test]
+fn a_ci_run_does_not_rebase() {
+    let project = Project::new();
+    let id = project.approved_change_then_main_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after twelve hours.",
+    );
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+    let ledger = project.read(&format!(".specsync/changes/{id}/approvals.json"));
+
+    let output = specsync()
+        .env("CI", "true")
+        .env("GITHUB_WORKSPACE", &project.root)
+        .args([
+            "--root",
+            project.root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "{}", combined(&output));
     assert_eq!(
         project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
         delta

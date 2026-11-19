@@ -96,8 +96,17 @@ and `change audit` refuse rather than overwrite the newer text, and name the blo
 semantic delta for `auth` was approved against canonical text that has changed since (auth: REQ-auth-001); applying it would overwrite text this change never approved, ...
 ```
 
-Rewrite the delta body onto the current canonical text, then run `change approve` and `change check`
-again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,
+When main's edit and the change's own edit to a `## MODIFIED` requirement do not overlap word by
+word, `change check` rebases the delta itself: it recovers the requirement's approval-time text from
+Git, merges it with main's text and the approved body, writes the merge into the delta, and records
+the rebase in `approvals.json` under `delta_rebases`. The approval stands, `change status` shows the
+rebase, and every later read recomputes the merge from the texts the record holds, so a record that
+does not recompute is refused. A requirement whose edits overlap, a spec section, a `## REMOVED`
+item, a workflow-v1 change, a CI run and a repository without the approval-time history keep the
+refusal above.
+
+Otherwise, rewrite the delta body onto the current canonical text, then run `change approve` and
+`change check` again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,
 because it would record the newer text as the base and let the old body overwrite it. Approvals
 recorded before SpecSync carried this field keep their earlier behaviour, but once a change has
 recorded these bases, a later approval cannot drop them.

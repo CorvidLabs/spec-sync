@@ -1557,16 +1557,16 @@ fn canonical_block_digest(module: &str, spec: &str, requirements: &str, item: &D
         DeltaTarget::SpecSection => (spec, "## "),
     };
     let heading = format!("{prefix}{}", item.key);
-    let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
-    digest.frame(b"key", delta_base_key(module, item).as_bytes());
     match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
-        None => digest.frame(b"absent", b""),
-        Some(range) => {
-            let block = source[range].replace("\r\n", "\n");
-            digest.frame(b"block", block.trim_matches(['\n', ' ', '\t']).as_bytes());
+        // A rebase record frames its blocks through the same function (REQ-change-161).
+        Some(range) => item_block_digest(module, item, &source[range]),
+        None => {
+            let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
+            digest.frame(b"key", delta_base_key(module, item).as_bytes());
+            digest.frame(b"absent", b"");
+            digest.finish()
         }
     }
-    digest.finish()
 }
 
 /// Every `## MODIFIED` / `## REMOVED` item of every affected module, with the canonical spec and
@@ -1826,9 +1826,17 @@ fn approval_delta_bases(
                 .rev()
                 .find(|approval| approval.gate == "definition")
         });
+    // The previous approval's claims with its recorded rebases folded in (REQ-change-161). A
+    // rebase that does not recompute leaves no trustworthy previous claim, so the new approval
+    // records the canonical text as it stands, as for an approval with no claims.
+    let previous_claims = previous
+        .map(|approval| effective_delta_claims(&record.id, ledger, approval))
+        .transpose()
+        .ok()
+        .flatten();
     let (Some(previous_bases), Some(previous_bodies)) = (
-        previous.and_then(|approval| approval.approved_delta_bases.as_ref()),
-        previous.and_then(|approval| approval.approved_delta_digests.as_ref()),
+        previous_claims.as_ref().and_then(|(_, bases)| bases.as_ref()),
+        previous_claims.as_ref().and_then(|(digests, _)| digests.as_ref()),
     ) else {
         return delta_base_digests(root, record);
     };
@@ -1918,7 +1926,9 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
     }
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
-    let Some(bases) = approval.approved_delta_bases.as_ref() else {
+    // The bases the approval binds once every recorded rebase is folded in (REQ-change-161).
+    let (_, effective_bases) = effective_delta_claims(&record.id, &ledger, approval)?;
+    let Some(bases) = effective_bases.as_ref() else {
         // Absence is monotone, exactly as for `approved_delta_digests` (#719): a ledger that has
         // recorded bases for this change is new enough to record them again, so a later
         // definition approval carrying none is a claim being withdrawn, not silence from before
@@ -2073,7 +2083,10 @@ fn read_approved_delta_binding(
 ) -> Result<DeltaBinding, String> {
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
-    let Some(approved) = approval.approved_delta_digests.as_ref() else {
+    // The delta digests the approval binds once every recorded rebase is folded in
+    // (REQ-change-161); a rebase that does not recompute refuses here.
+    let (effective_digests, _) = effective_delta_claims(&record.id, &ledger, approval)?;
+    let Some(approved) = effective_digests.as_ref() else {
         if ledger.approvals.iter().any(|candidate| {
             candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
         }) {

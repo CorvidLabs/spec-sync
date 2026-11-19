@@ -1415,6 +1415,11 @@ pub struct ApprovalLedger {
     /// recorded before it without removing any of them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub send_backs: Vec<SendBackRecord>,
+    /// Rebases of stale `## MODIFIED` requirement deltas over main's edit (#1085,
+    /// REQ-change-161), append-only and omitted when empty. Each one moves the delta digest and the
+    /// item base its definition approval binds, and every reader recomputes it from its own texts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub delta_rebases: Vec<DeltaRebaseRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1721,6 +1726,10 @@ pub struct ChangeSummary {
     /// it; omitted when empty. The reason `approval_valid` is false when `scope_expansion` is empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_approved_deltas: Vec<String>,
+    /// Every rebase of a stale requirement delta over main's edit recorded under the effective
+    /// definition approval (REQ-cmd-change-038); omitted when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub delta_rebases: Vec<DeltaRebaseSummary>,
     pub artifacts_complete: bool,
     #[serde(default)]
     pub correction_valid: bool,
@@ -3544,8 +3553,10 @@ fn materialize_change_deltas_inner(
     // after the first — and the workspace would keep shipping a delta that no longer describes
     // the spec it produced. The delta must match its approval for as long as it is evidence.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
-    // Also above the short-circuit, and before anything is written: a body approved over text
-    // the base branch has since rewritten must be refused, never applied over it (#843).
+    // A body approved over a requirement main has since edited is first rebased over main's edit
+    // when the two do not overlap, keeping the approval (#1085, REQ-change-161). Whatever is left
+    // stale is then refused, never applied over main's text (#843).
+    rebase_stale_modified_requirements(root, &record)?;
     ensure_approved_delta_bases_current(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;

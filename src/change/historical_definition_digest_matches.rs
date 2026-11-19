@@ -2831,9 +2831,14 @@ fn accept_change_with_gate(
                 // The canonical bases the superseded approval was granted against travel with
                 // it: by acceptance the deltas are applied, so re-reading the tree here would
                 // record this change's own text as its base and forget what it replaced (#843).
-                approved_delta_bases: effective_definition_approval(root, &record, &ledger)?
-                    .approved_delta_bases
-                    .clone(),
+                // With every recorded rebase folded in (REQ-change-161): a rebase extends the
+                // approval it was recorded under, not this normalizing one.
+                approved_delta_bases: effective_delta_claims(
+                    &record.id,
+                    &ledger,
+                    effective_definition_approval(root, &record, &ledger)?,
+                )?
+                .1,
                 // Recorded by whoever runs this acceptance, not relayed from the original approver.
                 relayed_by: None,
             });
@@ -4455,6 +4460,7 @@ fn summarize_change_with_effective(
         definition_digest: current_definition_digest,
         scope_expansion,
         changed_approved_deltas,
+        delta_rebases: recorded_delta_rebases(root, record),
         artifacts_complete,
         correction_valid,
         correction_count: record.correction_count as usize,

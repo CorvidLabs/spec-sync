@@ -5,7 +5,7 @@ aliases: [428-committed-approvals]
 objective: finalize, ship and archive refuse an approvals ledger that Git history does not hold (#428)
 intent_scope: CHANGE
 modules: [change, cmd_change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -21,6 +21,8 @@ observations:
   - 2026-11-19-428-red-integration-on-main
   - 2026-11-19-428-verify-lane-at-d8ad737f
   - 2026-11-19-428-verify-lane-at-cb0b4fc3
+  - 2026-11-19-428-red-ways-out-at-4ebc7bea
+  - 2026-11-19-428-verify-lane-at-e869bf11
 bugs: []
 blockers: []
 waiting_on_human:
@@ -52,6 +54,8 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
 - [Red first on main: finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed fails: ship-status calls a change ready to finalize after its approvals.json was edited in the working tree.](evidence/2026-11-19-428-red-integration-on-main.md)
 - [At d8ad737f (main 2cc0897f merged in; the fix, the rule tests and the existing-test commits), fledge lanes run verify passed 10/10 steps in 8m29s, run alone: unit 3110 passed (2 ignored), integration 630 passed (ship-status exit 1 on the ledger blocker included), strict specs 62/62. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-d8ad737f.md)
 - [At cb0b4fc3 (the Git-read refusals name the way out, red first in the commit before), fledge lanes run verify passed 10/10 steps in 12m18s, run alone. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-cb0b4fc3.md)
+- [Red first for tester2's interim findings at 999f55a3: at 4ebc7bea (the tests alone) three fail: an ignored ledger is told to run check --commit, which cannot commit it; a re-created ledger's way out names only the re-creation; a missing working ledger gives finalize a bare 'No such file or directory'. Fixed in 88cb2857.](evidence/2026-11-19-428-red-ways-out-at-4ebc7bea.md)
+- [At e869bf11 (the three ways out fixed, re-checked), fledge lanes run verify passed 10/10 steps in 8m18s through one-lane: unit 3113 passed (2 ignored), integration 630. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-e869bf11.md)
 
 ## Open threads
 
@@ -139,4 +143,14 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
   - gate: native:verifying
   - revision: 88cb285784d5c4b8ea0f975afed386f2af4434aa
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T19:43:10Z · advance · build → test · native:verifying ^t-a3223e
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: e869bf117949ca8f1454eb07832899f24b77940a
+  - by: claude-code (hc t59)
+- 2026-11-19T19:43:12Z · advance · test → accept · native:verifying ^t-86c804
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: e869bf117949ca8f1454eb07832899f24b77940a
   - by: claude-code (hc t59)

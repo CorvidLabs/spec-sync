@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.
 
+- `specsync change ship-status` exits 1 when its report names a blocker, for one change and for the roster. It used to exit 0 beside its `Blocker:` line, so a script or CI step that runs it read success. The whole report is still printed first, `--json` output stays one document, and a report with no blocker exits 0 as before. A change that is not ready but has no blocker, such as one still waiting for its review, also exits 0. A script that runs `ship-status` on a blocked change now has to expect exit 1 (REQ-cmd-change-039, #654).
+
 ## [6.3.0] - 2026-11-12
 
 ### Added

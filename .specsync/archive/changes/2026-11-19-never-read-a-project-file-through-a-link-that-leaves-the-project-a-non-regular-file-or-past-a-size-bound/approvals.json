@@ -172,6 +172,13 @@
         "where": "Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:21Z, after t4c summed up the written change 3 scope in plain words (the confined, non-blocking, type-checked, bounded read helper; links inside followed; link out, dangling, FIFO, device, socket or over-bound refused naming path and reason, handled like that read's other errors; caches strict; bounds 4, 8 and 64 MiB; about 140 read sites; command-line paths, .git and Git objects out of scope; failing tests first, never /dev/zero); relayed by t4c over hc to t5r as his scope approval on exactly that text",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795102901,
+      "digest": "743c65a040dc055f5f5177523ae3ac9c63b329d5a8e79d279753c46b09106a7c",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

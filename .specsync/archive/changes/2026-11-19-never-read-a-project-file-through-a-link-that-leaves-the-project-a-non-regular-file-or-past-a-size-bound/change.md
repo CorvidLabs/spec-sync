@@ -1,6 +1,6 @@
 ---
 id: never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 3a02a5d5903b08612c0dad8c44ecfdf28fe2b0ef
 ---

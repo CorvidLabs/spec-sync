@@ -45,6 +45,11 @@ waiting_on_human:
     opened: 2026-11-19T15:15:03Z
 run_consents: []
 next: Commit, chough change check, push to the private fork, Linux container run, then ask Leif through t4c for the implementation review
+title: Project file reads are confined and bounded
+summary:
+  - SpecSync read about 200 project files with reads that follow links, block on FIFOs and have no bound, so a committed link from .specsync/sdd.json to /dev/zero exhausted memory in change status, which Chough runs on every next and status.
+  - "Every in-scope read now goes through util's bounded project read: confined to the root, non-blocking, type-checked on the handle, at most the bound plus one byte (4, 8 and 64 MiB); a source scan test keeps it that way."
+  - "Verified: 11 of 17 integration tests and the scan failed first and pass; full macOS verify lane green; Linux arm64 container green. Next: the advisory text, then publishing and release on Leif's yes."
 ---
 # No SpecSync read of a project file follows a link out of the project, waits on a non-regular file, or reads past a size bound (private, with GHSA-7q5v-8jcc-rx54)
 

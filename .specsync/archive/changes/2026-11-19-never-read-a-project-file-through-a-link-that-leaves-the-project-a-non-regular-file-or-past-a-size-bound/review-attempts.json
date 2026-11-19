@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "0d9cbde58d6637dc8192c627291dfbe9eb7efb04",
+      "contract_digest": "54a8d1c3f2c6ce77014f26428cc71ed7f0b2ef3761ff5059d1426f604ca61bc0",
+      "execution_digest": "96d9e1db944ebac2d9a3b4276b70b65126f8cd4f37bff2adf7c6beab3db1f1f0",
+      "workspace_digest": "c66fd727e9e5e590b7118c917c1761c1a6e1b4f479029e91993c6af9f63ca900",
+      "timestamp": 1795102689,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "yes, change 3 too",
+        "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:36Z, after t4c walked him through the change in plain words from its own read of read_project_file at 2446aba8 (confined open, non-blocking, type check on the open handle, bound+1 read; the source scan test; about 200 sites; the out-of-scope reads marked in source; the red-first and green counts on macOS and Linux; the three side effects; x86 and CI Ubuntu not run) and asked whether its implementation review passes; relayed by t4c over hc to t5r as his implementation review",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

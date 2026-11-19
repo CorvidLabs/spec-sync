@@ -7,11 +7,11 @@
   "title": "Never read a project file through a link that leaves the project, a non-regular file, or past a size bound",
   "description": "Never read a project file through a link that leaves the project, a non-regular file, or past a size bound",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "3a02a5d5903b08612c0dad8c44ecfdf28fe2b0ef",
   "created_at": 1795098179,
-  "updated_at": 1795101936,
+  "updated_at": 1795102902,
   "affected_specs": [
     "util",
     "agents",

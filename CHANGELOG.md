@@ -11,17 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `specsync check` warns on a module's `<module>.3md` lesson file that does not parse, naming the file, the parser's error and that `context.md` is used instead, so `check --strict` fails on it; lifecycle commands still fall back and never fail (#1060).
 
-### Fixed
-
-- `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).
-
-- A `## MODIFIED` delta no longer replaces a fenced example that quotes a requirement's header instead of the real requirement, and a heading inside a fenced example no longer ends the block a delta replaces: the materializer skips fenced code, as the shared requirement reader does (#1050).
-
 ### Changed
 
 - `change check` records each change it materializes in its own history fragment, `specs/<module>/history/<change-id>.md` (frontmatter `change:` and `date:`, then the change title), instead of appending a Change Log row and bumping the spec's `version:`. Two changes to one module no longer edit the same lines of its spec, so they merge with plain Git, including GitHub's merge button and Update branch, which run no merge driver. Existing Change Log tables and `version:` values are frozen as they are, with no row rewritten; a change an earlier SpecSync recorded with a row is still recorded and gets no fragment. `specsync check` validates the fragments and refuses a change recorded both ways, and the new `specsync history <module>` prints the table followed by one row per fragment, numbering a `Version` column on from the frozen `version:`. Released SpecSync 6.3.0 ignores the fragments in `check`, but its `change audit` and `change audit --strict` fail on a tree with fragments ("meaningful changed paths are not covered by an active change: specs/<module>/history/<id>.md"), and its `change check` on a change this version recorded adds a Change Log row and a bump as well, which this version's `check` then reports as a double record. So a repository that pins SpecSync, such as through the GitHub Action, must move its pin to this release in the same PR that first ships a change with it, and every machine that runs change commands there should use this release (REQ-change-159, REQ-change-160, REQ-validator-048, REQ-hash-cache-006, REQ-cmd-change-037, #1084).
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.
+
+### Fixed
+
+- `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).
+
+- A `## MODIFIED` delta no longer replaces a fenced example that quotes a requirement's header instead of the real requirement, and a heading inside a fenced example no longer ends the block a delta replaces: the materializer skips fenced code, as the shared requirement reader does (#1050).
 
 ## [6.3.0] - 2026-11-12
 

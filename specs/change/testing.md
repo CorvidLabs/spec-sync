@@ -334,5 +334,7 @@ Each fixture has its own `git init`; every journal names files inside the fixtur
 | An entry for `.git/config`, `.GIT/config`, `.git./config`, `.git/HEAD` or a hook | Refused; Git's files keep their bytes | `a_journal_never_rewrites_or_deletes_git_files` |
 | A journal Git tracks, in the index or only in `HEAD` | Refused with the `git rm --cached` fix | `a_journal_git_tracks_is_never_replayed`, `change_new_never_replays_a_committed_journal_into_git` |
 | One entry outside the workflow's files | The whole journal is refused | `one_entry_outside_the_change_workflow_refuses_the_whole_journal` |
+| `.git\\config` with `specs_dir = "."`, `specs/.git\\config` | Refused: backslashes are separators, as the write treats them | `a_backslash_entry_cannot_reach_git_files` |
+| `specs_dir = "."` and an entry for `Makefile` | Refused: under `specs_dir` only spec files, `requirements.md` and history fragments | `specs_dir_dot_does_not_widen_replay` |
 | The bare-array 5.x form | Refused with the `.broken` recovery | `a_bare_array_journal_is_no_longer_replayed` |
 | The person's own interrupted write, including a registry-mapped spec | Still recovered | `a_real_interrupted_write_is_still_recovered`, `a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not` |

@@ -5,7 +5,7 @@ aliases: [journal-replay-targets]
 objective: A transaction journal SpecSync did not write itself is never replayed, and no replay touches Git's files or anything the change workflow does not write (F1, private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -19,6 +19,8 @@ files: []
 observations:
   - 2026-11-19-on-base-cf528407-with-only-the-new-tests-added-5-of-6-journal
   - 2026-11-19-with-the-fix-the-6-journal-unit-tests-and-the-change-new-cli
+  - 2026-11-19-on-change-4-s-tip-75dddd76-two-new-tests-fail-the-path-rule
+  - 2026-11-19-with-the-amendment-the-rule-judges-the-normalized-path-under
 bugs: [2026-11-19-a-committed-transaction-journal-is-replayed-into-git-s-files]
 blockers: []
 waiting_on_human:
@@ -27,7 +29,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-19T16:36:20Z
 run_consents: []
-next: Continue accept
+next: Continue build
 title: Journals SpecSync did not write are never replayed
 summary:
   - Every writing change command replayed .specsync/change-transaction.json at lock time into any file under the root, so a committed journal could rewrite .git/config and run a command through core.fsmonitor (5.0.0 to 6.3.0).
@@ -51,6 +53,8 @@ A transaction journal SpecSync did not write itself is never replayed, and no re
 
 - [On base cf528407 with only the new tests added: 5 of 6 journal unit tests and the change new CLI test fail. A journal entry rewrote .git/config, .GIT/config, a hook, or deleted .git/HEAD; a journal Git tracks was replayed; a journal with one entry for Makefile was replayed whole; a bare-array journal was replayed; a file beside a registry-mapped spec was written; and change new with a committed journal rewrote .git/config.](evidence/2026-11-19-on-base-cf528407-with-only-the-new-tests-added-5-of-6-journal.md)
 - [With the fix, the 6 journal unit tests and the change new CLI test pass, and the full verify lane passes: unit 3104 passed, 0 failed, 2 ignored; integration 666 passed, 0 failed; fmt, clippy, the release build, the strict spec check at 62 specs and 100 percent coverage, and the gate scripts.](evidence/2026-11-19-with-the-fix-the-6-journal-unit-tests-and-the-change-new-cli.md)
+- [On change 4's tip 75dddd76: two new tests fail. The path rule checked the raw entry while the write turns backslashes into separators, so a journal entry .git\config under specs_dir . and specs/.git\config under specs were replayed; and specs_dir . admitted a Makefile entry.](evidence/2026-11-19-on-change-4-s-tip-75dddd76-two-new-tests-fail-the-path-rule.md)
+- [With the amendment (the rule judges the normalized path; under specs_dir only spec files, requirements.md and history fragments), all 8 journal unit tests and the change new CLI test pass, and the full verify lane passes: unit 3106 passed, 0 failed, 2 ignored; integration 666 passed, 0 failed; fmt, clippy, the release build, the strict spec check, the gate scripts.](evidence/2026-11-19-with-the-amendment-the-rule-judges-the-normalized-path-under.md)
 
 ## Open threads
 
@@ -119,4 +123,10 @@ A transaction journal SpecSync did not write itself is never replayed, and no re
   - revision: cf5284076db2b692d8e8df8953eb6525d5952690
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-19T16:39:30Z · back · accept → build · t4c's read found that the path rule checked the raw entry while the write normalizes backslashes, so '.git\config' passed, and specs_dir '.' admitted every path; amending inside the approved rule ^t-2790c0
+  - native_change: never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
+  - gate: native:verifying
+  - revision: 75dddd7695acbbb2106feeb9889d315cd64297f8
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
   - by: claude-code (hc t5r)

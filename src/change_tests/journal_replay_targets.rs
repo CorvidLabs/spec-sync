@@ -281,3 +281,74 @@ fn a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not() {
     assert!(!root.join("docs/api/notes.md").exists());
     assert!(error.contains("entry `docs/api/notes.md`"), "{error}");
 }
+
+/// Verifies REQ-change-162. The write turns a backslash into a separator, so the path rule must
+/// too: `.git\config` is `.git/config`, and `specs/.git\config` reaches a `.git` component under
+/// the spec tree. A repository config of `specs_dir = "."` must not let either through.
+#[test]
+fn a_backslash_entry_cannot_reach_git_files() {
+    for (specs_dir, target) in [(".", ".git\\config"), ("specs", "specs/.git\\config")] {
+        let temp = journal_project();
+        let root = temp.path();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            format!("specs_dir = \"{specs_dir}\"\nsource_dirs = [\"src\"]\n"),
+        )
+        .unwrap();
+        let config = fs::read(root.join(".git/config")).unwrap();
+        plant_journal(
+            root,
+            &durable_journal(vec![entry(target, Some("[core]\n\tfsmonitor = touch planted\n"))]),
+        );
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert_eq!(
+            fs::read(root.join(".git/config")).unwrap(),
+            config,
+            "{target} rewrote .git/config"
+        );
+        assert!(
+            !root.join("specs/.git").exists(),
+            "{target} created a .git directory in the spec tree"
+        );
+        assert!(error.contains("Git's own files"), "{target}: {error}");
+    }
+}
+
+/// Verifies REQ-change-162. Under `specs_dir` the change workflow writes only spec files,
+/// `requirements.md` and history fragments, so a `specs_dir` of `.` does not open the whole tree
+/// to a replay.
+#[test]
+fn specs_dir_dot_does_not_widen_replay() {
+    let temp = journal_project();
+    let root = temp.path();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \".\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    plant_journal(
+        root,
+        &durable_journal(vec![entry("Makefile", Some("all:\n\ttouch planted\n"))]),
+    );
+    let error = recover_pending_transaction(root).unwrap_err();
+    assert!(!root.join("Makefile").exists(), "specs_dir . admitted Makefile");
+    assert!(error.contains("entry `Makefile`"), "{error}");
+
+    fs::create_dir_all(root.join("auth/history")).unwrap();
+    plant_journal(
+        root,
+        &durable_journal(vec![
+            entry("auth/auth.spec.md", Some("# Auth\n")),
+            entry("auth/requirements.md", Some("# Requirements\n")),
+            entry("auth/history/a-change.md", Some("---\n")),
+        ]),
+    );
+    recover_pending_transaction(root).unwrap();
+    assert_eq!(
+        fs::read_to_string(root.join("auth/auth.spec.md")).unwrap(),
+        "# Auth\n"
+    );
+}
+

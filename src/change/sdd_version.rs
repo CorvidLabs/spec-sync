@@ -725,6 +725,10 @@ fn tracked_journal_error(journal_path: &Path) -> String {
 /// `history/` fragments. A `.git` component is refused in any letter case and with trailing dots
 /// or spaces, which some file systems ignore.
 fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String> {
+    // The write normalizes a backslash into a separator (`normalize_project_path`), so the rule
+    // must judge the same path the write will reach: `.git\config` is `.git/config`.
+    let relative = relative.replace('\\', "/");
+    let relative = relative.as_str();
     if relative.split('/').any(|component| {
         component
             .trim_end_matches(['.', ' '])
@@ -742,8 +746,18 @@ fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String
     if under(".specsync", relative) {
         return Ok(());
     }
+    // Under `specs_dir` the workflow writes only spec files, `requirements.md` and history
+    // fragments, so only those are put back. A `specs_dir` of `.` then opens nothing else.
+    let file_name = relative.rsplit('/').next().unwrap_or(relative);
+    let in_history = relative
+        .rsplit('/')
+        .nth(1)
+        .is_some_and(|directory| directory == "history");
+    let spec_shaped = file_name.ends_with(".spec.md")
+        || file_name == "requirements.md"
+        || (in_history && file_name.ends_with(".md"));
     let config = crate::config::load_config_allowing_unloadable(root);
-    if under(&config.specs_dir, relative) {
+    if spec_shaped && under(&config.specs_dir, relative) {
         return Ok(());
     }
     if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {

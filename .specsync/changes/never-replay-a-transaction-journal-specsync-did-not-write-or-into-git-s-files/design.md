@@ -12,7 +12,8 @@ All of it is in `src/change/sdd_version.rs`, with the path rule beside `transact
   - Checked before the journal is parsed. When it is tracked, the replay refuses with its own message: `the transaction journal at … is tracked by Git, so it came with the repository and is never replayed; remove it with `git rm --cached .specsync/change-transaction.json` and delete the file`.
 - **`replayable_transaction_path(root, relative)`:**
   - Refuses a component that equals `.git` after trailing dots and spaces are removed and ASCII is lowercased.
-  - Accepts a path under `.specsync/` or under the configured `specs_dir`.
+  - Judges the path after backslashes become separators, because the write (`normalize_project_path`) does the same.
+  - Accepts a path under `.specsync/`, and a spec file, `requirements.md` or `history/*.md` under the configured `specs_dir`. A `specs_dir` of `.` therefore opens nothing else.
   - Accepts a path that equals a registry-mapped spec, is the `requirements.md` beside it, or is in its `history/` directory.
   - Refuses anything else with `entry \`<path>\` is outside what the change workflow writes`. A `.git` refusal names Git's own files.
 - **Replay.**

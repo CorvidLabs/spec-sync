@@ -289,3 +289,29 @@ fn a_quoted_change_id_reads_yaml_escapes() {
     let content = "---\nchange: \"\\u0061\"\ndate: 2026-11-19\n---\n\nSummary\n";
     assert_eq!(parse_history_fragment("a.md", content).unwrap().change, "a");
 }
+
+/// Codex's review of 8266e6c6 (the tester's case): a table cell's surrounding spaces are padding,
+/// so an id that begins with a space is compared without it. A fragment for ` add-passkeys` beside
+/// the legacy row `|  add-passkeys: Passkeys |` is a double record, not two separate records.
+#[test]
+fn a_leading_space_in_the_id_is_cell_padding_not_part_of_the_match() {
+    let spec = "---\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-11-18 |  add-passkeys: Passkeys |\n";
+    assert!(changelog_records_change(spec, " add-passkeys"));
+    assert!(changelog_records_change(spec, "add-passkeys"));
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    fs::create_dir_all(root.join("specs/auth/history")).unwrap();
+    fs::write(&spec_path, spec).unwrap();
+    fs::write(
+        history_fragment_path(&spec_path, " add-passkeys"),
+        history_fragment_content(" add-passkeys", "2026-11-19", "Passkeys"),
+    )
+    .unwrap();
+    let (_, errors) = scan_history_fragments(root, &spec_path, spec);
+    assert!(
+        errors.iter().any(|error| error.contains("records it too")),
+        "the row and the fragment are a double record: {errors:?}"
+    );
+}

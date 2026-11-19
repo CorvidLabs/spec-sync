@@ -2663,8 +2663,11 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
 /// The row described the change as `{id}: {title}` in whichever column the table calls its
 /// description, so it is found by that prefix inside the `## Change Log` section rather than by
 /// rebuilding a row and comparing it. A row names the change when one of its table cells begins
-/// with `{id}:`, after any leading `*`, `_` or backtick, so a row `specsync compact` or a human has
-/// reformatted (`**{id}:**`) still counts. Anything else does not: the id mentioned in another
+/// with `{id}:` as written, or just inside the one Markdown marker that opens the cell where that
+/// marker closes right after it or at the cell's end (`cell_names_change`), so a row
+/// `specsync compact` or a human has reformatted (`**{id}:**`) still counts. A cell's padding is
+/// not part of its text, so an id's leading spaces are not compared. Anything else does not: the id
+/// mentioned in another
 /// row's prose (Codex's review of #1088), or a longer id that merely ends with it, so `one-session:`
 /// is not a row for `session`. This one matcher decides both "the module records the change" and
 /// "the change is recorded twice" (#1086 review).
@@ -2676,7 +2679,9 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     let end = spec[start..]
         .find("\n## ")
         .map_or(spec.len(), |offset| start + offset);
-    let needle = format!("{id}:");
+    // A cell's surrounding spaces are padding, so an id's leading spaces, which stand where that
+    // padding is, are not compared (Codex's review of 8266e6c6); its trailing ones meet the `:`.
+    let needle = format!("{}:", id.trim_start());
     spec[start..end]
         .lines()
         .map(str::trim)

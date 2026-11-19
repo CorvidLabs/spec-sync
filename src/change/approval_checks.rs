@@ -398,6 +398,10 @@ fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
             .write(true)
             .open(&path)
             .map_err(|error| format!("failed to open lifecycle lock {}: {error}", path.display()))?;
+    } else {
+        // The lock file is gitignored, so a fresh clone has none, and the approval creates it
+        // (Codex on #1100, round 2). Ask whether it could, without creating anything.
+        lock_could_be_created(&path)?;
     }
     let Some(entries) = read_pending_transaction(root)? else {
         return Ok(());
@@ -411,6 +415,69 @@ fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
          nothing, so it cannot say what `change approve` would find. Run the dry run again once that \
          write is recovered"
     ))
+}
+
+/// Whether the approval could create a missing lock file, asked without creating anything
+/// (REQ-change-163). `acquire_project_lock` creates the lock's directory with `create_dir_all`
+/// and then the file with `create(true)`; each refusal here is the one those steps would give,
+/// in their words.
+fn lock_could_be_created(path: &Path) -> Result<(), String> {
+    let Some(directory) = path.parent() else {
+        return Ok(());
+    };
+    match fs::symlink_metadata(directory) {
+        Ok(metadata) if metadata.is_dir() => directory_admits_new_entries(directory)
+            .map_err(|error| format!("failed to open lifecycle lock {}: {error}", path.display())),
+        // `create_dir_all` meets a file where the directory should be and reports it as existing.
+        Ok(_) => Err(format!(
+            "failed to create lifecycle metadata directory: {}",
+            already_exists()
+        )),
+        // The approval creates the missing directory first, inside the nearest one that exists.
+        Err(_) => {
+            let mut existing = directory;
+            while fs::symlink_metadata(existing).is_err() {
+                match existing.parent() {
+                    Some(parent) => existing = parent,
+                    None => return Ok(()),
+                }
+            }
+            directory_admits_new_entries(existing)
+                .map_err(|error| format!("failed to create lifecycle metadata directory: {error}"))
+        }
+    }
+}
+
+/// Whether a new entry could be made in `directory`, asked with `access(2)`, which writes
+/// nothing. A read-only mount answers `EROFS`, a directory without write permission `EACCES`,
+/// the errors creating the entry would give.
+#[cfg(unix)]
+fn directory_admits_new_entries(directory: &Path) -> std::io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(directory.as_os_str().as_bytes())
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
+    // SAFETY: `path` is a NUL-terminated string that lives for the whole call.
+    if unsafe { libc::access(path.as_ptr(), libc::W_OK | libc::X_OK) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(unix))]
+fn directory_admits_new_entries(_directory: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// The error `create_dir_all` gives when a file stands where its directory should be.
+#[cfg(unix)]
+fn already_exists() -> std::io::Error {
+    std::io::Error::from_raw_os_error(libc::EEXIST)
+}
+
+#[cfg(not(unix))]
+fn already_exists() -> std::io::Error {
+    std::io::Error::from(std::io::ErrorKind::AlreadyExists)
 }
 
 /// Record a definition approval, or the portable 5.0.1 pair, carrying an optional relayed

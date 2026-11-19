@@ -6,6 +6,10 @@
 //! fixed number of seconds would fail on a slow or busy machine for no fault of the code (#707);
 //! a ratio moves only when the growth does. The two sizes are run in turn, small then large,
 //! three times, and each keeps its fastest run, so a change in load during the test reaches both.
+//!
+//! The sizes are 32,000 and 128,000 exports because the old cost has to show in a release build
+//! too. At 8,000 against 32,000 a release build of the old code took only about five times as
+//! long, under the bound, since start-up and parsing still outweighed the rescans.
 
 use crate::helpers::{specsync_std, valid_spec, write_config};
 use std::fs;
@@ -50,8 +54,8 @@ fn check_time(root: &Path) -> Duration {
 
 #[test]
 fn check_time_grows_linearly_with_undocumented_exports() {
-    let small = project_with_undocumented_exports(8_000);
-    let large = project_with_undocumented_exports(32_000);
+    let small = project_with_undocumented_exports(32_000);
+    let large = project_with_undocumented_exports(128_000);
     let mut small_time = Duration::MAX;
     let mut large_time = Duration::MAX;
     for _ in 0..3 {
@@ -60,7 +64,7 @@ fn check_time_grows_linearly_with_undocumented_exports() {
     }
     let ratio = large_time.as_secs_f64() / small_time.as_secs_f64().max(0.001);
     eprintln!(
-        "check: 8,000 exports {small_time:?}, 32,000 exports {large_time:?}, ratio {ratio:.1}"
+        "check: 32,000 exports {small_time:?}, 128,000 exports {large_time:?}, ratio {ratio:.1}"
     );
     assert!(
         ratio < 7.0,

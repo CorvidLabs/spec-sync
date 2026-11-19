@@ -1572,6 +1572,16 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         }
     }
 
+    // REQ-cmd-change-041 (#428): finalize and ship refuse an approvals ledger Git history does
+    // not hold, so ship-status lists that refusal, in the same words, after the blockers above,
+    // and never calls the change ready while it holds.
+    if matches!(record.state, ChangeState::Verifying | ChangeState::Accepted)
+        && upstream_archive.is_none()
+        && let Err(refusal) = change::approvals_ledger_held_by_history(root, record)
+    {
+        blockers.push(refusal);
+    }
+
     // Ordering rules from multi-change dogfood (#487): always surface while active.
     // Retired is terminal, so these gates no longer apply to it either.
     if !matches!(record.state, ChangeState::Archived | ChangeState::Retired) {

@@ -5,7 +5,7 @@ aliases: [cover-root-call-sites]
 objective: The six call sites that pass the project root to change 3's bounded reads are covered by a change, so the change audit passes (private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [cmd_init_registry, cmd_issues, cmd_score, cmd_view, mcp]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -19,13 +19,9 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads
-    holds: accept
-    drives: review
-    opened: 2026-11-19T15:53:08Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 title: Change 3's call sites covered
 summary:
   - After change 3 was archived, the change audit named six call-site files that change 3's commit edited but its paths did not declare. This coverage-only change declares them; no code or contract changes.
@@ -42,6 +38,7 @@ The six call sites that pass the project root to change 3's bounded reads are co
 ## Decisions and why
 
 - 0xLeif decided "Scope approval of cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads": "yes" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads as 0xLeif
+- 0xLeif decided "Implementation review of cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads": "yes" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r as his implementation review); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -97,4 +94,20 @@ The six call sites that pass the project root to change 3's bounded reads are co
   - revision: 6d524c6c2f5c4579b81bd4acca85651834be45da
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-19T15:58:48Z · gate-closed · accept → accept · Implementation review of cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads ^t-2aad9c
+  - native_change: cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads
+  - revision: c4304425d6f0a1a77126c34033dad04c09daa70a
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: yes
+    - where: Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r as his implementation review
+    - recorded_by: claude-code-t5r
+    - native: specsync change review cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-19T15:58:50Z · advance · accept → done · native:archived ^t-8d57ce
+  - native_change: cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads
+  - gate: native:archived
+  - revision: c4304425d6f0a1a77126c34033dad04c09daa70a
   - by: claude-code (hc t5r)

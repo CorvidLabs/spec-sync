@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [Change 3's call sites covered](journal/2026-11-19-change-3-s-call-sites-covered.md) (2026-11-19, shipped)
 - [Project file reads are confined and bounded](journal/2026-11-19-project-file-reads-are-confined-and-bounded.md) (2026-11-19, shipped)
 - [Project file writes never leave the project](journal/2026-11-19-project-file-writes-never-leave-the-project.md) (2026-11-19, shipped)
 - [Hash cache never read or written through a link](journal/2026-11-19-hash-cache-never-read-or-written-through-a-link.md) (2026-11-19, shipped)
@@ -248,9 +249,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads](../.specsync/archive/changes/2026-11-19-cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads/lesson-bundle.md), Cover the call sites that pass the project root to change 3's reads
 - [never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound](../.specsync/archive/changes/2026-11-19-never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound/lesson-bundle.md), Never read a project file through a link that leaves the project, a non-regular file, or past a size bound
 - [never-write-a-project-file-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-write-a-project-file-through-a-symbolic-link/lesson-bundle.md), Never write a project file through a symbolic link
-- [never-read-or-write-the-hash-cache-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-read-or-write-the-hash-cache-through-a-symbolic-link/lesson-bundle.md), Never read or write the hash cache through a symbolic link
 
 ## Snapshots and briefs
 

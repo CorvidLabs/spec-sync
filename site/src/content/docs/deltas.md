@@ -102,10 +102,10 @@ because it would record the newer text as the base and let the old body overwrit
 recorded before SpecSync carried this field keep their earlier behaviour, but once a change has
 recorded these bases, a later approval cannot drop them.
 
-One limit: a `MODIFIED` `Change Log` section is not protected this way. A change materialized by
-SpecSync 6.3.0 or earlier appended its own row to that section, so the text did not match the
-approved body afterwards. `change check` no longer writes the table (each change gets a history
-fragment instead), so there is no reason to restate the table in a delta.
+A delta cannot target the `## Change Log` section. The table is frozen, and each change is recorded
+in its own history fragment, so `change approve`, `change check` and acceptance refuse an `ADDED`,
+`MODIFIED` or `REMOVED` `SPEC SECTION Change Log` item and name it. A change archived before this
+rule is not re-judged.
 
 ---
 

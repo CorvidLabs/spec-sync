@@ -5,7 +5,7 @@ aliases: [432-adopt-dry-run-validates-source]
 objective: change adopt --dry-run refuses an unsupported import source as adoption does (#432)
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,6 +19,8 @@ files: [src/change/historical_definition_digest_matches.rs, tests/integration/ch
 observations:
   - 2026-11-13-at-4747aba0a-fix-432-with-origin-main-bb7682a78-merged-in
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-432-red-control-on-main-3bebe8b0
+  - 2026-11-19-432-verify-lane-at-f8b341c5
 bugs: []
 blockers: []
 waiting_on_human:
@@ -27,7 +29,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T17:51:33Z
 run_consents: []
-next: Read scoped intent and native status, then choose the next action within the authorized scope.
+next: Pushed on fix/cli-432-475-1012, no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that.
 ---
 # change adopt --dry-run refuses an unsupported import source as adoption does (#432)
 
@@ -38,6 +40,7 @@ change adopt --dry-run refuses an unsupported import source as adoption does (#4
 ## Where it stands
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
+- Refreshed onto main 3bebe8b0 with #475 and #1012 on fix/cli-432-475-1012; no conflict; a CHANGELOG Fixed line added; re-checked; red control on main and the verify lane recorded
 
 ## Decisions and why
 
@@ -48,6 +51,8 @@ change adopt --dry-run refuses an unsupported import source as adoption does (#4
 
 - [At 4747aba0a (fix/432 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps under the shared heavy-test lock: fmt, lint and check-types, cargo test (unit 3070 passed, 2 ignored; integration 620 passed), release build, strict spec check, and the CI script tests, including change::adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does.](evidence/2026-11-13-at-4747aba0a-fix-432-with-origin-main-bb7682a78-merged-in.md)
 - [Red-first control: on main 18385ef5e with only the new test, change::adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does fails. The failure is the defect #432 reports, fixed by this change; it is not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- [Red-first control: on main 3bebe8b0 with only the 11-13 failing-test commit applied, change::adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does fails: change adopt --source bogus --dry-run exits 0 and prints an import plan. This is the defect #432 reports, fixed by this change; not a new bug.](evidence/2026-11-19-432-red-control-on-main-3bebe8b0.md)
+- [At f8b341c5 (#432, #475 and #1012 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 12m14s, run alone: fmt, lint and check-types, cargo test (unit 3078 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes change::adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does.](evidence/2026-11-19-432-verify-lane-at-f8b341c5.md)
 
 ## Open threads
 
@@ -90,4 +95,14 @@ change adopt --dry-run refuses an unsupported import source as adoption does (#4
   - gate: native:verifying
   - revision: d8a3ba6c77873600e87b269625bd2d4d4c57613d
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T08:59:48Z · advance · build → test · native:verifying ^t-9e97a9
+  - native_change: change-adopt-dry-run-refuses-an-unsupported-import-source-as-adoption-does
+  - gate: native:verifying
+  - revision: f8b341c574e0b61113983999a8dad19506f9eb24
+  - by: claude-code (hc t59)
+- 2026-11-19T08:59:49Z · advance · test → accept · native:verifying ^t-0f22db
+  - native_change: change-adopt-dry-run-refuses-an-unsupported-import-source-as-adoption-does
+  - gate: native:verifying
+  - revision: f8b341c574e0b61113983999a8dad19506f9eb24
   - by: claude-code (hc t59)

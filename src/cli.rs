@@ -1176,6 +1176,30 @@ mod tests {
         ));
     }
 
+    /// REQ-cli-args-027 (#1091): `change approve` accepts `--dry-run` with its other flags and
+    /// the global output flags.
+    #[test]
+    fn change_approve_accepts_a_dry_run() {
+        for arguments in [
+            &["specsync", "change", "approve", "add-passkeys", "--dry-run"][..],
+            &[
+                "specsync",
+                "--json",
+                "change",
+                "approve",
+                "add-passkeys",
+                "--dry-run",
+                "--actor",
+                "Ada",
+            ][..],
+        ] {
+            assert!(
+                Cli::try_parse_from(arguments).is_ok(),
+                "{arguments:?} does not parse"
+            );
+        }
+    }
+
     #[test]
     fn change_check_review_and_finalize_are_plain_commands() {
         let check =

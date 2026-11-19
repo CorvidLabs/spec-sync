@@ -5,7 +5,7 @@ aliases: [1038-ship-status-archived-review]
 objective: ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -31,13 +31,9 @@ observations:
   - 2026-11-19-1038-verify-lane-at-9564c7a3
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
-    holds: accept
-    drives: review
-    opened: 2026-11-13T20:07:47Z
+waiting_on_human: []
 run_consents: []
-next: "Pushed on fix/ship-status-654-1038-937 (PR #1093). Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that."
+next: Continue done
 ---
 # ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 
@@ -65,6 +61,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 - 0xLeif decided "Approve the scope of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only": "Approve" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:21Z, on the new acceptance criterion line for #1038's change in ss-lead/gates/1093-1038-criterion.md ('New'); relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only as 0xLeif
 - decided: the 11-13 approval of this change no longer stands: the send-back of 2026-11-19 (run by the builder on Leif's relayed word) cancelled it, the acceptance criterion is now the 'New' line of ss-lead/gates/1093-1038-criterion.md word for word, and Leif's relayed 'Approve' of that line (2026-11-19 about 05:21Z) is the current approval
 - noted: the send-back ran at 2026-11-19T14:07:32Z with the reason as ss-lead/gates/1093-send-back-command.md gave it, before Leif asked at about 14:17Z (relayed by hc t4c through ss-lead hc t58) that the reason add '(run by the builder on Leif's relayed word, via t4c)'; approvals.json is left as written, and his word is recorded in this session's gate closed at 2026-11-19T14:07:21Z
+- 0xLeif decided "Implementation review of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only": "all as recommended, builder runs the send-back" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change review ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -211,4 +208,20 @@ ship-status reports an archived change's review as done by finalize and classifi
   - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
   - gate: native:verifying
   - revision: 9564c7a3e165e3b6cf44e3a8f3125b6c39f97725
+  - by: claude-code (hc t59)
+- 2026-11-19T14:41:16Z · gate-closed · accept → accept · Implementation review of ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only ^t-bf883f
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - revision: d1cfd1edda2c26283a816176b5ad29651a1830a1
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change review ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T14:41:19Z · advance · accept → done · native:archived ^t-290454
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:archived
+  - revision: d1cfd1edda2c26283a816176b5ad29651a1830a1
   - by: claude-code (hc t59)

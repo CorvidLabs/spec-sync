@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "12a7e509b3b5492c2df49ea3231775f8c85f6b82",
+  "contract_digest": "57ff43bb2e09d21903abb28da75802293dafbbb2d860ff9780b9157c0a80b000",
+  "execution_digest": "32751fd81e1a89af649974f3d6db969fdacc5e6ba0cca048814e4c86cebf9aae",
+  "workspace_digest": "235096f29e32251ca01c66f34c7be4eab2e0f527af8baea1914cef4ef5e8a862",
+  "timestamp": 1795097201,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "Yes, review passes",
+    "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:05Z, on ss-lead's gates/1088-review-request.md at head 12a7e509; relayed through ss-lead t58",
+    "recorded_by": "claude-code-t4t"
+  }
+}

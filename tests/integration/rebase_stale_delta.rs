@@ -1,0 +1,469 @@
+// Issue #1085, option 2 (Leif's "propose, don't approve"): a MODIFIED requirement delta that went
+// stale only because main edited the same requirement gets a proposed rebase from `change check`
+// when the two edits do not overlap word by word: the merge is written into the delta, the check
+// refuses, and only a person's `change approve` lets it apply (REQ-change-161). Overlapping edits
+// are refused as before, naming the cause (REQ-change-122).
+//
+// These drive the built binary in a real repository, because the approval-time text of the
+// requirement is recovered from Git history.
+
+use super::helpers::specsync;
+use serde_json::Value;
+use std::fs;
+use std::path::PathBuf;
+use std::process::{Command, Output};
+use tempfile::TempDir;
+
+const BASE_REQUIREMENTS: &str = "---\nspec: auth.spec.md\n---\n\n# Requirements\n\n### REQ-auth-001\n\nThe system SHALL keep one session per user.\n\nAcceptance Criteria\n- One session per user.\n- A session expires after one day.\n";
+
+/// The change rewords the first sentence; main later edits the last criterion.
+const REWORD_DELTA: &str = "## MODIFIED\n\n### REQUIREMENT REQ-auth-001\n\nThe system SHALL keep exactly one session per user.\n\nAcceptance Criteria\n- One session per user.\n- A session expires after one day.\n";
+
+struct Project {
+    _temp: TempDir,
+    root: PathBuf,
+}
+
+impl Project {
+    fn new() -> Self {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().to_path_buf();
+        let project = Self { _temp: temp, root };
+        project.git(&["init", "-b", "main"]);
+        project.git(&["config", "user.email", "test@example.com"]);
+        project.git(&["config", "user.name", "Test"]);
+        project.git(&["config", "core.autocrlf", "false"]);
+        project.write("src/auth.rs", "// Authentication module.\n");
+        project.write(
+            "specs/auth/auth.spec.md",
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        );
+        project.write("specs/auth/requirements.md", BASE_REQUIREMENTS);
+        project.write(".gitignore", ".specsync/hashes.json\n");
+        project.write(
+            ".specsync/sdd.json",
+            &serde_json::to_string_pretty(&serde_json::json!({
+                "version": 2,
+                "enabled": true,
+                "require_change_for_meaningful_files": false,
+                "meaningful_paths": ["src/", ".specsync/sdd.json"],
+                "ignored_paths": [".specsync/"],
+                "verification_commands": ["true"],
+                "custom_artifacts": {},
+                "principles_file": null
+            }))
+            .unwrap(),
+        );
+        project.git(&["add", "--all"]);
+        project.git(&["commit", "-q", "-m", "base"]);
+        // A bare origin inside .git, so the working tree never sees it: `origin/main` is the
+        // default branch the rebase reads main's text from.
+        let origin = project.root.join(".git/test-origin.git");
+        project.git(&[
+            "init",
+            "-q",
+            "--bare",
+            "-b",
+            "main",
+            origin.to_str().unwrap(),
+        ]);
+        project.git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+        project.git(&["push", "-q", "origin", "main"]);
+        project
+    }
+
+    fn git(&self, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(&self.root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    }
+
+    fn write(&self, relative: &str, content: &str) {
+        let path = self.root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+
+    fn read(&self, relative: &str) -> String {
+        fs::read_to_string(self.root.join(relative)).unwrap()
+    }
+
+    fn invoke(&self, args: &[&str]) -> Output {
+        specsync()
+            .args(["--root", self.root.to_str().unwrap()])
+            .args(args)
+            .output()
+            .unwrap()
+    }
+
+    fn run(&self, args: &[&str]) -> String {
+        let output = self.invoke(args);
+        assert!(
+            output.status.success(),
+            "specsync {} failed:\n{}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    }
+
+    /// A change to REQ-auth-001, approved against `BASE_REQUIREMENTS` and committed; then main
+    /// replaces `from` with `to` in that requirement and commits.
+    fn approved_change_then_main_edits(&self, delta: &str, from: &str, to: &str) -> String {
+        self.approved_change_then_edits(delta, from, to, true)
+    }
+
+    /// As `approved_change_then_main_edits`, but the edit stays on the change's own branch when
+    /// `push` is false: it is never on the default branch.
+    fn approved_change_then_edits(&self, delta: &str, from: &str, to: &str, push: bool) -> String {
+        let id = self.approved_change(delta);
+        let moved = self.read("specs/auth/requirements.md").replace(from, to);
+        assert_ne!(moved, self.read("specs/auth/requirements.md"));
+        self.write("specs/auth/requirements.md", &moved);
+        self.git(&["add", "--all"]);
+        self.git(&["commit", "-q", "-m", "main edits REQ-auth-001"]);
+        if push {
+            self.git(&["push", "-q", "origin", "main"]);
+        }
+        id
+    }
+
+    /// A change to REQ-auth-001 with `delta`, approved against `BASE_REQUIREMENTS` and committed.
+    fn approved_change(&self, delta: &str) -> String {
+        let created: Value = serde_json::from_str(&self.run(&[
+            "--json",
+            "change",
+            "new",
+            "Say a user holds exactly one session",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ]))
+        .unwrap();
+        let id = created["change"]["id"].as_str().unwrap().to_string();
+        for (question, answer) in [
+            (
+                "acceptance_criteria",
+                "The requirement says exactly one session",
+            ),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            self.run(&["change", "answer", &id, question, answer]);
+        }
+        let workspace = self.root.join(".specsync/changes").join(&id);
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap())
+                .unwrap();
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let name = artifact.as_str().unwrap();
+            let content = match name {
+                "tasks" => "# Tasks\n\n- [x] Reword the requirement.\n".to_string(),
+                "plan" => super::helpers::SUBSTANTIVE_PLAN.to_string(),
+                "testing" => "# Testing\n\n## Requirement evidence\n\n| Requirement | Evidence |\n|---|---|\n| REQ-auth-001 | SpecSync structural check of the module |\n".to_string(),
+                _ => "# Complete\n\nReviewed requirement wording.\n".to_string(),
+            };
+            fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+        }
+        fs::write(workspace.join("deltas/auth.md"), delta).unwrap();
+        self.run(&["change", "approve", &id, "--actor", "Scope owner"]);
+        self.git(&["add", "--all"]);
+        self.git(&["commit", "-q", "-m", "approve"]);
+        id
+    }
+}
+
+fn combined(output: &Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
+/// DISCRIMINATOR for #1085: before it, `change check` refused this delta as stale and the human
+/// had to write a rebased body by hand. The edits are words apart, so the check writes the merge
+/// into the delta as a proposal and refuses; status shows the delta as changed after approval;
+/// after `change approve`, the check applies both edits.
+#[test]
+fn a_non_overlapping_main_edit_is_proposed_by_change_check_and_applies_once_approved() {
+    let project = Project::new();
+    let id = project.approved_change_then_main_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after twelve hours.",
+    );
+    let requirements_before = project.read("specs/auth/requirements.md");
+    let ledger_before = project.read(&format!(".specsync/changes/{id}/approvals.json"));
+
+    let output = project.invoke(&["change", "check", &id]);
+
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains("proposed rebase")
+            && text.contains("auth: REQ-auth-001")
+            && text.contains(&format!("specsync change approve {id}")),
+        "{text}"
+    );
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+    assert!(
+        delta.contains("exactly one session") && delta.contains("twelve hours"),
+        "the delta holds the proposal: {delta}"
+    );
+    assert_eq!(
+        project.read("specs/auth/requirements.md"),
+        requirements_before,
+        "nothing reaches the canonical requirement before approval"
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/approvals.json")),
+        ledger_before,
+        "no approval is recorded on anyone's behalf"
+    );
+
+    let status: Value =
+        serde_json::from_str(&project.run(&["--json", "change", "status", &id])).unwrap();
+    assert_eq!(status["summary"]["approval_valid"], false, "{status}");
+    assert_eq!(
+        status["summary"]["changed_approved_deltas"],
+        serde_json::json!(["auth"]),
+        "{status}"
+    );
+    let text = project.run(&["change", "status", &id]);
+    assert!(
+        text.contains(&format!("specsync change approve {id}")),
+        "status names the approval as the way on:\n{text}"
+    );
+
+    project.run(&["change", "approve", &id, "--actor", "Scope owner"]);
+    project.run(&["change", "check", &id]);
+
+    let requirements = project.read("specs/auth/requirements.md");
+    assert!(
+        requirements.contains("The system SHALL keep exactly one session per user."),
+        "the change's edit lands: {requirements}"
+    );
+    assert!(
+        requirements.contains("- A session expires after twelve hours."),
+        "main's edit survives: {requirements}"
+    );
+    // Checking again changes nothing.
+    project.run(&["change", "check", &id]);
+    assert_eq!(project.read("specs/auth/requirements.md"), requirements);
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta
+    );
+}
+
+/// REQ-change-122 still holds when the edits overlap: the same words changed on both sides.
+#[test]
+fn an_overlapping_main_edit_is_still_refused_and_writes_nothing() {
+    let project = Project::new();
+    let id = project.approved_change_then_main_edits(
+        REWORD_DELTA,
+        "keep one session per user.",
+        "keep a single session per user.",
+    );
+    let requirements = project.read("specs/auth/requirements.md");
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+    let ledger = project.read(&format!(".specsync/changes/{id}/approvals.json"));
+
+    let output = project.invoke(&["change", "check", &id]);
+
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains("REQ-auth-001") && text.contains("overlaps"),
+        "{text}"
+    );
+    assert!(!text.contains("proposed rebase"), "{text}");
+    assert!(
+        text.contains(&format!("specsync change approve {id}")),
+        "{text}"
+    );
+    assert_eq!(project.read("specs/auth/requirements.md"), requirements);
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/approvals.json")),
+        ledger
+    );
+}
+
+/// REQ-change-161: CI never writes, so a CI run of `change check` proposes nothing; the delta stays
+/// refused there until it is checked locally.
+#[test]
+fn a_ci_run_proposes_nothing() {
+    let project = Project::new();
+    let id = project.approved_change_then_main_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after twelve hours.",
+    );
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+    let ledger = project.read(&format!(".specsync/changes/{id}/approvals.json"));
+
+    let output = specsync()
+        .env("CI", "true")
+        .env("GITHUB_WORKSPACE", &project.root)
+        .args([
+            "--root",
+            project.root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        !combined(&output).contains("proposed rebase"),
+        "{}",
+        combined(&output)
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/approvals.json")),
+        ledger
+    );
+}
+
+/// fable-lead's #1089 review, end to end: an edit to the requirement that only the change's own
+/// branch holds is never merged into the approved delta. `change check` refuses it as stale, as
+/// it always has, and writes nothing.
+#[test]
+fn a_branch_side_edit_to_the_requirement_is_refused_not_proposed() {
+    let project = Project::new();
+    let id = project.approved_change_then_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after one day, or at sign-out.",
+        false,
+    );
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+    let ledger = project.read(&format!(".specsync/changes/{id}/approvals.json"));
+
+    let output = project.invoke(&["change", "check", &id]);
+
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("has changed since"), "{text}");
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta
+    );
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/approvals.json")),
+        ledger
+    );
+}
+
+/// ss-lead's review of #1089, the #654 case: a verifying change squash-merged into the default
+/// branch before it was finalized. On the default branch HEAD is the merge-base, and its block is
+/// the change's own body, which differs from the item's base although main never edited it. That
+/// is not main's edit, so `change check --commit` and `change audit` there refuse nothing for it
+/// and propose nothing.
+#[test]
+fn a_change_squash_merged_before_finalize_is_never_proposed_over_its_own_text() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.git(&["checkout", "-q", "main"]);
+    project.git(&["merge", "-q", "--squash", "change"]);
+    project.git(&["commit", "-q", "-m", "squash-merge the verifying change"]);
+    project.git(&["push", "-q", "origin", "main"]);
+    let delta = project.read(&format!(".specsync/changes/{id}/deltas/auth.md"));
+
+    let check = project.invoke(&["change", "check", &id, "--commit"]);
+    let audit = project.invoke(&["change", "audit"]);
+
+    for (what, output) in [("change check --commit", &check), ("change audit", &audit)] {
+        let text = combined(output);
+        assert!(!text.contains("has changed since"), "{what}:\n{text}");
+        assert!(!text.contains("proposed rebase"), "{what}:\n{text}");
+    }
+    assert!(check.status.success(), "{}", combined(&check));
+    assert_eq!(
+        project.read(&format!(".specsync/changes/{id}/deltas/auth.md")),
+        delta,
+        "nothing is proposed over the change's own text"
+    );
+    let requirements = project.read("specs/auth/requirements.md");
+    assert!(
+        requirements.contains("keep exactly one session"),
+        "{requirements}"
+    );
+}
+
+/// Codex's third review of #1089, as ss-lead narrowed it, through the binary: a CI run reads an
+/// applied item as "no main edit", as before, even when Git cannot read main's text; outside CI
+/// with a default branch the same check refuses, naming the requirement.
+#[test]
+fn an_unreadable_main_text_refuses_an_applied_item_outside_ci_only() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id]);
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "materialize"]);
+    let blob = project
+        .git(&["rev-parse", "origin/main:specs/auth/requirements.md"])
+        .trim()
+        .to_string();
+    fs::remove_file(
+        project
+            .root
+            .join(".git/objects")
+            .join(&blob[..2])
+            .join(&blob[2..]),
+    )
+    .unwrap();
+
+    let ci = specsync()
+        .env("CI", "true")
+        .env("GITHUB_WORKSPACE", &project.root)
+        .args([
+            "--root",
+            project.root.to_str().unwrap(),
+            "change",
+            "check",
+            &id,
+        ])
+        .output()
+        .unwrap();
+    let local = project.invoke(&["change", "check", &id]);
+
+    assert!(
+        !combined(&ci).contains("cannot be read from Git"),
+        "{}",
+        combined(&ci)
+    );
+    assert!(!local.status.success(), "{}", combined(&local));
+    let text = combined(&local);
+    assert!(
+        text.contains("REQ-auth-001") && text.contains("cannot be read from Git"),
+        "{text}"
+    );
+}

@@ -128,3 +128,6 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+
+#[path = "integration/rebase_stale_delta.rs"]
+mod rebase_stale_delta;

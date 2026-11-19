@@ -15,6 +15,7 @@ files:
   - src/change/relayed_decision.rs
   - src/change/sdd_version.rs
   - src/change/send_back.rs
+  - src/change/delta_rebase.rs
   - src/change/spec_history.rs
   - src/change/unknown_members.rs
   - src/change/validate_loaded_change.rs
@@ -40,6 +41,7 @@ files:
   - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/spec_history.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/rebase_stale_delta.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
   - src/change_tests/inert_ignored_paths.rs
@@ -395,6 +397,7 @@ Acceptance Criteria
 59. After definition approval, the guided next action for an approved or implementing change names `specsync change check <id> --commit`. `change review` and `change ship` refuse when the recorded verification commit does not contain the change's own work — the current contents of its `affected_paths` and any canonical specs it materialized — and they do not record a review bound to such a commit. Uncommitted files under `.specsync/` alone do not trigger that refusal (#535, REQ-change-156, REQ-change-157).
 60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
 61. A change's record in a module's history is its own file, `history/<change-id>.md` beside the spec, so two changes to one module never edit the same line of its spec and merge without a merge driver (#1084, MERGE-1). A Change Log table written before this is frozen as it is: no row is rewritten, and `specsync check` refuses a change recorded both by a fragment and by a row.
+63. A stale `## MODIFIED` requirement delta of a workflow-v2 change is never rebased without a person: `change check` (never acceptance, audit or CI) writes the word-level three-way merge of its approval-time block, main's block and the approved body into the delta as a proposal and refuses, and only `change approve` makes it approved wording (REQ-change-161, CHANGE-6.a). A proposal writes the delta and nothing else, all items of the change or none: no canonical file, no `approvals.json` record. Main's block is read from Git at the merge-base of HEAD and the default branch, on that branch's first-parent line, never from the working tree, and the working tree's block must be main's block, the delta's body or their merge, so an edit only the change's own branch holds is never merged in; a merge-base block equal to the delta's body is the change's own text, not main's edit (#654). A requirement main has edited that cannot be proposed is refused even when it is applied, naming its cause and the way on: an overlap (including a word both sides deleted at one place that one side adds at another, and a merged word count outside the range both sides' edits allow), main's deletion, a heading main edited, other working-tree text, a side over 4,000 words, or, while a default branch exists, a text Git cannot read. With no default branch, and in CI, it is read as unedited. Spec sections, REMOVED items and workflow v1 keep the #843 refusal.
 
 ## Behavioral Examples
 

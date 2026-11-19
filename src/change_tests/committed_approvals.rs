@@ -362,3 +362,146 @@ fn a_change_reopened_out_of_its_archive_finalizes_again() {
     finalize_change(root, &record.id)
         .expect("the reopened ledger extends the one committed before the archive move");
 }
+
+/// A small ledger: one definition approval, one reopening embedding a finalization approval, and
+/// one send-back, each with the members the comparison reads.
+fn rule_ledger() -> serde_json::Value {
+    serde_json::json!({
+        "approvals": [
+            { "gate": "definition", "actor": "Scope owner", "timestamp": 1, "digest": "a", "note": null }
+        ],
+        "reopenings": [
+            {
+                "schema_version": 1,
+                "actor": "Recovery operator",
+                "reason": "drift",
+                "timestamp": 2,
+                "superseded_approval": {
+                    "gate": "finalization", "actor": "specsync:finalization", "timestamp": 1,
+                    "digest": "b", "note": null
+                }
+            }
+        ],
+        "send_backs": [
+            { "schema_version": 1, "actor": "Scope owner", "reason": "rescope", "timestamp": 3 }
+        ]
+    })
+}
+
+fn rewrite_of(older: &serde_json::Value, newer: &serde_json::Value) -> Option<String> {
+    approvals_ledger_rewrite(
+        &serde_json::to_vec(older).unwrap(),
+        &serde_json::to_vec(newer).unwrap(),
+    )
+    .expect("both read as ledgers")
+}
+
+#[test]
+fn the_rule_refuses_a_dropped_or_changed_record_in_each_of_the_three_lists() {
+    let older = rule_ledger();
+    let mut dropped = older.clone();
+    dropped["approvals"] = serde_json::json!([]);
+    assert_eq!(rewrite_of(&older, &dropped).as_deref(), Some("drops `approvals[0]`"));
+    let mut reopening = older.clone();
+    reopening["reopenings"][0]["reason"] = serde_json::json!("another reason");
+    assert_eq!(rewrite_of(&older, &reopening).as_deref(), Some("changes `reopenings[0]`"));
+    let mut send_back = older.clone();
+    send_back["send_backs"] = serde_json::json!([]);
+    assert_eq!(rewrite_of(&older, &send_back).as_deref(), Some("drops `send_backs[0]`"));
+    let mut embedded = older.clone();
+    embedded["reopenings"][0]["superseded_approval"]["actor"] = serde_json::json!("mallory");
+    assert_eq!(
+        rewrite_of(&older, &embedded).as_deref(),
+        Some("changes `reopenings[0]`"),
+        "every member of the embedded approval but its relay is compared"
+    );
+    let mut dropped_member = older.clone();
+    dropped_member["approvals"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("note");
+    assert_eq!(
+        rewrite_of(&older, &dropped_member).as_deref(),
+        Some("changes `approvals[0]`"),
+        "a member an older SpecSync dropped is a rewrite"
+    );
+}
+
+#[test]
+fn the_rule_passes_what_the_tool_writes() {
+    let older = rule_ledger();
+    let relay = serde_json::json!({
+        "decided_by": "Scope owner", "words": "Approve", "where": "a meeting", "recorded_by": "an agent"
+    });
+    let mut relayed = older.clone();
+    relayed["approvals"][0]["relayed_by"] = relay.clone();
+    relayed["reopenings"][0]["superseded_approval"]["relayed_by"] = relay;
+    assert_eq!(rewrite_of(&older, &relayed), None, "a relay restored, in either place");
+    assert_eq!(rewrite_of(&relayed, &older), None, "a relay removed, in either place");
+
+    let mut backfilled = older.clone();
+    backfilled["reopenings"][0]["stale_acceptance_input_digest"] = serde_json::json!("c");
+    backfilled["reopenings"][0]["current_acceptance_input_digest"] = serde_json::json!("d");
+    assert_eq!(rewrite_of(&older, &backfilled), None, "migrate 5.0's two digest members");
+    let mut changed = backfilled.clone();
+    changed["reopenings"][0]["current_acceptance_input_digest"] = serde_json::json!("e");
+    assert_eq!(
+        rewrite_of(&backfilled, &changed).as_deref(),
+        Some("changes `reopenings[0]`"),
+        "once there, they may not change"
+    );
+
+    let mut appended = older.clone();
+    appended["approvals"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({ "gate": "definition", "actor": "Scope owner", "timestamp": 4 }));
+    appended["scope_adoptions"] = serde_json::json!([]);
+    appended["a_member_from_a_newer_specsync"] = serde_json::json!(true);
+    assert_eq!(
+        rewrite_of(&older, &appended),
+        None,
+        "appended records and members outside the three lists"
+    );
+}
+
+#[test]
+fn an_accepted_change_may_append_only_the_closing_records_of_its_accepting_step() {
+    let head = serde_json::to_vec(&rule_ledger()).unwrap();
+    let with = |tail: Vec<serde_json::Value>| {
+        let mut ledger = rule_ledger();
+        ledger["approvals"].as_array_mut().unwrap().extend(tail);
+        serde_json::to_vec(&ledger).unwrap()
+    };
+    let approval = |gate: &str, note: Option<&str>| {
+        serde_json::json!({ "gate": gate, "actor": "Closer", "timestamp": 9, "note": note })
+    };
+    assert!(appends_only_closing_records(&head, &with(vec![approval("finalization", None)])));
+    assert!(appends_only_closing_records(&head, &with(vec![approval("acceptance", None)])));
+    assert!(appends_only_closing_records(
+        &head,
+        &with(vec![
+            approval("definition", Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE)),
+            approval("acceptance", None),
+        ])
+    ));
+    assert!(!appends_only_closing_records(
+        &head,
+        &with(vec![approval("definition", Some("by hand")), approval("acceptance", None)])
+    ));
+    assert!(!appends_only_closing_records(&head, &with(vec![approval("definition", None)])));
+    assert!(!appends_only_closing_records(
+        &head,
+        &with(vec![approval("finalization", None), approval("finalization", None)])
+    ));
+    let mut changed = rule_ledger();
+    changed["approvals"][0]["actor"] = serde_json::json!("mallory");
+    changed["approvals"]
+        .as_array_mut()
+        .unwrap()
+        .push(approval("acceptance", None));
+    assert!(
+        !appends_only_closing_records(&head, &serde_json::to_vec(&changed).unwrap()),
+        "a closing record does not excuse a change to a committed one"
+    );
+}

@@ -1,6 +1,6 @@
 ---
 id: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
-state: implementing
+state: approved
 type: bug_fix
 base_commit: 18385ef5ead84f0b51d70a29a6fed8a3e5ca222a
 ---
@@ -18,7 +18,7 @@ ship-status reports an archived change's review as done by finalize and classifi
 
 ## Acceptance Criteria
 
-- on an archived change whose archive authenticates, ship-status reports review_currency current with a finalize reason, a done review stage and no change review suggestion; an archive commit that also removes the archived change's own package files is archive_only, and another change's package beside it is product
+- on an archived change that finalize archived and whose archive authenticates, ship-status reports review_currency current with a finalize reason, a done review stage and no change review suggestion; an archived change that finalize did not archive gets a done review stage and no change review suggestion; an archive commit that also removes the archived change's own package files is archive_only, and another change's package beside it is product
 
 ## No-spec Rationale
 

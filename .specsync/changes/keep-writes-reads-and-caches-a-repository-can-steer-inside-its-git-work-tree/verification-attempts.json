@@ -59,6 +59,55 @@
         "REQ-validator-050",
         "REQ-validator-051"
       ]
+    },
+    {
+      "timestamp": 1795119804,
+      "commit": "173708853babee66614388face291ead3ada992a",
+      "contract_digest": "74dc146734aa28cebefac9d2487f06dc904ef05798ffa0e39b02aa1374025cc5",
+      "execution_digest": "4024ea94ea31a67354544c8bb040e252f95989bc7e09eeb510b39dd4be58b206",
+      "workspace_digest": "bc6e9dca2164c17dd6dd7083982553931c6ef27aa3eafb0f1be4c04bbcdb0a9e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec archive --spec change --spec changelog --spec cmd_check --spec cmd_generate --spec cmd_import --spec cmd_init --spec cmd_init_registry --spec cmd_issues --spec cmd_lifecycle --spec cmd_merge --spec cmd_migrate --spec cmd_view --spec commands --spec compact --spec config --spec deps --spec generator --spec git_utils --spec hash_cache --spec hooks --spec mcp --spec merge --spec rehash --spec util --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-013",
+        "REQ-archive-003",
+        "REQ-change-163",
+        "REQ-changelog-002",
+        "REQ-cmd-check-020",
+        "REQ-cmd-check-021",
+        "REQ-cmd-generate-005",
+        "REQ-cmd-import-004",
+        "REQ-cmd-init-010",
+        "REQ-cmd-init-registry-004",
+        "REQ-cmd-issues-004",
+        "REQ-cmd-lifecycle-006",
+        "REQ-cmd-merge-006",
+        "REQ-cmd-migrate-007",
+        "REQ-cmd-view-003",
+        "REQ-commands-015",
+        "REQ-compact-003",
+        "REQ-config-017",
+        "REQ-deps-005",
+        "REQ-generator-012",
+        "REQ-git-utils-012",
+        "REQ-git-utils-013",
+        "REQ-hash-cache-009",
+        "REQ-hash-cache-010",
+        "REQ-hooks-008",
+        "REQ-mcp-013",
+        "REQ-merge-008",
+        "REQ-rehash-002",
+        "REQ-util-004",
+        "REQ-util-005",
+        "REQ-validator-050",
+        "REQ-validator-051"
+      ]
     }
   ]
 }

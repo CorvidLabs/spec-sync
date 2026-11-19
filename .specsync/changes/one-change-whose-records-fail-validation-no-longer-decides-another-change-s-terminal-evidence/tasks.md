@@ -12,6 +12,6 @@ artifact: tasks
 - [x] Per-change roster load for terminal evidence, and the three paths of `terminal_evidence_summary` on it
 - [x] A failed candidate named in a successor search
 - [x] CHANGELOG Fixed line
-- [ ] `fledge lanes run verify` and the pre-push gate
+- [x] `fledge lanes run verify` and the pre-push gate
 
 Human gates and Chough's own records are not tasks here.

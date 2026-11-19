@@ -5,7 +5,7 @@ aliases: [1038-ship-status-archived-review]
 objective: ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -117,4 +117,10 @@ ship-status reports an archived change's review as done by finalize and classifi
   - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
   - gate: native:verifying
   - revision: 612d255dc6c463fdabdb7fe329f74dcb78de5824
+  - by: claude-code (hc t59)
+- 2026-11-19T06:03:58Z · back · accept → build · Second parity finding on PR #1093 (ss-lead, run against CI's script): the tip rule must match the script by status on the archive side too ^t-8dd417
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: d4f6bee6c60c919e9c1ee805e8eb4d2ec03de5e3
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 8 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

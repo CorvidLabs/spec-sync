@@ -1415,11 +1415,6 @@ pub struct ApprovalLedger {
     /// recorded before it without removing any of them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub send_backs: Vec<SendBackRecord>,
-    /// Rebases of stale `## MODIFIED` requirement deltas over main's edit (#1085,
-    /// REQ-change-161), append-only and omitted when empty. Each one moves the delta digest and the
-    /// item base its definition approval binds, and every reader recomputes it from its own texts.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub delta_rebases: Vec<DeltaRebaseRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1726,10 +1721,6 @@ pub struct ChangeSummary {
     /// it; omitted when empty. The reason `approval_valid` is false when `scope_expansion` is empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_approved_deltas: Vec<String>,
-    /// Every rebase of a stale requirement delta over main's edit recorded under the effective
-    /// definition approval (REQ-cmd-change-038); omitted when empty.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub delta_rebases: Vec<DeltaRebaseSummary>,
     pub artifacts_complete: bool,
     #[serde(default)]
     pub correction_valid: bool,
@@ -3560,12 +3551,13 @@ fn materialize_change_deltas_inner(
         let _ = record_refused_attempt(root, &record, &error);
         return Err(error);
     }
-    // A body approved over a requirement main has since edited is first rebased over main's edit
-    // when the two do not overlap, keeping the approval (#1085, REQ-change-161). Whatever is left
-    // stale is then refused, never applied over main's text (#843). Both come after the read-only
-    // gates above, so a check those refuse writes no rebase (ss-lead's review of #1089), and both
-    // come before anything canonical is written.
-    rebase_stale_modified_requirements(root, &record)?;
+    // A body approved over a requirement main has since edited gets a proposed rebase over main's
+    // edit when the two do not overlap: the merge is written into the delta, and the check refuses
+    // until a person approves it (#1085, REQ-change-161). Whatever is left stale is then refused,
+    // never applied over main's text (#843). Both come after the read-only gates above, so a check
+    // those refuse proposes nothing (ss-lead's review of #1089), and both come before anything
+    // canonical is written.
+    propose_stale_modified_rebases(root, &record)?;
     ensure_approved_delta_bases_current(root, &record)?;
     // `canonical_applied` records that materialization RAN, never that it ran for the delta on
     // disk now. Re-approving a corrected delta satisfies every gate above — the guard directly

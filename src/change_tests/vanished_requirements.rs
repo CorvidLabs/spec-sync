@@ -145,6 +145,14 @@ fn a_removal_merged_in_from_main_is_not_lost_but_a_cherry_pick_is() {
         } else {
             let error = outcome.unwrap_err();
             assert!(error.contains("REQ-auth-001"), "{error}");
+            // The default branch removed it too, so the way out is to merge it (Leif's rule 3; the
+            // tester's L2b at 660066e1), not to restore the block or name it in a REMOVED delta.
+            assert!(
+                error.contains("origin/main has removed REQ-auth-001 too")
+                    && error.contains("merge origin/main into this branch (`git merge origin/main`)")
+                    && !error.contains("Restore each block"),
+                "{error}"
+            );
         }
     }
 }
@@ -512,4 +520,58 @@ fn a_shallow_clone_without_the_merge_base_is_refused_naming_the_unshallow_fetch(
             && error.contains(&format!("specsync change check {}", record.id)),
         "{error}"
     );
+}
+
+
+/// The tester's L2b at 660066e1, exactly: main removes REQ-auth-002 and pushes; the feature branch
+/// fetches and cherry-picks that commit (`-x`, so it is always a new commit; a cherry-pick made in
+/// the same second as the original, onto the same parent, is byte-identical to it and so is main's
+/// own commit, which is why the tester's first run at b8018cc0 passed); only then is the change
+/// created, adding REQ-auth-003. The loss is refused, naming the merge as the way out, and merging
+/// the default branch clears it.
+#[test]
+fn a_change_created_after_cherry_picking_main_s_removal_is_told_to_merge_main() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(requirements_path(root).parent().unwrap()).unwrap();
+    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "base"]);
+    let origin = root.join(".git/test-origin.git");
+    git(&["init", "-q", "--bare", "-b", "main", origin.to_str().unwrap()]);
+    git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "-b", "feat"]);
+    git(&["checkout", "-q", "main"]);
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-002"),
+    )
+    .unwrap();
+    git(&["commit", "-q", "-am", "main drops REQ-auth-002"]);
+    let removal = vanished_rev(root, "HEAD");
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "feat"]);
+    git(&["fetch", "-q", "origin"]);
+    git(&["cherry-pick", "-x", removal.as_str()]);
+    assert_ne!(vanished_rev(root, "HEAD"), removal, "the cherry-pick is a new commit");
+    let record = completed_section_only_current_record(root, ADDED_THIRD);
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "the change, created after the cherry-pick"]);
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("REQ-auth-002")
+            && error.contains("origin/main has removed REQ-auth-002 too")
+            && error.contains("`git merge origin/main`"),
+        "{error}"
+    );
+    git(&["merge", "-q", "--no-edit", "origin/main"]);
+    materialize_change_deltas(root, &record.id).unwrap();
 }

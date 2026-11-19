@@ -1040,7 +1040,13 @@ pub fn correct_interview_metadata(
     }
     write_prepared_files(root, &prepared)?;
     let corrections = ledger.corrections;
-    let summary = summarize_change(root, &record);
+    // Read the summary inside a change read scope, as the read commands do, so other archives are
+    // answered from the persistent read cache with prefetch workers, not walked one by one
+    // uncached (#921). It opens after the writes above, so no snapshot outlives them.
+    let summary = {
+        let _scope = ensure_change_read_scope(root);
+        summarize_change(root, &record)
+    };
     Ok(CorrectionResult {
         change: record,
         correction,

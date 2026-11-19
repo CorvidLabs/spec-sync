@@ -1925,3 +1925,47 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+// #921: `change correct` builds the corrected change's summary inside a change read scope, opened
+// after its own writes, as the read commands do. Its validation before the writes stays live, as
+// every mutating command's does. Without the scope, the summary alone repeats every Git read the
+// scope would answer once, so a whole correction cost more than that one unscoped summary.
+#[test]
+fn change_correct_costs_less_than_one_unscoped_summary() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    // Only a workflow-v1 change reaches `accepted`, and it predates the project's workflow-v2
+    // adoption, which the first archive below commits.
+    let record = accept_completed_record(root, completed_no_spec_record(root));
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accept a workflow-v1 change"]);
+    for _ in 0..2 {
+        finalized_archived_change(root);
+    }
+    if let Some(path) = persistent_read_cache_path(root) {
+        let _ = fs::remove_file(path);
+    }
+    reset_test_git_process_count();
+    let corrected = correct_interview_metadata(
+        root,
+        &record.id,
+        CorrectionField::ArchitectureRisk,
+        "yes".into(),
+        "Release reviewer".into(),
+        "The accepted change affects persisted lifecycle architecture".into(),
+    )
+    .unwrap();
+    let correction = test_git_process_count();
+    reset_test_git_process_count();
+    summarize_change(root, &corrected.change);
+    let unscoped_summary = test_git_process_count();
+    eprintln!(
+        "change correct Git processes: {correction}; one unscoped summary: {unscoped_summary}"
+    );
+    assert!(
+        correction < unscoped_summary,
+        "change correct spawned {correction} Git processes, more than the {unscoped_summary} of \
+         one summary read without a scope"
+    );
+}

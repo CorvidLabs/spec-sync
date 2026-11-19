@@ -1327,8 +1327,8 @@ fn render_list_item(item: &str) -> String {
 }
 
 /// Whether YAML (1.1 or 1.2) would read this plain scalar as something other than a string:
-/// a boolean, a null, or a number. Such an item is written quoted so a union keeps it a
-/// string (#872, REQ-merge-006). Quoting more than needed is safe; it stays a string.
+/// a boolean, a null, a number or a date. Such an item is written quoted so a union keeps it a
+/// string (#872, #1012, REQ-merge-006). Quoting more than needed is safe; it stays a string.
 fn yaml_reads_as_non_string(item: &str) -> bool {
     let lower = item.to_ascii_lowercase();
     if matches!(
@@ -1338,6 +1338,20 @@ fn yaml_reads_as_non_string(item: &str) -> bool {
         return true;
     }
     if item.parse::<f64>().is_ok() {
+        return true;
+    }
+    // A YAML 1.1 date, `YYYY-MM-DD`, is a timestamp (#1012). Its other timestamp forms, and
+    // sexagesimal numbers, hold `:` or a space, so `render_list_item` never writes them plain.
+    let bytes = item.as_bytes();
+    if bytes.len() == 10
+        && bytes.iter().enumerate().all(|(at, byte)| {
+            if at == 4 || at == 7 {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+    {
         return true;
     }
     let unsigned = lower.strip_prefix(['+', '-']).unwrap_or(&lower);
@@ -2195,6 +2209,44 @@ mod tests {
             "{}",
             merged.content
         );
+    }
+
+    // #1012 (REQ-merge-006, MERGE-5): a quoted `YYYY-MM-DD` list item, which YAML 1.1 reads as
+    // a timestamp when plain, is still a quoted string after a clean union in either order. A
+    // full timestamp stays quoted too, and a path that merely holds a date stays plain.
+    #[test]
+    fn quoted_yaml_timestamps_stay_strings_after_a_union() {
+        let make = |files: &str| {
+            format!(
+                "---\nmodule: cli\nversion: 5\nstatus: stable\nfiles: {files}\n---\n\n# CLI\n\n## Purpose\n\nThe command line.\n"
+            )
+        };
+        for typed in ["2026-11-07", "2026-11-07T10:00:00Z"] {
+            let base = make(&format!(r#"["src/cli.rs", "{typed}"]"#));
+            let ours = make(&format!(r#"["src/cli.rs", "{typed}", "src/a.rs"]"#));
+            let theirs = make(&format!(r#"["src/cli.rs", "{typed}", "src/b.rs"]"#));
+            for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+                let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+                assert!(merged.clean, "{typed}: {}", merged.content);
+                assert!(
+                    merged.content.contains(&format!("  - \"{typed}\"\n")),
+                    "`{typed}` must stay a quoted string: {}",
+                    merged.content
+                );
+            }
+        }
+        let base = make(r#"["src/cli.rs"]"#);
+        let ours = make(r#"["src/cli.rs", "docs/2026-11-07.md"]"#);
+        let theirs = make(r#"["src/cli.rs", "src/b.rs"]"#);
+        for (left, right) in [(&ours, &theirs), (&theirs, &ours)] {
+            let merged = merge_contract(&base, left, right, "specs/cli/cli.spec.md");
+            assert!(merged.clean, "{}", merged.content);
+            assert!(
+                merged.content.contains("  - docs/2026-11-07.md\n"),
+                "a path holding a date stays plain: {}",
+                merged.content
+            );
+        }
     }
 
     // #872 (REQ-merge-006): a quoted list item that YAML would read as a number, boolean or

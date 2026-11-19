@@ -5,7 +5,7 @@ aliases: [654-ship-status-exits-1-on-a-blocker]
 objective: change ship-status exits 1 when it reports a blocker, so scripts and CI can act on it (#654)
 intent_scope: ""
 modules: [cmd_change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -31,13 +31,9 @@ observations:
   - 2026-11-19-654-verify-lane-at-9564c7a3
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of change-ship-status-exits-1-when-it-reports-a-blocker
-    holds: accept
-    drives: review
-    opened: 2026-11-13T22:39:05Z
+waiting_on_human: []
 run_consents: []
-next: Wait for Leif's review of the batch PR, relayed by hc t4c through ss-lead; then chough change ship with his words. Record no review before that.
+next: Continue done
 ---
 # change ship-status exits 1 when it reports a blocker, so scripts and CI can act on it (#654)
 
@@ -57,6 +53,7 @@ change ship-status exits 1 when it reports a blocker, so scripts and CI can act 
 - decided: no new lesson, because the change is narrow and an existing lesson covers it
 - decided: the approved REQ-cmd-change-039 text is unchanged and the 11-13 approval stands because Leif said 'Yes, they stand' (relayed by his planning session hc t4c through ss-lead hc t58, 2026-11-18)
 - decided: one review answer from Leif on the batch PR counts as the scoped review of each change in it because he said 'Yes, one answer per batch' (relayed by hc t4c through ss-lead hc t58, 2026-11-18); nothing is recorded until it comes
+- 0xLeif decided "Implementation review of change-ship-status-exits-1-when-it-reports-a-blocker": "all as recommended, builder runs the send-back" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change review change-ship-status-exits-1-when-it-reports-a-blocker as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -105,3 +102,19 @@ change ship-status exits 1 when it reports a blocker, so scripts and CI can act 
   - holds: accept
   - drives: review
   - by: claude-code (hc t38p)
+- 2026-11-19T14:37:59Z · gate-closed · accept → accept · Implementation review of change-ship-status-exits-1-when-it-reports-a-blocker ^t-8c484d
+  - native_change: change-ship-status-exits-1-when-it-reports-a-blocker
+  - revision: 079a56233dbd982044c64720dc4a563041942b89
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change review change-ship-status-exits-1-when-it-reports-a-blocker
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T14:38:04Z · advance · accept → done · native:archived ^t-5869bd
+  - native_change: change-ship-status-exits-1-when-it-reports-a-blocker
+  - gate: native:archived
+  - revision: 079a56233dbd982044c64720dc4a563041942b89
+  - by: claude-code (hc t59)

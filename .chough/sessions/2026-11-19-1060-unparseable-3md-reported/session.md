@@ -5,7 +5,7 @@ aliases: [1060-unparseable-3md-reported]
 objective: check reports a module's .3md lesson file that does not parse (#1060)
 intent_scope: THREE
 modules: [validator]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -85,4 +85,10 @@ check reports a module's .3md lesson file that does not parse (#1060)
   - revision: c2b19a9115af3d6045d3f09447fcd7bc05907cae
   - holds: accept
   - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-19T07:40:28Z · back · accept → build · tester's design note on the batch 3 branch: the CHANGELOG entry says plainly that the briefing does not name the skipped file ^t-9ce832
+  - native_change: check-reports-a-module-s-3md-lesson-file-that-does-not-parse
+  - gate: native:verifying
+  - revision: 0d0840fd24cc099b68f4d5c9b4b009640429109b
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

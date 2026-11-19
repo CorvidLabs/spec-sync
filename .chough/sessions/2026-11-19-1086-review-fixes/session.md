@@ -5,7 +5,7 @@ aliases: [1086-review-fixes]
 objective: "Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)"
 intent_scope: ""
 modules: [change]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -16,12 +16,18 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked]
+observations:
+  - 2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked
+  - 2026-11-19-after-codex-s-and-corvid-agent-s-1088-findings-a-change-log
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of the #1086 review fixes (PR #1088)"
+    holds: accept
+    drives: review
+    opened: 2026-11-19T04:18:59Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)
 
@@ -33,6 +39,7 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
 
 - Change opened for the four #1086 findings; its tests failed on 979c3fe9 and pass on the rebased branch
 - change check --commit, verify lane on rust 1.89.0, change audit --strict and fledge trust verify passed
+- Fixed Codex's and corvid-agent's #1088 findings, re-approved under Leif's relayed wording approval, check --commit a9730335/2b50a588, lane, audit and trust passed
 
 ## Decisions and why
 
@@ -44,6 +51,7 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
 ## What was verified
 
 - [Covers REQ-change-159, -160 and REQ-hash-cache-006 (not linked: chough 0.6.0 looks up specs/hash-cache). Red first on 979c3fe9: the four new tests (quoted change id round-trip, boundary-aware matcher, Change Log delta refusal, symlink-swapped fragment cache replay) all failed. Now fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null (fmt, clippy -D warnings, 3081 unit and 627 integration tests, release build, strict specs 62/62, CI script tests). An older test that approved a MODIFIED Change Log delta now asserts the check-time refusal instead. change audit --strict and fledge trust verify passed.](evidence/2026-11-19-covers-req-change-159-160-and-req-hash-cache-006-not-linked.md)
+- [After Codex's and corvid-agent's #1088 findings: a Change Log row records a change only when a table cell begins with <id>: after any leading *, _ or backtick (prose mentions count for nothing; corvid-agent's exact case, a 'session:' in another row's prose beside history/session.md, is no double record); the refusal's approve command is shell-quoted; a check refused for a Change Log item records a refused attempt; lessons in change.3md and hash_cache.3md; deltas.md names verification. New tests fail on 1821f1e3 and pass. fledge lanes run verify passed with GIT_CONFIG_GLOBAL=/dev/null: 3083 unit and 627 integration tests, strict specs 62/62. Re-approved under Leif's relayed 'Approve' of the new REQ-change-159 wording; change audit --strict and fledge trust verify passed.](evidence/2026-11-19-after-codex-s-and-corvid-agent-s-1088-findings-a-change-log.md)
 
 ## Open threads
 
@@ -121,4 +129,20 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
   - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
   - gate: native:verifying
   - revision: 1821f1e3769e89c558e8b7b34c6048cd38efe0fe
+  - by: claude-code (hc t4t)
+- 2026-11-19T04:18:48Z · advance · build → test · native:verifying ^t-d96795
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:verifying
+  - revision: 2b50a5883c5c551f9e5a3c78bf3cab8b5148e696
+  - by: claude-code (hc t4t)
+- 2026-11-19T04:18:59Z · advance · test → accept · native:verifying ^t-e03e5b
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:verifying
+  - revision: 2b50a5883c5c551f9e5a3c78bf3cab8b5148e696
+  - by: claude-code (hc t4t)
+- 2026-11-19T04:18:59Z · gate-opened · accept → accept · Leif's review of the #1086 review fixes (PR #1088) ^t-f45f1a
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 2b50a5883c5c551f9e5a3c78bf3cab8b5148e696
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

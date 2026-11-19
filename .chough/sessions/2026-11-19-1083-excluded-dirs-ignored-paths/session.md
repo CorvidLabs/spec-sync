@@ -16,7 +16,9 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-19-red-first-80b371f6-s-three-tests-failed-on-main-2cc0897f-with]
+observations:
+  - 2026-11-19-red-first-80b371f6-s-three-tests-failed-on-main-2cc0897f-with
+  - 2026-11-19-history-rewritten-onto-the-corrected-main-m2-7d8370f4-trees
 bugs: []
 blockers: []
 waiting_on_human:
@@ -45,6 +47,7 @@ A path under an exclude_dirs entry is not source for the verification_ignored_pa
 ## What was verified
 
 - [Red first: 80b371f6's three tests failed on main 2cc0897f with NFTMix's own message ('.chough/sessions/ overlaps source_dirs .'). The fix is c87762e8: the source_dirs overlap skips an entry with a component below the root exactly equal to an exclude_dirs name. Now 28 tests in the file pass: the NFTMix shape accepted; .Chough/sessions/ and .chough/tools/cache/ under source_dirs \['.chough/tools'\] refused; .specsync, the specs tree, files:, principles file, template and meaningful_paths each still named under an excluded name; a root-code project approves, verifies, stays current with records written under the three folders, and lists them; every earlier test unchanged. Real repo: CorvidLabs/NFTMix e60625a with .agents and .chough added to exclude_dirs and the three Chough folders listed: 6.3.0 refuses the policy in change new and audit; this build accepts it (change new rc 0, status lists the three under Verification ignores, coverage 100%). NFTMix's audit still fails on its own records, the same under both builds apart from the policy: CHG-0002 is accepted but unarchived with affected_paths \['.'\], which the existing per-change rule refuses, and CHG-0001 has an incomplete artifact. fledge lanes run verify passed at a218d6b6 (3097 unit, 629 integration, 62/62 specs, 100% coverage); change audit --strict exit 0; pre-push and fledge trust verify passed.](evidence/2026-11-19-red-first-80b371f6-s-three-tests-failed-on-main-2cc0897f-with.md)
+- [History rewritten onto the corrected main (M2' 7d8370f4); trees unchanged. change check --commit re-recorded verification on the new history (fff975d2, 0df8f8e9). fledge lanes run verify passed at 0df8f8e9 through one-lane (3097 unit, 629 integration, 62/62 specs, 100% coverage); change audit --strict exit 0; pre-push and fledge trust verify passed. The NFTMix measurement from the earlier evidence stands (code unchanged).](evidence/2026-11-19-history-rewritten-onto-the-corrected-main-m2-7d8370f4-trees.md)
 
 ## Open threads
 

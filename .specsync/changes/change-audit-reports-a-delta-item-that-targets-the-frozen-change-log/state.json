@@ -7,10 +7,11 @@
   "title": "Change audit reports a delta item that targets the frozen Change Log",
   "description": "change audit reports a delta item that targets the frozen Change Log",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "2cc0897fc00eee7db2b07f5134ba05639af39018",
   "created_at": 1795107113,
-  "updated_at": 1795107250,
+  "updated_at": 1795120507,
   "affected_specs": [
     "change"
   ],

@@ -1,6 +1,6 @@
 ---
 id: change-audit-reports-a-delta-item-that-targets-the-frozen-change-log
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 2cc0897fc00eee7db2b07f5134ba05639af39018
 ---

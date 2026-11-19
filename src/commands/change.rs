@@ -2258,7 +2258,9 @@ fn ship_stages(
     // `ready_to_finalize: false` is the same recommend-then-refuse contradiction one line
     // lower, and it is also what leaves `current_stage` empty — which drops `ship_next` back
     // to the generic lifecycle line instead of naming the recovery.
-    let review_status = if retired || review.current() {
+    // An archived change has no review left to record: `change review` refuses it (#1038).
+    let archived = record.state == ChangeState::Archived;
+    let review_status = if retired || review.current() || archived {
         "done"
     } else if product_done {
         "current"
@@ -2271,8 +2273,12 @@ fn ship_stages(
         "status": review_status,
         "action": if retired {
             "no scoped review applies; the change was retired without implementation acceptance".to_string()
-        } else if review.current() && record.state == ChangeState::Archived {
+        } else if review.current() && archived {
             "done by finalize: the scoped review was current when this change was archived".to_string()
+        } else if archived {
+            // Not settled by finalize: a workflow-v1 archive, or one whose finalization record
+            // does not hold. Nothing is suggested, least of all a review that refuses.
+            "no scoped review to record: this change is archived, and its archive holds no review bound by `change finalize` (a change closed by `change accept` and `change archive` has none)".to_string()
         } else if review.current() {
             "scoped review is recorded and current".to_string()
         } else if product_done && review.present() {
@@ -2349,24 +2355,35 @@ fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
 
     let paths = if let Some(tip) = tip_sha.as_ref() {
         if let Some(parent) = parent_sha.as_ref() {
-            git_diff_name_only(root, parent, tip).unwrap_or_default()
+            git_diff_name_status(root, parent, tip).unwrap_or_default()
         } else {
-            git_show_name_only(root, tip).unwrap_or_default()
+            git_show_name_status(root, tip).unwrap_or_default()
         }
     } else {
         Vec::new()
     };
 
-    // Dirty working tree paths also count as product when present.
-    let mut dirty = git_status_name_only(root).unwrap_or_default();
-    let mut all_paths = paths;
-    all_paths.append(&mut dirty);
-    all_paths.sort();
-    all_paths.dedup();
+    // Dirty working tree paths also count as product when present. A path seen both in the tip
+    // and dirty counts as removed only when both say so.
+    let dirty = git_status_name_status(root).unwrap_or_default();
+    let mut removed_by_path = std::collections::BTreeMap::new();
+    for TipPath { path, removed } in paths.into_iter().chain(dirty) {
+        removed_by_path
+            .entry(path)
+            .and_modify(|all_removed| *all_removed &= removed)
+            .or_insert(removed);
+    }
+    let all_paths: Vec<TipPath> = removed_by_path
+        .into_iter()
+        .map(|(path, removed)| TipPath { path, removed })
+        .collect();
 
-    let tip_class =
-        classify_paths_with(&all_paths, |directory| archived_package_id(root, directory))
-            .to_string();
+    let tip_class = classify_paths_with(
+        &all_paths,
+        |directory| archived_package_id(root, directory),
+        |id| root.join(".specsync/changes").join(id).exists(),
+    )
+    .to_string();
     Ok(HeadTip {
         tip_class,
         tip_sha,
@@ -2389,17 +2406,36 @@ fn archived_package_id(root: &Path, directory: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-#[cfg(test)]
-fn classify_paths(paths: &[String]) -> &'static str {
-    classify_paths_with(paths, |_| None)
+/// One path the tip touched, in its commit or dirty in the working tree. `removed` is true when
+/// the change to it is a deletion.
+#[derive(Debug, Clone)]
+struct TipPath {
+    path: String,
+    removed: bool,
 }
 
-/// `archive_id` names the change an archive directory holds. When a tip archives exactly one
-/// change, that change's own package paths under `.specsync/changes/<id>/` are archive work too,
-/// as `.github/scripts/classify-ci-paths.sh` counts them (#1038).
+#[cfg(test)]
+fn classify_paths(paths: &[String]) -> &'static str {
+    let paths: Vec<TipPath> = paths
+        .iter()
+        .map(|path| TipPath {
+            path: path.clone(),
+            removed: false,
+        })
+        .collect();
+    classify_paths_with(&paths, |_| None, |_| true)
+}
+
+/// `archive_id` names the change an archive directory holds, and `package_exists` says whether
+/// `.specsync/changes/<id>` is still there. When a tip archives exactly one change, that
+/// change's own package paths under `.specsync/changes/<id>/` are archive work too, on the terms
+/// `.github/scripts/classify-ci-paths.sh` sets: the tip deleted each of them (a rename into the
+/// archive deletes its source), and the package directory is gone. A package the tip modified, or
+/// one still present, is not archive work (#1038).
 fn classify_paths_with(
-    paths: &[String],
+    paths: &[TipPath],
     archive_id: impl Fn(&str) -> Option<String>,
+    package_exists: impl Fn(&str) -> bool,
 ) -> &'static str {
     if paths.is_empty() {
         return "other";
@@ -2411,11 +2447,11 @@ fn classify_paths_with(
     };
     let archive_directories: std::collections::BTreeSet<String> = paths
         .iter()
-        .filter_map(|path| directory_under(path, ".specsync/archive/changes/"))
+        .filter_map(|tip| directory_under(&tip.path, ".specsync/archive/changes/"))
         .collect();
     let active_ids: std::collections::BTreeSet<String> = paths
         .iter()
-        .filter_map(|path| directory_under(path, ".specsync/changes/"))
+        .filter_map(|tip| directory_under(&tip.path, ".specsync/changes/"))
         .collect();
     let archived_package = (active_ids.len() == 1 && !archive_directories.is_empty())
         .then(|| active_ids.first().cloned())
@@ -2425,11 +2461,18 @@ fn classify_paths_with(
                 .iter()
                 .all(|directory| archive_id(directory).as_deref() == Some(id.as_str()))
         })
-        .map(|id| format!(".specsync/changes/{id}/"));
+        .filter(|id| !package_exists(id))
+        .map(|id| format!(".specsync/changes/{id}/"))
+        .filter(|package| {
+            paths
+                .iter()
+                .filter(|tip| tip.path.starts_with(package.as_str()))
+                .all(|tip| tip.removed)
+        });
     let mut has_archive = false;
     let mut has_review = false;
     let mut has_product = false;
-    for path in paths {
+    for path in paths.iter().map(|tip| tip.path.as_str()) {
         if path.starts_with(".specsync/archive/changes/")
             || archived_package
                 .as_deref()
@@ -3201,41 +3244,61 @@ fn git_rev_parse(root: &Path, rev: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn git_diff_name_only(root: &Path, from: &str, to: &str) -> Result<Vec<String>, String> {
+/// The paths `git diff --name-status -z` or `git show --name-status -z` printed. A rename or a
+/// copy is listed by its new path, as `--name-only` lists it; a deletion is marked removed.
+fn tip_paths_from_name_status(stdout: &[u8]) -> Vec<TipPath> {
+    let mut fields = stdout
+        .split(|byte| *byte == 0)
+        .filter(|field| !field.is_empty())
+        .map(|field| String::from_utf8_lossy(field).into_owned());
+    let mut paths = Vec::new();
+    while let Some(status) = fields.next() {
+        let Some(first) = fields.next() else {
+            break;
+        };
+        let path = if status.starts_with('R') || status.starts_with('C') {
+            let Some(renamed_to) = fields.next() else {
+                break;
+            };
+            renamed_to
+        } else {
+            first
+        };
+        paths.push(TipPath {
+            path,
+            removed: status == "D",
+        });
+    }
+    paths
+}
+
+fn git_diff_name_status(root: &Path, from: &str, to: &str) -> Result<Vec<TipPath>, String> {
     let output = crate::git_utils::output_after_child_exits(
         std::process::Command::new("git")
-            .args(["diff", "--name-only", from, to])
+            .args(["diff", "--name-status", "-z", from, to])
             .current_dir(root),
     )
     .map_err(|error| format!("git diff failed: {error}"))?;
     if !output.status.success() {
-        return Err("git diff --name-only failed".into());
+        return Err("git diff --name-status failed".into());
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(str::to_owned)
-        .collect())
+    Ok(tip_paths_from_name_status(&output.stdout))
 }
 
-fn git_show_name_only(root: &Path, commit: &str) -> Result<Vec<String>, String> {
+fn git_show_name_status(root: &Path, commit: &str) -> Result<Vec<TipPath>, String> {
     let output = crate::git_utils::output_after_child_exits(
         std::process::Command::new("git")
-            .args(["show", "--pretty=format:", "--name-only", commit])
+            .args(["show", "--pretty=format:", "--name-status", "-z", commit])
             .current_dir(root),
     )
     .map_err(|error| format!("git show failed: {error}"))?;
     if !output.status.success() {
-        return Err("git show --name-only failed".into());
+        return Err("git show --name-status failed".into());
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(str::to_owned)
-        .collect())
+    Ok(tip_paths_from_name_status(&output.stdout))
 }
 
-fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
+fn git_status_name_status(root: &Path) -> Result<Vec<TipPath>, String> {
     let output = crate::git_utils::output_after_child_exits(
         std::process::Command::new("git")
             .args(["status", "--porcelain", "-z"])
@@ -3255,7 +3318,12 @@ fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
         // "XY path" or "R  old\0new" handled loosely: take path after first three bytes.
         let path = text.get(3..).unwrap_or("").trim();
         if !path.is_empty() {
-            paths.push(path.to_string());
+            // A deletion in the index (`D `) or in the working tree (` D`).
+            let removed = text.get(..2).is_some_and(|status| status.contains('D'));
+            paths.push(TipPath {
+                path: path.to_string(),
+                removed,
+            });
         }
     }
     Ok(paths)

@@ -1108,5 +1108,9 @@ fn a_root_code_project_lists_chough_s_folders_and_verification_ignores_them() {
     let summary =
         serde_json::to_value(summarize_change(root, &load_change(root, &record.id).unwrap()))
             .unwrap();
-    assert_eq!(summary["verification_ignored_paths"], serde_json::json!(entries));
+    // The summary lists the entries sorted, as `Verification ignores:` prints them.
+    assert_eq!(
+        summary["verification_ignored_paths"],
+        serde_json::json!([".chough/archive/", ".chough/bugs/", ".chough/sessions/"])
+    );
 }

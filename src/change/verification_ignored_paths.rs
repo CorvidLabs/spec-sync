@@ -142,8 +142,13 @@ fn validate_verification_ignored_paths(
         }
     }
     let protected = verification_ignored_protected_scopes(root, policy);
+    let exclude_dirs = crate::config::load_config(root).exclude_dirs;
     for entry in entries {
-        for (scope, label) in &protected {
+        for (scope, label, source) in &protected {
+            if *source && verification_ignored_entry_is_excluded_source(entry, scope, &exclude_dirs)
+            {
+                continue;
+            }
             if verification_ignored_scopes_overlap(entry, scope) {
                 return Err(refuse(entry, format!("overlaps {label}")));
             }
@@ -197,34 +202,34 @@ fn verification_ignored_entry_shape(entry: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Every scope an entry may not equal, contain or lie inside, with the label its refusal names.
+/// Every scope an entry may not equal, contain or lie inside, with the label its refusal names and
+/// whether it is a `source_dirs` entry (#1083).
 fn verification_ignored_protected_scopes(
     root: &Path,
     policy: &SddPolicy,
-) -> Vec<(String, String)> {
+) -> Vec<(String, String, bool)> {
     let config = crate::config::load_config(root);
-    let mut scopes = vec![(".specsync".to_string(), "`.specsync`".to_string())];
+    let mut scopes = vec![(".specsync".to_string(), "`.specsync`".to_string(), false)];
     let specs = verification_ignored_overlap_scope(&config.specs_dir);
-    scopes.push((specs.clone(), format!("the specs tree `{specs}`")));
+    scopes.push((specs.clone(), format!("the specs tree `{specs}`"), false));
     for source in &config.source_dirs {
         let normalized = verification_ignored_overlap_scope(source);
-        scopes.push((normalized.clone(), format!("source_dirs `{normalized}`")));
+        scopes.push((normalized.clone(), format!("source_dirs `{normalized}`"), true));
     }
     if let Some(schema_dir) = &config.schema_dir {
         let normalized = verification_ignored_overlap_scope(schema_dir);
-        scopes.push((normalized.clone(), format!("schema_dir `{normalized}`")));
+        scopes.push((normalized.clone(), format!("schema_dir `{normalized}`"), false));
     }
     for path in PROTECTED_SDD_PATHS {
-        scopes.push((path.to_string(), format!("SDD policy file `{path}`")));
+        scopes.push((path.to_string(), format!("SDD policy file `{path}`"), false));
     }
     if let Some(principles) = &policy.principles_file {
-        scopes.push((principles.clone(), format!("principles_file `{principles}`")));
+        scopes.push((principles.clone(), format!("principles_file `{principles}`"), false));
     }
     for template in policy.custom_artifacts.values() {
         scopes.push((
             template.clone(),
-            format!("custom_artifacts template `{template}`"),
-        ));
+            format!("custom_artifacts template `{template}`"), false));
     }
     for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
         let Ok(content) = fs::read_to_string(&spec) else {
@@ -238,8 +243,7 @@ fn verification_ignored_protected_scopes(
         for file in &parsed.frontmatter.files {
             scopes.push((
                 file.clone(),
-                format!("the files: entry `{file}` of spec `{spec_path}`"),
-            ));
+                format!("the files: entry `{file}` of spec `{spec_path}`"), false));
         }
         // The validator checks a path-form `depends_on` entry on disk; a bare module name
         // resolves under the specs tree, already protected, and a cross-project reference is
@@ -252,16 +256,15 @@ fn verification_ignored_protected_scopes(
             }
             scopes.push((
                 dependency.clone(),
-                format!("the depends_on entry `{dependency}` of spec `{spec_path}`"),
-            ));
+                format!("the depends_on entry `{dependency}` of spec `{spec_path}`"), false));
         }
         for reference in verification_ignored_consumed_by_references(&parsed.body) {
             let label = format!("the Consumed By reference `{reference}` of spec `{spec_path}`");
-            scopes.push((reference, label));
+            scopes.push((reference, label, false));
         }
     }
     for scope in &policy.meaningful_paths {
-        scopes.push((scope.clone(), format!("meaningful_paths `{scope}`")));
+        scopes.push((scope.clone(), format!("meaningful_paths `{scope}`"), false));
     }
     scopes
 }
@@ -328,6 +331,39 @@ fn verification_ignored_overlap_scope(path: &str) -> String {
     } else {
         components.join("/").to_ascii_lowercase()
     }
+}
+
+/// Whether `entry` lies below the `source_dirs` scope `source` with a component below it that is
+/// exactly an `exclude_dirs` name (#1083, REQ-change-115). The coverage source walk never enters
+/// such a directory: it compares names exactly (`coverage_name_is_excluded`) and only while
+/// descending below a `source_dirs` root, so nothing under the entry is source. The prefix up to
+/// the root is compared ignoring ASCII case, as the overlap test compares it; the excluded name is
+/// not, so `.Chough/` stays source when `.chough` is excluded, and an excluded name at or above the
+/// root (`source_dirs = [".chough/tools"]`) excludes nothing below it.
+fn verification_ignored_entry_is_excluded_source(
+    entry: &str,
+    source: &str,
+    exclude_dirs: &[String],
+) -> bool {
+    let entry: Vec<&str> = entry
+        .trim_end_matches('/')
+        .split('/')
+        .filter(|component| !component.is_empty())
+        .collect();
+    let source = verification_ignored_overlap_scope(source);
+    let root: Vec<&str> = if source == "." {
+        Vec::new()
+    } else {
+        source.split('/').collect()
+    };
+    entry.len() > root.len()
+        && entry
+            .iter()
+            .zip(&root)
+            .all(|(component, root)| component.eq_ignore_ascii_case(root))
+        && entry[root.len()..]
+            .iter()
+            .any(|component| exclude_dirs.iter().any(|excluded| excluded == component))
 }
 
 /// Whether the entry equals, contains, or lies inside `scope`.

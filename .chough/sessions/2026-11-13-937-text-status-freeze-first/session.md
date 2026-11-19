@@ -5,7 +5,7 @@ aliases: [937-text-status-freeze-first]
 objective: Text change status names a sequence-ledger freeze before the verification_ignored_paths repair, matching JSON next_action (#937)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -30,13 +30,9 @@ observations:
   - 2026-11-19-937-verify-lane-at-9564c7a3
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair
-    holds: accept
-    drives: review
-    opened: 2026-11-13T16:15:46Z
+waiting_on_human: []
 run_consents: []
-next: Wait for Leif's review of the batch PR, relayed by hc t4c through ss-lead; then chough change ship with his words. Record no review before that.
+next: Continue done
 ---
 # Text change status names a sequence-ledger freeze before the verification_ignored_paths repair, matching JSON next_action (#937)
 
@@ -58,6 +54,7 @@ Text change status names a sequence-ledger freeze before the verification_ignore
 - decided: no new lesson for change.3md, because the fix only reorders two existing next-action checks to match JSON
 - decided: the approved definition is unchanged and the 11-13 approval stands because Leif said 'Yes, they stand' (relayed by his planning session hc t4c through ss-lead hc t58, 2026-11-18)
 - decided: one review answer from Leif on the batch PR counts as the scoped review of each change in it because he said 'Yes, one answer per batch' (relayed by hc t4c through ss-lead hc t58, 2026-11-18); nothing is recorded until it comes
+- 0xLeif decided "Implementation review of text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair": "all as recommended, builder runs the send-back" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change review text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -106,3 +103,19 @@ Text change status names a sequence-ledger freeze before the verification_ignore
   - holds: accept
   - drives: review
   - by: claude-code (hc t38p)
+- 2026-11-19T14:43:18Z · gate-closed · accept → accept · Implementation review of text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair ^t-304571
+  - native_change: text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair
+  - revision: 0e9832de3dac13cecd55b2b390d2726c2828c4ec
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change review text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T14:43:20Z · advance · accept → done · native:archived ^t-180388
+  - native_change: text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair
+  - gate: native:archived
+  - revision: 0e9832de3dac13cecd55b2b390d2726c2828c4ec
+  - by: claude-code (hc t59)

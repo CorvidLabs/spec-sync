@@ -50,6 +50,13 @@
         "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:55Z, after t4c summed up the change 4 scope details: affected 5.0.0 to 6.3.0; SETUP-8 as written; a tracked journal refuses the command with the git rm fix; replay only into .specsync/, specs_dir and registry-mapped spec files with their requirements.md and history/, .git refused case-insensitively with trailing dots and spaces stripped; one entry outside refuses the whole journal; the legacy form refused with the existing invalid-journal message and recovery; journal-into-.git and a keyed digest left out. His earlier yes at about 15:49Z approved the three points. Relayed by t4c over hc to t5r",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795117642,
+      "digest": "3545b8a7aaffb7fb87eaf6aeb76bc7039f2af88a84736e9baecb931e043a21a8",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

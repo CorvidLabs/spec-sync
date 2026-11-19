@@ -1,6 +1,6 @@
 ---
 id: never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
-state: implementing
+state: archived
 type: bug_fix
 base_commit: cf5284076db2b692d8e8df8953eb6525d5952690
 ---

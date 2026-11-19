@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files",
+  "implementation_commit": "be0b03bb8c1ff93afd8670c537ef08f0b79d61a2",
+  "implementation_tree": "4b902c6c315b9e2a92752189a33fe9a18439d676",
+  "contract_digest": "f3da0208f61cbe6ff76dd5925fc382cdd662341536966c4261522189467b581c",
+  "workspace_digest": "991d6fcbcaed9127948ca9c552773e2107a9724aa56cc6d3816878edc1473770",
+  "closing_digest": "3545b8a7aaffb7fb87eaf6aeb76bc7039f2af88a84736e9baecb931e043a21a8",
+  "review_digest": "f386954d0daee59f7f415ad55ea40fa4192fa8ab8fa5ccf80eb3852930da2d9e",
+  "finalization_digest": "90993459275b4cbf01b8c4e8ee610e56e71f6e1104b62ca4f54bd9fba99ea791",
+  "timestamp": 1795117643
+}

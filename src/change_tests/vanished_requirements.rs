@@ -67,12 +67,22 @@ const ADDED_THIRD: &str = "## ADDED\n\n### REQUIREMENT REQ-auth-003\n\nThe syste
 /// A repository whose `origin/main` holds `VANISHED_BASE_REQUIREMENTS` (plus `extra` files) with
 /// the change approved on it, checked out on branch `change`.
 fn vanished_repository(root: &Path, delta: &str, extra: &[(&str, &str)]) -> ChangeRecord {
+    vanished_repository_with_base(root, VANISHED_BASE_REQUIREMENTS, delta, extra)
+}
+
+/// As `vanished_repository`, with `base` as the canonical requirements.
+fn vanished_repository_with_base(
+    root: &Path,
+    base: &str,
+    delta: &str,
+    extra: &[(&str, &str)],
+) -> ChangeRecord {
     let git = git_in(root);
     git(&["init", "-q", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
     let record = completed_section_only_current_record(root, delta);
-    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    fs::write(requirements_path(root), base).unwrap();
     for (path, text) in extra {
         fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
         fs::write(root.join(path), text).unwrap();
@@ -244,7 +254,14 @@ fn the_reference_falls_back_skips_and_fails_closed() {
     .to_string();
     fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
     let error = ensure_no_lost_requirements(root, &record).unwrap_err();
+    // It names what could not be read and the way out (Leif's rule 3; ss-lead's review (5)).
     assert!(error.contains("cannot read"), "{error}");
+    assert!(
+        error.contains("repair the repository or fetch the default branch (`git fetch origin`)")
+            && error.contains(&format!("specsync change check {}", record.id))
+            && !error.contains("--unshallow"),
+        "{error}"
+    );
 }
 
 /// REQ-change-169: an approved `## REMOVED` item of another active change on the branch accounts
@@ -304,4 +321,195 @@ fn a_change_archived_on_the_branch_accounts_for_its_removal() {
     let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
 
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
+}
+
+/// `revision` resolved in `root`.
+fn vanished_rev(root: &Path, revision: &str) -> String {
+    String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", revision])
+            .current_dir(root)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_string()
+}
+
+/// ss-lead's review of b8018cc0 (1): with `specs_dir = "."` the check never reads a change
+/// workspace, `.git` or an `exclude_dirs` directory as canonical requirements, in the working tree
+/// or at the reference. Here the truncated file's ids survive only in those places, and the
+/// change's own `requirements.md` artifact held an id of its own at the reference.
+#[test]
+fn a_root_specs_project_reads_no_workspace_git_or_excluded_directory_as_canonical() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    let artifact = change_dir(root, &record.id).join("requirements.md");
+    git(&["checkout", "-q", "main"]);
+    fs::write(&artifact, "# Requirements\n\n### REQ-auth-009\n\nA draft note.\n").unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \".\"\nexclude_dirs = [\"vendored\"]\n",
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "a root-specs project"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    let kept = "# Requirements\n\n### REQ-auth-001\n\nKept here.\n\n### REQ-auth-002\n\nKept here.\n";
+    fs::write(requirements_path(root), "---\nspec: auth.spec.md\n---\n\n# Requirements\n").unwrap();
+    fs::write(&artifact, kept).unwrap();
+    fs::create_dir_all(root.join("vendored")).unwrap();
+    fs::write(root.join("vendored/requirements.md"), kept).unwrap();
+    fs::create_dir_all(root.join(".git/stray")).unwrap();
+    fs::write(root.join(".git/stray/requirements.md"), kept).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "truncate"]);
+
+    let directories = requirements_directories(root);
+    assert_eq!(directories, vec![".".to_string()]);
+    let scanned: Vec<String> = working_tree_requirement_blocks(root, &directories)
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect();
+    assert!(scanned.contains(&"specs/auth/requirements.md".to_string()), "{scanned:?}");
+    assert!(
+        scanned
+            .iter()
+            .all(|path| !path.starts_with(".specsync/") && !path.starts_with(".git/") && !path.starts_with("vendored/")),
+        "{scanned:?}"
+    );
+    let error = ensure_no_lost_requirements(root, &load_change(root, &record.id).unwrap()).unwrap_err();
+    assert!(
+        error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+    assert!(!error.contains("REQ-auth-009"), "{error}");
+}
+
+/// ss-lead's review of b8018cc0 (3): a change workspace that cannot be read accounts for no
+/// removal, and never turns this refusal into its own error (#1104's pattern): the lost ids are
+/// still named.
+#[test]
+fn an_unreadable_change_never_hides_the_lost_requirements() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let broken = root.join(CHANGES_PATH).join("broken-change");
+    fs::create_dir_all(&broken).unwrap();
+    fs::write(broken.join("state.json"), "{ not json").unwrap();
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
+    )
+    .unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "truncate beside a broken workspace"]);
+
+    let error = ensure_no_lost_requirements(root, &record).unwrap_err();
+
+    assert!(
+        error.contains("lost canonical requirements") && error.contains("REQ-auth-001"),
+        "{error}"
+    );
+}
+
+/// ss-lead's review of b8018cc0 (4): a person reads the list, so lost ids are in natural order.
+#[test]
+fn lost_ids_are_listed_in_natural_order() {
+    assert_eq!(natural_order("REQ-a-2", "REQ-a-10"), std::cmp::Ordering::Less);
+    assert_eq!(natural_order("REQ-a-10", "REQ-a-9"), std::cmp::Ordering::Greater);
+    assert_eq!(natural_order("REQ-a-002", "REQ-a-10"), std::cmp::Ordering::Less);
+    assert_eq!(natural_order("REQ-a-1", "REQ-b-1"), std::cmp::Ordering::Less);
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let base = "---\nspec: auth.spec.md\n---\n\n# Requirements\n\n### REQ-auth-1\n\nOne.\n\n### REQ-auth-2\n\nTwo.\n\n### REQ-auth-10\n\nTen.\n";
+    let record = vanished_repository_with_base(root, base, ADDED_THIRD, &[]);
+    fs::write(requirements_path(root), "---\nspec: auth.spec.md\n---\n\n# Requirements\n").unwrap();
+    git_in(root)(&["commit", "-q", "-am", "truncate"]);
+
+    let error = ensure_no_lost_requirements(root, &record).unwrap_err();
+
+    assert!(
+        error.contains("REQ-auth-1, REQ-auth-2, REQ-auth-10 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}
+
+/// A truncated branch `change` in `source` whose change records the approval commit as its base,
+/// then a depth-1 clone of that branch at `clone`.
+fn shallow_clone_of_a_truncated_branch(source: &Path, clone: &Path, main_moves_on: bool) -> ChangeRecord {
+    fs::create_dir_all(source).unwrap();
+    let mut record = vanished_repository(source, ADDED_THIRD, &[]);
+    record.base_commit = Some(vanished_rev(source, "HEAD"));
+    save_change(source, &record).unwrap();
+    fs::write(requirements_path(source), "---\nspec: auth.spec.md\n---\n\n# Requirements\n").unwrap();
+    let git = git_in(source);
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "truncate"]);
+    if main_moves_on {
+        git(&["checkout", "-q", "main"]);
+        fs::write(source.join("NOTES.md"), "Main moves on.\n").unwrap();
+        git(&["add", "--all"]);
+        git(&["commit", "-q", "-m", "main moves on"]);
+        git(&["checkout", "-q", "change"]);
+    }
+    let url = format!("file://{}", source.display());
+    let output = Command::new("git")
+        .args(["clone", "-q", "--depth", "1", "--branch", "change", url.as_str(), clone.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    record
+}
+
+/// ss-lead's review of b8018cc0 (5), as CI checks out: a depth-1 clone with no remote-tracking
+/// ref has no default branch, and lacks the change's base commit, so the check is skipped with
+/// the note rather than refused.
+#[test]
+fn a_depth_one_clone_with_no_origin_ref_is_skipped_with_the_note() {
+    let temp = TempDir::new().unwrap();
+    let (source, clone) = (temp.path().join("source"), temp.path().join("clone"));
+    let record = shallow_clone_of_a_truncated_branch(&source, &clone, false);
+    let refs = String::from_utf8(
+        Command::new("git")
+            .args(["for-each-ref", "--format=%(refname)", "refs/remotes"])
+            .current_dir(&clone)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    for name in refs.lines().filter(|line| !line.is_empty()) {
+        git_in(&clone)(&["update-ref", "-d", name]);
+    }
+
+    let note = ensure_no_lost_requirements(&clone, &load_change(&clone, &record.id).unwrap()).unwrap();
+
+    assert!(note.is_some_and(|note| note.contains("not checked")));
+}
+
+/// ss-lead's review of b8018cc0 (5), as an agent's shallow clone often is: `origin/main` is there
+/// but the merge-base is not, so the check cannot tell; it refuses, naming the unshallowing fetch.
+#[test]
+fn a_shallow_clone_without_the_merge_base_is_refused_naming_the_unshallow_fetch() {
+    let temp = TempDir::new().unwrap();
+    let (source, clone) = (temp.path().join("source"), temp.path().join("clone"));
+    let record = shallow_clone_of_a_truncated_branch(&source, &clone, true);
+    git_in(&clone)(&["fetch", "-q", "--depth", "1", "origin", "main:refs/remotes/origin/main"]);
+
+    let error = ensure_no_lost_requirements(&clone, &load_change(&clone, &record.id).unwrap())
+        .unwrap_err();
+
+    assert!(
+        error.contains("cannot tell whether this branch lost canonical requirements")
+            && error.contains("`git fetch --unshallow origin`")
+            && error.contains(&format!("specsync change check {}", record.id)),
+        "{error}"
+    );
 }

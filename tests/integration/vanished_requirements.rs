@@ -187,12 +187,12 @@ fn ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it() {
 
     let status = project.invoke(&["change", "ship-status", &id]);
     let text = combined(&status);
-    // REQ-cmd-change-042 also says ship-status exits 1 while a blocker holds; that exit code is
-    // #654's change (refresh batch 1), which is not on main yet, so it is asserted once #654 lands.
     assert!(
         text.contains("lost canonical requirements") && text.contains("REQ-auth-002"),
         "{text}"
     );
+    // REQ-cmd-change-042: ship-status exits 1 while the blocker holds (with #654 on main).
+    assert_eq!(status.status.code(), Some(1), "{text}");
     let json: Value = serde_json::from_slice(
         &project
             .invoke(&["--json", "change", "ship-status", &id])

@@ -56,6 +56,11 @@ fn requirements_directories(root: &Path) -> Vec<String> {
     directories
 }
 
+/// How two requirement ids sort for a person (stub: plain string order).
+fn natural_order(left: &str, right: &str) -> std::cmp::Ordering {
+    left.cmp(right)
+}
+
 /// The `### REQ-` heading ids of `text`, outside fenced blocks, each with its block body
 /// (everything after the heading line up to the next heading, trimmed).
 fn requirement_blocks(text: &str) -> Vec<(String, String)> {

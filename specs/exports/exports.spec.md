@@ -36,6 +36,7 @@ files:
   - src/exports/ast/elixir.rs
   - src/exports/ast/perl.rs
   - src/exports/ast/lisp.rs
+  - src/exports/ast/tests.rs
   - src/exports/haskell.rs
   - src/exports/lua.rs
   - src/exports/r.rs

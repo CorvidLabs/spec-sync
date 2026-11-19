@@ -5,7 +5,7 @@ aliases: [hash-cache-symlink-write]
 objective: specsync check and rehash never read or write the hash cache through a symbolic link, so a cloned repository cannot make them overwrite a file outside it (GHSA-7q5v-8jcc-rx54)
 intent_scope: CHECK
 modules: [hash_cache]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -21,13 +21,9 @@ observations:
   - 2026-11-19-with-the-fix-the-6-new-hash-cache-unit-tests-and-both
 bugs: [2026-11-19-check-and-rehash-write-the-hash-cache-through-a-symbolic-link]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of never-read-or-write-the-hash-cache-through-a-symbolic-link
-    holds: accept
-    drives: review
-    opened: 2026-11-19T04:48:26Z
+waiting_on_human: []
 run_consents: []
-next: "Both changes are verified, pushed to the private advisory fork and on draft PR 1. Wait for the human's implementation review of each, relayed by the planning session. On a yes: chough change ship <id> --close-gate with their words, one change at a time (hash cache first), commit each archive, re-run chough change check for the other change if it went stale, push, then mark the PR ready. Publishing the advisory, releasing and a 5.x backport are the human's decisions."
+next: Continue done
 title: Hash cache never read or written through a link
 summary:
   - specsync check and rehash wrote .specsync/hashes.json with a write that follows a symbolic link, so a repository that committed that path as a link could make a check in a clone overwrite a file outside it (GHSA-7q5v-8jcc-rx54, 3.3.0 to 6.3.0).
@@ -52,6 +48,7 @@ specsync check and rehash never read or write the hash cache through a symbolic 
 - agent choice (claude-code-t5r): read and write through a cap-std directory handle opened with open_dir_nofollow, not path checks plus tempfile, because a path check followed by a path write follows a component swapped in between
 - agent choice (claude-code-t5r): print the check warning before discovery because source discovery already ends the run on a linked .specsync, so a warning printed at cache load never appeared for that case and the approved REQ-cmd-check-018 criterion requires it
 - rejected: replacing a linked hashes.json by rename because it hides a planted link and changes a tracked file without saying so
+- 0xLeif decided "Implementation review of never-read-or-write-the-hash-cache-through-a-symbolic-link": "Approve" (Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:04Z, after t4c walked him through the change in plain words from its own read of the code at a33dcc6f, with its side effects and limits; relayed by t4c over hc to t5r as his implementation approval); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review never-read-or-write-the-hash-cache-through-a-symbolic-link as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -125,4 +122,20 @@ specsync check and rehash never read or write the hash cache through a symbolic 
   - revision: 3bebe8b03094b2079630801584b56f94a1e460c5
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-19T14:06:30Z · gate-closed · accept → accept · Implementation review of never-read-or-write-the-hash-cache-through-a-symbolic-link ^t-724cc4
+  - native_change: never-read-or-write-the-hash-cache-through-a-symbolic-link
+  - revision: 7662f3ac815c54bfcee8a2ec45e9960e78623281
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve
+    - where: Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:04Z, after t4c walked him through the change in plain words from its own read of the code at a33dcc6f, with its side effects and limits; relayed by t4c over hc to t5r as his implementation approval
+    - recorded_by: claude-code-t5r
+    - native: specsync change review never-read-or-write-the-hash-cache-through-a-symbolic-link
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-19T14:06:33Z · advance · accept → done · native:archived ^t-ad65bd
+  - native_change: never-read-or-write-the-hash-cache-through-a-symbolic-link
+  - gate: native:archived
+  - revision: 7662f3ac815c54bfcee8a2ec45e9960e78623281
   - by: claude-code (hc t5r)

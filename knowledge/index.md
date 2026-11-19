@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [Hash cache never read or written through a link](journal/2026-11-19-hash-cache-never-read-or-written-through-a-link.md) (2026-11-19, shipped)
 - [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
 
 ## Where things live
@@ -187,7 +188,7 @@ Each module's lessons stay in its lesson source:
 - cmd_archive_tasks: [specs/cmd_archive_tasks/cmd_archive_tasks.3md](../specs/cmd_archive_tasks/cmd_archive_tasks.3md), 4 lessons
 - cmd_change: [specs/cmd_change/cmd_change.3md](../specs/cmd_change/cmd_change.3md), 15 lessons
 - cmd_changelog: [specs/cmd_changelog/cmd_changelog.3md](../specs/cmd_changelog/cmd_changelog.3md), 4 lessons
-- cmd_check: [specs/cmd_check/cmd_check.3md](../specs/cmd_check/cmd_check.3md), 5 lessons
+- cmd_check: [specs/cmd_check/cmd_check.3md](../specs/cmd_check/cmd_check.3md), 6 lessons
 - cmd_comment: [specs/cmd_comment/cmd_comment.3md](../specs/cmd_comment/cmd_comment.3md), 5 lessons
 - cmd_compact: [specs/cmd_compact/cmd_compact.3md](../specs/cmd_compact/cmd_compact.3md), 4 lessons
 - cmd_coverage: [specs/cmd_coverage/cmd_coverage.3md](../specs/cmd_coverage/cmd_coverage.3md), 4 lessons
@@ -220,8 +221,8 @@ Each module's lessons stay in its lesson source:
 - generator: [specs/generator/generator.3md](../specs/generator/generator.3md), 9 lessons
 - git_utils: [specs/git_utils/git_utils.3md](../specs/git_utils/git_utils.3md), 6 lessons
 - github: [specs/github/github.3md](../specs/github/github.3md), 12 lessons
-- hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 4 lessons
-- hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 6 lessons
+- hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 5 lessons
+- hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 7 lessons
 - ignore: [specs/ignore/ignore.3md](../specs/ignore/ignore.3md), 4 lessons
 - importer: [specs/importer/importer.3md](../specs/importer/importer.3md), 5 lessons
 - manifest: [specs/manifest/manifest.3md](../specs/manifest/manifest.3md), 13 lessons
@@ -234,7 +235,7 @@ Each module's lessons stay in its lesson source:
 - schema: [specs/schema/schema.3md](../specs/schema/schema.3md), 4 lessons
 - scoring: [specs/scoring/scoring.3md](../specs/scoring/scoring.3md), 4 lessons
 - types: [specs/types/types.3md](../specs/types/types.3md), 4 lessons
-- util: [specs/util/util.3md](../specs/util/util.3md), 4 lessons
+- util: [specs/util/util.3md](../specs/util/util.3md), 5 lessons
 - validator: [specs/validator/validator.3md](../specs/validator/validator.3md), 11 lessons
 - view: [specs/view/view.3md](../specs/view/view.3md), 4 lessons
 - watch: [specs/watch/watch.3md](../specs/watch/watch.3md), 7 lessons
@@ -245,9 +246,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [never-read-or-write-the-hash-cache-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-read-or-write-the-hash-cache-through-a-symbolic-link/lesson-bundle.md), Never read or write the hash cache through a symbolic link
 - [record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump](../.specsync/archive/changes/2026-11-19-record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump/lesson-bundle.md), Record each shipped change in a history fragment file instead of a Change Log row and a version bump
 - [list-chough-0-6-0-record-folders-in-verification-ignored-paths](../.specsync/archive/changes/2026-11-13-list-chough-0-6-0-record-folders-in-verification-ignored-paths/lesson-bundle.md), List Chough 0.6.0 record folders in verification_ignored_paths
-- [advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0](../.specsync/archive/changes/2026-11-12-advance-the-action-default-and-current-guidance-to-published-specsync-6-3-0/lesson-bundle.md), Advance the Action default and current guidance to published SpecSync 6.3.0
 
 ## Snapshots and briefs
 

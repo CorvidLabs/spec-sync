@@ -991,3 +991,72 @@ fn an_applied_item_whose_main_text_git_cannot_read_is_refused_only_with_a_defaul
     materialize_change_deltas(root, &record.id).unwrap();
     assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
 }
+
+/// Codex's fourth review of #1089 (P1 at :130), the tester's case: both sides move a repeated
+/// word, and the merge kept one `alpha` where main and the change each keep two. The word-count
+/// check refuses any merge that loses or invents a word.
+#[test]
+fn a_repeated_word_both_sides_move_is_refused_by_the_word_count() {
+    assert_eq!(
+        merge_words(
+            "alpha beta alpha gamma delta",
+            "alpha beta gamma alpha delta",
+            "beta alpha gamma alpha delta",
+        ),
+        None
+    );
+}
+
+/// Codex's fourth review of #1089 (P1 at :599), the tester's case: REQ-auth-001 is materialized on
+/// the branch, main deletes the block, and the merge keeps the branch's block. Main has edited
+/// the item (its block is gone), so keeping the change's body would bring the requirement back.
+#[test]
+fn a_requirement_main_deleted_is_refused_even_when_the_branch_kept_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_repository_with_origin(root, REBASE_DELTA);
+    let git = git_in(root);
+    git(&["checkout", "-q", "-b", "change"]);
+    materialize_change_deltas(root, &record.id).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "materialize"]);
+    git(&["checkout", "-q", "main"]);
+    fs::write(
+        requirements_path(root),
+        "---\nspec: auth.spec.md\n---\n\n# Requirements\n",
+    )
+    .unwrap();
+    git(&["commit", "-qam", "main deletes REQ-auth-001"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "-s", "ours", "--no-edit", "origin/main"]);
+    let requirements = fs::read_to_string(requirements_path(root)).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("REQ-auth-001"), "{error}");
+    assert_eq!(fs::read_to_string(requirements_path(root)).unwrap(), requirements);
+}
+
+/// Codex's fourth review of #1089 (P1 at :883), the tester's case: main edits the heading, and the
+/// branch puts the old heading back. A rebase compares blocks with their headings, and the delta
+/// cannot carry main's heading, so it is refused instead of losing it.
+#[test]
+fn a_heading_main_edited_is_never_lost_by_a_rebase() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_repository_with_origin(root, REBASE_DELTA);
+    edit_requirements(root, "### REQ-auth-001\n", "### REQ-auth-001: One session per user\n");
+    let git = git_in(root);
+    git(&["commit", "-qam", "main edits the heading"]);
+    git(&["push", "-q", "origin", "main"]);
+    edit_requirements(root, "### REQ-auth-001: One session per user\n", "### REQ-auth-001\n");
+    git(&["commit", "-qam", "the branch puts the old heading back"]);
+    let delta = fs::read_to_string(delta_path(root, &record, "auth")).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("REQ-auth-001"), "{error}");
+    assert_eq!(fs::read_to_string(delta_path(root, &record, "auth")).unwrap(), delta);
+    assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
+}

@@ -130,7 +130,51 @@ fn merge_words(base: &str, current: &str, approved: &str) -> Option<String> {
     {
         return None;
     }
+    // A three-way merge neither loses nor invents words: each word's merged count lies between the
+    // base's count plus every deletion of it both sides made and the base's count plus every
+    // addition of it both sides made. Whatever the alignment did, a merge outside that range lost
+    // or duplicated a word, and it cannot be rebased (Codex's fourth review of #1089: both sides
+    // moving a repeated `alpha` once kept one where each side keeps two). A range, not the sum: an
+    // edit both sides made the same way is counted once, as the merge keeps it, and that is how the
+    // real stale requirements rebuilt from Chough's history rebase (measured, ss-lead's choice).
+    if !keeps_every_word_count(&base, &current, &approved, &merge.merged) {
+        return None;
+    }
     Some(merge.merged.concat())
+}
+
+/// Whether every word (whitespace aside) occurs in `merged` no fewer times than `base` keeps after
+/// the deletions of both sides, and no more than `base` holds with the additions of both sides.
+fn keeps_every_word_count(
+    base: &[&str],
+    current: &[&str],
+    approved: &[&str],
+    merged: &[&str],
+) -> bool {
+    fn count<'a>(tokens: &[&'a str]) -> BTreeMap<&'a str, isize> {
+        let mut counts = BTreeMap::new();
+        for token in tokens {
+            *counts.entry(token.trim()).or_insert(0) += 1;
+        }
+        counts
+    }
+    let (base, current, approved, merged) =
+        (count(base), count(current), count(approved), count(merged));
+    let words: BTreeSet<&str> = base
+        .keys()
+        .chain(current.keys())
+        .chain(approved.keys())
+        .chain(merged.keys())
+        .copied()
+        .collect();
+    words.into_iter().all(|word| {
+        let of = |counts: &BTreeMap<&str, isize>| counts.get(word).copied().unwrap_or(0);
+        let held = of(&base);
+        let (main_change, approved_change) = (of(&current) - held, of(&approved) - held);
+        let kept = of(&merged);
+        kept >= held + main_change.min(0) + approved_change.min(0)
+            && kept <= held + main_change.max(0) + approved_change.max(0)
+    })
 }
 
 /// A word merge in progress: the tokens merged so far, the words both sides removed from one
@@ -459,6 +503,9 @@ pub fn refused_delta_rebase(root: &Path, record: &ChangeRecord) -> Option<String
 /// requirement's block there, and the approval-time (or last rebase's) block found earlier on
 /// that line.
 struct MainSide {
+    /// Main deleted the requirement: its block is absent at the merge-base, after a text that
+    /// held the base (Codex's fourth review of #1089). Nothing can be merged into an absent block.
+    deleted: bool,
     commit: String,
     block: String,
     base_block: String,
@@ -573,6 +620,11 @@ fn base_on_line_before(
     Ok(None)
 }
 
+/// The heading line of a trimmed block.
+fn block_heading(block: &str) -> &str {
+    block.lines().next().unwrap_or("").trim_end()
+}
+
 /// Main's side of `item` when main has edited it past `base`: its block at HEAD's merge-base with
 /// the default branch differs from `base` and from the delta's body, and `base` is a text the
 /// default branch's first-parent line held before it. `Ok(None)` when main has no such edit, or
@@ -594,14 +646,10 @@ fn main_side(
     let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
     let file = project_relative(root, path)
         .ok_or_else(|| "the requirement's file is outside the project".to_string())?;
-    let Some(block) = block_at(root, &prefix, &file, &commit, item)? else {
-        return Ok(None);
-    };
-    // A block equal to the delta's body is the change's own text, not main's edit: after a change
-    // is merged before it is finalized (#654), HEAD is the default branch and the merge-base holds
-    // the change's body (ss-lead's review of #1089).
-    if item_block_digest(module, item, &block) == base
-        || trimmed_block_body(&block) == trimmed_block(&item.content)
+    let block = block_at(root, &prefix, &file, &commit, item)?;
+    if block
+        .as_deref()
+        .is_some_and(|block| item_block_digest(module, item, block) == base)
     {
         return Ok(None);
     }
@@ -610,7 +658,26 @@ fn main_side(
     else {
         return Ok(None);
     };
+    let Some(block) = block else {
+        // Main held the base and then deleted the requirement: an edit of main's that keeping
+        // the change's body would undo (Codex's fourth review of #1089).
+        return Ok(Some(MainSide {
+            deleted: true,
+            commit,
+            block: String::new(),
+            base_block,
+        }));
+    };
+    // A block equal to the change's own text, heading and body, is not main's edit: after a change
+    // is merged before it is finalized (#654), HEAD is the default branch and the merge-base holds
+    // the change's body under the base's heading (ss-lead's review of #1089).
+    if block_heading(&block) == block_heading(&base_block)
+        && trimmed_block_body(&block) == trimmed_block(&item.content)
+    {
+        return Ok(None);
+    }
     Ok(Some(MainSide {
+        deleted: false,
         commit,
         block,
         base_block,
@@ -639,6 +706,10 @@ fn main_edit_refusal(
         return None;
     }
     match main_side(root, path, module, item, base) {
+        Ok(Some(main)) if main.deleted => Some(format!(
+            " (main deleted this requirement at {}; drop the item from the delta and approve again, or ask for it back on main)",
+            &main.commit[..main.commit.len().min(12)]
+        )),
         Ok(Some(_)) => Some(String::new()),
         Ok(None) => None,
         Err(why) => Some(format!(
@@ -764,6 +835,12 @@ fn rebase_stale_modified_requirements(root: &Path, record: &ChangeRecord) -> Res
                 Ok(None)
             };
             let main = match main {
+                // Nothing merges into a block main deleted: the base check refuses it, naming
+                // the deletion.
+                Ok(Some(main)) if main.deleted => {
+                    left_stale = true;
+                    continue;
+                }
                 Ok(Some(main)) => main,
                 Ok(None) => {
                     left_stale |= stale;
@@ -868,6 +945,11 @@ fn stage_rebase(
     (approval_index, approval): (usize, &ApprovalRecord),
 ) -> Option<(DeltaRebaseRecord, String, String, Option<String>)> {
     let current = modified_requirement_item(module, delta, key)?;
+    // The delta carries a body, never a heading, so a heading main edited cannot be carried into
+    // the rebase; it is refused rather than lost (Codex's fourth review of #1089).
+    if block_heading(&main.block) != block_heading(&main.base_block) {
+        return None;
+    }
     let approved = trimmed_block(&current.content);
     let main_body = trimmed_block_body(&main.block);
     let merged = merge_words(trimmed_block_body(&main.base_block), main_body, &approved)?;
@@ -877,6 +959,10 @@ fn stage_rebase(
     // (fable-lead's and ss-lead's reviews of #1089).
     let range = markdown_block_range(requirements, &format!("### {}", current.key), 3)?;
     let working_block = trimmed_block(&requirements[range]);
+    // Blocks are compared with their headings, not only their bodies.
+    if block_heading(&working_block) != block_heading(&main.base_block) {
+        return None;
+    }
     let working = trimmed_block_body(&working_block);
     let requirements_after = if working == main_body || working == merged {
         None

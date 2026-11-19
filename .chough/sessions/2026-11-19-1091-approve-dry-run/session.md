@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -28,6 +28,8 @@ observations:
   - 2026-11-19-1091-verify-lane-at-c4dba3f6
   - 2026-11-19-1091-red-unreplayable-journal-at-b3573eaa
   - 2026-11-19-1091-verify-lane-at-003a14e6
+  - 2026-11-19-1091-red-waiting-sentence-at-5de3c276
+  - 2026-11-19-1091-verify-lane-at-fd02224d
 bugs: []
 blockers: []
 waiting_on_human:
@@ -52,6 +54,7 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - Split building the approval record from writing it, for the plain and the portable approval (uncommitted, compiles)
 - Implemented the dry run (f61bbf0f) after the failing tests (1f5c09de); change check materialized REQ-change-163, REQ-cmd-change-040 and REQ-cli-args-027 with their history fragments; verify lane green at c4dba3f6
 - Tester's finding on 37496bdf fixed, red test first: the dry run gives change approve's own refusal for a journal recovery cannot replay; recovery split into its reading and restoring halves; re-checked; lane 10/10 at 003a14e6; site checks pass
+- ss-lead's finding on e24bdbf9 fixed, red test first: the 'waiting to be recovered' sentence has its line continuations back and is pinned word for word in the JSON message and the text output; re-checked; lane 10/10 at fd02224d
 
 ## Decisions and why
 
@@ -66,6 +69,8 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
 - [At c4dba3f6 (#1091 on main 3bebe8b0), fledge lanes run verify passed 10/10 steps in 10m37s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 635 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. It includes the 8 tests of tests/integration/approve_dry_run.rs (each faulty draft from the Chough tester's list gets one message from the dry run and from the real approve, with not one file changed; a clean draft; two problems in one run; a missing change; a sent-back change; the relay flags; an interrupted write), the 5 unit tests for the in-memory binding and raise and the skip rules, and the flag's parsing test. The lane's processes ran with a neutral global git config (#1092).](evidence/2026-11-19-1091-verify-lane-at-c4dba3f6.md)
 - [Red-first, for the tester's finding on 37496bdf: at b3573eaa (the test alone) approve_dry_run::the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay fails. With a change-transaction.json that does not parse, the dry run says an interrupted write is 'waiting to be recovered', where change approve refuses with 'invalid transaction journal at ...'. Fixed in e24bdbf9; not a new bug.](evidence/2026-11-19-1091-red-unreplayable-journal-at-b3573eaa.md)
 - [At 003a14e6 (fix e24bdbf9, change re-checked), fledge lanes run verify passed 10/10 steps in 11m04s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. It includes the nine approve_dry_run tests; the new one covers a journal that does not parse, one whose integrity envelope does not hold and one that names a path outside the project, each compared word for word with the real approve. The site's tests (48), lint and build pass for the edited cli.md (site-1091b.log). The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-003a14e6.md)
+- [Red-first, for ss-lead's finding on e24bdbf9: at 5de3c276 (the test alone) approve_dry_run::the_dry_run_refuses_while_an_interrupted_write_is_waiting fails on the exact sentence. e24bdbf9 had rewritten the message as one source line without its line continuations, so it printed runs of spaces ('the next          lifecycle command'). My own regression from this session, fixed in 2d8abc60; not a new bug.](evidence/2026-11-19-1091-red-waiting-sentence-at-5de3c276.md)
+- [At fd02224d (fix 2d8abc60, change re-checked), fledge lanes run verify passed 10/10 steps in 16m01s on a machine also running other builds: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. The interrupted-write test now compares the whole 'waiting to be recovered' sentence, in the --json message and in the text output. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1091-verify-lane-at-fd02224d.md)
 
 ## Open threads
 
@@ -164,4 +169,14 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - gate: native:verifying
   - revision: 1a7b7785c8182914aa01a0255c2f23f5e18e85fb
   - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T07:52:47Z · advance · build → test · native:verifying ^t-86454f
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
+  - by: claude-code (hc t59)
+- 2026-11-19T07:52:50Z · advance · test → accept · native:verifying ^t-294759
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
   - by: claude-code (hc t59)

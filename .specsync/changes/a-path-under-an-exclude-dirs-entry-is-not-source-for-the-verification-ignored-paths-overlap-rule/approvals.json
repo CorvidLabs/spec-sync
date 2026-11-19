@@ -1,0 +1,53 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795105487,
+      "digest": "63870c7547c563c495a4910d35a16ac58ca7aa8d7a0f73f1f21c209cf39325a1",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule\": \"Approve as written\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:19Z, on the frozen ss-lead/gates/1083-definition.md (REQ-change-115 MODIFIED: one sentence and one criterion; affected spec change; paths src/change/verification_ignored_paths.rs, src/change_tests/verification_ignored_paths.rs, specs/change/, site/src/content/docs/configuration.md, CHANGELOG.md); relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T16:24:45Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule",
+        "title": "A path under an exclude_dirs entry is not source for the verification_ignored_paths overlap rule",
+        "description": "a path under an exclude_dirs entry is not source for the verification_ignored_paths overlap rule",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/configuration.md",
+          "specs/change/",
+          "src/change/verification_ignored_paths.rs",
+          "src/change_tests/verification_ignored_paths.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) With code at the root (source_dirs = [\".\"]) and exclude_dirs = [\".chough\"], verification_ignored_paths entries .chough/sessions/, .chough/archive/ and .chough/bugs/ are accepted, and verification ignores those folders. (2) An entry whose excluded component differs from the exclude_dirs name in case, or whose excluded name lies above the source_dirs root it is under, is still refused for overlapping source_dirs. (3) Every other overlap rule still refuses, even for an entry under an excluded name: .specsync/, the specs tree, schema_dir, meaningful_paths, spec files:, depends_on, Consumed By, the policy files, the principles file and the templates."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-115: every other protected scope still refuses an entry; the coverage source walk compares exclude_dirs names exactly (coverage_name_is_excluded) and only below a source_dirs root",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "980a9646d2e3e0c7c7ba4125abbd63bfb0d34fab3231403ebd01aef404302493"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-115": "19a3cedee9f3d4aadbf0eb3896d8817dc9aad1282754e1ca2c6fb562d2cc97a0"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve as written",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:19Z, on the frozen ss-lead/gates/1083-definition.md (REQ-change-115 MODIFIED: one sentence and one criterion; affected spec change; paths src/change/verification_ignored_paths.rs, src/change_tests/verification_ignored_paths.rs, specs/change/, site/src/content/docs/configuration.md, CHANGELOG.md); relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    }
+  ],
+  "reopenings": []
+}

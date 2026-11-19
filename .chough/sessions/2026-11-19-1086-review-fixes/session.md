@@ -5,7 +5,7 @@ aliases: [1086-review-fixes]
 objective: "Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)"
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -24,13 +24,9 @@ observations:
   - 2026-11-19-codex-s-p2-at-0cdd7f41-the-tester-s-case-a-change-log-row-now
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of the #1086 review fixes (PR #1088)"
-    holds: accept
-    drives: review
-    opened: 2026-11-19T06:03:45Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # Fix the four #1086 review findings on history fragments: quote and unescape change:, bind history entry types in the cache digest, refuse Change Log delta items, one boundary-aware row matcher; each with a red-first test (#1084 follow-up; Leif chose 'Merge, fix all 4 in a follow-up before release', relayed by hc t4c)
 
@@ -51,6 +47,7 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
 - 0xLeif decided "Scope approval of fix-the-four-pr-1086-review-findings-on-history-fragments": "Merge, fix all 4 in a follow-up before release" (Leif's decision on PR #1086's four Codex review findings, 2026-11-18, relayed by his planning session hc t4c; under his approval of spec-sync #1084 written on the issue); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments as 0xLeif
 - 0xLeif decided "Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 wording)": "Approve" (Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-159 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments as 0xLeif
 - 0xLeif decided "Re-approval of fix-the-four-pr-1086-review-findings-on-history-fragments (REQ-change-159 matcher clause, round 3)": "Approve" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve fix-the-four-pr-1086-review-findings-on-history-fragments as 0xLeif
+- 0xLeif decided "Leif's review of the #1086 review fixes (PR #1088)": "Yes, review passes" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:05Z, on ss-lead's gates/1088-review-request.md at head 12a7e509; relayed through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change review fix-the-four-pr-1086-review-findings-on-history-fragments as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -223,4 +220,32 @@ Fix the four #1086 review findings on history fragments: quote and unescape chan
   - revision: cf3c98081b29122b23f05ef3a1961fd825be0972
   - holds: accept
   - drives: review
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:07:58Z · direct-native-write · accept → accept · fix-the-four-pr-1086-review-findings-on-history-fragments's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state stays verifying ^t-64b99d
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 740deb87d31f7f16c5ec7b3be5b7f9514062742c
+  - direct_write:
+    - change: fix-the-four-pr-1086-review-findings-on-history-fragments
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: verifying
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:07:58Z · gate-closed · accept → accept · Leif's review of the #1086 review fixes (PR #1088) ^t-ebe030
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - revision: 740deb87d31f7f16c5ec7b3be5b7f9514062742c
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Yes, review passes
+    - where: Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:05Z, on ss-lead's gates/1088-review-request.md at head 12a7e509; relayed through ss-lead t58
+    - recorded_by: claude-code-t4t
+    - native: specsync change review fix-the-four-pr-1086-review-findings-on-history-fragments
+    - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:07:59Z · advance · accept → done · native:archived ^t-29e83a
+  - native_change: fix-the-four-pr-1086-review-findings-on-history-fragments
+  - gate: native:archived
+  - revision: 740deb87d31f7f16c5ec7b3be5b7f9514062742c
   - by: claude-code (hc t4t)

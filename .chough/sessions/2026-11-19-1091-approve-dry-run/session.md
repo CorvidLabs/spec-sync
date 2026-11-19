@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -251,4 +251,10 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
   - gate: native:verifying
   - revision: 272abff42a0cf61efe11e38c5978037d20838b86
+  - by: claude-code (hc t59)
+- 2026-11-19T15:43:51Z · back · accept → build · Updated against main 2cc0897f (#1093 and #1088 merged): conflicts resolved by hand, plane moved to z=56, #1088's refusal folded into the deltas step; re-check and lane ^t-b72ca3
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: ea48198363f1ab57ca42da1be20427e7295a26d4
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 8 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

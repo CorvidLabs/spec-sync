@@ -5,7 +5,7 @@ aliases: [journal-replay-targets]
 objective: A transaction journal SpecSync did not write itself is never replayed, and no replay touches Git's files or anything the change workflow does not write (F1, private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -24,13 +24,9 @@ observations:
   - 2026-11-19-on-linux-at-eddc7f5e-amended-change-4-a-clean-copy-in-a-local
 bugs: [2026-11-19-a-committed-transaction-journal-is-replayed-into-git-s-files]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
-    holds: accept
-    drives: review
-    opened: 2026-11-19T16:36:20Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 title: Journals SpecSync did not write are never replayed
 summary:
   - Every writing change command replayed .specsync/change-transaction.json at lock time into any file under the root, so a committed journal could rewrite .git/config and run a command through core.fsmonitor (5.0.0 to 6.3.0).
@@ -49,6 +45,7 @@ A transaction journal SpecSync did not write itself is never replayed, and no re
 
 - 0xLeif decided "Intent approval of proposed criterion SETUP-8": "yes" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:55Z, after t4c summed up the change 4 scope details: affected 5.0.0 to 6.3.0; SETUP-8 as written; a tracked journal refuses the command with the git rm fix; replay only into .specsync/, specs_dir and registry-mapped spec files with their requirements.md and history/, .git refused case-insensitively with trailing dots and spaces stripped; one entry outside refuses the whole journal; the legacy form refused with the existing invalid-journal message and recovery; journal-into-.git and a keyed digest left out. His earlier yes at about 15:49Z approved the three points. Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated
 - 0xLeif decided "Scope approval of never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files": "yes" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:55Z, after t4c summed up the change 4 scope details: affected 5.0.0 to 6.3.0; SETUP-8 as written; a tracked journal refuses the command with the git rm fix; replay only into .specsync/, specs_dir and registry-mapped spec files with their requirements.md and history/, .git refused case-insensitively with trailing dots and spaces stripped; one entry outside refuses the whole journal; the legacy form refused with the existing invalid-journal message and recovery; journal-into-.git and a keyed digest left out. His earlier yes at about 15:49Z approved the three points. Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files as 0xLeif
+- 0xLeif decided "Implementation review of never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files": "All as recommended" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 19:43Z, after t4c gave him one table of recommendations whose first row was that the implementation review of change 4 as amended at eddc7f5e passes (record it as his relayed review, ship and archive it in the private fork); relayed by t4c over hc to t5r as his implementation review); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -141,4 +138,20 @@ A transaction journal SpecSync did not write itself is never replayed, and no re
   - native_change: never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
   - gate: native:verifying
   - revision: eddc7f5efa074c41abc452d09ec8c4dcc2fd6811
+  - by: claude-code (hc t5r)
+- 2026-11-19T19:54:11Z · gate-closed · accept → accept · Implementation review of never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files ^t-effd4d
+  - native_change: never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
+  - revision: 918d792ce163840059e55da05c8de63901fb1bce
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: All as recommended
+    - where: Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 19:43Z, after t4c gave him one table of recommendations whose first row was that the implementation review of change 4 as amended at eddc7f5e passes (record it as his relayed review, ship and archive it in the private fork); relayed by t4c over hc to t5r as his implementation review
+    - recorded_by: claude-code-t5r
+    - native: specsync change review never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-19T19:54:18Z · advance · accept → done · native:archived ^t-5dfaac
+  - native_change: never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files
+  - gate: native:archived
+  - revision: 918d792ce163840059e55da05c8de63901fb1bce
   - by: claude-code (hc t5r)

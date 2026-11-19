@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [Journals SpecSync did not write are never replayed](journal/2026-11-19-journals-specsync-did-not-write-are-never-replayed.md) (2026-11-19, shipped)
 - [Change 3's call sites covered](journal/2026-11-19-change-3-s-call-sites-covered.md) (2026-11-19, shipped)
 - [Project file reads are confined and bounded](journal/2026-11-19-project-file-reads-are-confined-and-bounded.md) (2026-11-19, shipped)
 - [Project file writes never leave the project](journal/2026-11-19-project-file-writes-never-leave-the-project.md) (2026-11-19, shipped)
@@ -183,7 +184,7 @@ Each module's lessons stay in its lesson source:
 - agents: [specs/agents/agents.3md](../specs/agents/agents.3md), 7 lessons
 - ai: [specs/ai/ai.3md](../specs/ai/ai.3md), 3 lessons
 - archive: [specs/archive/archive.3md](../specs/archive/archive.3md), 3 lessons
-- change: [specs/change/change.3md](../specs/change/change.3md), 53 lessons
+- change: [specs/change/change.3md](../specs/change/change.3md), 54 lessons
 - changelog: [specs/changelog/changelog.3md](../specs/changelog/changelog.3md), 3 lessons
 - cli: [specs/cli/cli.3md](../specs/cli/cli.3md), 8 lessons
 - cli_args: [specs/cli_args/cli_args.3md](../specs/cli_args/cli_args.3md), 7 lessons
@@ -249,9 +250,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files](../.specsync/archive/changes/2026-11-19-never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files/lesson-bundle.md), Never replay a transaction journal SpecSync did not write, or into Git's files
 - [cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads](../.specsync/archive/changes/2026-11-19-cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads/lesson-bundle.md), Cover the call sites that pass the project root to change 3's reads
 - [never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound](../.specsync/archive/changes/2026-11-19-never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound/lesson-bundle.md), Never read a project file through a link that leaves the project, a non-regular file, or past a size bound
-- [never-write-a-project-file-through-a-symbolic-link](../.specsync/archive/changes/2026-11-19-never-write-a-project-file-through-a-symbolic-link/lesson-bundle.md), Never write a project file through a symbolic link
 
 ## Snapshots and briefs
 

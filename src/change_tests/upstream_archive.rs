@@ -464,3 +464,80 @@ fn the_cannot_tell_recovery_quotes_the_change_id_for_the_status_rerun() {
     );
     assert!(!temp.path().join("pwned").exists());
 }
+
+// #945 (REQ-change-129). HEAD already holds this change's archive, the reopen-and-rearchive
+// shape, and the remote default later renames that package. With renames off, the rename commit
+// reads as the archive's addition and is not an ancestor of HEAD, so the archive HEAD contains
+// was reported as remote-only. HEAD holding the same archived state record is the answer.
+#[test]
+fn an_upstream_rename_of_an_archive_head_already_contains_is_not_reported() {
+    let temp = TempDir::new().unwrap();
+    let (root, _base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let contained = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let origin = temp.path().join("origin.git");
+    quiet_git(
+        temp.path(),
+        &["init", "--bare", "-b", "main", origin.to_str().unwrap()],
+    );
+    quiet_git(&root, &["remote", "add", "origin", origin.to_str().unwrap()]);
+    let dated = format!("{ARCHIVE_PATH}/2026-07-14-{}", archived.id);
+    quiet_git(&root, &["mv", &dated, &format!("{ARCHIVE_PATH}/renamed-package")]);
+    quiet_git(&root, &["commit", "-m", "upstream renames the archived package"]);
+    quiet_git(&root, &["push", "origin", "HEAD:refs/heads/main"]);
+    quiet_git(&root, &["fetch", "origin"]);
+    quiet_git(&root, &["remote", "set-head", "origin", "main"]);
+    quiet_git(&root, &["checkout", "-q", "-b", "reopen", &contained]);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    assert_eq!(
+        upstream_archive_of(&root, &unarchived),
+        None,
+        "HEAD already contains this archive; a later rename upstream is not a new archive"
+    );
+}
+
+// #961 (REQ-change-129, REQ-change-142). An unrelated archive package whose directory name is not
+// UTF-8 must not stop the lookup: this change's own upstream archive is still found. Built in
+// Git's index, because some filesystems refuse a non-UTF-8 name.
+#[cfg(unix)]
+#[test]
+fn an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup() {
+    use std::os::unix::ffi::OsStrExt;
+    let temp = TempDir::new().unwrap();
+    let (root, base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let mut other = archived.clone();
+    other.id = "another-change".into();
+    let blob_source = root.join("other-state.json");
+    write_json(&blob_source, &other).unwrap();
+    let blob = quiet_git(&root, &["hash-object", "-w", "other-state.json"])
+        .trim()
+        .to_string();
+    fs::remove_file(&blob_source).unwrap();
+    let mut odd_path = format!("{ARCHIVE_PATH}/2026-07-15-").into_bytes();
+    odd_path.extend_from_slice(b"\xffodd/state.json");
+    let status = std::process::Command::new("git")
+        .arg("update-index")
+        .arg("--add")
+        .arg("--cacheinfo")
+        .arg(std::ffi::OsStr::from_bytes(
+            &[b"100644,", blob.as_bytes(), b",", &odd_path].concat(),
+        ))
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    quiet_git(&root, &["commit", "-m", "an unrelated package with a non-UTF-8 name"]);
+    // The branch switch drops the index-only entry; nothing writes the name to disk.
+    publish_and_branch_from(&temp, &root, &base);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    let upstream = upstream_archive_of(&root, &unarchived);
+    assert!(
+        matches!(&upstream, Some(UpstreamArchive::Archived { reference, .. }) if reference == "origin/main"),
+        "{upstream:?}"
+    );
+}

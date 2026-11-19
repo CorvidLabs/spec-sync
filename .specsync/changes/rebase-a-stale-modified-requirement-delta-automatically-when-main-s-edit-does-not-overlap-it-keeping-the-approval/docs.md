@@ -5,5 +5,4 @@ artifact: docs
 
 # Docs
 
-- `site/src/content/docs/deltas.md`: the stale MODIFIED section says `change check` rebases a requirement whose edits do not overlap main's and records it, and refuses as before when they overlap.
-- `CHANGELOG.md` `[Unreleased]`: the entry.
+`site/src/content/docs/deltas.md`: the stale-delta paragraph says `change check` proposes a rebase into the delta and refuses until it is approved, and lists the causes that refuse with no proposal. CHANGELOG: the Unreleased entry for #1085 describes the proposal, not a recorded rebase.

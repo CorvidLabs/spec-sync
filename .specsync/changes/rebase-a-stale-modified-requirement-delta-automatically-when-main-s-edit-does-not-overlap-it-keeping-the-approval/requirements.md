@@ -5,4 +5,4 @@ artifact: requirements
 
 # Requirements
 
-The delta adds REQ-change-161 (`deltas/change.md`) and REQ-cmd-change-038 (`deltas/cmd_change.md`), and modifies REQ-change-122 so the #843 refusal names the rebase as the one exception; its remedy and every other criterion stay. Intent: CHANGE-6.a (an approval is bound to what it approved, so the rebase is a recorded, re-checkable merge, never a silent edit) and CHANGE-6.c (getting on with the implementation costs no fresh approval). No gate is loosened: overlapping edits, sections, REMOVED items, workflow v1, CI and an unrecoverable base keep today's refusal.
+REQ-change-161 (ADDED, replaced whole) and REQ-change-122 (MODIFIED), exactly as approved in ss-lead/gates/1089-option2-definition.md; REQ-cmd-change-038 is dropped. See the delta.

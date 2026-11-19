@@ -14,3 +14,8 @@ What a session picking this up needs to know:
 - The base text is not stored. The approval records only a digest of the block (#843). #975 already recovers the approval-time text from Git by that digest (`recover_approved_base_body`) and compares line by line (`three_way_keeps_body`), to let a re-approval keep a body that already carries main's edits. This change reuses that recovery and the same LCS alignment, word by word, and produces the merge rather than a yes or no.
 - The approval binds each module's delta by digest (`approved_delta_digests`) and each replacing item's base (`approved_delta_bases`). Under workflow v2 the definition digest does not hash delta bodies, so a rebase can keep the approval through a record that moves those two claims. Under workflow v1 it does hash them, so v1 is left out.
 - This branch is stacked on #1084 (PR #1086), so its own check writes history fragments.
+
+## Option 2: propose, don't approve (2026-11-19)
+
+After five review rounds, Leif chose a simpler rule ("1089 option 2", relayed by hc t4c at about 14:43Z, and "approve 1089" on the wording at about 14:59Z, frozen in ss-lead/gates/1089-option2-definition.md). `change check` writes the word merge into the delta as a proposal and refuses; only a person's `change approve` makes it the approved body. The rebase records, the recomputing readers and the provenance checks are dropped; the merge and its safety checks stay. The change id still says "keeping the approval": ids never change, and that wording no longer describes it. The send-back that reopened the definition was run by the builder on Leif's relayed word ("yes to both", 15:02Z).
+

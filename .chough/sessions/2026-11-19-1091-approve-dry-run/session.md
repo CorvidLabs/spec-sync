@@ -5,7 +5,7 @@ aliases: [1091-approve-dry-run]
 objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
 intent_scope: CHANGE
 modules: [change, cmd_change, cli_args]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -137,4 +137,10 @@ specsync change approve <id> --dry-run runs the approval's own checks, reports t
   - revision: 22bbf2888974050b186d5d7f49c149a0513573d6
   - holds: accept
   - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-19T07:15:32Z · back · accept → build · tester2's finding on #1091 at 37496bdf: with a transaction journal that cannot be read, the dry run must give the refusal change approve gives ^t-29fb07
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 37496bdf7423ebcbdc85c80096e4f14f8101801d
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
   - by: claude-code (hc t59)

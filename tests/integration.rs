@@ -128,3 +128,6 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+
+#[path = "integration/check_scaling.rs"]
+mod check_scaling;

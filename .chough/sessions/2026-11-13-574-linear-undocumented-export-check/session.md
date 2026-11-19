@@ -19,6 +19,8 @@ files: [src/validator/consumed_by_re.rs, tests/integration/check_scaling.rs]
 observations:
   - 2026-11-13-at-2ef24f40e-574-with-origin-main-bb7682a78-merged-in-fledge
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-574-red-control-on-main-3bebe8b0
+  - 2026-11-19-574-verify-lane-at-c2b19a91
 bugs: []
 blockers: []
 waiting_on_human:
@@ -27,7 +29,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T21:51:56Z
 run_consents: []
-next: Read scoped intent and native status, then choose the next action within the authorized scope.
+next: Pushed on fix/validation-1071-1076-1050-1060-574, no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that.
 ---
 # check names each undocumented export's file from one lookup, so its time grows linearly (#574)
 
@@ -38,6 +40,7 @@ check names each undocumented export's file from one lookup, so its time grows l
 ## Where it stands
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
+- Refreshed onto main 3bebe8b0 with the other four; one conflict in tests/integration.rs, both test modules kept; re-checked; red control on main and the verify lane recorded
 
 ## Decisions and why
 
@@ -48,6 +51,8 @@ check names each undocumented export's file from one lookup, so its time grows l
 
 - [At 2ef24f40e (574 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3070 passed, 2 ignored; integration 620 passed), release build, strict spec check, and the CI script tests, including check_scaling::check_time_grows_linearly_with_undocumented_exports.](evidence/2026-11-13-at-2ef24f40e-574-with-origin-main-bb7682a78-merged-in-fledge.md)
 - [Red-first control: on main 18385ef5e with only the new test, check_scaling::check_time_grows_linearly_with_undocumented_exports fails. On main 8,000 undocumented exports took 0.55 s and 32,000 took 4.9 s, ratio 9.0, over the linear bound of 7. The failure is the defect #574 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- [Red-first control: on main 3bebe8b0 with only the new tests, check_scaling::check_time_grows_linearly_with_undocumented_exports fails: four times the undocumented exports took 9.3 times as long (0.84s against 7.83s on a busy machine); linear would be about 4. This is the defect #574 reports, fixed by this change; not a new bug.](evidence/2026-11-19-574-red-control-on-main-3bebe8b0.md)
+- [At c2b19a91 (#1071, #1076, #1050, #1060 and #574 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 12m28s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes check_scaling::check_time_grows_linearly_with_undocumented_exports.](evidence/2026-11-19-574-verify-lane-at-c2b19a91.md)
 
 ## Open threads
 

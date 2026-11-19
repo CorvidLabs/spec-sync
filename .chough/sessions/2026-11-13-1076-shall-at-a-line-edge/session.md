@@ -19,6 +19,8 @@ files: [src/change/collect_requirement_ids.rs, src/change_tests/approved_delta_r
 observations:
   - 2026-11-13-at-ad36b0e10-1076-with-origin-main-bb7682a78-merged-in-fledge
   - 2026-11-13-red-first-control-at-the-red-commit-affacaa99-change-tests-a
+  - 2026-11-19-1076-red-control-on-main-3bebe8b0
+  - 2026-11-19-1076-verify-lane-at-c2b19a91
 bugs: []
 blockers: []
 waiting_on_human:
@@ -27,7 +29,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T22:38:50Z
 run_consents: []
-next: Read scoped intent and native status, then choose the next action within the authorized scope.
+next: Pushed on fix/validation-1071-1076-1050-1060-574, no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that.
 ---
 # A requirement whose SHALL sits at a line edge counts as a normative statement (#1076)
 
@@ -38,6 +40,7 @@ A requirement whose SHALL sits at a line edge counts as a normative statement (#
 ## Where it stands
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
+- Refreshed onto main 3bebe8b0 with #1071, #1050, #1060 and #574; no conflict; re-checked; red control on main and the verify lane recorded
 
 ## Decisions and why
 
@@ -48,6 +51,8 @@ A requirement whose SHALL sits at a line edge counts as a normative statement (#
 
 - [At ad36b0e10 (#1076 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3071 passed, 2 ignored; integration 619 passed), release build, strict spec check, and the CI script tests, including change::tests::a_shall_at_a_line_edge_is_a_normative_statement.](evidence/2026-11-13-at-ad36b0e10-1076-with-origin-main-bb7682a78-merged-in-fledge.md)
 - [Red-first control: at the red commit affacaa99, change::tests::a_shall_at_a_line_edge_is_a_normative_statement fails: a requirement wrapped with SHALL at the end of a line, with its Acceptance Criteria, is refused as having no normative SHALL. The failure is the defect #1076 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-at-the-red-commit-affacaa99-change-tests-a.md)
+- [Red-first control: on main 3bebe8b0 with only the new tests, a_shall_at_a_line_edge_is_a_normative_statement fails: a requirement whose SHALL ends a line is not read as a normative statement. This is the defect #1076 reports, fixed by this change; not a new bug.](evidence/2026-11-19-1076-red-control-on-main-3bebe8b0.md)
+- [At c2b19a91 (#1071, #1076, #1050, #1060 and #574 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 12m28s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes a_shall_at_a_line_edge_is_a_normative_statement.](evidence/2026-11-19-1076-verify-lane-at-c2b19a91.md)
 
 ## Open threads
 

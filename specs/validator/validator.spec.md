@@ -234,6 +234,7 @@ degrades. This does not admit arbitrary configured files as exact Cargo targets.
 | Condition | Behavior |
 |-----------|----------|
 | Spec file unreadable | Error: "Cannot read spec" |
+| A `<module>.3md` beside the spec cannot be read or does not parse as 3md | Warning naming the file, the parser's error and that `context.md` is used for its lessons instead, so `check --strict` fails (REQ-cmd-check-018) |
 | Pre-read snapshot passed to `validate_spec_content` | Validates those exact bytes without opening `spec_path` or adjacent companions |
 | Supplied source is `Missing`, `Rejected`, or `Unreadable` | Reports the corresponding mapped-source validation outcome without ambient fallback |
 | Missing frontmatter delimiters | Error: "Missing or malformed YAML frontmatter" |

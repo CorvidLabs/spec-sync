@@ -124,8 +124,8 @@ impl AppliedDeltaItem {
     }
 }
 
-/// The blocks of `record`'s current deltas that are in the canonical tree, and the modules whose
-/// Change Log names the change. A REMOVED item is listed while its block is still gone; every
+/// The blocks of `record`'s current deltas that are in the canonical tree, and the modules that
+/// record the change (its history fragment, or a Change Log row an earlier SpecSync wrote). A REMOVED item is listed while its block is still gone; every
 /// item carries the block's text from before the change when Git history has it.
 fn applied_delta_items(
     root: &Path,
@@ -143,7 +143,7 @@ fn applied_delta_items(
         let Ok(spec) = fs::read_to_string(&spec_path) else {
             continue;
         };
-        if !changelog_records_change(&spec, &record.id) {
+        if !module_records_change(&spec_path, &spec, &record.id) {
             continue;
         }
         modules.push(module.clone());
@@ -191,8 +191,10 @@ fn project_relative(root: &Path, path: &Path) -> Option<String> {
 }
 
 /// The body `item`'s block had before the change applied it. The pre-change tree is the parent of
-/// the first commit whose spec carries the change's Change Log row, or HEAD while that row is not
-/// committed yet. Outside Git, or when the block is not in that tree, the text is unknown.
+/// the first commit that added the change's history fragment for the module or, for a change an
+/// earlier SpecSync recorded, whose spec carries the change's Change Log row; it is HEAD while
+/// neither is committed yet. Outside Git, or when the block is not in that tree, the text is
+/// unknown.
 fn pre_change_block(
     root: &Path,
     record: &ChangeRecord,
@@ -203,11 +205,25 @@ fn pre_change_block(
     let prefix = git_repo_prefix(root).ok()?;
     let spec = project_relative(root, spec_path)?;
     let file = project_relative(root, path)?;
-    let row = format!("{}:", record.id);
-    let commits = git_output_allow_empty(
+    let fragment = project_relative(root, &history_fragment_path(spec_path, &record.id))?;
+    let mut commits = git_output_allow_empty(
         root,
-        &["log", "--reverse", "--format=%H", "-S", row.as_str(), "--", spec.as_str()],
+        &[
+            "log",
+            "--reverse",
+            "--format=%H",
+            "--diff-filter=A",
+            "--",
+            fragment.as_str(),
+        ],
     )?;
+    if commits.trim().is_empty() {
+        let row = format!("{}:", record.id);
+        commits = git_output_allow_empty(
+            root,
+            &["log", "--reverse", "--format=%H", "-S", row.as_str(), "--", spec.as_str()],
+        )?;
+    }
     let tree = match commits.lines().next() {
         Some(commit) => format!("{}^", commit.trim()),
         None => "HEAD".into(),
@@ -513,14 +529,22 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
             continue;
         };
         let spec = fs::read_to_string(&spec_path).unwrap_or_default();
-        if !changelog_records_change(&spec, &record.id) {
+        let fragment = history_fragment_path(&spec_path, &record.id);
+        let advice = if fs::symlink_metadata(&fragment).is_ok() {
+            format!(
+                "`{}`, the history fragment it wrote for a module it no longer declares: delete it",
+                project_relative(root, &fragment).unwrap_or_else(|| fragment.display().to_string())
+            )
+        } else if changelog_records_change(&spec, &record.id) {
+            format!(
+                "`{}`, a module it no longer declares, still has its Change Log row and version bump: remove the `{}:` row from its `## Change Log` and restore its `version:`",
+                project_relative(root, &spec_path)
+                    .unwrap_or_else(|| spec_path.display().to_string()),
+                record.id
+            )
+        } else {
             continue;
-        }
-        let advice = format!(
-            "`{}`, a module it no longer declares, still has its Change Log row and version bump: remove the `{}:` row from its `## Change Log` and restore its `version:`",
-            project_relative(root, &spec_path).unwrap_or_else(|| spec_path.display().to_string()),
-            record.id
-        );
+        };
         if !orphans.contains(&advice) {
             orphans.push(advice);
         }

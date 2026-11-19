@@ -1217,7 +1217,9 @@ fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) ->
         canonical_module_paths(root, &specs_dir, module)
             .ok()
             .is_some_and(|(spec_path, _)| {
-                if path == portable_project_path(root, &spec_path) {
+                if path == portable_project_path(root, &spec_path)
+                    || is_module_history_path(root, &spec_path, path)
+                {
                     return true;
                 }
                 spec_path.parent().is_some_and(|parent| {

@@ -1,6 +1,6 @@
 ---
 id: record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump
-state: approved
+state: implementing
 type: feature
 base_commit: 65864de8194c10a26f674a7a171c500ae7ba5792
 ---

@@ -219,11 +219,19 @@ fn two_changes_to_one_module_merge_with_plain_git_and_keep_their_history() {
     );
     let fragment_path = format!("specs/auth/history/{passkeys}.md");
     let fragment = project.read(&fragment_path);
-    assert_eq!(frontmatter_value(&fragment, "change"), Some(passkeys.as_str()));
+    assert_eq!(
+        frontmatter_value(&fragment, "change"),
+        Some(passkeys.as_str())
+    );
     let date = frontmatter_value(&fragment, "date").unwrap_or_default();
-    assert!(is_iso_date(date), "fragment date is YYYY-MM-DD:\n{fragment}");
     assert!(
-        fragment.trim_end().ends_with("Let a user sign in with a passkey"),
+        is_iso_date(date),
+        "fragment date is YYYY-MM-DD:\n{fragment}"
+    );
+    assert!(
+        fragment
+            .trim_end()
+            .ends_with("Let a user sign in with a passkey"),
         "fragment summary is the change title:\n{fragment}"
     );
     assert!(
@@ -242,7 +250,11 @@ fn two_changes_to_one_module_merge_with_plain_git_and_keep_their_history() {
         "Say a user holds one session",
         REWORD_INVARIANTS,
     );
-    assert!(project.read("specs/auth/auth.spec.md").contains("\nversion: 1\n"));
+    assert!(
+        project
+            .read("specs/auth/auth.spec.md")
+            .contains("\nversion: 1\n")
+    );
 
     project.git(&["checkout", "-q", "passkeys"]);
     let merge = project.git_output(&["merge", "--no-edit", "one-session"]);
@@ -257,11 +269,16 @@ fn two_changes_to_one_module_merge_with_plain_git_and_keep_their_history() {
     let merged = project.read("specs/auth/auth.spec.md");
     assert!(!merged.contains("<<<<<<<"), "{merged}");
     assert!(merged.contains("\nversion: 1\n"), "{merged}");
-    assert!(merged.contains("A user holds at most one session."), "{merged}");
+    assert!(
+        merged.contains("A user holds at most one session."),
+        "{merged}"
+    );
     assert_eq!(change_log_section(&merged), CHANGE_LOG);
-    assert!(project
-        .read("specs/auth/requirements.md")
-        .contains("### REQ-auth-002"));
+    assert!(
+        project
+            .read("specs/auth/requirements.md")
+            .contains("### REQ-auth-002")
+    );
     for id in [&passkeys, &session] {
         assert!(
             project
@@ -296,10 +313,10 @@ fn a_change_its_change_log_already_names_gets_no_fragment() {
         ADD_REQUIREMENT,
     );
     // Rewrite the record the way 6.3.0 wrote it: a row and a bump, no fragment.
-    let spec = project.read("specs/auth/auth.spec.md").replace(
-        "\nversion: 1\n",
-        "\nversion: 2\n",
-    ) + &format!("| 2026-11-18 | {id}: Let a user sign in with a passkey |\n");
+    let spec = project
+        .read("specs/auth/auth.spec.md")
+        .replace("\nversion: 1\n", "\nversion: 2\n")
+        + &format!("| 2026-11-18 | {id}: Let a user sign in with a passkey |\n");
     project.write("specs/auth/auth.spec.md", &spec);
     fs::remove_file(project.root.join(format!("specs/auth/history/{id}.md"))).unwrap();
     project.git(&["add", "--all"]);
@@ -308,7 +325,14 @@ fn a_change_its_change_log_already_names_gets_no_fragment() {
     project.run(&["change", "check", &id, "--commit"]);
 
     assert_eq!(project.read("specs/auth/auth.spec.md"), spec);
-    assert!(!project.root.join("specs/auth/history").exists());
+    assert!(
+        !project
+            .root
+            .join(format!("specs/auth/history/{id}.md"))
+            .exists(),
+        "a module its Change Log already records gets no fragment"
+    );
+    assert!(project.git(&["status", "--porcelain"]).trim().is_empty());
 }
 
 fn history_project(spec_version: &str, table: &str) -> Project {
@@ -340,7 +364,10 @@ fn check_refuses_a_malformed_history_fragment_and_names_it() {
             "renamed.md",
             fragment("another-change", "2026-11-18", "Summary"),
         ),
-        ("bad-date.md", fragment("bad-date", "18 November", "Summary")),
+        (
+            "bad-date.md",
+            fragment("bad-date", "18 November", "Summary"),
+        ),
         ("empty.md", fragment("empty", "2026-11-18", "")),
         (
             "two-lines.md",
@@ -382,7 +409,11 @@ fn well_formed_history_fragments_pass_a_strict_check() {
     let project = Project::new();
     project.write(
         "specs/auth/history/add-passkeys.md",
-        &fragment("add-passkeys", "2026-11-18", "Let a user sign in with a passkey"),
+        &fragment(
+            "add-passkeys",
+            "2026-11-18",
+            "Let a user sign in with a passkey",
+        ),
     );
     project.write(
         "specs/auth/history/one-session.md",
@@ -469,7 +500,11 @@ fn history_refuses_an_unknown_module_and_a_malformed_fragment() {
     let project = Project::new();
     let unknown = project.invoke(&["history", "billing"]);
     assert_eq!(unknown.status.code(), Some(1), "{}", combined(&unknown));
-    assert!(combined(&unknown).contains("billing"), "{}", combined(&unknown));
+    assert!(
+        combined(&unknown).contains("billing"),
+        "{}",
+        combined(&unknown)
+    );
 
     project.write(
         "specs/auth/history/broken.md",

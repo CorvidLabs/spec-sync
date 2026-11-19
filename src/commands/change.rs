@@ -64,6 +64,12 @@ fn print_configured_commands_not_run(root: &Path) -> Result<(), String> {
 mod doctor;
 pub use doctor::cmd_doctor;
 
+// `specsync history` renders here too: the history fragments are what `change check` writes
+// (REQ-cmd-change-037).
+#[path = "history.rs"]
+mod history;
+pub use history::cmd_history;
+
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     // Repository facts git answers during this command are asked once (REQ-cmd-change-028). Every
     // git write and external process this command runs clears them.

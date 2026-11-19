@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795050995,
+      "commit": "bc67639d587286bc1024220a7b5e61c7db2430cd",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "verification cannot start: no requirement evidence for REQ-change-021, REQ-change-092; add a row for each to the `## Requirement evidence` table in .specsync/changes/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump/testing.md"
+    },
+    {
+      "timestamp": 1795051007,
+      "commit": "bc67639d587286bc1024220a7b5e61c7db2430cd",
+      "contract_digest": "90fa46185ff32dfd2ec6d4d7551c0c7da614875d143dd0afccbeceb9aacccf10",
+      "execution_digest": "51877b06cec28fdd2c704037de1aa8c26913822190bb7acfc9aea89f84e4d2ae",
+      "workspace_digest": "db0d15417716f023c7ee1547b20ebff4ef643a3396d692e7bba63cbd598c5202",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli --spec cli_args --spec cmd_change --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-021",
+        "REQ-change-092",
+        "REQ-change-123",
+        "REQ-change-159",
+        "REQ-change-160",
+        "REQ-cli-014",
+        "REQ-cli-args-026",
+        "REQ-cmd-change-037",
+        "REQ-hash-cache-006",
+        "REQ-validator-048"
+      ]
+    }
+  ]
+}

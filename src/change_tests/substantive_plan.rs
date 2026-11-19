@@ -12,47 +12,70 @@ fn prose_or_plan<'a>(artifact: &ArtifactKind, prose: &'a str) -> &'a str {
     }
 }
 
+/// The history row `specsync history` renders for one fragment of `spec` (REQ-change-021).
+fn rendered_fragment_row(spec: &str, id: &str, summary: &str) -> String {
+    let table = change_log_table(spec);
+    let history = SpecHistory {
+        module: "canary".into(),
+        spec: "specs/canary/canary.spec.md".into(),
+        version: spec_frontmatter_version(spec),
+        table_header: table
+            .as_ref()
+            .map(|table| table.header.clone())
+            .unwrap_or_default(),
+        rows: table.map(|table| table.rows).unwrap_or_default(),
+        fragments: vec![HistoryFragment {
+            change: id.into(),
+            date: "2026-11-19".into(),
+            summary: summary.into(),
+        }],
+    };
+    render_spec_history_table(&history)
+        .lines()
+        .last()
+        .unwrap()
+        .to_string()
+}
+
 // Verifies REQ-change-021.
 #[test]
-fn append_changelog_preserves_version_date_changes_schema() {
-    let spec = "---\nmodule: canary\nversion: 3\n---\n\n## Change Log\n\n| Version | Date | Changes |\n|---------|------|---------|\n| 2 | 2026-07-13 | Previous |\n";
+fn history_row_preserves_version_date_changes_schema() {
+    let spec = "---\nmodule: canary\nversion: 3\n---\n\n## Change Log\n\n| Version | Date | Changes |\n|---------|------|---------|\n| 3 | 2026-07-13 | Previous |\n";
 
-    let updated = append_changelog(spec, "CHG-0003", "Correct the change log");
-
-    assert!(updated.contains(&format!(
-        "| 3 | {} | CHG-0003: Correct the change log |",
-        today()
-    )));
+    assert_eq!(
+        rendered_fragment_row(spec, "CHG-0004", "Correct the change log"),
+        "| 4 | 2026-11-19 | CHG-0004: Correct the change log |"
+    );
 }
 
 #[test]
-fn append_changelog_populates_date_author_change_schema() {
+fn history_row_populates_date_author_change_schema() {
     let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Author | Change |\n|------|--------|--------|\n";
 
-    let updated = append_changelog(spec, "CHG-0002", "Document behavior");
-
-    assert!(updated.contains(&format!(
-        "| {} | SpecSync | CHG-0002: Document behavior |",
-        today()
-    )));
+    assert_eq!(
+        rendered_fragment_row(spec, "CHG-0002", "Document behavior"),
+        "| 2026-11-19 | SpecSync | CHG-0002: Document behavior |"
+    );
 }
 
 #[test]
-fn append_changelog_keeps_default_two_column_schema() {
+fn history_row_keeps_default_two_column_schema() {
     let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n";
 
-    let updated = append_changelog(spec, "CHG-0002", "Document behavior");
-
-    assert!(updated.contains(&format!("| {} | CHG-0002: Document behavior |", today())));
+    assert_eq!(
+        rendered_fragment_row(spec, "CHG-0002", "Document behavior"),
+        "| 2026-11-19 | CHG-0002: Document behavior |"
+    );
 }
 
 #[test]
-fn append_changelog_does_not_treat_similar_headers_as_change_columns() {
+fn history_row_does_not_treat_similar_headers_as_change_columns() {
     let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Changer | Change |\n|------|---------|--------|\n";
 
-    let updated = append_changelog(spec, "CHG-0002", "Document behavior");
-
-    assert!(updated.contains(&format!("| {} |  | CHG-0002: Document behavior |", today())));
+    assert_eq!(
+        rendered_fragment_row(spec, "CHG-0002", "Document behavior"),
+        "| 2026-11-19 |  | CHG-0002: Document behavior |"
+    );
 }
 
 #[test]

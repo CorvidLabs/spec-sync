@@ -3716,6 +3716,7 @@ fn lifecycle_commit_scope_names_exactly_what_the_change_owns() {
         BOOTSTRAP_RECORD_PATH.to_string(),
         HASH_CACHE_PATH.to_string(),
         "specs/auth/auth.spec.md".to_string(),
+        format!("specs/auth/history/{}.md", record.id),
     ];
     expected.extend(
         canonical_companion_names("auth")

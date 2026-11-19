@@ -1203,7 +1203,11 @@ fn accepted_change_with_covering_successor(root: &Path) -> (ChangeRecord, Change
         .unwrap()
         .acceptance_manifest
         .unwrap();
-    let mut successor = completed_section_only_record(root, delta);
+    // A successor must change what it supersedes; since #1084 no version bump does that for it.
+    let mut successor = completed_section_only_record(
+        root,
+        &delta.replace("remains governed", "is governed by the successor"),
+    );
     successor.affected_paths.extend(
         predecessor_manifest
             .entries
@@ -1211,6 +1215,7 @@ fn accepted_change_with_covering_successor(root: &Path) -> (ChangeRecord, Change
             .filter(|entry| {
                 entry.owners.iter().any(|owner| owner == "auth")
                     && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
             })
             .map(|entry| entry.path.clone()),
     );
@@ -1221,6 +1226,7 @@ fn accepted_change_with_covering_successor(root: &Path) -> (ChangeRecord, Change
     for entry in predecessor_manifest.entries.iter().filter(|entry| {
         entry.owners.iter().any(|owner| owner == "auth")
             && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
     }) {
         successor = add_supersedes_obligation(
             root,
@@ -1343,6 +1349,7 @@ fn finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change() {
         .filter(|entry| {
             entry.owners.iter().any(|owner| owner == "auth")
                 && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
         })
         .collect();
 

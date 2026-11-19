@@ -205,6 +205,7 @@ fn acceptance_input_owners(
             .ok_or_else(|| format!("canonical spec path has no parent: {}", spec_path.display()))?;
         let canonical_owned = relative == spec_relative
             || relative == strict_portable_project_path(root, &requirements_path)?
+            || is_module_history_path(root, &spec_path, relative)
             || canonical_companion_names(module).iter().any(|name| {
                 strict_portable_project_path(root, &parent.join(name))
                     .is_ok_and(|path| path == relative)

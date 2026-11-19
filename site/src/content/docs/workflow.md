@@ -200,7 +200,8 @@ earlier commit, and `specsync change audit` reports it.
 
 Spec text the change already applied stays in place, and the send-back lists it under
 `applied_items`, REMOVED items included, with each block's text from before the change. It also
-lists the modules whose Change Log carries the change's row. After a send-back, `change check`
+lists the modules that record the change: by its history fragment, `history/<id>.md` beside the
+spec, or by a Change Log row an earlier SpecSync wrote. After a send-back, `change check`
 converges on the canonical tree: a kept item that is already applied (a removed block still gone,
 an added or modified block with the same body) is not applied again, a kept ADDED item with a new
 body replaces the change's own earlier body, and the rest is applied. If the new scope drops an
@@ -208,9 +209,10 @@ item that was already applied, the spec would keep that edit with no change owni
 `change check` and `change accept` refuse and say what to restore for each one, for example
 `specs/auth/auth.spec.md` section `Purpose`: take out a block the change added, or put back the
 pre-change text (quoted in the message) of a block it modified or removed. A module dropped from
-`affected_specs` is refused while its Change Log still has the change's row; remove that row and
-restore its `version:`. Then check again (or keep the item in the delta). Accepted or archived
-changes use `change reopen` instead.
+`affected_specs` is refused while it still records the change: delete the history fragment the
+refusal names, or, for a change an earlier SpecSync recorded, remove its Change Log row and restore
+its `version:`. Then check again (or keep the item in the delta). Accepted or archived changes use
+`change reopen` instead.
 
 ## 4. Recover accepted or archived evidence
 

@@ -1406,7 +1406,11 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
         .unwrap()
         .acceptance_manifest
         .unwrap();
-    let mut successor = completed_section_only_record(root, delta);
+    // A successor must change what it supersedes; since #1084 no version bump does that for it.
+    let mut successor = completed_section_only_record(
+        root,
+        &delta.replace("remains governed", "is governed by the successor"),
+    );
     successor.affected_paths.extend(
         predecessor_manifest
             .entries
@@ -1414,6 +1418,7 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
             .filter(|entry| {
                 entry.owners.iter().any(|owner| owner == "auth")
                     && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
             })
             .map(|entry| entry.path.clone()),
     );
@@ -1424,6 +1429,7 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
     for entry in predecessor_manifest.entries.iter().filter(|entry| {
         entry.owners.iter().any(|owner| owner == "auth")
             && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
     }) {
         successor = add_supersedes_obligation(
             root,
@@ -1486,6 +1492,7 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
             .filter(|entry| {
                 entry.owners.iter().any(|owner| owner == "auth")
                     && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
             })
             .map(|entry| entry.path.clone()),
     );
@@ -1496,6 +1503,7 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
     for entry in successor_manifest.entries.iter().filter(|entry| {
         entry.owners.iter().any(|owner| owner == "auth")
             && entry.path != "specs/auth/requirements.md"
+                    && !entry.path.starts_with("specs/auth/history/")
     }) {
         unchanged = add_supersedes_obligation(
             root,
@@ -2912,29 +2920,22 @@ fn extra_delta_modules_are_rejected() {
     assert!(error.contains("extra: billing"), "{error}");
 }
 
+/// The Version column `specsync history` renders counts on from the frozen `version:` in the
+/// same format, integer or `major.minor.patch` (REQ-change-021).
 #[test]
-fn spec_versions_preserve_integer_or_semantic_format() {
-    assert!(
-        bump_spec_version("---\nversion: 4\n---\n")
-            .unwrap()
-            .contains("version: 5")
+fn history_versions_count_on_in_integer_or_semantic_format() {
+    assert_eq!(version_after("4", 1).as_deref(), Some("5"));
+    assert_eq!(version_after("4", 3).as_deref(), Some("7"));
+    assert_eq!(version_after("1.2.9", 1).as_deref(), Some("1.2.10"));
+    assert_eq!(version_after("one", 1), None);
+    assert_eq!(
+        spec_frontmatter_version("---\nversion: 1.2.9 # release\n---\n").as_deref(),
+        Some("1.2.9")
     );
-    assert!(
-        bump_spec_version("---\nversion: 1.2.9\n---\n")
-            .unwrap()
-            .contains("version: 1.2.10")
+    assert_eq!(
+        spec_frontmatter_version("---\nversion: \"1.2.9\"\n---\n").as_deref(),
+        Some("1.2.9")
     );
-    assert!(
-        bump_spec_version("---\nversion: 1.2.9 # release\n---\n")
-            .unwrap()
-            .contains("version: 1.2.10 # release")
-    );
-    assert!(
-        bump_spec_version("---\nversion: \"1.2.9\"\n---\n")
-            .unwrap()
-            .contains("version: \"1.2.10\"")
-    );
-    assert!(bump_spec_version("---\nversion: one\n---\n").is_err());
 }
 
 #[test]

@@ -348,6 +348,25 @@ specsync changelog HEAD~10..HEAD           # recent changes
 specsync changelog v3.3.0..v3.4.0 --json  # machine-readable output
 ```
 
+### `history`
+
+Print a module's Change Log as one table: the spec's own table, rows unchanged, followed by one row
+per history fragment. `change check` records each change it materializes in
+`specs/<module>/history/<change-id>.md` (frontmatter `change:` and `date:`, then a one-line
+summary) instead of appending a row and bumping `version:`, so two changes to one module merge
+without a conflict. Fragment rows use the table's own columns; a `Version` column counts on from
+the spec's `version:`.
+
+```bash
+specsync history auth                      # the Change Log table with every fragment
+specsync history auth --json               # module, version, table rows and fragments apart
+```
+
+An unknown module, or a fragment `specsync check` would refuse, exits 1 and names it. `specsync
+check` refuses a fragment whose `change:` is not its file name, whose `date:` is not a
+`YYYY-MM-DD` date, whose summary is empty or longer than one line, and a change recorded both by a
+fragment and by a Change Log row.
+
 ### `merge`
 
 Auto-resolve git merge conflicts in spec files. Understands spec structure to make intelligent merge decisions.

@@ -5,8 +5,9 @@ artifact: tasks
 
 # Tasks
 
-- [x] Failing tests on 99f61b2b
-- [x] Word merge and rebase record verification
-- [x] Effective claims in the binding, base check, re-approval and acceptance
-- [x] Rebase in `change check`; `change status` output
-- [x] Specs, `change.3md` lesson, docs and CHANGELOG
+- [ ] Red tests for the option-2 proposal and its refusals.
+- [ ] Drop the rebase records, their readers and the provenance checks.
+- [ ] Turn the rebase step into the proposal writer with all-or-nothing writes.
+- [ ] Keep and test the merge's safety checks and the cause-naming refusals.
+- [ ] Docs, CHANGELOG, invariant and lesson.
+- [ ] `change check --commit`, verify lane, `change audit --strict`, trust, real-repo run.

@@ -7,32 +7,28 @@
   "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
   "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
   "kind": "feature",
-  "state": "verifying",
-  "canonical_applied": true,
+  "state": "approved",
   "base_commit": "99f61b2b5667d60c3b0705902486f910c8e067c5",
   "created_at": 1795052049,
-  "updated_at": 1795097427,
+  "updated_at": 1795101239,
   "affected_specs": [
-    "change",
-    "cmd_change"
+    "change"
   ],
   "affected_paths": [
     "src/change.rs",
     "src/change/",
     "src/change_tests.rs",
     "src/change_tests/",
-    "src/commands/change.rs",
     "tests/integration.rs",
     "tests/integration/",
     "specs/change/",
-    "specs/cmd_change/",
     "site/src/content/docs/",
     "CHANGELOG.md"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,
   "acceptance_criteria": [
-    "When main edits a requirement a MODIFIED delta was approved against and the two edits do not overlap word by word, change check rewrites the delta to the merge, records a verifiable rebase in approvals.json, keeps the approval and materializes the merged text; when they overlap it refuses as today and asks for re-approval; change status shows each rebase"
+    "When main edits a requirement a MODIFIED delta was approved against and the edits do not overlap word by word, change check writes the word merge into the delta as a proposal and refuses until a person approves it with change approve, after which change check applies it; when the edits overlap, main deleted the requirement or edited its heading, the working tree holds other text, the requirement is too long, or Git cannot read main's text, it refuses as today naming the cause and the way on, and writes nothing; nothing is proposed in CI"
   ],
   "selected_artifacts": [
     "context",
@@ -47,7 +43,7 @@
   "dependencies": [],
   "answers": {
     "architecture_risk": "yes",
-    "constraints": "CHANGE-6.a (an approval is bound to what it approved, so the rebase must be a recorded, re-checkable merge, not a silent edit), CHANGE-6.c, the #843 stale MODIFIED refusal (REQ-change-122) and the #975 moved-base recovery from git",
+    "constraints": "REQ-change-122: a stale delta is never applied over text the change did not approve; CHANGE-6.a: only a person approves wording; REQ-change-142: fail closed when a default branch exists and Git cannot answer; Leif's rule 3: every refusal names its way out",
     "public_contract": "yes"
   }
 }

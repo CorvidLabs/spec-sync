@@ -1348,10 +1348,13 @@ fn batched_revision(
     Some(head)
 }
 
-/// Whether a revision is safe to hand to `cat-file --batch` in place of `ls-tree`/`show`.
+/// Whether a revision is safe to hand to `cat-file --batch` in place of `ls-tree`/`show`: `HEAD`,
+/// or a full object id in either object format (40 hex characters for SHA-1, 64 for SHA-256,
+/// #985). `cat-file --batch` reads both.
 fn batchable_revision(revision: &str) -> bool {
     revision == "HEAD"
-        || (revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        || (matches!(revision.len(), 40 | 64)
+            && revision.bytes().all(|byte| byte.is_ascii_hexdigit()))
 }
 
 /// Whether a path names exactly one entry for `ls-tree` and `<rev>:<path>` alike.
@@ -2005,6 +2008,70 @@ mod tests {
             stdout: output.stdout,
             stderr: output.stderr,
         }
+    }
+
+    /// #985: a repository initialized with `--object-format=sha256` names commits with 64 hex
+    /// characters. A read at such a full commit id is answered by the one batch reader, byte for
+    /// byte equal to the per-file read, instead of falling back to its own `git show`.
+    #[cfg(unix)]
+    #[test]
+    fn batched_reads_accept_sha256_object_ids() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        git(root, &["init", "--object-format=sha256"]);
+        git(root, &["config", "user.email", "test@test.com"]);
+        git(root, &["config", "user.name", "Test"]);
+        git(root, &["config", "commit.gpgsign", "false"]);
+        commit_file(root, "dir/a.txt", "alpha\n", "first");
+        commit_file(root, "dir/b.txt", "beta", "second");
+        let head = head_through_memo(root);
+        assert_eq!(
+            head.len(),
+            64,
+            "a sha256 repository names commits in 64 hex: {head}"
+        );
+        TEST_BATCH_STARTS.with(|count| count.set(0));
+        let _scope = begin_repository_fact_scope(root);
+        let shown = format!("{head}:dir/a.txt");
+        let missing = format!("{head}:missing.txt");
+        let reads: [&[&str]; 4] = [
+            &["show", &shown],
+            &["show", &missing],
+            &[
+                "ls-tree",
+                "--full-tree",
+                "-z",
+                "--name-only",
+                &head,
+                "--",
+                "dir/b.txt",
+            ],
+            &[
+                "ls-tree",
+                "--full-tree",
+                "-z",
+                "--name-only",
+                &head,
+                "--",
+                "missing.txt",
+            ],
+        ];
+        for args in reads {
+            let batched = batched_git_read(root, "git_cmd", || git_cmd(root), args, usize::MAX)
+                .unwrap_or_else(|| panic!("{args:?} should be answered by the batch"));
+            let expected = per_file(root, args);
+            assert_eq!(batched.stdout, expected.stdout, "{args:?} stdout");
+            assert_eq!(
+                batched.status.code(),
+                expected.status.code(),
+                "{args:?} code"
+            );
+        }
+        assert_eq!(
+            TEST_BATCH_STARTS.with(std::cell::Cell::get),
+            1,
+            "reads at a sha256 commit share one cat-file --batch child"
+        );
     }
 
     #[cfg(unix)]

@@ -4733,6 +4733,32 @@ struct LifecycleStateHistory {
 #[cfg(test)]
 thread_local! {
     static LIFECYCLE_STATE_HISTORY_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// How many of this thread's next lifecycle-state history builds fail, as a transient Git
+    /// failure would (#982).
+    static LIFECYCLE_STATE_HISTORY_FAILING_BUILDS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
+/// Make this thread's next `builds` lifecycle-state history builds fail.
+#[cfg(test)]
+fn fail_lifecycle_state_history_builds(builds: usize) {
+    LIFECYCLE_STATE_HISTORY_FAILING_BUILDS.with(|count| count.set(builds));
+}
+
+/// Whether this build is one a test asked to fail, counting it off.
+fn lifecycle_state_history_build_fails_for_test() -> bool {
+    #[cfg(test)]
+    {
+        LIFECYCLE_STATE_HISTORY_FAILING_BUILDS.with(|count| {
+            let failing = count.get();
+            count.set(failing.saturating_sub(1));
+            failing > 0
+        })
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
 }
 
 /// Run `body` with the lifecycle-state history index turned off on this thread, so it takes the
@@ -4757,12 +4783,13 @@ fn lifecycle_state_history_disabled() -> bool {
 }
 
 /// A lifecycle-state history built on this thread: its root, the `HEAD` commit it was walked
-/// from, and the answer (`None` when the walk could not answer).
-type LifecycleStateHistorySlot = (PathBuf, String, Option<std::rc::Rc<LifecycleStateHistory>>);
+/// from, and the index. Only a built index is kept here; a failed build is remembered by its read
+/// scope alone (#982).
+type LifecycleStateHistorySlot = (PathBuf, String, std::rc::Rc<LifecycleStateHistory>);
 
 thread_local! {
     /// The last lifecycle-state history built on this thread. History reachable from one commit
-    /// never changes, so the answer stays true for that root and commit; it is only consulted
+    /// never changes, so the index stays true for that root and commit; it is only consulted
     /// inside a read scope.
     static LIFECYCLE_STATE_HISTORY: RefCell<Option<LifecycleStateHistorySlot>> =
         const { RefCell::new(None) };
@@ -4779,19 +4806,43 @@ fn lifecycle_state_history(root: &Path) -> Option<std::rc::Rc<LifecycleStateHist
     }
     let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
     let head = head.trim().to_string();
+    // A build that failed in this read scope is not retried for each archive; the next scope
+    // tries again, because a transient Git failure must not leave a long-lived caller on the
+    // per-archive fallback (REQ-change-140, #982).
+    let failed_here = read_scope_value(root, |scope| {
+        scope
+            .lifecycle_state_history_failed_head
+            .as_ref()
+            .filter(|failed| **failed == head)
+            .map(|_| ())
+    });
+    if failed_here.is_some() {
+        return None;
+    }
     let known = LIFECYCLE_STATE_HISTORY.with(|slot| {
         slot.borrow()
             .as_ref()
             .filter(|(known_root, known_head, _)| known_root == root && *known_head == head)
             .map(|(_, _, history)| history.clone())
     });
-    if let Some(known) = known {
+    if known.is_some() {
         return known;
     }
-    let built = build_lifecycle_state_history(root, &head).map(std::rc::Rc::new);
-    LIFECYCLE_STATE_HISTORY.with(|slot| {
-        *slot.borrow_mut() = Some((root.to_path_buf(), head, built.clone()));
-    });
+    let built = if lifecycle_state_history_build_fails_for_test() {
+        None
+    } else {
+        build_lifecycle_state_history(root, &head).map(std::rc::Rc::new)
+    };
+    match &built {
+        Some(history) => LIFECYCLE_STATE_HISTORY.with(|slot| {
+            *slot.borrow_mut() = Some((root.to_path_buf(), head, history.clone()));
+        }),
+        None => {
+            update_read_scope(root, |scope| {
+                scope.lifecycle_state_history_failed_head = Some(head);
+            });
+        }
+    }
     built
 }
 

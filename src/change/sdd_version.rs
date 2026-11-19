@@ -152,6 +152,9 @@ struct ChangeReadSnapshot {
     scoped_review_texts: BTreeMap<Vec<String>, Result<String, String>>,
     scoped_review_files: BTreeMap<(String, String), Option<Vec<u8>>>,
     archive_index: Option<BTreeMap<String, Vec<PathBuf>>>,
+    /// The `HEAD` at which this scope's lifecycle-state history build failed, so the scope does
+    /// not retry it per archive while later scopes still do (#982).
+    lifecycle_state_history_failed_head: Option<String>,
     persistent_cache: PersistentReadCacheFrame,
 }
 
@@ -178,6 +181,7 @@ impl ChangeReadSnapshot {
             scoped_review_texts: BTreeMap::new(),
             scoped_review_files: BTreeMap::new(),
             archive_index: None,
+            lifecycle_state_history_failed_head: None,
             persistent_cache: PersistentReadCacheFrame::default(),
         }
     }

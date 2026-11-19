@@ -17,6 +17,7 @@ files:
   - src/change/send_back.rs
   - src/change/spec_history.rs
   - src/change/unknown_members.rs
+  - src/change/vanished_requirements.rs
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
@@ -45,6 +46,7 @@ files:
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/unknown_members.rs
+  - src/change_tests/vanished_requirements.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/lifecycle-validation-limits.json
@@ -302,6 +304,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
 | `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |
 | `verification_ignored_paths_refusal` | `root: &Path, record: Option<&ChangeRecord>` | `Option<String>` | The refusal an invalid list, or an entry overlapping the given change's declared `affected_paths`, causes in every lifecycle verb; `None` when nothing refuses |
+| `lost_requirements_refusal` | `root: &Path, record: &ChangeRecord` | `Option<String>` | The refusal REQ-change-169 gives a change on a branch that lost a canonical requirement no approved `## REMOVED` delta names, for `change ship-status` (REQ-cmd-change-042); `None` when nothing is lost, every loss is accounted for, or there is no reference to compare with |
 | `upstream_archive_of` | `root: &Path, record: &ChangeRecord` | `Option<UpstreamArchive>` | The remote default's archive of an unarchived record when `HEAD` does not contain it; review and finalize refuse it and status never reports it `safe` (REQ-change-129). Checks every unarchived state with a targeted lookup of the remote default's archive directory, never the full archive index. `None` with no remote default, or for an archive already in `HEAD` (reopen); once a remote default resolves, a failed or truncated listing or batched read, an archived `state.json` with no readable `id`, or a failed addition or ancestry lookup for a matching package, is `CannotTell`, never `None` (REQ-change-142). The archive root is passed as `:(top,literal)` (#962) |
 | `upstream_archive_message` | `id: &str, upstream: &UpstreamArchive` | `String` | The single sentence review, finalize, status and ship-status print. `Archived`: the reference, the archive commit, the unarchived copy and the recovery: rebase onto that reference dropping the commit that added the copy. `CannotTell`: the reference, that the tool cannot tell, and how to find out: `git fetch --refetch origin` (which repairs a missing object even when the reference has not moved), `git remote set-head origin --auto` (which repairs a dangling remote default), then `specsync --root '<project-root>' change status -- '<id>'`, which retains the selected project and reruns this lookup and either clears the refusal or names the archive and the rebase; the root and id are separate shell-quoted words |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
@@ -394,6 +397,7 @@ Acceptance Criteria
 59. After definition approval, the guided next action for an approved or implementing change names `specsync change check <id> --commit`. `change review` and `change ship` refuse when the recorded verification commit does not contain the change's own work — the current contents of its `affected_paths` and any canonical specs it materialized — and they do not record a review bound to such a commit. Uncommitted files under `.specsync/` alone do not trigger that refusal (#535, REQ-change-156, REQ-change-157).
 60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
 61. A change's record in a module's history is its own file, `history/<change-id>.md` beside the spec, so two changes to one module never edit the same line of its spec and merge without a merge driver (#1084, MERGE-1). A Change Log table written before this is frozen as it is: no row is rewritten, and `specsync check` refuses a change recorded both by a fragment and by a row.
+62. A change never deletes a canonical requirement that no approved `## REMOVED` delta names (REQ-change-169, #1081). The branch's requirement ids, every `### REQ-` heading outside a fence in each `requirements.md` and legacy `<module>.req.md`, are compared with those at the merge-base of `HEAD` and the default branch, or the change's `base_commit` when there is no default branch; an id gone from every file is refused unless an approved REMOVED item of a change on the branch (active with a valid approval, or archived on the branch since that commit) names it. Check refuses before writing and records the attempt; verification, acceptance and audit ask the same; ship-status lists it. A default branch Git cannot read refuses; no reference at all skips with a note.
 
 ## Behavioral Examples
 

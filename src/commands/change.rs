@@ -1450,6 +1450,13 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     if let Some(step) = &open_tasks_step {
         blockers.push(format!("tasks.md contains incomplete tasks: {step}"));
     }
+    // A branch that lost a canonical requirement no approved REMOVED delta names: check,
+    // finalize and ship refuse it, so ship-status lists it (REQ-cmd-change-042, #1081).
+    if upstream_archive.is_none()
+        && let Some(refusal) = change::lost_requirements_refusal(root, record)
+    {
+        blockers.push(refusal);
+    }
     // Finalize refuses production source no declared module owns; ship-status and ship
     // preflight run the same check so "ready to finalize" never names a change it refuses
     // (REQ-cmd-change-008, #986, #956).

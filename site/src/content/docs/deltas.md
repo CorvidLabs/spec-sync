@@ -126,6 +126,19 @@ Two active changes that touch the same delta surface produce deterministic valid
 
 Fix classification edits to accepted metadata with `change correct` rather than editing delta files after acceptance — fresh classification edits no longer conflict with sibling accepted deltas, but stale accepted content still routes through the audited correction chain.
 
+### A requirement lost without a REMOVED delta
+
+A branch that lost a canonical requirement is refused too. `change check`, verification, `change
+accept`, `change finalize` and `change ship` compare the requirement ids in every `requirements.md`
+(and legacy `<module>.req.md`) with those at the merge-base of `HEAD` and the default branch, or at
+the change's base commit when there is no default branch. An id that is gone from every requirements
+file is refused, by name, unless an approved `## REMOVED` item of a change on the branch names it. A
+requirement moved to another file under the same id is not lost; a renumbered one is lost under its
+old id, because a requirement id is permanent. To put a lost block back, `git show <commit>:<file>`
+prints it as the merge-base held it; to remove it on purpose, name it in a `## REMOVED` delta and
+approve the change again. `change audit` reports the same refusal, and `change ship-status` lists it
+as a blocker (REQ-change-169, #1081).
+
 ---
 
 ## Check and Finalization: Atomic Application

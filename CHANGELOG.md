@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.3.0 after supported-platform asset and Action checks. Immutable `@v6.3.0` remains at its qualified candidate SHA (`b87bbd88`) with default 6.2.0; select `version: '6.3.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.3.0.
 
+### Fixed
+
+- `change check`, verification, `change accept`, `change finalize` and `change ship` refuse a change on a branch that lost a canonical requirement no approved `## REMOVED` delta names, naming every lost id and the file that held it, compared with the merge-base of `HEAD` and the default branch (or the change's base commit when there is none). A requirement moved between files under its id is not lost; a renumbered one is refused under its old id, since ids are permanent. `change audit` reports it and `change ship-status` lists it as a blocker. In CorvidLabs/starling a truncated `requirements.md` had deleted 28 requirements while every check passed (REQ-change-169, REQ-cmd-change-042, #1081).
+
 ## [6.3.0] - 2026-11-12
 
 ### Added

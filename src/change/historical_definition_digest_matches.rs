@@ -2764,6 +2764,8 @@ fn accept_change_with_gate(
     // And for the same reason a body approved over canonical text that has since moved is
     // refused here, before `prepare_pending_delta_application` could write it over (#843).
     ensure_approved_delta_bases_current(root, &record)?;
+    // A branch that lost a canonical requirement no approved REMOVED delta names (#1081).
+    ensure_no_lost_requirements(root, &record)?;
     let records = list_changes_checked(root)?;
     // Same as verification: acceptance reports only failures, and the project
     // surfaces report every suppression this gate applied.
@@ -4906,6 +4908,13 @@ fn check_project_with_command_output(
             {
                 // The refusal `change check` gives for a body approved over canonical text
                 // that has since moved (#843), asked only once the body itself is intact.
+                report.errors.push(format!("{}: {error}", record.id));
+            } else if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = ensure_no_lost_requirements(root, record)
+            {
+                // The refusal `change check` gives a branch that lost a canonical requirement
+                // (#1081, REQ-change-169).
                 report.errors.push(format!("{}: {error}", record.id));
             }
         }

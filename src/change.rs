@@ -14,3 +14,4 @@ include!("change/unknown_members.rs");
 include!("change/doctor.rs");
 
 include!("change/retirement.rs");
+include!("change/vanished_requirements.rs");

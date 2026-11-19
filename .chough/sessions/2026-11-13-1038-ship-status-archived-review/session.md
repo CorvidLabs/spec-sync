@@ -5,7 +5,7 @@ aliases: [1038-ship-status-archived-review]
 objective: ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -96,3 +96,9 @@ ship-status reports an archived change's review as done by finalize and classifi
   - holds: accept
   - drives: review
   - by: claude-code (hc t38p)
+- 2026-11-19T05:16:07Z · back · accept → build · Review findings on PR #1093 (Codex P2 twice, corvid-agent changes requested): the archive-only tip class must match CI's classifier, and a workflow-v1 archive must not read done by finalize ^t-7e4077
+  - native_change: ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only
+  - gate: native:verifying
+  - revision: 8313f3ff7f17d50fbd13e1c9296a6e144a6ba572
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 6 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)

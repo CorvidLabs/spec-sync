@@ -22,6 +22,7 @@ observations:
   - 2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-an
   - 2026-11-19-refreshed-onto-main-3bebe8b0-with-965-both-red-tests-pass-at
   - 2026-11-19-after-the-tester-s-block-on-f740d0a2-945-s-real-reopen-flow
+  - 2026-11-19-supersedes-the-945-entry-recorded-at-0e9977c2-for-where-the
 bugs: []
 blockers: []
 waiting_on_human:
@@ -55,6 +56,7 @@ The upstream archive lookup reads tree entries as bytes and knows an archive HEA
 - [Red-first control for the refresh onto main 3bebe8b0: an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup (#961) and an_upstream_rename_of_an_archive_head_already_contains_is_not_reported (#945) both fail, the defects the issues report.](evidence/2026-11-19-red-first-control-for-the-refresh-onto-main-3bebe8b0-an.md)
 - [Refreshed onto main 3bebe8b0 with #965; both red tests pass at the tip. fledge lanes run verify at e816e662 with GIT_CONFIG_GLOBAL=/dev/null (#1092): 10 of 10 steps in 10m29s, 3079 unit and 627 integration tests passed, strict specs 62/62, file and LOC coverage 100%; change audit --strict and pre-push passed.](evidence/2026-11-19-refreshed-onto-main-3bebe8b0-with-965-both-red-tests-pass-at.md)
 - [After the tester's BLOCK on f740d0a2 (#945's real reopen flow still refused after an upstream rename): containment of an upstream archive is now decided by HEAD's history (log -1 --find-object=<state.json blob> HEAD -- :(top,literal)<archive root>, no renames; a Git failure is cannot-tell), not HEAD's tree. archived_upstream::a_reopened_change_reviews_after_the_remote_default_renames_its_archive runs the real flow (finalize, reopen, check --commit, upstream rename, review) with a bare origin plus a no-rename control; it fails on f740d0a2 with 'already archived on origin/main' at the rename commit and passes now. fledge lanes run verify at 0e9977c2 with GIT_CONFIG_GLOBAL=/dev/null: 10/10 steps, 3079 unit and 628 integration tests, strict specs 62/62, 100% file and LOC coverage; change audit --strict and pre-push passed.](evidence/2026-11-19-after-the-tester-s-block-on-f740d0a2-945-s-real-reopen-flow.md)
+- [Supersedes the #945 entry recorded at 0e9977c2 for where the real-flow test lives. change audit --strict refused tests/integration/archived_upstream.rs (not among #945's declared paths), so the pushed 77723e4f fails the strict audit. The same real flow (finalize and archive on main, branch, stale the evidence, reopen_change, check, upstream rename, record_scoped_review) now runs as change::tests::a_reopened_change_reviews_after_the_remote_default_renames_its_archive in src/change_tests/upstream_archive.rs with a bare origin and the no-rename control. It fails on f740d0a2's lookup (Archived at the rename commit) and passes now. The integration file is back to main's bytes. fledge lanes run verify at a783d291 with GIT_CONFIG_GLOBAL=/dev/null: 10/10 steps, 3080 unit and 627 integration tests, strict specs 62/62, 100% file and LOC coverage.](evidence/2026-11-19-supersedes-the-945-entry-recorded-at-0e9977c2-for-where-the.md)
 
 ## Open threads
 

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "change-ship-status-exits-1-when-it-reports-a-blocker",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "762adcaf141279f9c483ae018634dbb4a2fead1d",
+      "contract_digest": "68eb69de01e412d0854ffdc10dadfef76892a788d2f7aa8551dcbe2542209186",
+      "execution_digest": "2174767589b9202a225c01de64fac5ef45f13a11c1c8acddf1b185363369c940",
+      "workspace_digest": "e7a4d1487056258f524f4ddecbaab1ed3618df1ebc2fff61cae5dcc4df76eb07",
+      "timestamp": 1795098878,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "all as recommended, builder runs the send-back",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ]
+}

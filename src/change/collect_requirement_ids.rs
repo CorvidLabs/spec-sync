@@ -1956,14 +1956,16 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
         // A requirement main has edited past its base and the check did not rebase is stale too,
         // even when the working tree carries this change's own body: keeping that body would drop
         // main's edit (REQ-change-161; the tester's and ss-lead's reviews of #1089).
-        let main_moved = || {
-            canonical_module_paths(root, &specs_dir, module).is_ok_and(|(_, requirements_path)| {
-                main_moved_past_base(root, record, &requirements_path, module, item, base)
-            })
-        };
-        if stale || main_moved() {
+        let main_refusal = canonical_module_paths(root, &specs_dir, module)
+            .ok()
+            .and_then(|(_, requirements_path)| {
+                main_edit_refusal(root, record, &requirements_path, module, item, base)
+            });
+        if stale || main_refusal.is_some() {
             let target = match item.target {
-                DeltaTarget::Requirement => item.key.clone(),
+                DeltaTarget::Requirement => {
+                    format!("{}{}", item.key, main_refusal.unwrap_or_default())
+                }
                 DeltaTarget::SpecSection => format!("section `{}`", item.key),
             };
             moved.entry(module.to_string()).or_default().push(target);

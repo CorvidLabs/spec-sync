@@ -609,7 +609,15 @@ fn an_unreadable_default_branch_text_refuses_the_rebase() {
 
     let error = materialize_change_deltas(root, &record.id).unwrap_err();
 
-    assert!(error.contains("has changed since"), "{error}");
+    // The refusal names its cause and the way on, never "rewrite and re-approve" (the tester's run
+    // at 0d6ca1cd).
+    assert!(
+        error.contains("REQ-auth-001")
+            && error.contains("cannot be read from Git")
+            && error.contains("git fetch")
+            && !error.contains("re-run `specsync change approve"),
+        "{error}"
+    );
     assert_eq!(fs::read_to_string(delta_path(root, &record, "auth")).unwrap(), delta);
     assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
 }
@@ -638,7 +646,14 @@ fn a_rebase_past_the_size_or_count_bound_keeps_the_refusal() {
     );
     let record = rebase_repository(root, &big, "after one day.", "after twelve hours.");
     let error = materialize_change_deltas(root, &record.id).unwrap_err();
-    assert!(error.contains("has changed since"), "{error}");
+    // The refusal names its cause and the way on (the tester's run at 0d6ca1cd).
+    assert!(
+        error.contains("REQ-auth-001")
+            && error.contains("over 256 KiB")
+            && error.contains("rewrite")
+            && error.contains(&format!("specsync change approve {}", record.id)),
+        "{error}"
+    );
     assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
 
     // A change that already holds the most records (here under another approval, so they are not
@@ -666,7 +681,12 @@ fn a_rebase_past_the_size_or_count_bound_keeps_the_refusal() {
     ledger.delta_rebases = vec![filler; MAX_DELTA_REBASES];
     write_json(&ledger_path, &ledger).unwrap();
     let error = materialize_change_deltas(root, &record.id).unwrap_err();
-    assert!(error.contains("has changed since"), "{error}");
+    assert!(
+        error.contains("REQ-auth-001")
+            && error.contains("64 rebase records")
+            && error.contains(&format!("specsync change approve {}", record.id)),
+        "{error}"
+    );
     assert_eq!(load_approvals(root, &record).unwrap().delta_rebases.len(), MAX_DELTA_REBASES);
 }
 
@@ -894,3 +914,80 @@ fn a_rebase_record_naming_the_wrong_main_commit_is_refused_and_named() {
     }
 }
 
+
+/// Codex's third review of #1089 (P1 at merge_words): both sides moving one word to different
+/// places once gave `b a c b d`. Both remove it from where it stood and each adds it elsewhere, so
+/// the move rule refuses. A move only one side makes merges with the other side's edit elsewhere.
+#[test]
+fn a_word_both_sides_move_refuses_and_a_one_sided_move_merges() {
+    assert_eq!(merge_words("a b c d", "b a c d", "a c b d"), None);
+    assert_eq!(
+        merge_words("a b c d e", "a b c d E", "a c b d e").as_deref(),
+        Some("a c b d E")
+    );
+    assert_eq!(
+        merge_words("a b c d e", "a c b d e", "a b c d E").as_deref(),
+        Some("a c b d E")
+    );
+}
+
+/// R2 (ss-lead's review of #1089, measured by the tester): a word one side deleted that the other
+/// side's new text also uses elsewhere is no move, so the rebase merges. Only a word both sides
+/// removed from one stretch the same way and one side alone adds elsewhere refuses.
+#[test]
+fn a_word_one_side_deleted_that_the_other_uses_elsewhere_still_merges() {
+    assert_eq!(
+        merge_words(
+            "The system SHALL end the session after one day of no use.",
+            "The system SHALL end the session after one day of no use. It SHALL tell the user why.",
+            "The system SHALL end each session after one day of no use.",
+        )
+        .as_deref(),
+        Some("The system SHALL end each session after one day of no use. It SHALL tell the user why.")
+    );
+    assert_eq!(
+        merge_words(
+            "Run the delta check now.",
+            "Run the delta check now. Each delta is named.",
+            "Run the delta, check now.",
+        )
+        .as_deref(),
+        Some("Run the delta, check now. Each delta is named.")
+    );
+    // A word both deleted at one place and one side adds at another is still a move.
+    assert_eq!(merge_words("a b c", "a c", "b a c"), None);
+    assert_eq!(merge_words("a w b c", "a b c", "a b w c"), None);
+}
+
+/// Codex's third review of #1089 (P1 at main_side's caller), as ss-lead narrowed it: with a default
+/// branch, an applied item whose main text Git cannot read is refused, never read as "main did
+/// not edit it". Without a default branch an applied item materializes as before.
+#[test]
+fn an_applied_item_whose_main_text_git_cannot_read_is_refused_only_with_a_default_branch() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_repository_with_origin(root, REBASE_DELTA);
+    let git = git_in(root);
+    git(&["checkout", "-q", "-b", "change"]);
+    materialize_change_deltas(root, &record.id).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "materialize"]);
+    let blob = rev(root, "origin/main:specs/auth/requirements.md");
+    fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(error.contains("REQ-auth-001") && error.contains("cannot be read from Git"), "{error}");
+
+    // No default branch: the applied item is not main's edit to merge, exactly as before.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_repository_with_origin(root, REBASE_DELTA);
+    let git = git_in(root);
+    git(&["remote", "remove", "origin"]);
+    materialize_change_deltas(root, &record.id).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "materialize"]);
+    materialize_change_deltas(root, &record.id).unwrap();
+    assert!(load_approvals(root, &record).unwrap().delta_rebases.is_empty());
+}

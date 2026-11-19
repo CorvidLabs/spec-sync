@@ -5,7 +5,7 @@ aliases: [1085-rebase-stale-delta]
 objective: When a MODIFIED delta is stale only because main edited the same requirement, change check merges base, main and the delta word by word; non-overlapping edits rebase the delta automatically, keep the approval and record the rebase; overlapping edits are refused as today (#1085, Leif's approval on the issue, relayed by hc t4c)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: plan
 stage_status: active
 iteration: 1
 callers: []
@@ -23,13 +23,9 @@ observations:
   - 2026-11-19-correction-to-the-round-3-entry-recorded-at-985de940-it-says
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of #1085 (PR #1089)"
-    holds: accept
-    drives: review
-    opened: 2026-11-19T05:56:28Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: "Gate \"Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, round 4)\" closed (approved); run `chough stage advance` to move on."
 ---
 # When a MODIFIED delta is stale only because main edited the same requirement, change check merges base, main and the delta word by word; non-overlapping edits rebase the delta automatically, keep the approval and record the rebase; overlapping edits are refused as today (#1085, Leif's approval on the issue, relayed by hc t4c)
 
@@ -50,6 +46,7 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
 - 0xLeif decided "Scope approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval": "Leif's decision (2026-11-18): approved." (Written on spec-sync issue #1085 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval as 0xLeif
 - 0xLeif decided "Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, REQ-cmd-change-038 wording)": "Approve" (Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-161 and REQ-cmd-change-038 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval as 0xLeif
 - 0xLeif decided "Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161 and REQ-cmd-change-038, round 3)": "Approve" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval as 0xLeif
+- 0xLeif decided "Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, round 4)": "Approve" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:08Z, on ss-lead's frozen gates/1089-wording-round4.md; relayed through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval as 0xLeif
 
 ## What was verified
 
@@ -214,4 +211,30 @@ When a MODIFIED delta is stale only because main edited the same requirement, ch
   - revision: 985de94004f440d5bbfe5d40f3d24e8d3c2b5abe
   - holds: accept
   - drives: review
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:09:46Z · gate-closed · accept → accept · Leif's review of #1085 (PR #1089) ^t-38b113
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: 0d6ca1cd6ae3fff1e556db217e80bc2a42428314
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:09:49Z · back · accept → plan · REQ-change-161's refusal passage, overlap criterion and two added criteria changed for Codex's third #1089 review, ss-lead's move rule (R2; R1 measured and dropped on #360) and the read-failure narrowing; Leif approved the round-4 wording ^t-cf0f2d
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: 0d6ca1cd6ae3fff1e556db217e80bc2a42428314
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`, native: the definition is verifying; changing intent, contract, acceptance criteria or scope needs native reapproval. Follow `specsync change status rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval`; Chough does not change native state.
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:09:49Z · gate-opened · plan → plan · Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, round 4) ^t-c1ec2c
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: 0d6ca1cd6ae3fff1e556db217e80bc2a42428314
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t4t)
+- 2026-11-19T14:09:49Z · gate-closed · plan → plan · Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, round 4) ^t-ac9f2f
+  - native_change: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+  - revision: 0d6ca1cd6ae3fff1e556db217e80bc2a42428314
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve
+    - where: Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:08Z, on ss-lead's frozen gates/1089-wording-round4.md; relayed through ss-lead t58
+    - recorded_by: claude-code-t4t
+    - native: specsync change approve rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
+    - actor: 0xLeif
   - by: claude-code (hc t4t)

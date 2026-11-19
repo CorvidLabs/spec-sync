@@ -21,6 +21,8 @@ observations:
   - 2026-11-13-at-f52c39ff3-verify-step-4-spec-check-strict-failed-archived
   - 2026-11-13-at-e1919d06f-after-the-public-api-row-spec-check-strict-62
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-tests-an
+  - 2026-11-19-1038-red-control-on-main-3bebe8b0
+  - 2026-11-19-1038-verify-lane-at-4d439b39
 bugs: []
 blockers: []
 waiting_on_human:
@@ -29,7 +31,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T20:07:47Z
 run_consents: []
-next: Read scoped intent and native status, then choose the next action within the authorized scope.
+next: Wait for Leif's review of the batch PR, relayed by hc t4c through ss-lead; then chough change ship with his words. Record no review before that.
 ---
 # ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only (#1038)
 
@@ -40,11 +42,14 @@ ship-status reports an archived change's review as done by finalize and classifi
 ## Where it stands
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
+- Refreshed onto main 3bebe8b0 on branch fix/ship-status-654-1038-937 with #654 and #937: merged the 11-13 branch with no conflict and re-ran change check; no delta, so no history fragment; red control on main and the verify lane recorded
 
 ## Decisions and why
 
 - decided: authorization is Leif's own decision ('Bug fix (Recommended)', option text 'For an archived change, report the review as done by finalize and suggest nothing.', coordinator chat 2026-11-13T04:39Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: no new lesson, because the change is narrow and an existing lesson covers it
+- decided: the approved definition is unchanged and the 11-13 approval stands because Leif said 'Yes, they stand' (relayed by his planning session hc t4c through ss-lead hc t58, 2026-11-18)
+- decided: one review answer from Leif on the batch PR counts as the scoped review of each change in it because he said 'Yes, one answer per batch' (relayed by hc t4c through ss-lead hc t58, 2026-11-18); nothing is recorded until it comes
 
 ## What was verified
 
@@ -52,6 +57,8 @@ ship-status reports an archived change's review as done by finalize and classifi
 - [At f52c39ff3, verify step 4 spec-check --strict failed: archived_review_is_settled_by_finalize, the crate-visible helper this change adds, had no Public API row in specs/change/change.spec.md. Fixed in e1919d06f in this session by adding the row; found and fixed before review, so no bug record.](evidence/2026-11-13-at-f52c39ff3-verify-step-4-spec-check-strict-failed-archived.md)
 - [At e1919d06f, after the Public API row: spec-check --strict (62 specs, 100% file and LOC coverage), release-candidate-test, ci-gate-test, linux-baseline-test, ci-trigger-paths-test, ci-attest-and-summary-test and clippy-all-targets-test passed. Rust sources are unchanged since steps 1 to 3.](evidence/2026-11-13-at-e1919d06f-after-the-public-api-row-spec-check-strict-62.md)
 - [Red-first control: on main 18385ef5e with only the new tests, an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review and an_archive_tip_that_removes_its_own_package_files_is_archive_only fail. These are the defects #1038 reports, fixed by this change; not new bugs.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-tests-an.md)
+- [Red-first control: on main 3bebe8b0 with only the new tests, an_archive_tip_that_removes_its_own_package_files_is_archive_only fails (tip class product, not archive_only) and an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review fails (review_currency stale, and the stage says to re-record the review). These are the defects #1038 reports, fixed by this change; not new bugs.](evidence/2026-11-19-1038-red-control-on-main-3bebe8b0.md)
+- [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including commands::change::tests::an_archived_changes_review_stage_is_done_by_finalize_and_suggests_no_review and an_archive_tip_that_removes_its_own_package_files_is_archive_only. The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-1038-verify-lane-at-4d439b39.md)
 
 ## Open threads
 

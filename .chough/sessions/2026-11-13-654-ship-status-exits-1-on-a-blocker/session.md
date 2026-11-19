@@ -20,9 +20,12 @@ files:
   - tests/integration/change.rs
   - site/src/content/docs/cli.md
   - docs/ADOPTING.md
+  - CHANGELOG.md
 observations:
   - 2026-11-13-at-81877688e-654-with-origin-main-bb7682a78-merged-in-fledge
   - 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+  - 2026-11-19-red-first-control-on-main-3bebe8b0-with-only-the-new-tests
+  - 2026-11-19-654-verify-lane-at-4d439b39
 bugs: []
 blockers: []
 waiting_on_human:
@@ -31,7 +34,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-13T22:39:05Z
 run_consents: []
-next: Read scoped intent and native status, then choose the next action within the authorized scope.
+next: Wait for Leif's review of the batch PR, relayed by hc t4c through ss-lead; then chough change ship with his words. Record no review before that.
 ---
 # change ship-status exits 1 when it reports a blocker, so scripts and CI can act on it (#654)
 
@@ -42,16 +45,22 @@ change ship-status exits 1 when it reports a blocker, so scripts and CI can act 
 ## Where it stands
 
 - Merged main, ran the full verify lane on the merged tree, recorded the red control
+- Refreshed onto main 3bebe8b0 on branch fix/ship-status-654-1038-937 with #1038 and #937: merged the 11-13 branch, kept main's cmd_change spec files, and let change check apply REQ-cmd-change-039 and write specs/cmd_change/history/change-ship-status-exits-1-when-it-reports-a-blocker.md instead of the old version bump and Change Log row; added the CHANGELOG line; red control on main and the verify lane recorded
 
 ## Decisions and why
 
 - decided: authorization is Leif's own decision ('Exit 1 on a blocker (Recommended)', option text 'So scripts and CI can act on it.', coordinator chat 2026-11-13T14:12Z, relayed by claude-code-t370 and passed on by claude-code-t38c); REQ-cmd-change-039 wording aligned by claude-code-t370; recorded natively as 0xLeif in relay form
 - decided: no new lesson, because the change is narrow and an existing lesson covers it
+- decided: the approved REQ-cmd-change-039 text is unchanged and the 11-13 approval stands because Leif said 'Yes, they stand' (relayed by his planning session hc t4c through ss-lead hc t58, 2026-11-18)
+- decided: one review answer from Leif on the batch PR counts as the scoped review of each change in it because he said 'Yes, one answer per batch' (relayed by hc t4c through ss-lead hc t58, 2026-11-18); nothing is recorded until it comes
 
 ## What was verified
 
 - [At 81877688e (#654 with origin/main bb7682a78 merged in), fledge lanes run verify passed 10/10 steps: fmt, lint and check-types, cargo test (unit 3070 passed, 2 ignored; integration 620 passed), release build, strict spec check, and the CI script tests, including change::ship_status_exits_one_when_it_reports_a_blocker (REQ-cmd-change-039; chough cannot resolve cmd_change requirement ids, so the id is named here).](evidence/2026-11-13-at-81877688e-654-with-origin-main-bb7682a78-merged-in-fledge.md)
 - [Red-first control: on main 18385ef5e with only the new test, change::ship_status_exits_one_when_it_reports_a_blocker fails: ship-status printed its Blocker line and exited 0. The failure is the defect #654 reports, fixed by this change; not a new bug.](evidence/2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test.md)
+- 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+- [Red-first control: on main 3bebe8b0 with only the new tests, change::ship_status_exits_one_when_it_reports_a_blocker fails (ship-status printed its Blocker line and exited 0), and the three existing tests that now expect exit 1 from a blocked ship-status fail the same way. The failure is the defect #654 reports, fixed by this change; not a new bug.](evidence/2026-11-19-red-first-control-on-main-3bebe8b0-with-only-the-new-tests.md)
+- [At 4d439b39 (#654, #1038 and #937 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m07s: fmt, lint and check-types, cargo test (unit 3079 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests, including change::ship_status_exits_one_when_it_reports_a_blocker and the three tests that now expect exit 1 from a blocked ship-status (REQ-cmd-change-039). The lane's processes ran with a neutral global git config: with the machine's own config, which signs tags, four changelog unit tests wait on an editor for a tag message.](evidence/2026-11-19-654-verify-lane-at-4d439b39.md)
 
 ## Open threads
 

@@ -1,0 +1,64 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795098565,
+      "digest": "ead79c0a688ee2c09265f348f49e11259ada01176f720205828b5f2d6c43b072",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold\": \"Approve as written\" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:17Z, on the frozen ss-lead/gates/428-definition.md (the requirements REQ-change-166 and REQ-cmd-change-041, the six change criteria and the choices in its section 6), its intent sentences shown to him as the builder's draft; relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T14:29:23Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+        "title": "Finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "description": "finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests.rs",
+          "src/change_tests/committed_approvals.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change archives with the closing records its accepting step wrote and has not committed, and no other uncommitted approval.",
+          "Every rewrite the tool itself makes still finalizes: a reopen, a send-back and fresh approval, a relay restored or removed by `change repair-relays` in an approval or in the approval a reopening embeds, the reopening members `specsync migrate 5.0` backfills, and a ledger member this version does not know.",
+          "The usual flow, approve, `check --commit`, review and finalize, archives as before.",
+          "They refuse when a committed version of the ledger rewrites or drops an earlier approval, reopening or send-back, naming the commit that did it, the commit before it and the record; that covers a change deleted and created again under the same id, and a record an older SpecSync rewrote without a member it did not know.",
+          "`change finalize`, `change ship` and `change archive` refuse, writing nothing, a change whose `approvals.json` is not committed at `HEAD` or differs from the committed version, naming the file and the way out: the commit when the working copy only adds records, the restore when it changes a committed one.",
+          "`change ship-status` lists the refusal as a blocker and does not report the change ready, and `change ship --dry-run` refuses with it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-16 to CHANGE-16.c and Leif's choice 'Every committed version' (2026-11-13); REQ-change-relay-repair-001: repair-relays restores or removes relays, so relayed_by is not compared, in an approval and in a reopening's embedded approval; the change lesson that one rule kept in two places drifts, so the comparison reuses the #660 relay-blind projection; the change lesson that a printed recovery command must run as printed, so each way out is a command that does what the refusal says; #1044: lifecycle rewrites keep members they do not know, so a newer top-level member is not a rewrite",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "4b621b11a61b7ad61680efb66f9690fb6c49b259f6e090818694eb63a8b0e7d8",
+        "cmd_change": "547111737f05c3ec168a821b6ec6481b3d6fea5fe26d9751da07545ff455096b"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve as written",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:17Z, on the frozen ss-lead/gates/428-definition.md (the requirements REQ-change-166 and REQ-cmd-change-041, the six change criteria and the choices in its section 6), its intent sentences shown to him as the builder's draft; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ],
+  "reopenings": []
+}

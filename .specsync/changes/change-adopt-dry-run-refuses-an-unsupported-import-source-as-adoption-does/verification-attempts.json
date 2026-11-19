@@ -80,6 +80,22 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795077996,
+      "commit": "3780ccaa310665dc46df925b84b79049ef263498",
+      "contract_digest": "333bb12c6580f102ff99c82b9bba93e21ec5c1c3156b9704fb29779121965da6",
+      "execution_digest": "ee8c56a3057d6172c3e6108cbc5206a8ca37f92141b88aac874efc618c6af6d5",
+      "workspace_digest": "6505915edc5467873f1c9c200d697b8282852c86d5c4bf55d36f8bbc26971a30",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

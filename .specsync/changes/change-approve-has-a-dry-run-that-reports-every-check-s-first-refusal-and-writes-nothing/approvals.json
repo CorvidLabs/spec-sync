@@ -1,0 +1,70 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795066031,
+      "digest": "9847d9e8014b00aae9ab09e9a702bbfa9f48a80cd091a90fdc358eef6bae916d",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing\": \"Approve\" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T05:26:59Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+        "title": "Change approve has a dry run that reports every check's first refusal and writes nothing",
+        "description": "change approve has a dry run that reports every check's first refusal and writes nothing",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cli_args/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Each refusal is its own JSON entry carrying the check's name and the message `change approve` prints.",
+          "It runs `change approve`'s own checks in the same order through the same functions: for each of the 25 refused drafts on the Chough tester's list the dry run reports the message the real approve gives, and the real approve afterwards still refuses with it; a clean draft reports nothing and exits 0, and the real approve then succeeds.",
+          "It runs every check that can run on its own, reports the first problem from each, and names each check it skipped with the refused check it waits on.",
+          "It works on a draft and on a change that was sent back.",
+          "It writes nothing: every file in the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte unchanged after it, for a refused draft and for a clean one.",
+          "`change approve` without `--dry-run` refuses exactly what it refused before, with the same messages, and approves what it approved before.",
+          "`specsync change approve <id> --dry-run` says whether the approval would be accepted, in text and with `--json`, and exits 0 when it would and 1 when it would not."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6 and CHANGE-6.a (one approval, bound to its content): the dry run records nothing and is never an approval; REQ-change-133's refusal texts stay as they are, because the dry run reports the messages change approve gives; Leif's depth choice on #1091, 'First problem from each check'; the change lesson that one rule kept in two places drifts, so approve and its dry run walk one list of checks; the change lesson that a printed recovery command runs as printed; the doctor lesson that a dry run reuses the lifecycle lock's no-symlink walk to predict that refusal",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7771fae3f0edc783439734e2d7f569d68189a3fd0db75f5930c3e7764b079a26",
+        "cli_args": "8087eb3b968b4c897d1276da45e0b6eec803c3f2aa716a75c217a7574bf92ccd",
+        "cmd_change": "eafa046084eec04d1b868ceee1e24e333bc35f57d2ebef237d29719b49247d49"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ],
+  "reopenings": []
+}

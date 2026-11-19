@@ -1,6 +1,6 @@
 ---
 id: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 1b3974e9a025f37ce712d4ad627e99f780d6f207
 ---

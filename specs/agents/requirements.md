@@ -180,3 +180,10 @@ Acceptance Criteria
 - With `.specsync/agent-artifacts.json` a FIFO, `agents install --claude` finishes without waiting on it and fails naming the path.
 - `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
 
+### REQ-agents-013
+
+After removing a generated artifact, `agents uninstall` SHALL remove an emptied `specsync` command or `spec-sync` skill directory only through the confined removal of `util` (REQ-util-004), never one reached through a link that leaves the project.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+

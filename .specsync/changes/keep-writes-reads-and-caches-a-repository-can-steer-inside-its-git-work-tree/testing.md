@@ -23,7 +23,23 @@ Fixtures are temporary directories, most with their own `git init`. Every link p
 | REQ-changelog-002, REQ-git-utils-012, REQ-git-utils-013 | `tests/integration/repository_inputs.rs`: `changelog_skips_a_spec_blob_over_the_bound`; `src/git_utils.rs`: `capped_output_keeps_the_cap_and_reports_more` |
 | REQ-cmd-import-004 | `tests/integration/repository_inputs.rs`: `import_from_dir_never_imports_through_a_link_out`, `import_from_an_outside_dir_stays_inside_that_dir` |
 | REQ-cmd-init-registry-004 | `tests/integration/project_writes.rs`: `init_registry_creates_nothing_in_a_specsync_directory_linked_out` |
-| REQ-agents-013 and the write-scan requirements of `archive`, `compact`, `merge`, `cmd_merge`, `cmd_lifecycle`, `cmd_init`, `generator`, `cmd_generate`, `cmd_issues`, `hooks`, `mcp`, `commands`, `rehash`, `cmd_view`, `deps` and `cmd_migrate` | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers`; `src/util.rs`: `removing_an_empty_directory_never_follows_a_link_out` |
+| REQ-agents-013 | `src/util.rs`: `removing_an_empty_directory_never_follows_a_link_out`; `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-archive-003 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-compact-003 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-merge-008 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-merge-006 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-lifecycle-006 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-init-010 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-generator-012 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-generate-005 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-issues-004 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-hooks-008 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers`; `hooks_install_never_writes_through_a_link_into_the_git_directory` |
+| REQ-mcp-013 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers`; `tests/integration/mcp.rs`: `mcp_rejects_configured_read_and_write_path_escapes` |
+| REQ-commands-015 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-rehash-002 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-view-003 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-deps-005 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+| REQ-cmd-migrate-007 | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
 
 Red first on `1b3974e9` with only the tests commit added (`dfdaf4f6` in the builder's clone, `fc40682d` here): 22 of the 24 new integration tests and both new `hash_cache` unit tests failed. The write scan found 117 direct writes and the read scan 27 direct reads outside the helpers. The two controls passed there, as they should: a subproject link that leaves the repository is still refused, and a backup with no link still works. The new `src/util.rs` unit tests call helpers this change adds, so they could not run on the base; the Git-directory and walk cases they cover are also driven through the CLI by `hooks_install_never_writes_through_a_link_into_the_git_directory`, `change_answer_never_writes_change_md_into_a_hook` and `a_specs_link_that_leaves_the_project_is_not_walked`.
 

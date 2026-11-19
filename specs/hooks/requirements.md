@@ -120,3 +120,10 @@ Acceptance Criteria
 - With `CLAUDE.md` a FIFO, `hooks status` finishes without waiting on it.
 - `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
 
+### REQ-hooks-008
+
+`hooks` SHALL write project files only through the confined project write functions of `util` (REQ-util-002), or through a write whose path was refused as a link just before; any other direct write SHALL say, on the write or the line above it in the same statement, why its path is not a project file (a temporary or Git directory, a test barrier, a file Git hands the command). Its pre-commit writes stay in the Git hooks directory `git rev-parse --git-path hooks` names.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+

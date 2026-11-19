@@ -140,3 +140,17 @@ A worker thread that only reads the repository on behalf of a command SHALL be a
 - With live reads or a discovery ceiling on the parent thread, no seed is produced.
 - `cold_archived_status_prefetch_workers_reuse_repository_facts`: four more archives add at most 150 Git processes to one cold archived status read (250 before seeding).
 
+### REQ-git-utils-012
+
+`tracked_by_git` SHALL say whether Git tracks a path in the index or in `HEAD`, and SHALL answer no outside a repository or when Git is not installed.
+
+Acceptance Criteria
+- The transaction journal and hash cache tests see a tracked file refused, in the index and only in `HEAD`.
+
+### REQ-git-utils-013
+
+`output_after_child_exits_capped` SHALL keep at most the given number of stdout bytes, say whether the child wrote more, and drain the rest so the child is never left blocked on a full pipe; `output_after_child_exits` SHALL be the same with no cap.
+
+Acceptance Criteria
+- A child that writes more than the cap returns the capped bytes with the overflow reported.
+

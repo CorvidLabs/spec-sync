@@ -107,3 +107,10 @@ Acceptance Criteria
 - With `.gitignore` a link to a file outside the project, `init` does not read or change that file.
 - `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
 
+### REQ-cmd-init-010
+
+`init` SHALL write project files only through the confined project write functions of `util` (REQ-util-002), or through a write whose path was refused as a link just before; any other direct write SHALL say, on the write or the line above it in the same statement, why its path is not a project file (a temporary or Git directory, a test barrier, a file Git hands the command). It SHALL create its directories and new files, and update `.gitignore` and `.gitattributes`, through the confined project write.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+

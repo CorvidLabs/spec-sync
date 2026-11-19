@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795119677,
+      "commit": "2615b2e5886b34cf2c4fe35b130fcb731c834d0f",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "verification cannot start: no requirement evidence for REQ-archive-003, REQ-cmd-generate-005, REQ-cmd-init-010, REQ-cmd-issues-004, REQ-cmd-lifecycle-006, REQ-cmd-merge-006, REQ-cmd-migrate-007, REQ-cmd-view-003, REQ-commands-015, REQ-compact-003, REQ-deps-005, REQ-generator-012, REQ-hooks-008, REQ-mcp-013, REQ-merge-008, REQ-rehash-002; add a row for each to the `## Requirement evidence` table in .specsync/changes/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree/testing.md"
+    },
+    {
+      "timestamp": 1795119754,
+      "commit": "2615b2e5886b34cf2c4fe35b130fcb731c834d0f",
+      "contract_digest": "74dc146734aa28cebefac9d2487f06dc904ef05798ffa0e39b02aa1374025cc5",
+      "execution_digest": "4024ea94ea31a67354544c8bb040e252f95989bc7e09eeb510b39dd4be58b206",
+      "workspace_digest": "e96482d33d41b397f0b16f244baf2d3aeef9b5f17621ca2178d356a738d5804a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec archive --spec change --spec changelog --spec cmd_check --spec cmd_generate --spec cmd_import --spec cmd_init --spec cmd_init_registry --spec cmd_issues --spec cmd_lifecycle --spec cmd_merge --spec cmd_migrate --spec cmd_view --spec commands --spec compact --spec config --spec deps --spec generator --spec git_utils --spec hash_cache --spec hooks --spec mcp --spec merge --spec rehash --spec util --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-013",
+        "REQ-archive-003",
+        "REQ-change-163",
+        "REQ-changelog-002",
+        "REQ-cmd-check-020",
+        "REQ-cmd-check-021",
+        "REQ-cmd-generate-005",
+        "REQ-cmd-import-004",
+        "REQ-cmd-init-010",
+        "REQ-cmd-init-registry-004",
+        "REQ-cmd-issues-004",
+        "REQ-cmd-lifecycle-006",
+        "REQ-cmd-merge-006",
+        "REQ-cmd-migrate-007",
+        "REQ-cmd-view-003",
+        "REQ-commands-015",
+        "REQ-compact-003",
+        "REQ-config-017",
+        "REQ-deps-005",
+        "REQ-generator-012",
+        "REQ-git-utils-012",
+        "REQ-git-utils-013",
+        "REQ-hash-cache-009",
+        "REQ-hash-cache-010",
+        "REQ-hooks-008",
+        "REQ-mcp-013",
+        "REQ-merge-008",
+        "REQ-rehash-002",
+        "REQ-util-004",
+        "REQ-util-005",
+        "REQ-validator-050",
+        "REQ-validator-051"
+      ]
+    }
+  ]
+}

@@ -16,7 +16,7 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-6-4-1-the-18-red-tests-w1-s1-s2-s3x2-s5-l2-x1x3-x2-h1-n2-c1-c5]
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -36,6 +36,8 @@ next: Continue build
 - 0xLeif decided "Scope approval of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first": "Approve (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 19:51Z, answering the 6.4.1 scope question (security/6.4.1-scope.md: 14 fixes, W1, S1, S2, S3, S5, L2, X1, X2, H1 and C1-C5; 5 keeps, S4, L1, L3, X3 and I1; the N2 nit and the 5 clause removals; choices (1) a journal without its project is never replayed and lifecycle commands stop with its path, (2) a typed path still follows links and only the FIFO wait and size bound are fixed, (3) the 64 MiB bound stays and an oversized cache is refused, (4) one change, one review, one re-check by sec-review2) with 'Approve (Recommended)'. The red tests were committed first (e334bd8a), each failing on 6.4.0. Relayed by t4c over hc to t5r; a relayed claim, not authenticated); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first as 0xLeif
 
 ## What was verified
+
+- [6.4.1: the 18 red tests (W1 S1 S2 S3x2 S5 L2 X1x3 X2 H1 N2 C1-C5) failed on 6.4.0 and pass; full suites green (Linux 3162 unit, 741 integration), clippy clean, check --strict 100%](evidence/2026-11-20-6-4-1-the-18-red-tests-w1-s1-s2-s3x2-s5-l2-x1x3-x2-h1-n2-c1-c5.md)
 
 ## Open threads
 

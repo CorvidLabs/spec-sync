@@ -23,6 +23,7 @@ observations:
   - 2026-11-19-428-verify-lane-at-cb0b4fc3
   - 2026-11-19-428-red-ways-out-at-4ebc7bea
   - 2026-11-19-428-verify-lane-at-e869bf11
+  - 2026-11-20-428-rework-lane-at-f444f569
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -54,6 +55,7 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
 - [At cb0b4fc3 (the Git-read refusals name the way out, red first in the commit before), fledge lanes run verify passed 10/10 steps in 12m18s, run alone. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-cb0b4fc3.md)
 - [Red first for tester2's interim findings at 999f55a3: at 4ebc7bea (the tests alone) three fail: an ignored ledger is told to run check --commit, which cannot commit it; a re-created ledger's way out names only the re-creation; a missing working ledger gives finalize a bare 'No such file or directory'. Fixed in 88cb2857.](evidence/2026-11-19-428-red-ways-out-at-4ebc7bea.md)
 - [At e869bf11 (the three ways out fixed, re-checked), fledge lanes run verify passed 10/10 steps in 8m18s through one-lane: unit 3113 passed (2 ignored), integration 630. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-e869bf11.md)
+- [#428's rework at f444f569 (main a28e3042 merged in, sent back, option 3, the two reworded sentences and the three declared tests approved on the relayed sources, checked and committed): red first at c97746ba (the whole-workspace refusal named no commit or way out); option 3 at 41494bcf; the finalize-level relay removed and restored in a reopening's superseded_approval passes. With this tree's release build first on PATH, fledge lanes run verify passed 10/10 in 9m07s through one-lane (unit 3120 passed, 2 ignored, committed_approvals 20 of 20; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix on the lane only (#1092); change audit --strict against origin/main a28e3042 passes.](evidence/2026-11-20-428-rework-lane-at-f444f569.md)
 
 ## Open threads
 

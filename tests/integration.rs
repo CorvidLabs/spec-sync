@@ -130,3 +130,6 @@ mod doctor;
 mod spec_history;
 #[path = "integration/vanished_requirements.rs"]
 mod vanished_requirements;
+
+#[path = "integration/approve_dry_run.rs"]
+mod approve_dry_run;

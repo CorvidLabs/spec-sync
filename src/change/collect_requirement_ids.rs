@@ -166,7 +166,36 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
     }
 }
 
+/// A refusal and, when its message names the one command that fixes it, that command as plain
+/// text. The command is built by the same code that writes it into the message, never read back
+/// out of the message (REQ-cmd-change-040's `fix`).
+struct RefusalWithFix {
+    message: String,
+    fix: Option<String>,
+}
+
+impl From<String> for RefusalWithFix {
+    fn from(message: String) -> Self {
+        Self { message, fix: None }
+    }
+}
+
+impl From<&str> for RefusalWithFix {
+    fn from(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+            fix: None,
+        }
+    }
+}
+
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    validate_definition_with_fix(root, record).map_err(|refusal| refusal.message)
+}
+
+/// `validate_definition`, with the `change answer` command a draft's refusal for an unanswered
+/// question names, for the approval dry run's `fix` (REQ-cmd-change-040).
+fn validate_definition_with_fix(root: &Path, record: &ChangeRecord) -> Result<(), RefusalWithFix> {
     let effective = effective_change_definition(root, record)?;
     historical_reconciliation_anchor(record)?;
     validate_acceptance_owner_correction_records(record)?;
@@ -248,10 +277,11 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
             return Err(format!(
                 "configured principles file is empty: {}",
                 path.display()
-            ));
+            )
+            .into());
         }
     }
-    validate_artifacts(root, record)
+    Ok(validate_artifacts(root, record)?)
 }
 
 const INTERVIEW_INCOMPLETE: &str = "the deterministic interview is incomplete";
@@ -263,20 +293,23 @@ fn unfinished_definition_refusal(
     record: &ChangeRecord,
     condition: &str,
     question: &str,
-) -> String {
+) -> RefusalWithFix {
     if record.state == ChangeState::Draft {
-        format!(
-            "{condition}; run {}",
-            answer_command_hint(&record.id, question, &[])
-        )
+        RefusalWithFix {
+            message: format!(
+                "{condition}; run {}",
+                answer_command_hint(&record.id, question, &[])
+            ),
+            fix: Some(answer_command(&record.id, question, &[])),
+        }
     } else {
-        condition.to_string()
+        condition.into()
     }
 }
 
 /// A draft's refusal for an unfinished interview: every question still open, and the
 /// `change answer` command for the first one (REQ-change-133).
-fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
+fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> RefusalWithFix {
     let open = remaining
         .iter()
         .map(|question| format!("`{}`", question.id))
@@ -285,10 +318,13 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
     let Some(first) = remaining.first() else {
         return INTERVIEW_INCOMPLETE.into();
     };
-    format!(
-        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
-        answer_command_hint(id, &first.id, &first.choices)
-    )
+    RefusalWithFix {
+        message: format!(
+            "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
+            answer_command_hint(id, &first.id, &first.choices)
+        ),
+        fix: Some(answer_command(id, &first.id, &first.choices)),
+    }
 }
 
 /// The `change answer` command for one open interview question, shared by approve's refusal
@@ -299,6 +335,18 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
 /// hint also says the lessons that apply can be named instead. No choice takes free text, with
 /// the scope questions keeping their established placeholders.
 pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String]) -> String {
+    let command = format!("`{}`", answer_command(id, question_id, choices));
+    if question_id == "constraints" && choices.len() == 1 {
+        format!("{command}, or name the lessons or principles that constrain it instead")
+    } else {
+        command
+    }
+}
+
+/// The bare `change answer` command `answer_command_hint` prints between backticks: the approval
+/// dry run's `fix` (REQ-cmd-change-040). With two or more choices, or for a free-text question,
+/// it holds a placeholder in angle brackets that the caller must fill in.
+fn answer_command(id: &str, question_id: &str, choices: &[String]) -> String {
     let answer = match choices {
         [] => match question_id {
             "acceptance_criteria" => "\"<observable outcome>\"",
@@ -310,12 +358,7 @@ pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String
         [only] => only.clone(),
         choices => format!("<{}>", choices.join("|")),
     };
-    let command = format!("`specsync change answer {id} {question_id} {answer}`");
-    if question_id == "constraints" && choices.len() == 1 {
-        format!("{command}, or name the lessons or principles that constrain it instead")
-    } else {
-        command
-    }
+    format!("specsync change answer {id} {question_id} {answer}")
 }
 
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {

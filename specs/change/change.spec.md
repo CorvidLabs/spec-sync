@@ -35,6 +35,7 @@ files:
   - src/change_tests/fast_finalize.rs
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests/open_task_gate.rs
+  - src/change_tests/provisional_coverage.rs
   - src/change_tests/recorded_review_recovery.rs
   - src/change_tests/recovery_retirement.rs
   - src/change_tests/relayed_decision.rs
@@ -171,14 +172,15 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `LessonBriefing` | One module context that already holds substantive lessons: path, line count, bounded excerpt, and whether the excerpt was cut |
 | `OpenChangeBriefing` | Lessons for the change's modules plus the configured principles file, computed when a change is opened and never stored on the record |
 | `PrinciplesBriefing` | The project's principles file: path, bounded excerpt, whether the excerpt was cut, and whether the file could not be read |
-| `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
+| `TerminalEvidenceValidity` | State-aware exact, successor-covered, provisionally-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
 | `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
+| `ProvisionalCoverageSummary` | One input an archive recorded as covered for now: its path, the covering change, that change's present state, and the warning once it is neither in flight, accepted nor archived (#657) |
 | `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
 | `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
 | `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, stale legacy terminal evidence, and a corrupt archive (`corrupt_archive`) |
 | `CorruptArchive` | Where an archived record whose terminal evidence is `corrupt-history` can be restored from: `DiffersFromHead` (the package differs from `HEAD`), `DamageCommitted` (it matches `HEAD` but not the commit that archived it), or `OutsidePackage` (it still matches that commit, or no package or repository can answer, so the failing evidence lies elsewhere); holds a project-relative path at most, never a digest (#880) |
-| `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, the validated `verification_ignored_paths` list (omitted when empty or invalid), exactly one next action, a handoff verdict, and optional terminal evidence |
+| `ChangeSummary` | Human/agent status projection with approval health (the approved scope and the semantic delta bodies the approval recorded)/current scope digest, plain-language material expansion, the modules whose approved delta body changed after approval, validator plan, scoped-review freshness, the validated `verification_ignored_paths` list (omitted when empty or invalid), exactly one next action, a handoff verdict, optional terminal evidence, and, for an archive covered for now, what its `coverage.json` recorded (omitted when empty) |
 | `ApprovedDeltaSummary` | One module's semantic delta as the current definition approval covers it: module, a three-valued `delta_intact` (true, false, or null when no definition approval in the ledger recorded a delta binding), and, only when `delta_intact` is true, the declared requirement IDs, declared spec sections and whether the canonical spec already carries that body, or a `declarations_error` when the body is intact but the current delta grammar refuses it |
 | `DeltaDeclarations` | Sorted `added`, `modified` and `removed` keys parsed from `### REQUIREMENT` or `### SPEC SECTION` delta item headings, never from prose |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
@@ -305,6 +307,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
 | `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus the exact scoped command the next pass records as evidence; `--strict` only when requested |
+| `archived_provisional_coverage` | `root, record` | `Vec<ProvisionalCoverageSummary>` | What an archived change's `coverage.json` recorded, with each covering change's present state and, once that change is sent back or closed, the warning naming `change reopen`; empty for any other change (#657) |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Compare this change's specs to code in-process and record commit/contract evidence |
 | `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
 | `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |

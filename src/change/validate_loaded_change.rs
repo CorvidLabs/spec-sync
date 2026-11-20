@@ -129,6 +129,11 @@ fn successor_covers_input(
         }
         match validate_accepted_inputs_recursive(root, candidate, records, visiting, memo, pending)
         {
+            // Its own currency is only deferred to an in-flight change, so it covers nothing yet
+            // (#657); the in-flight change itself may cover this input for now.
+            Ok(AcceptedInputValidity::ProvisionallyCovered) => reject(
+                "its own delivery inputs are covered only for now, by in-flight changes".into(),
+            ),
             Ok(validity) => {
                 if validity == AcceptedInputValidity::HistoricallyReconciled
                     || candidate.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {

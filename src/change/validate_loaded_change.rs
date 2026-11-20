@@ -3711,7 +3711,14 @@ fn validate_workflow_version_history_uncached(
         }
         for parent in &fields[1..] {
             let previous = workflow_version_at_commit(root, parent, &state_paths)?;
-            validate_workflow_version_transition(previous.as_ref(), current.as_ref())?;
+            validate_workflow_version_transition(previous.as_ref(), current.as_ref()).map_err(
+                |error| match (&previous, &current) {
+                    // A commit with no state where its parent had one deleted the creation
+                    // anchor. Name it, and the two ways out, keeping the sentence as the start.
+                    (Some((path, _, _)), None) => deleted_creation_anchor_refusal(&error, commit, path),
+                    _ => error,
+                },
+            )?;
         }
     }
 
@@ -3916,6 +3923,18 @@ fn workflow_version_at_commit(
         ));
     }
     Ok(found)
+}
+
+/// The refusal for a commit that deleted the change's `state.json`, its immutable creation anchor,
+/// while a later commit holds the change again under the same id: the guard's own sentence, then
+/// the commit and the two ways out, because a commit already in history cannot be undone in place.
+fn deleted_creation_anchor_refusal(sentence: &str, commit: &str, path: &str) -> String {
+    let short = &commit[..12.min(commit.len())];
+    format!(
+        "{sentence}: commit {short} removed `{path}`, and a later commit holds the change again \
+         under the same id. A commit already in history cannot be undone in place, so take {short} \
+         out of this branch's history, or make the change again under a new id"
+    )
 }
 
 fn validate_workflow_version_transition(

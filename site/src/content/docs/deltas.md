@@ -142,8 +142,9 @@ prints it as the merge-base held it; to remove it on purpose, name it in a `## R
 approve the change again. When the default branch has removed it too, because the branch took that
 removal by a cherry-pick or by hand instead of a merge, the refusal says so and names the way out:
 merge the default branch into this one (`git merge origin/main`). `change audit` reports the same
-refusal for every active change, a draft included, and `change ship-status` lists it as a blocker and
-exits 1 (REQ-change-169, #1081). A finalization that stopped after acceptance asks again when it is
+refusal for every active change, a draft included, whatever that change's own errors (REQ-change-176),
+and `change ship-status` lists it as a blocker and exits 1 for a change that can still be checked or
+shipped, not for an archived or retired one (REQ-change-169, REQ-cmd-change-045, #1081). A finalization that stopped after acceptance asks again when it is
 retried.
 
 The requirements files are those under the specs directory, at any depth, and those beside every
@@ -153,10 +154,15 @@ tree, and a registry path that leaves the project adds nothing. A directory that
 project, or is itself a link, is not read, and a `specs_dir` outside the project is refused in the
 words `specsync check` uses, naming the setting to fix. A requirement kept only in a file Git does
 not track counts for nothing, since `change check --commit` would not commit that file; the
-refusal names the `git add` that keeps it. The check takes them from the
+refusal names the `git add` that keeps it. When a requirement would be reported lost and a
+requirements directory or file in the working tree cannot be read, for example for lack of
+permission, the check says it cannot tell instead, naming each path and the error: make it readable
+and run `change check` again (REQ-change-177). The check takes them from the
 configuration and registry in the working tree and from those at the commit it compares with, so a
 branch that drops a registry mapping or moves `specs_dir` is still compared with the files that
-were canonical there. Only an active change past its draft, or a change the branch archived (read from its archived
+were canonical there. Only those are read at that commit: a file the branch newly makes canonical,
+by moving `specs_dir` or registering a spec, is looked in for an id now, but what it held before is
+not a canonical requirement (REQ-change-175). Only an active change past its draft, or a change the branch archived (read from its archived
 record, with a valid approval, archived after the commit it compares with), accounts for a
 removal. A retired change does not. The approval
 must bind the delta's wording: one that records no delta digests, as an approval made before they

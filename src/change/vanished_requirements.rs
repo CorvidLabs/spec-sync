@@ -118,6 +118,18 @@ impl RequirementScope {
         }
     }
 
+    /// Adds every directory and companion directory of `other`.
+    fn extend(&mut self, other: &RequirementScope) {
+        for directory in &other.directories {
+            self.add_directory(directory);
+        }
+        for companion in &other.companions {
+            if !self.companions.contains(companion) {
+                self.companions.push(companion.clone());
+            }
+        }
+    }
+
     /// The companion directories that no specs directory already covers.
     fn own_companions(&self) -> impl Iterator<Item = &str> {
         self.companions.iter().map(String::as_str).filter(|companion| {
@@ -360,14 +372,28 @@ fn readable_scope_directory(root: &Path, directory: &str) -> bool {
             .is_ok_and(|metadata| !metadata.file_type().is_symlink())
 }
 
+/// What the working-tree scan found: each requirements file with its blocks, and each directory
+/// or requirements file it could not read, with the error (REQ-change-177).
+struct WorkingRequirements {
+    files: Vec<(String, Vec<(String, String)>)>,
+    unreadable: Vec<String>,
+}
+
 /// Every requirements file on disk in `scope`, project-relative, with its blocks. Its directories
 /// are read to any depth, as Git lists them (Codex on #1108); symlinks are not followed, and no
-/// directory named in `excluded` is entered.
+/// directory named in `excluded` is entered. A directory or file that cannot be read for a reason
+/// other than not existing is named in `unreadable` (#1117).
 fn working_tree_requirement_blocks(
     root: &Path,
     scope: &RequirementScope,
     excluded: &BTreeSet<String>,
-) -> Vec<(String, Vec<(String, String)>)> {
+) -> WorkingRequirements {
+    let mut unreadable = Vec::new();
+    let mut note = |path: &Path, error: std::io::Error| {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            unreadable.push(format!("{}: {error}", portable_project_path(root, path)));
+        }
+    };
     let mut files = Vec::new();
     let mut pending: Vec<PathBuf> = scope
         .directories
@@ -376,8 +402,12 @@ fn working_tree_requirement_blocks(
         .map(|directory| root.join(directory))
         .collect();
     while let Some(directory) = pending.pop() {
-        let Ok(entries) = fs::read_dir(&directory) else {
-            continue;
+        let entries = match fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) => {
+                note(&directory, error);
+                continue;
+            }
         };
         for entry in entries.flatten() {
             let Ok(kind) = entry.file_type() else {
@@ -398,8 +428,12 @@ fn working_tree_requirement_blocks(
         .own_companions()
         .filter(|companion| readable_scope_directory(root, companion))
     {
-        let Ok(entries) = fs::read_dir(root.join(companion)) else {
-            continue;
+        let entries = match fs::read_dir(root.join(companion)) {
+            Ok(entries) => entries,
+            Err(error) => {
+                note(&root.join(companion), error);
+                continue;
+            }
         };
         for entry in entries.flatten() {
             if entry.file_type().is_ok_and(|kind| kind.is_file())
@@ -411,17 +445,23 @@ fn working_tree_requirement_blocks(
     }
     files.sort();
     files.dedup();
-    files
+    let files = files
         .into_iter()
         .filter_map(|path| {
             let relative = portable_project_path(root, &path);
             if !is_scanned_requirements_path(&relative, excluded) {
                 return None;
             }
-            let text = fs::read_to_string(&path).ok()?;
-            Some((relative, requirement_blocks(&text)))
+            match fs::read_to_string(&path) {
+                Ok(text) => Some((relative, requirement_blocks(&text))),
+                Err(error) => {
+                    note(&path, error);
+                    None
+                }
+            }
         })
-        .collect()
+        .collect();
+    WorkingRequirements { files, unreadable }
 }
 
 /// Adds to `removed` the requirement ids the approved `## REMOVED` items of `change` name: the
@@ -598,15 +638,25 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
             "cannot tell whether this branch lost canonical requirements: {what}; {}",
             lost_requirements_way_out(root, record)
         ),
+        // A path in the working tree that could not be read may hold what reads as lost
+        // (REQ-change-177, #1117): name it, and the way out is to make it readable.
+        LostRequirementsRefusal::UnreadableWorkingTree(paths) => format!(
+            "cannot tell whether this branch lost canonical requirements: cannot read {}; make {} readable, then run `specsync change check {}` again",
+            paths.join("; cannot read "),
+            if paths.len() == 1 { "it" } else { "them" },
+            shell_word(&record.id)
+        ),
     })
 }
 
 /// Why `lost_requirements_check` refuses: requirements were lost, the configuration names a
-/// specs directory outside the project, or Git could not be read.
+/// specs directory outside the project, Git could not be read, or a requirements path in the
+/// working tree could not be read where a loss would otherwise be reported.
 enum LostRequirementsRefusal {
     Lost(String),
     Misconfigured(String),
     Unreadable(String),
+    UnreadableWorkingTree(Vec<String>),
 }
 
 impl From<String> for LostRequirementsRefusal {
@@ -642,11 +692,16 @@ fn lost_requirements_check(
     };
     let short = &reference[..reference.len().min(12)];
     let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
-    // What is canonical now, and what was canonical at the reference (Codex on #1108).
-    let mut scope = requirement_scope(root);
+    // What was canonical at the reference, on its own: only those files are read there
+    // (REQ-change-175, #1112). An id is looked for in what is canonical now or was then (Codex on
+    // #1108).
+    let mut reference_scope = RequirementScope::default();
     let excluded_at_reference =
-        add_reference_requirement_scope(root, &reference, &prefix, &mut scope)?;
+        add_reference_requirement_scope(root, &reference, &prefix, &mut reference_scope)?;
+    let mut scope = requirement_scope(root);
+    scope.extend(&reference_scope);
     let pathspecs = scope.pathspecs();
+    let reference_pathspecs = reference_scope.pathspecs();
     let mut args = vec![
         "diff",
         "--relative",
@@ -656,7 +711,7 @@ fn lost_requirements_check(
         reference.as_str(),
         "--",
     ];
-    args.extend(pathspecs.iter().map(String::as_str));
+    args.extend(reference_pathspecs.iter().map(String::as_str));
     let changed = git_output_allow_empty(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
     // The files that differ, as the reference judged them: its blocks are what can be lost.
@@ -694,7 +749,10 @@ fn lost_requirements_check(
         .intersection(&excluded_at_reference)
         .cloned()
         .collect();
-    let working = working_tree_requirement_blocks(root, &scope, &excluded_both);
+    let WorkingRequirements {
+        files: working,
+        unreadable,
+    } = working_tree_requirement_blocks(root, &scope, &excluded_both);
     // Only the tracked ones count ("in none of the tracked ones in the working tree"): `change
     // check --commit` commits no file Git does not track, so a copy there keeps nothing (Codex on
     // #1108, fourth round; Leif's 'continue with 95% confidence').
@@ -722,6 +780,10 @@ fn lost_requirements_check(
         .collect();
     if unaccounted.is_empty() {
         return Ok(None);
+    }
+    // What reads as lost may be in a path the scan could not read (REQ-change-177, #1117).
+    if !unreadable.is_empty() {
+        return Err(LostRequirementsRefusal::UnreadableWorkingTree(unreadable));
     }
     unaccounted.sort_by(|a, b| natural_order(&a.0, &b.0).then_with(|| a.1.cmp(&b.1)));
     unaccounted.dedup_by(|a, b| a.0 == b.0);
@@ -865,7 +927,12 @@ fn default_branch_requirement_ids(
     Some((default, held))
 }
 
-/// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042).
+/// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042):
+/// none for an archived or retired change, which cannot be checked, finalized or shipped again
+/// (REQ-cmd-change-045, #1113).
 pub fn lost_requirements_refusal(root: &Path, record: &ChangeRecord) -> Option<String> {
+    if matches!(record.state, ChangeState::Archived | ChangeState::Retired) {
+        return None;
+    }
     ensure_no_lost_requirements(root, record).err()
 }

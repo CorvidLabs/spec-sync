@@ -303,8 +303,13 @@ impl LocalState {
         Ok(())
     }
 
+    /// Sync the folder itself. On Linux the folder handle is an `O_PATH` descriptor, which
+    /// cannot be synced, so the folder is opened again through it, for reading, and that open is
+    /// synced.
     fn sync(&self) -> io::Result<()> {
-        self.dir.try_clone()?.into_std_file().sync_all()
+        let mut options = OpenOptions::new();
+        options.read(true);
+        self.dir.open_with(".", &options)?.sync_all()
     }
 }
 

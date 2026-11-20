@@ -64,6 +64,71 @@
         "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 03:27Z, answering t4c's question after sec-review2's re-check of change 6 (security/review2/recheck-change6.md): 'A (recommended): one more small change, about half a day. SpecSync keeps its cache only in your user cache folder, never in .git. That's simpler, one rule fewer, and closes the archive case and two related ones. It also fixes the one-line bug and the edge cases, then the reviewer does a quick re-check of just those. 6.4.0 moves to about Nov 25-26, and the security notice's claims stay true as written.' The one-line bug was R4 (a folder named * as a wildcard) and the edge cases R2, R5a and N2; t4c's brief lists items 1-5 (user cache folder only keyed by the canonical root; refuse a cache base inside the root or the confinement top; --literal-pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system scope) and, as text and tests only, R6's small scan patterns and the documentation fixes, R5b documented; relayed by t4c over hc to t5r",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795183737,
+      "digest": "9a7ce342e15a76a0c8610055138b82f5c578cb6a46ad86867b92e33c8a017e44",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope re-approval of keep-specsync-s-own-state-only-in-the-user-cache-folder after the delta rewrite\": \"Yes, add them (Recommended)\" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 14:07Z, answering 'Security changes 7 and 8: a SpecSync tooling quirk. After change 6 was archived, SpecSync won't re-approve change 7 unless its five requirement texts are \"rewritten\", even though they're already the final text you reviewed. The smallest rewrite it accepts adds a short clause to each, for example \"This replaces the Git-directory location the previous text named.\" and \", now also,\". No meaning or code changes, and the builder tested that approve and check pass with them. OK to add the five clauses so 7 and 8 can ship?'. The rewrite applied is exactly security/change7-delta-rebase.diff (five clauses in the util, change, hooks and cmd_check deltas; the git_utils delta unchanged), checked line for line. It rests on his scope answer 'A' (about 03:27Z) and his review 'Pass (Recommended)' (about 06:04Z) under 'Yes, one review (Recommended)' (about 04:16Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated). Relayed and recorded by claude-code-t5r at 2026-11-20T14:08:53Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-specsync-s-own-state-only-in-the-user-cache-folder",
+        "title": "Keep SpecSync's own state only in the user cache folder",
+        "description": "Keep SpecSync's own state only in the user cache folder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_check",
+          "git_utils",
+          "hooks",
+          "util"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/journal_replay_targets.rs",
+          "src/git_utils.rs",
+          "src/hooks.rs",
+          "src/util.rs",
+          "src/util/local_state.rs",
+          "tests/integration"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "SpecSync keeps its hash cache, transaction journal and remote spec cache only in specsync/projects/<key> in the user's cache folder (XDG_CACHE_HOME, ~/Library/Caches on macOS, ~/.cache elsewhere), keyed by the canonical project root, never in a Git directory: a forged cache, journal or remote spec entry an archive ships under its .git (or a .git file's gitdir) is never read. A cache folder that lies inside the canonical project root or inside the confinement's top folder is refused with the reason, so check warns once and validates every spec. tracked_by_git passes --literal-pathspecs and clears GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and the pathspec variables, so a project folder named * or notes[x] never widens the confinement. A journal entry is replayed for a registry-mapped spec, its requirements.md or history/ only when the mapped path ends in .spec.md. A hooks folder outside the work tree and the Git directory is made only when git config --show-scope says core.hooksPath is global or system; otherwise nothing missing is made there. The scans also report open_ambient_dir, File::open_ambient, .open( and std::fs aliases. The CHANGELOG, the CLI page, the design notes and the advisory say where the state lives and that an archive with .git cannot carry it; F5 says a FIFO blocks; N3 and R5b are documented. The new tests fail on e3d508ac with only the tests added and pass with the fix"
+        ],
+        "dependencies": [
+          "keep-specsync-s-own-caches-and-journal-outside-the-work-tree"
+        ],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "util.3md: SpecSync's own state never lives where a repository can put a file; an archive can ship its .git, so the Git directory is not such a place either. change.3md: a refusal names its recovery. Leif's option A after the change 6 re-check (2026-11-20 ~03:27Z, 'A') bounds the scope: the user cache folder only, keyed by the canonical root; refuse a cache base inside the root or the confinement top; literal pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system config; the small scan patterns and the documentation fixes. R5b is documented, not changed. Changes 5 and 6 stay open; this change depends on change 6.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c95c7de75454149ce8095499581f924a959fb44d2fb6baba011431a382530d2c",
+        "cmd_check": "35dcc9a71803dccc3a6f7c175e3f412acda2fa526d8e88bfbf32f49f62bea917",
+        "git_utils": "af1dbf09fe0569ca86335be4e5ddd36e3f65b85d4fa5431cbc405ec2c040a5d5",
+        "hooks": "72280b856676d3149a172f844cf9d14798c830b21407bbac10b10898352b5426",
+        "util": "eb97fade732476d2a38bd6b14931c75ae2d20a721f1d29d87c2aed838616bcdc"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-162": "9012ab71c043af4d505b5d34321a5ecc33d494a588528fcdc90747a6a224a837",
+        "cmd_check: REQUIREMENT REQ-cmd-check-021": "fafcc3cad617440dd644e3a16d4bd472a19e8e6344d9f13bc19b948a614b6936",
+        "git_utils: REQUIREMENT REQ-git-utils-012": "7313fd9706c02450511958f80307e3284f1c498198ba4c45abc516d185397605",
+        "hooks: REQUIREMENT REQ-hooks-009": "56ed14b7406ed6ff27fddd435219add9c0c9bc711d93c2e473a6a689d6f2a932",
+        "util: REQUIREMENT REQ-util-006": "d466fcb2501b4ad5778bb39d8e789493e3a7b5b14c18674713657e3ce88f3a92",
+        "util: REQUIREMENT REQ-util-008": "adf3e92564945fdc4a508aa30ea12c42778053698865afb61fb671126ddbcd63"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Yes, add them (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 14:07Z, answering 'Security changes 7 and 8: a SpecSync tooling quirk. After change 6 was archived, SpecSync won't re-approve change 7 unless its five requirement texts are \"rewritten\", even though they're already the final text you reviewed. The smallest rewrite it accepts adds a short clause to each, for example \"This replaces the Git-directory location the previous text named.\" and \", now also,\". No meaning or code changes, and the builder tested that approve and check pass with them. OK to add the five clauses so 7 and 8 can ship?'. The rewrite applied is exactly security/change7-delta-rebase.diff (five clauses in the util, change, hooks and cmd_check deltas; the git_utils delta unchanged), checked line for line. It rests on his scope answer 'A' (about 03:27Z) and his review 'Pass (Recommended)' (about 06:04Z) under 'Yes, one review (Recommended)' (about 04:16Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
+        "recorded_by": "claude-code-t5r"
+      }
     }
   ],
   "reopenings": []

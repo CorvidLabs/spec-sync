@@ -2952,6 +2952,24 @@ fn accept_change_with_gate(
     Ok(record)
 }
 
+#[cfg(test)]
+thread_local! {
+    static STOP_FINALIZE_AFTER_ACCEPTANCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: `finalize_change`, stopped after acceptance and before the archive move, as an
+/// interrupted finalization leaves the change (#933).
+#[cfg(test)]
+pub(crate) fn finalize_change_stopping_after_acceptance(
+    root: &Path,
+    id: &str,
+) -> Result<PathBuf, String> {
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(true));
+    let result = finalize_change(root, id);
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(false));
+    result
+}
+
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
@@ -2993,6 +3011,12 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         let verification = load_verification(root, &record)?;
         ensure_verification_commit_contains_change_work(root, &record, &verification)?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
+        #[cfg(test)]
+        if STOP_FINALIZE_AFTER_ACCEPTANCE.with(std::cell::Cell::get) {
+            return Err(
+                "test: the finalization stopped after acceptance, before the archive move".into(),
+            );
+        }
     } else {
         let verification = load_verification(root, &record)?;
         validate_finalization_evidence(root, &record, &verification)

@@ -174,6 +174,10 @@ fn historical_reconciliation_preserves_strict_normal_failure_and_requires_fresh_
         terminal_evidence_summary(root, &load_change(root, &old.id).unwrap()).validity,
         TerminalEvidenceValidity::HistoricalTransitionUnproven
     );
+    // #1038 follow-up (agreed on PR #1093): an archived change whose terminal evidence is
+    // `historical-transition-unproven` reads its review as done by finalize.
+    assert_eq!(closed.state, ChangeState::Archived);
+    assert!(archived_review_is_settled_by_finalize(root, &closed));
     // Authenticate each shared receipt/anchor once per pure graph pass, not once per input.
     let tuple = evidence.tuples.first().unwrap();
     let mut memo = AcceptedInputValidationMemo::default();

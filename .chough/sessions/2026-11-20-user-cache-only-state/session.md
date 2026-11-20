@@ -5,7 +5,7 @@ aliases: [user-cache-only-state]
 objective: SpecSync keeps its cache, journal and remote cache only in the user's cache folder, never in a Git directory an archive can ship; the enclosing-work-tree check reads paths literally; registry replay is spec-shaped; a hooks path outside both trees comes from the person's own config (R1-R5a, N2 and R6 of the change 6 re-check, private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [util, change, hooks, git_utils, cmd_check]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -22,13 +22,9 @@ observations:
   - 2026-11-20-on-linux-at-97828091-cargo-clippy-all-targets-d-warnings
 bugs: [2026-11-20-state-an-archive-ships-in-its-git-directory-is-trusted]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of keep-specsync-s-own-state-only-in-the-user-cache-folder
-    holds: accept
-    drives: review
-    opened: 2026-11-20T14:10:18Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # SpecSync keeps its cache, journal and remote cache only in the user's cache folder, never in a Git directory an archive can ship; the enclosing-work-tree check reads paths literally; registry replay is spec-shaped; a hooks path outside both trees comes from the person's own config (R1-R5a, N2 and R6 of the change 6 re-check, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -42,6 +38,7 @@ SpecSync keeps its cache, journal and remote cache only in the user's cache fold
 
 - 0xLeif decided "Scope approval of keep-specsync-s-own-state-only-in-the-user-cache-folder": "A" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 03:27Z, answering t4c's question after sec-review2's re-check of change 6 (security/review2/recheck-change6.md): 'A (recommended): one more small change, about half a day. SpecSync keeps its cache only in your user cache folder, never in .git. That's simpler, one rule fewer, and closes the archive case and two related ones. It also fixes the one-line bug and the edge cases, then the reviewer does a quick re-check of just those. 6.4.0 moves to about Nov 25-26, and the security notice's claims stay true as written.' The one-line bug was R4 (a folder named * as a wildcard) and the edge cases R2, R5a and N2; t4c's brief lists items 1-5 (user cache folder only keyed by the canonical root; refuse a cache base inside the root or the confinement top; --literal-pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system scope) and, as text and tests only, R6's small scan patterns and the documentation fixes, R5b documented; relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve keep-specsync-s-own-state-only-in-the-user-cache-folder as 0xLeif
 - 0xLeif decided "Scope re-approval of keep-specsync-s-own-state-only-in-the-user-cache-folder after the delta rewrite": "Yes, add them (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 14:07Z, answering 'Security changes 7 and 8: a SpecSync tooling quirk. After change 6 was archived, SpecSync won't re-approve change 7 unless its five requirement texts are "rewritten", even though they're already the final text you reviewed. The smallest rewrite it accepts adds a short clause to each, for example "This replaces the Git-directory location the previous text named." and ", now also,". No meaning or code changes, and the builder tested that approve and check pass with them. OK to add the five clauses so 7 and 8 can ship?'. The rewrite applied is exactly security/change7-delta-rebase.diff (five clauses in the util, change, hooks and cmd_check deltas; the git_utils delta unchanged), checked line for line. It rests on his scope answer 'A' (about 03:27Z) and his review 'Pass (Recommended)' (about 06:04Z) under 'Yes, one review (Recommended)' (about 04:16Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve keep-specsync-s-own-state-only-in-the-user-cache-folder as 0xLeif
+- 0xLeif decided "Implementation review of keep-specsync-s-own-state-only-in-the-user-cache-folder": "Pass (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a. Since that review, this change's code and tests are unchanged; its deltas carry only the five clauses he approved at about 14:07Z ('Yes, add them (Recommended)', exactly security/change7-delta-rebase.diff). Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review keep-specsync-s-own-state-only-in-the-user-cache-folder as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -126,4 +123,20 @@ SpecSync keeps its cache, journal and remote cache only in the user's cache fold
   - revision: 7943890ab12ee5c8dcbf394a4d3683ac2d1f3872
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:16:08Z · gate-closed · accept → accept · Implementation review of keep-specsync-s-own-state-only-in-the-user-cache-folder ^t-d5f2dc
+  - native_change: keep-specsync-s-own-state-only-in-the-user-cache-folder
+  - revision: 5ffd449c3313dc2ee97d1062374209b610f3b9c0
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a. Since that review, this change's code and tests are unchanged; its deltas carry only the five clauses he approved at about 14:07Z ('Yes, add them (Recommended)', exactly security/change7-delta-rebase.diff). Relayed by t4c over hc to t5r
+    - recorded_by: claude-code-t5r
+    - native: specsync change review keep-specsync-s-own-state-only-in-the-user-cache-folder
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:16:12Z · advance · accept → done · native:archived ^t-bc94cf
+  - native_change: keep-specsync-s-own-state-only-in-the-user-cache-folder
+  - gate: native:archived
+  - revision: 5ffd449c3313dc2ee97d1062374209b610f3b9c0
   - by: claude-code (hc t5r)

@@ -1,6 +1,6 @@
 ---
 id: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
-state: approved
+state: implementing
 type: bug_fix
 base_commit: bdbcbd8e3ee70b89cd4934e69f8e8739073fc79e
 ---

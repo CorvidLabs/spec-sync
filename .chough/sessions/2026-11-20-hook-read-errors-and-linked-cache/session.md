@@ -5,7 +5,7 @@ aliases: [hook-read-errors-and-linked-cache]
 objective: "hooks install, uninstall and status name the path and reason when a hook target's read is refused or fails (oversized, not UTF-8, not a regular file, a link on the way to the hooks folder), and rehash refuses a user-cache hashes.json that is a link or not a regular file, so the code matches REQ-hooks-007, REQ-hooks-009 and REQ-hash-cache-007 as approved (change 9, from the reviews on #1133, private, with GHSA-7q5v-8jcc-rx54)"
 intent_scope: ""
 modules: [hooks, hash_cache]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -21,9 +21,13 @@ observations:
   - 2026-11-20-change-9-the-four-red-tests-an-oversized-and-a-non-utf-8-205d35
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+    holds: accept
+    drives: review
+    opened: 2026-11-20T16:31:01Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # hooks install, uninstall and status name the path and reason when a hook target's read is refused or fails (oversized, not UTF-8, not a regular file, a link on the way to the hooks folder), and rehash refuses a user-cache hashes.json that is a link or not a regular file, so the code matches REQ-hooks-007, REQ-hooks-009 and REQ-hash-cache-007 as approved (change 9, from the reviews on #1133, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -86,4 +90,20 @@ hooks install, uninstall and status name the path and reason when a hook target'
   - native_change: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
   - gate: native:approved
   - revision: 7527da3a7aea52436404766df845bbc8fb2f19b6
+  - by: claude-code (hc t5r)
+- 2026-11-20T16:30:45Z · advance · build → test · native:verifying ^t-a2589d
+  - native_change: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+  - gate: native:verifying
+  - revision: 266b979d35d07e69e938eb692338253e189a6d5c
+  - by: claude-code (hc t5r)
+- 2026-11-20T16:30:53Z · advance · test → accept · native:verifying ^t-5fbc05
+  - native_change: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+  - gate: native:verifying
+  - revision: 266b979d35d07e69e938eb692338253e189a6d5c
+  - by: claude-code (hc t5r)
+- 2026-11-20T16:31:01Z · gate-opened · accept → accept · Implementation review of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash ^t-01acea
+  - native_change: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+  - revision: 266b979d35d07e69e938eb692338253e189a6d5c
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

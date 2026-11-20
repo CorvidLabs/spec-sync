@@ -42,6 +42,7 @@ files:
   - src/change_tests/send_back_for_rescope.rs
   - src/change_tests/spec_history.rs
   - src/change_tests/stale_modified_delta.rs
+  - src/change_tests/terminal_evidence_isolation.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
   - src/change_tests/inert_ignored_paths.rs

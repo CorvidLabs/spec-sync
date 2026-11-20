@@ -129,5 +129,8 @@ mod doctor;
 #[path = "integration/spec_history.rs"]
 mod spec_history;
 
+#[path = "integration/terminal_evidence_isolation.rs"]
+mod terminal_evidence_isolation;
+
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;

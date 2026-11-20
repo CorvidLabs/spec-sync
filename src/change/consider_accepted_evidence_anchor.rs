@@ -3776,25 +3776,45 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
         return terminal_summary_from_cache(record, cached);
     }
     if read_scope_value(root, |_| Some(())).is_some() {
-        let result = list_all_changes_checked(root).map(|records| {
-            let accepted: BTreeMap<String, ChangeRecord> = records
+        // #1104: a change whose records fail keeps its own failure; the others are judged on the
+        // changes that loaded, as REQ-change-119, REQ-change-012 and REQ-change-024 say.
+        let result = terminal_evidence_roster(root).map(|roster| {
+            let accepted: BTreeMap<String, ChangeRecord> = roster
+                .records
                 .iter()
                 .filter(|(_, other)| other.state != ChangeState::Archived)
                 .map(|(id, other)| (id.clone(), other.clone()))
                 .collect();
-            let (results, _) = terminal_evidence_results_with_records(root, &accepted, &records);
-            results
+            let (results, _) =
+                terminal_evidence_results_with_records(root, &accepted, &roster.records);
+            let mut summaries: BTreeMap<String, TerminalEvidenceSummary> = results
                 .into_iter()
-                .map(|result| (result.id, result.evidence))
-                .collect()
+                .map(|result| {
+                    let evidence =
+                        name_failed_candidates(&roster, accepted.get(&result.id), result.evidence);
+                    (result.id, evidence)
+                })
+                .collect();
+            // Only a record that is not archived is answered from this map: an archived record
+            // in a read scope is answered by `archived_terminal_evidence_in_scope`.
+            for (id, failed) in &roster.failed {
+                summaries.insert(id.clone(), own_failure_summary(false, failed));
+            }
+            summaries
         });
         update_read_scope(root, |scope| {
             scope.terminal_evidence = Some(result.clone());
         });
         return terminal_summary_from_cache(record, result);
     }
-    let result = list_all_changes_checked(root)
-        .map(|records| terminal_evidence_summary_with_records(root, record, &records));
+    let result = terminal_evidence_roster(root).map(|roster| match roster.failed.get(&record.id) {
+        Some(failed) => own_failure_summary(record.state == ChangeState::Archived, failed),
+        None => name_failed_candidates(
+            &roster,
+            Some(record),
+            terminal_evidence_summary_with_records(root, record, &roster.records),
+        ),
+    });
     match result {
         Ok(summary) => summary,
         Err(reason) => TerminalEvidenceSummary {
@@ -3842,8 +3862,22 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
     }) {
         return cached;
     }
-    if let Err(reason) = list_all_changes_checked(root) {
-        return terminal_summary_from_cache(record, Err(reason));
+    // #1104: an archive is judged for itself alone (REQ-change-119); another change's failure is
+    // not its verdict, only its own is.
+    match terminal_evidence_roster(root) {
+        Err(reason) => return terminal_summary_from_cache(record, Err(reason)),
+        Ok(roster) => {
+            if let Some(failed) = roster.failed.get(&record.id) {
+                let summary = own_failure_summary(record.state == ChangeState::Archived, failed);
+                // Kept like any archive's verdict, so a second read in the scope answers from it.
+                update_read_scope(root, |scope| {
+                    scope
+                        .archived_terminal_evidence
+                        .insert(record.id.clone(), summary.clone());
+                });
+                return summary;
+            }
+        }
     }
     let mut cache = CHANGE_READ_SCOPES
         .with(|scopes| {
@@ -3868,6 +3902,68 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
             .archived_terminal_evidence
             .insert(record.id.clone(), summary.clone());
     });
+    summary
+}
+
+/// The verdict of a change whose own records fail validation: its own reason, `corrupt-history`
+/// when the record asked about is archived and `stale` for any other, as the roster load gives
+/// every change it cannot read. The verdict follows the copy asked about, so a change open and
+/// archived at once reads `stale` asked as the open change and `corrupt-history` asked as the
+/// archive, whichever copy the roster found first (#1104 review).
+fn own_failure_summary(asked_archived: bool, failed: &FailedChange) -> TerminalEvidenceSummary {
+    TerminalEvidenceSummary {
+        validity: if asked_archived {
+            TerminalEvidenceValidity::CorruptHistory
+        } else {
+            TerminalEvidenceValidity::Stale
+        },
+        reason: Some(failed.reason.clone()),
+    }
+}
+
+/// #1104: a change that failed to load cannot cover anything, so an accepted change whose changed
+/// input it might have covered is stale either way; the reason then names it and its failure. A
+/// candidate is a failed change that could have covered one of the judged change's inputs: it
+/// passes the first test `successor_covers_input` puts to a successor (`may_succeed`) and declares
+/// a succession of the judged change. A failed change whose `state.json` does not read at all is a
+/// candidate too, because it cannot be shown not to be one. Only a successor search for a changed
+/// input names candidates; every other verdict is left as it is.
+fn name_failed_candidates(
+    roster: &TerminalRoster,
+    record: Option<&ChangeRecord>,
+    mut summary: TerminalEvidenceSummary,
+) -> TerminalEvidenceSummary {
+    let Some(record) = record else {
+        return summary;
+    };
+    let searched = summary.validity == TerminalEvidenceValidity::Stale
+        && record.state == ChangeState::Accepted
+        && summary
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains(CHANGED_AFTER_ACCEPTANCE));
+    if !searched || roster.failed.is_empty() {
+        return summary;
+    }
+    let candidates: Vec<String> = roster
+        .failed
+        .iter()
+        .filter(|(id, failed)| {
+            *id != &record.id
+                && failed.record.as_ref().is_none_or(|other| {
+                    may_succeed(other, record)
+                        && other
+                            .supersedes
+                            .iter()
+                            .any(|edge| edge.predecessor_id == record.id)
+                })
+        })
+        .map(|(id, failed)| format!("candidate successor `{id}` fails validation: {}", failed.reason))
+        .collect();
+    if !candidates.is_empty() {
+        let reason = summary.reason.take().unwrap_or_default();
+        summary.reason = Some(format!("{reason}; {}", candidates.join("; ")));
+    }
     summary
 }
 
@@ -3998,8 +4094,15 @@ fn terminal_evidence_summary_with_validation_state(
     }
 }
 
+/// The closing-approval check of an accepted change, judged on the roster terminal evidence uses
+/// (#1104 review): when every change loads it is `list_all_changes_checked`, and when one fails,
+/// that failure stays its own and the others are judged on the changes that load.
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+    let roster = terminal_evidence_roster(root)?;
+    if let Some(failed) = roster.failed.get(&record.id) {
+        return Err(failed.reason.clone());
+    }
+    ensure_closing_approval_valid_against(root, record, &roster.records)
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they

@@ -3211,8 +3211,10 @@ fn approvals_ledger_held_by_history_at(
             continue;
         };
         // Each committed version must read as an approvals ledger, the first one too: a version
-        // whose lists are not lists is no baseline to extend (Codex on #1120).
-        let rewrite = if serde_json::from_slice::<ApprovalLedger>(&bytes).is_err() {
+        // whose lists are not lists is no baseline to extend (Codex on #1120). Only the shape of
+        // the three lists is asked, so a version an older SpecSync wrote, such as a reopening
+        // without the digests `specsync migrate 5.0` adds, still reads (tester2 on #1120).
+        let rewrite = if !ledger_lists_are_lists(&bytes) {
             Err(())
         } else {
             match &earlier {
@@ -3262,6 +3264,18 @@ fn approvals_ledger_held_by_history_at(
         removed_in = None;
     }
     Ok(())
+}
+
+/// Whether `bytes` is a JSON object whose `approvals`, `reopenings` and `send_backs` are each a
+/// list when present (REQ-change-166).
+fn ledger_lists_are_lists(bytes: &[u8]) -> bool {
+    let Ok(serde_json::Value::Object(ledger)) = serde_json::from_slice::<serde_json::Value>(bytes)
+    else {
+        return false;
+    };
+    APPEND_ONLY_LEDGER_LISTS
+        .iter()
+        .all(|list| ledger.get(*list).is_none_or(serde_json::Value::is_array))
 }
 
 /// The refusal for a change whose working `approvals.json` is missing: the file, and the commit to

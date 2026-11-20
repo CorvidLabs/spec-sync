@@ -893,3 +893,95 @@ fn the_printed_recovery_takes_the_ids_on_stdin() {
         &["change", "status", &id],
     );
 }
+
+/// Rule 3 on Codex's second round (REQ-change-172): when the download fails, #1081's read of the
+/// requirements at the reference refuses like every other history read, saying the clone is
+/// partial and printing the fetch, not `git fetch origin`, which brings no blobs to a blobless
+/// clone. Run as printed, the fetch lets the audit pass.
+#[test]
+fn a_failed_download_names_the_fetch_for_the_lost_requirements_read_too() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    git(
+        &source,
+        &["rm", "-q", "-r", &format!(".specsync/changes/{id}")],
+    );
+    git(&source, &["commit", "-q", "-m", "no other active change"]);
+    // A draft change, then a later edit of the requirements file: the draft's base commit holds a
+    // version of it that a blobless clone of HEAD lacks.
+    run(
+        &source,
+        &[],
+        &[
+            "--json",
+            "change",
+            "new",
+            "Rotate session keys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ],
+    );
+    git(&source, &["add", "--all"]);
+    git(&source, &["commit", "-q", "-m", "a draft change"]);
+    let requirements = source.join("specs/auth/requirements.md");
+    let text = fs::read_to_string(&requirements).unwrap();
+    fs::write(
+        &requirements,
+        text.replacen(
+            "# Requirements\n",
+            "# Requirements\n\nRead these before changing the module.\n",
+            1,
+        ),
+    )
+    .unwrap();
+    git(&source, &["commit", "-q", "-am", "a note for readers"]);
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+    let unreachable = temp.path().join("nothing.gitconfig");
+    fs::write(&unreachable, "").unwrap();
+
+    let refused = invoke(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "audit"],
+    );
+    let text = combined(&refused);
+
+    assert!(!refused.status.success(), "{text}");
+    assert!(
+        text.contains("cannot tell whether this branch lost canonical requirements"),
+        "{text}"
+    );
+    for line in text
+        .lines()
+        .filter(|line| line.contains("cannot tell whether"))
+    {
+        assert!(line.contains("not in this partial clone"), "{line}");
+        assert!(!line.contains("(`git fetch origin`)"), "{line}");
+    }
+    let command = text
+        .split('`')
+        .find(|part| part.contains("git -C ") && part.contains(" fetch "))
+        .unwrap_or_else(|| panic!("no fetch command: {text}"));
+    let output = Command::new("sh")
+        .args(["-c", command])
+        .env("GIT_CONFIG_GLOBAL", &config)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{command}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let again = invoke(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "audit"],
+    );
+    let again = combined(&again);
+    assert!(!again.contains("cannot tell"), "{again}");
+    assert!(!again.contains("not in this partial clone"), "{again}");
+}

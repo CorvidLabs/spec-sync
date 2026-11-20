@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.1] - 2026-11-21
+
 ### Changed
 
 - Advance the main Action binary default to published 6.4.0 after supported-platform asset and Action checks. Immutable `@v6.4.0` remains at its qualified candidate SHA (`3d57fa13`) with default 6.3.0; select `version: '6.4.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.0.
@@ -3826,7 +3828,8 @@ Published from candidate `v6.1.2-rc.2` (d08d2746), qualified on Ubuntu and macOS
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.1...HEAD
+[6.4.1]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.0...v6.4.1
 [6.4.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.2.0...v6.3.0
 [6.2.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.2...v6.2.0

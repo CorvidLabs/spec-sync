@@ -11,9 +11,9 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.4.0
+- uses: CorvidLabs/spec-sync@v6.4.1
   with:
-    version: '6.4.0'
+    version: '6.4.1'
     strict: 'true'
     require-coverage: '100'
 ```
@@ -54,23 +54,23 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.4.0
+      - uses: CorvidLabs/spec-sync@v6.4.1
         with:
-          version: '6.4.0'
+          version: '6.4.1'
           strict: 'true'
           require-coverage: '100'
 ```
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-Pin both the Action ref and its binary version. The YAML examples pin `@v6.4.0` with
-`version: '6.4.0'`. This separately verified main wrapper defaults to the published
+Pin both the Action ref and its binary version. Candidate YAML examples pin `@v6.4.1` with
+`version: '6.4.1'`. This separately verified main wrapper defaults to the published
 `6.4.0` binary; the immutable `@v6.4.0` tag retains default `6.3.0`.
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.4.0
+- uses: CorvidLabs/spec-sync@v6.4.1
   with:
-    version: '6.4.0'
+    version: '6.4.1'
     strict: 'true'
 ```
 
@@ -105,9 +105,9 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       # The archive gate inputs are newer than v6.1.1, which ignores them. 6.1.2 is the
       # first release that includes them.
-      - uses: CorvidLabs/spec-sync@v6.4.0
+      - uses: CorvidLabs/spec-sync@v6.4.1
         with:
-          version: '6.4.0'
+          version: '6.4.1'
           archive-gate-only: 'true'
 
   specsync:
@@ -117,9 +117,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.4.0
+      - uses: CorvidLabs/spec-sync@v6.4.1
         with:
-          version: '6.4.0'
+          version: '6.4.1'
           strict: 'true'
           require-coverage: '100'
 
@@ -173,9 +173,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.4.0
+      - uses: CorvidLabs/spec-sync@v6.4.1
         with:
-          version: '6.4.0'
+          version: '6.4.1'
           strict: 'true'
           comment: 'true'
 ```
@@ -195,9 +195,9 @@ jobs:
 **Custom token (e.g., for private registries or cross-repo refs):**
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.4.0
+- uses: CorvidLabs/spec-sync@v6.4.1
   with:
-    version: '6.4.0'
+    version: '6.4.1'
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
 ```
@@ -217,9 +217,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.4.0
+      - uses: CorvidLabs/spec-sync@v6.4.1
         with:
-          version: '6.4.0'
+          version: '6.4.1'
           strict: 'true'
 ```
 
@@ -228,9 +228,9 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.4.0
+- uses: CorvidLabs/spec-sync@v6.4.1
   with:
-    version: '6.4.0'
+    version: '6.4.1'
     root: './packages/backend'
     strict: 'true'
 ```

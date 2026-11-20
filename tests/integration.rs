@@ -131,3 +131,6 @@ mod spec_history;
 
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+
+#[path = "integration/stale_input_refusals.rs"]
+mod stale_input_refusals;

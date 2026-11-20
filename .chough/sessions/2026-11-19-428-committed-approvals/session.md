@@ -5,7 +5,7 @@ aliases: [428-committed-approvals]
 objective: finalize, ship and archive refuse an approvals ledger that Git history does not hold (#428)
 intent_scope: CHANGE
 modules: [change, cmd_change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -25,13 +25,9 @@ observations:
   - 2026-11-19-428-verify-lane-at-e869bf11
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
-    holds: accept
-    drives: review
-    opened: 2026-11-19T17:15:06Z
+waiting_on_human: []
 run_consents: []
-next: "REQ-change-166's fourth criterion waits on Leif (reports/428-delete-recreate-wording.md: a deleted-and-recreated workspace is refused by the older workflow-version guard first). Then Leif's review, after the v6.4.0 tag; no PR until ss-lead says"
+next: "Red first: option 3's message, then the finalize-level superseded_approval relay test"
 ---
 # finalize, ship and archive refuse an approvals ledger that Git history does not hold (#428)
 
@@ -47,6 +43,7 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
 
 - 0xLeif decided "Intent approval of #428 (CHANGE-16 and its three sub-criteria)": "Approve as written" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:17Z, on the frozen ss-lead/gates/428-definition.md, its intent sentences shown to him as the builder's draft; relayed by hc t4c through ss-lead (hc t58). CHANGE-16 to CHANGE-16.c are the wording he chose with these words, not words he wrote); recorded by claude-code-t59; a relayed claim, not authenticated
 - 0xLeif decided "Approve the scope of finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold": "Approve as written" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:17Z, on the frozen ss-lead/gates/428-definition.md (the requirements REQ-change-166 and REQ-cmd-change-041, the six change criteria and the choices in its section 6), its intent sentences shown to him as the builder's draft; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold as 0xLeif
+- 0xLeif decided "Leif's relayed approval of #428's option 3, its two reworded sentences and its three declared test files (relayed by hc t4c through ss-lead t58)": ""All as recommended" for option 3; Leif's six rules, rule 6 (a) and (c), for the two sentences; "yes to all 3" for the three test files" (Option 3: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on the frozen ss-lead/gates/428-criterion4.md (the older check's new message, REQ-change-166's new fourth criterion, the change's new second criterion and the added path src/change/validate_loaded_change.rs), with the builder running the send-back; relayed through ss-lead (hc t58). The two sentences (REQ-change-166's still-finalizes criterion and the change's third criterion): a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to these exact texts on 2026-11-19; these are not his words about these texts. The three test files: his one-time yes, "yes to all 3", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold as 0xLeif
 
 ## What was verified
 
@@ -153,4 +150,42 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
   - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
   - gate: native:verifying
   - revision: e869bf117949ca8f1454eb07832899f24b77940a
+  - by: claude-code (hc t59)
+- 2026-11-20T03:40:25Z · back · accept → build · Rework before review: option 3 on Leif's relayed word (the older check names the commit and the two ways out; REQ-change-166's fourth criterion, the change's second criterion, src/change/validate_loaded_change.rs); two sentences under standing OK rule 6 (a)+(c); three existing test files declared on Leif's one-time yes; a finalize-level test for a relay in a reopening's superseded_approval. History rewritten onto the corrected main, then main a28e3042 merged in. ^t-66a289
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - gate: native:verifying
+  - revision: af209abec904cd2c3aed86f4d9e5ee82d8fad585
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 6 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-20T03:40:25Z · gate-closed · build → build · Implementation review of finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold ^t-0665cb
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - revision: af209abec904cd2c3aed86f4d9e5ee82d8fad585
+  - by: claude-code (hc t59)
+- 2026-11-20T03:53:12Z · gate-opened · build → build · Leif's relayed approval of #428's option 3, its two reworded sentences and its three declared test files (relayed by hc t4c through ss-lead t58) ^t-69da8f
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - revision: 9d893560396022373d820948cc02dd35d9a75aef
+  - holds: build
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-20T03:53:12Z · direct-native-write · build → build · finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-e5a564
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - revision: 9d893560396022373d820948cc02dd35d9a75aef
+  - direct_write:
+    - change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-20T03:53:12Z · gate-closed · build → build · Leif's relayed approval of #428's option 3, its two reworded sentences and its three declared test files (relayed by hc t4c through ss-lead t58) ^t-5b4a8e
+  - native_change: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+  - revision: 9d893560396022373d820948cc02dd35d9a75aef
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: "\"All as recommended\" for option 3; Leif's six rules, rule 6 (a) and (c), for the two sentences; \"yes to all 3\" for the three test files"
+    - where: Option 3: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on the frozen ss-lead/gates/428-criterion4.md (the older check's new message, REQ-change-166's new fourth criterion, the change's new second criterion and the added path src/change/validate_loaded_change.rs), with the builder running the send-back; relayed through ss-lead (hc t58). The two sentences (REQ-change-166's still-finalizes criterion and the change's third criterion): a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to these exact texts on 2026-11-19; these are not his words about these texts. The three test files: his one-time yes, "yes to all 3", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
+    - actor: 0xLeif
   - by: claude-code (hc t59)

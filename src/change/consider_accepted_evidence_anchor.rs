@@ -397,8 +397,34 @@ fn repository_work_tree(root: &Path) -> Option<&Path> {
         .find(|ancestor| fs::symlink_metadata(ancestor.join(".git")).is_ok())
 }
 
-/// Whether Git would see the repository as another user's: its work tree or `.git` is owned by
-/// another user, or Git's own test switch says so. It spawns nothing.
+/// The Git directories the repository at `work_tree` uses: its `.git` directory, or, for a linked
+/// worktree's gitfile, the directory it names and the common directory that one's `commondir`
+/// names (Codex on #1122). It spawns nothing.
+fn repository_git_dirs(work_tree: &Path) -> Vec<PathBuf> {
+    let marker = work_tree.join(".git");
+    let Ok(metadata) = fs::symlink_metadata(&marker) else {
+        return Vec::new();
+    };
+    if metadata.is_dir() {
+        return vec![marker];
+    }
+    let Some(git_dir) = fs::read_to_string(&marker)
+        .ok()
+        .and_then(|text| text.lines().find_map(|line| line.strip_prefix("gitdir:").map(str::trim).map(PathBuf::from)))
+        .map(|named| if named.is_absolute() { named } else { work_tree.join(named) })
+    else {
+        return Vec::new();
+    };
+    let common = fs::read_to_string(git_dir.join("commondir"))
+        .ok()
+        .map(|text| PathBuf::from(text.trim_end_matches(['\n', '\r'])))
+        .map(|named| if named.is_absolute() { named } else { git_dir.join(named) });
+    std::iter::once(git_dir).chain(common).collect()
+}
+
+/// Whether Git would see the repository as another user's: its work tree, its `.git`, or a Git
+/// directory a linked worktree resolves to is owned by another user, or Git's own test switch
+/// says so. It spawns nothing.
 fn repository_owned_by_another_user(root: &Path) -> bool {
     if std::env::var_os("GIT_TEST_ASSUME_DIFFERENT_OWNER")
         .is_some_and(|value| !value.is_empty() && value != "0" && value != "false")
@@ -413,9 +439,10 @@ fn repository_owned_by_another_user(root: &Path) -> bool {
             return false;
         };
         let owner = |path: &Path| fs::symlink_metadata(path).map(|metadata| metadata.uid()).ok();
-        [owner(work_tree), owner(&work_tree.join(".git"))]
+        [work_tree.to_path_buf(), work_tree.join(".git")]
             .into_iter()
-            .flatten()
+            .chain(repository_git_dirs(work_tree))
+            .filter_map(|path| owner(&path))
             .any(|uid| uid != user)
     }
     #[cfg(not(unix))]
@@ -446,9 +473,10 @@ fn safe_directory_state(root: &Path) -> SafeDirectoryState {
     state
 }
 
-/// The work tree's top level as the user's own Git reports it, run once with the user's
-/// environment and configuration and no prompt; `None` when it refuses the repository.
-fn user_git_top_level(root: &Path) -> Option<String> {
+/// The work tree's top level as the user's own Git reports it, byte for byte with only Git's line
+/// terminator removed, run once with the user's environment and configuration and no prompt;
+/// `None` when it refuses the repository.
+fn user_git_top_level(root: &Path) -> Option<Vec<u8>> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -457,7 +485,10 @@ fn user_git_top_level(root: &Path) -> Option<String> {
         .stdin(std::process::Stdio::null())
         .output()
         .ok()?;
-    let top = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let mut top = output.stdout;
+    if top.last() == Some(&b'\n') {
+        top.pop();
+    }
     (output.status.success() && !top.is_empty()).then_some(top)
 }
 
@@ -472,7 +503,7 @@ extern "C" fn remove_safe_directory_files() {
 /// The private global configuration file naming `top` in `safe.directory` and nothing else: a
 /// new owner-only directory under the system temporary directory holding one owner-only file,
 /// created new, never inside the project or its Git directory, removed when the process exits.
-fn write_safe_directory_file(root: &Path, top: &str) -> Result<PathBuf, String> {
+fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String> {
     let dir = tempfile::Builder::new()
         .prefix("specsync-safe-directory-")
         .tempdir()
@@ -483,9 +514,12 @@ fn write_safe_directory_file(root: &Path, top: &str) -> Result<PathBuf, String> 
         reason
     };
     let canonical_dir = fs::canonicalize(&dir).map_err(|error| remove(error.to_string()))?;
-    let inside = repository_work_tree(root)
+    let work_tree = repository_work_tree(root);
+    let inside = work_tree
         .into_iter()
-        .chain(std::iter::once(root))
+        .map(Path::to_path_buf)
+        .chain(std::iter::once(root.to_path_buf()))
+        .chain(work_tree.map(repository_git_dirs).unwrap_or_default())
         .filter_map(|path| fs::canonicalize(path).ok())
         .any(|path| canonical_dir.starts_with(&path));
     if inside {
@@ -494,7 +528,16 @@ fn write_safe_directory_file(root: &Path, top: &str) -> Result<PathBuf, String> 
         ));
     }
     let file = dir.join("config");
-    let quoted = top.replace('\\', "\\\\").replace('"', "\\\"");
+    // Git's config quoting, on the path's own bytes.
+    let mut quoted = Vec::with_capacity(top.len());
+    for byte in top {
+        match byte {
+            b'\\' => quoted.extend_from_slice(b"\\\\"),
+            b'"' => quoted.extend_from_slice(b"\\\""),
+            b'\n' => quoted.extend_from_slice(b"\\n"),
+            _ => quoted.push(*byte),
+        }
+    }
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -503,8 +546,10 @@ fn write_safe_directory_file(root: &Path, top: &str) -> Result<PathBuf, String> 
         options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
     }
     let mut handle = options.open(&file).map_err(|error| remove(error.to_string()))?;
-    std::io::Write::write_all(&mut handle, format!("[safe]\n\tdirectory = \"{quoted}\"\n").as_bytes())
-        .map_err(|error| remove(error.to_string()))?;
+    let mut content = b"[safe]\n\tdirectory = \"".to_vec();
+    content.extend_from_slice(&quoted);
+    content.extend_from_slice(b"\"\n");
+    std::io::Write::write_all(&mut handle, &content).map_err(|error| remove(error.to_string()))?;
     let mut dirs = SAFE_DIRECTORY_DIRS.lock().unwrap_or_else(|poison| poison.into_inner());
     if dirs.is_empty() {
         #[cfg(unix)]

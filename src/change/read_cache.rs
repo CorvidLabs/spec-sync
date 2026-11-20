@@ -213,9 +213,13 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
         if key == "extensions.partialclone" {
             return Some(value.trim().to_string());
         }
+        // Every spelling Git reads as true (Codex on #1122).
+        let value = value.trim().to_ascii_lowercase();
+        let truthy = matches!(value.as_str(), "true" | "yes" | "on")
+            || value.parse::<i64>().is_ok_and(|number| number != 0);
         key.strip_prefix("remote.")?
             .strip_suffix(".promisor")
-            .filter(|_| value.trim() == "true")
+            .filter(|_| truthy)
             .map(str::to_string)
     }) else {
         return Ok(());
@@ -283,13 +287,25 @@ fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(
         });
     }
     let mut child = command.spawn().map_err(|error| format!("Git could not be run: {error}"))?;
+    // Standard error is drained in chunks, keeping at most `FETCH_STDERR_CAP` bytes, and is never
+    // waited on past the deadline: a helper that inherits the pipe can hold it open after `git
+    // fetch` exits (Codex on #1122).
+    const FETCH_STDERR_CAP: usize = 64 * 1024;
     let mut stderr = child.stderr.take();
-    let reader = std::thread::spawn(move || {
-        let mut text = String::new();
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut kept = Vec::new();
+        let mut buffer = [0_u8; 8192];
         if let Some(stderr) = stderr.as_mut() {
-            let _ = std::io::Read::read_to_string(stderr, &mut text);
+            while let Ok(read) = std::io::Read::read(stderr, &mut buffer) {
+                if read == 0 {
+                    break;
+                }
+                let room = FETCH_STDERR_CAP.saturating_sub(kept.len());
+                kept.extend_from_slice(&buffer[..read.min(room)]);
+                let _ = sender.send(buffer[..read.min(room)].to_vec());
+            }
         }
-        text
     });
     if let Some(mut stdin) = child.stdin.take() {
         let _ = std::io::Write::write_all(&mut stdin, format!("{}\n", ids.join("\n")).as_bytes());
@@ -309,10 +325,23 @@ fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(
             Err(error) => return Err(error.to_string()),
         }
     };
-    let stderr = reader.join().unwrap_or_default();
     if status.success() {
         return Ok(());
     }
+    // What the fetch said by the time it exited, or by a short grace after it, never longer.
+    let mut bytes = Vec::new();
+    let grace = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    loop {
+        let wait = grace.saturating_duration_since(std::time::Instant::now());
+        match receiver.recv_timeout(wait) {
+            Ok(chunk) => bytes.extend_from_slice(&chunk),
+            Err(_) => break,
+        }
+        if bytes.len() >= FETCH_STDERR_CAP {
+            break;
+        }
+    }
+    let stderr = String::from_utf8_lossy(&bytes).into_owned();
     let reason = stderr
         .lines()
         .map(str::trim)

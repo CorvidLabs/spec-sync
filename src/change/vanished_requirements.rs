@@ -81,18 +81,31 @@ struct RequirementScope {
 }
 
 impl RequirementScope {
+    /// Adds the specs directory `directory`. One that leaves the project adds nothing, so Git is
+    /// never handed a pathspec outside the repository; `specsync check` names that configuration
+    /// itself (the tester's run on #1108 at 4ced5a26).
     fn add_directory(&mut self, directory: &str) {
         let directory = directory.trim_end_matches('/');
+        if !matches!(directory, "" | ".") && normalize_project_path(directory).is_err() {
+            return;
+        }
         if !self.directories.iter().any(|known| known == directory) {
             self.directories.push(directory.to_string());
         }
     }
 
     /// Adds the directory of each spec `registry` maps. A path that leaves the project adds
-    /// nothing, as `canonical_module_paths` refuses it (`safe_project_path`; Codex's second round).
-    fn add_registry(&mut self, root: &Path, registry: &crate::types::RegistryEntry) {
+    /// nothing, as `canonical_module_paths` refuses it (Codex's second round). The working tree's
+    /// registry is judged on disk (`safe_project_path`); one read at a reference is judged as the
+    /// path it was there, not by today's tree (Codex's fourth round).
+    fn add_registry(&mut self, root: &Path, registry: &crate::types::RegistryEntry, on_disk: bool) {
         for (_, path) in &registry.specs {
-            if safe_project_path(root, path).is_err() {
+            let leaves = if on_disk {
+                safe_project_path(root, path).is_err()
+            } else {
+                normalize_project_path(path).is_err()
+            };
+            if leaves {
                 continue;
             }
             let directory = path
@@ -153,7 +166,7 @@ fn requirement_scope(root: &Path) -> RequirementScope {
     let mut scope = RequirementScope::default();
     scope.add_directory(&crate::config::load_config(root).specs_dir);
     if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
-        scope.add_registry(root, &registry);
+        scope.add_registry(root, &registry, true);
     }
     scope
 }
@@ -215,7 +228,7 @@ fn add_reference_requirement_scope(
     {
         let content = read(path)?;
         if let Some(registry) = reference_registry(path, &content)? {
-            scope.add_registry(root, &registry);
+            scope.add_registry(root, &registry, false);
         }
     }
     Ok(excluded)
@@ -520,9 +533,41 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         if change.state != ChangeState::Archived || resolved.as_ref() != Some(&here) {
             continue;
         }
+        // Archived after the reference: a package the reference already held, renamed since,
+        // authorizes nothing new (Codex on #1108, fourth round).
+        if archived_at(root, reference, &change.id)? {
+            continue;
+        }
         add_approved_removals(root, &change, &mut removed);
     }
     Ok(removed)
+}
+
+/// Whether `commit`'s tree already holds an archive package for change `id`: a directory named as
+/// `change finalize` names it (`<date>-<id>`, or `<id>`) whose `state.json` there names `id`.
+fn archived_at(root: &Path, commit: &str, id: &str) -> Result<bool, String> {
+    let archive = format!(":(literal){ARCHIVE_PATH}/");
+    let listed = git_output_allow_empty(
+        root,
+        &["ls-tree", "-z", "--name-only", "--end-of-options", commit, "--", archive.as_str()],
+    )
+    .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
+    let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
+    let suffix = format!("-{id}");
+    for package in nul_separated(&listed) {
+        let name = package.rsplit('/').next().unwrap_or(package);
+        if name != id && !name.ends_with(&suffix) {
+            continue;
+        }
+        let object = format!("{commit}:{prefix}{package}/state.json");
+        let named = git_output_allow_empty(root, &["show", object.as_str()])
+            .and_then(|text| serde_json::from_str::<ChangeRecord>(&text).ok())
+            .is_some_and(|record| record.id == id);
+        if named {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The way out of a refusal that could not read Git (Leif's rule 3): repair the repository or
@@ -546,7 +591,9 @@ fn lost_requirements_way_out(root: &Path, record: &ChangeRecord) -> String {
 /// `Ok(Some(note))` when there is nothing to compare with; `Err` with the refusal otherwise.
 fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Option<String>, String> {
     lost_requirements_check(root, record).map_err(|refusal| match refusal {
-        LostRequirementsRefusal::Lost(message) => message,
+        LostRequirementsRefusal::Lost(message) | LostRequirementsRefusal::Misconfigured(message) => {
+            message
+        }
         LostRequirementsRefusal::Unreadable(what) => format!(
             "cannot tell whether this branch lost canonical requirements: {what}; {}",
             lost_requirements_way_out(root, record)
@@ -554,9 +601,11 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
     })
 }
 
-/// Why `lost_requirements_check` refuses: requirements were lost, or Git could not be read.
+/// Why `lost_requirements_check` refuses: requirements were lost, the configuration names a
+/// specs directory outside the project, or Git could not be read.
 enum LostRequirementsRefusal {
     Lost(String),
+    Misconfigured(String),
     Unreadable(String),
 }
 
@@ -570,6 +619,22 @@ fn lost_requirements_check(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<Option<String>, LostRequirementsRefusal> {
+    // A specs directory outside the project is a configuration to fix, not a repository Git
+    // cannot read: say so in the words `specsync check` uses, and send Git no such pathspec (the
+    // tester's run on #1108 at 4ced5a26).
+    let config = crate::config::load_config(root);
+    let specs_dir = config.specs_dir.trim_end_matches('/');
+    if !matches!(specs_dir, "" | ".") && normalize_project_path(specs_dir).is_err() {
+        let file = config
+            .config_path
+            .as_deref()
+            .map_or_else(|| ".specsync/config.toml".to_string(), |path| portable_project_path(root, path));
+        return Err(LostRequirementsRefusal::Misconfigured(format!(
+            "Coverage specs directory must remain beneath the project root: {}; set `specs_dir` in {file} to a directory inside the project, then run `specsync change check {}` again",
+            config.specs_dir,
+            shell_word(&record.id)
+        )));
+    }
     let Some(reference) = lost_requirements_reference(root, record)? else {
         return Ok(Some(
             "note: there is no default branch and no change base commit in HEAD's history, so lost canonical requirements were not checked (REQ-change-169)".to_string(),
@@ -630,8 +695,17 @@ fn lost_requirements_check(
         .cloned()
         .collect();
     let working = working_tree_requirement_blocks(root, &scope, &excluded_both);
+    // Only the tracked ones count ("in none of the tracked ones in the working tree"): `change
+    // check --commit` commits no file Git does not track, so a copy there keeps nothing (Codex on
+    // #1108, fourth round; Leif's 'continue with 95% confidence').
+    let mut args = vec!["ls-files", "-z", "--cached", "--"];
+    args.extend(pathspecs.iter().map(String::as_str));
+    let tracked_listing = git_output_allow_empty(root, &args)
+        .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
+    let tracked: BTreeSet<&str> = nul_separated(&tracked_listing).collect();
     let present: BTreeSet<&str> = working
         .iter()
+        .filter(|(path, _)| tracked.contains(path.as_str()))
         .flat_map(|(_, blocks)| blocks.iter().map(|(id, _)| id.as_str()))
         .collect();
     let lost: Vec<&(String, String, String)> = at_reference
@@ -676,6 +750,31 @@ fn lost_requirements_check(
                 .map(|(other, _)| format!("{id} reads as renumbered to {other}"))
         })
         .collect::<Vec<_>>();
+    // A lost id kept only in a file Git does not track: the way out is to track it.
+    let untracked = unaccounted
+        .iter()
+        .filter_map(|(id, _, _)| {
+            working
+                .iter()
+                .filter(|(path, _)| !tracked.contains(path.as_str()))
+                .find(|(_, blocks)| blocks.iter().any(|(other, _)| other == id))
+                .map(|(path, _)| {
+                    format!(
+                        "{id} is in {path}, which Git does not track: `git add {}`",
+                        shell_word(path)
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    let untracked_hint = if untracked.is_empty() {
+        String::new()
+    } else {
+        format!(
+            ". {}, then run `specsync change check {}` again",
+            untracked.join("; "),
+            shell_word(&record.id)
+        )
+    };
     let renumber_hint = if renumbered.is_empty() {
         String::new()
     } else {
@@ -718,7 +817,7 @@ fn lost_requirements_check(
         }
     };
     Err(LostRequirementsRefusal::Lost(format!(
-        "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. {way_out}{renumber_hint}"
+        "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. {way_out}{untracked_hint}{renumber_hint}"
     )))
 }
 

@@ -135,8 +135,7 @@ the change's base commit when there is no default branch. The default branch is 
 `origin/main` or `origin/master`, each only when it resolves and is not the branch `HEAD` is on. So
 a clone of a single branch, whose `origin/HEAD` can name that branch, is still compared with the
 default branch, and work done directly on `main` is compared from the change's base commit. An id
-that is gone from every requirements
-file is refused, by name, unless an approved `## REMOVED` item of a change on the branch names it. A
+that is gone from every requirements file Git tracks is refused, by name, unless an approved `## REMOVED` item of a change on the branch names it. A
 requirement moved to another file under the same id is not lost; a renumbered one is lost under its
 old id, because a requirement id is permanent. To put a lost block back, `git show <commit>:<file>`
 prints it as the merge-base held it; to remove it on purpose, name it in a `## REMOVED` delta and
@@ -151,11 +150,15 @@ The requirements files are those under the specs directory, at any depth, and th
 registered spec: the `requirements.md` and `<module>.req.md` in the spec's own directory, not below
 it. For a spec registered at the project root, that means the root's own files, not the rest of the
 tree, and a registry path that leaves the project adds nothing. A directory that leads outside the
-project, or is itself a link, is not read. The check takes them from the
+project, or is itself a link, is not read, and a `specs_dir` outside the project is refused in the
+words `specsync check` uses, naming the setting to fix. A requirement kept only in a file Git does
+not track counts for nothing, since `change check --commit` would not commit that file; the
+refusal names the `git add` that keeps it. The check takes them from the
 configuration and registry in the working tree and from those at the commit it compares with, so a
 branch that drops a registry mapping or moves `specs_dir` is still compared with the files that
 were canonical there. Only an active change past its draft, or a change the branch archived (read from its archived
-record, with a valid approval), accounts for a removal. A retired change does not. The approval
+record, with a valid approval, archived after the commit it compares with), accounts for a
+removal. A retired change does not. The approval
 must bind the delta's wording: one that records no delta digests, as an approval made before they
 existed, accounts for nothing until the change is approved again.
 

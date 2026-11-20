@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "7680a928ab6bb2782508a9272f027ed833790c99",
+      "contract_digest": "98eff60ad8f9d2535368fa73be85deaa7169b30de278ebd813963beaf61c31df",
+      "execution_digest": "c5bf85a082907f4e56a8e249ff8be798b52097f49739caafa197f25bad1ebe50",
+      "workspace_digest": "8dc4009028bf6508da56601773063613f352ed4bdbca47e2e32d42a95a799209",
+      "timestamp": 1795099310,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "all as recommended, builder runs the send-back",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:32Z, on ss-lead/gates/1093-review-request.md at PR #1093 head 762adcaf, one answer for the three changes of the PR; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ]
+}

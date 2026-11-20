@@ -161,7 +161,36 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
     }
 }
 
+/// A refusal and, when its message names the one command that fixes it, that command as plain
+/// text. The command is built by the same code that writes it into the message, never read back
+/// out of the message (REQ-cmd-change-040's `fix`).
+struct RefusalWithFix {
+    message: String,
+    fix: Option<String>,
+}
+
+impl From<String> for RefusalWithFix {
+    fn from(message: String) -> Self {
+        Self { message, fix: None }
+    }
+}
+
+impl From<&str> for RefusalWithFix {
+    fn from(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+            fix: None,
+        }
+    }
+}
+
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    validate_definition_with_fix(root, record).map_err(|refusal| refusal.message)
+}
+
+/// `validate_definition`, with the `change answer` command a draft's refusal for an unanswered
+/// question names, for the approval dry run's `fix` (REQ-cmd-change-040).
+fn validate_definition_with_fix(root: &Path, record: &ChangeRecord) -> Result<(), RefusalWithFix> {
     let effective = effective_change_definition(root, record)?;
     historical_reconciliation_anchor(record)?;
     validate_acceptance_owner_correction_records(record)?;
@@ -243,10 +272,11 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
             return Err(format!(
                 "configured principles file is empty: {}",
                 path.display()
-            ));
+            )
+            .into());
         }
     }
-    validate_artifacts(root, record)
+    Ok(validate_artifacts(root, record)?)
 }
 
 const INTERVIEW_INCOMPLETE: &str = "the deterministic interview is incomplete";
@@ -258,20 +288,23 @@ fn unfinished_definition_refusal(
     record: &ChangeRecord,
     condition: &str,
     question: &str,
-) -> String {
+) -> RefusalWithFix {
     if record.state == ChangeState::Draft {
-        format!(
-            "{condition}; run {}",
-            answer_command_hint(&record.id, question, &[])
-        )
+        RefusalWithFix {
+            message: format!(
+                "{condition}; run {}",
+                answer_command_hint(&record.id, question, &[])
+            ),
+            fix: Some(answer_command(&record.id, question, &[])),
+        }
     } else {
-        condition.to_string()
+        condition.into()
     }
 }
 
 /// A draft's refusal for an unfinished interview: every question still open, and the
 /// `change answer` command for the first one (REQ-change-133).
-fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
+fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> RefusalWithFix {
     let open = remaining
         .iter()
         .map(|question| format!("`{}`", question.id))
@@ -280,10 +313,13 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
     let Some(first) = remaining.first() else {
         return INTERVIEW_INCOMPLETE.into();
     };
-    format!(
-        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
-        answer_command_hint(id, &first.id, &first.choices)
-    )
+    RefusalWithFix {
+        message: format!(
+            "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
+            answer_command_hint(id, &first.id, &first.choices)
+        ),
+        fix: Some(answer_command(id, &first.id, &first.choices)),
+    }
 }
 
 /// The `change answer` command for one open interview question, shared by approve's refusal
@@ -294,6 +330,18 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
 /// hint also says the lessons that apply can be named instead. No choice takes free text, with
 /// the scope questions keeping their established placeholders.
 pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String]) -> String {
+    let command = format!("`{}`", answer_command(id, question_id, choices));
+    if question_id == "constraints" && choices.len() == 1 {
+        format!("{command}, or name the lessons or principles that constrain it instead")
+    } else {
+        command
+    }
+}
+
+/// The bare `change answer` command `answer_command_hint` prints between backticks: the approval
+/// dry run's `fix` (REQ-cmd-change-040). With two or more choices, or for a free-text question,
+/// it holds a placeholder in angle brackets that the caller must fill in.
+fn answer_command(id: &str, question_id: &str, choices: &[String]) -> String {
     let answer = match choices {
         [] => match question_id {
             "acceptance_criteria" => "\"<observable outcome>\"",
@@ -305,12 +353,7 @@ pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String
         [only] => only.clone(),
         choices => format!("<{}>", choices.join("|")),
     };
-    let command = format!("`specsync change answer {id} {question_id} {answer}`");
-    if question_id == "constraints" && choices.len() == 1 {
-        format!("{command}, or name the lessons or principles that constrain it instead")
-    } else {
-        command
-    }
+    format!("specsync change answer {id} {question_id} {answer}")
 }
 
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
@@ -2661,9 +2704,15 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
 ///
 /// The row described the change as `{id}: {title}` in whichever column the table calls its
 /// description, so it is found by that prefix inside the `## Change Log` section rather than by
-/// rebuilding a row and comparing it. A table that `specsync compact` or a human has since
-/// reformatted still counts, and the trailing colon keeps one slug from matching another that
-/// merely extends it.
+/// rebuilding a row and comparing it. A row names the change when one of its table cells begins
+/// with `{id}:` as written, or just inside the one Markdown marker that opens the cell where that
+/// marker closes right after it or at the cell's end (`cell_names_change`), so a row
+/// `specsync compact` or a human has reformatted (`**{id}:**`) still counts. A cell's padding is
+/// not part of its text, so an id's leading spaces are not compared. Anything else does not: the id
+/// mentioned in another
+/// row's prose (Codex's review of #1088), or a longer id that merely ends with it, so `one-session:`
+/// is not a row for `session`. This one matcher decides both "the module records the change" and
+/// "the change is recorded twice" (#1086 review).
 fn changelog_records_change(spec: &str, id: &str) -> bool {
     let Some(position) = spec.rfind("## Change Log") else {
         return false;
@@ -2672,7 +2721,88 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     let end = spec[start..]
         .find("\n## ")
         .map_or(spec.len(), |offset| start + offset);
-    spec[start..end].contains(&format!("{id}:"))
+    // A cell's surrounding spaces are padding, so an id's leading spaces, which stand where that
+    // padding is, are not compared (Codex's review of 8266e6c6); its trailing ones meet the `:`.
+    let needle = format!("{}:", id.trim_start());
+    spec[start..end]
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('|'))
+        .any(|row| {
+            table_row_cells(row)
+                .iter()
+                .any(|cell| cell_names_change(cell.trim(), &needle))
+        })
+}
+
+/// A Markdown table row's cells as Markdown reads them: split on pipes no backslash escapes, each
+/// `\|` a pipe inside its cell (Codex's review of 0cdd7f41: the cell `a\|b: Title` is the row of
+/// the id `a|b`). The empty text before a row's leading pipe and after its trailing one is kept;
+/// an empty cell never begins with an id.
+fn table_row_cells(row: &str) -> Vec<String> {
+    let mut cells = Vec::new();
+    let mut cell = String::new();
+    let mut characters = row.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' if characters.peek() == Some(&'|') => {
+                characters.next();
+                cell.push('|');
+            }
+            '|' => cells.push(std::mem::take(&mut cell)),
+            other => cell.push(other),
+        }
+    }
+    cells.push(cell);
+    cells
+}
+
+/// Whether a Change Log cell begins with `needle` (`<id>:`): the raw cell first, so an id that
+/// itself begins with `*`, `_` or a backtick is matched as written, then `needle` just inside the
+/// one Markdown marker that opens the cell (`**`, `__`, `*`, `_` or a backtick, the longest that
+/// fits) when that marker closes right after it (`**<id>:** Title`) or at the end of the cell
+/// (`**<id>: Title**`). A marker that never closes belongs to the id, so `*hotfix: Hot` is the row
+/// of `*hotfix` and not of `hotfix` (Codex's and ss-lead's reviews of #1088).
+fn cell_names_change(cell: &str, needle: &str) -> bool {
+    if cell.starts_with(needle) {
+        return true;
+    }
+    let Some(marker) = ["**", "__", "*", "_", "`"]
+        .into_iter()
+        .find(|marker| cell.starts_with(marker))
+    else {
+        return false;
+    };
+    cell[marker.len()..]
+        .strip_prefix(needle)
+        .is_some_and(|after| after.starts_with(marker) || after.trim_end().ends_with(marker))
+}
+
+/// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the
+/// lifecycle never writes that table, which is frozen, and a change's history goes to its own
+/// fragment (#1086 review). Approve, check, verify and accept ask it; an archive is never re-judged.
+fn refuse_change_log_delta_items(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if record.no_spec_change {
+        return Ok(());
+    }
+    for module in &record.affected_specs {
+        let path = delta_path_checked(root, record, module)?;
+        let Ok(delta) = read_bounded_change_text(root, &path, "semantic delta") else {
+            continue;
+        };
+        let Ok(items) = parse_delta(&delta) else {
+            continue;
+        };
+        if items.iter().any(is_change_log_section) {
+            // The printed command runs as printed whatever the id holds (Codex's review of #1088).
+            return Err(format!(
+                "semantic delta for `{module}` targets its `## Change Log` section, which SpecSync no longer writes: the table is frozen, and `change check` records this change in `history/{id}.md` beside the spec; take the `SPEC SECTION Change Log` item out of `.specsync/changes/{id}/deltas/{module}.md`, then run `specsync change approve {word}`",
+                id = record.id,
+                word = shell_word(&record.id)
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Materialization writes TWO outputs per module, and the `canonical_applied` short-circuit
@@ -3225,7 +3355,7 @@ fn transaction_entries_digest(entries: &[TransactionEntry]) -> Result<String, St
 
 /// Write `path` durably: stage a new file beside it, then rename it over the name, which never
 /// writes through a link there. Every component of `path` is refused as a link first, so no
-/// directory on the way can lead the write out of the project (REQ-change-163).
+/// directory on the way can lead the write out of the project (REQ-change-165).
 fn atomic_write_durable(root: &Path, path: &Path, content: &[u8]) -> Result<(), String> {
     reject_symlink_components_for(root, path, "lifecycle write target")?;
     let parent = path

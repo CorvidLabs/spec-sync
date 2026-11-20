@@ -2759,6 +2759,7 @@ fn accept_change_with_gate(
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     validate_delta_files(root, &record)?;
+    refuse_change_log_delta_items(root, &record)?;
     // Acceptance is the second place deltas reach the canonical spec (`prepare_delta_application`
     // below, when `check` never materialized them), so it gets the same refusal.
     ensure_approved_delta_bodies_unchanged(root, &record)?;

@@ -340,7 +340,7 @@ Each fixture has its own `git init`; every journal names files inside the fixtur
 | The bare-array 5.x form | Refused with the `.broken` recovery | `a_bare_array_journal_is_no_longer_replayed` |
 | The person's own interrupted write, including a registry-mapped spec | Still recovered | `a_real_interrupted_write_is_still_recovered`, `a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not` |
 
-## Change records written through the confined helpers (REQ-change-163)
+## Change records written through the confined helpers (REQ-change-165)
 
 Every link points inside the test's own temporary directory.
 

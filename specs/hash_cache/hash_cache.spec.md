@@ -72,7 +72,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 6. Companion file detection covers all five companion types (requirements.md, context.md, tasks.md, testing.md, design.md) in both naming conventions: plain (`requirements.md`) and prefixed (`{module}.req.md`)
 7. `update_cache` prunes entries for deleted files to prevent unbounded cache growth
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
-9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
+9. The validation snapshot input digest frames the name, type and content of every entry in the spec's `history/` directory, and the type of the directory itself, so a cached verdict never replays over an added, edited, removed or replaced history fragment, including one swapped for a symlink to the same bytes (REQ-hash-cache-006).
 10. The cache is never read or written through a symbolic link. `load` and `save` work through the local state folder's handle, opened without following a link at any name SpecSync made; `save` creates a new file there exclusively and renames it over `hashes.json`, so the old file is never written in place, and a link found at that name is replaced, never followed. `.specsync` and `.specsync/hashes.json` in the work tree, which a repository can commit as links, are never looked at (REQ-hash-cache-007).
 11. The cache is read within 64 MiB through the local state folder, any link refused, and every read of a project file here, every file it hashes or reads to classify a spec (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-hash-cache-008).
 12. A `.specsync/hashes.json` in the work tree, in any letter case and whether or not Git tracks it, came with the repository or with SpecSync 6.3 or earlier and is never read or saved over: Git's pathspecs are case-sensitive and an archive has no Git, so no check of it could be complete. No `git` process is started for the cache. `prune` keeps an entry only for a key `confine_path_to_root` accepts that names a regular project file, so it never looks at a path outside the project (REQ-hash-cache-009, REQ-hash-cache-010).
@@ -120,6 +120,12 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 - **Given** `testing.md` or `design.md` has been modified
 - **When** `classify_changes` is called for the parent spec
 - **Then** returns `ChangeClassification` with `ChangeKind::Companion`
+
+### Scenario: A history fragment replaced by a symlink or a directory re-validates
+
+- **Given** a snapshot recorded while `specs/auth/history/add-passkeys.md` was a regular file
+- **When** that fragment is replaced by a symlink to a copy of the same bytes, or by a directory of the same name, and `replayable_validation_snapshot` is called
+- **Then** it returns `None`: the entry's type is part of the snapshot input digest, so `check` validates the spec again instead of replaying the earlier verdict
 
 ## Error Cases
 

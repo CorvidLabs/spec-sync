@@ -140,7 +140,7 @@ fn workspace(fixture: &Fixture, id: &str) -> PathBuf {
 
 // ─── the change workflow (F2) ──────────────────────────────────────────
 
-/// Verifies REQ-util-002 and REQ-change-163. `change answer` rewrites `change.md`; a committed
+/// Verifies REQ-util-002 and REQ-change-165. `change answer` rewrites `change.md`; a committed
 /// `change.md` linked outside the repository is refused before anything is written, so the file
 /// it names keeps its bytes and the change keeps its state.
 #[test]
@@ -168,7 +168,7 @@ fn change_answer_never_writes_change_md_through_a_link_out() {
     );
 }
 
-/// Verifies REQ-util-002 and REQ-change-163. `change approve` on a change the repository
+/// Verifies REQ-util-002 and REQ-change-165. `change approve` on a change the repository
 /// committed, with `change.md` linked outside it: the outside file keeps its bytes and no
 /// approval is recorded.
 #[test]
@@ -219,7 +219,7 @@ fn change_approve_never_writes_change_md_through_a_link_out() {
     );
 }
 
-/// Verifies REQ-util-002 and REQ-change-163. A committed artifact that is a dangling link out of
+/// Verifies REQ-util-002 and REQ-change-165. A committed artifact that is a dangling link out of
 /// the repository is never created through by `change answer`.
 #[test]
 fn change_answer_never_creates_the_target_of_a_dangling_artifact_link() {
@@ -239,7 +239,7 @@ fn change_answer_never_creates_the_target_of_a_dangling_artifact_link() {
     assert!(said(&output).contains(&artifacts[0]), "{}", said(&output));
 }
 
-/// Verifies REQ-util-002 and REQ-change-163. A committed `.specsync/changes` linked to a
+/// Verifies REQ-util-002 and REQ-change-165. A committed `.specsync/changes` linked to a
 /// directory outside the repository receives no change workspace from `change new`.
 #[test]
 fn change_new_creates_nothing_in_a_changes_directory_linked_out() {
@@ -566,7 +566,7 @@ fn hooks_install_never_writes_through_a_link_into_the_git_directory() {
     assert!(said(&output).contains("Git directory"), "{}", said(&output));
 }
 
-/// Verifies REQ-util-005 and REQ-change-163. A committed `change.md` linked to an existing hook
+/// Verifies REQ-util-005 and REQ-change-165. A committed `change.md` linked to an existing hook
 /// keeps the hook's bytes: the text a repository chose for its change never becomes a hook.
 #[test]
 fn change_answer_never_writes_change_md_into_a_hook() {

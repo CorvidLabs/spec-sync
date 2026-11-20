@@ -52,6 +52,40 @@
 <id>urn:chough:journal:2026-11-19-hash-cache-never-read-or-written-through-a-link</id>
 <updated>2026-11-19T14:06:33Z</updated>
 <link href="2026-11-19-hash-cache-never-read-or-written-through-a-link.md"/>
+  <entry>
+<title>SpecSync 6.4.0 release preparation on main</title>
+<id>urn:chough:journal:2026-11-20-specsync-6-4-0-release-preparation-on-main</id>
+<link href="2026-11-20-specsync-6-4-0-release-preparation-on-main.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>specsync change approve &lt;id&gt; --dry-run runs the approval&apos;s own checks</title>
+<id>urn:chough:journal:2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own</id>
+<link href="2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>Text change status names a sequence-ledger freeze before the…</title>
+<id>urn:chough:journal:2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the</id>
+<link href="2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>ship-status reports an archived change&apos;s review as done by finalize…</title>
+<id>urn:chough:journal:2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by</id>
+<link href="2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>change ship-status exits 1 when it reports a blocker</title>
+<id>urn:chough:journal:2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker</id>
+<link href="2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>Fix the four #1086 review findings on history fragments</title>
+<id>urn:chough:journal:2026-11-19-fix-the-four-1086-review-findings-on-history-fragments</id>
+<link href="2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md"/>
 <category term="shipped"/>
 </entry>
   <entry>

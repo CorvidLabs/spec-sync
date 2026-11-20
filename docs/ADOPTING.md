@@ -162,8 +162,9 @@ CI passes over drift. With it, drift gates.
 currency rules. A squash can make a historical review's ancestry unavailable even when verified
 content still matches. That is a recovery concern for changes merged while still active, not a
 reason to schedule fresh review after every normal merge. Complete review and finalization on
-the PR first. Use `change ship-status <id>` for the current gate and `change status <id>` for
-the supported recovery action if an older change was already merged prematurely.
+the PR first. Use `change ship-status <id>` for the current gate (it exits 1 while it names a
+blocker) and `change status <id>` for the supported recovery action if an older change was
+already merged prematurely.
 
 **Scope is approved explicitly.** Set `affected_specs` and `affected_paths` while the change is
 `draft`. To re-scope an approved, implementing or verifying change, use

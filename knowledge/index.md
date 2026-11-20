@@ -31,6 +31,12 @@ Newest posts:
 - [Project file reads are confined and bounded](journal/2026-11-19-project-file-reads-are-confined-and-bounded.md) (2026-11-19, shipped)
 - [Project file writes never leave the project](journal/2026-11-19-project-file-writes-never-leave-the-project.md) (2026-11-19, shipped)
 - [Hash cache never read or written through a link](journal/2026-11-19-hash-cache-never-read-or-written-through-a-link.md) (2026-11-19, shipped)
+- [SpecSync 6.4.0 release preparation on main](journal/2026-11-20-specsync-6-4-0-release-preparation-on-main.md) (2026-11-20, shipped)
+- [specsync change approve \<id\> --dry-run runs the approval's own checks](journal/2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md) (2026-11-19, shipped)
+- [Text change status names a sequence-ledger freeze before the…](journal/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md) (2026-11-19, shipped)
+- [ship-status reports an archived change's review as done by finalize…](journal/2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md) (2026-11-19, shipped)
+- [change ship-status exits 1 when it reports a blocker](journal/2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md) (2026-11-19, shipped)
+- [Fix the four #1086 review findings on history fragments](journal/2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md) (2026-11-19, shipped)
 - [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
 
 ## Where things live
@@ -187,6 +193,7 @@ Each module's lessons stay in its lesson source:
 - ai: [specs/ai/ai.3md](../specs/ai/ai.3md), 3 lessons
 - archive: [specs/archive/archive.3md](../specs/archive/archive.3md), 3 lessons
 - change: [specs/change/change.3md](../specs/change/change.3md), 54 lessons
+- change: [specs/change/change.3md](../specs/change/change.3md), 55 lessons
 - changelog: [specs/changelog/changelog.3md](../specs/changelog/changelog.3md), 3 lessons
 - cli: [specs/cli/cli.3md](../specs/cli/cli.3md), 8 lessons
 - cli_args: [specs/cli_args/cli_args.3md](../specs/cli_args/cli_args.3md), 7 lessons
@@ -229,6 +236,7 @@ Each module's lessons stay in its lesson source:
 - github: [specs/github/github.3md](../specs/github/github.3md), 12 lessons
 - hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 5 lessons
 - hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 7 lessons
+- hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 6 lessons
 - ignore: [specs/ignore/ignore.3md](../specs/ignore/ignore.3md), 4 lessons
 - importer: [specs/importer/importer.3md](../specs/importer/importer.3md), 5 lessons
 - manifest: [specs/manifest/manifest.3md](../specs/manifest/manifest.3md), 13 lessons
@@ -255,6 +263,9 @@ Lesson bundles of the newest 3 archived changes:
 - [keep-specsync-s-own-caches-and-journal-outside-the-work-tree](../.specsync/archive/changes/2026-11-20-keep-specsync-s-own-caches-and-journal-outside-the-work-tree/lesson-bundle.md), Keep SpecSync's own caches and journal outside the work tree
 - [keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree](../.specsync/archive/changes/2026-11-20-keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree/lesson-bundle.md), Keep writes, reads and caches a repository can steer inside its Git work tree
 - [never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files](../.specsync/archive/changes/2026-11-19-never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files/lesson-bundle.md), Never replay a transaction journal SpecSync did not write, or into Git's files
+- [prepare-specsync-6-4-0-package-metadata-and-release-handoff](../.specsync/archive/changes/2026-11-20-prepare-specsync-6-4-0-package-metadata-and-release-handoff/lesson-bundle.md), Prepare SpecSync 6.4.0 package metadata and release handoff
+- [change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing](../.specsync/archive/changes/2026-11-19-change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing/lesson-bundle.md), Change approve has a dry run that reports every check's first refusal and writes nothing
+- [text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair](../.specsync/archive/changes/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair/lesson-bundle.md), Text change status names a sequence-ledger freeze before the verification_ignored_paths repair
 
 ## Snapshots and briefs
 

@@ -1,0 +1,524 @@
+// A repository can commit `.specsync/change-transaction.json`, and every writing change command
+// replays the journal when it takes the lock. Replay is for the person's own interrupted write:
+// a journal Git tracks is never replayed, an entry may only name a file the change workflow
+// writes, a `.git` component is refused in any letter case, and the 5.x bare-array form is no
+// longer replayed (SETUP-8, REQ-change-162).
+
+/// A project with a spec, its requirements and a Git repository, so `.git/` is real.
+fn journal_project() -> TempDir {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(root.join("specs/auth/auth.spec.md"), "# Auth\n").unwrap();
+    fs::write(root.join("specs/auth/requirements.md"), "# Requirements\n").unwrap();
+    for args in [
+        &["init", "-q"][..],
+        &["config", "user.email", "journal@example.invalid"][..],
+        &["config", "user.name", "journal test"][..],
+        &["config", "commit.gpgsign", "false"][..],
+    ] {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    temp
+}
+
+fn journal_git(root: &Path, args: &[&str]) {
+    assert!(
+        Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success(),
+        "git {args:?}"
+    );
+}
+
+fn entry(path: &str, original: Option<&str>) -> TransactionEntry {
+    TransactionEntry {
+        path: path.to_string(),
+        original: original.map(str::to_string),
+    }
+}
+
+/// The journal exactly as this build writes one, integrity envelope and all.
+fn durable_journal(entries: Vec<TransactionEntry>) -> String {
+    serde_json::to_string(&TransactionJournal {
+        schema_version: 1,
+        entry_count: entries.len(),
+        entries_digest: transaction_entries_digest(&entries).unwrap(),
+        entries,
+    })
+    .unwrap()
+}
+
+fn plant_journal(root: &Path, journal: &str) {
+    fs::write(transaction_journal_path(root), journal).unwrap();
+}
+
+/// Verifies REQ-change-162. No journal entry may rewrite or delete a file under `.git`, in any
+/// letter case or with a trailing dot, so a repository cannot set `core.fsmonitor` or replace a
+/// hook through a journal it commits.
+#[test]
+fn a_journal_never_rewrites_or_deletes_git_files() {
+    for (target, original) in [
+        (".git/config", Some("[core]\n\tfsmonitor = touch planted\n")),
+        (".GIT/config", Some("[core]\n\tfsmonitor = touch planted\n")),
+        (".git./config", Some("[core]\n\tfsmonitor = touch planted\n")),
+        (".git/HEAD", None),
+        (".git/hooks/pre-commit", Some("#!/bin/sh\ntouch planted\n")),
+    ] {
+        let temp = journal_project();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".git/hooks")).unwrap();
+        fs::write(root.join(".git/hooks/pre-commit"), "#!/bin/sh\nexit 0\n").unwrap();
+        let config = fs::read(root.join(".git/config")).unwrap();
+        let head = fs::read(root.join(".git/HEAD")).unwrap();
+        let hook = fs::read(root.join(".git/hooks/pre-commit")).unwrap();
+        plant_journal(root, &durable_journal(vec![entry(target, original)]));
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert_eq!(
+            fs::read(root.join(".git/config")).unwrap(),
+            config,
+            "{target}: the journal rewrote .git/config"
+        );
+        assert_eq!(
+            fs::read(root.join(".git/HEAD")).unwrap(),
+            head,
+            "{target}: the journal touched .git/HEAD"
+        );
+        assert_eq!(
+            fs::read(root.join(".git/hooks/pre-commit")).unwrap(),
+            hook,
+            "{target}: the journal rewrote a hook"
+        );
+        assert!(
+            !root.join(".GIT").exists() || root.join(".git").exists(),
+            "{target}"
+        );
+        assert!(
+            !root.join(".git.").exists(),
+            "{target}: the journal created a .git. directory"
+        );
+        assert!(
+            error.contains(&format!("entry `{target}`")) && error.contains("Git's own files"),
+            "{target}: {error}"
+        );
+        assert!(
+            transaction_journal_path(root).exists(),
+            "{target}: a refused journal is left for the person to inspect"
+        );
+    }
+}
+
+/// Verifies REQ-change-162. A journal Git tracks came with the repository, so it is never
+/// replayed, even when every entry names an allowed file: in the index, or only in `HEAD`. Like
+/// any journal in the work tree, it stops the lifecycle with the path and how to clear it.
+#[test]
+fn a_journal_git_tracks_is_never_replayed() {
+    for staged_out in [false, true] {
+        let temp = journal_project();
+        let root = temp.path();
+        fs::write(
+            root.join(TRANSACTION_PATH),
+            durable_journal(vec![entry("specs/auth/auth.spec.md", Some("TAMPERED\n"))]),
+        )
+        .unwrap();
+        journal_git(root, &["add", "-A"]);
+        journal_git(root, &["commit", "-q", "-m", "fixture"]);
+        if staged_out {
+            journal_git(root, &["rm", "-q", "--cached", TRANSACTION_PATH]);
+        }
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert_eq!(
+            fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+            "# Auth\n",
+            "a tracked journal was replayed (staged out: {staged_out})"
+        );
+        assert!(
+            error.contains("in the work tree") && error.contains("rm "),
+            "{error}"
+        );
+    }
+}
+
+/// Verifies REQ-change-162. One entry outside what the change workflow writes refuses the
+/// whole journal: nothing is replayed, not even the allowed entries before it.
+#[test]
+fn one_entry_outside_the_change_workflow_refuses_the_whole_journal() {
+    let temp = journal_project();
+    let root = temp.path();
+    plant_journal(
+        root,
+        &durable_journal(vec![
+            entry("specs/auth/auth.spec.md", Some("RESTORED\n")),
+            entry("Makefile", Some("all:\n\ttouch planted\n")),
+        ]),
+    );
+
+    let error = recover_pending_transaction(root).unwrap_err();
+
+    assert!(!root.join("Makefile").exists(), "an entry outside was written");
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth\n",
+        "part of a refused journal was replayed"
+    );
+    assert!(
+        error.contains("entry `Makefile`") && error.contains(".broken"),
+        "{error}"
+    );
+}
+
+/// Verifies REQ-change-162. The bare-array form only 5.x wrote has no integrity envelope, so it
+/// is no longer replayed.
+#[test]
+fn a_bare_array_journal_is_no_longer_replayed() {
+    let temp = journal_project();
+    let root = temp.path();
+    plant_journal(
+        root,
+        r#"[{"path":"specs/auth/auth.spec.md","original":"RESTORED\n"}]"#,
+    );
+
+    let error = recover_pending_transaction(root).unwrap_err();
+
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth\n"
+    );
+    assert!(
+        error.contains("5.x") && error.contains(".broken"),
+        "{error}"
+    );
+}
+
+/// Verifies REQ-change-162. CONTROL: the person's own interrupted write is still put back, in
+/// the spec tree, in a change record, and as a deletion of a file the write created.
+#[test]
+fn a_real_interrupted_write_is_still_recovered() {
+    let temp = journal_project();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth/history")).unwrap();
+    fs::write(root.join("specs/auth/history/new-change.md"), "half\n").unwrap();
+    fs::create_dir_all(root.join(".specsync/changes/new-change")).unwrap();
+    fs::write(root.join(".specsync/changes/new-change/state.json"), "half").unwrap();
+    plant_journal(
+        root,
+        &durable_journal(vec![
+            entry("specs/auth/auth.spec.md", Some("# Auth before\n")),
+            entry("specs/auth/requirements.md", Some("# Requirements before\n")),
+            entry("specs/auth/history/new-change.md", None),
+            entry(".specsync/changes/new-change/state.json", Some("{}")),
+        ]),
+    );
+
+    recover_pending_transaction(root).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth before\n"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap(),
+        "# Requirements before\n"
+    );
+    assert!(!root.join("specs/auth/history/new-change.md").exists());
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/changes/new-change/state.json")).unwrap(),
+        "{}"
+    );
+    assert!(!transaction_journal_path(root).exists());
+}
+
+/// Verifies REQ-change-162. A spec the local registry maps outside `specs_dir` is written by the
+/// change workflow too, so its spec, `requirements.md` and history fragments are recovered; a
+/// neighbouring file it does not write is not.
+#[test]
+fn a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not() {
+    let temp = journal_project();
+    let root = temp.path();
+    fs::create_dir_all(root.join("docs/api/history")).unwrap();
+    fs::write(root.join("docs/api/api.spec.md"), "# Api\n").unwrap();
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"journal\"\n\n[specs]\napi = \"docs/api/api.spec.md\"\n",
+    )
+    .unwrap();
+    plant_journal(
+        root,
+        &durable_journal(vec![
+            entry("docs/api/api.spec.md", Some("# Api before\n")),
+            entry("docs/api/requirements.md", Some("# Api requirements\n")),
+            entry("docs/api/history/new-change.md", None),
+        ]),
+    );
+    recover_pending_transaction(root).unwrap();
+    assert_eq!(
+        fs::read_to_string(root.join("docs/api/api.spec.md")).unwrap(),
+        "# Api before\n"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("docs/api/requirements.md")).unwrap(),
+        "# Api requirements\n"
+    );
+
+    plant_journal(
+        root,
+        &durable_journal(vec![entry("docs/api/notes.md", Some("planted\n"))]),
+    );
+    let error = recover_pending_transaction(root).unwrap_err();
+    assert!(!root.join("docs/api/notes.md").exists());
+    assert!(error.contains("entry `docs/api/notes.md`"), "{error}");
+}
+
+/// Verifies REQ-change-162. The write turns a backslash into a separator, so the path rule must
+/// too: `.git\config` is `.git/config`, and `specs/.git\config` reaches a `.git` component under
+/// the spec tree. A repository config of `specs_dir = "."` must not let either through.
+#[test]
+fn a_backslash_entry_cannot_reach_git_files() {
+    for (specs_dir, target) in [(".", ".git\\config"), ("specs", "specs/.git\\config")] {
+        let temp = journal_project();
+        let root = temp.path();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            format!("specs_dir = \"{specs_dir}\"\nsource_dirs = [\"src\"]\n"),
+        )
+        .unwrap();
+        let config = fs::read(root.join(".git/config")).unwrap();
+        plant_journal(
+            root,
+            &durable_journal(vec![entry(target, Some("[core]\n\tfsmonitor = touch planted\n"))]),
+        );
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert_eq!(
+            fs::read(root.join(".git/config")).unwrap(),
+            config,
+            "{target} rewrote .git/config"
+        );
+        assert!(
+            !root.join("specs/.git").exists(),
+            "{target} created a .git directory in the spec tree"
+        );
+        assert!(error.contains("Git's own files"), "{target}: {error}");
+    }
+}
+
+/// Verifies REQ-change-162. Under `specs_dir` the change workflow writes only spec files,
+/// `requirements.md` and history fragments, so a `specs_dir` of `.` does not open the whole tree
+/// to a replay.
+#[test]
+fn specs_dir_dot_does_not_widen_replay() {
+    let temp = journal_project();
+    let root = temp.path();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \".\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    plant_journal(
+        root,
+        &durable_journal(vec![entry("Makefile", Some("all:\n\ttouch planted\n"))]),
+    );
+    let error = recover_pending_transaction(root).unwrap_err();
+    assert!(!root.join("Makefile").exists(), "specs_dir . admitted Makefile");
+    assert!(error.contains("entry `Makefile`"), "{error}");
+
+    fs::create_dir_all(root.join("auth/history")).unwrap();
+    plant_journal(
+        root,
+        &durable_journal(vec![
+            entry("auth/auth.spec.md", Some("# Auth\n")),
+            entry("auth/requirements.md", Some("# Requirements\n")),
+            entry("auth/history/a-change.md", Some("---\n")),
+        ]),
+    );
+    recover_pending_transaction(root).unwrap();
+    assert_eq!(
+        fs::read_to_string(root.join("auth/auth.spec.md")).unwrap(),
+        "# Auth\n"
+    );
+}
+
+
+/// Verifies REQ-change-162. A journal in the work tree is never replayed, whether Git tracks it
+/// or not: an unpacked archive has no Git to ask, and a case variant or a failing Git answers
+/// "untracked". Even a valid envelope whose only entry the replay rule allows leaves the spec
+/// alone, and the command says where the journal is.
+#[test]
+fn a_journal_in_the_work_tree_is_never_replayed() {
+    for with_git in [true, false] {
+        let temp = if with_git {
+            journal_project()
+        } else {
+            let temp = TempDir::new().unwrap();
+            fs::create_dir_all(temp.path().join(".specsync")).unwrap();
+            fs::create_dir_all(temp.path().join("specs/auth")).unwrap();
+            fs::write(temp.path().join("specs/auth/auth.spec.md"), "# Auth\n").unwrap();
+            temp
+        };
+        let root = temp.path();
+        fs::write(
+            root.join(".specsync/change-transaction.json"),
+            durable_journal(vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
+        )
+        .unwrap();
+
+        let outcome = recover_pending_transaction(root);
+
+        assert_eq!(
+            fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+            "# Auth\n",
+            "with_git={with_git}: a journal in the work tree was replayed"
+        );
+        let error = outcome.expect_err("a journal in the work tree must refuse the lock");
+        assert!(
+            error.contains(".specsync/change-transaction.json"),
+            "with_git={with_git}: {error}"
+        );
+    }
+}
+
+/// Verifies REQ-change-162. While a transaction runs, its journal is kept outside the work tree,
+/// so no journal a repository could ship ever looks like one SpecSync wrote.
+#[test]
+fn a_running_transaction_keeps_its_journal_outside_the_work_tree() {
+    let temp = journal_project();
+    let root = temp.path().to_path_buf();
+    let seen = std::rc::Rc::new(std::cell::Cell::new(None));
+    let probe = std::rc::Rc::clone(&seen);
+    let hook_root = root.clone();
+    inject_transaction_after_journal_hook(move || {
+        probe.set(Some(
+            fs::symlink_metadata(hook_root.join(".specsync/change-transaction.json")).is_ok(),
+        ));
+    });
+
+    write_prepared_files(
+        &root,
+        &[(root.join("specs/auth/auth.spec.md"), "# Auth after\n".to_string())],
+    )
+    .unwrap();
+
+    assert_eq!(
+        seen.get(),
+        Some(false),
+        "the journal of a running transaction was written into the work tree"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth after\n"
+    );
+}
+
+/// Where change 6 kept the journal, in a Git directory: `.git/specsync/<key>` with the key of a
+/// project at the top of its work tree, the same in every repository.
+fn git_directory_journal(root: &Path) -> PathBuf {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"work-tree\0");
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
+    root.join(".git/specsync").join(key).join("change-transaction.json")
+}
+
+/// Verifies REQ-change-162. A tarball of a working copy carries its `.git`, so a journal there
+/// can come with the archive just as one in the work tree can. It is never replayed.
+#[test]
+fn a_journal_under_the_git_directory_is_never_replayed() {
+    let temp = journal_project();
+    let root = temp.path();
+    let planted = git_directory_journal(root);
+    fs::create_dir_all(planted.parent().unwrap()).unwrap();
+    fs::write(
+        &planted,
+        durable_journal(vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
+    )
+    .unwrap();
+
+    let _ = recover_pending_transaction(root);
+
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth\n",
+        "a journal an archive ships under its .git was replayed"
+    );
+}
+
+/// Verifies REQ-change-162. A registry entry is the repository's own text, so it may name any
+/// file; only a mapped path that is a spec opens a replay, never `.env` or another file the
+/// person added.
+#[test]
+fn a_registry_entry_that_is_not_a_spec_never_opens_a_replay() {
+    let temp = journal_project();
+    let root = temp.path();
+    fs::write(root.join(".env"), "SECRET=kept\n").unwrap();
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"journal\"\n\n[specs]\nenv = \".env\"\n",
+    )
+    .unwrap();
+    for original in [None, Some("SECRET=rewritten\n")] {
+        plant_journal(root, &durable_journal(vec![entry(".env", original)]));
+
+        let outcome = recover_pending_transaction(root);
+
+        assert_eq!(
+            fs::read_to_string(root.join(".env")).ok().as_deref(),
+            Some("SECRET=kept\n"),
+            "a registry entry naming .env let a journal delete or rewrite it ({original:?})"
+        );
+        let error = outcome.expect_err("the entry must refuse the journal");
+        assert!(error.contains("entry `.env`"), "{error}");
+        let _ = fs::remove_file(transaction_journal_path(root));
+    }
+}
+
+/// A project at `<tmp>/project` whose `specs` is a link to `<tmp>/outside/specs`, which holds
+/// `requirements.md` files, as a repository can commit it.
+#[cfg(unix)]
+fn project_with_specs_linked_out() -> (TempDir, PathBuf) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    for module in ["alpha", "beta"] {
+        let dir = temp.path().join("outside/specs").join(module);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("requirements.md"), "# Requirements\n\nOutside.\n").unwrap();
+    }
+    std::os::unix::fs::symlink("../outside/specs", root.join("specs")).unwrap();
+    (temp, root)
+}
+
+/// Verifies REQ-change-164. `change adopt` proposes requirement IDs for the companions under
+/// `specs_dir`; a committed `specs` link that leaves the project is never walked for them.
+#[cfg(unix)]
+#[test]
+fn requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project() {
+    let (_temp, root) = project_with_specs_linked_out();
+
+    let proposals = requirement_id_proposals(&root);
+
+    assert!(
+        proposals.is_empty(),
+        "requirement IDs were proposed for files outside the project: {proposals:?}"
+    );
+}

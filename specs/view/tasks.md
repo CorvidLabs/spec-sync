@@ -18,6 +18,7 @@ spec: view.spec.md
 - [x] `strip_frontmatter` helper for the appended requirements body
 - [x] Error paths: unknown role, unreadable file, unparseable frontmatter
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Read project files only through the bounded project read of `util` (REQ-view-002). Evidence: `tests/integration/project_reads.rs`.
 
 ## Review Status
 

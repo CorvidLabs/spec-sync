@@ -87,7 +87,7 @@ pub fn closed_late_record(
 ) -> Option<(PathBuf, Result<LateCloseRecord, String>)> {
     let package = closed_late_package(root, id)?;
     let path = package.join(LATE_CLOSE_RECORD);
-    let record = fs::read_to_string(&path)
+    let record = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", path.display()))
         .and_then(|content| {
             serde_json::from_str(&content)
@@ -694,7 +694,7 @@ fn unreadable_archive_records(root: &Path) -> Vec<(PathBuf, String)> {
         .map(|entry| entry.path())
         .filter(|path| path.join("state.json").is_file())
         .filter_map(|path| {
-            let error = match fs::read(path.join("state.json")) {
+            let error = match crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES) {
                 Err(error) => error.to_string(),
                 Ok(content) => serde_json::from_slice::<ChangeRecord>(&content).err()?.to_string(),
             };
@@ -715,7 +715,7 @@ fn archived_records(root: &Path) -> Vec<ChangeRecord> {
         .flatten()
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
-        .filter_map(|path| serde_json::from_slice(&fs::read(path.join("state.json")).ok()?).ok())
+        .filter_map(|path| serde_json::from_slice(&crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES).ok()?).ok())
         .collect()
 }
 
@@ -731,7 +731,7 @@ fn archived_accepted_packages(root: &Path) -> Vec<(PathBuf, ChangeRecord)> {
         .filter(|path| path.is_dir())
         .filter_map(|path| {
             let record: ChangeRecord =
-                serde_json::from_slice(&fs::read(path.join("state.json")).ok()?).ok()?;
+                serde_json::from_slice(&crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES).ok()?).ok()?;
             (record.state == ChangeState::Accepted).then_some((path, record))
         })
         .collect();
@@ -798,7 +798,7 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
         }
     };
     let state_path = source.join("state.json");
-    let record: ChangeRecord = fs::read(&state_path)
+    let record: ChangeRecord = crate::util::read_project_bytes(root, &state_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", state_path.display()))
         .and_then(|content| {
             serde_json::from_slice(&content)
@@ -909,7 +909,7 @@ fn archived_package_for(root: &Path, id: &str) -> Option<PathBuf> {
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
         .find(|path| {
-            fs::read(path.join("state.json"))
+            crate::util::read_project_bytes(root, &path.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
                 .ok()
                 .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
                 .is_some_and(|record| record.id == id)
@@ -964,7 +964,7 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     }
     let ledger_path = root.join(SEQUENCE_PATH);
     let original_ledger = if ledger_changed {
-        Some(fs::read(&ledger_path).map_err(|error| {
+        Some(crate::util::read_project_bytes(root, &ledger_path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| {
             format!("failed to read {}: {error}", ledger_path.display())
         })?)
     } else {
@@ -972,26 +972,26 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
     };
     let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut write = || -> Result<(), String> {
-        fs::create_dir_all(root.join(CLOSED_LATE_PATH))
+        crate::util::create_project_dir(root, &root.join(CLOSED_LATE_PATH))
             .map_err(|error| format!("failed to create {CLOSED_LATE_PATH}: {error}"))?;
         for plan in plans.iter() {
             // Like lifecycle-lock acquisition, check again after creating the parent and at
             // each move boundary. The existing rollback still protects earlier batch members.
             validate_late_close_destination(root, &plan.destination)?;
-            rename_durable(&plan.source, &plan.destination)?;
+            rename_durable(root, &plan.source, &plan.destination)?;
             moved.push((plan.source.clone(), plan.destination.clone()));
-            write_json(&plan.destination.join(LATE_CLOSE_RECORD), &plan.record)?;
+            write_record_json(root, &plan.destination.join(LATE_CLOSE_RECORD), &plan.record)?;
         }
         if ledger_changed && let Some(ledger) = &ledger {
-            write_json_keeping_unknown_members(&ledger_path, ledger)?;
+            write_json_keeping_unknown_members(root, &ledger_path, ledger)?;
         }
         Ok(())
     };
     let outcome = write();
     if let Err(error) = outcome {
-        let mut failures = restore_late_close_moves(&moved);
+        let mut failures = restore_late_close_moves(root, &moved);
         if let Some(bytes) = original_ledger
-            && let Err(restore) = fs::write(&ledger_path, bytes)
+            && let Err(restore) = crate::util::write_project_file(root, &ledger_path, &bytes)
         {
             failures.push(format!(
                 "`{SEQUENCE_PATH}` could not be restored: {restore}"
@@ -1010,12 +1010,12 @@ fn write_late_closes(root: &Path, plans: &mut [LateClosePlan]) -> Result<(), Str
 
 /// Move every package in `moved` back, newest first, then remove the record a late close wrote
 /// into it. Returns one sentence per package that could not be put back (Codex review of #994).
-fn restore_late_close_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
+fn restore_late_close_moves(root: &Path, moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
     let mut failures = Vec::new();
     for (source, destination) in moved.iter().rev() {
         // The record stays with a package that cannot be moved back, so it is never stranded
         // under closed-late without its actor, reason and merge proof (Codex review of #994).
-        if let Err(error) = rename_durable(destination, source) {
+        if let Err(error) = rename_durable(root, destination, source) {
             failures.push(format!(
                 "`{}` could not be moved back to `{}`, and keeps its late-close record: {error}",
                 destination.display(),
@@ -1023,7 +1023,7 @@ fn restore_late_close_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
             ));
             continue;
         }
-        match fs::remove_file(source.join(LATE_CLOSE_RECORD)) {
+        match crate::util::remove_project_file(root, &source.join(LATE_CLOSE_RECORD)) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => failures.push(format!(

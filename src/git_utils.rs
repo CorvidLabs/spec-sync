@@ -304,6 +304,33 @@ fn wait_for_pipe_or_wake(
     }
 }
 
+/// Whether Git tracks `relative` (a path under `root`, with `/` separators), in the index or in
+/// `HEAD` (REQ-git-utils-012). `false` outside a repository or when Git is not installed. The
+/// path is matched literally, so `*`, `?` and `[...]` in a folder name are never wildcards, and
+/// no variable in the environment can move the repository or widen the match.
+pub(crate) fn tracked_by_git(root: &Path, relative: &str) -> bool {
+    let succeeds = |args: &[&str]| {
+        Command::new("git")
+            .arg("--literal-pathspecs")
+            .args(args)
+            .current_dir(root)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_LITERAL_PATHSPECS")
+            .env_remove("GIT_GLOB_PATHSPECS")
+            .env_remove("GIT_NOGLOB_PATHSPECS")
+            .env_remove("GIT_ICASE_PATHSPECS")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    };
+    succeeds(&["ls-files", "--error-unmatch", "--", relative])
+        || succeeds(&["cat-file", "-e", &format!("HEAD:./{relative}")])
+}
+
 /// Collect stdout and stderr, and return when the direct child exits.
 ///
 /// Stdin is the null device, matching `Command::output`: the child cannot read
@@ -312,6 +339,16 @@ fn wait_for_pipe_or_wake(
 /// keeps the child's pipe open does not delay the return: readers stop once the
 /// child has been reaped, after a finite snapshot of the bytes already queued.
 pub(crate) fn output_after_child_exits(command: &mut Command) -> io::Result<Output> {
+    output_after_child_exits_capped(command, usize::MAX).map(|(output, _)| output)
+}
+
+/// [`output_after_child_exits`] keeping at most `stdout_cap` bytes of stdout, and saying whether
+/// the child wrote more (REQ-git-utils-013). The rest is drained and dropped, so the child is
+/// never left blocked on a full pipe.
+pub(crate) fn output_after_child_exits_capped(
+    command: &mut Command,
+    stdout_cap: usize,
+) -> io::Result<(Output, bool)> {
     use std::process::Stdio;
 
     command.stdin(Stdio::null());
@@ -342,7 +379,8 @@ pub(crate) fn output_after_child_exits(command: &mut Command) -> io::Result<Outp
         let stderr_stop = Arc::clone(&stop);
         let stdout_reader = thread::spawn(move || {
             let overflow = AtomicBool::new(false);
-            read_pipe_until_stop(stdout, &stdout_stop, wake_fd, usize::MAX, &overflow)
+            read_pipe_until_stop(stdout, &stdout_stop, wake_fd, stdout_cap, &overflow)
+                .map(|bytes| (bytes, overflow.load(Ordering::Acquire)))
         });
         let stderr_reader = thread::spawn(move || {
             let overflow = AtomicBool::new(false);
@@ -350,18 +388,28 @@ pub(crate) fn output_after_child_exits(command: &mut Command) -> io::Result<Outp
         });
         let status = child.wait();
         wake.signal(&stop);
-        let stdout = join_reader(stdout_reader);
+        let stdout = stdout_reader
+            .join()
+            .map_err(|_| io::Error::other("child output reader panicked"))?;
         let stderr = join_reader(stderr_reader);
-        Ok(Output {
-            status: status?,
-            stdout: stdout?,
-            stderr: stderr?,
-        })
+        let (stdout, overflowed) = stdout?;
+        Ok((
+            Output {
+                status: status?,
+                stdout,
+                stderr: stderr?,
+            },
+            overflowed,
+        ))
     }
 
     #[cfg(not(unix))]
     {
-        collect_output_after_exit_windows(&mut child, stdout, stderr)
+        collect_output_after_exit_windows(&mut child, stdout, stderr).map(|mut output| {
+            let overflowed = output.stdout.len() > stdout_cap;
+            output.stdout.truncate(stdout_cap);
+            (output, overflowed)
+        })
     }
 }
 
@@ -2445,6 +2493,24 @@ mod tests {
     /// A piped stdin on the command must not survive. `Command::output` replaces
     /// stdin with the null device. `test -ef` compares device and inode, so the
     /// check also holds on macOS, where `/dev/fd/N` is not a symlink to read.
+    /// Verifies REQ-git-utils-013. A capped collector keeps the cap, reports that the child wrote
+    /// more, and still lets the child finish.
+    #[cfg(unix)]
+    #[test]
+    fn capped_output_keeps_the_cap_and_reports_more() {
+        let script = "i=0; while [ $i -lt 1000 ]; do printf 0123456789; i=$((i+1)); done";
+        let (output, overflowed) =
+            output_after_child_exits_capped(Command::new("sh").arg("-c").arg(script), 10).unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"0123456789");
+        assert!(overflowed);
+        let (output, overflowed) =
+            output_after_child_exits_capped(Command::new("sh").arg("-c").arg(script), 10_000)
+                .unwrap();
+        assert_eq!(output.stdout.len(), 10_000);
+        assert!(!overflowed);
+    }
+
     #[cfg(unix)]
     #[test]
     fn output_after_child_exits_nulls_stdin() {

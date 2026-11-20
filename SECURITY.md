@@ -5,7 +5,7 @@
 | Version | Supported |
 |---------|-----------|
 | 6.x     | Yes       |
-| 5.x     | Yes       |
+| 5.x     | No        |
 | 4.x     | No        |
 | 3.x     | No        |
 | < 3.0   | No        |

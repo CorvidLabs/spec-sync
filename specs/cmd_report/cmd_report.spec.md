@@ -12,6 +12,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Report
@@ -42,6 +43,7 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 10. Modules whose staleness could not be measured count as findings for the exit code, so `report`
     never exits 0 certifying "0 stale" over a question it did not ask. `enforcement = "warn"`
     still exits 0, with honest `n/a` cells.
+11. Every read of a project file here, spec files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-report-006).
 
 ## Behavioral Examples
 
@@ -66,6 +68,7 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 | Spec references a file that doesn't exist | File is skipped in staleness calculation |
 | No spec files found | Prints "no specs found" and exits 0 |
 | Malformed Gradle settings prevent coverage discovery | Exits 1; JSON remains valid with `valid: false`, `inconclusive: true`, null overall coverage, zero counts, empty modules, and an explicit error |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

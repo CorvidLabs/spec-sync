@@ -1,7 +1,10 @@
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, OpenOptions};
 use colored::Colorize;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 // ─── Agent instruction templates ─────────────────────────────────────────────
@@ -183,19 +186,77 @@ const PRE_COMMIT_BEGIN_PREFIX: &str = "# >>> specsync:pre-commit:";
 const PRE_COMMIT_END_PREFIX: &str = "# <<< specsync:pre-commit:";
 const LEGACY_PRE_COMMIT_MARKER: &str = "# --- spec-sync pre-commit hook ---";
 
-fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
+/// The hook file SpecSync manages in the hooks folder.
+const PRE_COMMIT: &str = "pre-commit";
+
+/// The hooks folder Git names, reached one component at a time without following any link, and
+/// its path for messages (REQ-hooks-009). With `core.hooksPath` inside the work tree (husky's
+/// `.husky/_`, a `.githooks` folder), every name on the way is repository content, so a link
+/// anywhere on it is refused rather than followed.
+struct HooksDir {
+    dir: Dir,
+    path: PathBuf,
+}
+
+/// `path` with `.` and `..` worked out by spelling, never by asking the filesystem.
+fn lexically_normal(path: &Path) -> PathBuf {
+    let mut normal = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                normal.pop();
+            }
+            Component::CurDir => {}
+            other => normal.push(other),
+        }
+    }
+    normal
+}
+
+/// Why the Git hooks folder was not reached: there is nothing to manage there (Git did not run,
+/// the folder is not in a Git repository, or the configured hooks folder does not exist), or the
+/// way to it is refused, with a message that names the path (REQ-hooks-009).
+enum HooksDirError {
+    Absent(String),
+    Refused(String),
+}
+
+impl From<HooksDirError> for String {
+    fn from(error: HooksDirError) -> String {
+        match error {
+            HooksDirError::Absent(message) | HooksDirError::Refused(message) => message,
+        }
+    }
+}
+
+const GIT_NOT_RUN: &str = "failed to resolve Git hooks path";
+const NOT_A_REPOSITORY: &str =
+    "is not inside a Git repository; run `git init` before installing a pre-commit hook";
+const NO_HOOKS_DIR: &str = "configured Git hooks directory does not exist";
+
+fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, HooksDirError> {
+    reach_git_hooks_dir(root, create).map_err(|message| {
+        if message == NO_HOOKS_DIR
+            || message.ends_with(NOT_A_REPOSITORY)
+            || message.starts_with(GIT_NOT_RUN)
+        {
+            HooksDirError::Absent(message)
+        } else {
+            HooksDirError::Refused(message)
+        }
+    })
+}
+
+fn reach_git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
     let output =
         crate::git_utils::output_after_child_exits(Command::new("git").arg("-C").arg(root).args([
             "rev-parse",
             "--git-path",
             "hooks",
         ]))
-        .map_err(|error| format!("failed to resolve Git hooks path: {error}"))?;
+        .map_err(|error| format!("{GIT_NOT_RUN}: {error}"))?;
     if !output.status.success() {
-        return Err(format!(
-            "{} is not inside a Git repository; run `git init` before installing a pre-commit hook",
-            root.display()
-        ));
+        return Err(format!("{} {NOT_A_REPOSITORY}", root.display()));
     }
     let raw = String::from_utf8(output.stdout)
         .map_err(|_| "Git hooks path is not valid UTF-8".to_string())?;
@@ -203,28 +264,226 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
     if raw.is_empty() {
         return Err("Git returned an empty hooks path".into());
     }
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve {}: {error}", root.display()))?;
     let path = PathBuf::from(raw);
     let path = if path.is_absolute() {
         path
     } else {
-        root.join(path)
+        canonical_root.join(path)
     };
-    if create {
-        fs::create_dir_all(&path)
-            .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
-    } else if !path.is_dir() {
-        return Err("configured Git hooks directory does not exist".into());
+    let path = lexically_normal(&path);
+    // The walk starts from a folder no repository content leads to: the Git directory, the work
+    // tree's top folder, or, for a hooks folder the person set outside both, its own parent.
+    let mut may_create = create;
+    let (base, rest) = match crate::util::work_tree_and_git_dir(root) {
+        Some((_, git_dir)) if path.starts_with(&git_dir) => {
+            let rest = path.strip_prefix(&git_dir).unwrap_or(&path).to_path_buf();
+            (git_dir, rest)
+        }
+        Some((top, _)) if path.starts_with(&top) => {
+            let rest = path.strip_prefix(&top).unwrap_or(&path).to_path_buf();
+            (top, rest)
+        }
+        _ => {
+            let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+                return Err(format!("Git returned an unusable hooks path: {raw}"));
+            };
+            // Outside both trees, only the person's own global or system config may have folders
+            // made there: a repository's `.git/config`, which an archive can ship, may not
+            // (REQ-hooks-009).
+            may_create = create && hooks_path_is_the_persons_own(root);
+            if may_create {
+                // not a project file write: the parent of a hooks folder the person set outside the work tree and the Git directory in their own Git config
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
+            }
+            let parent = parent
+                .canonicalize()
+                .map_err(|_| NO_HOOKS_DIR.to_string())?;
+            (parent, PathBuf::from(name))
+        }
+    };
+    // not a project file read: the canonical Git directory, work-tree top or the person's own folder the walk starts from
+    let mut dir = Dir::open_ambient_dir(&base, ambient_authority())
+        .map_err(|error| format!("failed to open {}: {error}", base.display()))?;
+    let mut reached = base;
+    for component in rest.components() {
+        let Component::Normal(name) = component else {
+            return Err(format!("Git returned an unusable hooks path: {raw}"));
+        };
+        reached.push(name);
+        match dir.symlink_metadata(name) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "configured Git hooks directory is reached through a symlink and is unsafe to manage: {}",
+                    reached.display()
+                ));
+            }
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Err(format!("{} is not a directory", reached.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if !may_create {
+                    return Err(NO_HOOKS_DIR.into());
+                }
+                // checked project write: made through the handle on the folder above, which was reached without following a link
+                match dir.create_dir(name) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) => {
+                        return Err(format!("failed to create Git hooks directory: {error}"));
+                    }
+                }
+            }
+            Err(error) => return Err(format!("failed to inspect {}: {error}", reached.display())),
+        }
+        // The look above names what is refused; this open enforces it.
+        // not a project file read: opens the next folder on the hooks path without following a link at its name
+        dir = cap_primitives::fs::open_dir_nofollow(&dir.into_std_file(), Path::new(name))
+            .map(Dir::from_std_file)
+            .map_err(|_| {
+                format!(
+                    "configured Git hooks directory is reached through a symlink and is unsafe to manage: {}",
+                    reached.display()
+                )
+            })?;
     }
-    if fs::symlink_metadata(&path)
-        .map(|metadata| metadata.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err(format!(
-            "configured Git hooks directory is a symlink and is unsafe to manage: {}",
-            path.display()
-        ));
+    Ok(HooksDir { dir, path: reached })
+}
+
+/// Whether `core.hooksPath` comes from the person's own `global` or `system` Git config, as
+/// `git config --show-scope` says, rather than from the repository's config, which an archive can
+/// ship, or from anywhere else.
+fn hooks_path_is_the_persons_own(root: &Path) -> bool {
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["config", "--show-scope", "--get", "core.hooksPath"])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE"),
+    );
+    let Ok(output) = output else {
+        return false;
+    };
+    output.status.success()
+        && String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .next()
+            .is_some_and(|scope| scope == "global" || scope == "system")
+}
+
+impl HooksDir {
+    fn hook_path(&self) -> PathBuf {
+        self.path.join(PRE_COMMIT)
     }
-    Ok(path)
+
+    /// Whether `pre-commit` is there as a regular file; a link there is `Err` with `refusal`.
+    fn has_hook(&self, refusal: &str) -> Result<bool, String> {
+        match self.dir.symlink_metadata(PRE_COMMIT) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                Err(format!("{refusal}: {}", self.hook_path().display()))
+            }
+            Ok(metadata) if metadata.is_file() => Ok(true),
+            Ok(_) => Err(format!(
+                "{} is not a regular file",
+                self.hook_path().display()
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(format!("Failed to inspect pre-commit hook: {error}")),
+        }
+    }
+
+    /// The hook's text, opened without following a link or blocking, checked on the handle and
+    /// bounded; `None` when there is none.
+    fn read_hook(&self) -> Result<Option<String>, String> {
+        let mut options = OpenOptions::new();
+        // not a project file read: the pre-commit hook, opened without following a link or blocking through the hooks folder handle (REQ-hooks-009)
+        options
+            .read(true)
+            ._cap_fs_ext_nonblock(true)
+            ._cap_fs_ext_follow(cap_primitives::fs::FollowSymlinks::No);
+        // not a project file read: the pre-commit hook, opened without following a link through the hooks folder handle reached the same way (REQ-hooks-009)
+        let file = match self.dir.open_with(PRE_COMMIT, &options) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(format!("Failed to read pre-commit hook: {error}")),
+        };
+        let metadata = file
+            .metadata()
+            .map_err(|error| format!("Failed to read pre-commit hook: {error}"))?;
+        let bound = crate::util::MAX_SPEC_FILE_BYTES;
+        if !metadata.is_file() || metadata.len() > bound {
+            return Err(format!(
+                "{} is not a regular file of at most {bound} bytes",
+                self.hook_path().display()
+            ));
+        }
+        let mut content = String::new();
+        // not a project file read: the handle opened just above, bounded here
+        file.take(bound + 1)
+            .read_to_string(&mut content)
+            .map_err(|error| format!("Failed to read pre-commit hook: {error}"))?;
+        if content.len() as u64 > bound {
+            return Err(format!(
+                "{} is larger than {bound} bytes",
+                self.hook_path().display()
+            ));
+        }
+        Ok(Some(content))
+    }
+
+    /// Write the hook: an existing one through its open, checked handle, a new one with an
+    /// exclusive create, which never follows a link; then make it executable through the same
+    /// handle.
+    fn write_hook(&self, content: &str, existing: bool) -> Result<(), String> {
+        let mut options = OpenOptions::new();
+        if existing {
+            // checked project write: an existing hook opened without create, link or blocking through the hooks folder handle, checked below
+            options
+                .write(true)
+                ._cap_fs_ext_nonblock(true)
+                ._cap_fs_ext_follow(cap_primitives::fs::FollowSymlinks::No);
+        } else {
+            // checked project write: an exclusive create, which never follows a link, through the hooks folder handle
+            options.write(true).create_new(true);
+        }
+        // checked project write: the pre-commit hook, opened without following a link through the hooks folder handle (REQ-hooks-009)
+        // not a project file read: the same open, for writing only
+        let mut file = self
+            .dir
+            .open_with(PRE_COMMIT, &options)
+            .map_err(|error| format!("Failed to write pre-commit hook: {error}"))?;
+        let failed = |error: std::io::Error| format!("Failed to write pre-commit hook: {error}");
+        if !file.metadata().map_err(failed)?.is_file() {
+            return Err(format!(
+                "{} is not a regular file",
+                self.hook_path().display()
+            ));
+        }
+        // checked project write: the regular file this handle holds, checked just above
+        file.set_len(0).map_err(failed)?;
+        file.write_all(content.as_bytes()).map_err(failed)?;
+        file.flush().map_err(failed)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = cap_std::fs::Permissions::from_std(std::fs::Permissions::from_mode(0o755));
+            // checked project write: the hook's own open handle, so the mode never lands anywhere else
+            file.set_permissions(mode)
+                .map_err(|e| format!("Failed to set pre-commit hook permissions: {e}"))?;
+        }
+        Ok(())
+    }
+
+    /// Remove the hook by unlinking its name, which never touches what a link would lead to.
+    fn remove_hook(&self) -> Result<(), String> {
+        // checked project write: unlinks the name in the hooks folder handle (REQ-hooks-009)
+        self.dir
+            .remove_file(PRE_COMMIT)
+            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))
+    }
 }
 
 fn hook_project_identity(root: &Path) -> Result<(String, String, String), String> {
@@ -386,65 +645,52 @@ impl HookTarget {
     }
 }
 
-/// Check if a hook target is already installed.
-pub fn is_installed(root: &Path, target: HookTarget) -> bool {
+/// Whether a hook target is installed. A read of its file that is refused or fails is an error
+/// that names the path and the reason, never "not installed" (REQ-hooks-007). For the pre-commit
+/// hook, a hooks folder that cannot be reached safely is an error too (REQ-hooks-009), while no
+/// repository or no hooks folder means there is no hook.
+fn installed(root: &Path, target: HookTarget) -> Result<bool, String> {
+    let marked = |relative: &str, marker: &str| -> Result<bool, String> {
+        Ok(read_hook_target(root, &root.join(relative), relative)?
+            .is_some_and(|content| content.contains(marker)))
+    };
     match target {
-        HookTarget::Claude => {
-            let path = root.join("CLAUDE.md");
-            path.exists()
-                && fs::read_to_string(&path)
-                    .map(|c| c.contains("Spec-Sync Integration"))
-                    .unwrap_or(false)
-        }
-        HookTarget::Cursor => {
-            let path = root.join(".cursorrules");
-            path.exists()
-                && fs::read_to_string(&path)
-                    .map(|c| c.contains("Spec-Sync Rules"))
-                    .unwrap_or(false)
-        }
-        HookTarget::Copilot => {
-            let path = root.join(".github").join("copilot-instructions.md");
-            path.exists()
-                && fs::read_to_string(&path)
-                    .map(|c| c.contains("Spec-Sync Integration"))
-                    .unwrap_or(false)
-        }
-        HookTarget::Agents => {
-            let path = root.join("AGENTS.md");
-            path.exists()
-                && fs::read_to_string(&path)
-                    .map(|c| c.contains("Spec-Sync Integration"))
-                    .unwrap_or(false)
-        }
+        HookTarget::Claude => marked("CLAUDE.md", "Spec-Sync Integration"),
+        HookTarget::Cursor => marked(".cursorrules", "Spec-Sync Rules"),
+        HookTarget::Copilot => marked(".github/copilot-instructions.md", "Spec-Sync Integration"),
+        HookTarget::Agents => marked("AGENTS.md", "Spec-Sync Integration"),
         HookTarget::Precommit => {
-            let Ok(hooks_dir) = git_hooks_dir(root, false) else {
-                return false;
+            let hooks_dir = match git_hooks_dir(root, false) {
+                Ok(hooks_dir) => hooks_dir,
+                Err(HooksDirError::Absent(_)) => return Ok(false),
+                Err(HooksDirError::Refused(reason)) => return Err(reason),
             };
             let Ok((begin, end)) = pre_commit_markers(root) else {
-                return false;
+                return Ok(false);
             };
-            let path = hooks_dir.join("pre-commit");
-            if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-                return false;
+            // A link at `pre-commit` is refused, as install and uninstall refuse it; the hook is
+            // Git's, not a project file, and is read through the hooks folder handle, which never
+            // follows a link (REQ-hooks-009).
+            if !hooks_dir.has_hook("refusing to read symlinked pre-commit hook")? {
+                return Ok(false);
             }
-            fs::read_to_string(path)
-                .map(|content| content.contains(&begin) && content.contains(&end))
-                .unwrap_or(false)
+            Ok(hooks_dir
+                .read_hook()?
+                .is_some_and(|content| content.contains(&begin) && content.contains(&end)))
         }
-        HookTarget::ClaudeCodeHook => {
-            let path = root.join(".claude").join("settings.json");
-            path.exists()
-                && fs::read_to_string(&path)
-                    .map(|c| c.contains(CLAUDE_CODE_HOOK_MARKER))
-                    .unwrap_or(false)
-        }
+        HookTarget::ClaudeCodeHook => marked(".claude/settings.json", CLAUDE_CODE_HOOK_MARKER),
     }
+}
+
+/// [`installed`], with an error read as not installed, for the unit tests' short checks.
+#[cfg(test)]
+pub fn is_installed(root: &Path, target: HookTarget) -> bool {
+    installed(root, target).unwrap_or(false)
 }
 
 /// Install a single hook target. Returns Ok(true) if installed, Ok(false) if already present.
 pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
-    if is_installed(root, target) {
+    if installed(root, target)? {
         return Ok(false);
     }
 
@@ -458,16 +704,30 @@ pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
     }
 }
 
+/// What `uninstall` says for an installed Claude Code hook: a note, not a failure.
+const CLAUDE_CODE_HOOK_MANUAL_REMOVAL: &str =
+    "Claude Code hook settings must be removed manually from .claude/settings.json";
+
 /// Uninstall a single hook target. Returns Ok(true) if removed, Ok(false) if not found.
 pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
     if target == HookTarget::Precommit {
+        // No repository or no hooks folder holds no hook; a hooks folder reached through a link
+        // is refused with the path named (REQ-hooks-009).
         let hooks_dir = match git_hooks_dir(root, false) {
-            Ok(path) => path,
-            Err(_) => return Ok(false),
+            Ok(hooks_dir) => hooks_dir,
+            Err(HooksDirError::Absent(_)) => return Ok(false),
+            Err(HooksDirError::Refused(reason)) => return Err(reason),
         };
-        return uninstall_precommit(root, &hooks_dir.join("pre-commit"));
+        return uninstall_precommit(root, &hooks_dir);
     }
-    if !is_installed(root, target) {
+    // A target that leaves the project through a link reads as not installed, because its read
+    // is refused. Uninstall must still fail on it, naming the path (REQ-hooks-006, REQ-hooks-007).
+    if let Some(reason) = uninstalled_file(root, target)
+        .and_then(|path| crate::util::project_path_refusal(root, &path))
+    {
+        return Err(reason);
+    }
+    if !installed(root, target)? {
         return Ok(false);
     }
 
@@ -475,15 +735,16 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         HookTarget::Claude => {
             // Remove the spec-sync section from CLAUDE.md
             let path = root.join("CLAUDE.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET)
+            remove_section_from_file(root, &path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET)
         }
         HookTarget::Cursor => {
             let path = root.join(".cursorrules");
-            remove_section_from_file(&path, "# Spec-Sync Rules", CURSORRULES_SNIPPET)
+            remove_section_from_file(root, &path, "# Spec-Sync Rules", CURSORRULES_SNIPPET)
         }
         HookTarget::Copilot => {
             let path = root.join(".github").join("copilot-instructions.md");
             remove_section_from_file(
+                root,
                 &path,
                 "# Spec-Sync Integration",
                 COPILOT_INSTRUCTIONS_SNIPPET,
@@ -491,15 +752,12 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         }
         HookTarget::Agents => {
             let path = root.join("AGENTS.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration", AGENTS_MD_SNIPPET)
+            remove_section_from_file(root, &path, "# Spec-Sync Integration", AGENTS_MD_SNIPPET)
         }
         HookTarget::Precommit => unreachable!("pre-commit uninstall handled above"),
         HookTarget::ClaudeCodeHook => {
             // Don't auto-remove Claude Code settings — too risky
-            Err(
-                "Claude Code hook settings must be removed manually from .claude/settings.json"
-                    .to_string(),
-            )
+            Err(CLAUDE_CODE_HOOK_MANUAL_REMOVAL.to_string())
         }
     }
 }
@@ -531,31 +789,63 @@ fn wrap_snippet(snippet: &str) -> String {
     format!("{HOOK_BEGIN}\n{}\n{HOOK_END}", snippet.trim())
 }
 
+/// Read a hook target as text, `None` when it does not exist.
+///
+/// Every file `hooks` writes is read, written and removed through the project file functions:
+/// each can be committed as a symbolic link, so a link that leaves the project, a dangling link
+/// and a non-regular file are refused with an error naming the path, and a link that stays
+/// inside the project is followed (REQ-hooks-006).
+fn read_hook_target(root: &Path, path: &Path, label: &str) -> Result<Option<String>, String> {
+    match crate::util::read_project_file(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
+        Ok(Some(bytes)) => String::from_utf8(bytes).map(Some).map_err(|_| {
+            format!(
+                "Failed to read {label}: {} is not valid UTF-8",
+                path.display()
+            )
+        }),
+        Ok(None) => Ok(None),
+        Err(e) => Err(format!("Failed to read {label}: {e}")),
+    }
+}
+
 /// Append the sentinel-wrapped snippet to `path`, or create the file with it.
 /// No-op (Ok(false)) if a spec-sync block is already present.
-fn install_markdown_snippet(path: &Path, snippet: &str, label: &str) -> Result<bool, String> {
+fn install_markdown_snippet(
+    root: &Path,
+    path: &Path,
+    snippet: &str,
+    label: &str,
+) -> Result<bool, String> {
     let wrapped = wrap_snippet(snippet);
-    if path.exists() {
-        let existing =
-            fs::read_to_string(path).map_err(|e| format!("Failed to read {label}: {e}"))?;
-        if existing.contains("Spec-Sync") {
-            return Ok(false);
+    match read_hook_target(root, path, label)? {
+        Some(existing) => {
+            if existing.contains("Spec-Sync") {
+                return Ok(false);
+            }
+            let new_content = format!("{}\n\n{wrapped}\n", existing.trim_end());
+            crate::util::write_project_file(root, path, new_content.as_bytes())
+                .map_err(|e| format!("Failed to write {label}: {e}"))?;
         }
-        let new_content = format!("{}\n\n{wrapped}\n", existing.trim_end());
-        fs::write(path, new_content).map_err(|e| format!("Failed to write {label}: {e}"))?;
-    } else {
-        fs::write(path, format!("{wrapped}\n"))
-            .map_err(|e| format!("Failed to create {label}: {e}"))?;
+        None => {
+            crate::util::write_project_file(root, path, format!("{wrapped}\n").as_bytes())
+                .map_err(|e| format!("Failed to create {label}: {e}"))?;
+        }
     }
     Ok(true)
 }
 
 fn install_claude_md(root: &Path) -> Result<bool, String> {
-    install_markdown_snippet(&root.join("CLAUDE.md"), CLAUDE_MD_SNIPPET, "CLAUDE.md")
+    install_markdown_snippet(
+        root,
+        &root.join("CLAUDE.md"),
+        CLAUDE_MD_SNIPPET,
+        "CLAUDE.md",
+    )
 }
 
 fn install_cursorrules(root: &Path) -> Result<bool, String> {
     install_markdown_snippet(
+        root,
         &root.join(".cursorrules"),
         CURSORRULES_SNIPPET,
         ".cursorrules",
@@ -563,36 +853,34 @@ fn install_cursorrules(root: &Path) -> Result<bool, String> {
 }
 
 fn install_copilot(root: &Path) -> Result<bool, String> {
-    let github_dir = root.join(".github");
-    if !github_dir.exists() {
-        fs::create_dir_all(&github_dir).map_err(|e| format!("Failed to create .github/: {e}"))?;
-    }
+    // `.github/` is created with the file, through the same project file functions.
     install_markdown_snippet(
-        &github_dir.join("copilot-instructions.md"),
+        root,
+        &root.join(".github").join("copilot-instructions.md"),
         COPILOT_INSTRUCTIONS_SNIPPET,
         "copilot-instructions.md",
     )
 }
 
 fn install_agents_md(root: &Path) -> Result<bool, String> {
-    install_markdown_snippet(&root.join("AGENTS.md"), AGENTS_MD_SNIPPET, "AGENTS.md")
+    install_markdown_snippet(
+        root,
+        &root.join("AGENTS.md"),
+        AGENTS_MD_SNIPPET,
+        "AGENTS.md",
+    )
 }
 
 fn install_precommit(root: &Path) -> Result<bool, String> {
     let hooks_dir = git_hooks_dir(root, true)?;
-    let path = hooks_dir.join("pre-commit");
+    let path = hooks_dir.hook_path();
     let (begin, end) = pre_commit_markers(root)?;
     let block = pre_commit_block(root)?;
 
-    if path.exists() {
-        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-            return Err(format!(
-                "refusing to replace symlinked pre-commit hook: {}",
-                path.display()
-            ));
-        }
-        let existing = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read pre-commit hook: {e}"))?;
+    // A link at `pre-commit`, dangling or not, is refused before anything is read or written
+    // (REQ-hooks-009).
+    if hooks_dir.has_hook("refusing to replace symlinked pre-commit hook")? {
+        let existing = hooks_dir.read_hook()?.unwrap_or_default();
         let has_begin = existing.contains(&begin);
         let has_end = existing.contains(&end);
         if has_begin != has_end {
@@ -620,36 +908,21 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
             new_content.push_str(&tail.join("\n"));
             new_content.push('\n');
         }
-        fs::write(&path, new_content)
-            .map_err(|e| format!("Failed to write pre-commit hook: {e}"))?;
+        hooks_dir.write_hook(&new_content, true)?;
     } else {
-        fs::write(&path, format!("#!/bin/sh\n{block}\n"))
-            .map_err(|e| format!("Failed to create pre-commit hook: {e}"))?;
+        hooks_dir.write_hook(&format!("#!/bin/sh\n{block}\n"), false)?;
     }
-
-    // Make executable on Unix
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o755);
-        fs::set_permissions(&path, perms)
-            .map_err(|e| format!("Failed to set pre-commit hook permissions: {e}"))?;
-    }
-
     Ok(true)
 }
 
-fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
-    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-        return Err(format!(
-            "refusing to modify symlinked pre-commit hook: {}",
-            path.display()
-        ));
+fn uninstall_precommit(root: &Path, hooks_dir: &HooksDir) -> Result<bool, String> {
+    let path = hooks_dir.hook_path();
+    let path = path.as_path();
+    if !hooks_dir.has_hook("refusing to modify symlinked pre-commit hook")? {
+        return Ok(false);
     }
-    let content = match fs::read_to_string(path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("Failed to read pre-commit hook: {error}")),
+    let Some(content) = hooks_dir.read_hook()? else {
+        return Ok(false);
     };
     let (begin_marker, end_marker) = pre_commit_markers(root)?;
     let begin = content
@@ -691,8 +964,7 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
         }
         lines.truncate(marker);
     } else if content.trim() == PRE_COMMIT_HOOK.trim() {
-        fs::remove_file(path)
-            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
+        hooks_dir.remove_hook()?;
         return Ok(true);
     } else {
         return Ok(false);
@@ -701,27 +973,18 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
         lines.pop();
     }
     if lines.is_empty() || lines == ["#!/bin/sh"] {
-        fs::remove_file(path)
-            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
+        hooks_dir.remove_hook()?;
     } else {
-        fs::write(path, format!("{}\n", lines.join("\n")))
-            .map_err(|error| format!("Failed to write pre-commit hook: {error}"))?;
+        hooks_dir.write_hook(&format!("{}\n", lines.join("\n")), true)?;
     }
     Ok(true)
 }
 
 fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
-    let claude_dir = root.join(".claude");
-    if !claude_dir.exists() {
-        fs::create_dir_all(&claude_dir).map_err(|e| format!("Failed to create .claude/: {e}"))?;
-    }
+    // `.claude/` is created with the file, through the same project file functions.
+    let path = root.join(".claude").join("settings.json");
 
-    let path = claude_dir.join("settings.json");
-
-    if path.exists() {
-        let existing = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read .claude/settings.json: {e}"))?;
-
+    if let Some(existing) = read_hook_target(root, &path, ".claude/settings.json")? {
         // Precise marker (the full hook command), not a bare "specsync" substring —
         // otherwise a user who merely allows `Bash(specsync:*)` in `permissions`, or
         // references specsync anywhere else, is wrongly treated as already-installed
@@ -745,11 +1008,15 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
 
         let new_content = serde_json::to_string_pretty(&parsed)
             .map_err(|e| format!("Failed to serialize settings: {e}"))?;
-        fs::write(&path, format!("{new_content}\n"))
+        crate::util::write_project_file(root, &path, format!("{new_content}\n").as_bytes())
             .map_err(|e| format!("Failed to write .claude/settings.json: {e}"))?;
     } else {
-        fs::write(&path, format!("{CLAUDE_CODE_HOOK_SETTINGS}\n"))
-            .map_err(|e| format!("Failed to create .claude/settings.json: {e}"))?;
+        crate::util::write_project_file(
+            root,
+            &path,
+            format!("{CLAUDE_CODE_HOOK_SETTINGS}\n").as_bytes(),
+        )
+        .map_err(|e| format!("Failed to create .claude/settings.json: {e}"))?;
     }
 
     Ok(true)
@@ -818,13 +1085,15 @@ fn position_of_slice(haystack: &[&str], needle: &[&str]) -> Option<usize> {
 /// 3. **Heuristic** — only when the snippet has drifted beyond recognition: remove
 ///    from the marker to the next LEVEL-1 heading that isn't ours, or end-of-file.
 ///    Never deletes a file that had content before the block.
-fn remove_section_from_file(path: &Path, marker: &str, snippet: &str) -> Result<bool, String> {
-    if !path.exists() {
+fn remove_section_from_file(
+    root: &Path,
+    path: &Path,
+    marker: &str,
+    snippet: &str,
+) -> Result<bool, String> {
+    let Some(content) = read_hook_target(root, path, &path.display().to_string())? else {
         return Ok(false);
-    }
-
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+    };
 
     if !content.contains(marker) {
         return Ok(false);
@@ -879,13 +1148,14 @@ fn remove_section_from_file(path: &Path, marker: &str, snippet: &str) -> Result<
         // block: a precise removal (sentinel or exact snippet), or a legacy block
         // that began at the very top. If any content preceded the block, keep it.
         if precise || actual_start == 0 {
-            fs::remove_file(path)
+            crate::util::remove_project_file(root, path)
                 .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
         } else {
-            fs::write(path, "").map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+            crate::util::write_project_file(root, path, b"")
+                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
         }
     } else {
-        fs::write(path, format!("{trimmed}{newline}"))
+        crate::util::write_project_file(root, path, format!("{trimmed}{newline}").as_bytes())
             .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
     }
 
@@ -959,6 +1229,7 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
     );
 
     let mut removed = 0;
+    let mut refused = 0;
 
     for target in &targets {
         match uninstall_hook(root, *target) {
@@ -971,6 +1242,13 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
             }
             Err(e) => {
                 println!("  {} {}: {e}", "!".yellow(), target.description());
+                // Every error but the Claude Code hook's manual-removal note is the command
+                // failing: a file it would rewrite and refuses to (REQ-hooks-006), or a read of
+                // a hook target, or the way to the hooks folder, refused or failed (REQ-hooks-007,
+                // REQ-hooks-009).
+                if e != CLAUDE_CODE_HOOK_MANUAL_REMOVAL {
+                    refused += 1;
+                }
             }
         }
     }
@@ -980,6 +1258,23 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
         println!("{removed} hook(s) removed.");
     } else {
         println!("No hooks to remove.");
+    }
+    if refused > 0 {
+        println!("{refused} hook(s) refused.");
+        std::process::exit(1);
+    }
+}
+
+/// The project file `uninstall` rewrites or removes for a target. `None` for the pre-commit hook,
+/// which lives in the Git hooks directory and has its own guard, and for the Claude Code hook,
+/// which `uninstall` never touches.
+fn uninstalled_file(root: &Path, target: HookTarget) -> Option<PathBuf> {
+    match target {
+        HookTarget::Claude => Some(root.join("CLAUDE.md")),
+        HookTarget::Cursor => Some(root.join(".cursorrules")),
+        HookTarget::Copilot => Some(root.join(".github").join("copilot-instructions.md")),
+        HookTarget::Agents => Some(root.join("AGENTS.md")),
+        HookTarget::Precommit | HookTarget::ClaudeCodeHook => None,
     }
 }
 
@@ -991,11 +1286,12 @@ pub fn cmd_status(root: &Path) {
     );
 
     for target in HookTarget::all() {
-        let installed = is_installed(root, *target);
-        let status = if installed {
-            "installed".green().to_string()
-        } else {
-            "not installed".dimmed().to_string()
+        // A read that is refused or fails is shown with its reason, never as "not installed"
+        // (REQ-hooks-007).
+        let status = match installed(root, *target) {
+            Ok(true) => "installed".green().to_string(),
+            Ok(false) => "not installed".dimmed().to_string(),
+            Err(reason) => format!("{} {reason}", "error:".red()),
         };
         println!("  {:20} {}", target.description(), status);
     }
@@ -1789,8 +2085,13 @@ mod tests {
         let tmp = setup();
         let path = tmp.path().join("test.md");
         fs::write(&path, "# Spec-Sync Integration\nSome content\n").unwrap();
-        let result =
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        let result = remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         assert!(result);
         assert!(!path.exists());
     }
@@ -1804,7 +2105,13 @@ mod tests {
             "# My Project\n\nKeep this.\n\n# Spec-Sync Integration\nRemove this.\n",
         )
         .unwrap();
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("My Project"));
         assert!(content.contains("Keep this"));
@@ -1817,7 +2124,13 @@ mod tests {
         let path = tmp.path().join("test.md");
         fs::write(&path, "# No marker here\n").unwrap();
         assert!(
-            !remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            !remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
     }
 
@@ -1826,7 +2139,13 @@ mod tests {
         let tmp = setup();
         let path = tmp.path().join("nonexistent.md");
         assert!(
-            !remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            !remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
     }
 
@@ -1839,7 +2158,13 @@ mod tests {
             "# Before\n\nKeep.\n\n# Spec-Sync Integration\nRemove.\n\n# After\n\nAlso keep.\n",
         )
         .unwrap();
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("Before"));
         assert!(content.contains("Also keep"));
@@ -1856,7 +2181,13 @@ mod tests {
         fs::write(&path, format!("{block}\n\n## Deploy Notes\nkeep me\n")).unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         let content = fs::read_to_string(&path).unwrap();
         assert!(
@@ -1874,7 +2205,13 @@ mod tests {
         let block = wrap_snippet("# Spec-Sync Integration\nbody");
         fs::write(&path, format!("# Mine\n\nbefore\n\n{block}\n\nafter\n")).unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(
             content.contains("Mine") && content.contains("before") && content.contains("after")
@@ -1892,7 +2229,13 @@ mod tests {
         )
         .unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         assert!(
             !path.exists(),
             "a file holding only our block should be removed"
@@ -1913,7 +2256,13 @@ mod tests {
         .unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         assert!(
             path.exists(),
@@ -1938,7 +2287,13 @@ mod tests {
         )
         .unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        remove_section_from_file(
+            path.parent().unwrap(),
+            &path,
+            "# Spec-Sync Integration",
+            CLAUDE_MD_SNIPPET,
+        )
+        .unwrap();
         let after = fs::read_to_string(&path).unwrap();
         assert!(after.contains("# Mine") && after.contains("before") && after.contains("after"));
         assert!(!after.contains("Spec-Sync"));
@@ -2029,7 +2384,13 @@ mod tests {
         fs::write(&path, sentinel_fixture(BEGIN_NEW)).unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
@@ -2045,7 +2406,13 @@ mod tests {
         fs::write(&path, sentinel_fixture(BEGIN_6_1_1)).unwrap();
 
         assert!(
-            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+            remove_section_from_file(
+                path.parent().unwrap(),
+                &path,
+                "# Spec-Sync Integration",
+                CLAUDE_MD_SNIPPET
+            )
+            .unwrap()
         );
         assert_eq!(
             fs::read_to_string(&path).unwrap(),

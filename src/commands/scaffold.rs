@@ -1,4 +1,5 @@
 use colored::Colorize;
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -16,7 +17,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
-    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+    if let Err(e) = super::check_case_collision(root, &specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
@@ -31,6 +32,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
         );
         // Still generate companion files if missing
         generator::generate_companion_files_for_spec(
+            root,
             &spec_dir,
             module_name,
             config.companions.design,
@@ -38,7 +40,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
         return;
     }
 
-    if let Err(e) = fs::create_dir_all(&spec_dir) {
+    if let Err(e) = crate::util::create_project_dir(root, &spec_dir) {
         eprintln!("Failed to create {}: {e}", spec_dir.display());
         process::exit(1);
     }
@@ -70,11 +72,12 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
     let spec_content =
         generator::generate_spec(module_name, &module_files, root, &specs_dir, &config);
 
-    match fs::write(&spec_file, &spec_content) {
+    match generator::create_spec_file(root, &spec_file, &spec_content) {
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("  {} Created {rel}", "✓".green());
             generator::generate_companion_files_for_spec(
+                root,
                 &spec_dir,
                 module_name,
                 config.companions.design,
@@ -138,7 +141,7 @@ pub fn cmd_scaffold(
         }
         None => root.join(&config.specs_dir),
     };
-    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+    if let Err(e) = super::check_case_collision(root, &specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
@@ -154,6 +157,7 @@ pub fn cmd_scaffold(
         // Still generate companion files if missing
         if let Some(ref tpl_dir) = template {
             generator::generate_companion_files_from_template(
+                root,
                 &spec_dir,
                 module_name,
                 tpl_dir,
@@ -161,6 +165,7 @@ pub fn cmd_scaffold(
             );
         } else {
             generator::generate_companion_files_for_spec(
+                root,
                 &spec_dir,
                 module_name,
                 config.companions.design,
@@ -169,7 +174,7 @@ pub fn cmd_scaffold(
         return;
     }
 
-    if let Err(e) = fs::create_dir_all(&spec_dir) {
+    if let Err(e) = crate::util::create_project_dir(root, &spec_dir) {
         eprintln!("Failed to create {}: {e}", spec_dir.display());
         process::exit(1);
     }
@@ -212,7 +217,7 @@ pub fn cmd_scaffold(
         generator::generate_spec(module_name, &module_files, root, &specs_dir, &config)
     };
 
-    match fs::write(&spec_file, &spec_content) {
+    match generator::create_spec_file(root, &spec_file, &spec_content) {
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("  {} Created {rel}", "✓".green());
@@ -233,6 +238,7 @@ pub fn cmd_scaffold(
     // Generate companion files
     if let Some(ref tpl_dir) = template {
         generator::generate_companion_files_from_template(
+            root,
             &spec_dir,
             module_name,
             tpl_dir,
@@ -240,6 +246,7 @@ pub fn cmd_scaffold(
         );
     } else {
         generator::generate_companion_files_for_spec(
+            root,
             &spec_dir,
             module_name,
             config.companions.design,
@@ -254,8 +261,13 @@ pub fn cmd_scaffold(
             .unwrap_or(&spec_file)
             .to_string_lossy()
             .replace('\\', "/");
-        if registry::register_module(root, module_name, &spec_rel) {
-            println!("    {} Registered in specsync-registry.toml", "✓".green());
+        match registry::register_module(root, module_name, &spec_rel) {
+            Ok(true) => println!("    {} Registered in specsync-registry.toml", "✓".green()),
+            Ok(false) => {}
+            Err(error) => {
+                eprintln!("{} {error}", "error:".red().bold());
+                process::exit(1);
+            }
         }
     }
 }

@@ -53,3 +53,25 @@ Acceptance Criteria
 - A file that is not inert but cannot parse as a named registry fails closed through the Result-based local loader.
 - Best-effort `load_registry` continues to return `None` for missing, inert, and unparsable content.
 
+### REQ-registry-003
+
+`register_module` SHALL read and rewrite the local registry only through the project file functions of `util` (REQ-util-002), and SHALL return a refused registry path as an error instead of reporting that nothing was added. A target that is a symbolic link to a regular file inside the project SHALL be written through. A target, or a directory on the way to it, that leaves the project through a symbolic link, a dangling link, and a target that is not a regular file SHALL be refused with an error that names the path, leaving the link and what it points at unchanged and creating nothing outside the project.
+
+Acceptance Criteria
+- `.specsync/registry.toml` linked to a file outside the project: `register_module` returns an error naming it and the outside file is unchanged.
+- A regular registry gains the module line as before, and a module already listed is not added twice.
+
+### REQ-registry-004
+
+Registry loading and `register_module` SHALL read `.specsync/registry.toml` and `specsync-registry.toml` only through the bounded project read of `util` (REQ-util-003), with a bound of 4 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-registry-005
+
+`generate_registry` SHALL find spec files only through the confined spec walk (`find_spec_files_checked`), so a `specs` link that leaves the project is never walked.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` and the walk change keep `generate_registry` on the confined walk.
+

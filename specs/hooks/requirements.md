@@ -100,3 +100,39 @@ Acceptance Criteria
 - The `Spec-Sync Integration` and `Spec-Sync Rules` detection markers, the end sentinel and the project-keyed pre-commit markers are unchanged.
 - Installation does not rewrite a block that is already present.
 
+### REQ-hooks-006
+
+`hooks install` and `hooks uninstall` SHALL create, rewrite and remove `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, `AGENTS.md` and `.claude/settings.json` only through the project file functions of `util` (REQ-util-002). A target that is a symbolic link to a regular file inside the project SHALL be written through. A target, or a directory on the way to it, that leaves the project through a symbolic link, a dangling link, and a target that is not a regular file SHALL be refused with an error that names the path, leaving the link and what it points at unchanged and creating nothing outside the project.
+
+Acceptance Criteria
+- `CLAUDE.md` linked to a file outside the project: `hooks install --claude` fails naming `CLAUDE.md` and the outside file is unchanged. The same holds for `.cursorrules`, `AGENTS.md`, `.github/copilot-instructions.md` and `.claude/settings.json`.
+- A dangling `CLAUDE.md` link creates nothing at its target.
+- A `CLAUDE.md` link to a second link that leaves the project is refused.
+- `.github` or `.claude` linked to a directory outside the project: nothing is created there.
+- `CLAUDE.md` linked to `AGENTS.md` in the same project: `hooks install --claude` appends the block to `AGENTS.md` and `CLAUDE.md` stays a link.
+- `hooks uninstall --claude` with `CLAUDE.md` linked to an outside file that holds the block fails naming `CLAUDE.md` and leaves that file unchanged.
+
+### REQ-hooks-007
+
+`hooks install`, `hooks uninstall` and `hooks status` SHALL read `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, `AGENTS.md` and `.claude/settings.json` only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound. The pre-commit hook in the Git hooks directory is not a project file and keeps its own guard.
+
+Acceptance Criteria
+- With `CLAUDE.md` a FIFO, `hooks status` finishes without waiting on it.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-hooks-008
+
+`hooks` SHALL write project files only through the confined project write functions of `util` (REQ-util-002), or through a write whose path was refused as a link just before; any other direct write SHALL say, on the write or the line above it in the same statement, why its path is not a project file (a temporary or Git directory, a test barrier, a file Git hands the command). Its pre-commit writes stay in the Git hooks directory `git rev-parse --git-path hooks` names.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+
+### REQ-hooks-009
+
+`hooks install`, `uninstall` and `status` SHALL reach the hooks folder Git names (`git rev-parse --git-path hooks`, which honors `core.hooksPath`) one component at a time without following any symbolic link, from the canonical Git directory when the folder lies in it, from the canonical work-tree top when it lies there, and otherwise from the canonical parent of that folder. Unlike the previous text, which made a missing folder outside both trees for any config, a folder outside both SHALL be made, when missing, only when `git config --show-scope` says `core.hooksPath` comes from the `global` or `system` config; set anywhere else, including a `.git/config` an archive ships, a missing folder SHALL be an error and nothing SHALL be made there. They SHALL read `pre-commit` without following a link or blocking, checked on the handle and bounded (8 MiB); replace it through the open, checked handle; create it only with an exclusive create; make it executable through the handle; and remove it by unlinking its name. A link on the way or at `pre-commit` SHALL be refused with the path named, and nothing SHALL be written or made executable outside the folder.
+
+Acceptance Criteria
+- With `core.hooksPath` inside the work tree, a committed hooks folder link and a dangling `pre-commit` link are refused, and nothing is created or made executable at their targets.
+- With a repository-local `core.hooksPath` outside the work tree, a missing folder is not made.
+- A real hooks folder inside the work tree gets an executable `pre-commit`.
+

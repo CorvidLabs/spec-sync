@@ -131,5 +131,19 @@ mod spec_history;
 #[path = "integration/vanished_requirements.rs"]
 mod vanished_requirements;
 
+#[cfg(unix)]
+#[path = "integration/project_links.rs"]
+mod project_links;
+
+#[cfg(unix)]
+#[path = "integration/project_reads.rs"]
+mod project_reads;
+
+#[cfg(unix)]
+#[path = "integration/project_writes.rs"]
+mod project_writes;
+
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+#[path = "integration/repository_inputs.rs"]
+mod repository_inputs;

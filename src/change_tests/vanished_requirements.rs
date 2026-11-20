@@ -826,8 +826,8 @@ fn a_non_ascii_module_directory_is_read() {
     let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-modulo-001 was lost");
 
     assert!(error.contains(&format!("REQ-modulo-001 ({path})")), "{error}");
-    // The way out prints the block from the reference by that same path.
-    assert!(error.contains(&format!(":{path}`")), "{error}");
+    // The way out prints the block from the reference by that same path, quoted as one word.
+    assert!(error.contains(&format!(":{path}'`")), "{error}");
 }
 
 /// Codex on #1108 (P2): the working tree is read to the same depth as Git's listing, so a
@@ -946,5 +946,195 @@ fn a_directory_the_branch_newly_excludes_still_counts_at_the_reference() {
     assert!(
         error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
         "{error}"
+    );
+}
+
+/// corvid-agent on #1108 (blocking), the part that changes the approved sentence and waits for
+/// Leif: a clone of one branch (`git clone --branch change`, which Git 2.47 on Linux points
+/// `origin/HEAD` at) compares the branch with its own pushed tip and finds nothing lost. Set here
+/// with `git symbolic-ref`, so the test does not depend on the Git version: an `origin/HEAD` naming
+/// the branch HEAD is on is not the default branch, and the pushed loss is refused against
+/// `origin/main`.
+#[test]
+fn an_origin_head_naming_the_branch_itself_is_not_the_default_branch() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    let main = vanished_rev(root, "origin/main");
+    fs::write(requirements_path(root), "---\nspec: auth.spec.md\n---\n\n# Requirements\n").unwrap();
+    git(&["commit", "-q", "-am", "truncate"]);
+    git(&["push", "-q", "origin", "change"]);
+    git(&["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/change"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the pushed loss is refused");
+
+    assert!(
+        error.contains(&format!("compared with {}", &main[..12]))
+            && error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}
+
+/// Leif's 'A' (2026-11-20), its side effect pinned: on `main` itself, `origin/HEAD` and
+/// `origin/main` both name the branch HEAD is on, so neither is the default branch and the check
+/// compares from the change's base commit; a loss already pushed to `origin/main` is refused.
+#[test]
+fn work_directly_on_main_compares_from_the_base_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    let base = vanished_rev(root, "HEAD");
+    record.base_commit = Some(base.clone());
+    save_change(root, &record).unwrap();
+    fs::write(requirements_path(root), "---\nspec: auth.spec.md\n---\n\n# Requirements\n").unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "truncate on main"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the pushed loss is refused");
+
+    assert!(
+        error.contains(&format!("compared with {}", &base[..12]))
+            && error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}
+
+/// Codex on #1108, second round (P2): a registry mapping outside the project
+/// (`../shared/other.spec.md`) adds no directory, in the working tree or at the reference, as
+/// `canonical_module_paths` refuses it: requirements outside the project never mask a loss inside
+/// it, and Git is never handed a pathspec outside the repository.
+#[test]
+fn a_registry_path_outside_the_project_adds_nothing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    fs::create_dir_all(&root).unwrap();
+    let shared = temp.path().join("shared");
+    fs::create_dir_all(&shared).unwrap();
+    fs::write(shared.join("requirements.md"), VANISHED_BASE_REQUIREMENTS).unwrap();
+    let record = vanished_repository(&root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        &root,
+        &[(
+            ".specsync/registry.toml",
+            "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nother = \"../shared/other.spec.md\"\n",
+        )],
+    );
+    fs::write(requirements_path(&root), "---\nspec: auth.spec.md\n---\n\n# Requirements\n").unwrap();
+    git_in(&root)(&["commit", "-q", "-am", "truncate"]);
+
+    let error = ensure_no_lost_requirements(&root, &record).expect_err("the loss is refused");
+
+    assert!(
+        error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}
+
+/// Codex on #1108, second round (P2): "beside a registered spec" is the spec's own directory, for
+/// a spec registered outside the specs directory as for one at the root. Its subtree is not
+/// canonical: a file further down neither masks a loss nor is reported lost.
+#[test]
+fn a_registered_spec_s_companions_are_its_own_directory_only() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        root,
+        &[
+            (
+                ".specsync/registry.toml",
+                "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nbilling = \"modules/billing/billing.spec.md\"\n",
+            ),
+            (
+                "modules/billing/requirements.md",
+                "# Requirements\n\n### REQ-billing-001\n\nThe system SHALL bill once a month.\n",
+            ),
+            (
+                "modules/billing/docs/requirements.md",
+                "# Requirements\n\n### REQ-billing-doc-001\n\nA note.\n",
+            ),
+        ],
+    );
+    fs::remove_file(root.join("modules/billing/docs/requirements.md")).unwrap();
+    fs::create_dir_all(root.join("modules/billing/notes")).unwrap();
+    fs::write(
+        root.join("modules/billing/notes/requirements.md"),
+        "# Requirements\n\n### REQ-auth-001\n\nA copy in a note.\n",
+    )
+    .unwrap();
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "a note below billing, and a loss in auth"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-auth-001 was lost");
+
+    assert!(error.contains("REQ-auth-001 (specs/auth/requirements.md)"), "{error}");
+    assert!(!error.contains("REQ-billing-doc-001"), "{error}");
+}
+
+/// Codex on #1108, second round (P2): the restore command quotes the whole `<commit>:<path>`, so
+/// it prints the lost block when it is run as printed, whatever the path holds (Leif's rule 3).
+#[test]
+fn the_printed_restore_command_runs_for_a_path_with_a_space() {
+    let path = "specs/my module/requirements.md";
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(
+        root,
+        ADDED_THIRD,
+        &[(path, "# Requirements\n\n### REQ-space-001\n\nThe system SHALL keep spaces.\n")],
+    );
+    fs::write(root.join(path), "# Requirements\n").unwrap();
+    git_in(root)(&["commit", "-q", "-am", "truncate the spaced module"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-space-001 was lost");
+    let command = error
+        .split('`')
+        .find(|part| part.starts_with("git show ") && part.contains("my module"))
+        .unwrap_or_else(|| panic!("no restore command for {path}: {error}"));
+    let output = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
+
+    assert!(output.status.success(), "{command}: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("### REQ-space-001"), "{command}");
+}
+
+/// Codex on #1108, second round (P2): "for each active change" includes a draft, so the audit
+/// reports a loss beside a change that is still a draft. The draft's own `## REMOVED` item still
+/// accounts for nothing.
+#[test]
+fn the_audit_reports_a_loss_beside_a_draft() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let draft = completed_section_only_current_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    assert_eq!(load_change(root, &draft.id).unwrap().state, ChangeState::Draft);
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "a draft change"]);
+    let origin = root.join(".git/test-origin.git");
+    git(&["init", "-q", "--bare", "-b", "main", origin.to_str().unwrap()]);
+    git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "-b", "change"]);
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+    git(&["commit", "-q", "-am", "a loss beside the draft"]);
+
+    let report = audit_project(root);
+
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|line| line.starts_with(&format!("{}:", draft.id)) && line.contains("REQ-auth-001")),
+        "{:?}",
+        report.errors
     );
 }

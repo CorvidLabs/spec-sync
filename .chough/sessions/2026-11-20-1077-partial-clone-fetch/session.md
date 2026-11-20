@@ -19,6 +19,7 @@ files: []
 observations:
   - 2026-11-20-1077-req-change-172-option-1-in-a-blobless-clone-whose-remote
   - 2026-11-20-1122-round-one-codex-2-p1-4-p2-corvid-agent-s-review-tester2-s
+  - 2026-11-20-1122-codex-round-two-2-p2-plus-two-gaps-the-rule-3-runs-found
 bugs: []
 blockers: []
 waiting_on_human:
@@ -48,6 +49,7 @@ In a partial clone, SpecSync downloads every history object its reads need in on
 
 - [#1077 (REQ-change-172 option 1), in a blobless clone whose remote resolves only through the user's global insteadOf: change status, audit and ship-status succeed after one fetch announced by one line, and nothing under .specsync and specs is missing afterwards; a full clone makes no fetch; with the user's configuration gone the refusal says the clone is partial and names a git -C … fetch … <oid> … that, run as printed, lets the command pass; a blobless clone on main audits #1081's base-commit requirements after the one fetch. Real repos (rule 3): the blobless HTTPS clone of private peck: this build downloads 377 objects once and then gives the full clone's 85 errors with no 'cannot tell' (the build before gave 11). Added path src/change/validate_loaded_change.rs re-approved under Leif's standing OK (t4c, about 06:04Z). Lane: fledge lanes run verify passed at c783e8cf through one-lane (3137 unit, 654 integration, 62/62 specs, 100% coverage); change audit --strict exit 0. Red first f98998f3 (through the binary, tests/integration/git_environments.rs, shapes made by the test so nothing relies on a Git default); fix 850317cd, 6ea81ef2, 1cbe69cb.](evidence/2026-11-20-1077-req-change-172-option-1-in-a-blobless-clone-whose-remote.md)
 - 2026-11-20-1122-round-one-codex-2-p1-4-p2-corvid-agent-s-review-tester2-s
+- [#1122 Codex round two (2 P2) plus two gaps the rule-3 runs found in the same download. Red first fe275bdb, 24d64637 and ed3495d5; fixes 158e3654, f4617e03 and 2917f7d6: the one fetch lists .specsync.toml, specsync.json and specsync-registry.toml beside .specsync; the printed recovery is printf '%s\n' <oid> ... | git -C <root> fetch ... --stdin -- <remote> (the ids in the line, none in Git's arguments); a failed download gives the loss check's way out as that fetch, not git fetch origin; the listing walks with --full-history. Lane at 7a571bbe through one-lane (3137 unit, 664 integration, 62/62, 100%); change audit --strict exit 0. Real repos, download failing: private peck audit refuses naming 377 ids in a 15.7 KB line, run as printed rc 0, then the same 85 errors as its full clone; spec-sync with its remote unreachable, audit --archives refuses naming 3329 ids in a 137 KB line, run as printed rc 0, then 0 errors as its full clone. With the user's config: spec-sync blobless audit 42.1 s on 6.3.0 against 1.9 s with one fetch of 3329 objects; peck one fetch of 377 then its 85 errors.](evidence/2026-11-20-1122-codex-round-two-2-p2-plus-two-gaps-the-rule-3-runs-found.md)
 
 ## Open threads
 

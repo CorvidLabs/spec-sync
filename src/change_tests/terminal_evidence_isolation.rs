@@ -440,3 +440,84 @@ fn the_per_change_retirement_checks_say_what_the_roster_load_says() {
         vec![(old.id.clone(), expected)]
     );
 }
+
+/// Codex's second round on #1114: a healthy legacy accepted change beside another change whose
+/// records fail validation reads `exact`, and its status says to archive it, not to reopen it: its
+/// closing-approval check is judged on the changes that load, as its terminal evidence is.
+#[test]
+fn a_healthy_legacy_accepted_change_beside_a_broken_one_is_told_to_archive() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let accepted = accepted_legacy_change(root);
+    let broken = finalized_archived_change(root);
+    let before_archive = quiet_git(root, &["rev-parse", "HEAD~1"]).trim().to_string();
+    leave_open_and_archived_at_one_commit(root, &broken, &before_archive);
+    let record = load_change(root, &accepted.id).unwrap();
+    let summary = summarize_change_with_strict(root, &record, false);
+    assert_eq!(
+        summary.terminal_evidence.as_ref().map(|evidence| evidence.validity),
+        Some(TerminalEvidenceValidity::Exact),
+        "{:?}",
+        summary.terminal_evidence
+    );
+    assert_eq!(
+        summary.next_action,
+        format!("run `specsync change archive {}`", accepted.id)
+    );
+    let handoff = serde_json::to_string(&summary.handoff).unwrap();
+    assert!(!handoff.contains("change reopen"), "{handoff}");
+}
+
+/// Codex's second round on #1114: a failed archive's own verdict is kept in the read scope like
+/// any other archive's, so a second read in the scope answers from it instead of loading the
+/// roster again.
+#[test]
+fn a_failed_archive_s_verdict_is_kept_in_the_read_scope() {
+    let (temp, _before, broken, _after, _) = s1_and_s2();
+    let root = temp.path();
+    let directory = find_change_dir(root, &broken.id).unwrap();
+    let record: ChangeRecord =
+        serde_json::from_str(&fs::read_to_string(directory.join("state.json")).unwrap()).unwrap();
+    let _scope = begin_change_read_scope(root);
+    let first = terminal_evidence_summary(root, &record);
+    assert!(
+        first
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("duplicates state at commit")),
+        "{first:?}"
+    );
+    // A fresh read of the roster would no longer find this archive at all.
+    fs::remove_dir_all(&directory).unwrap();
+    assert_eq!(terminal_evidence_summary(root, &record), first);
+}
+
+/// Codex's second round on #1114: a retirement rolled back by restoring the change's open
+/// workspace, with no archive left at all, is still that change's own failure: the per-change
+/// roster runs the retirement checks with no archive directory too.
+#[test]
+fn a_rollback_to_an_open_workspace_with_no_archive_left_still_names_the_rollback() {
+    let (temp, old, _replacement, _) = retired_fixture();
+    let root = temp.path();
+    let active = format!(".specsync/changes/{}", old.id);
+    quiet_git(root, &["checkout", "HEAD~1", "--", &active]);
+    quiet_git(root, &["rm", "-r", "-q", ARCHIVE_PATH]);
+    quiet_git(
+        root,
+        &["commit", "-m", "put the open workspace back and remove the archive"],
+    );
+    // Untracked leftovers go too, so no archive directory is left at all.
+    if root.join(ARCHIVE_PATH).exists() {
+        fs::remove_dir_all(root.join(ARCHIVE_PATH)).unwrap();
+    }
+    let open: ChangeRecord =
+        serde_json::from_str(&fs::read_to_string(root.join(&active).join("state.json")).unwrap())
+            .unwrap();
+    let own = terminal_evidence_summary(root, &open);
+    assert_eq!(
+        own.reason.as_deref(),
+        Some(format!("committed retirement history for {} was rolled back", old.id).as_str()),
+        "{own:?}"
+    );
+}

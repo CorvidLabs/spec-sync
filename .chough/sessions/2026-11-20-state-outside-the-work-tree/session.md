@@ -5,7 +5,7 @@ aliases: [state-outside-the-work-tree]
 objective: SpecSync's hash cache, transaction journal and remote spec cache live outside the work tree, so a repository can never ship one; the scans see every production read and write; the hooks folder and an enclosing work tree cannot lead a write out (F1-F4, F6, F7 of the second review, private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [util, hash_cache, change, cmd_check, rehash, cmd_resolve, hooks, validator]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -22,13 +22,9 @@ observations:
   - 2026-11-20-on-linux-at-0187d498-cargo-clippy-all-targets-d-warnings
 bugs: [2026-11-20-state-a-repository-ships-is-trusted]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of keep-specsync-s-own-caches-and-journal-outside-the-work-tree
-    holds: accept
-    drives: review
-    opened: 2026-11-20T06:16:27Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # SpecSync's hash cache, transaction journal and remote spec cache live outside the work tree, so a repository can never ship one; the scans see every production read and write; the hooks folder and an enclosing work tree cannot lead a write out (F1-F4, F6, F7 of the second review, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -41,6 +37,7 @@ SpecSync's hash cache, transaction journal and remote spec cache live outside th
 ## Decisions and why
 
 - 0xLeif decided "Scope approval of keep-specsync-s-own-caches-and-journal-outside-the-work-tree": "a, all yes.. im back" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 00:38Z, answering item 1 as t4c put it at about 21:09Z on 2026-11-19 with option A: 'one more change (change 6): move the hash cache, journal and remote cache out of the work tree; close the scan blind spots, the hooks-folder case and the enclosing-repo case; leave the paths you type yourself (--template) as they are, and document the low-rated items. Then this same reviewer re-checks its own findings, rather than a third full review. [...] (fold [change 5's review] into change 6 if you pick A)', and that the class fix moves them 'into the Git directory, where a repo can't commit files, or into your user cache folder when there's no Git'; t4c mapped it to review2's F1, F2, F3, F4, F6 and F7 fixed, F5 kept and documented, F8, F9 and F10 documented; relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve keep-specsync-s-own-caches-and-journal-outside-the-work-tree as 0xLeif
+- 0xLeif decided "Implementation review of keep-specsync-s-own-caches-and-journal-outside-the-work-tree": "Pass (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a; this change's own lines are unchanged since (only its native check, which materializes its deltas, ran after the earlier change's archive). Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review keep-specsync-s-own-caches-and-journal-outside-the-work-tree as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -112,4 +109,20 @@ SpecSync's hash cache, transaction journal and remote spec cache live outside th
   - revision: 33f018109b44f5a8e8d37c46d8aebe9ad1fb76de
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:21:10Z · gate-closed · accept → accept · Implementation review of keep-specsync-s-own-caches-and-journal-outside-the-work-tree ^t-dbce1f
+  - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+  - revision: 146be4432c1e2ff2bc6ab4ba17a3ffb489a4b886
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a; this change's own lines are unchanged since (only its native check, which materializes its deltas, ran after the earlier change's archive). Relayed by t4c over hc to t5r
+    - recorded_by: claude-code-t5r
+    - native: specsync change review keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:21:14Z · advance · accept → done · native:archived ^t-ee340c
+  - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+  - gate: native:archived
+  - revision: 146be4432c1e2ff2bc6ab4ba17a3ffb489a4b886
   - by: claude-code (hc t5r)

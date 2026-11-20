@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [SpecSync's hash cache](journal/2026-11-20-specsync-s-hash-cache.md) (2026-11-20, shipped)
 - [Writes, reads and caches a repository can steer stay inside its Git…](journal/2026-11-20-writes-reads-and-caches-a-repository-can-steer-stay-inside-its.md) (2026-11-20, shipped)
 - [Journals SpecSync did not write are never replayed](journal/2026-11-19-journals-specsync-did-not-write-are-never-replayed.md) (2026-11-19, shipped)
 - [Change 3's call sites covered](journal/2026-11-19-change-3-s-call-sites-covered.md) (2026-11-19, shipped)
@@ -251,9 +252,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [keep-specsync-s-own-caches-and-journal-outside-the-work-tree](../.specsync/archive/changes/2026-11-20-keep-specsync-s-own-caches-and-journal-outside-the-work-tree/lesson-bundle.md), Keep SpecSync's own caches and journal outside the work tree
 - [keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree](../.specsync/archive/changes/2026-11-20-keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree/lesson-bundle.md), Keep writes, reads and caches a repository can steer inside its Git work tree
 - [never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files](../.specsync/archive/changes/2026-11-19-never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files/lesson-bundle.md), Never replay a transaction journal SpecSync did not write, or into Git's files
-- [cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads](../.specsync/archive/changes/2026-11-19-cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads/lesson-bundle.md), Cover the call sites that pass the project root to change 3's reads
 
 ## Snapshots and briefs
 

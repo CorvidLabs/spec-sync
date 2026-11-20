@@ -1,0 +1,70 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795145566,
+      "digest": "9a7ce342e15a76a0c8610055138b82f5c578cb6a46ad86867b92e33c8a017e44",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of keep-specsync-s-own-state-only-in-the-user-cache-folder\": \"A\" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 03:27Z, answering t4c's question after sec-review2's re-check of change 6 (security/review2/recheck-change6.md): 'A (recommended): one more small change, about half a day. SpecSync keeps its cache only in your user cache folder, never in .git. That's simpler, one rule fewer, and closes the archive case and two related ones. It also fixes the one-line bug and the edge cases, then the reviewer does a quick re-check of just those. 6.4.0 moves to about Nov 25-26, and the security notice's claims stay true as written.' The one-line bug was R4 (a folder named * as a wildcard) and the edge cases R2, R5a and N2; t4c's brief lists items 1-5 (user cache folder only keyed by the canonical root; refuse a cache base inside the root or the confinement top; --literal-pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system scope) and, as text and tests only, R6's small scan patterns and the documentation fixes, R5b documented; relayed by t4c over hc to t5r). Relayed and recorded by claude-code-t5r at 2026-11-20T03:32:35Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-specsync-s-own-state-only-in-the-user-cache-folder",
+        "title": "Keep SpecSync's own state only in the user cache folder",
+        "description": "Keep SpecSync's own state only in the user cache folder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_check",
+          "git_utils",
+          "hooks",
+          "util"
+        ],
+        "affected_paths": [
+          "src/change/sdd_version.rs",
+          "src/change_tests/journal_replay_targets.rs",
+          "src/git_utils.rs",
+          "src/hooks.rs",
+          "src/util.rs",
+          "src/util/local_state.rs",
+          "tests/integration"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "SpecSync keeps its hash cache, transaction journal and remote spec cache only in specsync/projects/<key> in the user's cache folder (XDG_CACHE_HOME, ~/Library/Caches on macOS, ~/.cache elsewhere), keyed by the canonical project root, never in a Git directory: a forged cache, journal or remote spec entry an archive ships under its .git (or a .git file's gitdir) is never read. A cache folder that lies inside the canonical project root or inside the confinement's top folder is refused with the reason, so check warns once and validates every spec. tracked_by_git passes --literal-pathspecs and clears GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and the pathspec variables, so a project folder named * or notes[x] never widens the confinement. A journal entry is replayed for a registry-mapped spec, its requirements.md or history/ only when the mapped path ends in .spec.md. A hooks folder outside the work tree and the Git directory is made only when git config --show-scope says core.hooksPath is global or system; otherwise nothing missing is made there. The scans also report open_ambient_dir, File::open_ambient, .open( and std::fs aliases. The CHANGELOG, the CLI page, the design notes and the advisory say where the state lives and that an archive with .git cannot carry it; F5 says a FIFO blocks; N3 and R5b are documented. The new tests fail on e3d508ac with only the tests added and pass with the fix"
+        ],
+        "dependencies": [
+          "keep-specsync-s-own-caches-and-journal-outside-the-work-tree"
+        ],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "util.3md: SpecSync's own state never lives where a repository can put a file; an archive can ship its .git, so the Git directory is not such a place either. change.3md: a refusal names its recovery. Leif's option A after the change 6 re-check (2026-11-20 ~03:27Z, 'A') bounds the scope: the user cache folder only, keyed by the canonical root; refuse a cache base inside the root or the confinement top; literal pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system config; the small scan patterns and the documentation fixes. R5b is documented, not changed. Changes 5 and 6 stay open; this change depends on change 6.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "90168ae05f30ae06e340f7477de2e784387998a0c4dadb7f7d4e0523d2fd944d",
+        "cmd_check": "d06aec4ddc763a40f355db82a76c76282f67de1909858b61551172fe57ed1fa3",
+        "git_utils": "af1dbf09fe0569ca86335be4e5ddd36e3f65b85d4fa5431cbc405ec2c040a5d5",
+        "hooks": "a7875037925a03c32e023b4f80e106861b8b95efe2dad4fe916ea88789c51135",
+        "util": "b87cbeae989ef999535b402fdedbffb2918348bf7e3152291e94465e84985041"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-162": "b2c3d6c3338afb6523b173d437b2bd39c42e2c8402f6b7844e994d6c49317383",
+        "cmd_check: REQUIREMENT REQ-cmd-check-021": "dfe385747f2665135a28ade9d6c9eb638b46fb6d2825443de8208acba3b9f0d0",
+        "git_utils: REQUIREMENT REQ-git-utils-012": "7313fd9706c02450511958f80307e3284f1c498198ba4c45abc516d185397605",
+        "hooks: REQUIREMENT REQ-hooks-009": "0d56e8a8e98abf938ad70fc8a15534eb9b4907d8b7839ec9b927edf09ad8d85c",
+        "util: REQUIREMENT REQ-util-006": "4f8ef2802e97d0e61291392837dd9a9a30617ff8489d1121d2d70b2d5ca96ff7",
+        "util: REQUIREMENT REQ-util-008": "0907da8b63e0aba7da15faf4d383f82a15e850426e5e810f992481b7be9c31d5"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "A",
+        "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 03:27Z, answering t4c's question after sec-review2's re-check of change 6 (security/review2/recheck-change6.md): 'A (recommended): one more small change, about half a day. SpecSync keeps its cache only in your user cache folder, never in .git. That's simpler, one rule fewer, and closes the archive case and two related ones. It also fixes the one-line bug and the edge cases, then the reviewer does a quick re-check of just those. 6.4.0 moves to about Nov 25-26, and the security notice's claims stay true as written.' The one-line bug was R4 (a folder named * as a wildcard) and the edge cases R2, R5a and N2; t4c's brief lists items 1-5 (user cache folder only keyed by the canonical root; refuse a cache base inside the root or the confinement top; --literal-pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system scope) and, as text and tests only, R6's small scan patterns and the documentation fixes, R5b documented; relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ],
+  "reopenings": []
+}

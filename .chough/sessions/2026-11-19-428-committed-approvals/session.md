@@ -25,6 +25,7 @@ observations:
   - 2026-11-19-428-verify-lane-at-e869bf11
   - 2026-11-20-428-rework-lane-at-f444f569
   - 2026-11-20-428-review-round-1-at-a0b997db
+  - 2026-11-20-428-migrate-regression-at-c7d16a2b
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -58,6 +59,7 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
 - [At e869bf11 (the three ways out fixed, re-checked), fledge lanes run verify passed 10/10 steps in 8m18s through one-lane: unit 3113 passed (2 ignored), integration 630. The neutral git config was a prefix on the lane command only (#1092)](evidence/2026-11-19-428-verify-lane-at-e869bf11.md)
 - [#428's rework at f444f569 (main a28e3042 merged in, sent back, option 3, the two reworded sentences and the three declared tests approved on the relayed sources, checked and committed): red first at c97746ba (the whole-workspace refusal named no commit or way out); option 3 at 41494bcf; the finalize-level relay removed and restored in a reopening's superseded_approval passes. With this tree's release build first on PATH, fledge lanes run verify passed 10/10 in 9m07s through one-lane (unit 3120 passed, 2 ignored, committed_approvals 20 of 20; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix on the lane only (#1092); change audit --strict against origin/main a28e3042 passes.](evidence/2026-11-20-428-rework-lane-at-f444f569.md)
 - [#1120's first review round (Codex's five, corvid-agent's review) and tester2's way-out finding: red first at b00511c5 (5 of 5 fail); fixed at 5f57f347 and 41fa601f; checked at a0b997db. With this tree's release build first on PATH, fledge lanes run verify passed 10/10 in 9m03s through one-lane (unit 3126 passed, 2 ignored, committed_approvals 26 of 26; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix on the lane only (#1092); change audit --strict passes.](evidence/2026-11-20-428-review-round-1-at-a0b997db.md)
+- [tester2's regression on #1120 (P-428-guard-migrate-digests): red first at 768e71b6 (a reopening committed without the migrate 5.0 digests was refused as not a ledger); fixed, each committed version must be an object whose approvals, reopenings and send_backs are lists; checked at c7d16a2b. fledge lanes run verify 10/10 in 7m43s through one-lane (unit 3127 passed, 2 ignored, committed_approvals 27 of 27; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix only (#1092); change audit --strict passes.](evidence/2026-11-20-428-migrate-regression-at-c7d16a2b.md)
 
 ## Open threads
 

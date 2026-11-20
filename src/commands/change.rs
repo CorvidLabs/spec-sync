@@ -1654,9 +1654,10 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
 
     // REQ-cmd-change-041 (#428): finalize and ship refuse an approvals ledger Git history does
     // not hold, so ship-status lists that refusal, in the same words, and never calls the change
-    // ready while it holds. It comes first, and its own way out is the next step: the generic
-    // `check --commit` a stale verification asks for would commit an edited ledger (Codex and
-    // corvid-agent on #1120).
+    // ready while it holds. When its way out is not `check --commit`, it comes first and is the
+    // next step: the generic `check --commit` a stale verification asks for would commit an
+    // edited ledger (Codex and corvid-agent on #1120). When it is, the blockers above lead to the
+    // same command and keep their order.
     let ledger_refusal = if matches!(record.state, ChangeState::Verifying | ChangeState::Accepted)
         && upstream_archive.is_none()
     {
@@ -1665,7 +1666,11 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         None
     };
     if let Some(refusal) = &ledger_refusal {
-        blockers.insert(0, refusal.clone());
+        if change::ledger_refusal_is_committed_by_check(refusal, &record.id) {
+            blockers.push(refusal.clone());
+        } else {
+            blockers.insert(0, refusal.clone());
+        }
     }
 
     // Ordering rules from multi-change dogfood (#487): always surface while active.
@@ -1731,8 +1736,11 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         change::upstream_archive_message(&record.id, upstream)
     } else if let Some(recovery) = &ownership_recovery {
         recovery.clone()
-    } else if let Some(refusal) = &ledger_refusal {
-        // The refusal names its own way out (REQ-change-166).
+    } else if let Some(refusal) = ledger_refusal
+        .as_ref()
+        .filter(|refusal| blockers.first() == Some(*refusal))
+    {
+        // The first blocker names its own way out (REQ-change-166).
         refusal.clone()
     } else if verification_work.is_err() {
         format!("run `specsync change check {} --commit`", record.id)

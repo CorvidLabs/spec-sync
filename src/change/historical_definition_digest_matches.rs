@@ -3114,10 +3114,7 @@ fn approvals_ledger_held_by_history_at(
     let commit_it = if record.state == ChangeState::Accepted {
         format!("`git add -- {display}` and a commit")
     } else {
-        format!(
-            "`specsync change check {} --commit` commits it",
-            record.id
-        )
+        check_commit_commits_the_ledger(&record.id)
     };
     // `change check --commit` does not commit an ignored file, so its way out would loop
     // (tester2 on #428): an ignored ledger is told what does work.
@@ -3264,6 +3261,18 @@ fn approvals_ledger_held_by_history_at(
         removed_in = None;
     }
     Ok(())
+}
+
+/// The way out of a ledger refusal that `change check --commit` itself takes.
+fn check_commit_commits_the_ledger(id: &str) -> String {
+    format!("`specsync change check {id} --commit` commits it")
+}
+
+/// Whether the way out of an `approvals_ledger_held_by_history` refusal is `change check
+/// --commit`, so ship-status may keep that command as its next step. Any other way out, a restore
+/// above all, comes first: `check --commit` would commit an edited ledger (#1120).
+pub(crate) fn ledger_refusal_is_committed_by_check(refusal: &str, id: &str) -> bool {
+    refusal.contains(&check_commit_commits_the_ledger(id))
 }
 
 /// Whether `bytes` is a JSON object whose `approvals`, `reopenings` and `send_backs` are each a

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795153217,
+      "commit": "54ac754219de49ce9dd6f2dd29edad51aeeb9d8b",
+      "contract_digest": "4de492ed2972249e5084e21ddde1b407db20002de38e0a2f298d127e9d563b13",
+      "execution_digest": "84fb913cb067814ee884ab040e8589d9bccaaab9f704f8a209cd2c3c76e17e8e",
+      "workspace_digest": "b65f625e90deeb263871284b2d13140c942a51dc5636bb922f7b1060ef195f43",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "specsync change check pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user (effective contract: change)",
+          "success": false,
+          "exit_code": 1,
+          "output": "effective contract `change`: 216/217 exports documented\neffective contract `change`: Undocumented export 'correction_ledger_refusal' from src/change/validate_loaded_change.rs"
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-171"
+      ]
+    },
+    {
+      "timestamp": 1795153259,
+      "commit": "3df1968eb755e85ef4e8f61ff7fe95fa1dffd73e",
+      "contract_digest": "4de492ed2972249e5084e21ddde1b407db20002de38e0a2f298d127e9d563b13",
+      "execution_digest": "84fb913cb067814ee884ab040e8589d9bccaaab9f704f8a209cd2c3c76e17e8e",
+      "workspace_digest": "34a45c62ea6a286b3c9f6d84773c14538cd1446bbbe4f74b0f51863581153117",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-171"
+      ]
+    }
+  ]
+}

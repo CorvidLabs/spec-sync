@@ -4,6 +4,7 @@ version: 234
 status: active
 files:
   - src/change.rs
+  - src/change/approval_checks.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
   - src/change/retirement.rs
@@ -20,6 +21,7 @@ files:
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
+  - src/change_tests/approval_dry_run.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
   - src/change_tests/approve_refusal_hints.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
@@ -189,6 +191,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `DoctorRequest` | What `specsync doctor` was asked to do: `fix`, `dry_run`, the IDs (or `all`) to close late, and the actor and reason a late close needs (REQ-cmd-change-035) |
 | `HistoryFragment` | One change's record in a module's history: change id, `YYYY-MM-DD` date and one-line summary (REQ-change-160) |
 | `SpecHistory` | A module's whole history for `specsync history`: module, spec path, frozen `version:`, the Change Log table header and rows as written, and the fragments in date then change-id order (REQ-cmd-change-037) |
+| `ApprovalDryRun` | What `change approve --dry-run` found: the change id, `dry_run: true`, `would_approve`, and one `ApprovalCheckReport` per check in approval order. Nothing was written to produce it (REQ-change-163) |
+| `ApprovalCheckReport` | One check of an approval dry run: its stable `check` name, its `result`, the `message` of a refused check in `change approve`'s own words, the `skipped_because` check of a skipped one, and for a refused `definition` or `ownership` check whose message names the command that fixes it, that command as `fix`, which may hold a placeholder (REQ-change-163, REQ-cmd-change-040) |
+| `ApprovalCheckResult` | How one check of an approval dry run ended: `Passed`, `Refused` or `Skipped`, serialized in lower case (REQ-change-163) |
 | `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
 | `DoctorFinding` | One problem doctor found: its kind, change (or none for the project), location, reason and fix |
 | `DoctorFix` | A finding's fix: its class, the exact command or what to edit, and an optional alternative a person may choose |
@@ -246,8 +251,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `approval_current_for_guidance` | `root, record` | `bool` | Whether an approved, implementing, or verifying change's definition approval still covers its approved scope and the semantic delta bodies it recorded — the predicate behind `ChangeSummary.approval_valid` — for human next-action guidance without printing a digest |
 | `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
+| `approve_definition_dry_run` | `root, id, actor, note, portable_v501, relay` | `ApprovalDryRun` | Say whether `change approve` would accept the change, and write nothing: walk the approval's own ordered checks, report the first problem from each one that can run, and name each skipped check with the refused check it waits on. `relay` is the relayed decision or the refusal of its flags. It takes no lifecycle lock and recovers no interrupted write; the baseline binding and a relayed decision's version raise stay in memory (REQ-change-163) |
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
-| `approve_definition_with_relay` | `root, id, actor, note, portable_v501, relayed_by` | `Result<ChangeRecord, String>` | Record a definition approval (or the portable pair) carrying an optional relayed decision; a relay whose `decided_by` is not the explicit `--actor` is refused before anything is written |
+| `approve_definition_with_relay` | `root, id, actor, note, portable_v501, relayed_by` | `Result<ChangeRecord, String>` | Record a definition approval (or the portable pair) carrying an optional relayed decision; a relay whose `decided_by` is not the explicit `--actor` is refused before anything is written. It walks the ordered checks `approve_definition_dry_run` walks, returns the first refusal, then writes (REQ-change-163) |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
 | `artifacts_complete_for_guidance` | `root, record` | `bool` | Lightweight selected-artifact completeness for human next-action guidance without digest loaders |
 | `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence. A duplicated requirement ID in a living `requirements.md` is an error and is named |

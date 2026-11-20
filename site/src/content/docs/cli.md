@@ -446,6 +446,72 @@ declared, including a module that so far exists only under `[modules]` in the co
 and refused when it holds a newline, a control character or an invisible character other than
 ZWNJ and ZWJ.
 
+`change approve <id> --dry-run` says whether the approval would be accepted, and writes nothing:
+no approval, no `state.json`, no cache, not even the lifecycle lock. It runs the approval's own
+checks in the approval's order, so it cannot disagree with `change approve`. A real approval stops
+at its first refusal. The dry run goes on: every check that can run does, and reports its first
+problem in the words `change approve` uses. A check that cannot run without a refused one is
+skipped and names it. It takes the flags `change approve` takes and checks them the same way.
+
+```bash
+specsync change approve add-passkeys --dry-run --actor "Ada"
+#   deltas: requirement `REQ-auth-002` must include Acceptance Criteria
+#   approval_record: skipped, it waits on `deltas`
+# ✗ add-passkeys would be refused (dry run: nothing was written)
+specsync --json change approve add-passkeys --dry-run --actor "Ada"
+```
+
+It exits `0` when no check refuses and `1` when any does. With `--json` it prints one document
+in both cases, never the `error` document a real refusal prints:
+
+```json
+{
+  "id": "add-passkeys",
+  "dry_run": true,
+  "would_approve": false,
+  "checks": [
+    { "check": "relay", "result": "passed" },
+    { "check": "lifecycle_lock", "result": "passed" },
+    { "check": "change", "result": "passed" },
+    { "check": "sequence", "result": "passed" },
+    { "check": "state", "result": "passed" },
+    { "check": "roster", "result": "passed" },
+    { "check": "baseline", "result": "passed" },
+    { "check": "definition", "result": "passed" },
+    { "check": "deltas", "result": "refused", "message": "requirement `REQ-auth-002` must include Acceptance Criteria" },
+    { "check": "ownership", "result": "passed" },
+    { "check": "verification_ignored_paths", "result": "passed" },
+    { "check": "approval_record", "result": "skipped", "skipped_because": "deltas" },
+    { "check": "actor", "result": "passed" }
+  ]
+}
+```
+
+The thirteen `check` names are stable, and they come in the order the approval makes them. The
+first `refused` entry carries the message a real `change approve` with the same flags prints.
+Only a few things skip a check. When the lifecycle-lock check refuses, the change does not load,
+or its state does not admit approval, every later check is skipped. When `deltas` refuses,
+`approval_record` is skipped, because it digests the same delta bodies. `lifecycle_lock` asks
+what taking the lock asks, without taking it: a symlink in the lock path, an existing lock path
+the approval cannot open, such as a directory, and a missing lock file the approval could not
+create, as in a `.specsync` that is not writable, are refused in the approval's own words. It
+also refuses when an interrupted lifecycle write is waiting to be recovered: a real approval
+recovers it first, which is a write, so the dry run says so, runs nothing else, and leaves it
+alone. A journal that cannot be replayed, because it does not read or names a path outside the
+project, is different: `change approve` refuses it with `invalid transaction journal at <path>`,
+and the dry run gives that same refusal. Without `--actor` the actor comes from Git or `$USER`,
+as in a real approval, and `actor` is its own check so a caller can set it aside.
+
+A refused `definition` or `ownership` entry whose message names the `specsync change answer`
+command that fixes it also carries that command as `fix`, as plain text, so a tool need not read
+it out of the message. For a draft with no acceptance criterion it is
+`specsync change answer <id> acceptance_criteria "<observable outcome>"`; for an open question
+with choices, such as `public_contract`, the choices are the placeholder: `<yes|no>`. **A `fix`
+may hold such a placeholder, so do not run it blindly:** fill the placeholder in, or show the
+command to a person. The `affected_specs` command for an ownership refusal runs as printed. No
+other entry carries a `fix`. In text, each refused check is one line, with a message's line
+breaks joined, and no `fix` is printed, because the message already names the command.
+
 For a separately created draft successor called `update-ui`, dependency and exact succession
 are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full
 `specsync.acceptance-entry.v1` digest of the accepted predecessor entry; `--spec` names its

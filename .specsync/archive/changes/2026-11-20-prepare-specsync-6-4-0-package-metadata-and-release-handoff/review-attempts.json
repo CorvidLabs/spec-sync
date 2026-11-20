@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "prepare-specsync-6-4-0-package-metadata-and-release-handoff",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "a7d5c658de4f3008a55fb5e29bc28267d4314934",
+      "contract_digest": "bfec1b6d72e7f02fcefc89ea783554d622a0eca5aa362c246a854b2b6cb020dc",
+      "execution_digest": "2ec2583267b4df54ade1634d0212d1f93ce4b04d00f5d3e0ec07cb0cffa7ba0f",
+      "workspace_digest": "0141b003f51d56e81e180a3192bf91a0fd5afdd316f9fc00334dcbf64918808a",
+      "timestamp": 1795141063,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Yes",
+        "where": "Claude Code chat message to his planning session (hc t4c), 2026-11-20 about 02:16Z, answering 'Does your review pass?' for spec-sync #1109 at head a7d5c658, on the frozen ss-lead/gates/640-prep-review-request.md; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+  "implementation_commit": "3fb40d8f235076b2acc233a9cbe2762f0eb06748",
+  "implementation_tree": "aa14368d2f0b7aad87f7d7e5dcd098394f6d27a1",
+  "contract_digest": "1d9b8dacfd4f3310010a218dccd3efc89653b1e988681c16066194a03bf41e3d",
+  "workspace_digest": "bae62ce4681ba603cc1762a67d9cd90116f3144c11e021797ea3a8432b4ea88d",
+  "closing_digest": "9367e3c0b37795bc018e34c6c29530f83d4dd9aa561574228b568f475e61ac6d",
+  "review_digest": "ffaa1adf6e17ef2f9e4376ba75ef6c0a24cb81c78deee7eb2680bda52e585e33",
+  "finalization_digest": "aa1ead1082fe82e1ccde689259efc9d7d0c792a1c8494235d108fd5abf1f2e6e",
+  "timestamp": 1795117671
+}

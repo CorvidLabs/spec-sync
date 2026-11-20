@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [Every walk of a configured folder goes through the confined walk](journal/2026-11-20-every-walk-of-a-configured-folder-goes-through-the-confined.md) (2026-11-20, shipped)
 - [SpecSync keeps its cache](journal/2026-11-20-specsync-keeps-its-cache.md) (2026-11-20, shipped)
 - [SpecSync's hash cache](journal/2026-11-20-specsync-s-hash-cache.md) (2026-11-20, shipped)
 - [Writes, reads and caches a repository can steer stay inside its Git…](journal/2026-11-20-writes-reads-and-caches-a-repository-can-steer-stay-inside-its.md) (2026-11-20, shipped)
@@ -253,9 +254,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder](../.specsync/archive/changes/2026-11-20-walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder/lesson-bundle.md), Walk configured folders only through the confined walk, and keep the read cache in the user cache folder
 - [keep-specsync-s-own-state-only-in-the-user-cache-folder](../.specsync/archive/changes/2026-11-20-keep-specsync-s-own-state-only-in-the-user-cache-folder/lesson-bundle.md), Keep SpecSync's own state only in the user cache folder
 - [keep-specsync-s-own-caches-and-journal-outside-the-work-tree](../.specsync/archive/changes/2026-11-20-keep-specsync-s-own-caches-and-journal-outside-the-work-tree/lesson-bundle.md), Keep SpecSync's own caches and journal outside the work tree
-- [keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree](../.specsync/archive/changes/2026-11-20-keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree/lesson-bundle.md), Keep writes, reads and caches a repository can steer inside its Git work tree
 
 ## Snapshots and briefs
 

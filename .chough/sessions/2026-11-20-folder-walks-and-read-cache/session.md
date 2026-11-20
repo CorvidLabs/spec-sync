@@ -16,7 +16,7 @@ modules:
   - cmd_wizard
   - mcp
   - cmd_check
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -33,13 +33,9 @@ observations:
   - 2026-11-20-on-linux-at-700ebb00-clippy-all-targets-d-warnings-passes
 bugs: [2026-11-20-configured-folder-walks-follow-a-link-out-and-the-read-cache]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
-    holds: accept
-    drives: review
-    opened: 2026-11-20T14:17:33Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # Every walk of a configured folder goes through the confined walk, so a committed specs, source or schema link that leaves the project is refused, not walked; the change read cache lives in the user's cache folder, never in a Git directory an archive can ship (items 2 and 4 of Leif's 04:09Z round, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -52,6 +48,7 @@ Every walk of a configured folder goes through the confined walk, so a committed
 ## Decisions and why
 
 - 0xLeif decided "Scope approval of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder": "continue with 95% confidence" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 04:09Z, answering t4c's five-item list with t4c's recommendations; t4c read it as yes to items 1-4, among them item 2 'Fold the folder-walk fix into change 7?' (the ~9 configured-folder walks routed through the safe helper so a linked folder is not followed out) and item 4 'Move the history-verdict cache out of .git too, in change 7?' (read_cache.rs to the user cache folder, same LocalState pattern). Under Leif's delegation of 2026-11-20 (about 04:11Z: process calls decided by t4c on his behalf), decided by t4c: change 8 on top of change 7, no send-back. Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder as 0xLeif
+- 0xLeif decided "Implementation review of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder": "Pass (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a. This change's own lines are unchanged since; only its native check, which materializes its deltas, ran after the earlier change's archive. Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -119,4 +116,20 @@ Every walk of a configured folder goes through the confined walk, so a committed
   - revision: 3c466fd114df448dcb4fac7e1eeab314d5666b7b
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:22:46Z · gate-closed · accept → accept · Implementation review of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder ^t-a524b5
+  - native_change: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+  - revision: 648148a514d2054299e0115197bfe599afd28bbb
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a. This change's own lines are unchanged since; only its native check, which materializes its deltas, ran after the earlier change's archive. Relayed by t4c over hc to t5r
+    - recorded_by: claude-code-t5r
+    - native: specsync change review walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:22:48Z · advance · accept → done · native:archived ^t-d22264
+  - native_change: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+  - gate: native:archived
+  - revision: 648148a514d2054299e0115197bfe599afd28bbb
   - by: claude-code (hc t5r)

@@ -417,3 +417,26 @@ fn the_per_change_roster_stops_at_an_expired_deadline_in_the_archive() {
         result.map(|roster| roster.failed.into_keys().collect::<Vec<_>>())
     );
 }
+
+/// The per-change roster's retirement checks put each failure on the change it names, in the words
+/// `validate_retired_records` uses for the roster load: here an edited receipt.
+#[test]
+fn the_per_change_retirement_checks_say_what_the_roster_load_says() {
+    let (temp, old, _, _) = retired_fixture();
+    let root = temp.path();
+    let receipt = find_change_dir(root, &old.id).unwrap().join(RETIREMENT_FILE);
+    let mut bytes = fs::read(&receipt).unwrap();
+    bytes.push(b'\n');
+    fs::write(&receipt, bytes).unwrap();
+    let records = list_all_change_metadata(root, false).unwrap();
+    let expected = validate_retired_records(root, &records).unwrap_err();
+    assert!(expected.contains("was edited"), "{expected}");
+    let roster = TerminalRoster {
+        records,
+        failed: BTreeMap::new(),
+    };
+    assert_eq!(
+        retirement_failures(root, &roster).unwrap(),
+        vec![(old.id.clone(), expected)]
+    );
+}

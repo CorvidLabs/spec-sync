@@ -1184,7 +1184,10 @@ fn uncovered_meaningful_paths(
     let base = pull_request_diff_base(root, records);
     args.push(&base);
     let output = git_output_allow_empty(root, &args)
-        .ok_or_else(|| "unable to inspect changed paths for SDD coverage".to_string())?;
+        .ok_or_else(|| {
+            untrusted_repository_refusal(root)
+                .unwrap_or_else(|| "unable to inspect changed paths for SDD coverage".to_string())
+        })?;
     let mut changed: BTreeSet<String> = output.lines().map(str::to_string).collect();
     if !is_ci_project(root) {
         for command in [
@@ -1193,7 +1196,9 @@ fn uncovered_meaningful_paths(
             vec!["ls-files", "--others", "--exclude-standard"],
         ] {
             let output = git_output_allow_empty(root, &command).ok_or_else(|| {
-                "unable to inspect local changed paths for SDD coverage".to_string()
+                untrusted_repository_refusal(root).unwrap_or_else(|| {
+                    "unable to inspect local changed paths for SDD coverage".to_string()
+                })
             })?;
             changed.extend(output.lines().map(str::to_string));
         }
@@ -3304,6 +3309,8 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         return Ok(());
     }
 
+    // In a partial clone, the history this check reads is downloaded first (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let head = git_output(root, &["rev-parse", "--verify", "HEAD"]);
     let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
     let Some(head) = head else {
@@ -3322,7 +3329,13 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         &baseline_path,
         baseline.cutoff_commit.as_deref(),
         &current_bytes,
-    )?;
+    )
+    .map_err(|error| {
+        // A history that could not be read because a download failed is that refusal, which
+        // names the fetch (REQ-change-172); a shallow clone names its own (REQ-change-173).
+        partial_clone_download_refusal(root)
+            .unwrap_or_else(|| shallow_or(root, baseline.cutoff_commit.as_deref(), false, error))
+    })?;
     if record.workflow_version != 1 {
         return Ok(());
     }
@@ -3429,6 +3442,74 @@ fn workflow_v1_record_present_in_cutoff_tree(
         remember_workflow_v1_at_cutoff(root, cutoff, &record.id);
     }
     Ok(present)
+}
+
+/// Whether the repository at `root` is a shallow clone, asked only once a lifecycle-history check
+/// has refused (or `change new` is about to check that history), so a full clone pays nothing.
+fn clone_is_shallow(root: &Path) -> bool {
+    git_output(root, &["rev-parse", "--is-shallow-repository"]).is_some_and(|value| value == "true")
+}
+
+/// REQ-change-173's refusal: the clone is shallow, so the history the workflow-v2 baseline check
+/// needs (back to `cutoff`) is not here, with `git fetch --unshallow origin` as the way out.
+/// `change_new` gives `change new`'s form, which says no change was created.
+fn shallow_history_refusal(cutoff: Option<&str>, change_new: bool) -> String {
+    let back = cutoff
+        .map(|cutoff| format!(" (back to its cutoff commit {})", &cutoff[..cutoff.len().min(12)]))
+        .unwrap_or_default();
+    if change_new {
+        format!(
+            "this clone is shallow, so the history SpecSync needs to check the project's workflow-v2 baseline{back} is not here, and no change was created. Fetch it with `git fetch --unshallow origin`, then run `specsync change new` again."
+        )
+    } else {
+        format!(
+            "this clone is shallow, so the history SpecSync needs to check the project's workflow-v2 baseline{back} is not here. Fetch it with `git fetch --unshallow origin`, then run the command again."
+        )
+    }
+}
+
+/// `error`, or REQ-change-173's refusal in its place when the clone is shallow: SpecSync cannot
+/// tell a history it lacks from a history that is wrong, and after the fetch the true message
+/// shows (Leif's choice 4, 2026-11-20).
+fn shallow_or(root: &Path, cutoff: Option<&str>, change_new: bool, error: String) -> String {
+    if clone_is_shallow(root) {
+        shallow_history_refusal(cutoff, change_new)
+    } else {
+        error
+    }
+}
+
+/// The text a failed correction-ledger read gives (REQ-cmd-change-009), or, in a shallow clone,
+/// REQ-change-173's refusal (REQ-cmd-change-044).
+pub(crate) fn correction_ledger_refusal(root: &Path, ledger_text: &str) -> String {
+    let cutoff = read_workflow_v2_baseline(root)
+        .ok()
+        .flatten()
+        .and_then(|(baseline, _)| baseline.cutoff_commit);
+    shallow_or(root, cutoff.as_deref(), false, ledger_text.to_string())
+}
+
+/// REQ-change-173: in a shallow clone of an adopted project, `change new` checks the baseline's
+/// history before it writes anything, and refuses naming the fetch when it cannot.
+fn ensure_baseline_history_for_change_new(root: &Path) -> Result<(), String> {
+    let Some((baseline, current_bytes)) = read_workflow_v2_baseline(root)? else {
+        return Ok(());
+    };
+    if !clone_is_shallow(root) {
+        return Ok(());
+    }
+    let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
+        return Ok(());
+    };
+    let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
+    validate_workflow_v2_baseline_history(
+        root,
+        &head,
+        &baseline_path,
+        baseline.cutoff_commit.as_deref(),
+        &current_bytes,
+    )
+    .map_err(|_| shallow_history_refusal(baseline.cutoff_commit.as_deref(), true))
 }
 
 /// The record-independent half of `validate_workflow_v2_baseline`: the baseline's reachable

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A repository owned by another user that your own Git trusts through `safe.directory` is read as it is for its owner. SpecSync passes that trust, and nothing else, to its isolated Git through a private temporary file it removes when the command ends. When your Git refuses the repository too, the refusal names dubious ownership, the path and `git config --global --add safe.directory <path>` (#909).
+
+- In a partial clone, SpecSync downloads every history object its reads need in one fetch with your own Git, never prompting and within 60 seconds, and says how many it downloads; a private HTTPS clone no longer fails with "could not read Username". When the download fails, the refusal names the one `git fetch` that downloads those objects (#1077).
+
+- In a shallow clone, a lifecycle-history refusal says the clone is shallow and names `git fetch --unshallow origin` instead of calling the baseline or the correction ledger invalid, and `change new` refuses before it writes anything, where it used to create a change no other command could use (#1072).
+
 - `change check`, verification, `change accept`, `change finalize` and `change ship` refuse a change on a branch that lost a canonical requirement no approved `## REMOVED` delta names, naming every lost id and the file that held it, compared with the merge-base of `HEAD` and the default branch (or the change's base commit when there is none). A requirement moved between files under its id is not lost; a renumbered one is refused under its old id, since ids are permanent. `change audit` reports it and `change ship-status` lists it as a blocker. In CorvidLabs/starling a truncated `requirements.md` had deleted 28 requirements while every check passed (REQ-change-169, REQ-cmd-change-042, #1081). It reads no requirements under `.git`, `.specsync` or `exclude_dirs`, lists lost ids in natural order, and when Git cannot be read (as in a shallow clone missing the merge-base) it says to repair the repository or fetch the default branch, naming `git fetch --unshallow origin` in a shallow clone. A requirement the default branch removed too, brought into the branch by a cherry-pick instead of a merge, is refused with the way out that fits: merge the default branch.
 
 ## [6.4.0] - 2026-11-24

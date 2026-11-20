@@ -635,3 +635,11 @@ Acceptance Criteria
 - A draft with an affected path that an undeclared module's spec lists gets an `ownership` entry whose `fix` is the `change answer <id> affected_specs <modules>` command its message names. After that command is run as printed, the next dry run's `ownership` check passes.
 - A `deltas`, `relay`, `state` or other refused entry has no `fix`, and the text output is the same as without the field.
 
+### REQ-cmd-change-041
+
+`change ship-status` SHALL list the refusal of REQ-change-166 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
+
+Acceptance Criteria
+- With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
+- With the file restored, `ready_to_finalize` is true again.
+

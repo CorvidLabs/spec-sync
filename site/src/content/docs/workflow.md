@@ -135,7 +135,15 @@ so `change status` points back to `change check`.
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,
-and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. That command commits
+and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. It archives only an
+approvals ledger that Git history holds: `approvals.json` must be committed at `HEAD` and equal to
+it, and every version committed before must extend the one before it. `change check --commit`
+commits it; a ledger edited by hand afterwards is refused with `git checkout HEAD -- <path>` as the
+way back, and one whose working copy only adds records with the commit as the way out. A committed
+rewrite of an earlier approval, reopening or send-back is refused with the commit that made it, and
+since history cannot be made to extend itself, the way out is to take that commit out of the
+branch or to make the change again under a new id. `change ship`, `change archive` and
+`change ship-status` ask the same. That command commits
 the move as `chore(lifecycle): archive <id>`. Run `review` and `finalize` (or `ship`)
 consecutively without an intervening commit. Push the archive commit and wait for required
 checks. Never merge while a change on that PR remains active.

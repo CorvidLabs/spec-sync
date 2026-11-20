@@ -565,7 +565,9 @@ steps to take before clearing context; `--json` carries it as `summary.handoff` 
 [Clearing context between steps](workflow.md#clearing-context-between-steps)); `change check` applies approved deltas and records targeted evidence for **one change**
 (not archive history); `change audit` checks active workspaces and living specs; scoped human
 review binds the implementation commit; and `change finalize` creates the dated archive in the same
-PR without merging externally. Global `--strict`, project policy, and release/security
+PR without merging externally. `change finalize`, `change ship` and `change archive` refuse an
+`approvals.json` that Git history does not hold, naming the way out, and `change ship-status` lists
+that refusal as a blocker (see [Finalize](workflow.md)). Global `--strict`, project policy, and release/security
 classification add validators to this same path. Existing `start`, `verify`, `accept`, `archive`,
 `correct`, and `correct-owner` commands remain compatible with historical two-approval
 evidence. `reopen` also repairs eligible workflow-v2 terminal evidence. Recovery preserves the

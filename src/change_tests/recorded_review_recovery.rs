@@ -71,6 +71,10 @@ fn recorded_review_recovery_preserves_preimage_and_requires_fresh_check_and_revi
     assert_eq!(reopened.change.state, ChangeState::Verifying);
     assert_eq!(reopened.audit.recorded_review_mismatch_anchor.as_deref(), Some(anchor.as_str()));
     assert_eq!(git_tree_snapshot(root, &anchor, &subtree).unwrap(), before);
+    // The reopening is committed, as `change check --commit` would: finalize archives only
+    // approvals that Git history holds (REQ-change-166).
+    recorded_review_recovery_git(root, &["add", "."]);
+    recorded_review_recovery_git(root, &["commit", "-m", "reopen to recover the review"]);
     assert!(finalize_change(root, &accepted.id).is_err(), "fresh verification is mandatory");
     assert!(check_change(root, Some(&accepted.id)).unwrap().unwrap().passed);
     let error = finalize_change(root, &accepted.id).unwrap_err();

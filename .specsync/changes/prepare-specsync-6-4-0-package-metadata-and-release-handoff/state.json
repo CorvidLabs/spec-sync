@@ -7,10 +7,11 @@
   "title": "Prepare SpecSync 6.4.0 package metadata and release handoff",
   "description": "Prepare SpecSync 6.4.0 package metadata and release handoff",
   "kind": "operations",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "10d9bb3fe27e56a11e4bbf00e6a6227efe647f5f",
   "created_at": 1795136274,
-  "updated_at": 1795137123,
+  "updated_at": 1795137998,
   "affected_specs": [],
   "affected_paths": [
     "Cargo.toml",

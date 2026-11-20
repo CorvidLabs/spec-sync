@@ -3126,6 +3126,12 @@ fn run_ship(
             .and_then(|values| values.first())
             .and_then(|value| value.as_str())
             .unwrap_or("this change is not ready to archive");
+        // An approvals-ledger refusal names its own way out (REQ-cmd-change-041). The generic
+        // next step after it sent the operator to commit the edited ledger (corvid-agent on
+        // #1120), so it is left off there.
+        if change::approvals_ledger_held_by_history(root, &record).err().as_deref() == Some(reason) {
+            return Err(format!("This pull request is not finished. {reason}"));
+        }
         // `ship_next` is already the action. Wrapping it in another `Run \`...\``
         // nested the backticks and hid the command.
         return Err(format!(

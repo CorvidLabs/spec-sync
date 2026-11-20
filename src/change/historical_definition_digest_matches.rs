@@ -2799,10 +2799,10 @@ fn accept_change_with_gate(
         // archive-only tips or interrupted finalizations. Gate "finalization" is terminal.
         ledger.approvals.push(ApprovalRecord {
             gate: "finalization".into(),
-            actor: "specsync:finalization".into(),
+            actor: FINALIZATION_APPROVAL_ACTOR.into(),
             timestamp: now(),
             digest: closing_digest.clone(),
-            note: Some("Same-PR finalization closing digest".into()),
+            note: Some(FINALIZATION_APPROVAL_NOTE.into()),
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
@@ -3032,6 +3032,12 @@ const ACCEPTANCE_NORMALIZING_DEFINITION_NOTE: &str =
 /// The approvals-ledger lists whose committed records never change (REQ-change-166).
 const APPEND_ONLY_LEDGER_LISTS: [&str; 3] = ["approvals", "reopenings", "send_backs"];
 
+/// The actor and note of the `finalization` approval a finalizing acceptance writes. The
+/// approvals-ledger check exempts an uncommitted closing record only when it is that record
+/// (REQ-change-166, #1120 review).
+const FINALIZATION_APPROVAL_ACTOR: &str = "specsync:finalization";
+const FINALIZATION_APPROVAL_NOTE: &str = "Same-PR finalization closing digest";
+
 /// The reopening members `specsync migrate 5.0` adds to a reopening that lacked them. They may be
 /// added to a committed reopening, never changed (REQ-change-166).
 const MIGRATION_BACKFILLED_REOPENING_MEMBERS: [&str; 2] = [
@@ -3062,9 +3068,22 @@ pub(crate) fn approvals_ledger_held_by_history(
     if !change_dir(root, &record.id).is_dir() {
         return Ok(());
     }
+    let working = change_dir(root, &record.id).join("approvals.json");
+    approvals_ledger_held_by_history_at(root, record, &working)
+}
+
+/// `approvals_ledger_held_by_history` for the ledger at `working`: the workspace's own, or, when an
+/// archive move is resumed, the moved package's, held to the history of the path the change's
+/// ledger was committed at. A package found in the archive is not exempt only because it is
+/// there (Codex on #1120).
+fn approvals_ledger_held_by_history_at(
+    root: &Path,
+    record: &ChangeRecord,
+    working_path: &Path,
+) -> Result<(), String> {
     let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
     let relative = git_repo_relative_path(root, &display)?;
-    let working = match fs::read(root.join(&display)) {
+    let working = match fs::read(working_path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(missing_approvals_ledger_refusal(root, &display, &relative));
@@ -3122,7 +3141,7 @@ pub(crate) fn approvals_ledger_held_by_history(
     };
     if at_head != working
         && !(record.state == ChangeState::Accepted
-            && appends_only_closing_records(&at_head, &working))
+            && appends_only_closing_records(root, record, &at_head, &working))
     {
         return Err(match approvals_ledger_rewrite(&at_head, &working) {
             Ok(None) => format!(
@@ -3191,11 +3210,17 @@ pub(crate) fn approvals_ledger_held_by_history(
             }
             continue;
         };
-        let rewrite = match &earlier {
-            Some((_, earlier_bytes)) => approvals_ledger_rewrite(earlier_bytes, &bytes),
-            None => relay_blind_approval_ledger_bytes(&bytes)
-                .map(|_| None)
-                .ok_or(()),
+        // Each committed version must read as an approvals ledger, the first one too: a version
+        // whose lists are not lists is no baseline to extend (Codex on #1120).
+        let rewrite = if serde_json::from_slice::<ApprovalLedger>(&bytes).is_err() {
+            Err(())
+        } else {
+            match &earlier {
+                Some((_, earlier_bytes)) => approvals_ledger_rewrite(earlier_bytes, &bytes),
+                None => relay_blind_approval_ledger_bytes(&bytes)
+                    .map(|_| None)
+                    .ok_or(()),
+            }
         };
         match rewrite {
             Ok(None) => {}
@@ -3243,7 +3268,12 @@ pub(crate) fn approvals_ledger_held_by_history(
 /// restore it from, the one that last held it (REQ-change-166, tester2 on #428).
 fn missing_approvals_ledger_refusal(root: &Path, display: &str, relative: &str) -> String {
     let pathspec = format!(":(top,literal){relative}");
-    let last_touch = git_output(root, &["log", "-1", "--format=%H", "HEAD", "--", pathspec.as_str()]);
+    // First-parent history, as the check reads it, so a merge that kept a side branch's deletion
+    // names the version the first parent held (Codex on #1120).
+    let last_touch = git_output(
+        root,
+        &["log", "-1", "--first-parent", "--format=%H", "HEAD", "--", pathspec.as_str()],
+    );
     let held = last_touch.and_then(|commit| match commit_tree_lists_path(root, &commit, relative) {
         Some(true) => Some(commit),
         // The last commit that touched it removed it, so its parent last held it.
@@ -3328,50 +3358,135 @@ fn reopening_only_gains_backfilled_digests(older: &[u8], newer: &[u8]) -> bool {
     older == newer
 }
 
-/// Whether `working` is the ledger committed at `HEAD` plus only the closing records an accepting
-/// step writes, appended after the committed approvals with nothing else changed: one
+/// Whether `working` is the ledger committed at `HEAD` plus only the closing records the accepting
+/// step wrote, appended after the committed approvals with nothing else changed: one
 /// `finalization` approval, or an `acceptance` approval with, before it, the normalizing
-/// `definition` approval `change accept` may write (REQ-change-166). The lists are compared as
-/// written, relays included; an absent list and an empty one are the same.
-fn appends_only_closing_records(head: &[u8], working: &[u8]) -> bool {
+/// `definition` approval `change accept` may write (REQ-change-166). Each record must be the one
+/// that step writes, not only one with its gate (Codex and corvid-agent on #1120).
+fn appends_only_closing_records(
+    root: &Path,
+    record: &ChangeRecord,
+    head: &[u8],
+    working: &[u8],
+) -> bool {
+    closing_tail(head, working).is_some_and(|tail| {
+        closing_tail_gates_fit(&tail) && closing_tail_was_written_by_acceptance(root, record, &tail)
+    })
+}
+
+/// `closing_tail` with the gates and notes an accepting step writes; what the rule allows by
+/// shape alone, before the records are compared with what was written.
+fn closing_tail_fits(head: &[u8], working: &[u8]) -> bool {
+    closing_tail(head, working).is_some_and(|tail| closing_tail_gates_fit(&tail))
+}
+
+/// The approvals `working` appends after the ones committed at `HEAD`, when that is all it
+/// changes: every committed approval unchanged at its position and every other member equal. The
+/// lists are compared as written, relays included. An absent list and an empty one are the same
+/// only for the ledger's own lists; any other member, a newer SpecSync's included, is compared
+/// exactly (Codex on #1120).
+fn closing_tail(head: &[u8], working: &[u8]) -> Option<Vec<serde_json::Value>> {
     use serde_json::Value;
     let normalized = |bytes: &[u8]| -> Option<serde_json::Map<String, Value>> {
         let Ok(Value::Object(mut ledger)) = serde_json::from_slice::<Value>(bytes) else {
             return None;
         };
-        ledger.retain(|_, value| !matches!(value, Value::Array(items) if items.is_empty()));
+        ledger.retain(|key, value| {
+            !(APPEND_ONLY_LEDGER_LISTS.contains(&key.as_str())
+                && matches!(value, Value::Array(items) if items.is_empty()))
+        });
         Some(ledger)
     };
-    let (Some(mut head), Some(mut working)) = (normalized(head), normalized(working)) else {
-        return false;
-    };
+    let (mut head, mut working) = (normalized(head)?, normalized(working)?);
     let approvals = |ledger: &mut serde_json::Map<String, Value>| match ledger.remove("approvals")
     {
         None => Some(Vec::new()),
         Some(Value::Array(items)) => Some(items),
         Some(_) => None,
     };
-    let (Some(committed), Some(mut written)) = (approvals(&mut head), approvals(&mut working))
-    else {
-        return false;
-    };
+    let (committed, mut written) = (approvals(&mut head)?, approvals(&mut working)?);
     if written.len() <= committed.len() {
-        return false;
+        return None;
     }
     let tail = written.split_off(committed.len());
-    if written != committed || working != head {
-        return false;
-    }
-    fn gate(approval: &Value) -> Option<&str> {
-        approval.get("gate").and_then(Value::as_str)
-    }
-    match tail.as_slice() {
-        [closing] => matches!(gate(closing), Some("finalization" | "acceptance")),
+    (written == committed && working == head).then_some(tail)
+}
+
+fn closing_gate(approval: &serde_json::Value) -> Option<&str> {
+    approval.get("gate").and_then(serde_json::Value::as_str)
+}
+
+fn closing_member<'a>(approval: &'a serde_json::Value, member: &str) -> Option<&'a str> {
+    approval.get(member).and_then(serde_json::Value::as_str)
+}
+
+/// Whether a closing tail has the gates and notes an accepting step writes: one `finalization` or
+/// `acceptance` approval, or the normalizing `definition` approval and then `acceptance`.
+fn closing_tail_gates_fit(tail: &[serde_json::Value]) -> bool {
+    match tail {
+        [closing] => matches!(closing_gate(closing), Some("finalization" | "acceptance")),
         [normalizing, closing] => {
-            gate(normalizing) == Some("definition")
-                && normalizing.get("note").and_then(Value::as_str)
-                    == Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE)
-                && gate(closing) == Some("acceptance")
+            closing_gate(normalizing) == Some("definition")
+                && closing_member(normalizing, "note") == Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE)
+                && closing_gate(closing) == Some("acceptance")
+        }
+        _ => false,
+    }
+}
+
+/// Whether each record of a closing tail is the one the accepting step wrote: the closing digest
+/// it binds to the change's verification, a finalization's fixed actor and note, the stable
+/// definition digest and the closer's actor on a normalizing definition approval, and no member
+/// the step does not write (Codex and corvid-agent on #1120). A closer's actor and note are free.
+fn closing_tail_was_written_by_acceptance(
+    root: &Path,
+    record: &ChangeRecord,
+    tail: &[serde_json::Value],
+) -> bool {
+    use serde_json::Value;
+    let Ok(verification) = load_verification(root, record) else {
+        return false;
+    };
+    let closing = closing_digest(record, &verification);
+    let only = |approval: &Value, members: &[&str]| {
+        approval.as_object().is_some_and(|object| {
+            object.get("timestamp").is_some_and(Value::is_u64)
+                && object
+                    .iter()
+                    .all(|(key, value)| members.contains(&key.as_str()) || value.is_null())
+        })
+    };
+    const CLOSING_MEMBERS: [&str; 5] = ["gate", "actor", "timestamp", "digest", "note"];
+    let closes = |approval: &Value| {
+        closing_member(approval, "digest") == Some(closing.as_str())
+            && only(approval, &CLOSING_MEMBERS)
+    };
+    match tail {
+        [last] if closing_gate(last) == Some("finalization") => {
+            closes(last)
+                && closing_member(last, "actor") == Some(FINALIZATION_APPROVAL_ACTOR)
+                && closing_member(last, "note") == Some(FINALIZATION_APPROVAL_NOTE)
+        }
+        [last] => closes(last),
+        [normalizing, last] => {
+            let Ok(stable) = definition_digest(root, record) else {
+                return false;
+            };
+            closing_member(normalizing, "digest") == Some(stable.as_str())
+                && closing_member(normalizing, "actor") == closing_member(last, "actor")
+                && only(
+                    normalizing,
+                    &[
+                        "gate",
+                        "actor",
+                        "timestamp",
+                        "digest",
+                        "note",
+                        "approved_delta_digests",
+                        "approved_delta_bases",
+                    ],
+                )
+                && closes(last)
         }
         _ => false,
     }
@@ -3904,8 +4019,11 @@ fn archive_change_with_options(
         }
     }
     // REQ-change-166 (#428): archive only approvals that Git history holds, before anything is
-    // written. A post-move resume has no active workspace left to ask about.
-    if !resume_post_move {
+    // written. A post-move resume has no active workspace left, so the moved package's ledger is
+    // held to the history of the path it was committed at (Codex on #1120).
+    if resume_post_move {
+        approvals_ledger_held_by_history_at(root, &record, &destination.join("approvals.json"))?;
+    } else {
         approvals_ledger_held_by_history(root, &record)?;
     }
     let current_location = if resume_post_move {

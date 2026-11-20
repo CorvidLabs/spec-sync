@@ -576,6 +576,8 @@ fn the_rule_passes_what_the_tool_writes() {
 
 #[test]
 fn an_accepted_change_may_append_only_the_closing_records_of_its_accepting_step() {
+    // By shape and gate; that each record is the one the accepting step wrote is
+    // `an_edited_closing_record_is_refused` (Codex and corvid-agent on #1120).
     let head = serde_json::to_vec(&rule_ledger()).unwrap();
     let with = |tail: Vec<serde_json::Value>| {
         let mut ledger = rule_ledger();
@@ -585,21 +587,21 @@ fn an_accepted_change_may_append_only_the_closing_records_of_its_accepting_step(
     let approval = |gate: &str, note: Option<&str>| {
         serde_json::json!({ "gate": gate, "actor": "Closer", "timestamp": 9, "note": note })
     };
-    assert!(appends_only_closing_records(&head, &with(vec![approval("finalization", None)])));
-    assert!(appends_only_closing_records(&head, &with(vec![approval("acceptance", None)])));
-    assert!(appends_only_closing_records(
+    assert!(closing_tail_fits(&head, &with(vec![approval("finalization", None)])));
+    assert!(closing_tail_fits(&head, &with(vec![approval("acceptance", None)])));
+    assert!(closing_tail_fits(
         &head,
         &with(vec![
             approval("definition", Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE)),
             approval("acceptance", None),
         ])
     ));
-    assert!(!appends_only_closing_records(
+    assert!(!closing_tail_fits(
         &head,
         &with(vec![approval("definition", Some("by hand")), approval("acceptance", None)])
     ));
-    assert!(!appends_only_closing_records(&head, &with(vec![approval("definition", None)])));
-    assert!(!appends_only_closing_records(
+    assert!(!closing_tail_fits(&head, &with(vec![approval("definition", None)])));
+    assert!(!closing_tail_fits(
         &head,
         &with(vec![approval("finalization", None), approval("finalization", None)])
     ));
@@ -610,7 +612,7 @@ fn an_accepted_change_may_append_only_the_closing_records_of_its_accepting_step(
         .unwrap()
         .push(approval("acceptance", None));
     assert!(
-        !appends_only_closing_records(&head, &serde_json::to_vec(&changed).unwrap()),
+        !closing_tail_fits(&head, &serde_json::to_vec(&changed).unwrap()),
         "a closing record does not excuse a change to a committed one"
     );
 }
@@ -689,8 +691,15 @@ fn an_edited_closing_record_is_refused() {
     assert_eq!(last["gate"], "acceptance");
     last["digest"] = serde_json::json!("0".repeat(64));
     write_ledger(root, &record, &ledger);
+    // An edited acceptance digest is refused already by the closing-approval check, which runs
+    // first; either refusal archives nothing.
     let refused = archive_change(root, &record.id).unwrap_err();
-    assert!(refused.contains(&approvals_display(&record)), "acceptance digest: {refused}");
+    assert!(
+        refused.contains(&approvals_display(&record))
+            || refused.contains("closing approval does not match verification evidence"),
+        "acceptance digest: {refused}"
+    );
+    assert!(change_dir(root, &record.id).is_dir(), "acceptance digest: nothing is archived");
 }
 
 /// Codex P2 on #1120: an absent list and an empty one are the same only for the ledger's own

@@ -88,7 +88,7 @@ grep -v "^| [0-9-]* | $ID: " specs/auth/auth.spec.md > ../spec.tmp && mv ../spec
 echo "    spec $(grep '^version:' specs/auth/auth.spec.md), Change Log rows $(grep -c '^| 20' specs/auth/auth.spec.md); diff from the product tip: $(git diff --stat "$PRODUCT_TIP" -- specs/auth/auth.spec.md | tail -1)"
 say new check
 echo "    way out, step 2: put version: back to the value before 6.3.0's bump"
-sed -i '' 's/^version: 2$/version: 1/' specs/auth/auth.spec.md
+sed 's/^version: 2$/version: 1/' specs/auth/auth.spec.md > ../spec.tmp && mv ../spec.tmp specs/auth/auth.spec.md
 echo "    spec identical to the product tip: $(git diff --quiet "$PRODUCT_TIP" -- specs/auth/auth.spec.md && echo yes || echo no)"
 say new check
 git add --all && git commit -q -m "remove the Change Log row and version bump 6.3.0 added for $ID"

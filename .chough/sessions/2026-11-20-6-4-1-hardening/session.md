@@ -5,7 +5,7 @@ aliases: [6-4-1-hardening]
 objective: "6.4.1: close the 14 low items left after GHSA-7q5v-8jcc-rx54 (sec-review2's re-check W1, S1, S2, S3, S5, L2, X1, X2; H1 from #1133's review; C1-C5 from #1135), fold in N2, and remove the five history clauses from change 7's requirement texts, red tests first"
 intent_scope: ""
 modules: [util, hooks, change, hash_cache]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,9 +19,13 @@ files: []
 observations: [2026-11-20-6-4-1-the-18-red-tests-w1-s1-s2-s3x2-s5-l2-x1x3-x2-h1-n2-c1-c5]
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+    holds: accept
+    drives: review
+    opened: 2026-11-20T21:47:26Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # 6.4.1: close the 14 low items left after GHSA-7q5v-8jcc-rx54 (sec-review2's re-check W1, S1, S2, S3, S5, L2, X1, X2; H1 from #1133's review; C1-C5 from #1135), fold in N2, and remove the five history clauses from change 7's requirement texts, red tests first
 
@@ -83,4 +87,20 @@ next: Continue build
   - native_change: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
   - gate: native:approved
   - revision: e334bd8abd8f5a2343040d45ca1308cad9e33085
+  - by: claude-code (hc t5r)
+- 2026-11-20T21:47:18Z · advance · build → test · native:verifying ^t-63cb2d
+  - native_change: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+  - gate: native:verifying
+  - revision: c4ad3898e287560874ea7d2aec80e55ebceb08aa
+  - by: claude-code (hc t5r)
+- 2026-11-20T21:47:23Z · advance · test → accept · native:verifying ^t-cb77ba
+  - native_change: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+  - gate: native:verifying
+  - revision: c4ad3898e287560874ea7d2aec80e55ebceb08aa
+  - by: claude-code (hc t5r)
+- 2026-11-20T21:47:26Z · gate-opened · accept → accept · Implementation review of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first ^t-802486
+  - native_change: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+  - revision: c4ad3898e287560874ea7d2aec80e55ebceb08aa
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

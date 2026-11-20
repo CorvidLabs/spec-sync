@@ -1,0 +1,66 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795203704,
+      "digest": "29a8a0c9cb7be9d804f94e887b0d4de5b0641b8134d639378e0176445cfd8289",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of the 6.4.0 post-publication change (relayed by hc t4c)\": \"\"Yes, both (Recommended)\", to the post-publication PR (release plan step 12: the action.yml default, PUBLISHED_ACTION_DEFAULT, the Action docs default row and the install, migration and security guidance move to 6.4.0, as #1069 did for 6.3.0) and the floating v6 tag move\" (A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 19:21Z, with his final go for promote, crates.io, the Homebrew tap and the advisory; relayed by hc t4c). Relayed and recorded by claude-code-t59 at 2026-11-20T19:41:42Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-0",
+        "title": "Advance the Action default and current guidance to published SpecSync 6.4.0",
+        "description": "Advance the Action default and current guidance to published SpecSync 6.4.0",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/releases/6.4.0.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After the published v6.4.0 GitHub release (Latest, twelve assets; promoted from candidate v6.4.0-rc.1 at 3d57fa13, qualified on Ubuntu and macos-15 in run 44781969984), the main Action wrapper's omitted-input default moves to 6.4.0: the action.yml version default and description, PUBLISHED_ACTION_DEFAULT in validate-release-version.py, and the version default row in the Action docs; composite runtime script bytes and the CI and Trust candidate mirrors are unchanged. Immutable v6.4.0 and RC refs stay at 3d57fa13 with embedded default 6.3.0, and the docs say to pass version '6.4.0' with @v6.4.0; the immutable v6.0.0 caveat is kept. The github spec Purpose changes through one SpecSection delta. Current guidance (README install and pin text, SECURITY.md, MIGRATION.md, docs/ADOPTING.md, the site index, the Action docs' published-binary and manual-download text) names published 6.4.0; historical release text is unchanged. CHANGELOG gains an Unreleased entry and docs/releases/6.4.0.md records publication. validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass, and the pre-push gate passes. The PR merges only after crates.io serves 6.4.0; the floating v6 tag moves separately, after this wrapper commit's consumer checks."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "As #1069 did for 6.3.0 and #867 for 6.2.0; historical release text is unchanged; floating v6 is a separate move.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "678c45e1c4a8a966436e019f984c308669adce46ba89a8cb3fbdd54ea7e534ef"
+      },
+      "approved_delta_bases": {
+        "github: SPEC SECTION Purpose": "a7db11e7ca35ca599fea2330bd59cf1f9f9b3d997ab818088b45562b86413941"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Yes, both (Recommended)\", to the post-publication PR (release plan step 12: the action.yml default, PUBLISHED_ACTION_DEFAULT, the Action docs default row and the install, migration and security guidance move to 6.4.0, as #1069 did for 6.3.0) and the floating v6 tag move",
+        "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 19:21Z, with his final go for promote, crates.io, the Homebrew tap and the advisory; relayed by hc t4c",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795204109,
+      "digest": "490eb5fd53af6cbbccb4bd9d3280766f19bb88596072b3ba6ee11696db7ef1ce",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -5,7 +5,7 @@ aliases: [909-safe-directory]
 objective: When SpecSync's isolated Git refuses a repository for dubious ownership that the user's own Git trusts, pass safe.directory for its top level through a private temporary global file; otherwise refuse naming the git config command (#909, REQ-change-171; Leif's dialog choice of 2026-11-20 about 00:45Z, relayed via t4p, t4c and ss-lead t58)
 intent_scope: CHANGE
 modules: [change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,9 +19,13 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #909"
+    holds: accept
+    drives: review
+    opened: 2026-11-20T05:50:03Z
 run_consents: []
-next: "Gate \"Scope approval of pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # When SpecSync's isolated Git refuses a repository for dubious ownership that the user's own Git trusts, pass safe.directory for its top level through a private temporary global file; otherwise refuse naming the git config command (#909, REQ-change-171; Leif's dialog choice of 2026-11-20 about 00:45Z, relayed via t4p, t4c and ss-lead t58)
 
@@ -79,4 +83,37 @@ When SpecSync's isolated Git refuses a repository for dubious ownership that the
     - recorded_by: claude-code-t4t
     - native: specsync change approve pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
     - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:50:00Z · direct-native-write · plan → plan · pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user's lifecycle records changed outside Chough: state.json changed, verification.json added, verification-attempts.json added; state approved → verifying ^t-288cbd
+  - native_change: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - direct_write:
+    - change: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
+    - files:
+      - state.json: changed
+      - verification.json: added
+      - verification-attempts.json: added
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:50:00Z · advance · plan → build · native:verifying ^t-26ac77
+  - native_change: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
+  - gate: native:verifying
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:50:01Z · advance · build → test · native:verifying ^t-3b7760
+  - native_change: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
+  - gate: native:verifying
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:50:03Z · advance · test → accept · native:verifying ^t-b08598
+  - native_change: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
+  - gate: native:verifying
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:50:03Z · gate-opened · accept → accept · Leif's review of #909 ^t-3e1d7e
+  - native_change: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

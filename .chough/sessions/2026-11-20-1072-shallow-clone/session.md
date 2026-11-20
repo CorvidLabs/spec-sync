@@ -5,7 +5,7 @@ aliases: [1072-shallow-clone]
 objective: In a shallow clone, every lifecycle-history refusal says the clone is shallow and names git fetch --unshallow origin, and change new refuses before writing (#1072, REQ-change-173; Leif's dialog choices of 2026-11-20 about 00:45Z, relayed via t4p, t4c and ss-lead t58)
 intent_scope: CHANGE
 modules: [change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,9 +19,13 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1072"
+    holds: accept
+    drives: review
+    opened: 2026-11-20T05:49:59Z
 run_consents: []
-next: "Gate \"Scope approval of in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # In a shallow clone, every lifecycle-history refusal says the clone is shallow and names git fetch --unshallow origin, and change new refuses before writing (#1072, REQ-change-173; Leif's dialog choices of 2026-11-20 about 00:45Z, relayed via t4p, t4c and ss-lead t58)
 
@@ -89,4 +93,37 @@ In a shallow clone, every lifecycle-history refusal says the clone is shallow an
     - recorded_by: claude-code-t4t
     - native: specsync change approve in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
     - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:49:56Z · direct-native-write · plan → plan · in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before's lifecycle records changed outside Chough: state.json changed, verification.json added, verification-attempts.json added; state approved → verifying ^t-52a530
+  - native_change: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - direct_write:
+    - change: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
+    - files:
+      - state.json: changed
+      - verification.json: added
+      - verification-attempts.json: added
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:49:56Z · advance · plan → build · native:verifying ^t-f8f315
+  - native_change: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
+  - gate: native:verifying
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:49:57Z · advance · build → test · native:verifying ^t-62bcdf
+  - native_change: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
+  - gate: native:verifying
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:49:59Z · advance · test → accept · native:verifying ^t-9f17f0
+  - native_change: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
+  - gate: native:verifying
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - by: claude-code (hc t4t)
+- 2026-11-20T05:49:59Z · gate-opened · accept → accept · Leif's review of #1072 ^t-4288aa
+  - native_change: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
+  - revision: 0921a371f9091b12aac13cfbf07cceb0e11f35b8
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

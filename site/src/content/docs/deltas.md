@@ -150,17 +150,21 @@ retried.
 The requirements files are those under the specs directory, at any depth, and those beside every
 registered spec: the `requirements.md` and `<module>.req.md` in the spec's own directory, not below
 it. For a spec registered at the project root, that means the root's own files, not the rest of the
-tree, and a registry path that leaves the project adds nothing. The check takes them from the
+tree, and a registry path that leaves the project adds nothing. A directory that leads outside the
+project, or is itself a link, is not read. The check takes them from the
 configuration and registry in the working tree and from those at the commit it compares with, so a
 branch that drops a registry mapping or moves `specs_dir` is still compared with the files that
 were canonical there. Only an active change past its draft, or a change the branch archived (read from its archived
-record, with a valid approval), accounts for a removal. A retired change does not.
+record, with a valid approval), accounts for a removal. A retired change does not. The approval
+must bind the delta's wording: one that records no delta digests, as an approval made before they
+existed, accounts for nothing until the change is approved again.
 
 The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold
 `requirements.md` artifacts, not canonical requirements) or any `exclude_dirs` directory, even when
 `specs_dir` is the project root, and a change workspace it cannot read accounts for no removal. A
 file that was canonical at the commit it compares with is judged by the exclusions configured there,
-so adding its directory to `exclude_dirs` does not remove its requirements. When
+so adding its directory to `exclude_dirs` neither removes its requirements nor hides the ones it
+still holds. When
 Git cannot answer, for example in a shallow clone that lacks the merge-base, the check refuses and
 says so: repair the repository or fetch the default branch (`git fetch --unshallow origin` in a
 shallow clone, `git fetch origin` otherwise), then run `change check` again. With no default branch

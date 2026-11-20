@@ -336,18 +336,30 @@ fn is_scanned_requirements_path(path: &str, excluded: &BTreeSet<String>) -> bool
     components.iter().all(|component| !excluded.contains(*component))
 }
 
+/// Whether the scope directory `directory` is read: a directory that leads outside the project, or
+/// is itself a link, is not read (Codex on #1108, third round). The project root always is.
+fn readable_scope_directory(root: &Path, directory: &str) -> bool {
+    if directory.is_empty() || directory == "." {
+        return true;
+    }
+    safe_project_path(root, directory).is_ok()
+        && fs::symlink_metadata(root.join(directory))
+            .is_ok_and(|metadata| !metadata.file_type().is_symlink())
+}
+
 /// Every requirements file on disk in `scope`, project-relative, with its blocks. Its directories
 /// are read to any depth, as Git lists them (Codex on #1108); symlinks are not followed, and no
-/// directory named in `excluded_requirement_directories` is entered.
+/// directory named in `excluded` is entered.
 fn working_tree_requirement_blocks(
     root: &Path,
     scope: &RequirementScope,
+    excluded: &BTreeSet<String>,
 ) -> Vec<(String, Vec<(String, String)>)> {
-    let excluded = excluded_requirement_directories(root);
     let mut files = Vec::new();
     let mut pending: Vec<PathBuf> = scope
         .directories
         .iter()
+        .filter(|directory| readable_scope_directory(root, directory))
         .map(|directory| root.join(directory))
         .collect();
     while let Some(directory) = pending.pop() {
@@ -369,7 +381,10 @@ fn working_tree_requirement_blocks(
             }
         }
     }
-    for companion in scope.own_companions() {
+    for companion in scope
+        .own_companions()
+        .filter(|companion| readable_scope_directory(root, companion))
+    {
         let Ok(entries) = fs::read_dir(root.join(companion)) else {
             continue;
         };
@@ -387,7 +402,7 @@ fn working_tree_requirement_blocks(
         .into_iter()
         .filter_map(|path| {
             let relative = portable_project_path(root, &path);
-            if !is_scanned_requirements_path(&relative, &excluded) {
+            if !is_scanned_requirements_path(&relative, excluded) {
                 return None;
             }
             let text = fs::read_to_string(&path).ok()?;
@@ -397,8 +412,10 @@ fn working_tree_requirement_blocks(
 }
 
 /// Adds to `removed` the requirement ids the approved `## REMOVED` items of `change` name: the
-/// items of each delta its valid definition approval binds. A change whose approval or delta
-/// cannot be read adds nothing.
+/// items of each delta its valid definition approval binds by digest. An approval that records
+/// no delta digests, as one made before they existed, binds no wording, so its change adds
+/// nothing until it is approved again (Codex on #1108, third round). A change whose approval or
+/// delta cannot be read adds nothing either.
 fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTreeSet<String>) {
     let Ok(ledger) = load_approvals(root, change) else {
         return;
@@ -416,7 +433,7 @@ fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTree
         let approved = approval
             .approved_delta_digests
             .as_ref()
-            .is_none_or(|digests| digests.get(module) == Some(&delta_body_digest(module, &delta)));
+            .is_some_and(|digests| digests.get(module) == Some(&delta_body_digest(module, &delta)));
         if !approved {
             continue;
         }
@@ -605,7 +622,14 @@ fn lost_requirements_check(
             at_reference.push((id, path.to_string(), body));
         }
     }
-    let working = working_tree_requirement_blocks(root, &scope);
+    // A file canonical now or at the reference counts as present, so a directory is skipped only
+    // when both exclude it: one the branch newly excludes keeps the ids it still holds (Codex on
+    // #1108, third round).
+    let excluded_both: BTreeSet<String> = excluded_requirement_directories(root)
+        .intersection(&excluded_at_reference)
+        .cloned()
+        .collect();
+    let working = working_tree_requirement_blocks(root, &scope, &excluded_both);
     let present: BTreeSet<&str> = working
         .iter()
         .flat_map(|(_, blocks)| blocks.iter().map(|(id, _)| id.as_str()))
@@ -707,7 +731,12 @@ fn default_branch_requirement_ids(
 ) -> Option<(String, BTreeSet<String>)> {
     let default = lost_requirements_default_ref(root)?;
     let prefix = git_repo_prefix(root).ok()?;
-    let excluded = excluded_requirement_directories(root);
+    // The default branch's ids are read as it is configured: an id in a directory the branch newly
+    // excludes is still the default branch's, so the way out never names a merge that changes
+    // nothing (the tester's excl2 on #1108).
+    let mut scope = scope.clone();
+    let excluded = add_reference_requirement_scope(root, &default, &prefix, &mut scope).ok()?;
+    let scope = &scope;
     let pathspecs: Vec<String> = scope
         .directories
         .iter()

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first",
+  "slug": "close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first",
+  "title": "Close the low items left after the hash-cache advisory, red tests first",
+  "description": "Close the low items left after the hash-cache advisory, red tests first",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "e334bd8abd8f5a2343040d45ca1308cad9e33085",
+  "created_at": 1795204277,
+  "updated_at": 1795204533,
+  "affected_specs": [
+    "util",
+    "hooks",
+    "hash_cache",
+    "change",
+    "commands",
+    "cmd_resolve",
+    "cmd_stale",
+    "cmd_change",
+    "cmd_scaffold",
+    "cmd_check",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/util.rs",
+    "src/util/local_state.rs",
+    "src/hooks.rs",
+    "src/hash_cache.rs",
+    "src/change/read_cache.rs",
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/collect_requirement_ids.rs",
+    "src/commands/mod.rs",
+    "src/commands/resolve.rs",
+    "src/commands/stale.rs",
+    "src/commands/change.rs",
+    "src/commands/scaffold.rs",
+    "src/commands/doctor.rs",
+    "src/validator/requirement_ids.rs",
+    "src/change_tests",
+    "src/change_tests.rs",
+    "tests/integration",
+    "tests/integration.rs",
+    "CHANGELOG.md",
+    "docs",
+    "site/src/content/docs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Each red test committed in e334bd8a passes, and each failed on 6.4.0: W1, a linked .specsync/archive/changes is refused naming the folder and no outside name is printed; S1, no hook is written into an existing outside folder the repository's own config names; S2, a journal that does not record the project now at its path is never replayed, and lifecycle commands stop with its path; S3, correct-owner --manifest and scaffold --template refuse a FIFO or an oversized file instead of waiting, still following links; S5, the journal is kept in the user's state folder, not the cache folder; L2, a state folder the current user does not own or that others can write is refused; X1, the scans flag read_dir, WalkDir::new and Git's apply, merge, switch and config unless marked; X2, a hooks path spelled through a link to the work tree is inside it; N2, a state folder that would lie inside the project is refused; H1, a linked worktree's shared hooks folder is made when missing; C1, the change read cache is read and written only through the local state handles; C2, check --only-status keeps a refused spec with its refusal; C3, resolve reports a refused spec; C4, stale counts a refused spec as unmeasurable; C5, a hash cache over the bound is refused, not written. The five history clauses in REQ-util-006, REQ-util-008, REQ-change-162, REQ-hooks-009 and REQ-cmd-check-021 are removed with no change of meaning. macOS verify lane and Linux are green, and change audit passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "util.3md: the caches keep a stricter rule than project files, no link at all, and SpecSync's own state lives only outside the work tree and Git directory; hooks.3md: the pre-commit hook keeps its own guard; Leif's 6.4.1 choices: a journal without its project is never replayed, a typed path still follows links, the 64 MiB cache bound stays",
+    "public_contract": "yes"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795204533,
+      "digest": "7f32aa44b614bd11a7cdc4ce814e64377fb6e68b98aa29ee47a6161ec70f2eb3",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first\": \"Approve (Recommended)\" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 19:51Z, answering the 6.4.1 scope question (security/6.4.1-scope.md: 14 fixes, W1, S1, S2, S3, S5, L2, X1, X2, H1 and C1-C5; 5 keeps, S4, L1, L3, X3 and I1; the N2 nit and the 5 clause removals; choices (1) a journal without its project is never replayed and lifecycle commands stop with its path, (2) a typed path still follows links and only the FIFO wait and size bound are fixed, (3) the 64 MiB bound stays and an oversized cache is refused, (4) one change, one review, one re-check by sec-review2) with 'Approve (Recommended)'. The red tests were committed first (e334bd8a), each failing on 6.4.0. Relayed by t4c over hc to t5r; a relayed claim, not authenticated). Relayed and recorded by claude-code-t5r at 2026-11-20T19:55:24Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first",
+        "title": "Close the low items left after the hash-cache advisory, red tests first",
+        "description": "Close the low items left after the hash-cache advisory, red tests first",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "cmd_check",
+          "cmd_resolve",
+          "cmd_scaffold",
+          "cmd_stale",
+          "commands",
+          "hash_cache",
+          "hooks",
+          "util",
+          "validator"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "docs",
+          "site/src/content/docs",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/read_cache.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/commands/doctor.rs",
+          "src/commands/mod.rs",
+          "src/commands/resolve.rs",
+          "src/commands/scaffold.rs",
+          "src/commands/stale.rs",
+          "src/hash_cache.rs",
+          "src/hooks.rs",
+          "src/util.rs",
+          "src/util/local_state.rs",
+          "src/validator/requirement_ids.rs",
+          "tests/integration",
+          "tests/integration.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Each red test committed in e334bd8a passes, and each failed on 6.4.0: W1, a linked .specsync/archive/changes is refused naming the folder and no outside name is printed; S1, no hook is written into an existing outside folder the repository's own config names; S2, a journal that does not record the project now at its path is never replayed, and lifecycle commands stop with its path; S3, correct-owner --manifest and scaffold --template refuse a FIFO or an oversized file instead of waiting, still following links; S5, the journal is kept in the user's state folder, not the cache folder; L2, a state folder the current user does not own or that others can write is refused; X1, the scans flag read_dir, WalkDir::new and Git's apply, merge, switch and config unless marked; X2, a hooks path spelled through a link to the work tree is inside it; N2, a state folder that would lie inside the project is refused; H1, a linked worktree's shared hooks folder is made when missing; C1, the change read cache is read and written only through the local state handles; C2, check --only-status keeps a refused spec with its refusal; C3, resolve reports a refused spec; C4, stale counts a refused spec as unmeasurable; C5, a hash cache over the bound is refused, not written. The five history clauses in REQ-util-006, REQ-util-008, REQ-change-162, REQ-hooks-009 and REQ-cmd-check-021 are removed with no change of meaning. macOS verify lane and Linux are green, and change audit passes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "util.3md: the caches keep a stricter rule than project files, no link at all, and SpecSync's own state lives only outside the work tree and Git directory; hooks.3md: the pre-commit hook keeps its own guard; Leif's 6.4.1 choices: a journal without its project is never replayed, a typed path still follows links, the 64 MiB cache bound stays",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "994e723025da97b523b754ddd0c1496483a2671ffa82f3265602587254ddf341",
+        "cmd_change": "5966e973db8f3682089206f4636f1d15b8c0ed8c1d4bea78d075a120ee81a7d2",
+        "cmd_check": "93a99a26d7f88c5b87f1ff3db26d543fce99845faf929099247d89aa01bc805f",
+        "cmd_resolve": "9fb9768fc4df3c25a74b28f4404b95ddeabc1fa86f0547a95975cd05cfb4f080",
+        "cmd_scaffold": "e57b24b03776e7d3f36724c310fbc62708ac7f5d5c2b047f35ee4f795936c008",
+        "cmd_stale": "4ef5953c32864ff076e2ddccd4180b0a04597b7e9825b203363d715a0f691f0c",
+        "commands": "9697aef1a98fc8986c01c86c34efeb18f6b6b33cec278776726c1f21737f040b",
+        "hash_cache": "593f9e461b8b8cb71048a112649dbaf99cf38c3091e6a3cdf5b2181d6b60cec5",
+        "hooks": "05338bae8fc21b0856d17262a58ea3254d3ec21736b73327df105e7a6cc72d5f",
+        "util": "5959da08cc3e075645220464b829e31f5af67c5e300c7314b4aec3fa7141648c",
+        "validator": "3b7e73c0f1001a23cc22ffcb5a3fafa212b30e0988afd4963361857ebc687759"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-162": "a2aa9dc0ff7957e1a290bc7b556c51ba0f756ef61f049930290e17d448c4551c",
+        "cmd_check: REQUIREMENT REQ-cmd-check-021": "54365ff9dd09a857719dcbb505214fbe42da045f007809ef08ef2ae4b2ab0398",
+        "cmd_resolve: REQUIREMENT REQ-cmd-resolve-003": "eb896815f54b081c3416ccd70951e101690263d3701d8279186703e1045c1845",
+        "cmd_stale: REQUIREMENT REQ-cmd-stale-005": "78692759aa858d99f6bec5c178afde75070559ffdb282da86b327dccc6d7a485",
+        "commands: REQUIREMENT REQ-commands-014": "2428770093e038849cda4185e2af0f065c3e20d24bb97e959282a37545994015",
+        "hash_cache: REQUIREMENT REQ-hash-cache-007": "30fb67c53b8c2f1d5fc37046dc3756c227445fae8957f2cda021cda17fe805dc",
+        "hooks: REQUIREMENT REQ-hooks-009": "eeed4d3285314c7c621db4062999a51c7c236d886018761ebbae3009b51f18ab",
+        "util: REQUIREMENT REQ-util-006": "1ccba5c4eefa69cf7930d2209cd934f7bbe29dc10ca2c65038e548d5fcec1df4",
+        "util: REQUIREMENT REQ-util-008": "87579a9052e113f274c9e5cc64b888af0826c2fad0b1603b325cc9c355336d1a",
+        "util: REQUIREMENT REQ-util-009": "66fbdee91291e6653d3fde887b28a02682d7d18fdd8da1bd02974ed4451a92b2",
+        "util: REQUIREMENT REQ-util-010": "6a7d9c9b44e5c0f9d7dd06a674ded489fd42059475217fe8388ce9aaa423b24a",
+        "validator: REQUIREMENT REQ-validator-053": "6eb757402fdcbda75190f76ea5f70df1719d65cef151c0eaf2937423c7345162"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 19:51Z, answering the 6.4.1 scope question (security/6.4.1-scope.md: 14 fixes, W1, S1, S2, S3, S5, L2, X1, X2, H1 and C1-C5; 5 keeps, S4, L1, L3, X3 and I1; the N2 nit and the 5 clause removals; choices (1) a journal without its project is never replayed and lifecycle commands stop with its path, (2) a typed path still follows links and only the FIFO wait and size bound are fixed, (3) the 64 MiB bound stays and an oversized cache is refused, (4) one change, one review, one re-check by sec-review2) with 'Approve (Recommended)'. The red tests were committed first (e334bd8a), each failing on 6.4.0. Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ],
+  "reopenings": []
+}

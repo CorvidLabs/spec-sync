@@ -1,6 +1,6 @@
 ---
 id: keep-specsync-s-own-state-only-in-the-user-cache-folder
-state: approved
+state: implementing
 type: bug_fix
 base_commit: e3d508ac254dd94817409b30fe180423de027a87
 ---

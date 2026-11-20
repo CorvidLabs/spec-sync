@@ -1,0 +1,23 @@
+{
+  "timestamp": 1795183786,
+  "commit": "899d48495b0f5e56425cd642514da48518fc5288",
+  "contract_digest": "9a7ce342e15a76a0c8610055138b82f5c578cb6a46ad86867b92e33c8a017e44",
+  "execution_digest": "891329212c7f6681e2c37f498b94e2a20bb5976a959f064d7c9f8ec1f605198e",
+  "workspace_digest": "12ce2c010a90173a781291dd8e31d1a5f81860c800bb586973766997afb2d6aa",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec change --spec cmd_check --spec git_utils --spec hooks --spec util",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-change-162",
+    "REQ-cmd-check-021",
+    "REQ-git-utils-012",
+    "REQ-hooks-009",
+    "REQ-util-006",
+    "REQ-util-008"
+  ]
+}

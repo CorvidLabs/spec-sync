@@ -150,6 +150,17 @@ fn durable_journal(entries: &[(&str, Option<&str>)]) -> String {
     )
 }
 
+/// The journal exactly as SpecSync 6.4.1 writes one for the project at `root`: the 6.4.0
+/// envelope and the project root it belongs to (REQ-change-162).
+fn journal_for(root: &Path, entries: &[(&str, Option<&str>)]) -> String {
+    let journal = durable_journal(entries);
+    format!(
+        "{},\"root\":{}}}",
+        journal.strip_suffix('}').unwrap(),
+        journal_root_json(root)
+    )
+}
+
 // ─── W1: listings of SpecSync's own record folders ──────────────────────
 
 /// W1. A committed `.specsync/archive/changes` that links out of the project is refused, naming
@@ -373,6 +384,82 @@ fn a_state_folder_others_can_write_is_refused() {
         said(&second)
     );
     assert!(said(&second).contains("writable"), "{}", said(&second));
+    // One command fixes every level, not one folder per run (re-check of 6.4.1).
+    let hint = format!(
+        "chmod -R go-w {}",
+        test_cache_home().join("specsync").display()
+    );
+    assert!(said(&second).contains(&hint), "{}", said(&second));
+}
+
+/// A (re-check of 6.4.1). Where the user's cache and state folders are one folder, as on Windows
+/// or with `XDG_STATE_HOME` set to `XDG_CACHE_HOME`, a journal this build wrote is recovered, not
+/// refused as one SpecSync 6.4.0 left in the cache folder.
+#[test]
+fn a_journal_is_recovered_where_the_cache_and_state_folders_coincide() {
+    let fx = lifecycle_project();
+    let home = fx.tmp.path().join("one-home");
+    let folder = home
+        .join("specsync")
+        .join("projects")
+        .join(state_folder(&fx.root).file_name().unwrap());
+    fs::create_dir_all(&folder).unwrap();
+    let journal = folder.join("change-transaction.json");
+    fs::write(
+        &journal,
+        journal_for(
+            &fx.root,
+            &[(
+                "specs/auth/requirements.md",
+                Some("# Requirements, restored\n"),
+            )],
+        ),
+    )
+    .unwrap();
+    let env = [
+        ("XDG_CACHE_HOME", home.as_path()),
+        ("XDG_STATE_HOME", home.as_path()),
+    ];
+
+    let output = run_with_env(
+        &fx.root,
+        &["change", "new", "After an interrupted write"],
+        &env,
+    );
+
+    assert!(output.status.success(), "{}", said(&output));
+    assert_eq!(
+        fs::read_to_string(fx.root.join("specs/auth/requirements.md")).unwrap(),
+        "# Requirements, restored\n",
+        "{}",
+        said(&output)
+    );
+    assert!(!journal.exists(), "{}", said(&output));
+}
+
+/// C5 (#1135, re-check of 6.4.1). When `check` cannot save its hash cache, it says so once
+/// instead of dropping the error, and its verdict is unchanged.
+#[test]
+fn check_warns_once_when_its_hash_cache_cannot_be_saved() {
+    use std::os::unix::fs::PermissionsExt;
+    let fx = project();
+    let first = fx.run(&["check"]);
+    assert!(first.status.success(), "{}", said(&first));
+    let folder = state_folder(&fx.root);
+    let _cleanup = Cleanup(folder.clone());
+    // A folder only its owner can enter: the cache is neither refused nor writable.
+    fs::set_permissions(&folder, fs::Permissions::from_mode(0o500)).unwrap();
+
+    let second = fx.run(&["check"]);
+    fs::set_permissions(&folder, fs::Permissions::from_mode(0o700)).unwrap();
+
+    assert!(second.status.success(), "{}", said(&second));
+    assert_eq!(
+        said(&second).matches("hash cache not saved").count(),
+        1,
+        "{}",
+        said(&second)
+    );
 }
 
 // ─── C2 to C4 (#1135) ───────────────────────────────────────────────────
@@ -410,6 +497,8 @@ fn resolve_reports_a_refused_spec() {
 
     assert!(said(&output).contains("big.spec.md"), "{}", said(&output));
     assert!(said(&output).contains("larger than"), "{}", said(&output));
+    // As scoped, the report is a warning: `resolve`'s exit status is what it would be without it.
+    assert!(output.status.success(), "{}", said(&output));
 }
 
 /// C4. `stale` counts a spec the bounded read refuses as unmeasurable, so its summary never says

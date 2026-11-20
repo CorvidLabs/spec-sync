@@ -398,6 +398,20 @@ fn scope_directory(root: &Path, directory: &str) -> ScopeDirectory {
     }
 }
 
+/// One entry of a directory listing, as the working-tree scan reads it: its path and kind, or the
+/// path and the error that kept it from being read, whether the listing yielded the error or the
+/// entry's kind could not be read (Codex on #1134, second round; REQ-change-177).
+fn listed_entry(
+    directory: &Path,
+    entry: std::io::Result<(PathBuf, std::io::Result<fs::FileType>)>,
+) -> Result<(PathBuf, fs::FileType), (PathBuf, std::io::Error)> {
+    match entry {
+        Err(error) => Err((directory.to_path_buf(), error)),
+        Ok((path, Err(error))) => Err((path, error)),
+        Ok((path, Ok(kind))) => Ok((path, kind)),
+    }
+}
+
 /// What the working-tree scan found: each requirements file with its blocks, and each directory
 /// or requirements file it could not read, with the error (REQ-change-177).
 struct WorkingRequirements {
@@ -437,18 +451,22 @@ fn working_tree_requirement_blocks(
                 continue;
             }
         };
-        for entry in entries.flatten() {
-            let Ok(kind) = entry.file_type() else {
-                continue;
+        for entry in entries {
+            let entry = entry.map(|entry| (entry.path(), entry.file_type()));
+            let (path, kind) = match listed_entry(&directory, entry) {
+                Ok(listed) => listed,
+                Err((path, error)) => {
+                    note(&mut unreadable, &path, error);
+                    continue;
+                }
             };
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
             if kind.is_dir() {
                 if !excluded.contains(name.as_ref()) {
-                    pending.push(entry.path());
+                    pending.push(path);
                 }
             } else if kind.is_file() && is_requirements_file(&name) {
-                files.push(entry.path());
+                files.push(path);
             }
         }
     }
@@ -468,11 +486,18 @@ fn working_tree_requirement_blocks(
                 continue;
             }
         };
-        for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| kind.is_file())
-                && is_requirements_file(&entry.file_name().to_string_lossy())
-            {
-                files.push(entry.path());
+        let directory = root.join(companion);
+        for entry in entries {
+            let entry = entry.map(|entry| (entry.path(), entry.file_type()));
+            match listed_entry(&directory, entry) {
+                Ok((path, kind)) => {
+                    if kind.is_file()
+                        && is_requirements_file(&path.file_name().unwrap_or_default().to_string_lossy())
+                    {
+                        files.push(path);
+                    }
+                }
+                Err((path, error)) => note(&mut unreadable, &path, error),
             }
         }
     }

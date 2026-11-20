@@ -67,6 +67,76 @@
         "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 21:52Z, answering 'SpecSync 6.4.1: you chose \"one change, one review\". The fix routes every folder listing through the safe helper, which touched 17 files outside its approved list, and SpecSync can't add them as files only: each would need new requirement wording. The builder's working route: a second, no-spec-change change in the same PR that covers just those 17 files (no wording, and it cites the approved requirements). You'd still give one review covering both, with one re-check by the security reviewer. OK to make it two changes in one PR?' with 'Yes, two changes (Recommended)'. Rehearsed first in a throwaway clone. Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795213687,
+      "digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope re-approval of route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths with src/commands/check.rs\": \"Standing OK, tell me after\" (Leif's standing OK for scope approvals ('Standing OK, tell me after', his 2026-11-20 Claude Code dialog with his planning session, hc t4c), relayed by t4c for this path-only addition: src/commands/check.rs and its owner cmd_check, the one line of the C5 warning sec-review2's re-check of 6.4.1 asked for inside the approved scope, with no requirement wording change. The change was sent back by t4c (f07226b2). It rests on Leif's 'Yes, two changes (Recommended)' (about 21:52Z). Rehearsed first in a throwaway clone. Relayed by t4c over hc to t5r; a relayed claim, not authenticated). Relayed and recorded by claude-code-t5r at 2026-11-20T22:28:00Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths",
+        "title": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
+        "description": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_check",
+          "cmd_comment",
+          "cmd_import",
+          "cmd_merge",
+          "cmd_migrate",
+          "config",
+          "generator",
+          "github",
+          "importer",
+          "mcp",
+          "validator",
+          "watch"
+        ],
+        "affected_paths": [
+          "specs/generator/generator.spec.md",
+          "src/agents.rs",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/doctor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/spec_history.rs",
+          "src/commands/check.rs",
+          "src/commands/comment.rs",
+          "src/commands/import.rs",
+          "src/commands/merge.rs",
+          "src/commands/migrate.rs",
+          "src/config.rs",
+          "src/generator.rs",
+          "src/github.rs",
+          "src/importer.rs",
+          "src/mcp/preflight.rs",
+          "src/validator/consumed_by_re.rs",
+          "src/watch.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "No requirement text changes: these files carry the approved REQ-util-008, REQ-util-010, REQ-util-011 and REQ-cmd-scaffold-009 of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first, as scan markers, confined listings and typed-path reads",
+        "acceptance_criteria": [
+          "The read, write, Git and spawn scans of REQ-util-008 pass with every site in these 17 files routed through the confined listing (REQ-util-010) or marked with its reason; scaffold --template reads through read_typed_file (REQ-util-011, REQ-cmd-scaffold-009); change audit covers every changed path; no requirement text changes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "the approved requirements of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first; Leif's 'Yes, two changes (Recommended)': no wording, one review covering both",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Standing OK, tell me after",
+        "where": "Leif's standing OK for scope approvals ('Standing OK, tell me after', his 2026-11-20 Claude Code dialog with his planning session, hc t4c), relayed by t4c for this path-only addition: src/commands/check.rs and its owner cmd_check, the one line of the C5 warning sec-review2's re-check of 6.4.1 asked for inside the approved scope, with no requirement wording change. The change was sent back by t4c (f07226b2). It rests on Leif's 'Yes, two changes (Recommended)' (about 21:52Z). Rehearsed first in a throwaway clone. Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
+        "recorded_by": "claude-code-t5r"
+      }
     }
   ],
   "reopenings": [],

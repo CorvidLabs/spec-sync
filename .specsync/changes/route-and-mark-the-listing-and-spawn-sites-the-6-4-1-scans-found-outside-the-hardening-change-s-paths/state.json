@@ -7,10 +7,10 @@
   "title": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
   "description": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "6d155ce583e44b2411db84ec2ed307b1ed62bbdb",
   "created_at": 1795211618,
-  "updated_at": 1795213613,
+  "updated_at": 1795213687,
   "affected_specs": [
     "agents",
     "cmd_comment",
@@ -24,7 +24,8 @@
     "mcp",
     "watch",
     "change",
-    "validator"
+    "validator",
+    "cmd_check"
   ],
   "affected_paths": [
     "specs/generator/generator.spec.md",
@@ -43,7 +44,8 @@
     "src/importer.rs",
     "src/mcp/preflight.rs",
     "src/validator/consumed_by_re.rs",
-    "src/watch.rs"
+    "src/watch.rs",
+    "src/commands/check.rs"
   ],
   "no_spec_change": true,
   "no_spec_change_rationale": "No requirement text changes: these files carry the approved REQ-util-008, REQ-util-010, REQ-util-011 and REQ-cmd-scaffold-009 of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first, as scan markers, confined listings and typed-path reads",

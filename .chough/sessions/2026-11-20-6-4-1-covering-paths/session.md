@@ -5,7 +5,7 @@ aliases: [6-4-1-covering-paths]
 objective: "Cover, as a second no-spec-change change in the 6.4.1 PR, the 17 files the hardening change's approved W1, X1 and S3 fixes touched outside its path list (Leif: 'Yes, two changes (Recommended)')"
 intent_scope: ""
 modules: [util]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,9 +19,13 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths
+    holds: accept
+    drives: review
+    opened: 2026-11-20T21:54:35Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # Cover, as a second no-spec-change change in the 6.4.1 PR, the 17 files the hardening change's approved W1, X1 and S3 fixes touched outside its path list (Leif: 'Yes, two changes (Recommended)')
 
@@ -81,4 +85,20 @@ Cover, as a second no-spec-change change in the 6.4.1 PR, the 17 files the harde
   - native_change: route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths
   - gate: native:approved
   - revision: 6d155ce583e44b2411db84ec2ed307b1ed62bbdb
+  - by: claude-code (hc t5r)
+- 2026-11-20T21:54:26Z · advance · build → test · native:verifying ^t-356e87
+  - native_change: route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths
+  - gate: native:verifying
+  - revision: c16e5538122671733bd6820fb4c943bcfeeef42c
+  - by: claude-code (hc t5r)
+- 2026-11-20T21:54:32Z · advance · test → accept · native:verifying ^t-80c304
+  - native_change: route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths
+  - gate: native:verifying
+  - revision: c16e5538122671733bd6820fb4c943bcfeeef42c
+  - by: claude-code (hc t5r)
+- 2026-11-20T21:54:35Z · gate-opened · accept → accept · Implementation review of route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths ^t-c1aa6c
+  - native_change: route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths
+  - revision: c16e5538122671733bd6820fb4c943bcfeeef42c
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

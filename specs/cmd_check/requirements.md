@@ -218,3 +218,44 @@ Acceptance Criteria
 - `| Function | Description |` holding `a`, followed by prose and `| Name | Type | Description |`, receives a 2-cell row for `b` directly after the `a` row.
 - In each case every other byte of the file is unchanged, `check --strict` passes, and a second `check --fix` changes nothing.
 
+### REQ-cmd-check-018
+
+When the hash cache location is refused (REQ-hash-cache-007), `check` SHALL print one warning on stderr that names the refused path, SHALL validate every spec as it does with no cache, SHALL NOT read, create or write anything through that location, and SHALL keep the stdout output, verdict and exit code it has with no cache.
+
+Acceptance Criteria
+- With `.specsync/hashes.json` a symbolic link to a file outside the project, `specsync check`, `check --force`, `check --strict` and `check --format json` each exit as they do without the link, print `hash cache not used` once on stderr, and leave the link and the bytes of its target unchanged.
+- With that link dangling, nothing is created at its target.
+- With `.specsync` a symbolic link to a directory outside the project, `specsync check` prints the same warning and that directory gains no entry.
+- A project whose cache is a regular file or absent prints no such warning.
+
+### REQ-cmd-check-019
+
+`check` SHALL read the spec files it reads again for `--fix` and for stale-history detection only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-cmd-check-020
+
+`check --fix --backup` SHALL read each spec through the bounded project read and write its backup to `.specsync/backup-fix/<spec path>` through the confined project write (REQ-util-002). A `backup-fix` directory, or a file in it, that leads out of the repository SHALL be refused with the path, and `--fix` SHALL stop before it changes a spec. `--fix` SHALL rewrite specs through the confined project write.
+
+Acceptance Criteria
+- A `backup-fix` linked to an outside directory receives nothing, and the spec is unchanged; a backup file linked to an outside file keeps that file's bytes.
+- With no link, the backup is written where it was and the fix goes on.
+
+### REQ-cmd-check-021
+
+`check` SHALL use only the hash cache in the project's local state folder (REQ-hash-cache-009) and SHALL never read a `.specsync/hashes.json` in the work tree or, now also, a cache under a Git directory, so a cache a repository or an archive of one ships changes nothing and prints nothing. The "Cache:" line SHALL name the cache's real path. When no local state folder can be found, or the user cache folder lies inside the project, `check` SHALL print once `warning: hash cache not used:` with the reason and validate every spec.
+
+Acceptance Criteria
+- With a forged `.specsync/hashes.json` in a tree with no Git, `check` validates the failing spec and exits 1.
+- A copy of a project that ships its `.git`, cache included, validates every spec.
+- With `XDG_CACHE_HOME` inside the project, `check` warns once and validates every spec.
+
+### REQ-cmd-check-022
+
+`check` SHALL list the schema folder for its cache inputs only through `read_project_dir` (REQ-util-010).
+
+Acceptance Criteria
+- A schema folder that leads out of the project contributes no input name from outside.
+

@@ -2196,6 +2196,32 @@ Acceptance Criteria
 - A fragment written with a plain `change:` still parses.
 - Fragments with the same date are ordered by change id.
 
+### REQ-change-161
+
+The change lifecycle SHALL read `.specsync/sdd.json` and every change record under `.specsync/changes/` and `.specsync/archive/` (4 MiB), `.specsync/change-transaction.json` and a delivery file whose digest it compares (64 MiB), and the spec, requirements, companion and history files it reads (8 MiB) only through the bounded project read of `util` (REQ-util-003), with a bound of the one named for each file. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With `.specsync/sdd.json` a FIFO, `change status --json` finishes without waiting on it and reports the policy as unreadable, naming the path.
+- With `.specsync/sdd.json` a link to a file outside the project, that file's bytes are not read: the error names the link as leaving the project.
+- With `.specsync/sdd.json` one byte over 4 MiB, it is refused naming the bound, without reading it whole.
+- With `.specsync/change-transaction.json` a FIFO or a link to a file outside the project, a lifecycle command finishes without waiting on it and reports the journal invalid, naming the path.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-change-162
+
+The change workflow SHALL write, replay and remove its transaction journal only as `change-transaction.json` in the project's local state folder in the user's cache folder (REQ-util-006), no longer in a Git directory, and only into files the change workflow writes.
+- A `.specsync/change-transaction.json` in the work tree, of any kind and whether or not Git tracks it, SHALL never be opened or replayed, and nor SHALL a journal under a Git directory. While one is in the work tree, every command that takes the lifecycle lock SHALL refuse, name the path, say that a journal in the work tree is never replayed because a repository can put one there, and say how to clear it (check the files it lists if an older SpecSync left it, then delete it).
+- A journal entry SHALL be replayed only when its path is under `.specsync/`, or is a spec file, `requirements.md` or `history/*.md` under the configured `specs_dir`, or is a registry-mapped spec whose mapped path ends in `.spec.md`, the `requirements.md` beside it, or a file in that spec's `history/` directory.
+- A path with a `.git` component SHALL be refused under ASCII case folding, after trailing dots and spaces are removed from each component.
+- One refused entry SHALL refuse the whole journal, so nothing is replayed, with the existing invalid-journal message and its `.broken` recovery naming the entry.
+- The bare-array journal form, written only by SpecSync 5.x, SHALL no longer be replayed and SHALL be refused the same way.
+- Every transaction this build writes SHALL pass the same path rule before it is journaled.
+
+Acceptance Criteria
+- A valid journal planted at `.specsync/change-transaction.json`, or under `.git/specsync/`, is not replayed.
+- A registry entry mapping a module to `.env` does not let a journal delete or rewrite `.env`.
+- While a transaction runs, its journal is in the local state folder and not in the work tree.
+
 ### REQ-change-163
 
 The system SHALL offer a dry run of the definition approval that says whether `change approve` would accept a change as it stands, and writes nothing. It SHALL run the checks `change approve` runs, in the same order and through the same functions, so the two cannot differ: the relayed-decision check, the lifecycle-lock check, loading the change, the sequence-collision check, the state guard, the roster check, the legacy-baseline binding, the definition check, the delta check, the declared-path ownership check, the `verification_ignored_paths` check, building the approval record, and resolving the actor. The lifecycle-lock check asks what taking the lock asks, without taking it: whether the lock path holds a symlink, whether the lock file could be opened, or created where it is missing, the way `change approve` opens it, and whether an interrupted lifecycle write is waiting to be recovered. It SHALL run every check that can run on its own and report the first problem from each, with the message `change approve` gives for it. It SHALL name each check it skipped and the refused check that check waits on: every later check when the lifecycle-lock check refuses, the change does not load or its state does not admit approval, and building the approval record when the delta check refuses. The first problem it reports SHALL be the one refusal `change approve` gives for the same change and flags, except when an interrupted lifecycle write is waiting to be recovered. It SHALL create, change or remove no file: not the change's `state.json`, `approvals.json` or `change.md`, no canonical spec file, not `.specsync/hashes.json`, not the lifecycle lock, and not the read cache. The legacy-baseline binding and a relayed decision's workflow-version raise SHALL stay in memory. When an interrupted lifecycle write is waiting to be recovered, it SHALL refuse with that reason and run no other check, because a real approval recovers it first, which is a write. It SHALL accept every state `change approve` accepts, including a draft and a change that was sent back. `change approve` itself SHALL refuse exactly what it refused before, with the same messages.
@@ -2208,6 +2234,23 @@ Acceptance Criteria
 - Every file of the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte the same before and after the dry run, for a refused draft and for a clean one, with and without an existing lifecycle lock and hash cache.
 - A change that was sent back reports what its re-approval would.
 - A symlinked lifecycle lock path, a lock file the approval could not open or create, and an interrupted lifecycle write waiting to be recovered, each give one refusal from the lifecycle-lock check and name every later check as skipped; a transaction journal that cannot be replayed gets the refusal `change approve` gives, word for word.
+
+### REQ-change-164
+
+`change adopt`'s requirement ID proposals SHALL find `requirements.md` files under `specs_dir` only through the confined, budgeted walk (REQ-validator-053), and the read cache SHALL be read and written only in the folder REQ-util-009 names.
+
+Acceptance Criteria
+- A committed `specs` link that leaves the project yields no proposals, and the read cache of a Git work tree is outside the clone.
+
+### REQ-change-165
+
+The change workflow SHALL write `change.md`, the selected artifacts, `state.json`, `approvals.json` and its other JSON records, and create its workspaces, only through the confined project write functions of `util` (REQ-util-002); an artifact SHALL be created with an exclusive create, so a dangling link is refused instead of created through. Before `change answer`, `depend`, `supersede`, `approve` and `start` write anything, they SHALL refuse, naming the file, a change whose `state.json`, `change.md`, `approvals.json` or selected artifact leads out of the repository or into the Git directory. The durable writers behind transactions, archive, retirement and late-close moves SHALL refuse every symbolic link component of the paths they write, remove or rename.
+
+Acceptance Criteria
+- `change answer` and `change approve` refuse a committed `change.md` linked outside the repository; the outside file keeps its bytes and neither the state nor the approvals change.
+- `change answer` refuses a dangling artifact link and creates nothing outside.
+- `change new` creates no workspace in a `.specsync/changes` linked outside the repository.
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
 
 ### REQ-change-166
 

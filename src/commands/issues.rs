@@ -593,6 +593,7 @@ fn copy_source_detection_tree(
         if metadata.is_dir() {
             let child =
                 open_verified_directory(directory, &name).map_err(|_| project_config_finding())?;
+            // not a project file write: the private snapshot copy in a temporary directory
             fs::create_dir_all(&child_destination).map_err(|_| project_config_finding())?;
             copy_source_detection_tree(
                 &child,
@@ -611,6 +612,7 @@ fn copy_source_detection_tree(
         }
 
         if let Some(parent) = child_destination.parent() {
+            // not a project file write: the private snapshot copy in a temporary directory
             fs::create_dir_all(parent).map_err(|_| project_config_finding())?;
         }
         if is_source_detection_manifest(&name) {
@@ -622,8 +624,10 @@ fn copy_source_detection_tree(
                 .checked_add(bytes.len() as u64)
                 .filter(|total| *total <= MAX_SPEC_SNAPSHOT_TOTAL_BYTES)
                 .ok_or_else(project_config_finding)?;
+            // not a project file write: the private snapshot copy in a temporary directory
             fs::write(child_destination, bytes).map_err(|_| project_config_finding())?;
         } else {
+            // not a project file write: the private snapshot copy in a temporary directory
             fs::write(child_destination, []).map_err(|_| project_config_finding())?;
         }
     }
@@ -1278,7 +1282,7 @@ where
     }
 
     if let Some(directory) = &config.schema_dir {
-        for error in schema::schema_read_errors(&root.join(directory)) {
+        for error in schema::schema_read_errors(root, &root.join(directory)) {
             all_errors.push_unattributed(error);
         }
     }

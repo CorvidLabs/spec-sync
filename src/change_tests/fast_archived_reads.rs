@@ -1925,3 +1925,19 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
 }
+
+/// Verifies REQ-change-164. A tarball of a working copy carries its `.git`, so passing verdicts
+/// kept in the Git common directory could come with an archive. The read cache lives in the
+/// user's cache folder instead.
+#[test]
+fn the_read_cache_never_lives_in_the_git_directory() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let path = persistent_read_cache_path(root).expect("the read cache is enabled");
+    assert!(
+        !path.starts_with(root.canonicalize().unwrap()),
+        "the read cache is inside the clone: {}",
+        path.display()
+    );
+}

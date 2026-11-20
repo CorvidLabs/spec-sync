@@ -1,5 +1,4 @@
 use colored::Colorize;
-use std::fs;
 use std::path::Path;
 use std::process;
 
@@ -121,7 +120,11 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
     let mut entries: Vec<DiffEntry> = Vec::new();
 
     for spec_file in &spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(_) => continue,
         };
@@ -167,6 +170,7 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
             // members as "new exports" drift under `export_level = "type"`,
             // where the contract never claimed them (#474).
             match crate::exports::scan_exported_symbols_full(
+                root,
                 &full_path,
                 config.export_level,
                 config.parse_mode,
@@ -318,7 +322,10 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
                 // Check if any changed files are NOT covered by specs
                 let specced_files: std::collections::HashSet<String> = spec_files
                     .iter()
-                    .filter_map(|f| fs::read_to_string(f).ok())
+                    .filter_map(|f| {
+                        crate::util::read_project_string(root, f, crate::util::MAX_SPEC_FILE_BYTES)
+                            .ok()
+                    })
                     .filter_map(|c| parse_frontmatter(&c.replace("\r\n", "\n")))
                     .flat_map(|p| p.frontmatter.files)
                     .collect();

@@ -9,6 +9,7 @@ tracks: [73]
 depends_on:
   - specs/types/types.spec.md
   - specs/exports/exports.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Generator
@@ -26,7 +27,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `generate_specs_for_unspecced_modules_retained` | `project, root, report, config, progress` | `Result<GenerationOutcome, String>` | Generate CLI scaffolds through one retained project-root capability |
 | `generate_specs_for_unspecced_modules` | `root, report, config` | `GenerationOutcome` | Generate local template specs for all unspecced modules with progress output |
 | `generate_specs_for_unspecced_modules_paths` | `root, report, config` | `GenerationOutcome` | Generate local template specs without progress output for JSON/MCP callers |
-| `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
+| `generate_companion_files_for_spec` | `root, spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Confined source selection: authoritative explicit definitions, named directories, then flat or exact file matches; files another spec already lists in `files:` are never claimed outside explicit `config.modules` mappings |
 | `find_module_source_files` | `dir: &Path, config: &SpecSyncConfig, root: &Path` | `Vec<String>` | Source files beneath a module directory, honoring configured extensions and exclusions; shared with spec validation so a directory in `files:` is corrected with exactly what generation would have written |
 | `generated_context_scaffold` | `module: &str` | `String` | The exact context companion this module would generate for `module`, with the `{module}` placeholder expanded; the single definition of what an unwritten scaffold looks like, so callers distinguishing recorded knowledge from an untouched template compare against real generated text rather than a placeholder that can never match |
@@ -35,7 +36,8 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `module_spec_filename` | `module: &str` | `String` | Crate-private shared leaf filename for writing and recognizing scoped module specs |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
-| `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
+| `generate_companion_files_from_template` | `root, spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
+| `create_spec_file` | `root, spec_file, content` | `io::Result<()>` | Create a new spec file through `util::create_project_file`; used by `new`, `scaffold`, `add-spec`, the wizard and `import`. A file already there, a dangling link and a path that leaves the project are errors (REQ-generator-010) |
 | `collect_exports_for_files` | `root, source_files` | `Vec<String>` | Collect exported symbols across the given source files |
 | `populate_public_api_table` | `spec, exports` | `String` | Insert or refresh a Public API table from discovered export names |
 | `confined_generation_path` | `path: &Path, label: &str` | `Result<PathBuf, String>` | Refuse absolute and parent-directory destinations so generate/scaffold writes stay under the retained root |
@@ -56,6 +58,8 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 - Creation-source metadata is enumerated through retained directory handles with no-follow opens; an exact regular file never widens to a recursive parent scan. Configured extensions, extensionless opt-in, test exclusions, exclude directories and coverage-compatible exclude patterns apply.
 - Explicit module mappings remain authoritative even when empty or missing. Distinct candidates are normalized and deduplicated before the exactly-one-file fallback. Inconclusive traversal produces no fallback.
 - `new` retains combined named-directory/flat matches; add-spec/scaffold retain named-directory precedence. Explicit `.` directory aliases keep their directory authority. Traversal is bounded to 100,000 entries and 256 components.
+- `create_spec_file` and the companion generators create files only through `util::create_project_file`. An existing companion is left as it is. A path that is a dangling link, or leaves the project through a link, is refused: as an error for a spec file, and on stderr for a companion, with the other companions still created (REQ-generator-010).
+- Every read of a project file here, spec files and the templates in the project (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-generator-011).
 
 ## Behavioral Examples
 
@@ -98,6 +102,8 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | Cannot write spec file | Prints error to stderr, skips module |
 | No source files found for module | Skips module entirely |
 | Requested CLI root is replaced after coverage | Generation fails inconclusively and writes to neither the replacement nor an outside path |
+| A spec or companion path, or its directory, is a dangling link or leaves the project through a symbolic link | `create_spec_file` returns an error naming the path; a companion is skipped with an error on stderr and the others are created; nothing is created outside the project |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

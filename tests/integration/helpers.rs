@@ -17,7 +17,39 @@ pub fn specsync_std() -> std::process::Command {
             cmd.env_remove(key);
         }
     }
+    // Outside a Git work tree SpecSync keeps its own state in the user's cache folder
+    // (REQ-util-006). Every test points that folder into the system temporary directory, so no
+    // test writes into the cache folder of whoever runs the suite.
+    cmd.env("XDG_CACHE_HOME", test_cache_home());
     cmd
+}
+
+/// The user cache folder the integration tests give SpecSync: one folder for the whole run, in
+/// the system temporary directory. A project's state there is keyed by its own path, so the
+/// tests' temporary projects never share it.
+pub fn test_cache_home() -> std::path::PathBuf {
+    std::env::temp_dir().join("specsync-integration-cache-home")
+}
+
+/// Where SpecSync keeps its own state about `root` (REQ-util-006): only in the user's cache
+/// folder, which the tests point at [`test_cache_home`], in a folder named by the same digest of
+/// the canonical root SpecSync takes.
+pub fn state_folder(root: &std::path::Path) -> std::path::PathBuf {
+    use sha2::{Digest, Sha256};
+    let canonical = root.canonicalize().unwrap();
+    let mut hasher = Sha256::new();
+    hasher.update(b"project\0");
+    hasher.update(canonical.as_os_str().as_encoded_bytes());
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
+    test_cache_home()
+        .join("specsync")
+        .join("projects")
+        .join(key)
+}
+
+/// The hash cache of `root` in its local state folder (REQ-hash-cache-009).
+pub fn state_cache_file(root: &std::path::Path) -> std::path::PathBuf {
+    state_folder(root).join("hashes.json")
 }
 
 pub fn specsync() -> Command {

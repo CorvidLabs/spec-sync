@@ -2307,12 +2307,15 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
     fs::create_dir_all(root.join("specs/auth")).unwrap();
     let canonical = root.join("specs/auth/auth.spec.md");
     fs::write(&canonical, "corrupted partial write\n").unwrap();
-    write_json(
-        &root.join(TRANSACTION_PATH),
-        &[TransactionEntry {
+    // The durable form this build writes: the bare-array form is no longer replayed
+    // (REQ-change-162).
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        transaction_journal_path(root),
+        durable_journal(vec![TransactionEntry {
             path: "specs/auth/auth.spec.md".into(),
             original: Some("original canonical content\n".into()),
-        }],
+        }]),
     )
     .unwrap();
     let lock = acquire_project_lock(root).unwrap();
@@ -2321,7 +2324,7 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
         fs::read_to_string(canonical).unwrap(),
         "original canonical content\n"
     );
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -2341,7 +2344,7 @@ fn torn_transaction_staging_file_is_never_treated_as_the_journal() {
     drop(lock);
 
     assert_eq!(fs::read_to_string(canonical).unwrap(), "original\n");
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -2360,26 +2363,28 @@ fn torn_canonical_transaction_journal_fails_closed() {
             original: Some("original\n".into()),
         }],
     };
-    write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+    write_json(&transaction_journal_path(root), &journal).unwrap();
 
     let error = acquire_project_lock(root).err().unwrap();
     assert!(error.contains("invalid transaction journal at"));
     assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
-    assert!(root.join(TRANSACTION_PATH).exists());
+    assert!(transaction_journal_path(root).exists());
 }
 
 #[test]
 fn unreadable_transaction_backup_aborts_before_journal_publication() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let target = root.join("state.json");
+    // A change record, a path the change workflow really journals (REQ-change-162).
+    let target = root.join(".specsync/changes/unreadable/state.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, [0xff, 0xfe]).unwrap();
 
     let error =
         write_prepared_files(root, &[(target.clone(), "replacement\n".into())]).unwrap_err();
     assert!(error.contains("failed to preserve transaction target"));
     assert_eq!(fs::read(&target).unwrap(), vec![0xff, 0xfe]);
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]

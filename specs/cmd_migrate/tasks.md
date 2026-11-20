@@ -38,6 +38,8 @@ spec: cmd_migrate.spec.md
 ### Open
 
 - [x] Test on real 3.x project (dogfood on CorvidLabs repos) — Evidence: repository migration commit `68829c5`.
+- [x] Refuse before the first write when a migration path leaves the project through a link, and write every step through `util`'s project file functions (REQ-cmd-migrate-005). Evidence: `tests/integration/project_links.rs` `migrate_*`.
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-migrate-006). Evidence: `tests/integration/project_reads.rs`.
 
 ### Gaps
 

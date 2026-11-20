@@ -10,6 +10,7 @@ tracks: [98]
 depends_on:
   - specs/parser/parser.spec.md
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Merge
@@ -80,6 +81,7 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 22. When both sides change a numeric `version` from the ancestor, `merge_contract` sets it to ancestor plus both deltas and never below either side. Equal values written with different scalar syntax stay a conflict. A one-sided edit is returned byte-for-byte. When both sides bump it, what follows the number (the closing quote's tail or a ` # ` comment) merges three ways: kept when both sides agree, the other side's when one side kept the ancestor's, and a conflict when both changed it differently. A clean result is byte-identical in either merge order; a conflict holds the same two lines in either order, each under its own side's label, as every driver conflict does (#876, REQ-merge-006)
 23. The driver unions `files`, `db_tables`, and `depends_on`, and unions change-log rows sorted by the first cell then the row text. A `version` column on rows that are new since the ancestor is renumbered only when every such cell is an integer, and renumbering that would pass `u64::MAX` leaves the table a conflict (#870). A unioned list item YAML would read as a number, boolean or null is written double-quoted, so it stays a string (#872). The change-log table ends at the first blank line after its rows, and what follows is merged as text, never as rows (#875, REQ-merge-006)
 24. Requirement blocks added on one side are kept. The same new requirement ID with two different bodies is kept twice, so `check` can name it. An existing block edited differently on both sides stays a conflict, and so does any other prose both sides changed differently
+25. Every read of a project file here, spec files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-merge-007).
 
 ## Behavioral Examples
 
@@ -147,6 +149,7 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | Malformed or incomplete conflict block | Marked `Manual`; original block and file remain unchanged |
 | Orphan, nested, duplicate, or non-standard marker | Marked `Manual`; no partial write occurs |
 | Table header/separator or nested YAML mapping inside a hunk | Marked `Manual`; original bytes remain authoritative |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

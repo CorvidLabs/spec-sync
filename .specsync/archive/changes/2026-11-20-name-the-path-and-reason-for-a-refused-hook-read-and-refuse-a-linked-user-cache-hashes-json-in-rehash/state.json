@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash",
+  "slug": "name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash",
+  "title": "Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash",
+  "description": "Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "7527da3a7aea52436404766df845bbc8fb2f19b6",
+  "created_at": 1795189534,
+  "updated_at": 1795192736,
+  "affected_specs": [
+    "hooks",
+    "hash_cache",
+    "rehash"
+  ],
+  "affected_paths": [
+    "src/hooks.rs",
+    "src/hash_cache.rs",
+    "src/commands/rehash.rs",
+    "tests/integration"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The code is brought to requirements already approved: REQ-hooks-007 (a refused bounded read of a hook target is handled as that read's other errors, naming the path and the reason, for install, uninstall and status), REQ-hooks-009 (a link on the way to the hooks folder is refused with the path named) and REQ-hash-cache-007 (save refuses, writing nothing, when hashes.json is a symbolic link or anything other than a regular file). No requirement text changes.",
+  "acceptance_criteria": [
+    "With an installed CLAUDE.md grown past 8 MiB, or not valid UTF-8, hooks uninstall --claude exits 1 naming CLAUDE.md and the reason and leaves the file unchanged; hooks install --claude exits 1 naming it; hooks status prints the reason for that target instead of not installed (REQ-hooks-007).\nWith the Git hooks folder reached through a symbolic link, hooks uninstall --precommit exits 1 naming the path; in a folder that is not a Git repository, or whose hooks folder does not exist, it still reports nothing to remove and exits 0 (REQ-hooks-009).\nWith the user-cache hashes.json a symbolic link or a directory, rehash exits 1 with the reason check's warning gives, writing nothing: the link is still a link and its target unchanged; with a regular or absent cache, rehash still rebuilds it (REQ-hash-cache-007)."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "hooks.3md: the pre-commit hook keeps its own guard, and Claude Code hook uninstall is refused as a manual step, so its note is not a failure; util.3md: the caches keep a stricter rule than project files, no link at all",
+    "public_contract": "no"
+  }
+}

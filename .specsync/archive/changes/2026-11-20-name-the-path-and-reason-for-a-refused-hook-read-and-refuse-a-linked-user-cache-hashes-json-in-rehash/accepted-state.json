@@ -7,11 +7,11 @@
   "title": "Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash",
   "description": "Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7527da3a7aea52436404766df845bbc8fb2f19b6",
   "created_at": 1795189534,
-  "updated_at": 1795192237,
+  "updated_at": 1795192731,
   "affected_specs": [
     "hooks",
     "hash_cache",

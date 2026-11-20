@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash",
+  "implementation_commit": "4f80d8304f7e50a8c601e18b7f8d8eadc8e57b48",
+  "implementation_tree": "5667c4b3572cc151217a43b6801cd3bc010acfcb",
+  "contract_digest": "51746e34539b557323976a24d4e2103ecf310664e4130200f347acbe65b9de91",
+  "workspace_digest": "ec256e3b94933cab8712f1e45ace6c2c0b0fec358be6b0730571f60c9160b5bf",
+  "closing_digest": "a68198a245f6263b04cb6f657fa225e9a71d76c561bcd876d1943085693b974d",
+  "review_digest": "ca699fc2df69890e710b33c5ef73922524617cbf90bb256aa9263f6e6e66fdc5",
+  "finalization_digest": "c24069a23217ffc44e3eeee55ec62ae65fae8f8c2019165f6f233fb2d483d624",
+  "timestamp": 1795192731
+}

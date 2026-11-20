@@ -307,8 +307,7 @@ fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(
     let reason = stderr
         .lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .last()
+        .rfind(|line| !line.is_empty())
         .unwrap_or("Git gave no reason")
         .to_string();
     Err(reason)

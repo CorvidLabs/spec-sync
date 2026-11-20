@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795153219,
+      "commit": "54ac754219de49ce9dd6f2dd29edad51aeeb9d8b",
+      "contract_digest": "94c0c21f6d780079a3788df0d7ce6443005182cb5b0f907a2e173bd086495ada",
+      "execution_digest": "c97320076d7e56c42b3dfc87e7aca0b80382ceb671863973cd204190ec43a798",
+      "workspace_digest": "17d5e14c0731ec53238b381d6511cb5c2d0326c5ee825f8e9d9b2770b26e5352",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "specsync change check download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them (effective contract: change)",
+          "success": false,
+          "exit_code": 1,
+          "output": "effective contract `change`: 216/217 exports documented\neffective contract `change`: Undocumented export 'correction_ledger_refusal' from src/change/validate_loaded_change.rs"
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-172"
+      ]
+    },
+    {
+      "timestamp": 1795153267,
+      "commit": "ea0a7e4bfe102c7c228c8b1c1bb21877450e1e86",
+      "contract_digest": "94c0c21f6d780079a3788df0d7ce6443005182cb5b0f907a2e173bd086495ada",
+      "execution_digest": "c97320076d7e56c42b3dfc87e7aca0b80382ceb671863973cd204190ec43a798",
+      "workspace_digest": "d8656d2e0e52d4d45ea578343d69a4f20f5e92998a61976311fdaaab50324fae",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-172"
+      ]
+    }
+  ]
+}

@@ -53,6 +53,13 @@
         "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 19:21Z, with his final go for promote, crates.io, the Homebrew tap and the advisory; relayed by hc t4c",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795204109,
+      "digest": "490eb5fd53af6cbbccb4bd9d3280766f19bb88596072b3ba6ee11696db7ef1ce",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

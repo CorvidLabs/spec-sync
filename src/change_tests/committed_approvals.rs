@@ -218,7 +218,9 @@ fn a_relay_committed_then_removed_and_restored_still_finalizes() {
 #[test]
 fn a_workspace_deleted_and_created_again_under_the_same_id_is_refused() {
     // The workflow-version history refuses this as the change loads, before finalize can ask
-    // about its ledger: deleting the change's `state.json` deletes its creation anchor.
+    // about its ledger: deleting the change's `state.json` deletes its creation anchor. Option 3
+    // (Leif's "All as recommended"): the refusal keeps its sentence and names the commit that
+    // removed the workspace and the two ways out.
     let (temp, record) = committed_approvals_project();
     let root = temp.path();
     quiet_git(root, &["add", "--all"]);
@@ -227,13 +229,19 @@ fn a_workspace_deleted_and_created_again_under_the_same_id_is_refused() {
     let workspace = format!(".specsync/changes/{}", record.id);
     quiet_git(root, &["rm", "-r", "-q", &workspace]);
     quiet_git(root, &["commit", "-m", "remove the change"]);
+    let removed = short_head(root);
     quiet_git(root, &["checkout", &earlier, "--", &workspace]);
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "-m", "create the change again"]);
     let refused = finalize_change(root, &record.id).unwrap_err();
-    assert!(
-        refused.starts_with("workflow-version history deleted its immutable creation anchor"),
-        "{refused}"
+    assert_eq!(
+        refused,
+        format!(
+            "workflow-version history deleted its immutable creation anchor: commit {removed} \
+             removed `{workspace}/state.json`, and a later commit holds the change again under \
+             the same id. A commit already in history cannot be undone in place, so take \
+             {removed} out of this branch's history, or make the change again under a new id"
+        )
     );
     assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
 }
@@ -410,6 +418,58 @@ fn a_change_reopened_out_of_its_archive_finalizes_again() {
     record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
     finalize_change(root, &record.id)
         .expect("the reopened ledger extends the one committed before the archive move");
+}
+
+/// REQ-change-166 and the change's third criterion: a relay committed in the approval a reopening
+/// embeds, then removed and restored there, as `change repair-relays` does for an approval, still
+/// finalizes, through `finalize_change` and not only at the comparison rule.
+#[test]
+fn a_relay_removed_and_restored_in_a_reopening_s_superseded_approval_still_finalizes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { false }\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "drift after the archive"]);
+    reopen_change(root, &record.id, "Recovery operator".into(), "the input drifted".into())
+        .unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "reopen"]);
+    let actor = read_ledger(root, &record)["reopenings"][0]["superseded_approval"]["actor"]
+        .as_str()
+        .expect("the reopening embeds the approval it superseded")
+        .to_string();
+    let relay = serde_json::json!({
+        "decided_by": actor,
+        "words": "Approve it.",
+        "where": "a meeting",
+        "recorded_by": "an agent"
+    });
+    for (value, message) in [
+        (relay.clone(), "record the relay in the superseded approval"),
+        (serde_json::Value::Null, "remove the relay, as repair-relays does"),
+        (relay, "restore the relay, as repair-relays does"),
+    ] {
+        let mut ledger = read_ledger(root, &record);
+        let superseded = &mut ledger["reopenings"][0]["superseded_approval"];
+        match value {
+            serde_json::Value::Null => {
+                superseded.as_object_mut().unwrap().remove("relayed_by");
+            }
+            value => superseded["relayed_by"] = value,
+        }
+        write_ledger(root, &record, &ledger);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", message]);
+    }
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "verify again"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    finalize_change(root, &record.id)
+        .expect("a relay removed or restored in a superseded approval is not a rewrite");
 }
 
 /// A small ledger: one definition approval, one reopening embedding a finalization approval, and

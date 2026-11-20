@@ -499,6 +499,9 @@ const READ_CALLS: &[&str] = &[
     ".open_with(",
     ".open_dir(",
     "open_dir_nofollow(",
+    "open_ambient_dir(",
+    "File::open_ambient(",
+    ".open(",
 ];
 
 /// Free functions of `std::fs` that read, which an import would let a call name bare.
@@ -788,6 +791,15 @@ pub(crate) fn has_dir_file_call(code: &str, method: &str) -> bool {
     })
 }
 
+/// Whether the line imports `std::fs` under another name (`use std::fs as disk;`), which would
+/// let every call through it pass the call lists unseen (REQ-util-008).
+pub(crate) fn imports_fs_under_another_name(code: &str) -> bool {
+    let code = code.split_whitespace().collect::<Vec<_>>().join(" ");
+    let import = code.trim_start();
+    (import.starts_with("use ") || import.starts_with("pub use "))
+        && (import.contains("std::fs as ") || import.contains("fs::{self as "))
+}
+
 /// Whether the line is a `use std::fs::` import that names one of `functions`, so a bare call
 /// would hide the read or write from the call list.
 pub(crate) fn imports_fs_function(code: &str, functions: &[&str]) -> bool {
@@ -997,6 +1009,7 @@ fn no_project_file_is_read_outside_the_bounded_read() {
             if !has_call(line.code, READ_CALLS)
                 && !has_dir_file_call(line.code, "read")
                 && !imports_fs_function(line.code, READ_FUNCTIONS)
+                && !imports_fs_under_another_name(line.code)
             {
                 continue;
             }

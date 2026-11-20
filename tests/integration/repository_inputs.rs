@@ -483,3 +483,66 @@ fn journal_with(entries: &[(&str, Option<&str>)]) -> String {
         entries.len()
     )
 }
+
+// ─── state an archive ships with its .git, or in a cache folder inside it (change 7) ───
+
+/// Copy a directory tree as `tar` would, `.git` included.
+fn copy_tree(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), &target).unwrap();
+        }
+    }
+}
+
+/// Verifies REQ-util-006 and REQ-cmd-check-021. `tar czf proj.tgz proj` keeps `.git`, so a
+/// cache SpecSync kept there would come with the archive. A copy of a project, `.git` and all,
+/// must validate every spec.
+#[test]
+fn check_never_uses_a_hash_cache_an_archive_ships_in_its_git_directory() {
+    let (tmp, root, _outside) = project();
+    toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
+    git_repo(&root);
+    let first = run_with_cache_home(&root, &tmp.path().join("first-cache-home"), &["check"]);
+    assert!(first.status.success(), "{}", said(&first));
+    let unpacked = tmp.path().join("unpacked");
+    copy_tree(&root, &unpacked);
+
+    let output = run_with_cache_home(
+        &unpacked,
+        &tmp.path().join("unpacked-cache-home"),
+        &["check"],
+    );
+
+    let text = said(&output);
+    assert!(
+        !text.contains("Skipped") && !text.contains("nothing to validate"),
+        "a cache the archive shipped in its .git was replayed: {text}"
+    );
+}
+
+/// Verifies REQ-util-006 and REQ-cmd-check-021. Some CI containers set `HOME` or
+/// `XDG_CACHE_HOME` to the checkout, which puts the user's cache folder inside the project,
+/// where an archive can ship a cache. Such a folder is refused, and every spec is validated.
+#[test]
+fn check_refuses_a_user_cache_folder_inside_the_project() {
+    let (_tmp, root, _outside) = project();
+    toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
+    let inside = root.join(".cache");
+    let first = run_with_cache_home(&root, &inside, &["check"]);
+    assert!(first.status.success(), "{}", said(&first));
+
+    let output = run_with_cache_home(&root, &inside, &["check"]);
+
+    let text = said(&output);
+    assert!(
+        !text.contains("Skipped") && !text.contains("nothing to validate"),
+        "a cache inside the project was replayed: {text}"
+    );
+    assert!(text.contains("hash cache not used"), "{text}");
+}

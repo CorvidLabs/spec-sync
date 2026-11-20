@@ -704,6 +704,88 @@ fn an_untracked_project_inside_another_work_tree_is_confined_to_itself() {
     );
 }
 
+// ─── literal pathspecs and the hooks path's own config (change 7) ───────
+
+/// Verifies REQ-git-utils-012 and REQ-util-007. Git reads a pathspec as a glob unless told
+/// otherwise, so a ZIP whose folder is named `*`, unpacked where the enclosing work tree tracks
+/// other files, must not count as tracked: the project is still confined to itself.
+#[test]
+fn a_project_folder_named_like_a_glob_is_still_confined_to_itself() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    let project = home.join("Downloads/*");
+    fs::create_dir_all(project.join(".specsync")).unwrap();
+    fs::write(home.join("notes.md"), OWNER).unwrap();
+    fs::write(home.join("Downloads/readme.txt"), "tracked\n").unwrap();
+    git_in(&home, &["init", "-q", "-b", "main"]);
+    git_in(&home, &["add", "notes.md", "Downloads/readme.txt"]);
+    symlink("../../notes.md", project.join("CLAUDE.md")).unwrap();
+
+    let output = specsync()
+        .arg("--root")
+        .arg(&project)
+        .args(["hooks", "install", "--claude"])
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        fs::read_to_string(home.join("notes.md")).unwrap(),
+        OWNER,
+        "{}",
+        said(&output)
+    );
+    assert!(
+        said(&output).contains("leaves the project"),
+        "{}",
+        said(&output)
+    );
+}
+
+/// Verifies REQ-hooks-009. A `core.hooksPath` in the repository's own config (which a tarball's
+/// `.git/config` can set) that points outside the work tree must not make SpecSync create
+/// folders there.
+#[test]
+fn hooks_install_makes_no_folder_for_a_local_hooks_path_outside_the_work_tree() {
+    let (_tmp, root, outside) = hooks_path_project("../outside/made/hooks");
+
+    let output = install_precommit(&root);
+
+    assert_eq!(names(&outside), Vec::<String>::new(), "{}", said(&output));
+    assert!(!output.status.success(), "{}", said(&output));
+}
+
+/// Verifies REQ-hooks-009. CONTROL: a hooks folder the person set in their own global config
+/// is theirs, so a missing one is still made.
+#[test]
+fn hooks_install_still_makes_a_hooks_folder_from_the_global_config() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("project");
+    let global_hooks = tmp.path().join("global-hooks/hooks");
+    fs::create_dir_all(&root).unwrap();
+    git_in(&root, &["init", "-q", "-b", "main"]);
+    let global = tmp.path().join("gitconfig");
+    fs::write(
+        &global,
+        format!("[core]\n\thooksPath = {}\n", global_hooks.display()),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .env("GIT_CONFIG_GLOBAL", &global)
+        .arg("--root")
+        .arg(&root)
+        .args(["hooks", "install", "--precommit"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{}", said(&output));
+    assert!(
+        global_hooks.join("pre-commit").is_file(),
+        "{}",
+        said(&output)
+    );
+}
+
 // ─── the write scan (G1, change 6: F4) ────────────────────────────────
 
 /// Files whose every write is exempt, each with the reason. Everything else marks each direct
@@ -788,7 +870,7 @@ const WRITE_FUNCTIONS: &[&str] = &[
 fn no_project_file_is_written_outside_the_confined_helpers() {
     use crate::project_reads::{
         code_only, compiled_sources, has_call, has_dir_file_call, imports_fs_function,
-        marked_in_statement, non_test_lines,
+        imports_fs_under_another_name, marked_in_statement, non_test_lines,
     };
     let mut direct = Vec::new();
     for (relative, path) in compiled_sources() {
@@ -805,6 +887,7 @@ fn no_project_file_is_written_outside_the_confined_helpers() {
             if !has_call(line.code, WRITE_CALLS)
                 && !has_dir_file_call(line.code, "write")
                 && !imports_fs_function(line.code, WRITE_FUNCTIONS)
+                && !imports_fs_under_another_name(line.code)
             {
                 continue;
             }

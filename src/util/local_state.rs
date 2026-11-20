@@ -384,6 +384,28 @@ mod tests {
         assert!(!state_dir.starts_with(plain.canonicalize().unwrap()));
     }
 
+    /// Verifies REQ-util-006. A tarball of a working copy carries its `.git`, so a Git directory is
+    /// no place for SpecSync's own state: in a Git work tree too, the state lives in the user's
+    /// cache folder.
+    #[test]
+    fn local_state_never_lives_in_a_git_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        let state = project_state_dir(&repo).unwrap();
+        assert!(
+            !state.starts_with(repo.canonicalize().unwrap()),
+            "the state folder is inside the clone: {}",
+            state.display()
+        );
+        assert!(
+            state.starts_with(user_cache_folder().unwrap()),
+            "{}",
+            state.display()
+        );
+    }
+
     /// Verifies REQ-util-006. A link where SpecSync makes its own folder is refused, and a FIFO
     /// or an oversized file there is refused without blocking.
     #[cfg(unix)]

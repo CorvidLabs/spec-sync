@@ -424,3 +424,65 @@ fn a_running_transaction_keeps_its_journal_outside_the_work_tree() {
         "# Auth after\n"
     );
 }
+
+/// Where change 6 kept the journal, in a Git directory: `.git/specsync/<key>` with the key of a
+/// project at the top of its work tree, the same in every repository.
+fn git_directory_journal(root: &Path) -> PathBuf {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"work-tree\0");
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
+    root.join(".git/specsync").join(key).join("change-transaction.json")
+}
+
+/// Verifies REQ-change-162. A tarball of a working copy carries its `.git`, so a journal there
+/// can come with the archive just as one in the work tree can. It is never replayed.
+#[test]
+fn a_journal_under_the_git_directory_is_never_replayed() {
+    let temp = journal_project();
+    let root = temp.path();
+    let planted = git_directory_journal(root);
+    fs::create_dir_all(planted.parent().unwrap()).unwrap();
+    fs::write(
+        &planted,
+        durable_journal(vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
+    )
+    .unwrap();
+
+    let _ = recover_pending_transaction(root);
+
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth\n",
+        "a journal an archive ships under its .git was replayed"
+    );
+}
+
+/// Verifies REQ-change-162. A registry entry is the repository's own text, so it may name any
+/// file; only a mapped path that is a spec opens a replay, never `.env` or another file the
+/// person added.
+#[test]
+fn a_registry_entry_that_is_not_a_spec_never_opens_a_replay() {
+    let temp = journal_project();
+    let root = temp.path();
+    fs::write(root.join(".env"), "SECRET=kept\n").unwrap();
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"journal\"\n\n[specs]\nenv = \".env\"\n",
+    )
+    .unwrap();
+    for original in [None, Some("SECRET=rewritten\n")] {
+        plant_journal(root, &durable_journal(vec![entry(".env", original)]));
+
+        let outcome = recover_pending_transaction(root);
+
+        assert_eq!(
+            fs::read_to_string(root.join(".env")).ok().as_deref(),
+            Some("SECRET=kept\n"),
+            "a registry entry naming .env let a journal delete or rewrite it ({original:?})"
+        );
+        let error = outcome.expect_err("the entry must refuse the journal");
+        assert!(error.contains("entry `.env`"), "{error}");
+        let _ = fs::remove_file(transaction_journal_path(root));
+    }
+}

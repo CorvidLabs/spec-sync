@@ -28,13 +28,9 @@ observations:
   - 2026-11-20-1108-update-onto-c14bdf69-lane-at-715c1068
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of #1081"
-    holds: accept
-    drives: review
-    opened: 2026-11-20T04:28:08Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Ship without an intermediate commit, push, CI
 ---
 # check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 
@@ -51,6 +47,7 @@ check, verification and ship refuse a branch that lost canonical requirements no
 - 0xLeif decided "Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch)": "A" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main." The two insertions are ss-lead's exact texts); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
 - 0xLeif decided "Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (only tracked files count, Codex round 4)": "continue with 95% confidence" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: "(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs." and "(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause."); recorded by claude-code-t4t; a relayed claim, not authenticated
 - 0xLeif decided "Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count)": "continue with 95% confidence" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: "(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs." and "(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause." The replacement is ss-lead's exact text); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
+- 0xLeif decided "Leif's review of #1081": ""Pass (Recommended)" for the review at head ed258f58; and after the update onto 6.4.0, "Pass (Recommended)" to: 'SpecSync #1108 (#1081, the lost-requirements refusal), quick look. You passed its review this morning. Updating it onto the 6.4.0 main changed two of its own spots: (1) its file reads ... now go through 6.4.0's safe read and write helpers, with error handling unchanged; (2) one test accepts either of two outside-the-project messages ... Does your review still pass?'" (The review: a question dialog in his planning session (hc t4c), 2026-11-20 about 05:01Z, from ss-lead/gates/1081-review-request.md at head ed258f58. The quick look: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 21:17Z, from ss-builder/gates/1108-update-note.md at head b1618923. Relayed by hc t4c); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change review check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -321,3 +318,14 @@ check, verification and ship refuse a branch that lost canonical requirements no
   - holds: accept
   - drives: review
   - by: claude-code (hc t4t)
+- 2026-11-20T21:18:12Z · gate-closed · accept → accept · Leif's review of #1081 ^t-43ba7d
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: b1618923ed5b1181e556c6e06cd14793d1517236
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: "\"Pass (Recommended)\" for the review at head ed258f58; and after the update onto 6.4.0, \"Pass (Recommended)\" to: 'SpecSync #1108 (#1081, the lost-requirements refusal), quick look. You passed its review this morning. Updating it onto the 6.4.0 main changed two of its own spots: (1) its file reads ... now go through 6.4.0's safe read and write helpers, with error handling unchanged; (2) one test accepts either of two outside-the-project messages ... Does your review still pass?'"
+    - where: The review: a question dialog in his planning session (hc t4c), 2026-11-20 about 05:01Z, from ss-lead/gates/1081-review-request.md at head ed258f58. The quick look: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 21:17Z, from ss-builder/gates/1108-update-note.md at head b1618923. Relayed by hc t4c
+    - recorded_by: claude-code-t59
+    - native: specsync change review check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - actor: 0xLeif
+  - by: claude-code (hc t59)

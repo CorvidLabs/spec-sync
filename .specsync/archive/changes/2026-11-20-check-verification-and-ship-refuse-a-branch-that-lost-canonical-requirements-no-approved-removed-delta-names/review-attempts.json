@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "b1618923ed5b1181e556c6e06cd14793d1517236",
+      "contract_digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
+      "execution_digest": "2c2a5ea18e463db55d03603983bbd9a9c5516ea7eb98cc8b18fe5e5e7a6d039e",
+      "workspace_digest": "3d2c4b3399268b41f2defa825fa515b415addc68b6d006469faa615b67a9f4ff",
+      "timestamp": 1795209508,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Pass (Recommended)\" for the review at head ed258f58; and after the update onto 6.4.0, \"Pass (Recommended)\" to: 'SpecSync #1108 (#1081, the lost-requirements refusal), quick look. You passed its review this morning. Updating it onto the 6.4.0 main changed two of its own spots: (1) its file reads ... now go through 6.4.0's safe read and write helpers, with error handling unchanged; (2) one test accepts either of two outside-the-project messages ... Does your review still pass?'",
+        "where": "The review: a question dialog in his planning session (hc t4c), 2026-11-20 about 05:01Z, from ss-lead/gates/1081-review-request.md at head ed258f58. The quick look: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 21:17Z, from ss-builder/gates/1108-update-note.md at head b1618923. Relayed by hc t4c",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ]
+}

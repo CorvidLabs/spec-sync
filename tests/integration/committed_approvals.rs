@@ -223,15 +223,25 @@ fn with_verification_stale_too_ship_names_the_ledger_restore_not_check_commit() 
     let (report, code) = ship_status(&root);
     assert_eq!(code, 1, "{report}");
     let first = report["blockers"][0].as_str().unwrap_or_default();
-    assert!(first.contains("approvals.json") && first.contains(&restore), "{report}");
+    assert!(
+        first.contains("approvals.json") && first.contains(&restore),
+        "{report}"
+    );
     let next = report["ship_next"].as_str().unwrap_or_default();
-    assert!(next.contains(&restore) && !next.contains("change check"), "{report}");
+    assert!(
+        next.contains(&restore) && !next.contains("change check"),
+        "{report}"
+    );
 
-    for args in [vec!["change", "ship", ID, "--dry-run"], vec!["change", "ship", ID]] {
+    for args in [
+        vec!["change", "ship", ID, "--dry-run"],
+        vec!["change", "ship", ID],
+    ] {
         let output = run(&root, &args);
         assert!(!output.status.success(), "{args:?}: {}", printed(&output));
         assert!(
-            printed(&output).contains(&restore) && !printed(&output).contains("specsync change check"),
+            printed(&output).contains(&restore)
+                && !printed(&output).contains("specsync change check"),
             "{args:?} names the restore, never check --commit:\n{}",
             printed(&output)
         );

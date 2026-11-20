@@ -1653,13 +1653,19 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     }
 
     // REQ-cmd-change-041 (#428): finalize and ship refuse an approvals ledger Git history does
-    // not hold, so ship-status lists that refusal, in the same words, after the blockers above,
-    // and never calls the change ready while it holds.
-    if matches!(record.state, ChangeState::Verifying | ChangeState::Accepted)
+    // not hold, so ship-status lists that refusal, in the same words, and never calls the change
+    // ready while it holds. It comes first, and its own way out is the next step: the generic
+    // `check --commit` a stale verification asks for would commit an edited ledger (Codex and
+    // corvid-agent on #1120).
+    let ledger_refusal = if matches!(record.state, ChangeState::Verifying | ChangeState::Accepted)
         && upstream_archive.is_none()
-        && let Err(refusal) = change::approvals_ledger_held_by_history(root, record)
     {
-        blockers.push(refusal);
+        change::approvals_ledger_held_by_history(root, record).err()
+    } else {
+        None
+    };
+    if let Some(refusal) = &ledger_refusal {
+        blockers.insert(0, refusal.clone());
     }
 
     // Ordering rules from multi-change dogfood (#487): always surface while active.
@@ -1725,6 +1731,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         change::upstream_archive_message(&record.id, upstream)
     } else if let Some(recovery) = &ownership_recovery {
         recovery.clone()
+    } else if let Some(refusal) = &ledger_refusal {
+        // The refusal names its own way out (REQ-change-166).
+        refusal.clone()
     } else if verification_work.is_err() {
         format!("run `specsync change check {} --commit`", record.id)
     } else if ready_to_finalize {
@@ -3126,14 +3135,10 @@ fn run_ship(
             .and_then(|values| values.first())
             .and_then(|value| value.as_str())
             .unwrap_or("this change is not ready to archive");
-        // An approvals-ledger refusal names its own way out (REQ-cmd-change-041). The generic
-        // next step after it sent the operator to commit the edited ledger (corvid-agent on
-        // #1120), so it is left off there.
-        if change::approvals_ledger_held_by_history(root, &record)
-            .err()
-            .as_deref()
-            == Some(reason)
-        {
+        // A refusal that names its own way out, as the approvals-ledger refusal does
+        // (REQ-cmd-change-041), is both the first blocker and ship-status's next step, so it is
+        // printed once, with no generic step after it (corvid-agent on #1120).
+        if action == reason {
             return Err(format!("This pull request is not finished. {reason}"));
         }
         // `ship_next` is already the action. Wrapping it in another `Run \`...\``

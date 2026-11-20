@@ -44,6 +44,13 @@
         "where": "Claude Code chat message to his planning session (hc t4c), 2026-11-20 about 01:11Z, answering 'Approve the prep PR as written?' on the frozen ss-lead/gates/640-prep-definition.md, including the reworded date sentence and the measured correction of #1086's CHANGELOG sentence inside the approved scope; relayed by hc t4c through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795141089,
+      "digest": "4be4cd59804e4665e179e3ad98ed9d7948de02cc37946f43cc51f769bf8a08c3",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

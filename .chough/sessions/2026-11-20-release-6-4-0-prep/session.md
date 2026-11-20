@@ -5,7 +5,7 @@ aliases: [release-6-4-0-prep]
 objective: "SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish"
 intent_scope: ""
 modules: []
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -24,9 +24,13 @@ observations:
   - 2026-11-20-640-portable-fixture-rerun-at-140eedaf
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1109 at a7d5c658 (relayed by hc t4c through ss-lead t58)"
+    holds: accept
+    drives: review
+    opened: 2026-11-20T02:17:25Z
 run_consents: []
-next: "Address Codex's findings on #1109, if any; no review or ship before Leif's relayed review"
+next: Record Leif's relayed review and ship in one step; then the identity check and push the archive tip
 ---
 # SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish
 
@@ -92,4 +96,20 @@ SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASI
   - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
   - gate: native:approved
   - revision: df249f61966b2ca84c0b1bc5e82904640a9743d6
+  - by: claude-code (hc t59)
+- 2026-11-20T02:17:17Z · advance · build → test · native:verifying ^t-9d4277
+  - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
+  - gate: native:verifying
+  - revision: a7d5c658de4f3008a55fb5e29bc28267d4314934
+  - by: claude-code (hc t59)
+- 2026-11-20T02:17:20Z · advance · test → accept · native:verifying ^t-40a9a4
+  - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
+  - gate: native:verifying
+  - revision: a7d5c658de4f3008a55fb5e29bc28267d4314934
+  - by: claude-code (hc t59)
+- 2026-11-20T02:17:25Z · gate-opened · accept → accept · Leif's review of #1109 at a7d5c658 (relayed by hc t4c through ss-lead t58) ^t-cca12d
+  - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
+  - revision: a7d5c658de4f3008a55fb5e29bc28267d4314934
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t59)

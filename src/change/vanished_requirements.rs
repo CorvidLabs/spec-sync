@@ -16,16 +16,18 @@
 /// branch renamed and then pruned, names no default branch; nor does one a clone of a single
 /// branch (`git clone --branch <b>`) points at `origin/<b>`, since comparing a branch with its own
 /// pushed tip finds nothing lost (corvid-agent on #1108). It is local to this check, so the other
-/// callers of `remote_default_ref` do not change.
+/// callers of `remote_default_ref` do not change. Its Git queries keep the argument shapes the
+/// rest of SpecSync asks, which `git_utils` knows read nothing but facts: a `symbolic-ref` with
+/// one more option counts as a possible write and drops every memoized repository fact.
 fn lost_requirements_default_ref(root: &Path) -> Option<String> {
-    let own = git_output(root, &["symbolic-ref", "--short", "-q", "HEAD"])
+    let own = git_output(root, &["symbolic-ref", "--short", "HEAD"])
         .map(|branch| format!("origin/{branch}"));
     let usable = |candidate: &str| {
         let commit = format!("{candidate}^{{commit}}");
         own.as_deref() != Some(candidate)
-            && git_output(root, &["rev-parse", "--verify", "--quiet", commit.as_str()]).is_some()
+            && git_output(root, &["rev-parse", "--verify", commit.as_str()]).is_some()
     };
-    git_output(root, &["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"])
+    git_output(root, &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
         .filter(|candidate| usable(candidate))
         .or_else(|| {
             ["origin/main", "origin/master"]

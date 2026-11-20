@@ -243,12 +243,12 @@ The backfill is deterministic (`stale` reproduces the embedded prior-verificatio
 Regenerate the hash cache for all specs. Useful after `git pull`, branch switches, or manual spec edits to reset the incremental validation baseline.
 
 ```bash
-specsync rehash                            # rebuild .specsync/hashes.json
+specsync rehash                            # rebuild the hash cache
 ```
 
-> **Note:** The hash cache (`.specsync/hashes.json`) should **not** be committed to git — it is a local-only optimization for incremental validation. Both `specsync init` and `specsync migrate` automatically add it to `.gitignore`. In CI, use `specsync check --force` (the GitHub Action does this by default).
+> **Note:** The hash cache is a local-only optimization for incremental validation, and SpecSync keeps it outside your work tree, where a repository cannot ship one: in the Git directory (`.git/specsync/<key>/hashes.json`), or, with no Git work tree, in your user cache folder (`$XDG_CACHE_HOME`, else `~/Library/Caches` on macOS or `~/.cache`, under `specsync/projects/<key>/`). The transaction journal and the remote spec cache live there too. A `.specsync/hashes.json` in the work tree, which SpecSync 6.3 and earlier wrote, is never read; `specsync init` and `specsync migrate` still add it to `.gitignore` for older versions. In CI, use `specsync check --force` (the GitHub Action does this by default).
 >
-> The cache is never read or written through a symbolic link. If `.specsync/hashes.json` or `.specsync` itself is a link, or not a regular file and a directory, `check` prints `warning: hash cache not used` on stderr and runs without a cache, with the same result and exit code, and `rehash` exits 1. Remove the link to use the cache again.
+> The cache is never read or written through a symbolic link. If SpecSync's own folder there is a link, or the cache file is not a regular file, `check` prints `warning: hash cache not used` on stderr and runs without a cache, with the same result and exit code. A `.specsync/change-transaction.json` in the work tree stops every lifecycle command with its path until you check the files it lists and delete it.
 
 ### `stale`
 

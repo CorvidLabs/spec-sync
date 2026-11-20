@@ -822,12 +822,84 @@ pub(crate) fn marked_in_statement(lines: &[SourceLine], position: usize, markers
     false
 }
 
-/// The source files Cargo compiled into the `specsync` binary, from the dep-info it writes beside
-/// it: an `include!`d file is there whatever it is named, and a `#[cfg(test)]` module file is
-/// not (REQ-util-008). Fails when the list cannot be read, so a scan never passes over nothing.
+/// Whether two files hold the same bytes, read in chunks so a large binary is not held whole.
+fn same_bytes(left: &Path, right: &Path) -> bool {
+    use std::io::Read;
+    let (Ok(mut left), Ok(mut right)) = (fs::File::open(left), fs::File::open(right)) else {
+        return false;
+    };
+    let mut a = vec![0u8; 1 << 20];
+    let mut b = vec![0u8; 1 << 20];
+    loop {
+        let (Ok(n), Ok(m)) = (left.read(&mut a), right.read(&mut b)) else {
+            return false;
+        };
+        if n != m || a[..n] != b[..m] {
+            return false;
+        }
+        if n == 0 {
+            return true;
+        }
+    }
+}
+
+/// The dep-info Cargo wrote for the `specsync` binary the tests run. Cargo always writes one for
+/// the binary itself as `deps/specsync-<hash>.d`; the copy beside the uplifted binary is written
+/// only by a plain build, and can be older than the binary. So the dep-info used is the one whose
+/// `deps/specsync-<hash>` holds exactly the bytes of `CARGO_BIN_EXE_specsync`.
+fn binary_dep_info() -> PathBuf {
+    let binary = Path::new(env!("CARGO_BIN_EXE_specsync"));
+    let deps = binary.parent().unwrap().join("deps");
+    let size = fs::metadata(binary).unwrap().len();
+    let mut found = Vec::new();
+    for entry in fs::read_dir(&deps).unwrap_or_else(|error| {
+        panic!(
+            "cannot list {}: {error}; the scans take their files from Cargo's dep-info",
+            deps.display()
+        )
+    }) {
+        let candidate = entry.unwrap().path();
+        let name = candidate
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let executable = candidate
+            .extension()
+            .is_none_or(|extension| extension == "exe");
+        if !name.starts_with("specsync-") || !executable {
+            continue;
+        }
+        let dep_info = candidate.with_extension("d");
+        if dep_info.is_file()
+            && fs::metadata(&candidate).is_ok_and(|metadata| metadata.len() == size)
+            && same_bytes(&candidate, binary)
+        {
+            found.push(dep_info);
+        }
+    }
+    found.sort();
+    found.pop().unwrap_or_else(|| {
+        panic!(
+            "no dep-info in {} belongs to {}; the scans take their files from Cargo's dep-info",
+            deps.display(),
+            binary.display()
+        )
+    })
+}
+
+/// The source files Cargo compiled into the `specsync` binary, from the dep-info it wrote for it
+/// (see [`binary_dep_info`]): an `include!`d file is there whatever it is named, and a
+/// `#[cfg(test)]` module file is not (REQ-util-008). Fails when the list cannot be read, so a
+/// scan never passes over nothing.
 pub(crate) fn compiled_sources() -> Vec<(String, PathBuf)> {
+    static FOUND: std::sync::OnceLock<Vec<(String, PathBuf)>> = std::sync::OnceLock::new();
+    FOUND.get_or_init(compiled_sources_uncached).clone()
+}
+
+fn compiled_sources_uncached() -> Vec<(String, PathBuf)> {
     let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let dep_info = Path::new(env!("CARGO_BIN_EXE_specsync")).with_extension("d");
+    let dep_info = binary_dep_info();
     let text = fs::read_to_string(&dep_info).unwrap_or_else(|error| {
         panic!(
             "cannot read {}: {error}; the scans take their files from Cargo's dep-info",
@@ -853,7 +925,9 @@ pub(crate) fn compiled_sources() -> Vec<(String, PathBuf)> {
     let source = crate_root.join("src");
     let mut found: Vec<(String, PathBuf)> = tokens
         .iter()
-        .map(|token| PathBuf::from(token.trim_end_matches(':')))
+        // The dep-info under `deps/` names sources relative to the crate root; the copy beside
+        // the binary names them absolutely.
+        .map(|token| crate_root.join(token.trim_end_matches(':')))
         .filter(|path| {
             path.extension().is_some_and(|extension| extension == "rs")
                 && path.starts_with(&source)

@@ -22,6 +22,7 @@ observations:
   - 2026-11-19-1104-verify-lane-at-b3c2cc0b
   - 2026-11-20-1104-red-shared-constant-at-31b3a26a
   - 2026-11-20-1104-verify-lane-at-880dedcb
+  - 2026-11-20-1104-codex-round-1-at-a5befd2b
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -53,6 +54,7 @@ One change whose records fail validation no longer decides another change's term
 - [At b3c2cc0b (checked and committed), fledge lanes run verify passed 10/10 steps in 11m42s through one-lane: unit 3099 passed (2 ignored), integration 630, spec check 166/166 files. Includes the S1 integration test through the binary (status, change list, ship-status, audit --archives, a third change shipped). The neutral git config was a prefix on the lane command only (#1092).](evidence/2026-11-19-1104-verify-lane-at-b3c2cc0b.md)
 - [Red first at 31b3a26a: the_successor_search_reads_the_words_both_writers_write fails to compile, E0425 cannot find value CHANGED_AFTER_ACCEPTANCE, before the shared constant exists; everything else in the test compiles. cargo test --bin specsync through one-lane, the neutral git config as a prefix only (#1092).](evidence/2026-11-20-1104-red-shared-constant-at-31b3a26a.md)
 - [At 880dedcb (main a28e3042 merged in, sent back, reworded criterion 2 approved, checked and committed), with this tree's own release build (specsync 6.4.0) first on PATH: fledge lanes run verify passed 10/10 steps in 9m37s through one-lane (unit 3106 passed, 2 ignored, including #1104's six unit tests and the shared-constant test; integration 645, including the binary test's three audit assertions: plain change audit exits 1 with the error on a change open and archived at once and passes on S1, change audit --archives exits 1 naming it on S1; spec check 62/62 specs, 168/168 files), the neutral git config as a prefix on the lane only (#1092). specsync change audit --strict against origin/main a28e3042 passes.](evidence/2026-11-20-1104-verify-lane-at-880dedcb.md)
+- [Codex's and corvid-agent's first round on #1114: red first at f39d6921 (5 of 11 fail: deadline, collision verdict, a no-spec change named, rolled-back retirement, over-blame) and ca1f054b (parity test, E0425); fixed at ae4172a4; checked at a5befd2b. With this tree's release build first on PATH, fledge lanes run verify passed 10/10 in 9m00s through one-lane (unit 3112 passed, 2 ignored; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix on the lane only (#1092); change audit --strict passes.](evidence/2026-11-20-1104-codex-round-1-at-a5befd2b.md)
 
 ## Open threads
 

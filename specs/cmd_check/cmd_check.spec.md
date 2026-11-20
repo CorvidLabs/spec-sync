@@ -110,7 +110,8 @@ optional drift issues. SDD / change / archive history is not part of this comman
 | Malformed Gradle settings prevent coverage discovery | Emits an explicit inconclusive failure, preserves valid structured JSON in JSON mode, and exits 1 |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 | `.specsync/hashes.json` is tracked by Git, ships in an archive, or is committed in another letter case | Never read: nothing is replayed from it and nothing is said; the cache in the local state folder is used as for any project |
-| No local state folder can be found (no Git work tree, no `HOME`) | One `warning: hash cache not used:` with the reason; every spec is validated |
+| No local state folder can be found (no `HOME` or `XDG_CACHE_HOME`), or the user cache folder lies inside the project | One `warning: hash cache not used:` with the reason; every spec is validated |
+| A copy of a project that ships its `.git`, with a cache an earlier SpecSync kept there | Never read: every spec is validated |
 
 ## Dependencies
 

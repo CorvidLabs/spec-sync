@@ -305,13 +305,22 @@ fn wait_for_pipe_or_wake(
 }
 
 /// Whether Git tracks `relative` (a path under `root`, with `/` separators), in the index or in
-/// `HEAD`: such a file came with the repository, so SpecSync never treats it as its own state
-/// (REQ-git-utils-012). `false` outside a repository or when Git is not installed.
+/// `HEAD` (REQ-git-utils-012). `false` outside a repository or when Git is not installed. The
+/// path is matched literally, so `*`, `?` and `[...]` in a folder name are never wildcards, and
+/// no variable in the environment can move the repository or widen the match.
 pub(crate) fn tracked_by_git(root: &Path, relative: &str) -> bool {
     let succeeds = |args: &[&str]| {
         Command::new("git")
+            .arg("--literal-pathspecs")
             .args(args)
             .current_dir(root)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_LITERAL_PATHSPECS")
+            .env_remove("GIT_GLOB_PATHSPECS")
+            .env_remove("GIT_NOGLOB_PATHSPECS")
+            .env_remove("GIT_ICASE_PATHSPECS")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())

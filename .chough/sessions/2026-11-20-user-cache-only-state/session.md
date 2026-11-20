@@ -16,7 +16,7 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-on-e3d508ac-with-only-change-7-s-tests-added-3fcb6de7-all-3]
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -36,6 +36,8 @@ SpecSync keeps its cache, journal and remote cache only in the user's cache fold
 - 0xLeif decided "Scope approval of keep-specsync-s-own-state-only-in-the-user-cache-folder": "A" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 03:27Z, answering t4c's question after sec-review2's re-check of change 6 (security/review2/recheck-change6.md): 'A (recommended): one more small change, about half a day. SpecSync keeps its cache only in your user cache folder, never in .git. That's simpler, one rule fewer, and closes the archive case and two related ones. It also fixes the one-line bug and the edge cases, then the reviewer does a quick re-check of just those. 6.4.0 moves to about Nov 25-26, and the security notice's claims stay true as written.' The one-line bug was R4 (a folder named * as a wildcard) and the edge cases R2, R5a and N2; t4c's brief lists items 1-5 (user cache folder only keyed by the canonical root; refuse a cache base inside the root or the confinement top; --literal-pathspecs and a clean environment in tracked_by_git; spec-shaped registry replay; a hooks path outside both trees only from global or system scope) and, as text and tests only, R6's small scan patterns and the documentation fixes, R5b documented; relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve keep-specsync-s-own-state-only-in-the-user-cache-folder as 0xLeif
 
 ## What was verified
+
+- [On e3d508ac with only change 7's tests added (3fcb6de7): all 3 new unit tests and 5 of 7 new integration tests fail (also REQ-git-utils-012, REQ-cmd-check-021). The state folder of a Git work tree is .git/specsync/<constant key>; a copy of a project with its .git replays the cache it ships (Skipped 1 unchanged spec, Cache: unpacked/.git/specsync/...); a valid journal at .git/specsync/<key>/change-transaction.json is replayed; a registry entry env = .env lets a journal delete .env; with XDG_CACHE_HOME inside the project the cache there is replayed; a project folder named * inside a home work tree that tracks Downloads/readme.txt is widened and the outer notes.md gets the CLAUDE.md block; a local core.hooksPath ../outside/made/hooks makes outside/made. The read scan finds 10 new unmarked opens (open_ambient_dir and .open(). The 2 that pass are the global-config hooks control and the write scan.](evidence/2026-11-20-on-e3d508ac-with-only-change-7-s-tests-added-3fcb6de7-all-3.md)
 
 ## Open threads
 

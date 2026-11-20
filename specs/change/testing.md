@@ -350,3 +350,10 @@ Every link points inside the test's own temporary directory.
 | A dangling artifact link, with `change answer` | Refused; nothing is created outside | `tests/integration/project_writes.rs`: `change_answer_never_creates_the_target_of_a_dangling_artifact_link` |
 | `.specsync/changes` linked outside, with `change new` | No workspace is created there | `tests/integration/project_writes.rs`: `change_new_creates_nothing_in_a_changes_directory_linked_out` |
 | `change.md` linked into `.git/hooks` | Refused; the hook keeps its bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_into_a_hook` |
+
+## Change 7: the journal and the registry (REQ-change-162)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A valid journal under `.git/specsync/<key>` | Never replayed | `a_journal_under_the_git_directory_is_never_replayed` |
+| A registry entry mapping a module to `.env`, with a deletion or a rewrite journaled | Refused; `.env` keeps its bytes | `a_registry_entry_that_is_not_a_spec_never_opens_a_replay` |

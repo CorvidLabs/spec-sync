@@ -28,6 +28,7 @@ spec: cmd_check.spec.md
 - [x] Read project files only through the bounded project read of `util` (REQ-cmd-check-019). Evidence: `tests/integration/project_reads.rs`.
 - [x] Write `--fix --backup` backups confined, and never use a hash cache Git tracks (REQ-cmd-check-020, REQ-cmd-check-021). Evidence: `tests/integration/project_writes.rs`, `tests/integration/repository_inputs.rs`.
 - [x] Use only the cache in the local state folder and name its real path (REQ-cmd-check-021). Evidence: `check_never_uses_a_hash_cache_an_unpacked_tree_ships`.
+- [x] Refuse a cache folder inside the project and never read a cache an archive ships in `.git` (REQ-cmd-check-021). Evidence: the two change 7 tests in `tests/integration/repository_inputs.rs`.
 
 ## Gaps
 

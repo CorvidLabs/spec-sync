@@ -570,6 +570,7 @@ impl<'a> CreationSources<'a> {
     fn new(root: &'a Path, config: &'a SpecSyncConfig) -> Option<Self> {
         Some(Self {
             root,
+            // not a project file read: a handle on the project root, beneath which every creation source is opened without following a link
             project: Dir::open_ambient_dir(root, cap_std::ambient_authority()).ok()?,
             config,
             remaining_entries: 100_000,

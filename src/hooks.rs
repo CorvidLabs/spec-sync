@@ -245,6 +245,7 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
     let path = lexically_normal(&path);
     // The walk starts from a folder no repository content leads to: the Git directory, the work
     // tree's top folder, or, for a hooks folder the person set outside both, its own parent.
+    let mut may_create = create;
     let (base, rest) = match crate::util::work_tree_and_git_dir(root) {
         Some((_, git_dir)) if path.starts_with(&git_dir) => {
             let rest = path.strip_prefix(&git_dir).unwrap_or(&path).to_path_buf();
@@ -258,7 +259,11 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
             let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
                 return Err(format!("Git returned an unusable hooks path: {raw}"));
             };
-            if create {
+            // Outside both trees, only the person's own global or system config may have folders
+            // made there: a repository's `.git/config`, which an archive can ship, may not
+            // (REQ-hooks-009).
+            may_create = create && hooks_path_is_the_persons_own(root);
+            if may_create {
                 // not a project file write: the parent of a hooks folder the person set outside the work tree and the Git directory in their own Git config
                 fs::create_dir_all(parent)
                     .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
@@ -269,6 +274,7 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
             (parent, PathBuf::from(name))
         }
     };
+    // not a project file read: the canonical Git directory, work-tree top or the person's own folder the walk starts from
     let mut dir = Dir::open_ambient_dir(&base, ambient_authority())
         .map_err(|error| format!("failed to open {}: {error}", base.display()))?;
     let mut reached = base;
@@ -287,7 +293,7 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
             Ok(metadata) if metadata.is_dir() => {}
             Ok(_) => return Err(format!("{} is not a directory", reached.display())),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                if !create {
+                if !may_create {
                     return Err("configured Git hooks directory does not exist".into());
                 }
                 // checked project write: made through the handle on the folder above, which was reached without following a link
@@ -313,6 +319,28 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
             })?;
     }
     Ok(HooksDir { dir, path: reached })
+}
+
+/// Whether `core.hooksPath` comes from the person's own `global` or `system` Git config, as
+/// `git config --show-scope` says, rather than from the repository's config, which an archive can
+/// ship, or from anywhere else.
+fn hooks_path_is_the_persons_own(root: &Path) -> bool {
+    let output = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["config", "--show-scope", "--get", "core.hooksPath"])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE"),
+    );
+    let Ok(output) = output else {
+        return false;
+    };
+    output.status.success()
+        && String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .next()
+            .is_some_and(|scope| scope == "global" || scope == "system")
 }
 
 impl HooksDir {

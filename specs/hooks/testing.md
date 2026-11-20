@@ -73,3 +73,10 @@ Every link points inside the test's own temporary directory.
 | A dangling `pre-commit` link in a committed hooks folder | Refused; its target is not created | `tests/integration/project_writes.rs`: `hooks_install_never_creates_the_target_of_a_dangling_pre_commit_link` |
 | A real hooks folder in the work tree | An executable `pre-commit` is installed | `tests/integration/project_writes.rs`: `hooks_install_installs_into_a_hooks_folder_in_the_work_tree` |
 | A linked `pre-commit` in `.git/hooks` | Install and uninstall refuse and the target keeps its bytes | `src/hooks.rs`: `install_and_uninstall_precommit_refuse_symlinked_hook` |
+
+## The hooks folder outside both trees (REQ-hooks-009, change 7)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A repository-local `core.hooksPath` outside the work tree, missing | Nothing is made; install fails | `tests/integration/project_writes.rs`: `hooks_install_makes_no_folder_for_a_local_hooks_path_outside_the_work_tree` |
+| A global `core.hooksPath`, missing | Made, with an executable `pre-commit` | `tests/integration/project_writes.rs`: `hooks_install_still_makes_a_hooks_folder_from_the_global_config` |

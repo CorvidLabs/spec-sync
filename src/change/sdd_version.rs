@@ -728,9 +728,9 @@ fn refuse_journal_in_work_tree(root: &Path) -> Result<(), String> {
 }
 
 /// Whether a journaled path is one the change workflow writes, and so one a replay may put back
-/// (REQ-change-162): anything under `.specsync/`, anything under the configured `specs_dir`, and
-/// for each spec the local registry maps, that spec, the `requirements.md` beside it and its
-/// `history/` fragments. A `.git` component is refused in any letter case and with trailing dots
+/// (REQ-change-162): anything under `.specsync/`, the spec files, `requirements.md` and history
+/// fragments under the configured `specs_dir`, and for each spec the local registry maps to a
+/// `*.spec.md` path, that spec, the `requirements.md` beside it and its `history/` fragments. A `.git` component is refused in any letter case and with trailing dots
 /// or spaces, which some file systems ignore.
 fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String> {
     // The write normalizes a backslash into a separator (`normalize_project_path`), so the rule
@@ -771,6 +771,11 @@ fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String
     if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
         for (_, spec) in &registry.specs {
             let spec = spec.trim_start_matches("./");
+            // A registry entry is the repository's own text and may name any file; only a spec
+            // the workflow writes opens a replay, never `.env` or another file the person added.
+            if !spec.ends_with(".spec.md") {
+                continue;
+            }
             let directory = spec.rsplit_once('/').map_or("", |(parent, _)| parent);
             let beside = |name: &str| {
                 if directory.is_empty() {

@@ -151,6 +151,7 @@ fn wait_for_mcp_startup_test_barrier() -> Result<(), String> {
     let ready_path = barrier_directory.join("identity-bound");
     let resume_path = barrier_directory.join("resume");
     // not a project file write: a debug-build test barrier in the directory a test names
+    // not a project file read: the same open, for writing a test barrier only
     let mut ready_file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)

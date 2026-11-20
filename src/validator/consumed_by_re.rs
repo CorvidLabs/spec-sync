@@ -1118,6 +1118,7 @@ fn coverage_snapshot_test_barrier(checkpoint: CoverageSnapshotCheckpoint) -> Res
     let directory = PathBuf::from(directory);
     let marker = checkpoint.marker();
     // not a project file write: a test barrier file in the directory a test names
+    // not a project file read: the same open, for writing a test barrier only
     let mut ready = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -1821,6 +1822,7 @@ fn coverage_relative_path_text(path: &Path) -> Result<String, String> {
 }
 
 fn open_coverage_project_root(root: &Path) -> Result<Dir, String> {
+    // not a project file read: retains a handle on the project root itself, the base of the coverage traversal
     Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
         format!(
             "Cannot open coverage project root {} as a retained directory: {error}",
@@ -1832,6 +1834,7 @@ fn open_coverage_project_root(root: &Path) -> Result<Dir, String> {
 fn verify_coverage_project_root(root: &Path, retained: &Dir) -> Result<(), String> {
     let expected = coverage_directory_identity(retained)
         .map_err(|error| format!("Cannot identify retained coverage project root: {error}"))?;
+    // not a project file read: re-opens the project root to check it is the folder retained for the traversal
     let observed = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
         format!(
             "Coverage project root {} changed during retained traversal: {error}",

@@ -171,14 +171,11 @@ fn work_tree_confinement(canonical_root: &Path) -> Option<Confinement> {
     })
 }
 
-/// The Git directory of the work tree holding `canonical_root`, and the root's path beneath the
-/// work tree's top folder: where the project's local state is kept, one folder per project
-/// (REQ-util-006). `None` outside a work tree.
-pub(crate) fn git_state_location(canonical_root: &Path) -> Option<(PathBuf, PathBuf)> {
-    let confinement = confinement(canonical_root);
-    let git_dir = confinement.git_dir.clone()?;
-    let (_, prefix) = confinement.work_tree.clone()?;
-    Some((git_dir, prefix))
+/// The folder the project file functions confine `canonical_root` to: the enclosing work tree's
+/// top folder for a project Git tracks there, otherwise the root itself (REQ-util-007). A user
+/// cache folder inside it is refused (REQ-util-006).
+pub(crate) fn confinement_top(canonical_root: &Path) -> PathBuf {
+    confinement(canonical_root).top.clone()
 }
 
 /// The top folder of the Git work tree holding `root`, and its Git directory, both canonical;

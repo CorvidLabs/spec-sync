@@ -1,12 +1,11 @@
 //! Where SpecSync keeps the state it writes for itself about a project: the hash cache, the
 //! transaction journal and the remote spec cache (REQ-util-006).
 //!
-//! None of it is ever kept in the work tree, where a repository can put a file with any content
-//! it likes, under any spelling a case-insensitive disk folds onto the real name, in a ZIP or a
-//! tarball with no Git to say it came with the repository. In a Git work tree the state lives in
-//! the work tree's own Git directory, which `git clone` never fills and Git never checks a file
-//! out into. With no work tree it lives in the user's cache folder. Either way the folder is
-//! keyed by the project, so two projects never share it.
+//! None of it is ever kept where a repository, or an archive of one, can put a file: not in the
+//! work tree, where any spelling a case-insensitive disk folds onto the real name would do, and
+//! not in a Git directory, which a tarball of a working copy carries whole. It lives only in the
+//! user's cache folder, in a folder keyed by the canonical project root, and a cache folder that
+//! itself lies inside the project is refused.
 
 use cap_primitives::fs::FollowSymlinks;
 use cap_std::ambient_authority;
@@ -91,21 +90,48 @@ fn user_cache_folder() -> Option<PathBuf> {
     })
 }
 
+/// `path` as it is on disk: its longest existing ancestor canonicalized, and the rest of the
+/// path, which does not exist yet, joined to it.
+fn resolved(path: &Path) -> PathBuf {
+    let mut existing = path;
+    let mut rest = Vec::new();
+    loop {
+        if let Ok(canonical) = existing.canonicalize() {
+            let mut resolved = canonical;
+            resolved.extend(rest.iter().rev());
+            return resolved;
+        }
+        match (existing.parent(), existing.file_name()) {
+            (Some(parent), Some(name)) => {
+                rest.push(name.to_os_string());
+                existing = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
+}
+
 fn location(root: &Path) -> io::Result<Location> {
     let canonical = root.canonicalize()?;
-    if let Some((git_dir, prefix)) = super::git_state_location(&canonical) {
-        return Ok(Location {
-            base: git_dir,
-            names: vec![STATE_FOLDER.to_string(), key("work-tree", &prefix)],
-        });
-    }
     let base = user_cache_folder().ok_or_else(|| {
         refused(
-            "there is no Git work tree here and no user cache folder (set HOME or \
-             XDG_CACHE_HOME) to keep SpecSync's own state in"
+            "there is no user cache folder (set HOME or XDG_CACHE_HOME) to keep SpecSync's own \
+             state in"
                 .to_string(),
         )
     })?;
+    // Some CI containers set `HOME` or `XDG_CACHE_HOME` to the checkout. A cache folder inside
+    // the project, or inside the folder its files are confined to, is a place a repository can
+    // put a file, so it is refused rather than trusted (REQ-util-006).
+    let on_disk = resolved(&base);
+    if on_disk.starts_with(&canonical) || on_disk.starts_with(super::confinement_top(&canonical)) {
+        return Err(refused(format!(
+            "the user cache folder {} lies inside the project, where a repository can put a \
+             file, so SpecSync keeps none of its own state there; set XDG_CACHE_HOME to a folder \
+             outside the project",
+            base.display()
+        )));
+    }
     Ok(Location {
         base,
         names: vec![
@@ -116,8 +142,8 @@ fn location(root: &Path) -> io::Result<Location> {
     })
 }
 
-/// The folder where SpecSync keeps its own state about the project at `root`, outside the work
-/// tree, whether or not it exists yet (REQ-util-006).
+/// The folder where SpecSync keeps its own state about the project at `root`, in the user's
+/// cache folder, whether or not it exists yet (REQ-util-006).
 pub fn project_state_dir(root: &Path) -> io::Result<PathBuf> {
     location(root).map(|location| location.path())
 }
@@ -344,27 +370,21 @@ mod tests {
         assert!(status.success(), "git {args:?}");
     }
 
-    /// Verifies REQ-util-006. In a Git work tree the state lives in the Git directory, one folder
-    /// per project; with no work tree it lives in the user's cache folder. Nothing is made in the
-    /// work tree.
+    /// Verifies REQ-util-006. Two projects in one work tree, and a project with no Git, each get
+    /// their own folder in the user's cache folder; nothing is made in the work tree or the Git
+    /// directory.
     #[test]
     fn local_state_lives_outside_the_work_tree() {
         let dir = tempfile::tempdir().unwrap();
         let repo = dir.path().join("repo");
         fs::create_dir_all(repo.join("packages/app")).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        let git_dir = repo.join(".git").canonicalize().unwrap();
         let top = project_state_dir(&repo).unwrap();
         let app = project_state_dir(&repo.join("packages/app")).unwrap();
         assert!(
-            top.starts_with(git_dir.join("specsync")),
+            top.starts_with(user_cache_folder().unwrap()),
             "{}",
             top.display()
-        );
-        assert!(
-            app.starts_with(git_dir.join("specsync")),
-            "{}",
-            app.display()
         );
         assert_ne!(top, app, "two projects in one work tree share their state");
 
@@ -372,6 +392,7 @@ mod tests {
         state.write_file("hashes.json", b"{}", false).unwrap();
         assert_eq!(state.read_file("hashes.json", 16).unwrap().unwrap(), b"{}");
         assert!(!repo.join(".specsync").exists());
+        assert!(!repo.join(".git/specsync").exists());
 
         let plain = dir.path().join("plain");
         fs::create_dir_all(&plain).unwrap();
@@ -417,11 +438,13 @@ mod tests {
         fs::create_dir_all(&repo).unwrap();
         fs::create_dir_all(&elsewhere).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        std::os::unix::fs::symlink(&elsewhere, repo.join(".git/specsync")).unwrap();
+        let folder = project_state_dir(&repo).unwrap();
+        fs::create_dir_all(folder.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, &folder).unwrap();
         let error = LocalState::open(&repo, true).err().unwrap();
         assert!(error.to_string().contains("symbolic link"), "{error}");
         assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 0);
-        fs::remove_file(repo.join(".git/specsync")).unwrap();
+        fs::remove_file(&folder).unwrap();
 
         let state = LocalState::open(&repo, true).unwrap().unwrap();
         let fifo = state.file_path("change-transaction.json");

@@ -31,40 +31,20 @@ pub fn test_cache_home() -> std::path::PathBuf {
     std::env::temp_dir().join("specsync-integration-cache-home")
 }
 
-/// Where SpecSync keeps its own state about `root`, outside the work tree (REQ-util-006): under
-/// the Git directory of the work tree holding it, or under the tests' user cache folder. The
-/// folder name is the same digest SpecSync takes, of the root's path in the work tree or of the
-/// canonical root.
+/// Where SpecSync keeps its own state about `root` (REQ-util-006): only in the user's cache
+/// folder, which the tests point at [`test_cache_home`], in a folder named by the same digest of
+/// the canonical root SpecSync takes.
 pub fn state_folder(root: &std::path::Path) -> std::path::PathBuf {
     use sha2::{Digest, Sha256};
-    use std::path::Path;
     let canonical = root.canonicalize().unwrap();
-    let key = |kind: &str, path: &Path| {
-        let mut hasher = Sha256::new();
-        hasher.update(kind.as_bytes());
-        hasher.update([0]);
-        hasher.update(path.as_os_str().as_encoded_bytes());
-        format!("{:x}", hasher.finalize())[..16].to_string()
-    };
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel", "--absolute-git-dir"])
-        .current_dir(&canonical)
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
-        .output()
-        .unwrap();
-    if output.status.success() {
-        let text = String::from_utf8(output.stdout).unwrap();
-        let mut lines = text.lines();
-        let top = Path::new(lines.next().unwrap()).canonicalize().unwrap();
-        let git_dir = Path::new(lines.next().unwrap()).canonicalize().unwrap();
-        let prefix = canonical.strip_prefix(&top).unwrap().to_path_buf();
-        return git_dir.join("specsync").join(key("work-tree", &prefix));
-    }
+    let mut hasher = Sha256::new();
+    hasher.update(b"project\0");
+    hasher.update(canonical.as_os_str().as_encoded_bytes());
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
     test_cache_home()
         .join("specsync")
         .join("projects")
-        .join(key("project", &canonical))
+        .join(key)
 }
 
 /// The hash cache of `root` in its local state folder (REQ-hash-cache-009).

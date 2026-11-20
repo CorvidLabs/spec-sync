@@ -1736,6 +1736,7 @@ fn cargo_build_lock_is_held(path: &Path) -> bool {
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
+    // not a project file read: Cargo's build lock, opened with the options set just above only to test it
     let Ok(file) = options.open(path) else {
         // The file is created by Cargo when it takes the lock; absent or
         // unreadable means there is nothing this run can prove.

@@ -28,6 +28,7 @@ spec: hooks.spec.md
 - [x] Write every hook file through `util`'s project file functions, so a committed link cannot take `install` or `uninstall` outside the project (REQ-hooks-006). Evidence: `tests/integration/project_links.rs` `hooks_*`.
 - [x] Read project files only through the bounded project read of `util` (REQ-hooks-007). Evidence: `tests/integration/project_reads.rs`.
 - [x] Reach the hooks folder without following links and manage `pre-commit` through its handle (REQ-hooks-009). Evidence: the three `hooks_install_*` tests in `tests/integration/project_writes.rs`.
+- [x] Make a hooks folder outside both trees only from global or system config (REQ-hooks-009). Evidence: the two hooks-path tests in `tests/integration/project_writes.rs`.
 
 ## Gaps
 

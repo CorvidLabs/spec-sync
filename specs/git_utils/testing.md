@@ -63,4 +63,4 @@ Every link points inside the test's own temporary directory.
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A child writes more than the cap | The first `cap` bytes are kept, more is reported, the rest drained | `src/git_utils.rs`: `capped_output_keeps_the_cap_and_reports_more` |
-| A path in the index or `HEAD`, and one Git does not track | `tracked_by_git` says yes and no | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_git_tracks`, `rehash_refuses_a_hash_cache_git_tracks` |
+| A path in the index or `HEAD`, one Git does not track, and a folder named like a glob | `tracked_by_git` says yes, no, and no for the glob | `tests/integration/project_writes.rs`: the three `a_subproject_*` tests (tracked), `an_untracked_project_inside_another_work_tree_is_confined_to_itself` (not tracked), `a_project_folder_named_like_a_glob_is_still_confined_to_itself` (a folder named `*`) |

@@ -90,7 +90,10 @@ fn check_never_uses_a_hash_cache_git_tracks() {
     let first = run(&root, &["check"]);
     let saved = state_cache_file(&root);
     assert!(saved.is_file(), "{}", said(&first));
-    assert!(saved.starts_with(root.canonicalize().unwrap().join(".git")));
+    assert!(
+        !saved.starts_with(root.canonicalize().unwrap()),
+        "the cache is kept outside the clone, its .git included"
+    );
     fs::copy(&saved, root.join(".specsync/hashes.json")).unwrap();
     fs::remove_file(&saved).unwrap();
     git_in(&root, &["add", "-A"]);

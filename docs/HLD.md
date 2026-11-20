@@ -700,10 +700,9 @@ saved after a run with no errors.
 The local state folder ([`src/util/local_state.rs`](../src/util/local_state.rs)) holds what
 SpecSync writes for itself: the hash cache, the transaction journal and the remote spec cache. It
 is never in the work tree, where a repository can put a file under any spelling a
-case-insensitive disk folds onto the real name, or in an archive with no Git to say it came with
-the repository. In a Git work tree it is `<absolute-git-dir>/specsync/<key>/`, keyed by the
-project's path in the work tree; otherwise `specsync/projects/<key>/` in the user's cache folder,
-keyed by the canonical root. Its folders are opened without following a link, reads are bounded
+case-insensitive disk folds onto the real name, and never in a Git directory, which a tarball of
+a working copy carries whole. It is `specsync/projects/<key>/` in the user's cache folder, keyed
+by the canonical root, and a user cache folder inside the project is refused. Its folders are opened without following a link, reads are bounded
 and non-blocking, and every write is a new file renamed over the name.
 
 ## 6. Runtime and deployment

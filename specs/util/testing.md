@@ -74,3 +74,12 @@ Every link points inside the test's own temporary directory.
 | An untracked project unpacked inside another work tree | Confined to itself: its link to the outer work tree's file is refused and the file keeps its bytes | `tests/integration/project_writes.rs`: `an_untracked_project_inside_another_work_tree_is_confined_to_itself` |
 | A tracked monorepo subproject | Still follows a link inside its repository | `tests/integration/project_writes.rs`: the three `a_subproject_*` tests |
 | A production read in an `include!`d `tests.rs`, braces in literals, cap-std calls, Git arguments that write | Reported until bounded or marked | `tests/integration/project_reads.rs`: `the_scan_lexer_blanks_only_comments_and_literals`, `no_project_file_is_read_outside_the_bounded_read`; `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers`, `no_spawned_git_command_writes_files_unmarked` |
+
+## The user cache folder only (REQ-util-006, change 7)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A Git work tree | The state folder is in the user's cache folder, not under `.git` | `src/util/local_state.rs`: `local_state_never_lives_in_a_git_directory`, `local_state_lives_outside_the_work_tree` |
+| A copy of a project with its `.git`, cache included | Every spec is validated | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_an_archive_ships_in_its_git_directory` |
+| `XDG_CACHE_HOME` inside the project | Refused: one warning, every spec validated | `tests/integration/repository_inputs.rs`: `check_refuses_a_user_cache_folder_inside_the_project` |
+| A project folder named `*` inside another work tree | Confined to itself | `tests/integration/project_writes.rs`: `a_project_folder_named_like_a_glob_is_still_confined_to_itself` |

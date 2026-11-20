@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+  "slug": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+  "title": "Change approve has a dry run that reports every check's first refusal and writes nothing",
+  "description": "change approve has a dry run that reports every check's first refusal and writes nothing",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "3bebe8b03094b2079630801584b56f94a1e460c5",
+  "created_at": 1795064998,
+  "updated_at": 1795117671,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change/",
+    "src/change_tests.rs",
+    "src/change_tests/",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/change/",
+    "specs/cmd_change/",
+    "specs/cli_args/",
+    "site/src/content/docs/",
+    "CHANGELOG.md",
+    "AGENTS.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "`specsync change approve <id> --dry-run` says whether the approval would be accepted, in text and with `--json`, and exits 0 when it would and 1 when it would not.",
+    "It writes nothing: every file in the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte unchanged after it, for a refused draft and for a clean one.",
+    "It runs `change approve`'s own checks in the same order through the same functions: for each of the 25 refused drafts on the Chough tester's list the dry run reports the message the real approve gives, and the real approve afterwards still refuses with it; a clean draft reports nothing and exits 0, and the real approve then succeeds.",
+    "Each refusal is its own JSON entry carrying the check's name and the message `change approve` prints.",
+    "It works on a draft and on a change that was sent back.",
+    "It runs every check that can run on its own, reports the first problem from each, and names each check it skipped with the refused check it waits on.",
+    "`change approve` without `--dry-run` refuses exactly what it refused before, with the same messages, and approves what it approved before.",
+    "With `--json`, a refused `definition` or `ownership` check whose message names a `specsync change answer` command carries that command as `fix`, taken from the code that writes the message. A `fix` may hold a placeholder, and the docs say it must not be run blindly."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "CHANGE-6 and CHANGE-6.a (one approval, bound to its content): the dry run records nothing and is never an approval; REQ-change-133's refusal texts stay as they are, because the dry run reports the messages change approve gives; Leif's depth choice on #1091, 'First problem from each check'; the change lesson that one rule kept in two places drifts, so approve and its dry run walk one list of checks; the change lesson that a printed recovery command runs as printed; the doctor lesson that a dry run reuses the lifecycle lock's no-symlink walk to predict that refusal",
+    "public_contract": "yes"
+  }
+}

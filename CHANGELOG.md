@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `specsync change approve <id> --dry-run` says whether the approval would be accepted, and writes nothing: no approval, no state, no cache and no lifecycle lock. It walks the approval's own checks in the approval's order, so the two cannot disagree. Where a real approval stops at its first refusal, the dry run reports the first problem from every check that can run, in `change approve`'s own words, and names each check it skipped with the refused check it waits on. It exits 0 when no check refuses and 1 when any does. With `--json` it prints one document, `id`, `dry_run`, `would_approve` and `checks`, with thirteen stable check names in approval order, so a tool such as Chough's `change ready` can ask SpecSync instead of copying its rules. An interrupted lifecycle write that is waiting to be recovered makes it refuse and say so, because a real approval recovers that write first; a journal that cannot be replayed gets `change approve`'s own refusal. A refused `definition` or `ownership` check whose message names the `specsync change answer` command that fixes it carries that command as `fix`, as plain text; it may hold a placeholder such as `<yes|no>`, so a tool must fill it in or show it to a person, never run it blindly (REQ-change-163, REQ-cmd-change-040, REQ-cli-args-027, #1091).
+
 ### Changed
 
 - History fragments, after #1086's review: `change:` is written as a double-quoted YAML string, so every valid change id round-trips (plain and single-quoted values from earlier fragments still read); the validation cache binds each `history/` entry's type, so a fragment swapped for a symlink re-validates; a delta item that targets the frozen `## Change Log` is refused at approve, check, verify and accept; and one boundary-aware matcher decides both whether a module records a change and whether it is recorded twice, so a reformatted `**<id>:**` row is caught and a row for `one-session` no longer counts for `session` (#1084, #1088).

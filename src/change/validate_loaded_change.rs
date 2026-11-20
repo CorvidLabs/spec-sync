@@ -635,6 +635,9 @@ fn append_approval(
     append_approval_with_relay(root, record, gate, actor, digest, note, None)
 }
 
+/// Both halves of an approval record in one call, as the approval makes them: the tests' way to
+/// append a record without the checks that come before it.
+#[cfg(test)]
 fn append_approval_with_relay(
     root: &Path,
     record: &ChangeRecord,
@@ -644,6 +647,27 @@ fn append_approval_with_relay(
     note: Option<String>,
     relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
+    let parts = approval_record_parts(root, record, gate)?;
+    let actor = resolve_actor(root, actor)?;
+    write_approval_record(root, record, gate, parts, actor, digest, note, relayed_by)
+}
+
+/// What an approval record holds besides its actor and digest: the ledger it is appended to, the
+/// scope and the delta wording it approves. Reading these can refuse; nothing is written until
+/// [`write_approval_record`], so `change approve --dry-run` builds them too (REQ-change-163).
+struct ApprovalRecordParts {
+    ledger: ApprovalLedger,
+    approved_scope: Option<ApprovedScopeV1>,
+    approved_delta_digests: Option<BTreeMap<String, String>>,
+    approved_delta_bases: Option<BTreeMap<String, String>>,
+}
+
+/// The read-only half of [`append_approval_with_relay`], in the order it always ran.
+fn approval_record_parts(
+    root: &Path,
+    record: &ChangeRecord,
+    gate: &str,
+) -> Result<ApprovalRecordParts, String> {
     let mut ledger = load_approvals(root, record)?;
     let approved_scope = (gate == "definition" && record.workflow_version >= 2)
         .then(|| approved_scope(root, record))
@@ -663,9 +687,35 @@ fn append_approval_with_relay(
     let approved_delta_bases = (gate == "definition")
         .then(|| approval_delta_bases(root, record, &ledger))
         .transpose()?;
+    Ok(ApprovalRecordParts {
+        ledger,
+        approved_scope,
+        approved_delta_digests,
+        approved_delta_bases,
+    })
+}
+
+/// The writing half of [`append_approval_with_relay`]: append the record and save the ledger.
+#[allow(clippy::too_many_arguments)]
+fn write_approval_record(
+    root: &Path,
+    record: &ChangeRecord,
+    gate: &str,
+    parts: ApprovalRecordParts,
+    actor: String,
+    digest: String,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<(), String> {
+    let ApprovalRecordParts {
+        mut ledger,
+        approved_scope,
+        approved_delta_digests,
+        approved_delta_bases,
+    } = parts;
     ledger.approvals.push(ApprovalRecord {
         gate: gate.into(),
-        actor: resolve_actor(root, actor)?,
+        actor,
         timestamp: now(),
         digest,
         note,
@@ -692,6 +742,8 @@ fn append_portable_definition_approval_v501(
     append_portable_definition_approval_v501_with_relay(root, record, actor, note, None)
 }
 
+/// Both halves of the portable approval pair in one call, for the tests.
+#[cfg(test)]
 fn append_portable_definition_approval_v501_with_relay(
     root: &Path,
     record: &ChangeRecord,
@@ -699,6 +751,26 @@ fn append_portable_definition_approval_v501_with_relay(
     note: Option<String>,
     relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
+    let parts = portable_definition_approval_parts(root, record)?;
+    let actor = resolve_actor(root, actor)?;
+    write_portable_definition_approval(root, record, parts, actor, note, relayed_by)
+}
+
+/// What the portable 5.0.1 approval pair holds besides its actor. Reading these can refuse;
+/// nothing is written until [`write_portable_definition_approval`] (REQ-change-163).
+struct PortableApprovalParts {
+    current_digest: String,
+    legacy_digest: String,
+    correction_prefix_digest: String,
+    approved_delta_digests: Option<BTreeMap<String, String>>,
+    approved_delta_bases: Option<BTreeMap<String, String>>,
+}
+
+/// The read-only half of the portable approval, in the order it always ran.
+fn portable_definition_approval_parts(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<PortableApprovalParts, String> {
     let (current_digest, legacy_digest, correction_prefix_digest) =
         portable_definition_digest_pair_v501(root, record)?;
     // A portable approval is still a DEFINITION approval, and a definition approval records the
@@ -724,7 +796,31 @@ fn append_portable_definition_approval_v501_with_relay(
         record,
         &load_approvals(root, record)?,
     )?);
-    let actor = resolve_actor(root, actor)?;
+    Ok(PortableApprovalParts {
+        current_digest,
+        legacy_digest,
+        correction_prefix_digest,
+        approved_delta_digests,
+        approved_delta_bases,
+    })
+}
+
+/// The writing half of the portable approval: append the pair and save the ledger.
+fn write_portable_definition_approval(
+    root: &Path,
+    record: &ChangeRecord,
+    parts: PortableApprovalParts,
+    actor: String,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<(), String> {
+    let PortableApprovalParts {
+        current_digest,
+        legacy_digest,
+        correction_prefix_digest,
+        approved_delta_digests,
+        approved_delta_bases,
+    } = parts;
     let timestamp = now();
     let path = change_dir(root, &record.id).join("approvals.json");
     let content = fs::read_to_string(&path)

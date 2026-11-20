@@ -1,6 +1,6 @@
 ---
 id: prepare-specsync-6-4-1-package-metadata-and-release-handoff
-state: approved
+state: implementing
 type: operations
 base_commit: c14bdf690b33e2eda98de0fb1103298319b87bd9
 ---

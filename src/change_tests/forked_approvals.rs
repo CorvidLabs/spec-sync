@@ -62,3 +62,38 @@ fn approvals_that_only_append_are_not_a_fork() {
     let record = load_change(root, &record.id).unwrap();
     ensure_definition_approval_valid(root, &record).expect("an appended approval is no fork");
 }
+
+/// #532, approved choice 2: an archived change is not judged again. Clone A's approval is
+/// finalized and archived on `main`; clone B's, made on a branch from before it, is merged in
+/// afterwards with `main`'s tree kept. History then holds the fork, and the archive still reads.
+#[test]
+fn an_archived_change_whose_history_holds_a_fork_is_not_judged_again() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "draft the change"]);
+    quiet_git(root, &["checkout", "-q", "-b", "clone-b"]);
+    approve_definition(root, &record.id, Some("clone-b".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "clone B approves"]);
+    quiet_git(root, &["checkout", "-q", "main"]);
+    approve_definition(root, &record.id, Some("clone-a".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "clone A approves and implements"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "verify"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    finalize_change(root, &record.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive"]);
+    quiet_git(root, &["merge", "-q", "-s", "ours", "clone-b", "-m", "merge clone B"]);
+    let archived = load_change(root, &record.id).unwrap();
+    assert_eq!(archived.state, ChangeState::Archived);
+    ensure_definition_approval_valid(root, &archived)
+        .expect("an archived change is not judged again");
+}

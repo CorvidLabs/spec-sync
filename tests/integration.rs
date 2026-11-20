@@ -134,3 +134,6 @@ mod committed_approvals;
 
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+
+#[path = "integration/forked_approvals.rs"]
+mod forked_approvals;

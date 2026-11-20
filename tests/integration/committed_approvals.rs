@@ -207,3 +207,33 @@ fn finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed() {
     );
     assert_eq!(code, 0, "restored, it has no blocker: {report}");
 }
+
+/// Codex's second round and corvid-agent on #1120: with verification stale too, the ledger
+/// refusal comes first and is ship's next step. `change check --commit` would commit the edited
+/// ledger, so it is not what ship-status or ship prints; the restore REQ-change-166 names is.
+#[test]
+fn with_verification_stale_too_ship_names_the_ledger_restore_not_check_commit() {
+    let (_temp, root) = reviewed_project();
+    fs::write(root.join("README.md"), "hello, edited after review\n").unwrap();
+    let path = approvals(&root);
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(&path, text.replace("Scope owner", "Mallory")).unwrap();
+    let restore = format!("git checkout HEAD -- .specsync/changes/{ID}/approvals.json");
+
+    let (report, code) = ship_status(&root);
+    assert_eq!(code, 1, "{report}");
+    let first = report["blockers"][0].as_str().unwrap_or_default();
+    assert!(first.contains("approvals.json") && first.contains(&restore), "{report}");
+    let next = report["ship_next"].as_str().unwrap_or_default();
+    assert!(next.contains(&restore) && !next.contains("change check"), "{report}");
+
+    for args in [vec!["change", "ship", ID, "--dry-run"], vec!["change", "ship", ID]] {
+        let output = run(&root, &args);
+        assert!(!output.status.success(), "{args:?}: {}", printed(&output));
+        assert!(
+            printed(&output).contains(&restore) && !printed(&output).contains("specsync change check"),
+            "{args:?} names the restore, never check --commit:\n{}",
+            printed(&output)
+        );
+    }
+}

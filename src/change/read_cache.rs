@@ -169,7 +169,7 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
 }
 
 /// What one process decided for each partial clone it read (REQ-change-172): the download is
-/// asked once, and a failed one is the same refusal for every later read.
+/// asked once, and a failed one is the refusal every later read that fails gives.
 static PARTIAL_CLONE_DOWNLOADS: std::sync::Mutex<BTreeMap<PathBuf, Result<(), String>>> =
     std::sync::Mutex::new(BTreeMap::new());
 
@@ -181,15 +181,24 @@ const PARTIAL_CLONE_FETCH_SECONDS: u64 = 60;
 /// `HEAD` and the default branch) is downloaded first, in one fetch from the repository's
 /// promisor remote run with the user's own Git, never prompting. A full clone asks one
 /// configuration question and nothing more. When the download fails, the refusal names one
-/// `git fetch` that downloads those objects.
-fn ensure_partial_clone_objects(root: &Path) -> Result<(), String> {
+/// `git fetch` that downloads those objects, given by a read that then fails
+/// (`partial_clone_download_refusal`); a read that needs none of them still succeeds.
+fn ensure_partial_clone_objects(root: &Path) {
     let mut downloads = PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
-    if let Some(result) = downloads.get(root) {
-        return result.clone();
+    if downloads.contains_key(root) {
+        return;
     }
     let result = download_partial_clone_objects(root);
-    downloads.insert(root.to_path_buf(), result.clone());
-    result
+    downloads.insert(root.to_path_buf(), result);
+}
+
+/// The refusal a failed partial-clone download gave this process, if one did.
+fn partial_clone_download_refusal(root: &Path) -> Option<String> {
+    PARTIAL_CLONE_DOWNLOADS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .get(root)
+        .and_then(|result| result.clone().err())
 }
 
 fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
@@ -307,8 +316,10 @@ fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(
     let reason = stderr
         .lines()
         .map(str::trim)
-        .rfind(|line| !line.is_empty())
+        .find_map(|line| line.strip_prefix("fatal: "))
+        .or_else(|| stderr.lines().map(str::trim).rfind(|line| !line.is_empty()))
         .unwrap_or("Git gave no reason")
+        .trim_end_matches('.')
         .to_string();
     Err(reason)
 }

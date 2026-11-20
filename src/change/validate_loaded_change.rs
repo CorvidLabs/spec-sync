@@ -3309,9 +3309,8 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         return Ok(());
     }
 
-    // In a partial clone, the history this check reads is downloaded first, and a failed download
-    // is the refusal that names the fetch (REQ-change-172).
-    ensure_partial_clone_objects(root)?;
+    // In a partial clone, the history this check reads is downloaded first (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let head = git_output(root, &["rev-parse", "--verify", "HEAD"]);
     let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
     let Some(head) = head else {
@@ -3331,7 +3330,12 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         baseline.cutoff_commit.as_deref(),
         &current_bytes,
     )
-    .map_err(|error| shallow_or(root, baseline.cutoff_commit.as_deref(), false, error))?;
+    .map_err(|error| {
+        // A history that could not be read because a download failed is that refusal, which
+        // names the fetch (REQ-change-172); a shallow clone names its own (REQ-change-173).
+        partial_clone_download_refusal(root)
+            .unwrap_or_else(|| shallow_or(root, baseline.cutoff_commit.as_deref(), false, error))
+    })?;
     if record.workflow_version != 1 {
         return Ok(());
     }

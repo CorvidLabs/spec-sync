@@ -33,6 +33,10 @@ CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05
 
 CHANGE-14.c was drafted by the agent after a fixture showed a task reopened after a passing check being reviewed and finalized (#892). Leif approved it in the Herdr orc tab on 2026-11-05 at 20:24 MST ("Widen S6"), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
+CHANGE-15, CHANGE-15.a, CHANGE-15.b and CHANGE-15.c were drafted by an agent for issue #1091, whose title is Leif's ask: "A dry run of change approve: report every refusal without writing anything". Leif approved them in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 05:06Z: "OK, with (a) fixed". CHANGE-15, CHANGE-15.b and CHANGE-15.c are the agent's wording as drafted. CHANGE-15.a is the wording his planning session put to him as that fix, which he chose with those words; he did not write it. CHANGE-15.b follows his choice of depth on the issue on 2026-11-18: "First problem from each check". Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
+
+CHANGE-15.d was drafted by the agent for PR #1100 (#1091), after Leif chose on 2026-11-19 at about 14:14Z to add an optional `fix` field to the dry run, filled by the code that writes the command into each message. He approved it with the wording of that field, shown to him as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:32Z: "all as recommended, builder runs the send-back". It is the agent's wording, which he chose with those words; he did not write it. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
+
 CHANGE-16, CHANGE-16.a, CHANGE-16.b and CHANGE-16.c were drafted by an agent for issue #428, from Leif's choice on 2026-11-13 at about 04:04Z, "Every committed version": finalize, ship and archive refuse a change whose `approvals.json` is uncommitted or differs from `HEAD`, or where any committed version fails to extend the one before it. Leif approved the definition that carries them, with these four sentences marked as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:17Z: "Approve as written". They are the agent's wording, which he chose with those words; he did not write them. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
 
 ## Criteria
@@ -87,6 +91,11 @@ CHANGE-16, CHANGE-16.a, CHANGE-16.b and CHANGE-16.c were drafted by an agent for
   - **CHANGE-14.a**  The refusal names each open task and the command to run once it is done.
   - **CHANGE-14.b**  The change's status names that same way forward instead of telling me to run the check again.
   - **CHANGE-14.c**  A task reopened after a passing check stops the change from being reviewed or finalized until it is done again.
+- **CHANGE-15**  Before I ask for an approval, I can find out whether `change approve` would accept the change, and nothing is written when I ask.
+  - **CHANGE-15.a**  It never disagrees with the real approval, because it runs the approval's own checks; when an interrupted write is waiting, it says so instead of guessing.
+  - **CHANGE-15.b**  One run tells me the first problem from each check, and which checks it could not run yet.
+  - **CHANGE-15.c**  Another tool can read the answer, one entry per refusal.
+  - **CHANGE-15.d**  When a refusal names a command that fixes it, another tool gets that command on its own, and is told when it still has a blank to fill in.
 - **CHANGE-16**  A change is archived only with approvals that Git history holds.
   - **CHANGE-16.a**  An approval edited after its commit, or never committed, stops the archive, and I am told how to put it back.
   - **CHANGE-16.b**  A commit that rewrites or drops an earlier approval, reopening or send-back stops the archive, and I am told which commit did it.

@@ -698,10 +698,13 @@ fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
     )
 }
 
-fn recover_pending_transaction(root: &Path) -> Result<(), String> {
+/// The entries of the pending transaction journal, read and checked the way recovery reads it:
+/// `None` with no journal, the entries of one that reads, and recovery's own refusal for one that
+/// does not. It writes nothing, so `change approve --dry-run` asks it too (REQ-change-163).
+fn read_pending_transaction(root: &Path) -> Result<Option<Vec<TransactionEntry>>, String> {
     let journal_path = root.join(TRANSACTION_PATH);
     if !journal_path.exists() {
-        return Ok(());
+        return Ok(None);
     }
     let content = fs::read_to_string(&journal_path)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
@@ -722,10 +725,25 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
             journal.entries
         }
     };
+    Ok(Some(entries))
+}
+
+/// Where one journal entry is restored, or recovery's refusal of a path outside the project.
+fn pending_transaction_entry_path(root: &Path, entry: &TransactionEntry) -> Result<PathBuf, String> {
+    safe_project_path(root, &entry.path).map_err(|error| {
+        invalid_journal_error(
+            &root.join(TRANSACTION_PATH),
+            &format!("entry `{}`: {error}", entry.path),
+        )
+    })
+}
+
+fn recover_pending_transaction(root: &Path) -> Result<(), String> {
+    let Some(entries) = read_pending_transaction(root)? else {
+        return Ok(());
+    };
     for entry in entries {
-        let path = safe_project_path(root, &entry.path).map_err(|error| {
-            invalid_journal_error(&journal_path, &format!("entry `{}`: {error}", entry.path))
-        })?;
+        let path = pending_transaction_entry_path(root, &entry)?;
         if let Some(original) = entry.original {
             atomic_write_durable(&path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
@@ -735,7 +753,7 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
             remove_empty_transaction_directories(root, path.parent());
         }
     }
-    remove_file_durable(&journal_path)
+    remove_file_durable(&root.join(TRANSACTION_PATH))
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 
@@ -3304,93 +3322,6 @@ pub fn approve_definition_portable_v501(
     approve_definition_with_relay(root, id, actor, note, true, None)
 }
 
-/// Record a definition approval, or the portable 5.0.1 pair, carrying an optional relayed
-/// decision (#633). The relay must name the approval's explicit actor as the one who decided,
-/// and is refused before anything is written otherwise.
-pub fn approve_definition_with_relay(
-    root: &Path,
-    id: &str,
-    actor: Option<String>,
-    note: Option<String>,
-    portable_v501: bool,
-    relayed_by: Option<RelayedDecision>,
-) -> Result<ChangeRecord, String> {
-    // The recorded actor is trimmed (#426), so the relay's decider is trimmed the same way:
-    // otherwise `actor` and `relayed_by.decided_by` differ by padding and every later read of the
-    // ledger refuses the mismatch (#1026 review).
-    let relayed_by = relayed_by.map(|mut relay| {
-        relay.decided_by = relay.decided_by.trim().to_string();
-        relay
-    });
-    if relayed_by.is_some() {
-        let Some(decider) = actor.as_deref() else {
-            return Err(
-                "a relayed decision names who decided with --actor <who decided>; without it the \
-                 actor comes from Git or $USER, which names the recording agent"
-                    .into(),
-            );
-        };
-        ensure_relay_names_the_decider(relayed_by.as_ref(), decider.trim(), "--actor")?;
-    }
-    let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
-    ensure_no_sequence_collision(root, &record)?;
-    // Accepted records may re-approve the definition when the artifact digest drifted
-    // (reopen recovery). Refuse no-op re-approvals that would only rewrite an already-valid
-    // definition approval while the change is accepted.
-    let allow_accepted_definition_refresh = record.state == ChangeState::Accepted
-        && ensure_definition_approval_valid(root, &record).is_err();
-    if allow_accepted_definition_refresh {
-        // Fall through after the dedicated accepted check.
-    } else {
-        require_state(
-            &record,
-            &[
-                ChangeState::Draft,
-                ChangeState::Approved,
-                ChangeState::Implementing,
-                ChangeState::Verifying,
-            ],
-            "approve the definition",
-        )?;
-    }
-    list_changes_checked(root)?;
-    bind_legacy_archive_baseline_authority(root, &mut record)?;
-    let prior_state = record.state;
-    validate_definition(root, &record)?;
-    validate_delta_files(root, &record)?;
-    refuse_change_log_delta_items(root, &record)?;
-    validate_declared_path_ownership(root, &record)?;
-    ensure_change_clear_of_verification_ignored(root, &record)?;
-    // A workflow-v2 change is raised to the relay-gated version, and `state.json` written,
-    // before the relay is, so an interrupted approve never leaves a relay that SpecSync 6.2.0
-    // could drop (REQ-change-158). A workflow-v1 change keeps its version and says so below.
-    let relayed_on_workflow_v1 = relayed_by.is_some() && record.workflow_version < 2;
-    if relayed_by.is_some() && raise_for_relayed_decision(&mut record) {
-        save_change(root, &record)?;
-    }
-    if portable_v501 {
-        append_portable_definition_approval_v501_with_relay(root, &record, actor, note, relayed_by)?;
-    } else {
-        let digest = definition_digest(root, &record)?;
-        append_approval_with_relay(root, &record, "definition", actor, digest, note, relayed_by)?;
-    }
-    record.state = match prior_state {
-        ChangeState::Draft | ChangeState::Approved => ChangeState::Approved,
-        ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
-        ChangeState::Implementing | ChangeState::Verifying => ChangeState::Implementing,
-        ChangeState::Accepted | ChangeState::Archived => prior_state,
-        ChangeState::Retired => return Err("retirement is immutable nonacceptance".into()),
-    };
-    record.updated_at = now();
-    save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
-    if relayed_on_workflow_v1 {
-        eprintln!("{}", ungated_relay_note(&record.id));
-    }
-    Ok(record)
-}
-
 fn bind_legacy_archive_baseline_authority(
     root: &Path,
     record: &mut ChangeRecord,
@@ -5273,7 +5204,13 @@ fn acceptance_owner_spec_evidence(
 ///
 /// Every offending path is reported together: discovering them one per
 /// verification pass is what made the original failure expensive.
-fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+///
+/// For a draft, the refusal also carries the `change answer … affected_specs` command its message
+/// names to declare the owning modules, for the approval dry run's `fix` (REQ-cmd-change-040).
+fn validate_declared_path_ownership_with_fix(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), RefusalWithFix> {
     if record.affected_paths.is_empty() {
         return Ok(());
     }
@@ -5327,9 +5264,16 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
         unowned.join(", "),
         hints.join("\n")
     );
+    let mut fix = None;
     if record.state == ChangeState::Draft {
-        match declare_owners_answer(root, record, &unowned, &index) {
-            Some(answer) => message.push_str(&format!("\nOn this draft, declare them with {answer}.")),
+        match declare_owners_command(root, record, &unowned, &index) {
+            Some(command) => {
+                message.push_str(&format!(
+                    "\nOn this draft, declare them with {}.",
+                    declare_owners_guidance(record, &command)
+                ));
+                fix = Some(command);
+            }
             None => {
                 if let Some(missing) = declared_modules_without_spec(root, record) {
                     message.push_str(&format!("\n{missing}."));
@@ -5337,7 +5281,7 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
             }
         }
     }
-    Err(message)
+    Err(RefusalWithFix { message, fix })
 }
 
 /// The sentence naming every declared module with no spec at its canonical path, which keeps the
@@ -5417,6 +5361,32 @@ fn declare_owners_answer(
     paths: &[&str],
     index: &SpecListingIndex,
 ) -> Option<String> {
+    declare_owners_command(root, record, paths, index)
+        .map(|command| declare_owners_guidance(record, &command))
+}
+
+/// The guidance `declare_owners_answer` prints for `command`: the command between backticks, and
+/// the constraints renewal when the record carries a constraints answer.
+fn declare_owners_guidance(record: &ChangeRecord, command: &str) -> String {
+    let mut guidance = format!("`{command}`");
+    if record.answers.contains_key("constraints") {
+        guidance.push_str(&format!(
+            ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
+            shell_quote(&record.id)
+        ));
+    }
+    guidance
+}
+
+/// The bare `specsync change answer <id> affected_specs <modules>` command of
+/// `declare_owners_answer`, or `None` when it would print none: the approval dry run's `fix`
+/// for an ownership refusal (REQ-cmd-change-040).
+fn declare_owners_command(
+    root: &Path,
+    record: &ChangeRecord,
+    paths: &[&str],
+    index: &SpecListingIndex,
+) -> Option<String> {
     if index.truncated {
         return None;
     }
@@ -5452,19 +5422,11 @@ fn declare_owners_answer(
     {
         return None;
     }
-    let mut guidance = String::new();
-    guidance.push_str(&format!(
-        "`specsync change answer {} affected_specs {}`",
+    Some(format!(
+        "specsync change answer {} affected_specs {}",
         shell_quote(&record.id),
         shell_quote(&modules.join(","))
-    ));
-    if record.answers.contains_key("constraints") {
-        guidance.push_str(&format!(
-            ", then renew the constraints answer with `specsync change answer {} constraints <answer>` — answering affected_specs clears it",
-            shell_quote(&record.id)
-        ));
-    }
-    Some(guidance)
+    ))
 }
 
 /// The ship-preflight blocker for production source in the change's delivery that no declared

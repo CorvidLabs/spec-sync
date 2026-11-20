@@ -24,6 +24,8 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [SpecSync 6.4.0 release preparation on main](journal/2026-11-20-specsync-6-4-0-release-preparation-on-main.md) (2026-11-20, shipped)
+- [specsync change approve \<id\> --dry-run runs the approval's own checks](journal/2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md) (2026-11-19, shipped)
 - [Text change status names a sequence-ledger freeze before the…](journal/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md) (2026-11-19, shipped)
 - [ship-status reports an archived change's review as done by finalize…](journal/2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md) (2026-11-19, shipped)
 - [change ship-status exits 1 when it reports a blocker](journal/2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md) (2026-11-19, shipped)
@@ -183,7 +185,7 @@ Each module's lessons stay in its lesson source:
 - agents: [specs/agents/agents.3md](../specs/agents/agents.3md), 7 lessons
 - ai: [specs/ai/ai.3md](../specs/ai/ai.3md), 3 lessons
 - archive: [specs/archive/archive.3md](../specs/archive/archive.3md), 3 lessons
-- change: [specs/change/change.3md](../specs/change/change.3md), 54 lessons
+- change: [specs/change/change.3md](../specs/change/change.3md), 55 lessons
 - changelog: [specs/changelog/changelog.3md](../specs/changelog/changelog.3md), 3 lessons
 - cli: [specs/cli/cli.3md](../specs/cli/cli.3md), 8 lessons
 - cli_args: [specs/cli_args/cli_args.3md](../specs/cli_args/cli_args.3md), 7 lessons
@@ -249,9 +251,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [prepare-specsync-6-4-0-package-metadata-and-release-handoff](../.specsync/archive/changes/2026-11-20-prepare-specsync-6-4-0-package-metadata-and-release-handoff/lesson-bundle.md), Prepare SpecSync 6.4.0 package metadata and release handoff
+- [change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing](../.specsync/archive/changes/2026-11-19-change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing/lesson-bundle.md), Change approve has a dry run that reports every check's first refusal and writes nothing
 - [text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair](../.specsync/archive/changes/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair/lesson-bundle.md), Text change status names a sequence-ledger freeze before the verification_ignored_paths repair
-- [ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only](../.specsync/archive/changes/2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only/lesson-bundle.md), Ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only
-- [change-ship-status-exits-1-when-it-reports-a-blocker](../.specsync/archive/changes/2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker/lesson-bundle.md), Change ship-status exits 1 when it reports a blocker
 
 ## Snapshots and briefs
 

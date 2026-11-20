@@ -106,7 +106,8 @@ fn a_single_choice_question_names_its_choice_literally() {
         choices: choices.iter().map(|choice| choice.to_string()).collect(),
         recommended: choices.first().map(|choice| choice.to_string()),
     };
-    let single = interview_incomplete_refusal("add-auth", &[question("constraints", &["none"])]);
+    let single =
+        interview_incomplete_refusal("add-auth", &[question("constraints", &["none"])]).message;
     assert!(
         single.contains("run `specsync change answer add-auth constraints none`"),
         "a single choice is the answer itself, so the command runs as printed: {single}"
@@ -126,13 +127,14 @@ fn a_single_choice_question_names_its_choice_literally() {
             question("public_contract", &["yes", "no"]),
             question("architecture_risk", &["yes", "no"]),
         ],
-    );
+    )
+    .message;
     assert!(
         pair.contains("(still to answer: `public_contract`, `architecture_risk`)")
             && pair.ends_with("run `specsync change answer add-auth public_contract <yes|no>`"),
         "{pair}"
     );
-    let free = interview_incomplete_refusal("add-auth", &[question("summary", &[])]);
+    let free = interview_incomplete_refusal("add-auth", &[question("summary", &[])]).message;
     assert!(
         free.ends_with("run `specsync change answer add-auth summary \"<answer>\"`"),
         "a question without choices takes free text: {free}"
@@ -144,7 +146,7 @@ fn a_single_choice_question_names_its_choice_literally() {
         ("affected_specs", "\"<module>\""),
         ("affected_paths", "\"<path>\""),
     ] {
-        let named = interview_incomplete_refusal("add-auth", &[question(scope, &[])]);
+        let named = interview_incomplete_refusal("add-auth", &[question(scope, &[])]).message;
         assert!(
             named.ends_with(&format!(
                 "run `specsync change answer add-auth {scope} {placeholder}`"

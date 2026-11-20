@@ -514,6 +514,48 @@ pub fn read_project_bytes(root: &Path, path: &Path, max_bytes: u64) -> io::Resul
 
 /// [`read_project_file`] with the contract of `std::fs::read_to_string`: a missing file is a
 /// not-found error and bytes that are not UTF-8 are invalid data (REQ-util-003).
+/// Read a file the person names on the command line, such as a `--manifest` or a `--template`
+/// file (REQ-util-011). Links are followed, since the person chose the path, but the file is
+/// opened without blocking, its type is checked on the open handle, and at most one byte past
+/// `max_bytes` is read, so a FIFO, a device, a directory or a larger file is refused with the
+/// path and the reason.
+pub fn read_typed_file(path: &Path, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let mut options = std::fs::OpenOptions::new();
+    // not a project file read: a path the person names on the command line, opened without blocking and bounded below
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    // not a project file read: a path the person names on the command line, opened without blocking and bounded below
+    let file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} is not a regular file", path.display()),
+        ));
+    }
+    let over_bound = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{} is larger than {max_bytes} bytes", path.display()),
+        )
+    };
+    if metadata.len() > max_bytes {
+        return Err(over_bound());
+    }
+    let mut contents = Vec::new();
+    // not a project file read: the handle opened just above, bounded here
+    file.take(max_bytes.saturating_add(1))
+        .read_to_end(&mut contents)?;
+    if contents.len() as u64 > max_bytes {
+        return Err(over_bound());
+    }
+    Ok(contents)
+}
+
 pub fn read_project_string(root: &Path, path: &Path, max_bytes: u64) -> io::Result<String> {
     // The same error text as `std::fs::read_to_string`, so a caller's message does not change.
     String::from_utf8(read_project_bytes(root, path, max_bytes)?).map_err(|_| {

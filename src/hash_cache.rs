@@ -140,6 +140,15 @@ impl HashCache {
     pub fn save(&self, root: &Path) -> io::Result<()> {
         let json = serde_json::to_string_pretty(self)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        // A cache every later load would refuse is never written: the one already there is kept
+        // (REQ-hash-cache-007).
+        if json.len() as u64 > MAX_CACHE_BYTES {
+            return Err(io::Error::other(format!(
+                "the hash cache would be {} bytes, larger than the {MAX_CACHE_BYTES}-byte bound \
+                 every later load refuses, so it is not written",
+                json.len()
+            )));
+        }
         let state = LocalState::open(root, true)?.ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, "the local state folder is missing")
         })?;

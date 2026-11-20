@@ -134,14 +134,28 @@ fn location(root: &Path) -> io::Result<Location> {
             base.display()
         )));
     }
-    Ok(Location {
-        base,
-        names: vec![
-            STATE_FOLDER.to_string(),
-            PROJECTS_FOLDER.to_string(),
-            key("project", &canonical),
-        ],
-    })
+    let names = vec![
+        STATE_FOLDER.to_string(),
+        PROJECTS_FOLDER.to_string(),
+        key("project", &canonical),
+    ];
+    // The project's own folder is compared too, not only the base: a project at
+    // `<cache>/specsync` would otherwise hold its own state (REQ-util-006).
+    let folder = names
+        .iter()
+        .fold(base.clone(), |path, name| path.join(name));
+    let folder_on_disk = resolved(&folder);
+    if folder_on_disk.starts_with(&canonical)
+        || folder_on_disk.starts_with(super::confinement_top(&canonical))
+    {
+        return Err(refused(format!(
+            "SpecSync's own folder for this project, {}, would lie inside the project, where a \
+             repository can put a file, so SpecSync keeps none of its own state there; set \
+             XDG_CACHE_HOME to a folder outside the project",
+            folder.display()
+        )));
+    }
+    Ok(Location { base, names })
 }
 
 /// The folder where SpecSync keeps what it knows about the Git repository whose canonical
@@ -182,6 +196,7 @@ fn checked_name(name: &str) -> io::Result<&str> {
 /// `name` beneath `dir`, a folder SpecSync makes: made when missing and `create`, refused when it
 /// is a link or not a folder, then opened without following a link.
 fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Option<Dir>> {
+    let mut created = false;
     match dir.symlink_metadata(name) {
         Ok(metadata) if metadata.is_dir() => {}
         Ok(metadata) if metadata.file_type().is_symlink() => {
@@ -196,7 +211,7 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
                 return Ok(None);
             }
             match dir.create_dir(name) {
-                Ok(()) => {}
+                Ok(()) => created = true,
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(error),
             }
@@ -205,9 +220,56 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
     }
     // The look above names what is refused; this open enforces it, on a link that appeared since
     // as well.
-    cap_primitives::fs::open_dir_nofollow(&dir.into_std_file(), Path::new(name))
-        .map(Dir::from_std_file)
-        .map(Some)
+    let folder = cap_primitives::fs::open_dir_nofollow(&dir.into_std_file(), Path::new(name))?;
+    if created {
+        // Only the person can write a folder SpecSync makes for itself, whatever the umask.
+        private_folder(&folder)?;
+    }
+    refuse_shared_folder(&folder, shown)?;
+    Ok(Some(Dir::from_std_file(folder)))
+}
+
+#[cfg(unix)]
+fn private_folder(folder: &std::fs::File) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    folder.set_permissions(std::fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(not(unix))]
+fn private_folder(_: &std::fs::File) -> io::Result<()> {
+    Ok(())
+}
+
+/// On Unix, a folder of SpecSync's own state that another user owns, or that its group or others
+/// can write, is refused, as `ssh` refuses such a folder: whoever can write it could put a cache
+/// or a journal there (REQ-util-006).
+#[cfg(unix)]
+fn refuse_shared_folder(folder: &std::fs::File, shown: &Path) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = folder.metadata()?;
+    // SAFETY: `geteuid` has no preconditions and cannot fail.
+    let user = unsafe { libc::geteuid() };
+    if metadata.uid() != user {
+        return Err(refused(format!(
+            "{} is owned by another user, who could put a file there, so SpecSync keeps none of \
+             its own state there",
+            shown.display()
+        )));
+    }
+    if metadata.mode() & 0o022 != 0 {
+        return Err(refused(format!(
+            "{} is writable by its group or by others, who could put a file there, so SpecSync \
+             keeps none of its own state there; run `chmod go-w {}` if only you use it",
+            shown.display(),
+            shown.display()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn refuse_shared_folder(_: &std::fs::File, _: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 impl LocalState {

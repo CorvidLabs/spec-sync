@@ -408,9 +408,12 @@ pub fn filter_by_status(
         .filter(|path| {
             // Read only the frontmatter section (up to closing ---) to avoid
             // re-reading the full file body that callers will parse later.
-            let status = read_frontmatter_section(root, path)
-                .ok()
-                .and_then(|content| parser::parse_frontmatter(&content.replace("\r\n", "\n")))
+            // A spec whose read is refused is kept, so validation reports the refusal with the
+            // path and the reason instead of the filter dropping it (REQ-commands-014).
+            let Ok(content) = read_frontmatter_section(root, path) else {
+                return true;
+            };
+            let status = parser::parse_frontmatter(&content.replace("\r\n", "\n"))
                 .and_then(|parsed| parsed.frontmatter.parsed_status());
 
             // If we can't parse status: include when excluding (let validation catch the error),

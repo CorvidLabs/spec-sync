@@ -150,21 +150,6 @@ fn durable_journal(entries: &[(&str, Option<&str>)]) -> String {
     )
 }
 
-/// Where SpecSync keeps what it knows about the Git repository whose common directory is
-/// `common_dir`: `specsync/repositories/<key>` in the test cache folder (REQ-util-009).
-fn repository_state_folder(common_dir: &Path) -> PathBuf {
-    use sha2::{Digest, Sha256};
-    let canonical = common_dir.canonicalize().unwrap();
-    let mut hasher = Sha256::new();
-    hasher.update(b"repository\0");
-    hasher.update(canonical.as_os_str().as_encoded_bytes());
-    let key = format!("{:x}", hasher.finalize())[..16].to_string();
-    test_cache_home()
-        .join("specsync")
-        .join("repositories")
-        .join(key)
-}
-
 // ─── W1: listings of SpecSync's own record folders ──────────────────────
 
 /// W1. A committed `.specsync/archive/changes` that links out of the project is refused, naming

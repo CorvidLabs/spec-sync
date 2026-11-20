@@ -1,5 +1,6 @@
 use colored::Colorize;
 use std::collections::BTreeSet;
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -3763,13 +3764,20 @@ fn resolve_correct_owner_entries(
 }
 
 fn parse_owner_manifest(path: &Path) -> Result<Vec<(String, String)>, String> {
-    // not a project file read: a path the person names with --manifest, not a file the project chose
-    let content = fs::read_to_string(path).map_err(|error| {
-        format!(
-            "failed to read correct-owner manifest {}: {error}",
-            path.display()
-        )
-    })?;
+    // A path the person names: links are followed, but it is never waited on or read past the
+    // bound (REQ-cmd-change-041).
+    let content = crate::util::read_typed_file(path, crate::util::MAX_STATE_FILE_BYTES)
+        .and_then(|bytes| {
+            String::from_utf8(bytes).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "not valid UTF-8")
+            })
+        })
+        .map_err(|error| {
+            format!(
+                "failed to read correct-owner manifest {}: {error}",
+                path.display()
+            )
+        })?;
     let trimmed = content.trim();
     if trimmed.is_empty() {
         return Err("correct-owner manifest is empty".into());

@@ -3927,7 +3927,7 @@ fn name_failed_candidates(
         && summary
             .reason
             .as_deref()
-            .is_some_and(|reason| reason.contains("changed after acceptance"));
+            .is_some_and(|reason| reason.contains(CHANGED_AFTER_ACCEPTANCE));
     if !searched || roster.failed.is_empty() {
         return summary;
     }

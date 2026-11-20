@@ -131,7 +131,7 @@ fn an_accepted_change_is_judged_on_its_own_inputs_and_a_failed_candidate_is_name
         assert_eq!(summary.validity, TerminalEvidenceValidity::Stale, "{read}");
         let reason = summary.reason.unwrap_or_default();
         assert!(
-            reason.contains("changed after acceptance")
+            reason.contains(CHANGED_AFTER_ACCEPTANCE)
                 && reason.contains(&format!("candidate successor `{}` fails validation", broken.id))
                 && reason.contains("duplicates state at commit"),
             "{read}: the reason names the failed candidate and its failure: {reason}"

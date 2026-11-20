@@ -183,6 +183,11 @@ struct RejectedSuccessor {
     reason: String,
 }
 
+/// What every changed-input remediation reason says about its input. `name_failed_candidates`
+/// knows a successor search by these words, so the writers below and that reader share them
+/// (#1104).
+const CHANGED_AFTER_ACCEPTANCE: &str = "changed after acceptance";
+
 fn stale_input_remediation_reason(
     record: &ChangeRecord,
     path: &str,
@@ -191,7 +196,7 @@ fn stale_input_remediation_reason(
 ) -> String {
     if rejected_successors.is_empty() {
         return format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE} and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         );
     }
@@ -211,13 +216,13 @@ fn stale_input_remediation_reason(
         .collect::<Vec<_>>();
     if record.workflow_version < 2 && !current_successors.is_empty() {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE}; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
             current_successors.join(", "),
             record.id
         )
     } else {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE}; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         )
     }
@@ -229,7 +234,7 @@ fn stale_input_remediation_reason(
 /// wherever the configuration can grant it.
 fn exact_only_input_remediation_reason(record: &ChangeRecord, path: &str) -> String {
     let mut reason = format!(
-        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+        "exact-only delivery input `{path}` {CHANGED_AFTER_ACCEPTANCE} and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id
     );
     if ownership_is_configurable(path) {

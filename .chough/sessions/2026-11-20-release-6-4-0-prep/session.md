@@ -21,6 +21,7 @@ observations:
   - 2026-11-20-640-released-6-3-0-against-this-build
   - 2026-11-20-640-verify-lane-at-7ff79527
   - 2026-11-20-640-release-validators-at-6-4-0
+  - 2026-11-20-640-portable-fixture-rerun-at-140eedaf
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -53,6 +54,7 @@ SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASI
 - [Homebrew's released specsync 6.3.0 against main 10d9bb3f's release build (tree 884d3eba, which printed 6.3.0 before the bump) on one PR-shaped fixture: 6.3.0 check passes at every tip; 6.3.0 change audit and audit --strict exit 1 on the branch that adds a history fragment, at the checked and the archive tip, and pass on main after the merge; 6.3.0 change check --commit on a change the new build recorded commits a Change Log row and version 2, the new check then exits 1 naming the double record, and removing the row (then restoring version:) makes check pass, after which change check --commit and audit --strict pass; approve --dry-run --json prints id, dry_run, would_approve and thirteen checks. The upgrade notes and the corrected #1084 CHANGELOG sentence quote this run.](evidence/2026-11-20-640-released-6-3-0-against-this-build.md)
 - [At 7ff79527 (checked and committed), with this tree's own release build (specsync 6.4.0) first on PATH: fledge lanes run verify passed 10/10 steps in 11m31s through one-lane (unit 3100 passed, 2 ignored; integration 644; spec check 62/62 specs, 167/167 files; the release-script suites OK), the neutral git config as a prefix on the lane only (#1092). specsync change audit --strict against origin/main 10d9bb3f passes too.](evidence/2026-11-20-640-verify-lane-at-7ff79527.md)
 - [At 68b76f27 and its checked head 7ff79527, the three release validators pass at Cargo 6.4.0: validate-release-version.py prints 'Validated release version 6.4.0 across current distribution surfaces', validate-workflow-runtime-pins.py passes, and test-validate-release-candidate.py runs 67 tests OK (neutral git config as a prefix only, #1092). The action.yml default, PUBLISHED_ACTION_DEFAULT and the docs default row stay at published 6.3.0, as the validator requires.](evidence/2026-11-20-640-release-validators-at-6-4-0.md)
+- [One rerun of the fixture after its version restore stopped using BSD-only sed -i '' (it now writes through a temporary file, so GNU sed runs it too), with this branch's own release build (specsync 6.4.0, built at 68b76f27) against Homebrew's released 6.3.0: the same 26 commands and exit codes as the earlier run with main 10d9bb3f's build, which corvid-agent also matched on Linux. The corrected deltas.md sentence quotes this run.](evidence/2026-11-20-640-portable-fixture-rerun-at-140eedaf.md)
 
 ## Open threads
 

@@ -926,3 +926,25 @@ fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
 }
+
+/// Codex on #1108, second round (P1): a branch that adds a formerly canonical directory to
+/// `exclude_dirs` while deleting its requirements is still refused. A file that was canonical at
+/// the reference is judged by the exclusions at the reference, not by ones the branch added.
+#[test]
+fn a_directory_the_branch_newly_excludes_still_counts_at_the_reference() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    fs::write(root.join(".specsync/config.toml"), "exclude_dirs = [\"auth\"]\n").unwrap();
+    fs::remove_file(requirements_path(root)).unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "exclude auth and delete its requirements"]);
+
+    let error = ensure_no_lost_requirements(root, &record)
+        .expect_err("excluding the directory does not remove its requirements");
+
+    assert!(
+        error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}

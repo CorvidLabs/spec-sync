@@ -1,6 +1,6 @@
 ---
 id: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 2cc0897fc00eee7db2b07f5134ba05639af39018
 ---

@@ -2989,6 +2989,13 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
         ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     }
+    // Beside it, for the same reason: a finalization that stopped after acceptance and is retried
+    // while its workspace is still active asks again whether the branch lost a canonical
+    // requirement, since it can lose one in between (Codex on #1108; REQ-change-169). A first
+    // finalization asks it in `accept_change_with_gate`.
+    if record.state == ChangeState::Accepted && change_dir(root, &record.id).is_dir() {
+        ensure_no_lost_requirements(root, &record)?;
+    }
     if record.state == ChangeState::Verifying {
         // REQ-change-157: ship and finalize refuse a verification commit that
         // lacks the change's work, before acceptance writes anything.
@@ -4918,6 +4925,14 @@ fn check_project_with_command_output(
                 // (#1081, REQ-change-169).
                 report.errors.push(format!("{}: {error}", record.id));
             }
+        }
+        // An accepted change whose workspace is still active is an active change too: its
+        // finalization, when retried, refuses the same loss (Codex on #1108).
+        if record.state == ChangeState::Accepted
+            && change_dir(root, &record.id).is_dir()
+            && let Err(error) = ensure_no_lost_requirements(root, record)
+        {
+            report.errors.push(format!("{}: {error}", record.id));
         }
         if let Err(error) = ensure_no_delta_conflicts(root, record) {
             report.errors.push(format!("{}: {error}", record.id));

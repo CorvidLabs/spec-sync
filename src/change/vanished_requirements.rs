@@ -35,21 +35,139 @@ fn is_requirements_file(path: &str) -> bool {
     name == "requirements.md" || name.ends_with(".req.md")
 }
 
-/// The project-relative directories that hold requirements files: the specs directory and the
-/// directory of every registered spec.
-fn requirements_directories(root: &Path) -> Vec<String> {
-    let specs_dir = crate::config::load_config(root).specs_dir;
-    let mut directories = vec![specs_dir.trim_end_matches('/').to_string()];
-    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+/// The names in a NUL-separated Git listing (`-z`), which Git never quotes; a plain listing
+/// C-quotes a non-ASCII path under the default `core.quotePath` (Codex on #1108).
+fn nul_separated(listing: &str) -> impl Iterator<Item = &str> {
+    listing.split('\0').filter(|name| !name.is_empty())
+}
+
+/// Where canonical requirements files live ("under the specs directory or beside a registered
+/// spec"): `directories`, read to any depth, are the specs directory and the directory of every
+/// registered spec; `root_files` is set when a spec is registered at the project root, whose
+/// requirements are the root directory's own `requirements.md` and `<module>.req.md`, read
+/// without descending into the rest of the tree (Codex on #1108; ss-lead's guard).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct RequirementScope {
+    directories: Vec<String>,
+    root_files: bool,
+}
+
+impl RequirementScope {
+    fn add_directory(&mut self, directory: &str) {
+        let directory = directory.trim_end_matches('/');
+        if !self.directories.iter().any(|known| known == directory) {
+            self.directories.push(directory.to_string());
+        }
+    }
+
+    fn add_registry(&mut self, registry: &crate::types::RegistryEntry) {
         for (_, path) in &registry.specs {
-            if let Some((directory, _)) = path.rsplit_once('/')
-                && !directories.iter().any(|known| known == directory)
-            {
-                directories.push(directory.to_string());
+            match path.rsplit_once('/') {
+                Some((directory, _)) => self.add_directory(directory),
+                None => self.root_files = true,
             }
         }
     }
-    directories
+
+    /// The Git pathspecs naming the same files, relative to the project root.
+    fn pathspecs(&self) -> Vec<String> {
+        let mut pathspecs: Vec<String> = self
+            .directories
+            .iter()
+            .map(|directory| format!(":(literal){directory}"))
+            .collect();
+        if self.root_files {
+            pathspecs.push(":(literal)requirements.md".to_string());
+            pathspecs.push(":(glob)*.req.md".to_string());
+        }
+        pathspecs
+    }
+}
+
+/// The scope the working tree's configuration and registry give.
+fn requirement_scope(root: &Path) -> RequirementScope {
+    let mut scope = RequirementScope::default();
+    scope.add_directory(&crate::config::load_config(root).specs_dir);
+    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+        scope.add_registry(&registry);
+    }
+    scope
+}
+
+/// The registry files `load_local_registry` reads, in the order it tries them.
+const REGISTRY_PATH_CANDIDATES: [&str; 2] = [".specsync/registry.toml", "specsync-registry.toml"];
+
+/// Adds to `scope` what was canonical at `reference` ("in such a file at the reference commit";
+/// Codex on #1108): the specs directory its configuration named (the default one when it had no
+/// configuration file) and the specs its registry held, read through Git in the order the
+/// loaders read them on disk. A file that is not there adds nothing, and neither does one that
+/// does not parse, as on disk; `Err` when Git cannot read the tree or an object.
+fn add_reference_requirement_scope(
+    root: &Path,
+    reference: &str,
+    prefix: &str,
+    scope: &mut RequirementScope,
+) -> Result<(), String> {
+    let short = &reference[..reference.len().min(12)];
+    let candidates: Vec<String> = crate::config::CONFIG_PATH_CANDIDATES
+        .iter()
+        .chain(REGISTRY_PATH_CANDIDATES.iter())
+        .map(|path| format!(":(literal){path}"))
+        .collect();
+    let mut args = vec!["ls-tree", "-z", "--name-only", "--end-of-options", reference, "--"];
+    args.extend(candidates.iter().map(String::as_str));
+    let listed = git_output_allow_empty(root, &args)
+        .ok_or_else(|| format!("cannot read the tree of {short}"))?;
+    let present: BTreeSet<&str> = nul_separated(&listed).collect();
+    let read = |path: &str| {
+        let object = format!("{reference}:{prefix}{path}");
+        git_output_allow_empty(root, &["show", object.as_str()])
+            .ok_or_else(|| format!("cannot read {path} at {short}"))
+    };
+    match crate::config::CONFIG_PATH_CANDIDATES
+        .iter()
+        .find(|path| present.contains(**path))
+    {
+        Some(&path) => {
+            let content = read(path)?;
+            if let Ok(config) = crate::config::parse_config_content_checked_with_source_dirs(
+                Path::new(path),
+                &content,
+                root,
+                Some(Vec::new()),
+            ) {
+                scope.add_directory(&config.specs_dir);
+            }
+        }
+        None => scope.add_directory(&crate::types::SpecSyncConfig::default().specs_dir),
+    }
+    if let Some(&path) = REGISTRY_PATH_CANDIDATES
+        .iter()
+        .find(|path| present.contains(**path))
+    {
+        let content = read(path)?;
+        if let Some(registry) = reference_registry(path, &content)? {
+            scope.add_registry(&registry);
+        }
+    }
+    Ok(())
+}
+
+/// The registry `content`, read at a reference commit from `path`, parsed by the loader the
+/// working tree's registry goes through (`load_local_registry`), from a private copy at the same
+/// relative path; `None` when it is inert or does not parse, as on disk.
+fn reference_registry(
+    path: &str,
+    content: &str,
+) -> Result<Option<crate::types::RegistryEntry>, String> {
+    let unreadable = |error: std::io::Error| format!("cannot copy {path} to read it: {error}");
+    let copy = tempfile::tempdir().map_err(unreadable)?;
+    let file = copy.path().join(path);
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent).map_err(unreadable)?;
+    }
+    fs::write(&file, content).map_err(unreadable)?;
+    Ok(crate::registry::load_local_registry(copy.path()).ok().flatten())
 }
 
 /// How two requirement ids sort for a person: runs of digits compare as numbers, so
@@ -147,39 +265,49 @@ fn is_scanned_requirements_path(path: &str, excluded: &BTreeSet<String>) -> bool
     components.iter().all(|component| !excluded.contains(*component))
 }
 
-/// Every requirements file on disk under `directories`, project-relative, with its blocks. Symlinks
-/// are not followed, and no directory named in `excluded_requirement_directories` is entered.
+/// Every requirements file on disk in `scope`, project-relative, with its blocks. Its directories
+/// are read to any depth, as Git lists them (Codex on #1108); symlinks are not followed, and no
+/// directory named in `excluded_requirement_directories` is entered.
 fn working_tree_requirement_blocks(
     root: &Path,
-    directories: &[String],
+    scope: &RequirementScope,
 ) -> Vec<(String, Vec<(String, String)>)> {
-    fn walk(directory: &Path, depth: usize, excluded: &BTreeSet<String>, found: &mut Vec<PathBuf>) {
-        if depth > 16 {
-            return;
-        }
-        let Ok(entries) = fs::read_dir(directory) else {
-            return;
+    let excluded = excluded_requirement_directories(root);
+    let mut files = Vec::new();
+    let mut pending: Vec<PathBuf> = scope
+        .directories
+        .iter()
+        .map(|directory| root.join(directory))
+        .collect();
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
         };
         for entry in entries.flatten() {
             let Ok(kind) = entry.file_type() else {
                 continue;
             };
-            let path = entry.path();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
             if kind.is_dir() {
-                if !excluded.contains(entry.file_name().to_string_lossy().as_ref()) {
-                    walk(&path, depth + 1, excluded, found);
+                if !excluded.contains(name.as_ref()) {
+                    pending.push(entry.path());
                 }
-            } else if kind.is_file()
-                && is_requirements_file(&entry.file_name().to_string_lossy())
-            {
-                found.push(path);
+            } else if kind.is_file() && is_requirements_file(&name) {
+                files.push(entry.path());
             }
         }
     }
-    let excluded = excluded_requirement_directories(root);
-    let mut files = Vec::new();
-    for directory in directories {
-        walk(&root.join(directory), 0, &excluded, &mut files);
+    if scope.root_files
+        && let Ok(entries) = fs::read_dir(root)
+    {
+        for entry in entries.flatten() {
+            if entry.file_type().is_ok_and(|kind| kind.is_file())
+                && is_requirements_file(&entry.file_name().to_string_lossy())
+            {
+                files.push(entry.path());
+            }
+        }
     }
     files.sort();
     files.dedup();
@@ -196,51 +324,59 @@ fn working_tree_requirement_blocks(
         .collect()
 }
 
-/// The requirement ids approved `## REMOVED` items name, in the deltas of every change on the
-/// branch: each active change whose definition approval binds its delta, and each change archived
-/// on the branch after `reference`.
-fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTreeSet<String>, String> {
-    let mut removed = BTreeSet::new();
-    let mut collect = |delta: &str| {
-        if let Ok(items) = parse_delta(delta) {
-            for item in items {
-                if item.operation == DeltaOperation::Removed
-                    && item.target == DeltaTarget::Requirement
-                {
-                    removed.insert(item.key.clone());
-                }
+/// Adds to `removed` the requirement ids the approved `## REMOVED` items of `change` name: the
+/// items of each delta its valid definition approval binds. A change whose approval or delta
+/// cannot be read adds nothing.
+fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTreeSet<String>) {
+    let Ok(ledger) = load_approvals(root, change) else {
+        return;
+    };
+    let Ok(approval) = effective_definition_approval(root, change, &ledger) else {
+        return;
+    };
+    for module in &change.affected_specs {
+        let Ok(path) = delta_path_checked(root, change, module) else {
+            continue;
+        };
+        let Ok(delta) = read_bounded_change_text(&path, "semantic delta") else {
+            continue;
+        };
+        let approved = approval
+            .approved_delta_digests
+            .as_ref()
+            .is_none_or(|digests| digests.get(module) == Some(&delta_body_digest(module, &delta)));
+        if !approved {
+            continue;
+        }
+        for item in parse_delta(&delta).unwrap_or_default() {
+            if item.operation == DeltaOperation::Removed && item.target == DeltaTarget::Requirement {
+                removed.insert(item.key.clone());
             }
         }
-    };
+    }
+}
+
+/// The requirement ids approved `## REMOVED` items name, in the deltas of every change on the
+/// branch that may account for a loss: each active change past its draft, and each change the
+/// branch archived after `reference`, taken from its archived record. A retired change accounts
+/// for nothing, in the active roster or in the archive, and neither does a delta file under the
+/// archive path with no archived record around it (Codex on #1108; one mechanism for both).
+fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTreeSet<String>, String> {
+    let mut removed = BTreeSet::new();
     // A change that cannot be read accounts for no removal, and never turns this refusal into its
     // own error (ss-lead's review of #1081, #1104's pattern); so is every change when the changes
     // directory itself cannot be read. Either way the lost ids are still named.
     let readable = list_changes(root).map(|roster| roster.records).unwrap_or_default();
-    for change in readable {
-        if change.state == ChangeState::Archived || change.state == ChangeState::Draft {
-            continue;
-        }
-        let Ok(ledger) = load_approvals(root, &change) else {
-            continue;
-        };
-        let Ok(approval) = effective_definition_approval(root, &change, &ledger) else {
-            continue;
-        };
-        for module in &change.affected_specs {
-            let Ok(path) = delta_path_checked(root, &change, module) else {
-                continue;
-            };
-            let Ok(delta) = read_bounded_change_text(&path, "semantic delta") else {
-                continue;
-            };
-            let approved = approval
-                .approved_delta_digests
-                .as_ref()
-                .is_none_or(|digests| digests.get(module) == Some(&delta_body_digest(module, &delta)));
-            if approved {
-                collect(&delta);
-            }
-        }
+    for change in readable.iter().filter(|change| {
+        matches!(
+            change.state,
+            ChangeState::Approved
+                | ChangeState::Implementing
+                | ChangeState::Verifying
+                | ChangeState::Accepted
+        )
+    }) {
+        add_approved_removals(root, change, &mut removed);
     }
     let archive = format!(":(literal){ARCHIVE_PATH}");
     let added = git_output_allow_empty(
@@ -249,6 +385,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
             "diff",
             "--relative",
             "--name-only",
+            "-z",
             "--no-renames",
             "--diff-filter=A",
             reference,
@@ -257,10 +394,37 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         ],
     )
     .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
-    for path in added.lines().map(str::trim).filter(|line| line.contains("/deltas/")) {
-        if let Ok(delta) = fs::read_to_string(root.join(path)) {
-            collect(&delta);
+    for path in nul_separated(&added) {
+        // The archived record of a change: `<archive>/<package>/state.json`, one level down.
+        let Some(package) = path
+            .strip_prefix(ARCHIVE_PATH)
+            .and_then(|rest| rest.strip_prefix('/'))
+            .and_then(|rest| rest.strip_suffix("/state.json"))
+            .filter(|package| !package.is_empty() && !package.contains('/'))
+        else {
+            continue;
+        };
+        let directory = root.join(ARCHIVE_PATH).join(package);
+        let Ok(change) = fs::read(directory.join("state.json"))
+            .map_err(|error| error.to_string())
+            .and_then(|bytes| {
+                serde_json::from_slice::<ChangeRecord>(&bytes).map_err(|error| error.to_string())
+            })
+        else {
+            continue;
+        };
+        // Only an archived change, and only the package SpecSync resolves its id to, so that its
+        // approval and deltas are read from this record.
+        let resolved = find_change_dir(root, &change.id)
+            .ok()
+            .and_then(|found| fs::canonicalize(found).ok());
+        let Ok(here) = fs::canonicalize(&directory) else {
+            continue;
+        };
+        if change.state != ChangeState::Archived || resolved.as_ref() != Some(&here) {
+            continue;
         }
+        add_approved_removals(root, &change, &mut removed);
     }
     Ok(removed)
 }
@@ -316,15 +480,16 @@ fn lost_requirements_check(
         ));
     };
     let short = &reference[..reference.len().min(12)];
-    let directories = requirements_directories(root);
-    let pathspecs: Vec<String> = directories
-        .iter()
-        .map(|directory| format!(":(literal){directory}"))
-        .collect();
+    let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
+    // What is canonical now, and what was canonical at the reference (Codex on #1108).
+    let mut scope = requirement_scope(root);
+    add_reference_requirement_scope(root, &reference, &prefix, &mut scope)?;
+    let pathspecs = scope.pathspecs();
     let mut args = vec![
         "diff",
         "--relative",
         "--name-only",
+        "-z",
         "--no-renames",
         reference.as_str(),
         "--",
@@ -333,25 +498,22 @@ fn lost_requirements_check(
     let changed = git_output_allow_empty(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
     let excluded = excluded_requirement_directories(root);
-    let changed: Vec<&str> = changed
-        .lines()
-        .map(str::trim)
+    let changed: Vec<&str> = nul_separated(&changed)
         .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
         .collect();
     if changed.is_empty() {
         return Ok(None);
     }
-    let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
     // Every id at the reference in a file that differs now, with its file and block body.
     let mut at_reference: Vec<(String, String, String)> = Vec::new();
     for path in &changed {
         let literal = format!(":(literal){path}");
         let listed = git_output_allow_empty(
             root,
-            &["ls-tree", "--name-only", "--end-of-options", reference.as_str(), "--", literal.as_str()],
+            &["ls-tree", "-z", "--name-only", "--end-of-options", reference.as_str(), "--", literal.as_str()],
         )
         .ok_or_else(|| format!("cannot read the tree of {short}"))?;
-        if listed.trim().is_empty() {
+        if nul_separated(&listed).next().is_none() {
             continue;
         }
         let object = format!("{reference}:{prefix}{path}");
@@ -361,7 +523,7 @@ fn lost_requirements_check(
             at_reference.push((id, path.to_string(), body));
         }
     }
-    let working = working_tree_requirement_blocks(root, &directories);
+    let working = working_tree_requirement_blocks(root, &scope);
     let present: BTreeSet<&str> = working
         .iter()
         .flat_map(|(_, blocks)| blocks.iter().map(|(id, _)| id.as_str()))
@@ -421,7 +583,7 @@ fn lost_requirements_check(
     // brought in some other way than a merge (a cherry-pick, or the same edit made by hand). The
     // way out is to merge it, not to restore the block or approve a REMOVED delta (Leif's rule 3;
     // the tester's L2b). When the tip cannot be read, the general way out stands.
-    let (main_removed, others): (Vec<&str>, Vec<&str>) = match default_branch_requirement_ids(root, &directories) {
+    let (main_removed, others): (Vec<&str>, Vec<&str>) = match default_branch_requirement_ids(root, &scope) {
         Some((_, held)) => unaccounted
             .iter()
             .map(|(lost, _, _)| lost.as_str())
@@ -454,27 +616,34 @@ fn lost_requirements_check(
     )))
 }
 
-/// The default branch and the requirement ids its tip holds in the requirements files under
-/// `directories` (outside the excluded directories); `None` when there is no default branch or
-/// Git cannot read its tip.
+/// The default branch and the requirement ids its tip holds in the requirements files of `scope`
+/// (outside the excluded directories); `None` when there is no default branch or Git cannot read
+/// its tip.
 fn default_branch_requirement_ids(
     root: &Path,
-    directories: &[String],
+    scope: &RequirementScope,
 ) -> Option<(String, BTreeSet<String>)> {
     let default = remote_default_ref(root)?;
     let prefix = git_repo_prefix(root).ok()?;
     let excluded = excluded_requirement_directories(root);
-    let pathspecs: Vec<String> = directories
+    let pathspecs: Vec<String> = scope
+        .directories
         .iter()
         .map(|directory| format!(":(literal){directory}"))
         .collect();
-    let mut args = vec!["ls-tree", "-r", "--name-only", "--end-of-options", default.as_str(), "--"];
+    let mut args = vec!["ls-tree", "-r", "-z", "--name-only", "--end-of-options", default.as_str(), "--"];
     args.extend(pathspecs.iter().map(String::as_str));
-    let listed = git_output_allow_empty(root, &args)?;
+    let mut listed = git_output_allow_empty(root, &args)?;
+    // `ls-tree` takes no glob, so the root's own files come from its top-level listing.
+    if scope.root_files {
+        listed.push('\0');
+        listed.push_str(&git_output_allow_empty(
+            root,
+            &["ls-tree", "-z", "--name-only", "--end-of-options", default.as_str()],
+        )?);
+    }
     let mut held = BTreeSet::new();
-    for path in listed
-        .lines()
-        .map(str::trim)
+    for path in nul_separated(&listed)
         .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
     {
         let object = format!("{default}:{prefix}{path}");

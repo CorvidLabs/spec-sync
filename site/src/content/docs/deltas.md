@@ -139,7 +139,16 @@ prints it as the merge-base held it; to remove it on purpose, name it in a `## R
 approve the change again. When the default branch has removed it too, because the branch took that
 removal by a cherry-pick or by hand instead of a merge, the refusal says so and names the way out:
 merge the default branch into this one (`git merge origin/main`). `change audit` reports the same refusal, and `change ship-status` lists it
-as a blocker and exits 1 (REQ-change-169, #1081).
+as a blocker and exits 1 (REQ-change-169, #1081). A finalization that stopped after acceptance
+asks again when it is retried, and the audit asks it of an accepted change too.
+
+The requirements files are those under the specs directory, at any depth, and those beside every
+registered spec. For a spec registered at the project root, that means the root's own
+`requirements.md` and `<module>.req.md`, not the rest of the tree. The check takes them from the
+configuration and registry in the working tree and from those at the commit it compares with, so a branch that
+drops a registry mapping or moves `specs_dir` is still compared with the files that were canonical
+there. Only an active change past its draft, or a change the branch archived (read from its archived
+record, with a valid approval), accounts for a removal. A retired change does not.
 
 The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold
 `requirements.md` artifacts, not canonical requirements) or any `exclude_dirs` directory, even when

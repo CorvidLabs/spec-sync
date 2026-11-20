@@ -467,9 +467,9 @@ fn a_root_specs_project_reads_no_workspace_git_or_excluded_directory_as_canonica
     git(&["add", "--all"]);
     git(&["commit", "-q", "-m", "truncate"]);
 
-    let directories = requirements_directories(root);
-    assert_eq!(directories, vec![".".to_string()]);
-    let scanned: Vec<String> = working_tree_requirement_blocks(root, &directories)
+    let scope = requirement_scope(root);
+    assert_eq!(scope.directories, vec![".".to_string()]);
+    let scanned: Vec<String> = working_tree_requirement_blocks(root, &scope)
         .into_iter()
         .map(|(path, _)| path)
         .collect();

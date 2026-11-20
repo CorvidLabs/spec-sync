@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795211651,
+      "commit": "e79f3437bbecef018ae1fba0b560a18a9abbb02a",
+      "contract_digest": "2e6668048769077bbab603bcf11d9a278625f7b5938d0ea13eebaf2149b532fe",
+      "execution_digest": "f9281e741c6404c8d2648449a55bda47134f07e2b15a8fe5027a86c626398d2e",
+      "workspace_digest": "b168542bee2eb33cf149b9a4eaed0ae567e44a48033aebd1e19289b5ce1f3175",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

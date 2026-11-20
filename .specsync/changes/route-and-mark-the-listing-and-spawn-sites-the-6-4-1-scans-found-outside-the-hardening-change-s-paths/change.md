@@ -1,6 +1,6 @@
 ---
 id: route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 6d155ce583e44b2411db84ec2ed307b1ed62bbdb
 ---

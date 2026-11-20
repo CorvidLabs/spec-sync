@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795188451,
+      "commit": "84c668b465bd51c09dd0396426318ed95baef63e",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a/tasks.md` (line 14: \"Lane, audit --strict, real repositories, identities.\") and mark it `[x]`, then re-run `specsync change check make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a --commit`"
+    },
+    {
+      "timestamp": 1795189297,
+      "commit": "44b5902f9ce5e882ebe1f808b331297cf727e7a3",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "feb09399ede277284040cf1354ddf95b07e2b4cd23ba5422a723dc720bc8c464",
+      "workspace_digest": "5c384e8e7b118421fdcbb4b7b9e5298741a9e384cfc6eb51be5784b3ad91accb",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    }
+  ]
+}

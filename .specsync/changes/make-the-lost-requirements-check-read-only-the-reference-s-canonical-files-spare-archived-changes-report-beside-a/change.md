@@ -1,6 +1,6 @@
 ---
 id: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
-state: approved
+state: implementing
 type: bug_fix
 base_commit: ed258f58d734be7c4c0ac092ddbc934f492630d3
 ---

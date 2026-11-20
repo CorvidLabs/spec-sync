@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795188451,
+      "commit": "84c668b465bd51c09dd0396426318ed95baef63e",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a/tasks.md` (line 14: \"Lane, audit --strict, real repositories, identities.\") and mark it `[x]`, then re-run `specsync change check make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a --commit`"
+    },
+    {
+      "timestamp": 1795189297,
+      "commit": "44b5902f9ce5e882ebe1f808b331297cf727e7a3",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "feb09399ede277284040cf1354ddf95b07e2b4cd23ba5422a723dc720bc8c464",
+      "workspace_digest": "5c384e8e7b118421fdcbb4b7b9e5298741a9e384cfc6eb51be5784b3ad91accb",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    },
+    {
+      "timestamp": 1795189300,
+      "commit": "6becfa190be4acfc58662eb05736d9fd6ca2759d",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "feb09399ede277284040cf1354ddf95b07e2b4cd23ba5422a723dc720bc8c464",
+      "workspace_digest": "fad8e7e47ed754a4be9c29152d599d6c44c2714d7ddc904b5f16debaa98fc904",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    },
+    {
+      "timestamp": 1795193582,
+      "commit": "e2ad79b72fd4a970757c2eeb78e38a9958e404f5",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "3a1b09d08b41651008939858a7276585958cb1651715589f16525ca851d49394",
+      "workspace_digest": "55238ff2a486edc92afac5a0ba48baa60ae33a597988daddcbedb084fd437c31",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    },
+    {
+      "timestamp": 1795193586,
+      "commit": "31a16d5b9c0ffa38e0b16ef24a9841bb0c843cac",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "3a1b09d08b41651008939858a7276585958cb1651715589f16525ca851d49394",
+      "workspace_digest": "55238ff2a486edc92afac5a0ba48baa60ae33a597988daddcbedb084fd437c31",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    },
+    {
+      "timestamp": 1795197789,
+      "commit": "e2f7252040c16b02062e8fc1d4cd33cea54c8997",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "3a1b09d08b41651008939858a7276585958cb1651715589f16525ca851d49394",
+      "workspace_digest": "84d092a730ea3dd27b314be0ceb76e05595e6068a0dc529b11ec7fa6d13b1751",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    },
+    {
+      "timestamp": 1795197794,
+      "commit": "ecc6ec4f8dd52d23f1525718e8caee83afea6789",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "3a1b09d08b41651008939858a7276585958cb1651715589f16525ca851d49394",
+      "workspace_digest": "84d092a730ea3dd27b314be0ceb76e05595e6068a0dc529b11ec7fa6d13b1751",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
+    }
+  ]
+}

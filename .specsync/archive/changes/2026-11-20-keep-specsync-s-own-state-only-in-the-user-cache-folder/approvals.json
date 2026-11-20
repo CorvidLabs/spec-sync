@@ -129,6 +129,13 @@
         "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 14:07Z, answering 'Security changes 7 and 8: a SpecSync tooling quirk. After change 6 was archived, SpecSync won't re-approve change 7 unless its five requirement texts are \"rewritten\", even though they're already the final text you reviewed. The smallest rewrite it accepts adds a short clause to each, for example \"This replaces the Git-directory location the previous text named.\" and \", now also,\". No meaning or code changes, and the builder tested that approve and check pass with them. OK to add the five clauses so 7 and 8 can ship?'. The rewrite applied is exactly security/change7-delta-rebase.diff (five clauses in the util, change, hooks and cmd_check deltas; the git_utils delta unchanged), checked line for line. It rests on his scope answer 'A' (about 03:27Z) and his review 'Pass (Recommended)' (about 06:04Z) under 'Yes, one review (Recommended)' (about 04:16Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795183895,
+      "digest": "bba51d01797814986fdc966e698fef6993fe6e2cba450a5dcf2485d670a03c87",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

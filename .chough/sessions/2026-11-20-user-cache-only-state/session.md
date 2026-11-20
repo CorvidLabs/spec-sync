@@ -5,7 +5,7 @@ aliases: [user-cache-only-state]
 objective: SpecSync keeps its cache, journal and remote cache only in the user's cache folder, never in a Git directory an archive can ship; the enclosing-work-tree check reads paths literally; registry replay is spec-shaped; a hooks path outside both trees comes from the person's own config (R1-R5a, N2 and R6 of the change 6 re-check, private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [util, change, hooks, git_utils, cmd_check]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -22,9 +22,13 @@ observations:
   - 2026-11-20-on-linux-at-97828091-cargo-clippy-all-targets-d-warnings
 bugs: [2026-11-20-state-an-archive-ships-in-its-git-directory-is-trusted]
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of keep-specsync-s-own-state-only-in-the-user-cache-folder
+    holds: accept
+    drives: review
+    opened: 2026-11-20T14:10:18Z
 run_consents: []
-next: "Gate \"Scope re-approval of keep-specsync-s-own-state-only-in-the-user-cache-folder after the delta rewrite\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # SpecSync keeps its cache, journal and remote cache only in the user's cache folder, never in a Git directory an archive can ship; the enclosing-work-tree check reads paths literally; registry replay is spec-shaped; a hooks path outside both trees comes from the person's own config (R1-R5a, N2 and R6 of the change 6 re-check, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -106,4 +110,20 @@ SpecSync keeps its cache, journal and remote cache only in the user's cache fold
     - recorded_by: claude-code-t5r
     - native: specsync change approve keep-specsync-s-own-state-only-in-the-user-cache-folder
     - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:10:05Z · advance · build → test · native:verifying ^t-e58df3
+  - native_change: keep-specsync-s-own-state-only-in-the-user-cache-folder
+  - gate: native:verifying
+  - revision: 7943890ab12ee5c8dcbf394a4d3683ac2d1f3872
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:10:11Z · advance · test → accept · native:verifying ^t-779dda
+  - native_change: keep-specsync-s-own-state-only-in-the-user-cache-folder
+  - gate: native:verifying
+  - revision: 7943890ab12ee5c8dcbf394a4d3683ac2d1f3872
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:10:18Z · gate-opened · accept → accept · Implementation review of keep-specsync-s-own-state-only-in-the-user-cache-folder ^t-f6caf3
+  - native_change: keep-specsync-s-own-state-only-in-the-user-cache-folder
+  - revision: 7943890ab12ee5c8dcbf394a4d3683ac2d1f3872
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

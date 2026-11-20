@@ -20,6 +20,7 @@ observations:
   - 2026-11-20-657-red-without-the-code-at-e48d22fe
   - 2026-11-20-657-older-binaries-read-coverage-json
   - 2026-11-20-657-verify-lane-at-c7e5daba
+  - 2026-11-20-657-finalize-wording-lane-at-579a5e50
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -45,6 +46,7 @@ An in-flight change that declares a shared input covers an accepted change for n
 - [Red first at e48d22fe, the tests alone (the code set aside): 11 compile errors, in_flight_coverer, TerminalEvidenceValidity::ProvisionallyCovered and ChangeSummary.provisional_coverage do not exist. The ported test also failed at runtime on main a28e3042: the accepted change read stale, not provisionally-covered. cargo test --bin specsync through one-lane, the neutral git config as a prefix only (#1092).](evidence/2026-11-20-657-red-without-the-code-at-e48d22fe.md)
 - [The change's fifth criterion: released 6.3.0 (Homebrew) and main a28e3042's 6.4.0 build, on a real archive given a committed coverage.json: change status, --json change status (archived, authenticated-history), change audit --strict, change audit --strict --archives, check --strict, change list and doctor all exit 0. This branch's build reads the same archive with the same exit codes.](evidence/2026-11-20-657-older-binaries-read-coverage-json.md)
 - [At c7e5daba (checked and committed), with this tree's release build first on PATH: fledge lanes run verify passed 10/10 in 7m40s through one-lane (unit 3111 passed, 2 ignored, provisional_coverage 11 of 11; integration 644; spec check 62/62, 168/168 files), the neutral git config as a prefix on the lane only (#1092); change audit --strict passes. change audit's exit status is report.errors.is_empty() with or without --strict, so the unit test's no-error-one-warning audit is also --strict's exit 0.](evidence/2026-11-20-657-verify-lane-at-c7e5daba.md)
+- [#657's rule 6 (a)+(c) wording fix: REQ-change-167's sentence and criterion and change criterion 2 name change finalize on workflow v2 beside change archive, as a_resumed_finalization_writes_coverage_json_like_change_archive tests; one send-back (standing OK), approval citing the two answers and rule 6 (a)+(c); checked at 579a5e50. fledge lanes run verify 10/10 in 7m26s through one-lane (unit 3111 passed, 2 ignored; integration 644; spec check 62/62, 168/168 files), the neutral git config as a prefix only (#1092); change audit --strict passes.](evidence/2026-11-20-657-finalize-wording-lane-at-579a5e50.md)
 
 ## Open threads
 

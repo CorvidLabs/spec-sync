@@ -1,6 +1,6 @@
 ---
 id: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 7527da3a7aea52436404766df845bbc8fb2f19b6
 ---

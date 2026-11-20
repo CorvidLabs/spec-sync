@@ -985,3 +985,52 @@ fn a_failed_download_names_the_fetch_for_the_lost_requirements_read_too() {
     assert!(!again.contains("cannot tell"), "{again}");
     assert!(!again.contains("not in this partial clone"), "{again}");
 }
+
+/// Rule 3 on Codex's second round (REQ-change-172): the one fetch lists the whole history, not
+/// the walk Git simplifies, so the objects of a side branch merged without its changes are
+/// downloaded too. On spec-sync's own blobless clone the simplified walk left 76 out, and the
+/// archive audit then failed on five of them.
+#[test]
+fn the_one_fetch_brings_history_from_merged_side_branches_too() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let _id = adopted_project(&source);
+    git(&source, &["checkout", "-q", "-b", "side"]);
+    write(
+        &source,
+        ".specsync/side-note.md",
+        "Written on a side branch.\n",
+    );
+    git(&source, &["add", ".specsync/side-note.md"]);
+    git(&source, &["commit", "-q", "-m", "a side note"]);
+    let blob = git(&source, &["rev-parse", "side:.specsync/side-note.md"])
+        .trim()
+        .to_string();
+    git(&source, &["checkout", "-q", "main"]);
+    git(&source, &["merge", "-q", "-s", "ours", "--no-edit", "side"]);
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+    let present = || {
+        Command::new("git")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_NO_LAZY_FETCH", "1")
+            .arg("-C")
+            .arg(&clone)
+            .args(["cat-file", "-e", &blob])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    };
+    assert!(!present(), "the clone already holds the side branch's file");
+
+    let audit = combined(&invoke(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", config.to_str().unwrap())],
+        &["change", "audit"],
+    ));
+
+    assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
+    assert!(present(), "{audit}");
+}

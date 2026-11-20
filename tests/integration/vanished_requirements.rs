@@ -347,3 +347,258 @@ fn a_specs_directory_outside_the_project_is_named_and_never_sent_to_git() {
     project.git(&["commit", "-q", "-am", "specs back inside the project"]);
     project.run(&["change", "check", &id]);
 }
+
+// ---- The lost-requirements follow-ups: #1112, #1113, #1116, #1117 ----
+
+/// The branch drops REQ-auth-002 from the canonical requirements file and commits.
+fn lose_auth_002(project: &Project) -> String {
+    let requirements = project.read("specs/auth/requirements.md");
+    let start = requirements.find("### REQ-auth-002").unwrap();
+    project.write(
+        "specs/auth/requirements.md",
+        requirements[..start].trim_end(),
+    );
+    project.git(&["commit", "-q", "-am", "lose REQ-auth-002"]);
+    requirements
+}
+
+/// #1112: the files read at the reference come only from what was canonical there. A branch
+/// that registers a spec beside a requirements file that was already there, and rewrites that
+/// file, is not refused for the ids it held before it was canonical.
+#[test]
+fn a_file_the_branch_makes_canonical_is_not_read_at_the_reference() {
+    let project = Project::new();
+    project.write(
+        "docs/notes/requirements.md",
+        "# Requirements\n\n### REQ-note-001\n\nA note kept beside the docs.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "notes"]);
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.write(
+        ".specsync/registry.toml",
+        "[registry]\nname = \"notes\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nnotes = \"docs/notes/notes.spec.md\"\n",
+    );
+    project.write(
+        "docs/notes/requirements.md",
+        "# Requirements\n\n### REQ-notes-001\n\nThe docs SHALL keep one page per module.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "register the notes"]);
+
+    let text = combined(&project.invoke(&["change", "ship-status", &id]));
+
+    assert!(!text.contains("REQ-note-001"), "{text}");
+}
+
+/// #1113: an archived change cannot be checked, finalized or shipped again, so `change
+/// ship-status` lists no lost-requirements blocker for it.
+#[test]
+fn ship_status_of_an_archived_change_lists_no_lost_requirement() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.run(&["change", "review", &id, "--reviewer", "Reviewer"]);
+    project.run(&["change", "finalize", &id]);
+    lose_auth_002(&project);
+
+    let text = combined(&project.invoke(&["change", "ship-status", &id]));
+
+    assert!(
+        !text.contains("that no approved `## REMOVED` delta names"),
+        "{text}"
+    );
+}
+
+/// #1116: `change audit` reports the branch's lost requirements for an active change whose
+/// own delta does not validate, beside that error.
+#[test]
+fn the_audit_reports_a_lost_requirement_beside_a_malformed_delta() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.write(
+        &format!(".specsync/changes/{id}/deltas/auth.md"),
+        "This is not a delta.\n",
+    );
+    lose_auth_002(&project);
+
+    let text = combined(&project.invoke(&["change", "audit"]));
+
+    assert!(
+        text.contains("that no approved `## REMOVED` delta names") && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+}
+
+/// #1117: a requirements directory the check cannot read is named, and the requirement it may
+/// hold is not reported lost.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_requirements_directory_is_named_instead_of_a_loss() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    // The branch moves REQ-auth-002 into a file of its own in a subdirectory.
+    let requirements = lose_auth_002(&project);
+    let start = requirements.find("### REQ-auth-002").unwrap();
+    project.write(
+        "specs/auth/more/requirements.md",
+        &format!("# Requirements\n\n{}", &requirements[start..]),
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "move REQ-auth-002"]);
+    let more = project.root.join("specs/auth/more");
+    fs::set_permissions(&more, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&more).is_ok() {
+        // This user reads every directory (root), so nothing here is unreadable.
+        fs::set_permissions(&more, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+
+    let status = project.invoke(&["change", "ship-status", &id]);
+    fs::set_permissions(&more, fs::Permissions::from_mode(0o755)).unwrap();
+    let text = combined(&status);
+
+    assert!(
+        text.contains("cannot tell whether this branch lost canonical requirements"),
+        "{text}"
+    );
+    assert!(text.contains("specs/auth/more"), "{text}");
+    assert!(
+        !text.contains("that no approved `## REMOVED` delta names"),
+        "{text}"
+    );
+}
+
+/// #1112, with `specs_dir`: a branch that moves its specs directory onto one that already held a
+/// `requirements.md` is not refused for that file's old ids.
+#[test]
+fn a_specs_directory_the_branch_moves_onto_is_not_read_at_the_reference() {
+    let project = Project::new();
+    project.write(
+        "docs/notes/requirements.md",
+        "# Requirements\n\n### REQ-note-001\n\nA note kept beside the docs.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "notes"]);
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.write(".specsync/config.toml", "specs_dir = \"docs\"\n");
+    project.write(
+        "docs/notes/requirements.md",
+        "# Requirements\n\n### REQ-notes-001\n\nThe docs SHALL keep one page per module.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "move the specs directory"]);
+
+    let text = combined(&project.invoke(&["change", "ship-status", &id]));
+
+    assert!(!text.contains("REQ-note-001"), "{text}");
+}
+
+/// #1116, with an approval that does not read: the audit still reports the branch's loss.
+#[test]
+fn the_audit_reports_a_lost_requirement_beside_an_unreadable_approval() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.write(
+        &format!(".specsync/changes/{id}/approvals.json"),
+        "not an approval\n",
+    );
+    lose_auth_002(&project);
+
+    let text = combined(&project.invoke(&["change", "audit"]));
+
+    assert!(
+        text.contains("that no approved `## REMOVED` delta names") && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+}
+
+/// #1117, with a file: a requirements file the check cannot read is named, and the requirement it
+/// holds is not reported lost.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_requirements_file_is_named_instead_of_a_loss() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    let requirements = lose_auth_002(&project);
+    let start = requirements.find("### REQ-auth-002").unwrap();
+    project.write(
+        "specs/auth/more.req.md",
+        &format!("# Requirements\n\n{}", &requirements[start..]),
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "move REQ-auth-002"]);
+    let file = project.root.join("specs/auth/more.req.md");
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_to_string(&file).is_ok() {
+        // This user reads every file (root), so nothing here is unreadable.
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+        return;
+    }
+
+    let status = project.invoke(&["change", "ship-status", &id]);
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+    let text = combined(&status);
+
+    assert!(
+        text.contains("cannot tell whether this branch lost canonical requirements"),
+        "{text}"
+    );
+    assert!(text.contains("specs/auth/more.req.md"), "{text}");
+    assert!(
+        !text.contains("that no approved `## REMOVED` delta names"),
+        "{text}"
+    );
+}
+
+/// #1117, the guard: on a branch that lost nothing, an unreadable requirements directory changes
+/// nothing (REQ-change-177).
+#[cfg(unix)]
+#[test]
+fn an_unreadable_directory_with_nothing_lost_changes_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.write(
+        "specs/auth/more/requirements.md",
+        "# Requirements\n\n### REQ-auth-003\n\nThe system SHALL log each sign-in.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "a requirement of its own"]);
+    let more = project.root.join("specs/auth/more");
+    fs::set_permissions(&more, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&more).is_ok() {
+        fs::set_permissions(&more, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+
+    let status = project.invoke(&["change", "ship-status", &id]);
+    fs::set_permissions(&more, fs::Permissions::from_mode(0o755)).unwrap();
+    let text = combined(&status);
+
+    assert!(!text.contains("lost canonical requirements"), "{text}");
+}

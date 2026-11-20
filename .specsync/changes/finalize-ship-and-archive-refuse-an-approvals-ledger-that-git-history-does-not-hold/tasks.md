@@ -13,7 +13,9 @@ artifact: tasks
 - [x] Existing tests that finalize or archive an uncommitted ledger gain a commit; the tamper test expects the new message
 - [x] The `files:` entry for the new test file in the `change` spec
 - [x] Docs: `workflow.md`, `cli.md`, and `CHANGELOG.md` with the 6.3.0 note
-- [x] `fledge lanes run verify` and the pre-push gate
+- [x] Option 3: the workflow-version history's refusal of a workspace deleted and created again names the commit that removed it and the two ways out, in `src/change/validate_loaded_change.rs`, with its test tightened first
+- [x] A finalize-level test for a relay removed and restored in the `superseded_approval` of a reopening
+- [x] `fledge lanes run verify`, `change audit --strict` and the pre-push gate
 
 Human gates and Chough's own records are not tasks here: Leif's scope approval and implementation review
 are recorded through Chough when he gives them.

@@ -839,3 +839,38 @@ fn the_second_way_out_of_a_workspace_created_again_works_as_printed() {
         .expect("the new id approves once the workspace created again is gone");
     assert!(check_change(root, Some(&again.id)).unwrap().unwrap().passed);
 }
+
+/// tester2 on #1120 (P-428-guard-migrate-digests), REQ-change-166: a reopening an older SpecSync
+/// committed without the two digest members, which `specsync migrate 5.0` then adds, still
+/// finalizes. The committed version an older SpecSync wrote must still read as a ledger.
+#[test]
+fn a_reopening_committed_without_the_migrated_digests_still_finalizes_after_migrate() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = finalized_archived_change(root);
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { false }\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "drift after the archive"]);
+    reopen_change(root, &record.id, "Recovery operator".into(), "the input drifted".into())
+        .unwrap();
+    // The reopening as a 5.0.1-era SpecSync committed it, without the two digest members.
+    let mut ledger = read_ledger(root, &record);
+    let reopening = ledger["reopenings"][0].as_object_mut().unwrap();
+    for member in ["stale_acceptance_input_digest", "current_acceptance_input_digest"] {
+        assert!(reopening.remove(member).is_some(), "the reopening carried {member}");
+    }
+    write_ledger(root, &record, &ledger);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "reopen, as an older SpecSync wrote it"]);
+    backfill_reopen_digests(root, false).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "specsync migrate 5.0"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "verify again"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    finalize_change(root, &record.id)
+        .expect("a reopening that gains the migrated digest members still finalizes");
+}

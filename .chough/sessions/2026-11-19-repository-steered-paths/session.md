@@ -21,7 +21,7 @@ modules:
   - commands
   - generator
   - merge
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -38,13 +38,9 @@ observations:
   - 2026-11-19-on-linux-at-e60fbf8e-change-5-a-clean-copy-in-a-local-rust-1
 bugs: [2026-11-19-repository-steered-writes-reads-and-caches]
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
-    holds: accept
-    drives: review
-    opened: 2026-11-19T20:34:07Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # Writes, reads and caches a repository can steer stay inside its Git work tree, never reach the Git directory, and never hide a failure (F2-F9, R1, R2, G1 and point 6 of the independent review, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -59,6 +55,7 @@ Writes, reads and caches a repository can steer stay inside its Git work tree, n
 - 0xLeif decided "Intent approval of proposed criterion CHECK-1.f": "yes" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 16:00Z, after t4c summed up security/change5-scope.md: SETUP-6 and SETUP-7 cover points 1, 2, 3 and 5; the new intent line CHECK-1.f 'A result that a repository somebody else wrote carries along never hides a failure my check would report.'; choices 1-8 as recommended (tracked hashes.json neither read nor saved with one warning and the git rm --cached fix; confinement root = git top folder else --root, caches strict, absolute links refused with an 'absolute link' message; confine specs_dir, source_dirs and schema_dir with a budgeted confined walk; a changelog blob over 8 MiB skipped with a warning; import --from-dir confined to the named directory, 8 MiB; --fix --backup keeps its layout, written confined; the wider write scan; the two low items included); relayed by t4c over hc to t5r, to be recorded when change 5 starts after change 4); recorded by claude-code-t5r; a relayed claim, not authenticated
 - 0xLeif decided "Scope approval of point 6 for keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree: refuse paths that resolve into the Git directory": "All as recommended" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 19:43Z, after t4c gave him one table of recommendations whose second row was point 6 of change 5 as proposed: the project read and write helpers refuse a path that resolves into the Git directory, directly or through links (canonical target under git rev-parse --absolute-git-dir, or any .git component, any case, trailing dots and spaces), with the message '<path> leads into the Git directory', and SpecSync's own .git writes keep their own paths; relayed by t4c over hc to t5r as part of change 5's scope); recorded by claude-code-t5r; a relayed claim, not authenticated
 - 0xLeif decided "Scope approval of keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree": "yes" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 16:00Z, after t4c summed up security/change5-scope.md: SETUP-6 and SETUP-7 cover points 1, 2, 3 and 5; the new intent line CHECK-1.f 'A result that a repository somebody else wrote carries along never hides a failure my check would report.'; choices 1-8 as recommended (tracked hashes.json neither read nor saved with one warning and the git rm --cached fix; confinement root = git top folder else --root, caches strict, absolute links refused with an 'absolute link' message; confine specs_dir, source_dirs and schema_dir with a budgeted confined walk; a changelog blob over 8 MiB skipped with a warning; import --from-dir confined to the named directory, 8 MiB; --fix --backup keeps its layout, written confined; the wider write scan; the two low items included); relayed by t4c over hc to t5r, to be recorded when change 5 starts after change 4); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree as 0xLeif
+- 0xLeif decided "Implementation review of keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree": "Pass (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a; this change's own lines are unchanged since. Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -143,4 +140,20 @@ Writes, reads and caches a repository can steer stay inside its Git work tree, n
   - revision: e60fbf8e02faa643254590c1b4b5f5a659aa54d9
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:14:42Z · gate-closed · accept → accept · Implementation review of keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree ^t-3725e0
+  - native_change: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+  - revision: 2baf9e60d4b3cec14f65400e35b6b398b3b6a4bd
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a; this change's own lines are unchanged since. Relayed by t4c over hc to t5r
+    - recorded_by: claude-code-t5r
+    - native: specsync change review keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:14:46Z · advance · accept → done · native:archived ^t-e326d7
+  - native_change: keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree
+  - gate: native:archived
+  - revision: 2baf9e60d4b3cec14f65400e35b6b398b3b6a4bd
   - by: claude-code (hc t5r)

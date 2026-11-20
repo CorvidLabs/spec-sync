@@ -227,6 +227,8 @@ pub fn project_state_dir(root: &Path) -> io::Result<PathBuf> {
 pub struct LocalState {
     dir: Dir,
     path: PathBuf,
+    /// SpecSync's own `specsync` folder above it, which the hint for a shared folder names.
+    top: PathBuf,
 }
 
 /// A name SpecSync gives a file or folder of its own: one plain component.
@@ -239,7 +241,13 @@ fn checked_name(name: &str) -> io::Result<&str> {
 
 /// `name` beneath `dir`, a folder SpecSync makes: made when missing and `create`, refused when it
 /// is a link or not a folder, then opened without following a link.
-fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Option<Dir>> {
+fn open_child(
+    dir: Dir,
+    name: &str,
+    shown: &Path,
+    top: &Path,
+    create: bool,
+) -> io::Result<Option<Dir>> {
     let mut created = false;
     match dir.symlink_metadata(name) {
         Ok(metadata) if metadata.is_dir() => {}
@@ -254,7 +262,15 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
             if !create {
                 return Ok(None);
             }
-            match dir.create_dir(name) {
+            // Made private in one step, whatever the umask, so another SpecSync process never
+            // sees it writable by others before its mode is set (REQ-util-006).
+            let mut builder = cap_std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use cap_std::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            match dir.create_dir_with(name, &builder) {
                 Ok(()) => created = true,
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(error),
@@ -279,7 +295,7 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
         // Only the person can write a folder SpecSync makes for itself, whatever the umask.
         private_folder(&handle)?;
     }
-    refuse_shared_folder(&handle, shown)?;
+    refuse_shared_folder(&handle, shown, top)?;
     Ok(Some(folder))
 }
 
@@ -298,7 +314,7 @@ fn private_folder(_: &std::fs::File) -> io::Result<()> {
 /// can write, is refused, as `ssh` refuses such a folder: whoever can write it could put a cache
 /// or a journal there (REQ-util-006).
 #[cfg(unix)]
-fn refuse_shared_folder(folder: &std::fs::File, shown: &Path) -> io::Result<()> {
+fn refuse_shared_folder(folder: &std::fs::File, shown: &Path, top: &Path) -> io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let metadata = folder.metadata()?;
     // SAFETY: `geteuid` has no preconditions and cannot fail.
@@ -313,16 +329,17 @@ fn refuse_shared_folder(folder: &std::fs::File, shown: &Path) -> io::Result<()> 
     if metadata.mode() & 0o022 != 0 {
         return Err(refused(format!(
             "{} is writable by its group or by others, who could put a file there, so SpecSync \
-             keeps none of its own state there; run `chmod go-w {}` if only you use it",
+             keeps none of its own state there; if only you use it, run `chmod -R go-w {}` once \
+             for every folder beneath it",
             shown.display(),
-            shown.display()
+            top.display()
         )));
     }
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn refuse_shared_folder(_: &std::fs::File, _: &Path) -> io::Result<()> {
+fn refuse_shared_folder(_: &std::fs::File, _: &Path, _: &Path) -> io::Result<()> {
     Ok(())
 }
 
@@ -372,14 +389,20 @@ impl LocalState {
             Err(error) => return Err(error),
         };
         let mut shown = location.base.clone();
+        // SpecSync's own `specsync` folder, which the hint for a shared folder names.
+        let top = location.base.join(&location.names[0]);
         for name in &location.names {
             shown.push(name);
-            match open_child(dir, name, &shown, create)? {
+            match open_child(dir, name, &shown, &top, create)? {
                 Some(child) => dir = child,
                 None => return Ok(None),
             }
         }
-        Ok(Some(LocalState { dir, path: shown }))
+        Ok(Some(LocalState {
+            dir,
+            path: shown,
+            top,
+        }))
     }
 
     /// The path of `name` in the folder, for messages.
@@ -391,8 +414,15 @@ impl LocalState {
     pub fn subdirectory(&self, name: &str, create: bool) -> io::Result<Option<LocalState>> {
         let name = checked_name(name)?;
         let path = self.path.join(name);
-        Ok(open_child(self.dir.try_clone()?, name, &path, create)?
-            .map(|dir| LocalState { dir, path }))
+        Ok(
+            open_child(self.dir.try_clone()?, name, &path, &self.top, create)?.map(|dir| {
+                LocalState {
+                    dir,
+                    path,
+                    top: self.top.clone(),
+                }
+            }),
+        )
     }
 
     /// What `name` is, without following a link; `None` when nothing is there.

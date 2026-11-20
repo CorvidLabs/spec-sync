@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     project, so it is not replayed either: lifecycle commands stop with its path until you check
     the files it lists and delete it.
   - **On Unix, SpecSync's own state folders are made private (0700)**, and one another user owns,
-    or that its group or others can write, is refused (`chmod go-w` fixes one only you use).
+    or that its group or others can write, is refused. Folders SpecSync 6.4.0 made under a umask
+    of 002 (Fedora, RHEL, and Debian or Ubuntu with per-user groups) are refused until you run the
+    `chmod -R go-w <cache folder>/specsync` the message names, once.
   - **A project folder that would lie inside the project is refused.**
   - **Record-folder listings go through the confined listing.** `.specsync/archive/changes`, a
     change's `deltas` and a spec's `history/` committed as a link out are refused with the folder
@@ -41,7 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `check --only-status` keeps it;
   - `resolve` names it;
   - `stale` counts it as unmeasurable.
-- `rehash` and `check` never write a hash cache larger than the bound they read.
+- A hash cache larger than the bound SpecSync reads is never written: `rehash` exits 1, and
+  `check` warns once and keeps the cache already there.
 
 ## [6.4.0] - 2026-11-20
 

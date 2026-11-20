@@ -900,6 +900,16 @@ fn refuse_journal_in_cache_folder(root: &Path) -> Result<(), String> {
     let Ok(Some(cache)) = crate::util::local_state::LocalState::open(root, false) else {
         return Ok(());
     };
+    // Where the cache and state folders are one folder (`%LOCALAPPDATA%` on Windows, or
+    // `XDG_STATE_HOME` set to `XDG_CACHE_HOME`), the journal there is this build's own, and the
+    // read below judges it by the project it records (REQ-change-162).
+    let same_folder = |state: &crate::util::local_state::LocalState| {
+        let folder = |path: PathBuf| path.parent().and_then(|parent| parent.canonicalize().ok());
+        folder(state.file_path(TRANSACTION_FILE)) == folder(cache.file_path(TRANSACTION_FILE))
+    };
+    if transaction_state(root, false)?.is_some_and(|state| same_folder(&state)) {
+        return Ok(());
+    }
     match cache.metadata(TRANSACTION_FILE) {
         Ok(None) => Ok(()),
         _ => Err(invalid_journal_error(

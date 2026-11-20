@@ -1728,9 +1728,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         .strip_prefix(root)
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| "verification.json".to_string());
-    let own_evidence_step = own_evidence
-        .as_ref()
-        .and_then(|evidence| own_evidence_step(record, evidence, &verification_display));
+    let own_evidence_step = own_evidence.as_ref().and_then(|evidence| {
+        own_evidence_step(record, evidence, &verification_display, &lifecycle_next)
+    });
 
     let stages = ship_stages(
         record,
@@ -2354,14 +2354,17 @@ fn product_stage_action(record: &ChangeRecord) -> String {
 }
 
 /// The step an accepted or archived change's own accepted evidence asks for, when it asks one:
-/// reopen when it is stale, the restore of `verification.json` when that cannot be read (#922).
+/// reopen when it is stale, the restore of `verification.json` when that cannot be read, and the
+/// lifecycle next action, which names the restore, when its history is corrupt (#922).
 fn own_evidence_step(
     record: &ChangeRecord,
     evidence: &change::OwnAcceptedEvidence,
     verification_display: &str,
+    lifecycle_next: &str,
 ) -> Option<String> {
     match evidence {
         change::OwnAcceptedEvidence::Current => None,
+        change::OwnAcceptedEvidence::Corrupt => Some(lifecycle_next.to_string()),
         change::OwnAcceptedEvidence::Stale => Some(product_stage_action(record)),
         change::OwnAcceptedEvidence::Unreadable(_) => Some(format!(
             "`{verification_display}` cannot be read; restore it from Git history, then run `specsync change ship-status {}`",

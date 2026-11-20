@@ -3827,6 +3827,9 @@ pub(crate) enum OwnAcceptedEvidence {
     Stale,
     /// `verification.json` cannot be loaded, so neither this nor `change reopen` can judge it.
     Unreadable(String),
+    /// The terminal evidence reads `corrupt-history`: the restore the lifecycle next action names
+    /// recovers it, not a reopen (REQ-change-093).
+    Corrupt,
 }
 
 /// The change's own accepted evidence, as `change reopen` judges it, without writing (#922).
@@ -3836,6 +3839,10 @@ pub(crate) fn own_accepted_evidence(
 ) -> Result<OwnAcceptedEvidence, String> {
     if let Err(error) = load_verification(root, record) {
         return Ok(OwnAcceptedEvidence::Unreadable(error));
+    }
+    if terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
+    {
+        return Ok(OwnAcceptedEvidence::Corrupt);
     }
     let records = list_all_changes_checked(root)?;
     let mut visiting = BTreeSet::new();

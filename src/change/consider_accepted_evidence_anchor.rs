@@ -373,6 +373,167 @@ fn rooted_git_command(root: &Path) -> Command {
     command
 }
 
+/// What SpecSync's isolated Git needs to read a repository Git may refuse for its owner
+/// (REQ-change-171, #909).
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SafeDirectoryState {
+    /// The repository is the user's own: nothing is passed.
+    NotNeeded,
+    /// The user's own Git trusts it: the private global file naming its top level.
+    Trusted(PathBuf),
+    /// The user's own Git refuses it too.
+    Untrusted,
+    /// The user's Git trusts it, but the private file could not be made, for this reason.
+    Unavailable(String),
+}
+
+static SAFE_DIRECTORY_STATES: std::sync::Mutex<BTreeMap<PathBuf, SafeDirectoryState>> =
+    std::sync::Mutex::new(BTreeMap::new());
+static SAFE_DIRECTORY_DIRS: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
+
+/// The repository's work tree that holds `.git`, at or above `root`.
+fn repository_work_tree(root: &Path) -> Option<&Path> {
+    root.ancestors()
+        .find(|ancestor| fs::symlink_metadata(ancestor.join(".git")).is_ok())
+}
+
+/// Whether Git would see the repository as another user's: its work tree or `.git` is owned by
+/// another user, or Git's own test switch says so. It spawns nothing.
+fn repository_owned_by_another_user(root: &Path) -> bool {
+    if std::env::var_os("GIT_TEST_ASSUME_DIFFERENT_OWNER")
+        .is_some_and(|value| !value.is_empty() && value != "0" && value != "false")
+    {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let user = unsafe { libc::geteuid() };
+        let Some(work_tree) = repository_work_tree(root) else {
+            return false;
+        };
+        let owner = |path: &Path| fs::symlink_metadata(path).map(|metadata| metadata.uid()).ok();
+        [owner(work_tree), owner(&work_tree.join(".git"))]
+            .into_iter()
+            .flatten()
+            .any(|uid| uid != user)
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+/// The state for `root`, decided once per process: only a repository owned by another user asks
+/// the user's own Git, once, whether it trusts it.
+fn safe_directory_state(root: &Path) -> SafeDirectoryState {
+    let mut states = SAFE_DIRECTORY_STATES.lock().unwrap_or_else(|poison| poison.into_inner());
+    if let Some(state) = states.get(root) {
+        return state.clone();
+    }
+    let state = if !repository_owned_by_another_user(root) {
+        SafeDirectoryState::NotNeeded
+    } else {
+        match user_git_top_level(root) {
+            None => SafeDirectoryState::Untrusted,
+            Some(top) => match write_safe_directory_file(root, &top) {
+                Ok(file) => SafeDirectoryState::Trusted(file),
+                Err(reason) => SafeDirectoryState::Unavailable(reason),
+            },
+        }
+    };
+    states.insert(root.to_path_buf(), state.clone());
+    state
+}
+
+/// The work tree's top level as the user's own Git reports it, run once with the user's
+/// environment and configuration and no prompt; `None` when it refuses the repository.
+fn user_git_top_level(root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--show-toplevel"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    let top = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (output.status.success() && !top.is_empty()).then_some(top)
+}
+
+/// Removes every private safe-directory file this process made, when it exits.
+extern "C" fn remove_safe_directory_files() {
+    let dirs = SAFE_DIRECTORY_DIRS.lock().unwrap_or_else(|poison| poison.into_inner());
+    for dir in dirs.iter() {
+        let _ = fs::remove_dir_all(dir);
+    }
+}
+
+/// The private global configuration file naming `top` in `safe.directory` and nothing else: a
+/// new owner-only directory under the system temporary directory holding one owner-only file,
+/// created new, never inside the project or its Git directory, removed when the process exits.
+fn write_safe_directory_file(root: &Path, top: &str) -> Result<PathBuf, String> {
+    let dir = tempfile::Builder::new()
+        .prefix("specsync-safe-directory-")
+        .tempdir()
+        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?
+        .keep();
+    let remove = |reason: String| {
+        let _ = fs::remove_dir_all(&dir);
+        reason
+    };
+    let canonical_dir = fs::canonicalize(&dir).map_err(|error| remove(error.to_string()))?;
+    let inside = repository_work_tree(root)
+        .into_iter()
+        .chain(std::iter::once(root))
+        .filter_map(|path| fs::canonicalize(path).ok())
+        .any(|path| canonical_dir.starts_with(&path));
+    if inside {
+        return Err(remove(
+            "the temporary directory lies inside the project or its Git directory".to_string(),
+        ));
+    }
+    let file = dir.join("config");
+    let quoted = top.replace('\\', "\\\\").replace('"', "\\\"");
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+    }
+    let mut handle = options.open(&file).map_err(|error| remove(error.to_string()))?;
+    std::io::Write::write_all(&mut handle, format!("[safe]\n\tdirectory = \"{quoted}\"\n").as_bytes())
+        .map_err(|error| remove(error.to_string()))?;
+    let mut dirs = SAFE_DIRECTORY_DIRS.lock().unwrap_or_else(|poison| poison.into_inner());
+    if dirs.is_empty() {
+        #[cfg(unix)]
+        unsafe {
+            libc::atexit(remove_safe_directory_files);
+        }
+    }
+    dirs.push(dir);
+    Ok(file)
+}
+
+/// REQ-change-171's refusal for a repository Git refuses for its owner, when the user's own Git
+/// refuses it too (or the private file could not be made); `None` for every other repository.
+fn untrusted_repository_refusal(root: &Path) -> Option<String> {
+    let reason = match safe_directory_state(root) {
+        SafeDirectoryState::Untrusted => String::new(),
+        SafeDirectoryState::Unavailable(reason) => {
+            format!(" SpecSync could not make the private file that passes that trust to its own Git: {reason}.")
+        }
+        _ => return None,
+    };
+    let path = repository_work_tree(root)
+        .map_or_else(|| root.display().to_string(), |top| top.display().to_string());
+    Some(format!(
+        "Git refuses this repository because it is owned by another user (detected dubious ownership at {path}). If you trust it, run `git config --global --add safe.directory {}`, then run the command again.{reason}",
+        shell_word(&path)
+    ))
+}
+
 fn configured_git_command(root: &Path) -> Command {
     let mut command = rooted_git_command(root);
     command.env_remove("GIT_CONFIG");
@@ -386,10 +547,16 @@ fn configured_git_command(root: &Path) -> Command {
     }
     command.env_remove("GIT_CONFIG_COUNT");
     command.env("GIT_CONFIG_NOSYSTEM", "1");
-    command.env(
-        "GIT_CONFIG_GLOBAL",
-        if cfg!(windows) { "NUL" } else { "/dev/null" },
-    );
+    // A repository owned by another user that the user's own Git trusts gets that trust, and
+    // nothing else, through a private global file (REQ-change-171); every other one keeps the
+    // global configuration switched off.
+    match safe_directory_state(root) {
+        SafeDirectoryState::Trusted(file) => command.env("GIT_CONFIG_GLOBAL", file),
+        _ => command.env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        ),
+    };
     if let Some(index) = std::env::var_os("GIT_INDEX_FILE") {
         let index = PathBuf::from(index);
         let effective = if index.is_absolute() {
@@ -1023,6 +1190,11 @@ fn git_repository_present_uncached(root: &Path) -> Result<bool, String> {
         return Ok(false);
     }
     let diagnostic = stderr.trim();
+    if diagnostic.contains("detected dubious ownership")
+        && let Some(refusal) = untrusted_repository_refusal(root)
+    {
+        return Err(refusal);
+    }
     Err(if diagnostic.is_empty() {
         "Git repository detection failed without a diagnostic".into()
     } else {

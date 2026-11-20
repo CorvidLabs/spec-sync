@@ -168,6 +168,152 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     Some(common_dir.join(READ_CACHE_FILE))
 }
 
+/// What one process decided for each partial clone it read (REQ-change-172): the download is
+/// asked once, and a failed one is the same refusal for every later read.
+static PARTIAL_CLONE_DOWNLOADS: std::sync::Mutex<BTreeMap<PathBuf, Result<(), String>>> =
+    std::sync::Mutex::new(BTreeMap::new());
+
+/// How long the one download may take: inside Chough's 120 s bound on each SpecSync call.
+const PARTIAL_CLONE_FETCH_SECONDS: u64 = 60;
+
+/// REQ-change-172 (#1077, option 1): in a partial clone, every history object SpecSync's reads
+/// need that is not present (under `.specsync` and the canonical requirements, reachable from
+/// `HEAD` and the default branch) is downloaded first, in one fetch from the repository's
+/// promisor remote run with the user's own Git, never prompting. A full clone asks one
+/// configuration question and nothing more. When the download fails, the refusal names one
+/// `git fetch` that downloads those objects.
+fn ensure_partial_clone_objects(root: &Path) -> Result<(), String> {
+    let mut downloads = PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
+    if let Some(result) = downloads.get(root) {
+        return result.clone();
+    }
+    let result = download_partial_clone_objects(root);
+    downloads.insert(root.to_path_buf(), result.clone());
+    result
+}
+
+fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
+    let Some(config) = git_output(
+        root,
+        &["config", "--get-regexp", r"^(extensions\.partialclone|remote\..*\.promisor)$"],
+    ) else {
+        return Ok(());
+    };
+    let Some(remote) = config.lines().find_map(|line| {
+        let (key, value) = line.split_once(' ')?;
+        if key == "extensions.partialclone" {
+            return Some(value.trim().to_string());
+        }
+        key.strip_prefix("remote.")?
+            .strip_suffix(".promisor")
+            .filter(|_| value.trim() == "true")
+            .map(str::to_string)
+    }) else {
+        return Ok(());
+    };
+    let default = lost_requirements_default_ref(root);
+    let specsync = ":(literal).specsync".to_string();
+    let pathspecs = requirement_scope(root).pathspecs();
+    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "HEAD"];
+    args.extend(default.as_deref());
+    args.push("--");
+    args.push(specsync.as_str());
+    args.extend(pathspecs.iter().map(String::as_str));
+    // `--missing=print` lists what is absent and never fetches it.
+    let listing = run_git_bounded(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+    if !listing.status.success() {
+        return Ok(());
+    }
+    let listing = String::from_utf8_lossy(&listing.stdout).into_owned();
+    let missing: Vec<&str> = listing
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix('?'))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    eprintln!(
+        "downloading {} objects this partial clone lacks from `{remote}`",
+        missing.len()
+    );
+    match fetch_with_the_users_git(root, &remote, &missing) {
+        Ok(()) => {
+            crate::git_utils::invalidate_repository_facts();
+            Ok(())
+        }
+        Err(reason) => Err(format!(
+            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `git -C {} fetch {} --no-tags --no-write-fetch-head --filter=blob:none {}`, then run the command again.",
+            missing.len(),
+            shell_word(&root.display().to_string()),
+            shell_word(&remote),
+            missing.join(" ")
+        )),
+    }
+}
+
+/// One `git fetch <remote> --stdin` of `ids`, with the user's own environment and
+/// configuration, `GIT_TERMINAL_PROMPT=0`, and (on Unix) a new session with no controlling
+/// terminal, so a credential that needs typing fails it instead of waiting; killed after
+/// `PARTIAL_CLONE_FETCH_SECONDS`.
+fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(), String> {
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(root)
+        .args(["fetch", remote, "--no-tags", "--no-write-fetch-head", "--filter=blob:none", "--stdin"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().map_err(|error| format!("Git could not be run: {error}"))?;
+    let mut stderr = child.stderr.take();
+    let reader = std::thread::spawn(move || {
+        let mut text = String::new();
+        if let Some(stderr) = stderr.as_mut() {
+            let _ = std::io::Read::read_to_string(stderr, &mut text);
+        }
+        text
+    });
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = std::io::Write::write_all(&mut stdin, format!("{}\n", ids.join("\n")).as_bytes());
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(PARTIAL_CLONE_FETCH_SECONDS);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "the download did not finish within {PARTIAL_CLONE_FETCH_SECONDS} seconds"
+                ));
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            Err(error) => return Err(error.to_string()),
+        }
+    };
+    let stderr = reader.join().unwrap_or_default();
+    if status.success() {
+        return Ok(());
+    }
+    let reason = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .last()
+        .unwrap_or("Git gave no reason")
+        .to_string();
+    Err(reason)
+}
+
 thread_local! {
     /// History cache frames for mutating commands, which install no `ChangeReadScope`.
     static HISTORY_CACHE_SCOPES: RefCell<Vec<(PathBuf, PersistentReadCacheFrame)>> =

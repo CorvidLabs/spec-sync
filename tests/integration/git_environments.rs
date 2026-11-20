@@ -69,7 +69,7 @@ fn run(root: &Path, env: &[(&str, &str)], args: &[&str]) -> String {
 }
 
 /// An adopted project in `root`: a first commit before SpecSync, then an approved change that
-/// adds REQ-auth-002, checked and committed, then two more commits. Returns the change id.
+/// adds REQ-auth-002, checked and committed. Returns the change id.
 fn adopted_project(root: &Path) -> String {
     fs::create_dir_all(root).unwrap();
     git(root, &["init", "-q", "-b", "main"]);
@@ -149,11 +149,6 @@ fn adopted_project(root: &Path) -> String {
     git(root, &["add", "--all"]);
     git(root, &["commit", "-q", "-m", "approve"]);
     run(root, &[], &["change", "check", &id, "--commit"]);
-    for note in ["one", "two"] {
-        write(root, "NOTES.md", &format!("# Notes\n\n{note}\n"));
-        git(root, &["add", "--all"]);
-        git(root, &["commit", "-q", "-m", note]);
-    }
     id
 }
 

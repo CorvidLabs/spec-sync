@@ -2154,6 +2154,8 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = memoized_immutable_file(root, commit, path) {
         return Ok(cached);
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root)?;
     let object = format!("{commit}:{path}");
     // The trailing `--` makes Git parse `object` as a revision only. Without it, a missing path
     // holding glob characters (a project in `app[1]/`) falls back to a pathspec, prints nothing
@@ -2184,6 +2186,8 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = memoized_immutable_text(root, args) {
         return cached;
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root)?;
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(

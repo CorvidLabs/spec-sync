@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "ed258f58d734be7c4c0ac092ddbc934f492630d3",
   "created_at": 1795151127,
-  "updated_at": 1795153318,
+  "updated_at": 1795153733,
   "affected_specs": [
     "change",
     "cmd_change"

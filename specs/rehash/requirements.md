@@ -46,3 +46,10 @@ Acceptance Criteria
 Acceptance Criteria
 - `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
 
+### REQ-rehash-003
+
+`rehash` SHALL save the rebuilt cache only in the project's local state folder (REQ-hash-cache-009), SHALL print the path it wrote, and SHALL exit 1 with the reason when no local state folder can be found. It SHALL never write `.specsync/hashes.json` in the work tree.
+
+Acceptance Criteria
+- After `rehash` the work tree has no `.specsync/hashes.json` and the printed path exists.
+

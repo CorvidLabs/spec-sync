@@ -43,17 +43,15 @@ Acceptance Criteria
 
 ### REQ-cmd-resolve-002
 
-The remote spec cache under `.specsync-cache/remote-specs/` SHALL never be read or written through a symbolic link, whether or not the link stays inside the project: a cache never needs one. When a cache file, or a directory on the way to it, is a symbolic link or not a regular file and a directory, `resolve --remote` SHALL skip the cache for that entry, SHALL say so once on stderr naming the path, and SHALL use the fetched content as it does with no cache.
+The remote spec cache SHALL be read and written only in `remote-specs/` in the project's local state folder outside the work tree (REQ-util-006), under a name taken from a digest of the repository and spec path, so neither its place nor its names come from the repository. A `.specsync-cache/remote-specs/` in the work tree SHALL never be read. When no local state folder can be found, `resolve --remote` SHALL say so once on stderr and use the fetched content as it does with no cache.
 
 Acceptance Criteria
-- A symbolic link at the cache path of a dependency, to a file outside the project: storing the fetched spec leaves that file unchanged, and reading the cache returns nothing.
-- A dangling link at that path creates nothing at its target.
-- `.specsync-cache` linked to a directory outside the project: nothing is created there.
-- A regular cache file is stored and read back as before.
+- An entry committed under `.specsync-cache/remote-specs/` with forged content is never returned by the cache.
+- A stored entry is found again under the local state folder.
 
 ### REQ-cmd-resolve-003
 
-`resolve` SHALL read the local spec files it reads (8 MiB) and the remote spec cache (8 MiB, still refusing any link as REQ-cmd-resolve-002 requires) only through the bounded project read of `util` (REQ-util-003), with a bound of the one named for each file. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+`resolve` SHALL read the local spec files it reads (8 MiB) only through the bounded project read of `util` (REQ-util-003), and the remote spec cache (8 MiB) only through the bounded read of its local state folder (REQ-util-006). A refused read, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
 
 Acceptance Criteria
 - `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list

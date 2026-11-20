@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795155333,
+      "commit": "b32d27cea64c9a21f6f98c4190443ca937652d22",
+      "contract_digest": "64b321c50620be82959f32130698779cf9ff1f31916efe8c3f49d954281a88ff",
+      "execution_digest": "89742911d6bdeadf495f41cf64746d48a46d96853d1349893b1a67ccf0a4b0e4",
+      "workspace_digest": "b68d6102e350687a02037eaff44a1852e0993381c603a1e3f7d2347488f28a95",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_check --spec cmd_resolve --spec hash_cache --spec hooks --spec rehash --spec util --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-162",
+        "REQ-cmd-check-021",
+        "REQ-cmd-resolve-002",
+        "REQ-cmd-resolve-003",
+        "REQ-hash-cache-009",
+        "REQ-hooks-009",
+        "REQ-rehash-003",
+        "REQ-util-006",
+        "REQ-util-007",
+        "REQ-util-008",
+        "REQ-validator-052"
+      ]
+    }
+  ]
+}

@@ -16,8 +16,11 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-20-on-e3d508ac-with-only-change-7-s-tests-added-3fcb6de7-all-3]
-bugs: []
+observations:
+  - 2026-11-20-on-e3d508ac-with-only-change-7-s-tests-added-3fcb6de7-all-3
+  - 2026-11-20-with-change-7-s-fix-at-97828091-fledge-lanes-run-verify-passes
+  - 2026-11-20-on-linux-at-97828091-cargo-clippy-all-targets-d-warnings
+bugs: [2026-11-20-state-an-archive-ships-in-its-git-directory-is-trusted]
 blockers: []
 waiting_on_human: []
 run_consents: []
@@ -38,6 +41,8 @@ SpecSync keeps its cache, journal and remote cache only in the user's cache fold
 ## What was verified
 
 - [On e3d508ac with only change 7's tests added (3fcb6de7): all 3 new unit tests and 5 of 7 new integration tests fail (also REQ-git-utils-012, REQ-cmd-check-021). The state folder of a Git work tree is .git/specsync/<constant key>; a copy of a project with its .git replays the cache it ships (Skipped 1 unchanged spec, Cache: unpacked/.git/specsync/...); a valid journal at .git/specsync/<key>/change-transaction.json is replayed; a registry entry env = .env lets a journal delete .env; with XDG_CACHE_HOME inside the project the cache there is replayed; a project folder named * inside a home work tree that tracks Downloads/readme.txt is widened and the outer notes.md gets the CLAUDE.md block; a local core.hooksPath ../outside/made/hooks makes outside/made. The read scan finds 10 new unmarked opens (open_ambient_dir and .open(). The 2 that pass are the global-config hooks control and the write scan.](evidence/2026-11-20-on-e3d508ac-with-only-change-7-s-tests-added-3fcb6de7-all-3.md)
+- [With change 7's fix at 97828091, fledge lanes run verify passes all 10 steps: unit 3125 passed, 0 failed, 2 ignored; integration 702 passed, 0 failed; clippy on all targets, the release build, the strict spec check at 62 specs and 100% coverage, and the gate scripts. All 3 new unit tests and 7 new integration tests pass (also REQ-git-utils-012 and REQ-cmd-check-021); the state folder is in the user cache folder, a copy of a project with its .git validates every spec, a cache folder inside the project is refused, a folder named * stays confined, a registry entry naming .env opens no replay, a local core.hooksPath outside makes no folder, and the scans find nothing unmarked.](evidence/2026-11-20-with-change-7-s-fix-at-97828091-fledge-lanes-run-verify-passes.md)
+- [On Linux at 97828091: cargo clippy --all-targets -D warnings passes; cargo test --no-fail-fast passes with unit 3129 passed, 0 failed, 2 ignored and integration 705 passed, 0 failed. Not run: x86_64, the Ubuntu image CI uses, hosted CI.](evidence/2026-11-20-on-linux-at-97828091-cargo-clippy-all-targets-d-warnings.md)
 
 ## Open threads
 

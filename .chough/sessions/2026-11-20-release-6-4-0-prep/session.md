@@ -16,12 +16,16 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations:
+  - 2026-11-20-640-red-candidate-anchors-at-9f8cea7e
+  - 2026-11-20-640-released-6-3-0-against-this-build
+  - 2026-11-20-640-verify-lane-at-7ff79527
+  - 2026-11-20-640-release-validators-at-6-4-0
 bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: "Build: red first on the candidate test's anchors, then the version, CHANGELOG and release notes"
+next: Push, open a normal PR (Archive red on purpose until Leif's review); no review or ship before his relayed review
 ---
 # SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish
 
@@ -30,6 +34,8 @@ next: "Build: red first on the candidate test's anchors, then the version, CHANG
 SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish
 
 ## Where it stands
+
+- Built 6.4.0 at 68b76f27 and checked at 7ff79527: version, candidate pins, Action examples, CHANGELOG [6.4.0] with the #1084 sentence corrected, docs/releases/6.4.0.md; lane 10/10, validators and change audit --strict pass
 
 ## Decisions and why
 
@@ -41,6 +47,11 @@ SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASI
 - 0xLeif decided "Leif's definition approval of the 6.4.0 preparation (relayed by hc t4c through ss-lead t58)": "yes" (Claude Code chat message to his planning session (hc t4c), 2026-11-20 about 01:11Z, answering 'Approve the prep PR as written?' on the frozen ss-lead/gates/640-prep-definition.md, including the reworded date sentence and the measured correction of #1086's CHANGELOG sentence inside the approved scope; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve prepare-specsync-6-4-0-package-metadata-and-release-handoff as 0xLeif
 
 ## What was verified
+
+- [Red first at 9f8cea7e: with only test-validate-release-candidate.py's 19 anchors moved to 6.4.0, the test fails 7 tests, every one an anchor the unbumped surfaces do not have yet (Validated release version 6.4.0, ci.yml and trust.yml candidate versions, Cargo.lock, site Action refs). Run with python3 through one-lane, the neutral git config as a prefix only (#1092).](evidence/2026-11-20-640-red-candidate-anchors-at-9f8cea7e.md)
+- [Homebrew's released specsync 6.3.0 against main 10d9bb3f's release build (tree 884d3eba, which printed 6.3.0 before the bump) on one PR-shaped fixture: 6.3.0 check passes at every tip; 6.3.0 change audit and audit --strict exit 1 on the branch that adds a history fragment, at the checked and the archive tip, and pass on main after the merge; 6.3.0 change check --commit on a change the new build recorded commits a Change Log row and version 2, the new check then exits 1 naming the double record, and removing the row (then restoring version:) makes check pass, after which change check --commit and audit --strict pass; approve --dry-run --json prints id, dry_run, would_approve and thirteen checks. The upgrade notes and the corrected #1084 CHANGELOG sentence quote this run.](evidence/2026-11-20-640-released-6-3-0-against-this-build.md)
+- [At 7ff79527 (checked and committed), with this tree's own release build (specsync 6.4.0) first on PATH: fledge lanes run verify passed 10/10 steps in 11m31s through one-lane (unit 3100 passed, 2 ignored; integration 644; spec check 62/62 specs, 167/167 files; the release-script suites OK), the neutral git config as a prefix on the lane only (#1092). specsync change audit --strict against origin/main 10d9bb3f passes too.](evidence/2026-11-20-640-verify-lane-at-7ff79527.md)
+- [At 68b76f27 and its checked head 7ff79527, the three release validators pass at Cargo 6.4.0: validate-release-version.py prints 'Validated release version 6.4.0 across current distribution surfaces', validate-workflow-runtime-pins.py passes, and test-validate-release-candidate.py runs 67 tests OK (neutral git config as a prefix only, #1092). The action.yml default, PUBLISHED_ACTION_DEFAULT and the docs default row stay at published 6.3.0, as the validator requires.](evidence/2026-11-20-640-release-validators-at-6-4-0.md)
 
 ## Open threads
 

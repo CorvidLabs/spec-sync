@@ -285,6 +285,25 @@
         "REQ-change-166",
         "REQ-cmd-change-041"
       ]
+    },
+    {
+      "timestamp": 1795160115,
+      "commit": "298d1f74d4d8287ee615fd46ada75e3413291d04",
+      "contract_digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+      "execution_digest": "b69b0158a89619484cfc012cad83a0191969b33cd499bbf32e9163865b83580a",
+      "workspace_digest": "0c2f48d5dc31447d829bc9f89b524c2c530f8433e22e2a53d852c1c537871c10",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-166",
+        "REQ-cmd-change-041"
+      ]
     }
   ]
 }

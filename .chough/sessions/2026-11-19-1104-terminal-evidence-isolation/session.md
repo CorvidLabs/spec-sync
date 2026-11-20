@@ -5,7 +5,7 @@ aliases: [1104-terminal-evidence-isolation]
 objective: One change whose records fail validation no longer decides another change's terminal evidence (#1104)
 intent_scope: CHANGE
 modules: [change]
-stage: accept
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -22,13 +22,9 @@ observations:
   - 2026-11-19-1104-verify-lane-at-b3c2cc0b
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
-    holds: accept
-    drives: review
-    opened: 2026-11-19T20:14:25Z
+waiting_on_human: []
 run_consents: []
-next: "Lane 10/10 at b3c2cc0b; evidence recorded against the existing CHANGE-7 and CHANGE-8. #1104 is for 6.5.0: rebuild onto the corrected main with #428 before it goes further, and merge after the v6.4.0 tag. Leif's review, relayed by hc t4c through ss-lead, is recorded with chough change ship and his words."
+next: "Red first: the shared 'changed after acceptance' constant; then the three audit test tightenings"
 ---
 # One change whose records fail validation no longer decides another change's terminal evidence (#1104)
 
@@ -42,6 +38,7 @@ One change whose records fail validation no longer decides another change's term
 
 - 0xLeif decided "Approve the scope of one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence": "approve 1104 as written" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 15:12Z, on the frozen ss-lead/gates/1104-definition.md, with its three choices as recommended (a bug fix with no new requirement text; an unreadable state.json counts against a successor search only; no warning line in other changes' status); relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence as 0xLeif
 - #1104's evidence is recorded against existing criteria, not a new one: CHANGE-7 ('At any moment I can ask what state a change is in and be told the single next thing to do'), since the bug was one change's status reporting another change's broken history, and CHANGE-8 ('I can see every change in flight at once') for change list. Leif approved #1104 as needing no new text, so no criterion is captured; directed by ss-lead (hc t58), 2026-11-19, as #1083 referenced SETUP-2.b
+- 0xLeif decided "Leif's relayed approval of #1104's reworded criterion 2 and its declared tests/integration.rs (relayed by hc t4c through ss-lead t58)": "Leif's six rules, rule 6 (a) and (c), for criterion 2; "yes to all 3" for tests/integration.rs" (Criterion 2: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of criterion 2 on 2026-11-19; these are not his words about this text. tests/integration.rs: his one-time yes, "yes to all 3", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence as 0xLeif
 
 ## What was verified
 
@@ -100,4 +97,42 @@ One change whose records fail validation no longer decides another change's term
   - revision: b3c2cc0b4c72e55195a205a841bc00afe35d7db4
   - holds: accept
   - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-20T03:02:26Z · back · accept → build · Rework before review: criterion 2 reworded under standing OK rule 6 (a)+(c); tests/integration.rs declared on Leif's one-time yes; one shared constant for 'changed after acceptance'; three audit test tightenings. History rewritten onto the corrected main, then main a28e3042 merged in. ^t-f25b27
+  - native_change: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+  - gate: native:verifying
+  - revision: d29b456bfb9261deb925c93e298608532d3c354b
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 3 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-20T03:02:32Z · gate-closed · build → build · Implementation review of one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence ^t-ccb2eb
+  - native_change: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+  - revision: d29b456bfb9261deb925c93e298608532d3c354b
+  - by: claude-code (hc t59)
+- 2026-11-20T03:07:11Z · gate-opened · build → build · Leif's relayed approval of #1104's reworded criterion 2 and its declared tests/integration.rs (relayed by hc t4c through ss-lead t58) ^t-213bbf
+  - native_change: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+  - revision: f2d135773c8bf5e6b32b41571c16d4aeed7a8ab7
+  - holds: build
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-20T03:07:11Z · direct-native-write · build → build · one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-a2dfe1
+  - native_change: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+  - revision: f2d135773c8bf5e6b32b41571c16d4aeed7a8ab7
+  - direct_write:
+    - change: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-20T03:07:11Z · gate-closed · build → build · Leif's relayed approval of #1104's reworded criterion 2 and its declared tests/integration.rs (relayed by hc t4c through ss-lead t58) ^t-968c0e
+  - native_change: one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+  - revision: f2d135773c8bf5e6b32b41571c16d4aeed7a8ab7
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Leif's six rules, rule 6 (a) and (c), for criterion 2; "yes to all 3" for tests/integration.rs
+    - where: Criterion 2: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of criterion 2 on 2026-11-19; these are not his words about this text. tests/integration.rs: his one-time yes, "yes to all 3", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence
+    - actor: 0xLeif
   - by: claude-code (hc t59)

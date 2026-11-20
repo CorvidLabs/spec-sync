@@ -5,7 +5,7 @@ aliases: [release-6-4-0-prep]
 objective: "SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish"
 intent_scope: ""
 modules: []
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -24,13 +24,9 @@ observations:
   - 2026-11-20-640-portable-fixture-rerun-at-140eedaf
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of #1109 at a7d5c658 (relayed by hc t4c through ss-lead t58)"
-    holds: accept
-    drives: review
-    opened: 2026-11-20T02:17:25Z
+waiting_on_human: []
 run_consents: []
-next: Record Leif's relayed review and ship in one step; then the identity check and push the archive tip
+next: Continue done
 ---
 # SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish
 
@@ -51,6 +47,7 @@ SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASI
 - decided: CHANGELOG heading ## [6.4.0] - 2026-11-24, the planned tag date; the date is corrected before the tag if the day moves (ss-lead t58, 2026-11-20)
 - 0xLeif decided "Leif's definition approval of the 6.4.0 preparation (relayed by hc t4c through ss-lead t58)": "yes" (Claude Code chat message to his planning session (hc t4c), 2026-11-20 about 01:11Z, answering 'Approve the prep PR as written?' on the frozen ss-lead/gates/640-prep-definition.md, including the reworded date sentence and the measured correction of #1086's CHANGELOG sentence inside the approved scope; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve prepare-specsync-6-4-0-package-metadata-and-release-handoff as 0xLeif
 - How the release candidate test was run, so a reader gets the same result: GIT_CONFIG_GLOBAL=<a file holding only user.name, user.email, commit.gpgsign=false and tag.gpgsign=false> GIT_CONFIG_NOSYSTEM=1 python3 -I .github/scripts/test-validate-release-candidate.py < /dev/null, as a prefix on that one command and never exported. On a machine whose own Git configuration signs tags, two of its tests error 'fatal: no tag message?', because the script's git() helper does not isolate configuration; that is the same on main (#1110).
+- 0xLeif decided "Leif's review of #1109 at a7d5c658 (relayed by hc t4c through ss-lead t58)": "Yes" (Claude Code chat message to his planning session (hc t4c), 2026-11-20 about 02:16Z, answering 'Does your review pass?' for spec-sync #1109 at head a7d5c658, on the frozen ss-lead/gates/640-prep-review-request.md; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change review prepare-specsync-6-4-0-package-metadata-and-release-handoff as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -112,4 +109,20 @@ SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASI
   - revision: a7d5c658de4f3008a55fb5e29bc28267d4314934
   - holds: accept
   - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-20T02:19:22Z · gate-closed · accept → accept · Leif's review of #1109 at a7d5c658 (relayed by hc t4c through ss-lead t58) ^t-c29b19
+  - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
+  - revision: 263a4c5b41600210f4cf760fdf5bdf50dc4983bc
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Yes
+    - where: Claude Code chat message to his planning session (hc t4c), 2026-11-20 about 02:16Z, answering 'Does your review pass?' for spec-sync #1109 at head a7d5c658, on the frozen ss-lead/gates/640-prep-review-request.md; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change review prepare-specsync-6-4-0-package-metadata-and-release-handoff
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-20T02:19:24Z · advance · accept → done · native:archived ^t-f99681
+  - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
+  - gate: native:archived
+  - revision: 263a4c5b41600210f4cf760fdf5bdf50dc4983bc
   - by: claude-code (hc t59)

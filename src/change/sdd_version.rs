@@ -3615,7 +3615,12 @@ pub fn check_change_as(
         return Ok(None);
     };
     // Refuse before materialization writes canonical specs (REQ-change-115).
-    ensure_change_clear_of_verification_ignored(root, &load_change(root, &id)?)?;
+    let record = load_change(root, &id)?;
+    ensure_change_clear_of_verification_ignored(root, &record)?;
+    // `--commit` must not commit a ledger that changes a committed record (#1120).
+    if invocation.commit {
+        ensure_working_ledger_keeps_committed_records(root, &record)?;
+    }
     let rerun = invocation.command(&id);
     materialize_change_deltas_rerunning(root, &id, &rerun)?;
     verify_change_rerunning(root, &id, invocation.strict, &rerun).map(Some)

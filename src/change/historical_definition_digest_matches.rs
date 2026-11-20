@@ -3107,7 +3107,7 @@ fn approvals_ledger_held_by_history_at(
             _ => Err(format!("failed to read `{object}`; {REPAIR}")),
         }
     };
-    const WHY: &str = "a change is archived only with approvals that Git history holds";
+    const WHY: &str = APPROVALS_LEDGER_WHY;
     // A blobless clone of a private repository (#1077) or a damaged one cannot read a version.
     const REPAIR: &str =
         "repair the repository or fetch the missing objects, then run the command again";
@@ -3140,20 +3140,13 @@ fn approvals_ledger_held_by_history_at(
         && !(record.state == ChangeState::Accepted
             && appends_only_closing_records(root, record, &at_head, &working))
     {
-        return Err(match approvals_ledger_rewrite(&at_head, &working) {
-            Ok(None) => format!(
+        let rewrite = approvals_ledger_rewrite(&at_head, &working);
+        return Err(working_ledger_restore(&display, &rewrite).unwrap_or_else(|| {
+            format!(
                 "`{display}` adds records the version committed at HEAD does not hold; {WHY}. \
                  Commit it with the change ({commit_it}), then run the command again"
-            ),
-            Ok(Some(why)) => format!(
-                "`{display}` {why} of the version committed at HEAD; {WHY}. Restore it with \
-                 `git checkout HEAD -- {display}`, then run the command again"
-            ),
-            Err(()) => format!(
-                "`{display}` does not read as an approvals ledger; {WHY}. Restore it with \
-                 `git checkout HEAD -- {display}`, then run the command again"
-            ),
-        });
+            )
+        }));
     }
     let pathspec = format!(":(top,literal){relative}");
     let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
@@ -3261,6 +3254,52 @@ fn approvals_ledger_held_by_history_at(
         removed_in = None;
     }
     Ok(())
+}
+
+const APPROVALS_LEDGER_WHY: &str = "a change is archived only with approvals that Git history holds";
+
+/// The restore a working ledger needs when it changes or drops a record committed at `HEAD`, or
+/// does not read as a ledger; `None` when it only adds records (REQ-change-166).
+fn working_ledger_restore(display: &str, rewrite: &Result<Option<String>, ()>) -> Option<String> {
+    let what = match rewrite {
+        Ok(None) => return None,
+        Ok(Some(why)) => format!("{why} of the version committed at HEAD"),
+        Err(()) => "does not read as an approvals ledger".to_string(),
+    };
+    Some(format!(
+        "`{display}` {what}; {APPROVALS_LEDGER_WHY}. Restore it with `git checkout HEAD -- \
+         {display}`, then run the command again"
+    ))
+}
+
+/// `change check --commit` does not commit a ledger whose working copy changes or drops a record
+/// committed at `HEAD`: it refuses before writing anything, naming the restore finalize names
+/// (#1120). A ledger that only adds records, or is not committed yet, is the commit's to make.
+pub(crate) fn ensure_working_ledger_keeps_committed_records(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
+    let Ok(working) = fs::read(change_dir(root, &record.id).join("approvals.json")) else {
+        return Ok(());
+    };
+    let relative = git_repo_relative_path(root, &display)?;
+    let object = format!("HEAD:{relative}");
+    let Ok(output) = run_git_bounded(
+        root,
+        &["show", object.as_str(), "--"],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    ) else {
+        return Ok(());
+    };
+    if !output.status.success() {
+        return Ok(());
+    }
+    match working_ledger_restore(&display, &approvals_ledger_rewrite(&output.stdout, &working)) {
+        Some(refusal) => Err(refusal),
+        None => Ok(()),
+    }
 }
 
 /// The way out of a ledger refusal that `change check --commit` itself takes.

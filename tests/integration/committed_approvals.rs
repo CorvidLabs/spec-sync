@@ -265,7 +265,11 @@ fn check_commit_refuses_to_commit_a_ledger_that_changes_a_committed_record() {
     let output = run(&root, &["change", "check", ID, "--commit"]);
     assert!(!output.status.success(), "{}", printed(&output));
     assert!(printed(&output).contains(&restore), "{}", printed(&output));
-    assert_eq!(git(&root, &["rev-parse", "HEAD"]), head, "nothing is committed");
+    assert_eq!(
+        git(&root, &["rev-parse", "HEAD"]),
+        head,
+        "nothing is committed"
+    );
     assert_eq!(
         git(&root, &["status", "--porcelain", "--untracked-files=all"]),
         status,
@@ -273,11 +277,22 @@ fn check_commit_refuses_to_commit_a_ledger_that_changes_a_committed_record() {
     );
     let committed = git(
         &root,
-        &["show", &format!("HEAD:.specsync/changes/{ID}/approvals.json")],
+        &[
+            "show",
+            &format!("HEAD:.specsync/changes/{ID}/approvals.json"),
+        ],
     );
     assert!(!committed.contains("Mallory"));
 
-    git(&root, &["checkout", "HEAD", "--", &format!(".specsync/changes/{ID}/approvals.json")]);
+    git(
+        &root,
+        &[
+            "checkout",
+            "HEAD",
+            "--",
+            &format!(".specsync/changes/{ID}/approvals.json"),
+        ],
+    );
     run_ok(&root, &["change", "check", ID, "--commit"]);
     assert_ne!(git(&root, &["rev-parse", "HEAD"]), head);
 }

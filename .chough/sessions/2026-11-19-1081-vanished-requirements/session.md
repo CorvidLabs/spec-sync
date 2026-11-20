@@ -5,7 +5,7 @@ aliases: [1081-vanished-requirements]
 objective: check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 intent_scope: ""
 modules: [change, cmd_change]
-stage: accept
+stage: plan
 stage_status: active
 iteration: 1
 callers: []
@@ -26,13 +26,9 @@ observations:
   - 2026-11-20-codex-s-third-round-on-1108-2-p1-3-p2-and-the-tester-s-excl2
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of #1081"
-    holds: accept
-    drives: review
-    opened: 2026-11-20T02:34:09Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: "Gate \"Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count)\" closed (approved); run `chough stage advance` to move on."
 ---
 # check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 
@@ -47,6 +43,8 @@ check, verification and ship refuse a branch that lost canonical requirements no
 - 0xLeif decided "Scope approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names": "Approve as written" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:17Z, on ss-lead's frozen gates/1081-definition.md (CHANGE-17 and .a to .c marked as the agent's draft, REQ-change-169, REQ-cmd-change-042, five choices, no CI-side guard); relayed through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
 - 0xLeif decided "Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (origin/HEAD, option A)": "A" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main."); recorded by claude-code-t4t; a relayed claim, not authenticated
 - 0xLeif decided "Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch)": "A" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main." The two insertions are ss-lead's exact texts); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
+- 0xLeif decided "Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (only tracked files count, Codex round 4)": "continue with 95% confidence" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: "(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs." and "(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause."); recorded by claude-code-t4t; a relayed claim, not authenticated
+- 0xLeif decided "Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count)": "continue with 95% confidence" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: "(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs." and "(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause." The replacement is ss-lead's exact text); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
 
 ## What was verified
 
@@ -217,4 +215,68 @@ check, verification and ship refuse a branch that lost canonical requirements no
   - revision: b6869d9a6a2360949c3400d113d298d84f7386ee
   - holds: accept
   - drives: review
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:38Z · gate-closed · accept → accept · Leif's review of #1081 ^t-3acfab
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:38Z · gate-opened · accept → accept · Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (only tracked files count, Codex round 4) ^t-036332
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - holds: accept
+  - drives: none
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:38Z · direct-native-write · accept → accept · check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state stays verifying ^t-0c5ca8
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - direct_write:
+    - change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: verifying
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:38Z · gate-closed · accept → accept · Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (only tracked files count, Codex round 4) ^t-e4a1de
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: continue with 95% confidence
+    - where: a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: "(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs." and "(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause."
+    - recorded_by: claude-code-t4t
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:39Z · direct-native-write · accept → accept · check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-e824ae
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - direct_write:
+    - change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:39Z · back · accept → plan · REQ-change-169: one replacement on Leif's 'continue with 95% confidence' (only tracked files count); re-approval follows at plan ^t-4b997b
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 7 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:53Z · gate-opened · plan → plan · Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count) ^t-d505f9
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:15:53Z · gate-closed · plan → plan · Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count) ^t-23aa57
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 86add4bc59ffccd023e8c395b714f553e529cf7c
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: continue with 95% confidence
+    - where: a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: "(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs." and "(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause." The replacement is ss-lead's exact text
+    - recorded_by: claude-code-t4t
+    - native: specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - actor: 0xLeif
   - by: claude-code (hc t4t)

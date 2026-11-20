@@ -1,6 +1,6 @@
 ---
 id: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
-state: implementing
+state: approved
 type: bug_fix
 base_commit: 3bebe8b03094b2079630801584b56f94a1e460c5
 ---

@@ -131,3 +131,6 @@ mod spec_history;
 
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+
+#[path = "integration/ship_status_reopen_and_resume.rs"]
+mod ship_status_reopen_and_resume;

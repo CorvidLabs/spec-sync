@@ -29,6 +29,35 @@
         "REQ-util-010",
         "REQ-validator-053"
       ]
+    },
+    {
+      "timestamp": 1795184233,
+      "commit": "5d5d432e782067bf6a1aed9bbc9d5590d4d79262",
+      "contract_digest": "1f93f72e0fb07daf84266ebc9740d487295286fd935a790762a11ef7b476d87b",
+      "execution_digest": "1139f26e65b92ed717f34de1f389bb65846e7b08dd4e5f84c32217f266242ca3",
+      "workspace_digest": "2097a6c142c465c6e5676341fab61401525981a1498c45bf2d7b2ab685f8e029",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_check --spec cmd_scaffold --spec cmd_wizard --spec commands --spec config --spec mcp --spec registry --spec schema --spec util --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-164",
+        "REQ-cmd-check-022",
+        "REQ-cmd-scaffold-008",
+        "REQ-cmd-wizard-004",
+        "REQ-commands-016",
+        "REQ-config-018",
+        "REQ-mcp-014",
+        "REQ-registry-005",
+        "REQ-schema-003",
+        "REQ-util-009",
+        "REQ-util-010",
+        "REQ-validator-053"
+      ]
     }
   ]
 }

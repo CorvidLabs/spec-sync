@@ -344,6 +344,81 @@ fn hooks_status_does_not_wait_on_a_hook_file_that_is_not_a_regular_file() {
     fx.run(&["hooks", "status"]);
 }
 
+/// Install the `CLAUDE.md` hook, then append `extra` to the file, as a person editing it would.
+fn installed_claude_md_with(fx: &Fixture, extra: &[u8]) -> Vec<u8> {
+    let install = fx.run(&["hooks", "install", "--claude"]);
+    assert!(install.status.success(), "{}", said(&install));
+    let path = fx.root.join("CLAUDE.md");
+    let mut bytes = fs::read(&path).unwrap();
+    assert!(String::from_utf8_lossy(&bytes).contains("Spec-Sync Integration"));
+    bytes.extend_from_slice(extra);
+    fs::write(&path, &bytes).unwrap();
+    bytes
+}
+
+/// Verifies REQ-hooks-007 (review of #1133). An installed `CLAUDE.md` grown past the 8 MiB bound
+/// is a refused read: `uninstall` and `install` fail naming the path and the reason, the file is
+/// left as it is, and `status` prints the reason instead of calling the hook not installed.
+#[test]
+fn hooks_name_an_oversized_hook_file_instead_of_calling_it_not_installed() {
+    let fx = project();
+    let bytes = installed_claude_md_with(&fx, &vec![b'a'; 8 * 1024 * 1024 + 1]);
+    let path = fx.root.join("CLAUDE.md");
+
+    let uninstall = fx.run(&["hooks", "uninstall", "--claude"]);
+    assert_eq!(uninstall.status.code(), Some(1), "{}", said(&uninstall));
+    assert!(
+        said(&uninstall).contains("CLAUDE.md"),
+        "{}",
+        said(&uninstall)
+    );
+    assert!(
+        said(&uninstall).contains("larger than"),
+        "{}",
+        said(&uninstall)
+    );
+    assert!(
+        fs::read(&path).unwrap() == bytes,
+        "uninstall changed CLAUDE.md"
+    );
+
+    let install = fx.run(&["hooks", "install", "--claude"]);
+    assert_eq!(install.status.code(), Some(1), "{}", said(&install));
+    assert!(said(&install).contains("CLAUDE.md"), "{}", said(&install));
+    assert!(said(&install).contains("larger than"), "{}", said(&install));
+    assert!(
+        fs::read(&path).unwrap() == bytes,
+        "install changed CLAUDE.md"
+    );
+
+    let status = fx.run(&["hooks", "status"]);
+    let claude = said(&status)
+        .lines()
+        .find(|line| line.contains("CLAUDE.md agent instructions"))
+        .unwrap_or_default()
+        .to_string();
+    assert!(!claude.contains("not installed"), "{}", said(&status));
+    assert!(claude.contains("larger than"), "{}", said(&status));
+}
+
+/// Verifies REQ-hooks-007 (review of #1133). A `CLAUDE.md` that is not valid UTF-8 is a failed read
+/// too: `uninstall` fails naming the path and the reason, and leaves the file as it is.
+#[test]
+fn hooks_name_a_hook_file_that_is_not_utf8() {
+    let fx = project();
+    let bytes = installed_claude_md_with(&fx, &[0xff, 0xfe, b'\n']);
+
+    let uninstall = fx.run(&["hooks", "uninstall", "--claude"]);
+    assert_eq!(uninstall.status.code(), Some(1), "{}", said(&uninstall));
+    assert!(
+        said(&uninstall).contains("CLAUDE.md"),
+        "{}",
+        said(&uninstall)
+    );
+    assert!(said(&uninstall).contains("UTF-8"), "{}", said(&uninstall));
+    assert!(fs::read(fx.root.join("CLAUDE.md")).unwrap() == bytes);
+}
+
 /// Verifies REQ-util-003. A link that stays inside the project is still read.
 #[test]
 fn a_policy_linked_inside_the_project_is_still_read() {

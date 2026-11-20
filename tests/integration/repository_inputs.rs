@@ -138,6 +138,49 @@ fn rehash_leaves_a_hash_cache_git_tracks() {
     );
 }
 
+/// Verifies REQ-hash-cache-007 and REQ-rehash-003 (review of #1133). A user-cache `hashes.json`
+/// that is a symbolic link, or a directory, is refused by `rehash` as `check` refuses it: exit 1
+/// with the same reason, nothing renamed over it, and the link's target unchanged.
+#[cfg(unix)]
+#[test]
+fn rehash_refuses_a_linked_user_cache_hashes_file() {
+    let (_tmp, root, outside) = project();
+    toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
+    let cache = state_cache_file(&root);
+    fs::create_dir_all(cache.parent().unwrap()).unwrap();
+    fs::write(outside.join("victim"), "victim").unwrap();
+    std::os::unix::fs::symlink(outside.join("victim"), &cache).unwrap();
+    let reason = "is a symbolic link, and the hash cache is never read or written through one";
+
+    let check = run(&root, &["check"]);
+    assert!(said(&check).contains(reason), "{}", said(&check));
+
+    let output = run(&root, &["rehash"]);
+    assert_eq!(output.status.code(), Some(1), "{}", said(&output));
+    assert!(said(&output).contains(reason), "{}", said(&output));
+    assert!(
+        fs::symlink_metadata(&cache)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        fs::read_to_string(outside.join("victim")).unwrap(),
+        "victim"
+    );
+
+    fs::remove_file(&cache).unwrap();
+    fs::create_dir(&cache).unwrap();
+    let output = run(&root, &["rehash"]);
+    assert_eq!(output.status.code(), Some(1), "{}", said(&output));
+    assert!(
+        said(&output).contains("is not a regular file"),
+        "{}",
+        said(&output)
+    );
+    assert!(cache.is_dir());
+}
+
 // ─── configured directories (F5) ───────────────────────────────────────
 
 /// Verifies REQ-config-017. `specs_dir`, `source_dirs` and `schema_dir` name directories inside

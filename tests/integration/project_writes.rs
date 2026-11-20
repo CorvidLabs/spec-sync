@@ -644,6 +644,67 @@ fn hooks_install_never_creates_the_target_of_a_dangling_pre_commit_link() {
     assert!(!output.status.success(), "{}", said(&output));
 }
 
+fn uninstall_precommit(root: &Path) -> Output {
+    specsync()
+        .arg("--root")
+        .arg(root)
+        .args(["hooks", "uninstall", "--precommit"])
+        .output()
+        .unwrap()
+}
+
+/// Verifies REQ-hooks-009 (review of #1133). With the hooks folder reached through a link, as a
+/// hook an older SpecSync installed there would be, `uninstall --precommit` is refused naming the
+/// path, not reported as nothing to remove, and the hook outside is left as it is.
+#[test]
+fn hooks_uninstall_precommit_refuses_a_linked_hooks_folder() {
+    let (_tmp, root, outside) = hooks_path_project(".config/hooks");
+    fs::create_dir_all(outside.join("hooks")).unwrap();
+    fs::write(
+        outside.join("hooks/pre-commit"),
+        "#!/bin/sh\nspecsync check\n",
+    )
+    .unwrap();
+    symlink("../outside", root.join(".config")).unwrap();
+
+    let output = uninstall_precommit(&root);
+
+    assert_eq!(output.status.code(), Some(1), "{}", said(&output));
+    assert!(said(&output).contains(".config"), "{}", said(&output));
+    assert_eq!(
+        fs::read_to_string(outside.join("hooks/pre-commit")).unwrap(),
+        "#!/bin/sh\nspecsync check\n"
+    );
+}
+
+/// Verifies REQ-hooks-009. CONTROL: outside a Git repository, `uninstall --precommit` has nothing
+/// to remove and succeeds.
+#[test]
+fn hooks_uninstall_precommit_outside_git_has_nothing_to_remove() {
+    let tmp = TempDir::new().unwrap();
+    let output = uninstall_precommit(tmp.path());
+    assert!(output.status.success(), "{}", said(&output));
+    assert!(
+        said(&output).contains("No hooks to remove"),
+        "{}",
+        said(&output)
+    );
+}
+
+/// Verifies REQ-hooks-009. CONTROL: a configured hooks folder that does not exist holds no hook, so
+/// `uninstall --precommit` has nothing to remove and succeeds.
+#[test]
+fn hooks_uninstall_precommit_with_no_hooks_folder_has_nothing_to_remove() {
+    let (_tmp, root, _outside) = hooks_path_project(".githooks");
+    let output = uninstall_precommit(&root);
+    assert!(output.status.success(), "{}", said(&output));
+    assert!(
+        said(&output).contains("No hooks to remove"),
+        "{}",
+        said(&output)
+    );
+}
+
 /// Verifies REQ-hooks-009. CONTROL: a real hooks folder in the work tree gets an executable
 /// `pre-commit`.
 #[test]

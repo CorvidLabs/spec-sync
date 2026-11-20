@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- One change whose records fail validation, such as a change a merge left both open and archived at one commit, no longer makes every other change's terminal evidence read `corrupt-history` or `stale` with its reason. Each change is judged on its own records and on the changes it selects as successors; the broken change still reports its own failure in its status and in `change audit` (#1104).
+- One change whose records fail validation, such as a change a merge left both open and archived at one commit, no longer makes every other change's terminal evidence read `corrupt-history` or `stale` with its reason. Each change is judged on its own records and on the changes it selects as successors; the broken change still reports its own failure in its status, in `change audit` while it is active and in `change audit --archives` once it is only an archive (#1104).
 
 ## [6.4.0] - 2026-11-24
 

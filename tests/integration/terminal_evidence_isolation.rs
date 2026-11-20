@@ -2,8 +2,10 @@
 // change's terminal evidence. tester2's S1 shape: a change is archived, then a commit holds it
 // both open and archived (as a merge left one on starling) and a later commit removes the open
 // copy. Another change archived before it reads `authenticated-history` in status, list and
-// ship-status; the broken change still reports its own failure, and `change audit --archives`
-// still names it; check, review and finalize of a third change run as before.
+// ship-status; the broken change still reports its own failure. Plain `change audit` exits 1 with
+// that failure while the change is open and archived at once, and passes once it is only an
+// archive, where `change audit --archives` exits 1 naming it. Check, review and finalize of a
+// third change run as before.
 
 use super::helpers::specsync;
 use serde_json::Value;
@@ -172,6 +174,15 @@ fn another_change_s_broken_history_does_not_decide_status_list_or_ship_status() 
             "a merge keeps the open copy beside the archive",
         ],
     );
+    // While that commit holds the change open and archived at once, plain `change audit` exits 1
+    // with the change's error.
+    let audit = run(&root, &["change", "audit"]);
+    assert!(!audit.status.success(), "{}", printed(&audit));
+    assert!(
+        printed(&audit).contains("duplicates state at commit"),
+        "{}",
+        printed(&audit)
+    );
     git(&root, &["rm", "-r", "-q", active]);
     git(&root, &["commit", "-q", "-m", "drop the open copy"]);
 
@@ -208,10 +219,15 @@ fn another_change_s_broken_history_does_not_decide_status_list_or_ship_status() 
     let audit = run(&root, &["change", "audit", "--archives"]);
     assert!(!audit.status.success(), "{}", printed(&audit));
     assert!(
-        printed(&audit).contains("add-notes") || printed(&audit).contains("duplicates state"),
+        printed(&audit)
+            .contains("archived change `add-notes` failed workflow-version history validation"),
         "{}",
         printed(&audit)
     );
+    // Plain `change audit` inspects active changes, and the broken change is only an archive now,
+    // so it passes.
+    let audit = run(&root, &["change", "audit"]);
+    assert!(audit.status.success(), "{}", printed(&audit));
 
     // check, review and finalize of a third change run as they do on main.
     shipped(&root, "Add a log", "add-a-log", "LOG.md");

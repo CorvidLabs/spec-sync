@@ -10,6 +10,38 @@
       "commands": [],
       "requirement_ids": [],
       "refusal": "verification cannot start: no requirement evidence for REQ-cmd-change-041, REQ-cmd-resolve-003, REQ-cmd-scaffold-009, REQ-cmd-stale-005, REQ-commands-014, REQ-util-010, REQ-util-011, REQ-validator-053; add a row for each to the `## Requirement evidence` table in .specsync/changes/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first/testing.md"
+    },
+    {
+      "timestamp": 1795211205,
+      "commit": "e56196f92a6ca70aacb17e52f78c80bd3a3899d1",
+      "contract_digest": "7f32aa44b614bd11a7cdc4ce814e64377fb6e68b98aa29ee47a6161ec70f2eb3",
+      "execution_digest": "d863f2f11759f888893b5c0d8ffc287bb0508329dedbc50664b346a0b3e15081",
+      "workspace_digest": "5fdd584bfdcfdd37c7eb32ca74904546f7937c651b52fddd1b197a03ab16eba0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --spec cmd_check --spec cmd_resolve --spec cmd_scaffold --spec cmd_stale --spec commands --spec hash_cache --spec hooks --spec util --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-162",
+        "REQ-cmd-change-041",
+        "REQ-cmd-check-021",
+        "REQ-cmd-resolve-003",
+        "REQ-cmd-scaffold-009",
+        "REQ-cmd-stale-005",
+        "REQ-commands-014",
+        "REQ-hash-cache-007",
+        "REQ-hooks-009",
+        "REQ-util-006",
+        "REQ-util-008",
+        "REQ-util-009",
+        "REQ-util-010",
+        "REQ-util-011",
+        "REQ-validator-053"
+      ]
     }
   ]
 }

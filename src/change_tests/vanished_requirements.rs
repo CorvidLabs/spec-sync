@@ -334,14 +334,20 @@ fn two_change_repository(root: &Path) -> (ChangeRecord, ChangeRecord) {
 /// Moves `record`'s workspace into the archive in `state`, as finalize leaves an archived change,
 /// and commits it.
 fn move_into_archive(root: &Path, record: &ChangeRecord, state: ChangeState) {
+    move_into_archive_uncommitted(root, record, state);
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "archive the removing change"]);
+}
+
+/// As `move_into_archive`, leaving the move uncommitted, as finalize leaves it until the archive
+/// tip is committed.
+fn move_into_archive_uncommitted(root: &Path, record: &ChangeRecord, state: ChangeState) {
     let archive = root.join(ARCHIVE_PATH).join(format!("2026-11-20-{}", record.id));
     fs::create_dir_all(archive.parent().unwrap()).unwrap();
     fs::rename(change_dir(root, &record.id), &archive).unwrap();
     let mut moved = record.clone();
     moved.state = state;
     write_json(&archive.join("state.json"), &moved).unwrap();
-    git_in(root)(&["add", "--all"]);
-    git_in(root)(&["commit", "-q", "-m", "archive the removing change"]);
 }
 
 /// REQ-change-169: a change archived on the branch after the reference accounts for the
@@ -844,4 +850,79 @@ fn a_requirements_file_deep_below_the_specs_directory_is_read() {
     git_in(root)(&["commit", "-q", "-am", "reword the deep requirement"]);
 
     assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}
+
+/// corvid-agent on #1108 (blocking), inside the approved words: an `origin/HEAD` that does not
+/// resolve to a commit is not a default branch. It is set and broken here with `git symbolic-ref`,
+/// so the test does not depend on what a given Git's clone writes. With `origin/main` present the
+/// check compares with it, and the merge way out names it.
+#[test]
+fn a_dangling_origin_head_is_not_the_default_branch() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    let removed = drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001");
+    git(&["checkout", "-q", "main"]);
+    fs::write(requirements_path(root), &removed).unwrap();
+    git(&["commit", "-q", "-am", "main removes REQ-auth-001"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    fs::write(requirements_path(root), &removed).unwrap();
+    git(&["commit", "-q", "-am", "the same removal, by hand"]);
+    // The default branch was renamed and pruned: origin/HEAD still names it.
+    git(&["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-auth-001 was lost");
+
+    assert!(
+        error.contains("origin/main has removed REQ-auth-001 too")
+            && error.contains("`git merge origin/main`")
+            && !error.contains("trunk"),
+        "{error}"
+    );
+}
+
+/// corvid-agent on #1108 (blocking): with a dangling `origin/HEAD` and neither `origin/main` nor
+/// `origin/master`, there is no default branch, so the change's base commit is the reference;
+/// without one the check is skipped with the note, never refused for a merge-base it cannot read.
+#[test]
+fn a_dangling_origin_head_alone_falls_back_to_the_base_commit_or_the_note() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    record.base_commit = Some(vanished_rev(root, "HEAD"));
+    save_change(root, &record).unwrap();
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "truncate"]);
+    git(&["update-ref", "-d", "refs/remotes/origin/main"]);
+    git(&["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-auth-001 was lost");
+    assert!(error.contains("lost canonical requirements") && error.contains("REQ-auth-001"), "{error}");
+
+    record.base_commit = None;
+    save_change(root, &record).unwrap();
+    let note = ensure_no_lost_requirements(root, &record).unwrap();
+    assert!(note.is_some_and(|note| note.contains("not checked")));
+}
+
+/// corvid-agent on #1108 (non-blocking): `change finalize` moves a change into the archive before
+/// the archive tip is committed. A second active change checked on that tree still sees the
+/// archived change's approved removals, though Git does not track its record yet.
+#[test]
+fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (first, second) = two_change_repository(root);
+    let reference = vanished_rev(root, "HEAD");
+    move_into_archive_uncommitted(root, &second, ChangeState::Archived);
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+
+    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+
+    assert!(removed.contains("REQ-auth-001"), "{removed:?}");
+    assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
 }

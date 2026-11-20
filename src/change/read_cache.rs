@@ -184,12 +184,21 @@ const PARTIAL_CLONE_FETCH_SECONDS: u64 = 60;
 /// `git fetch` that downloads those objects, given by a read that then fails
 /// (`partial_clone_download_refusal`); a read that needs none of them still succeeds.
 fn ensure_partial_clone_objects(root: &Path) {
-    let mut downloads = PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
-    if downloads.contains_key(root) {
-        return;
+    // The entry is taken before the download runs Git, so a read the download makes itself
+    // finds it and goes on, instead of starting a second download or waiting on this one.
+    {
+        let mut downloads =
+            PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
+        if downloads.contains_key(root) {
+            return;
+        }
+        downloads.insert(root.to_path_buf(), Ok(()));
     }
     let result = download_partial_clone_objects(root);
-    downloads.insert(root.to_path_buf(), result);
+    PARTIAL_CLONE_DOWNLOADS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .insert(root.to_path_buf(), result);
 }
 
 /// The refusal a failed partial-clone download gave this process, if one did.
@@ -255,7 +264,7 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
             Ok(())
         }
         Err(reason) => Err(format!(
-            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `git -C {} fetch {} --no-tags --no-write-fetch-head --filter=blob:none {}`, then run the command again.",
+            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `git -C {} fetch --no-tags --no-write-fetch-head --filter=blob:none -- {} {}`, then run the command again.",
             missing.len(),
             shell_word(&root.display().to_string()),
             shell_word(&remote),
@@ -264,16 +273,16 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
     }
 }
 
-/// One `git fetch <remote> --stdin` of `ids`, with the user's own environment and
-/// configuration, `GIT_TERMINAL_PROMPT=0`, and (on Unix) a new session with no controlling
-/// terminal, so a credential that needs typing fails it instead of waiting; killed after
-/// `PARTIAL_CLONE_FETCH_SECONDS`.
+/// One `git fetch --stdin -- <remote>` of `ids`, with the user's own configuration, rooted as
+/// SpecSync's other Git calls are (no `GIT_DIR`, `GIT_OBJECT_DIRECTORY` or the like pointing
+/// elsewhere), `GIT_TERMINAL_PROMPT=0`, and (on Unix) a new session with no controlling
+/// terminal, so a credential that needs typing fails it instead of waiting; the whole session is
+/// killed after `PARTIAL_CLONE_FETCH_SECONDS`. It runs Git directly, never through
+/// `run_git_bounded`, whose history reads would ask for this download again.
 fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(), String> {
-    let mut command = Command::new("git");
+    let mut command = rooted_git_command(root);
     command
-        .arg("-C")
-        .arg(root)
-        .args(["fetch", remote, "--no-tags", "--no-write-fetch-head", "--filter=blob:none", "--stdin"])
+        .args(["fetch", "--no-tags", "--no-write-fetch-head", "--filter=blob:none", "--stdin", "--", remote])
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
@@ -315,6 +324,11 @@ fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) if std::time::Instant::now() >= deadline => {
+                // The fetch leads its own session: stop every process in it, helpers included.
+                #[cfg(unix)]
+                unsafe {
+                    libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+                }
                 let _ = child.kill();
                 let _ = child.wait();
                 return Err(format!(

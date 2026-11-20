@@ -3444,10 +3444,6 @@ fn workflow_v1_record_present_in_cutoff_tree(
     Ok(present)
 }
 
-/// The record-independent half of `validate_workflow_v2_baseline`: the baseline's reachable
-/// history at the commit `head` names. Every query names `head` by its resolved id rather than
-/// `HEAD`, so the verdict is exactly a verdict about that commit and, inside a history scope, a
-/// passing one is reused for the other archived changes finalize and archive validate.
 /// Whether the repository at `root` is a shallow clone, asked only once a lifecycle-history check
 /// has refused (or `change new` is about to check that history), so a full clone pays nothing.
 fn clone_is_shallow(root: &Path) -> bool {
@@ -3516,6 +3512,10 @@ fn ensure_baseline_history_for_change_new(root: &Path) -> Result<(), String> {
     .map_err(|_| shallow_history_refusal(baseline.cutoff_commit.as_deref(), true))
 }
 
+/// The record-independent half of `validate_workflow_v2_baseline`: the baseline's reachable
+/// history at the commit `head` names. Every query names `head` by its resolved id rather than
+/// `HEAD`, so the verdict is exactly a verdict about that commit and, inside a history scope, a
+/// passing one is reused for the other archived changes finalize and archive validate.
 fn validate_workflow_v2_baseline_history(
     root: &Path,
     head: &str,

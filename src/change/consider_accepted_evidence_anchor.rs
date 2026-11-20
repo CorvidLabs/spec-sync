@@ -426,9 +426,12 @@ fn repository_git_dirs(work_tree: &Path) -> Vec<PathBuf> {
 /// directory a linked worktree resolves to is owned by another user, or Git's own test switch
 /// says so. It spawns nothing.
 fn repository_owned_by_another_user(root: &Path) -> bool {
-    if std::env::var_os("GIT_TEST_ASSUME_DIFFERENT_OWNER")
-        .is_some_and(|value| !value.is_empty() && value != "0" && value != "false")
-    {
+    // Git reads its test switch as a boolean: true, yes, on, or a non-zero number.
+    if std::env::var("GIT_TEST_ASSUME_DIFFERENT_OWNER").is_ok_and(|value| {
+        let value = value.trim().to_ascii_lowercase();
+        matches!(value.as_str(), "true" | "yes" | "on")
+            || value.parse::<i64>().is_ok_and(|number| number != 0)
+    }) {
         return true;
     }
     #[cfg(unix)]
@@ -476,10 +479,12 @@ fn safe_directory_state(root: &Path) -> SafeDirectoryState {
 /// The work tree's top level as the user's own Git reports it, byte for byte with only Git's line
 /// terminator removed, run once with the user's environment and configuration and no prompt;
 /// `None` when it refuses the repository.
+///
+/// It runs as SpecSync's other Git calls are rooted, without the variables that point Git at
+/// another repository (`GIT_DIR`, `GIT_WORK_TREE`, …), and its answer counts only when the top
+/// level is this repository's (corvid-agent on #1122).
 fn user_git_top_level(root: &Path) -> Option<Vec<u8>> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let output = rooted_git_command(root)
         .args(["rev-parse", "--show-toplevel"])
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdin(std::process::Stdio::null())
@@ -489,7 +494,18 @@ fn user_git_top_level(root: &Path) -> Option<Vec<u8>> {
     if top.last() == Some(&b'\n') {
         top.pop();
     }
-    (output.status.success() && !top.is_empty()).then_some(top)
+    if !output.status.success() || top.is_empty() {
+        return None;
+    }
+    #[cfg(unix)]
+    let reported = {
+        use std::os::unix::ffi::OsStrExt;
+        PathBuf::from(std::ffi::OsStr::from_bytes(&top))
+    };
+    #[cfg(not(unix))]
+    let reported = PathBuf::from(String::from_utf8_lossy(&top).into_owned());
+    let this = repository_work_tree(root).and_then(|tree| fs::canonicalize(tree).ok())?;
+    (fs::canonicalize(&reported).ok()? == this).then_some(top)
 }
 
 /// Removes every private safe-directory file this process made, when it exits.
@@ -758,9 +774,35 @@ fn run_git_bounded(
     input: Option<Vec<u8>>,
     stdout_cap: usize,
 ) -> Result<BoundedCommandOutput, String> {
+    // REQ-change-172: in a partial clone, a read of history objects downloads what is missing
+    // first, in one fetch, whichever read comes first (corvid-agent on #1122). The download runs
+    // its own Git directly, never through here.
+    if reads_history_objects(args) {
+        ensure_partial_clone_objects(root);
+    }
     memoized_configured_git(root, args, input, stdout_cap, |command, input| {
         run_git_command_bounded(command, args, input, stdout_cap)
     })
+}
+
+/// Whether `args` reads objects of the repository's history, which a partial clone may lack.
+fn reads_history_objects(args: &[&str]) -> bool {
+    let mut words = args.iter();
+    while let Some(word) = words.next() {
+        match *word {
+            "-c" => {
+                words.next();
+            }
+            option if option.starts_with('-') => {}
+            subcommand => {
+                return matches!(
+                    subcommand,
+                    "show" | "cat-file" | "log" | "diff" | "diff-tree" | "grep" | "blame"
+                );
+            }
+        }
+    }
+    false
 }
 
 /// Run one configured git query for `root`, answering repository facts from the command's open

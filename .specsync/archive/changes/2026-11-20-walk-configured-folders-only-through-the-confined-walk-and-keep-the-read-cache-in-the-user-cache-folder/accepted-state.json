@@ -7,11 +7,11 @@
   "title": "Walk configured folders only through the confined walk, and keep the read cache in the user cache folder",
   "description": "Walk configured folders only through the confined walk, and keep the read cache in the user cache folder",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "4516f355b3ad118e90ce86b7d36d4bd5e4a4c14b",
   "created_at": 1795148338,
-  "updated_at": 1795184235,
+  "updated_at": 1795184351,
   "affected_specs": [
     "util",
     "change",

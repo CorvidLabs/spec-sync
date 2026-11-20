@@ -16,7 +16,7 @@ modules:
   - cmd_wizard
   - mcp
   - cmd_check
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -33,9 +33,13 @@ observations:
   - 2026-11-20-on-linux-at-700ebb00-clippy-all-targets-d-warnings-passes
 bugs: [2026-11-20-configured-folder-walks-follow-a-link-out-and-the-read-cache]
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+    holds: accept
+    drives: review
+    opened: 2026-11-20T14:17:33Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # Every walk of a configured folder goes through the confined walk, so a committed specs, source or schema link that leaves the project is refused, not walked; the change read cache lives in the user's cache folder, never in a Git directory an archive can ship (items 2 and 4 of Leif's 04:09Z round, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -99,4 +103,20 @@ Every walk of a configured folder goes through the confined walk, so a committed
   - native_change: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
   - gate: native:approved
   - revision: 4516f355b3ad118e90ce86b7d36d4bd5e4a4c14b
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:17:21Z · advance · build → test · native:verifying ^t-bd4cd0
+  - native_change: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+  - gate: native:verifying
+  - revision: 3c466fd114df448dcb4fac7e1eeab314d5666b7b
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:17:26Z · advance · test → accept · native:verifying ^t-19d101
+  - native_change: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+  - gate: native:verifying
+  - revision: 3c466fd114df448dcb4fac7e1eeab314d5666b7b
+  - by: claude-code (hc t5r)
+- 2026-11-20T14:17:33Z · gate-opened · accept → accept · Implementation review of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder ^t-047ca9
+  - native_change: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
+  - revision: 3c466fd114df448dcb4fac7e1eeab314d5666b7b
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

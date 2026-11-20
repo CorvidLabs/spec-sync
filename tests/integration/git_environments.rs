@@ -331,7 +331,8 @@ fn user_config(dir: &Path, safe: &[&str]) -> PathBuf {
 }
 
 /// REQ-change-171, with Git's own `GIT_TEST_ASSUME_DIFFERENT_OWNER` standing in for another
-/// owner: a repository the user's global file trusts passes `change status`, `change audit` and
+/// owner, and the system configuration shut out (`GIT_CONFIG_NOSYSTEM`), since a machine's
+/// `/etc/gitconfig` may trust every directory: a repository the user's global file trusts passes `change status`, `change audit` and
 /// `change check`, also from a linked worktree and with `safe.directory = *`; without the entry
 /// it is refused, naming dubious ownership, the path and the command. The private file is gone
 /// when the command ends, and nothing is made for a repository Git does not refuse.
@@ -355,6 +356,7 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
         let config = user_config(temp.path(), &[safe]);
         let env = [
             ("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
             ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
             ("TMPDIR", tmp),
         ];
@@ -381,6 +383,7 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
         &worktree,
         &[
             ("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
             ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
             ("TMPDIR", tmp),
         ],
@@ -392,6 +395,7 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
         &root,
         &[
             ("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
             ("GIT_CONFIG_GLOBAL", untrusted.to_str().unwrap()),
             ("TMPDIR", tmp),
         ],
@@ -579,4 +583,160 @@ fn a_partial_clone_on_main_audits_the_base_commit_requirements_after_one_fetch()
 
     assert!(!audit.contains("cannot tell"), "{audit}");
     assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
+}
+
+// ---- Codex's first round on #1122 ----
+
+/// Codex on #1122 (P1): a fetch whose descendant keeps standard error open after `git fetch`
+/// exits does not hold the command past the bound. A stand-in `git` on `PATH` answers a fetch by
+/// leaving a process that holds the pipe for 20 seconds, then failing; every other call goes to
+/// the real Git. The command refuses well before that.
+#[cfg(unix)]
+#[test]
+fn a_fetch_whose_helper_keeps_stderr_open_does_not_hold_the_command() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    let clone = temp.path().join("clone");
+    let _config = blobless_clone(temp.path(), &source, &clone);
+    let real_git = String::from_utf8(
+        Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_string();
+    let shim_dir = temp.path().join("shim");
+    fs::create_dir_all(&shim_dir).unwrap();
+    let shim = shim_dir.join("git");
+    fs::write(
+        &shim,
+        format!(
+            "#!/bin/sh\nfor arg in \"$@\"; do if [ \"$arg\" = fetch ]; then (sleep 20 1>&2 &); echo 'fatal: the helper is still talking' >&2; exit 1; fi; done\nexec '{real_git}' \"$@\"\n"
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&shim, fs::Permissions::from_mode(0o755)).unwrap();
+    let path = format!(
+        "{}:{}",
+        shim_dir.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let unreachable = temp.path().join("nothing.gitconfig");
+    fs::write(&unreachable, "").unwrap();
+
+    let started = std::time::Instant::now();
+    let refused = invoke(
+        &clone,
+        &[
+            ("PATH", path.as_str()),
+            ("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap()),
+        ],
+        &["change", "status", &id],
+    );
+    let elapsed = started.elapsed();
+
+    assert!(!refused.status.success(), "{}", combined(&refused));
+    assert!(
+        combined(&refused).contains("the helper is still talking"),
+        "{}",
+        combined(&refused)
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(15),
+        "the command waited {elapsed:?}"
+    );
+}
+
+/// Codex on #1122 (P2): from a linked worktree, a temporary directory inside the repository's
+/// Git directory (the main worktree's `.git`) is refused like one inside the project, naming the
+/// reason, and nothing is written there.
+#[test]
+fn a_temporary_directory_inside_the_git_directory_is_refused_from_a_linked_worktree() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    let id = adopted_project(&root);
+    let worktree = temp.path().join("worktree");
+    git(
+        &root,
+        &["worktree", "add", "-q", worktree.to_str().unwrap()],
+    );
+    let worktree_top = git(&worktree, &["rev-parse", "--show-toplevel"])
+        .trim()
+        .to_string();
+    let config = user_config(temp.path(), &[worktree_top.as_str()]);
+    let inside = root.join(".git/specsync-tmp");
+    fs::create_dir_all(&inside).unwrap();
+
+    let refused = invoke(
+        &worktree,
+        &[
+            ("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
+            ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
+            ("TMPDIR", inside.to_str().unwrap()),
+        ],
+        &["change", "status", &id],
+    );
+    let text = combined(&refused);
+
+    assert!(!refused.status.success(), "{text}");
+    assert!(
+        text.contains("detected dubious ownership") && text.contains("Git directory"),
+        "{text}"
+    );
+    assert_eq!(fs::read_dir(&inside).unwrap().count(), 0, "{text}");
+}
+
+/// Codex on #1122 (P2): the trusted top level is passed byte for byte, so a project whose
+/// directory name ends in a space is read when the user's Git trusts it.
+#[test]
+fn a_trusted_top_level_ending_in_a_space_is_passed_exactly() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project ");
+    let id = adopted_project(&root);
+    let top = git(&root, &["rev-parse", "--show-toplevel"]);
+    let top = top.strip_suffix('\n').unwrap_or(&top).to_string();
+    assert!(top.ends_with(' '));
+    let config = temp.path().join("user.gitconfig");
+    fs::write(&config, format!("[safe]\n\tdirectory = \"{top}\"\n")).unwrap();
+
+    run(
+        &root,
+        &[
+            ("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
+            ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
+        ],
+        &["change", "status", &id],
+    );
+}
+
+/// Codex on #1122 (P2): a promisor remote spelled with another of Git's true values
+/// (`remote.origin.promisor = yes`), and no `extensions.partialclone`, is still a partial clone,
+/// so its history is downloaded before it is read.
+#[test]
+fn a_promisor_spelled_yes_is_a_partial_clone() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+    let _ = Command::new("git")
+        .args(["config", "--unset", "extensions.partialclone"])
+        .current_dir(&clone)
+        .status();
+    git(&clone, &["config", "remote.origin.promisor", "yes"]);
+
+    let status = run(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", config.to_str().unwrap())],
+        &["change", "status", &id],
+    );
+
+    assert_eq!(status.matches("downloading ").count(), 1, "{status}");
 }

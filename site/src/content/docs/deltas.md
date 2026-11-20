@@ -131,23 +131,29 @@ Fix classification edits to accepted metadata with `change correct` rather than 
 A branch that lost a canonical requirement is refused too. `change check`, verification, `change
 accept`, `change finalize` and `change ship` compare the requirement ids in every `requirements.md`
 (and legacy `<module>.req.md`) with those at the merge-base of `HEAD` and the default branch, or at
-the change's base commit when there is no default branch. An id that is gone from every requirements
+the change's base commit when there is no default branch. The default branch is `origin/HEAD`, else
+`origin/main` or `origin/master`, each only when it resolves and is not the branch `HEAD` is on. So
+a clone of a single branch, whose `origin/HEAD` can name that branch, is still compared with the
+default branch, and work done directly on `main` is compared from the change's base commit. An id
+that is gone from every requirements
 file is refused, by name, unless an approved `## REMOVED` item of a change on the branch names it. A
 requirement moved to another file under the same id is not lost; a renumbered one is lost under its
 old id, because a requirement id is permanent. To put a lost block back, `git show <commit>:<file>`
 prints it as the merge-base held it; to remove it on purpose, name it in a `## REMOVED` delta and
 approve the change again. When the default branch has removed it too, because the branch took that
 removal by a cherry-pick or by hand instead of a merge, the refusal says so and names the way out:
-merge the default branch into this one (`git merge origin/main`). `change audit` reports the same refusal, and `change ship-status` lists it
-as a blocker and exits 1 (REQ-change-169, #1081). A finalization that stopped after acceptance
-asks again when it is retried, and the audit asks it of an accepted change too.
+merge the default branch into this one (`git merge origin/main`). `change audit` reports the same
+refusal for every active change, a draft included, and `change ship-status` lists it as a blocker and
+exits 1 (REQ-change-169, #1081). A finalization that stopped after acceptance asks again when it is
+retried.
 
 The requirements files are those under the specs directory, at any depth, and those beside every
-registered spec. For a spec registered at the project root, that means the root's own
-`requirements.md` and `<module>.req.md`, not the rest of the tree. The check takes them from the
-configuration and registry in the working tree and from those at the commit it compares with, so a branch that
-drops a registry mapping or moves `specs_dir` is still compared with the files that were canonical
-there. Only an active change past its draft, or a change the branch archived (read from its archived
+registered spec: the `requirements.md` and `<module>.req.md` in the spec's own directory, not below
+it. For a spec registered at the project root, that means the root's own files, not the rest of the
+tree, and a registry path that leaves the project adds nothing. The check takes them from the
+configuration and registry in the working tree and from those at the commit it compares with, so a
+branch that drops a registry mapping or moves `specs_dir` is still compared with the files that
+were canonical there. Only an active change past its draft, or a change the branch archived (read from its archived
 record, with a valid approval), accounts for a removal. A retired change does not.
 
 The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold

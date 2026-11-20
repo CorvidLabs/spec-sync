@@ -10,21 +10,27 @@
 // the branch names is refused, by name.
 
 /// The default branch this check compares with ("the default branch (`origin/HEAD`, else
-/// `origin/main` or `origin/master`)"): `origin/HEAD` only when it resolves to a commit, else the
-/// first of `origin/main` and `origin/master` that does. An `origin/HEAD` left dangling, by a
-/// default branch renamed and then pruned, names no default branch (corvid-agent on #1108). It is
-/// local to this check, so the other callers of `remote_default_ref` do not change.
+/// `origin/main` or `origin/master`)"): `origin/HEAD` only when it resolves to a commit and is not
+/// the remote-tracking ref of the branch HEAD is on, else the first of `origin/main` and
+/// `origin/master` that is usable the same way. An `origin/HEAD` left dangling, by a default
+/// branch renamed and then pruned, names no default branch; nor does one a clone of a single
+/// branch (`git clone --branch <b>`) points at `origin/<b>`, since comparing a branch with its own
+/// pushed tip finds nothing lost (corvid-agent on #1108). It is local to this check, so the other
+/// callers of `remote_default_ref` do not change.
 fn lost_requirements_default_ref(root: &Path) -> Option<String> {
-    let resolves = |candidate: &str| {
+    let own = git_output(root, &["symbolic-ref", "--short", "-q", "HEAD"])
+        .map(|branch| format!("origin/{branch}"));
+    let usable = |candidate: &str| {
         let commit = format!("{candidate}^{{commit}}");
-        git_output(root, &["rev-parse", "--verify", "--quiet", commit.as_str()]).is_some()
+        own.as_deref() != Some(candidate)
+            && git_output(root, &["rev-parse", "--verify", "--quiet", commit.as_str()]).is_some()
     };
     git_output(root, &["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"])
-        .filter(|candidate| resolves(candidate))
+        .filter(|candidate| usable(candidate))
         .or_else(|| {
             ["origin/main", "origin/master"]
                 .into_iter()
-                .find(|candidate| resolves(candidate))
+                .find(|candidate| usable(candidate))
                 .map(str::to_string)
         })
 }
@@ -62,14 +68,14 @@ fn nul_separated(listing: &str) -> impl Iterator<Item = &str> {
 }
 
 /// Where canonical requirements files live ("under the specs directory or beside a registered
-/// spec"): `directories`, read to any depth, are the specs directory and the directory of every
-/// registered spec; `root_files` is set when a spec is registered at the project root, whose
-/// requirements are the root directory's own `requirements.md` and `<module>.req.md`, read
-/// without descending into the rest of the tree (Codex on #1108; ss-lead's guard).
+/// spec"). `directories`, the specs directories, are read to any depth. `companions`, the
+/// directories of the registered specs, are read without descending, each for its own
+/// `requirements.md` and `<module>.req.md`; the project root is `""` (Codex on #1108, both
+/// rounds; ss-lead's guard). A companion inside a specs directory adds nothing.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct RequirementScope {
     directories: Vec<String>,
-    root_files: bool,
+    companions: Vec<String>,
 }
 
 impl RequirementScope {
@@ -80,13 +86,32 @@ impl RequirementScope {
         }
     }
 
-    fn add_registry(&mut self, registry: &crate::types::RegistryEntry) {
+    /// Adds the directory of each spec `registry` maps. A path that leaves the project adds
+    /// nothing, as `canonical_module_paths` refuses it (`safe_project_path`; Codex's second round).
+    fn add_registry(&mut self, root: &Path, registry: &crate::types::RegistryEntry) {
         for (_, path) in &registry.specs {
-            match path.rsplit_once('/') {
-                Some((directory, _)) => self.add_directory(directory),
-                None => self.root_files = true,
+            if safe_project_path(root, path).is_err() {
+                continue;
+            }
+            let directory = path
+                .rsplit_once('/')
+                .map_or("", |(directory, _)| directory)
+                .trim_end_matches('/');
+            if !self.companions.iter().any(|known| known == directory) {
+                self.companions.push(directory.to_string());
             }
         }
+    }
+
+    /// The companion directories that no specs directory already covers.
+    fn own_companions(&self) -> impl Iterator<Item = &str> {
+        self.companions.iter().map(String::as_str).filter(|companion| {
+            !self.directories.iter().any(|directory| {
+                directory == "."
+                    || *companion == directory.as_str()
+                    || companion.starts_with(&format!("{directory}/"))
+            })
+        })
     }
 
     /// The Git pathspecs naming the same files, relative to the project root.
@@ -96,12 +121,29 @@ impl RequirementScope {
             .iter()
             .map(|directory| format!(":(literal){directory}"))
             .collect();
-        if self.root_files {
-            pathspecs.push(":(literal)requirements.md".to_string());
-            pathspecs.push(":(glob)*.req.md".to_string());
+        for companion in self.own_companions() {
+            let (literal, glob) = if companion.is_empty() {
+                (String::new(), String::new())
+            } else {
+                (format!("{companion}/"), format!("{}/", glob_escaped(companion)))
+            };
+            pathspecs.push(format!(":(literal){literal}requirements.md"));
+            pathspecs.push(format!(":(glob){glob}*.req.md"));
         }
         pathspecs
     }
+}
+
+/// `text` with every character a `:(glob)` pathspec reads as a wildcard escaped.
+fn glob_escaped(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        if matches!(character, '*' | '?' | '[' | ']' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 /// The scope the working tree's configuration and registry give.
@@ -109,7 +151,7 @@ fn requirement_scope(root: &Path) -> RequirementScope {
     let mut scope = RequirementScope::default();
     scope.add_directory(&crate::config::load_config(root).specs_dir);
     if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
-        scope.add_registry(&registry);
+        scope.add_registry(root, &registry);
     }
     scope
 }
@@ -171,7 +213,7 @@ fn add_reference_requirement_scope(
     {
         let content = read(path)?;
         if let Some(registry) = reference_registry(path, &content)? {
-            scope.add_registry(&registry);
+            scope.add_registry(root, &registry);
         }
     }
     Ok(excluded)
@@ -325,9 +367,10 @@ fn working_tree_requirement_blocks(
             }
         }
     }
-    if scope.root_files
-        && let Ok(entries) = fs::read_dir(root)
-    {
+    for companion in scope.own_companions() {
+        let Ok(entries) = fs::read_dir(root.join(companion)) else {
+            continue;
+        };
         for entry in entries.flatten() {
             if entry.file_type().is_ok_and(|kind| kind.is_file())
                 && is_requirements_file(&entry.file_name().to_string_lossy())
@@ -593,7 +636,7 @@ fn lost_requirements_check(
         .join("; ");
     let restore = by_file
         .keys()
-        .map(|path| format!("`git show {short}:{prefix}{path}`"))
+        .map(|path| format!("`git show {}`", shell_word(&format!("{short}:{prefix}{path}"))))
         .collect::<Vec<_>>()
         .join(", ");
     let renumbered = unaccounted
@@ -671,13 +714,15 @@ fn default_branch_requirement_ids(
     let mut args = vec!["ls-tree", "-r", "-z", "--name-only", "--end-of-options", default.as_str(), "--"];
     args.extend(pathspecs.iter().map(String::as_str));
     let mut listed = git_output_allow_empty(root, &args)?;
-    // `ls-tree` takes no glob, so the root's own files come from its top-level listing.
-    if scope.root_files {
+    // `ls-tree` takes no glob, so a companion's own files come from its directory's listing.
+    for companion in scope.own_companions() {
+        let directory = format!(":(literal){companion}/");
+        let mut args = vec!["ls-tree", "-z", "--name-only", "--end-of-options", default.as_str()];
+        if !companion.is_empty() {
+            args.extend(["--", directory.as_str()]);
+        }
         listed.push('\0');
-        listed.push_str(&git_output_allow_empty(
-            root,
-            &["ls-tree", "-z", "--name-only", "--end-of-options", default.as_str()],
-        )?);
+        listed.push_str(&git_output_allow_empty(root, &args)?);
     }
     let mut held = BTreeSet::new();
     for path in nul_separated(&listed)

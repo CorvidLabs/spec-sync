@@ -4926,9 +4926,10 @@ fn check_project_with_command_output(
                 report.errors.push(format!("{}: {error}", record.id));
             }
         }
-        // An accepted change whose workspace is still active is an active change too: its
-        // finalization, when retried, refuses the same loss (Codex on #1108).
-        if record.state == ChangeState::Accepted
+        // A draft, and an accepted change whose workspace is still active, are active changes too
+        // ("for each active change"): an accepted one's retried finalization refuses the same
+        // loss, and a draft's own delta accounts for no removal (Codex on #1108, both rounds).
+        if matches!(record.state, ChangeState::Draft | ChangeState::Accepted)
             && change_dir(root, &record.id).is_dir()
             && let Err(error) = ensure_no_lost_requirements(root, record)
         {

@@ -405,13 +405,34 @@ fn ship_status_of_an_archived_change_lists_no_lost_requirement() {
     project.run(&["change", "check", &id, "--commit"]);
     project.run(&["change", "review", &id, "--reviewer", "Reviewer"]);
     project.run(&["change", "finalize", &id]);
+    // An active change on the same branch (REQ-cmd-change-045's second criterion).
+    let created: Value = serde_json::from_str(&project.run(&[
+        "--json",
+        "change",
+        "new",
+        "Log every sign-in",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ]))
+    .unwrap();
+    let active = created["change"]["id"].as_str().unwrap().to_string();
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "a draft change"]);
     lose_auth_002(&project);
 
     let text = combined(&project.invoke(&["change", "ship-status", &id]));
+    let active_text = combined(&project.invoke(&["change", "ship-status", &active]));
 
     assert!(
         !text.contains("that no approved `## REMOVED` delta names"),
         "{text}"
+    );
+    assert!(
+        active_text.contains("that no approved `## REMOVED` delta names")
+            && active_text.contains("REQ-auth-002"),
+        "{active_text}"
     );
 }
 
@@ -479,6 +500,9 @@ fn an_unreadable_requirements_directory_is_named_instead_of_a_loss() {
         !text.contains("that no approved `## REMOVED` delta names"),
         "{text}"
     );
+    // Once the directory is readable again, nothing is lost (REQ-change-177's second criterion).
+    let again = combined(&project.invoke(&["change", "ship-status", &id]));
+    assert!(!again.contains("lost canonical requirements"), "{again}");
 }
 
 /// #1112, with `specs_dir`: a branch that moves its specs directory onto one that already held a
@@ -601,4 +625,149 @@ fn an_unreadable_directory_with_nothing_lost_changes_nothing() {
     let text = combined(&status);
 
     assert!(!text.contains("lost canonical requirements"), "{text}");
+}
+
+// ---- corvid-agent's review and Codex's first round on #1134 ----
+
+/// Main holds `docs/notes/requirements.md` and a configuration `config`; the branch drops the
+/// configuration and rewrites the notes. Returns `change ship-status`'s output.
+fn nothing_canonical_at_the_reference(config: &str) -> String {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.write(
+        "docs/notes/requirements.md",
+        "# Requirements\n\n### REQ-note-001\n\nA note kept beside the docs.\n",
+    );
+    project.write(".specsync/config.toml", config);
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "notes and a configuration"]);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.git(&["rm", "-q", ".specsync/config.toml"]);
+    project.write(
+        "docs/notes/requirements.md",
+        "# Requirements\n\n### REQ-notes-001\n\nThe docs SHALL keep one page per module.\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "drop the configuration"]);
+    combined(&project.invoke(&["change", "ship-status", &id]))
+}
+
+/// corvid-agent and Codex on #1134 (REQ-change-175): when nothing was canonical at the reference,
+/// because its `specs_dir` leaves the project, nothing is read there, not every path.
+#[test]
+fn a_reference_whose_specs_dir_leaves_the_project_is_not_read_whole() {
+    let text = nothing_canonical_at_the_reference("specs_dir = \"../elsewhere\"\n");
+    assert!(!text.contains("REQ-note-001"), "{text}");
+}
+
+/// The same when the reference's configuration does not parse.
+#[test]
+fn a_reference_whose_configuration_does_not_parse_is_not_read_whole() {
+    let text = nothing_canonical_at_the_reference("specs_dir = [\n");
+    assert!(!text.contains("REQ-note-001"), "{text}");
+}
+
+/// The branch registers a spec in `docs/notes` and moves REQ-auth-002 into its requirements file.
+fn move_auth_002_into_registered_notes(project: &Project) -> String {
+    let requirements = lose_auth_002(project);
+    let start = requirements.find("### REQ-auth-002").unwrap();
+    project.write(
+        ".specsync/registry.toml",
+        "[registry]\nname = \"notes\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nnotes = \"docs/notes/notes.spec.md\"\n",
+    );
+    project.write(
+        "docs/notes/requirements.md",
+        &format!("# Requirements\n\n{}", &requirements[start..]),
+    );
+    project.git(&["add", "--all"]);
+    project.git(&[
+        "commit",
+        "-q",
+        "-m",
+        "move REQ-auth-002 beside a registered spec",
+    ]);
+    requirements
+}
+
+/// REQ-change-175's third criterion (corvid-agent on #1134): a canonical requirement moved into a
+/// newly canonical file is found there, and once dropped from it, it is reported.
+#[test]
+fn a_requirement_moved_into_a_newly_canonical_file_is_found_and_reported_once_dropped() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    move_auth_002_into_registered_notes(&project);
+
+    let moved = combined(&project.invoke(&["change", "ship-status", &id]));
+    assert!(!moved.contains("lost canonical requirements"), "{moved}");
+
+    project.write("docs/notes/requirements.md", "# Requirements\n");
+    project.git(&["commit", "-q", "-am", "drop REQ-auth-002"]);
+    let dropped = combined(&project.invoke(&["change", "ship-status", &id]));
+    assert!(
+        dropped.contains("that no approved `## REMOVED` delta names")
+            && dropped.contains("REQ-auth-002"),
+        "{dropped}"
+    );
+}
+
+/// REQ-change-176's second criterion (corvid-agent on #1134): a delta body edited after approval
+/// does not keep the audit from reporting the branch's loss.
+#[test]
+fn the_audit_reports_a_lost_requirement_beside_an_edited_delta_body() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.write(
+        &format!(".specsync/changes/{id}/deltas/auth.md"),
+        &REWORD_DELTA.replace("exactly one session", "exactly one active session"),
+    );
+    lose_auth_002(&project);
+
+    let text = combined(&project.invoke(&["change", "audit"]));
+
+    assert!(
+        text.contains("that no approved `## REMOVED` delta names") && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+}
+
+/// Codex and corvid-agent on #1134 (REQ-change-177): a registered spec's directory the scan
+/// cannot look at, because the directory above it cannot be read, is named too.
+#[cfg(unix)]
+#[test]
+fn a_scope_directory_below_an_unreadable_directory_is_named_instead_of_a_loss() {
+    use std::os::unix::fs::PermissionsExt;
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    move_auth_002_into_registered_notes(&project);
+    let docs = project.root.join("docs");
+    fs::set_permissions(&docs, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::symlink_metadata(docs.join("notes")).is_ok() {
+        // This user reads every directory (root), so nothing here is unreadable.
+        fs::set_permissions(&docs, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+
+    let status = project.invoke(&["change", "ship-status", &id]);
+    fs::set_permissions(&docs, fs::Permissions::from_mode(0o755)).unwrap();
+    let text = combined(&status);
+
+    assert!(
+        text.contains("cannot tell whether this branch lost canonical requirements"),
+        "{text}"
+    );
+    assert!(text.contains("docs/notes"), "{text}");
+    assert!(
+        !text.contains("that no approved `## REMOVED` delta names"),
+        "{text}"
+    );
 }

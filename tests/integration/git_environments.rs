@@ -541,7 +541,7 @@ fn a_failed_download_names_one_fetch_that_works_as_printed() {
     assert!(text.contains("partial clone"), "{text}");
     let command = text
         .split('`')
-        .find(|part| part.starts_with("git -C ") && part.contains(" fetch "))
+        .find(|part| part.contains("git -C ") && part.contains(" fetch "))
         .unwrap_or_else(|| panic!("no fetch command: {text}"));
     let output = Command::new("sh")
         .args(["-c", command])
@@ -834,9 +834,10 @@ fn the_one_fetch_brings_the_reference_configuration_too() {
     assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
 }
 
-/// Codex on #1122, second round (P2): the printed recovery takes the object ids on standard
-/// input, listed by Git itself, so it runs however many objects are missing; run as printed, it
-/// lets the command pass.
+/// Codex on #1122, second round (P2): the printed recovery still names every missing id, but the
+/// shell's builtin `printf` hands them to the fetch on standard input, so Git's argument list
+/// holds none and it runs however many objects are missing; run as printed, it lets the command
+/// pass.
 #[test]
 fn the_printed_recovery_takes_the_ids_on_stdin() {
     let temp = TempDir::new().unwrap();
@@ -855,16 +856,27 @@ fn the_printed_recovery_takes_the_ids_on_stdin() {
     let text = combined(&refused);
     let command = text
         .split('`')
-        .find(|part| part.starts_with("git -C ") && part.contains(" fetch "))
+        .find(|part| part.contains("git -C ") && part.contains(" fetch "))
         .unwrap_or_else(|| panic!("no fetch command: {text}"));
 
-    assert!(command.contains("--stdin"), "{command}");
-    assert!(
-        !command
-            .split_whitespace()
-            .any(|word| word.len() == 40 && word.bytes().all(|byte| byte.is_ascii_hexdigit())),
-        "the ids are on the command line: {command}"
-    );
+    let ids = |part: &str| {
+        part.split_whitespace()
+            .filter(|word| word.len() == 40 && word.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .count()
+    };
+    let missing: usize = text
+        .split(" history objects are not in this partial clone")
+        .next()
+        .and_then(|before| before.split_whitespace().last())
+        .and_then(|count| count.parse().ok())
+        .unwrap_or_else(|| panic!("no count: {text}"));
+    let (listed, fetch) = command
+        .split_once(" | ")
+        .unwrap_or_else(|| panic!("no pipe: {command}"));
+    assert!(listed.starts_with("printf '%s\\n' "), "{command}");
+    assert_eq!(ids(listed), missing, "{command}");
+    assert!(fetch.contains("--stdin"), "{command}");
+    assert_eq!(ids(fetch), 0, "the ids are in Git's arguments: {command}");
     let output = Command::new("sh")
         .args(["-c", command])
         .env("GIT_CONFIG_GLOBAL", &config)

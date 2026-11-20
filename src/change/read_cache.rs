@@ -234,12 +234,18 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
         return Ok(());
     };
     let default = lost_requirements_default_ref(root);
-    let specsync = ":(literal).specsync".to_string();
-    let pathspecs = requirement_scope(root).pathspecs();
-    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "HEAD"];
-    args.extend(default.as_deref());
+    // `.specsync` and the root configuration and registry files the loaders read, at the reference
+    // too (Codex on #1122, second round), then the canonical requirements.
+    let mut pathspecs: Vec<String> = [".specsync", ".specsync.toml", "specsync.json", "specsync-registry.toml"]
+        .iter()
+        .map(|path| format!(":(literal){path}"))
+        .collect();
+    pathspecs.extend(requirement_scope(root).pathspecs());
+    let mut revisions = vec!["HEAD".to_string()];
+    revisions.extend(default);
+    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet"];
+    args.extend(revisions.iter().map(String::as_str));
     args.push("--");
-    args.push(specsync.as_str());
     args.extend(pathspecs.iter().map(String::as_str));
     // `--missing=print` lists what is absent and never fetches it.
     let listing = run_git_bounded(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
@@ -263,12 +269,15 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
             crate::git_utils::invalidate_repository_facts();
             Ok(())
         }
+        // The printed line names every id, and the shell's builtin `printf` hands them to the
+        // fetch on standard input, so no program's argument list carries them and it runs as
+        // printed however many objects are missing (Codex on #1122, second round).
         Err(reason) => Err(format!(
-            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `git -C {} fetch --no-tags --no-write-fetch-head --filter=blob:none -- {} {}`, then run the command again.",
+            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `printf '%s\\n' {} | git -C {} fetch --no-tags --no-write-fetch-head --filter=blob:none --stdin -- {}`, then run the command again.",
             missing.len(),
+            missing.join(" "),
             shell_word(&root.display().to_string()),
-            shell_word(&remote),
-            missing.join(" ")
+            shell_word(&remote)
         )),
     }
 }

@@ -189,3 +189,10 @@ Acceptance Criteria
 - `specs_dir` as `../outside/specs`, an absolute path or `specs/../../outside/specs`, a `source_dirs` entry `../outside` and a `schema_dir` of `../outside` each make `deps` fail naming the field, and nothing outside is listed.
 - The MCP server answers `specsync_generate` with a `specs_dir` of `../outside/specs`, and `specsync_coverage` with a `source_dirs` entry of `../outside/src`, with a tool error naming the field, and writes nothing outside.
 
+### REQ-config-018
+
+Source auto-detection SHALL skip a child of the project root that is a symbolic link and SHALL never follow a link at the root of its walk.
+
+Acceptance Criteria
+- A committed `lib -> ../outside/lib` is not detected as a source folder.
+

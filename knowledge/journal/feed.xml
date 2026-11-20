@@ -2,9 +2,23 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
 <title>Project journal</title>
 <id>urn:chough:journal</id>
-<updated>2026-11-20T06:21:15Z</updated>
+<updated>2026-11-20T14:22:48Z</updated>
 <author><name>Chough</name></author>
 <link rel="self" href="feed.xml"/>
+  <entry>
+<title>Every walk of a configured folder goes through the confined walk</title>
+<id>urn:chough:journal:2026-11-20-every-walk-of-a-configured-folder-goes-through-the-confined</id>
+<updated>2026-11-20T14:22:48Z</updated>
+<link href="2026-11-20-every-walk-of-a-configured-folder-goes-through-the-confined.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>SpecSync keeps its cache</title>
+<id>urn:chough:journal:2026-11-20-specsync-keeps-its-cache</id>
+<updated>2026-11-20T14:16:13Z</updated>
+<link href="2026-11-20-specsync-keeps-its-cache.md"/>
+<category term="shipped"/>
+</entry>
   <entry>
 <title>SpecSync&apos;s hash cache</title>
 <id>urn:chough:journal:2026-11-20-specsync-s-hash-cache</id>
@@ -20,10 +34,24 @@
 <category term="shipped"/>
 </entry>
   <entry>
+<title>SpecSync 6.4.0 release preparation on main</title>
+<id>urn:chough:journal:2026-11-20-specsync-6-4-0-release-preparation-on-main</id>
+<updated>2026-11-20T02:19:24Z</updated>
+<link href="2026-11-20-specsync-6-4-0-release-preparation-on-main.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
 <title>Journals SpecSync did not write are never replayed</title>
 <id>urn:chough:journal:2026-11-19-journals-specsync-did-not-write-are-never-replayed</id>
 <updated>2026-11-19T19:54:18Z</updated>
 <link href="2026-11-19-journals-specsync-did-not-write-are-never-replayed.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>specsync change approve &lt;id&gt; --dry-run runs the approval&apos;s own checks</title>
+<id>urn:chough:journal:2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own</id>
+<updated>2026-11-19T19:50:24Z</updated>
+<link href="2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md"/>
 <category term="shipped"/>
 </entry>
   <entry>
@@ -41,6 +69,27 @@
 <category term="shipped"/>
 </entry>
   <entry>
+<title>Text change status names a sequence-ledger freeze before the…</title>
+<id>urn:chough:journal:2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the</id>
+<updated>2026-11-19T14:43:20Z</updated>
+<link href="2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>ship-status reports an archived change&apos;s review as done by finalize…</title>
+<id>urn:chough:journal:2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by</id>
+<updated>2026-11-19T14:41:20Z</updated>
+<link href="2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
+<title>change ship-status exits 1 when it reports a blocker</title>
+<id>urn:chough:journal:2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker</id>
+<updated>2026-11-19T14:38:05Z</updated>
+<link href="2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
 <title>Project file writes never leave the project</title>
 <id>urn:chough:journal:2026-11-19-project-file-writes-never-leave-the-project</id>
 <updated>2026-11-19T14:09:03Z</updated>
@@ -48,44 +97,17 @@
 <category term="shipped"/>
 </entry>
   <entry>
+<title>Fix the four #1086 review findings on history fragments</title>
+<id>urn:chough:journal:2026-11-19-fix-the-four-1086-review-findings-on-history-fragments</id>
+<updated>2026-11-19T14:07:59Z</updated>
+<link href="2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md"/>
+<category term="shipped"/>
+</entry>
+  <entry>
 <title>Hash cache never read or written through a link</title>
 <id>urn:chough:journal:2026-11-19-hash-cache-never-read-or-written-through-a-link</id>
 <updated>2026-11-19T14:06:33Z</updated>
 <link href="2026-11-19-hash-cache-never-read-or-written-through-a-link.md"/>
-  <entry>
-<title>SpecSync 6.4.0 release preparation on main</title>
-<id>urn:chough:journal:2026-11-20-specsync-6-4-0-release-preparation-on-main</id>
-<link href="2026-11-20-specsync-6-4-0-release-preparation-on-main.md"/>
-<category term="shipped"/>
-</entry>
-  <entry>
-<title>specsync change approve &lt;id&gt; --dry-run runs the approval&apos;s own checks</title>
-<id>urn:chough:journal:2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own</id>
-<link href="2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md"/>
-<category term="shipped"/>
-</entry>
-  <entry>
-<title>Text change status names a sequence-ledger freeze before the…</title>
-<id>urn:chough:journal:2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the</id>
-<link href="2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md"/>
-<category term="shipped"/>
-</entry>
-  <entry>
-<title>ship-status reports an archived change&apos;s review as done by finalize…</title>
-<id>urn:chough:journal:2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by</id>
-<link href="2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md"/>
-<category term="shipped"/>
-</entry>
-  <entry>
-<title>change ship-status exits 1 when it reports a blocker</title>
-<id>urn:chough:journal:2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker</id>
-<link href="2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md"/>
-<category term="shipped"/>
-</entry>
-  <entry>
-<title>Fix the four #1086 review findings on history fragments</title>
-<id>urn:chough:journal:2026-11-19-fix-the-four-1086-review-findings-on-history-fragments</id>
-<link href="2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md"/>
 <category term="shipped"/>
 </entry>
   <entry>

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder",
+  "implementation_commit": "3c466fd114df448dcb4fac7e1eeab314d5666b7b",
+  "implementation_tree": "2f9e0be820dfafd1375ac569bf38ab9d13e6c439",
+  "contract_digest": "1f93f72e0fb07daf84266ebc9740d487295286fd935a790762a11ef7b476d87b",
+  "workspace_digest": "2097a6c142c465c6e5676341fab61401525981a1498c45bf2d7b2ab685f8e029",
+  "closing_digest": "9286638257837f5c6cf9d6d90cf59bd950cd861c78f5e79223c9b1d14e1e12c4",
+  "review_digest": "0cd35e2f603fdd5604455a02aab6792fa1be5599568c10a25fde5146d20a61c8",
+  "finalization_digest": "bd8ff5d114afda1fc3b39a398fb50dd0bb1d6fcfc6c11b8bc0d3943d9eb5320c",
+  "timestamp": 1795184351
+}

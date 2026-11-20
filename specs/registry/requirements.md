@@ -68,3 +68,10 @@ Registry loading and `register_module` SHALL read `.specsync/registry.toml` and 
 Acceptance Criteria
 - `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
 
+### REQ-registry-005
+
+`generate_registry` SHALL find spec files only through the confined spec walk (`find_spec_files_checked`), so a `specs` link that leaves the project is never walked.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` and the walk change keep `generate_registry` on the confined walk.
+

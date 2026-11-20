@@ -69,5 +69,19 @@
       }
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths",
+      "actor": "0xLeif",
+      "reason": "Path-only addition of src/commands/check.rs and its owner cmd_check: the one-line C5 warning sec-review2's re-check of 6.4.1 asked for, inside the approved scope; no requirement wording changes. Under Leif's standing OK for path-only scope additions, relayed by t4c.",
+      "timestamp": 1795213613,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true
+    }
+  ]
 }

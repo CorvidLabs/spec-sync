@@ -5,7 +5,7 @@ aliases: [release-6-4-0-prep]
 objective: "SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASING.md and validate-release-version.py name, a 6.4.0 CHANGELOG section and docs/releases/6.4.0.md, as a PR that waits for Leif's review and his yes; no tag, release or publish"
 intent_scope: ""
 modules: []
-stage: plan
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -73,4 +73,9 @@ SpecSync 6.4.0 release preparation on main: version 6.4.0 in every place RELEASI
     - recorded_by: claude-code-t59
     - native: specsync change approve prepare-specsync-6-4-0-package-metadata-and-release-handoff
     - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-20T01:12:16Z · advance · plan → build · native:approved ^t-6a3b47
+  - native_change: prepare-specsync-6-4-0-package-metadata-and-release-handoff
+  - gate: native:approved
+  - revision: df249f61966b2ca84c0b1bc5e82904640a9743d6
   - by: claude-code (hc t59)

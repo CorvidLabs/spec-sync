@@ -1,0 +1,301 @@
+# 2026-11-20T01:22Z, macOS, run.sh in this folder, through one-lane
+# new = main 10d9bb3f (tree 884d3eba) release build, sha256 6eef19c8991c3242; it prints 6.3.0 because its Cargo.toml was not bumped
+# old = Homebrew's released 6.3.0 (/opt/homebrew/Cellar/spec-sync/6.3.0/bin/specsync), sha256 b64430847bde918a
+# The archive-tip 'nothing to commit' lines: change finalize made the archive commit itself.
+
+one-lane: both slots busy, waiting
+one-lane: both slots busy, waiting
+## The new binary ships a change to auth on branch passkeys
+$ new(6.3.0) specsync change check let-a-user-sign-in-with-a-passkey --commit
+    Checking (1/2): verifying the materialized tree…
+    Committed the materialized spec.
+    Checking (2/2): re-verifying against the committed tree…
+    Committed the verification evidence.
+    Verified, committed, and consistent with the committed tree.
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    -> exit 0
+    files the branch adds or changes under specs/: specs/auth/history/let-a-user-sign-in-with-a-passkey.md specs/auth/requirements.md 
+    spec version line: version: 1; Change Log rows: 1
+
+## Product tip (the change is open, its fragment committed)
+$ old(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+$ new(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+$ old(6.3.0) specsync change audit
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (1)…
+    error: meaningful changed paths are not covered by an active change: specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      cover them: specsync change new "<summary>" --kind bug-fix --spec <module> --path specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      no spec text changes: add --no-spec-change --rationale "<why>" to that command
+      Next: fix active workspace / living-spec issues above
+    -> exit 1
+$ new(6.3.0) specsync change audit
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (1)…
+    ✓ audit passed (1 active)
+    -> exit 0
+$ old(6.3.0) specsync change audit --strict
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (1)…
+    error: meaningful changed paths are not covered by an active change: specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      cover them: specsync change new "<summary>" --kind bug-fix --spec <module> --path specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      no spec text changes: add --no-spec-change --rationale "<why>" to that command
+      Next: fix active workspace / living-spec issues above
+    -> exit 1
+$ new(6.3.0) specsync change audit --strict
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (1)…
+    ✓ audit passed (1 active)
+    -> exit 0
+
+## Released 6.3.0 runs change check on the change the new binary recorded (no --commit)
+$ old(6.3.0) specsync change check let-a-user-sign-in-with-a-passkey
+    Checking let-a-user-sign-in-with-a-passkey…
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    ✓ let-a-user-sign-in-with-a-passkey verified
+      Next: run `specsync change check let-a-user-sign-in-with-a-passkey --commit` if needed, then `specsync change ship-status let-a-user-sign-in-with-a-passkey` (or `ship let-a-user-sign-in-with-a-passkey`) — scoped review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving
+      Handoff: safe — verification is current for this working tree; a fresh session here resumes at the independent review
+    -> exit 0
+    spec version line now: version: 2; Change Log rows: 2; new row: | 2026-11-20 | let-a-user-sign-in-with-a-passkey: Let a user sign in with a passkey |
+    fragment still there: yes
+$ new(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+      ✗ history fragment `specs/auth/history/let-a-user-sign-in-with-a-passkey.md` records `let-a-user-sign-in-with-a-passkey`, and the Change Log in `specs/auth/auth.spec.md` records it too; keep one of the two records
+    1 specs checked: 0 passed, 0 warning(s), 1 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 1
+
+## The same with --commit, as an agent runs it, and the way out
+$ old(6.3.0) specsync change check let-a-user-sign-in-with-a-passkey --commit
+    Checking (1/2): verifying the materialized tree…
+    Committed the materialized spec.
+    Checking (2/2): re-verifying against the committed tree…
+    Committed the verification evidence.
+    Verified, committed, and consistent with the committed tree.
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    -> exit 0
+    6.3.0 committed: chore(lifecycle): record let-a-user-sign-in-with-a-passkey verification; spec version: 2, Change Log rows 2
+$ new(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+      ✗ history fragment `specs/auth/history/let-a-user-sign-in-with-a-passkey.md` records `let-a-user-sign-in-with-a-passkey`, and the Change Log in `specs/auth/auth.spec.md` records it too; keep one of the two records
+    1 specs checked: 0 passed, 0 warning(s), 1 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 1
+    way out, step 1: remove the Change Log row 6.3.0 added for let-a-user-sign-in-with-a-passkey, keep the fragment
+    spec version: 2, Change Log rows 1; diff from the product tip:  1 file changed, 1 insertion(+), 1 deletion(-)
+$ new(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+    way out, step 2: put version: back to the value before 6.3.0's bump
+    spec identical to the product tip: yes
+$ new(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+$ new(6.3.0) specsync change status let-a-user-sign-in-with-a-passkey
+    This pull request is not finished. `let-a-user-sign-in-with-a-passkey` is still open.
+    let-a-user-sign-in-with-a-passkey Let a user sign in with a passkey
+      State: verifying
+      Next: run `specsync change check let-a-user-sign-in-with-a-passkey --commit` if needed, then `specsync change ship-status let-a-user-sign-in-with-a-passkey` (or `ship let-a-user-sign-in-with-a-passkey`) — scoped review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving
+      Handoff: conditional — the tree moved after the last check, so a fresh session would resume from evidence that no longer matches. Before clearing: run `specsync change check let-a-user-sign-in-with-a-passkey --commit`
+      Approval: Scope owner (a recorded claim, not authenticated)
+      Answers: architecture_risk=no, public_contract=no
+    -> exit 0
+$ new(6.3.0) specsync change check let-a-user-sign-in-with-a-passkey --commit
+    Checking (1/2): verifying the materialized tree…
+    Committed the materialized spec.
+    Checking (2/2): re-verifying against the committed tree…
+    Committed the verification evidence.
+    Verified, committed, and consistent with the committed tree.
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    -> exit 0
+$ new(6.3.0) specsync change audit --strict
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (1)…
+    ✓ audit passed (1 active)
+    -> exit 0
+
+## Archive tip (review and finalize with the new binary, committed)
+On branch passkeys
+nothing to commit, working tree clean
+    open changes: 0
+$ old(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+$ new(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+$ old(6.3.0) specsync change audit
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (0)…
+    error: meaningful changed paths are not covered by an active change: specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      cover them: specsync change new "<summary>" --kind bug-fix --spec <module> --path specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      no spec text changes: add --no-spec-change --rationale "<why>" to that command
+      Next: fix active workspace / living-spec issues above
+    -> exit 1
+$ new(6.3.0) specsync change audit
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (0)…
+    ✓ audit passed (0 active)
+    -> exit 0
+$ old(6.3.0) specsync change audit --strict
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (0)…
+    error: meaningful changed paths are not covered by an active change: specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      cover them: specsync change new "<summary>" --kind bug-fix --spec <module> --path specs/auth/history/let-a-user-sign-in-with-a-passkey.md
+      no spec text changes: add --no-spec-change --rationale "<why>" to that command
+      Next: fix active workspace / living-spec issues above
+    -> exit 1
+$ new(6.3.0) specsync change audit --strict
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (0)…
+    ✓ audit passed (0 active)
+    -> exit 0
+
+## Main after the merge (origin/main at the merged tip)
+$ old(6.3.0) specsync change audit --strict
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (0)…
+    ✓ audit passed (0 active)
+    -> exit 0
+$ new(6.3.0) specsync change audit --strict
+    note: .specsync/sdd.json configures 1 verification command that SpecSync did not run; empty verification_commands, component_verification_commands, and strict_verification_commands to stop this note
+    Archive history and archived retirement custody were not inspected; use specsync change audit --archives to include them.
+    Auditing active changes (0)…
+    ✓ audit passed (0 active)
+    -> exit 0
+$ old(6.3.0) specsync check
+    specs/auth/auth.spec.md
+      ✓ Frontmatter valid
+      ✓ All source files exist
+      ✓ All required sections present
+      ✓ All dependency specs exist
+    1 specs checked: 1 passed, 0 warning(s), 0 failed
+    File coverage: 1/1 (100%)
+    LOC coverage:  1/1 (100%)
+    -> exit 0
+
+## change approve --dry-run --json, on a change with no acceptance criterion yet
+$ new(6.3.0) specsync --json change approve try-the-dry-run --dry-run
+    {
+      "id": "try-the-dry-run",
+      "dry_run": true,
+      "would_approve": false,
+      "checks": [
+        {
+          "check": "relay",
+          "result": "passed"
+        },
+        {
+          "check": "lifecycle_lock",
+          "result": "passed"
+        },
+        {
+          "check": "change",
+          "result": "passed"
+        },
+        {
+          "check": "sequence",
+          "result": "passed"
+        },
+        {
+          "check": "state",
+          "result": "passed"
+        },
+        {
+          "check": "roster",
+          "result": "passed"
+        },
+        {
+          "check": "baseline",
+          "result": "passed"
+        },
+        {
+          "check": "definition",
+          "result": "refused",
+          "message": "at least one acceptance criterion is required; run `specsync change answer try-the-dry-run acceptance_criteria \"<observable outcome>\"`",
+          "fix": "specsync change answer try-the-dry-run acceptance_criteria \"<observable outcome>\""
+        },
+        {
+          "check": "deltas",
+          "result": "passed"
+        },
+        {
+          "check": "ownership",
+          "result": "passed"
+        },
+        {
+          "check": "verification_ignored_paths",
+          "result": "passed"
+        },
+        {
+          "check": "approval_record",
+          "result": "passed"
+        },
+        {
+          "check": "actor",
+          "result": "passed"
+        }
+      ]
+    }
+    -> exit 1

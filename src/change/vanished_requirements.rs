@@ -361,15 +361,41 @@ fn is_scanned_requirements_path(path: &str, excluded: &BTreeSet<String>) -> bool
     components.iter().all(|component| !excluded.contains(*component))
 }
 
+/// How the working-tree scan treats a scope directory.
+enum ScopeDirectory {
+    Read,
+    Skip,
+    /// Its path or metadata could not be read, with the error (REQ-change-177).
+    Unreadable(String),
+}
+
 /// Whether the scope directory `directory` is read: a directory that leads outside the project, or
-/// is itself a link, is not read (Codex on #1108, third round). The project root always is.
-fn readable_scope_directory(root: &Path, directory: &str) -> bool {
+/// is itself a link, is not read (Codex on #1108, third round), nor one that does not exist. The
+/// project root always is. One whose path or metadata cannot be read for another reason is named,
+/// so what it holds is never read as lost (Codex and corvid-agent on #1134).
+fn scope_directory(root: &Path, directory: &str) -> ScopeDirectory {
     if directory.is_empty() || directory == "." {
-        return true;
+        return ScopeDirectory::Read;
     }
-    safe_project_path(root, directory).is_ok()
-        && fs::symlink_metadata(root.join(directory))
-            .is_ok_and(|metadata| !metadata.file_type().is_symlink())
+    match fs::symlink_metadata(root.join(directory)) {
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            ScopeDirectory::Skip
+        }
+        Err(error) => ScopeDirectory::Unreadable(format!("{directory}: {error}")),
+        Ok(metadata) if metadata.file_type().is_symlink() => ScopeDirectory::Skip,
+        Ok(_) => match safe_project_path(root, directory) {
+            Ok(_) => ScopeDirectory::Read,
+            Err(error) if error.starts_with("failed to resolve") => {
+                ScopeDirectory::Unreadable(format!("{directory}: {error}"))
+            }
+            Err(_) => ScopeDirectory::Skip,
+        },
+    }
 }
 
 /// What the working-tree scan found: each requirements file with its blocks, and each directory
@@ -389,23 +415,25 @@ fn working_tree_requirement_blocks(
     excluded: &BTreeSet<String>,
 ) -> WorkingRequirements {
     let mut unreadable = Vec::new();
-    let mut note = |path: &Path, error: std::io::Error| {
+    let note = |unreadable: &mut Vec<String>, path: &Path, error: std::io::Error| {
         if error.kind() != std::io::ErrorKind::NotFound {
             unreadable.push(format!("{}: {error}", portable_project_path(root, path)));
         }
     };
     let mut files = Vec::new();
-    let mut pending: Vec<PathBuf> = scope
-        .directories
-        .iter()
-        .filter(|directory| readable_scope_directory(root, directory))
-        .map(|directory| root.join(directory))
-        .collect();
+    let mut pending: Vec<PathBuf> = Vec::new();
+    for directory in &scope.directories {
+        match scope_directory(root, directory) {
+            ScopeDirectory::Read => pending.push(root.join(directory)),
+            ScopeDirectory::Skip => {}
+            ScopeDirectory::Unreadable(what) => unreadable.push(what),
+        }
+    }
     while let Some(directory) = pending.pop() {
         let entries = match fs::read_dir(&directory) {
             Ok(entries) => entries,
             Err(error) => {
-                note(&directory, error);
+                note(&mut unreadable, &directory, error);
                 continue;
             }
         };
@@ -424,14 +452,19 @@ fn working_tree_requirement_blocks(
             }
         }
     }
-    for companion in scope
-        .own_companions()
-        .filter(|companion| readable_scope_directory(root, companion))
-    {
+    for companion in scope.own_companions() {
+        match scope_directory(root, companion) {
+            ScopeDirectory::Read => {}
+            ScopeDirectory::Skip => continue,
+            ScopeDirectory::Unreadable(what) => {
+                unreadable.push(what);
+                continue;
+            }
+        }
         let entries = match fs::read_dir(root.join(companion)) {
             Ok(entries) => entries,
             Err(error) => {
-                note(&root.join(companion), error);
+                note(&mut unreadable, &root.join(companion), error);
                 continue;
             }
         };
@@ -455,7 +488,7 @@ fn working_tree_requirement_blocks(
             match fs::read_to_string(&path) {
                 Ok(text) => Some((relative, requirement_blocks(&text))),
                 Err(error) => {
-                    note(&path, error);
+                    note(&mut unreadable, &path, error);
                     None
                 }
             }
@@ -702,6 +735,11 @@ fn lost_requirements_check(
     scope.extend(&reference_scope);
     let pathspecs = scope.pathspecs();
     let reference_pathspecs = reference_scope.pathspecs();
+    // Nothing was canonical at the reference, so nothing can be lost; an empty pathspec list
+    // would diff every path (corvid-agent and Codex on #1134).
+    if reference_pathspecs.is_empty() {
+        return Ok(None);
+    }
     let mut args = vec![
         "diff",
         "--relative",

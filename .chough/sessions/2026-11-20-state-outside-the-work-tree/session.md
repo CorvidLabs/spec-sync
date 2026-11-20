@@ -16,8 +16,11 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-20-on-a2a50824-with-only-change-6-s-tests-added-b2c70e1f-all-5]
-bugs: []
+observations:
+  - 2026-11-20-on-a2a50824-with-only-change-6-s-tests-added-b2c70e1f-all-5
+  - 2026-11-20-with-the-fix-at-0187d498-fledge-lanes-run-verify-passes-all-10
+  - 2026-11-20-on-linux-at-0187d498-cargo-clippy-all-targets-d-warnings
+bugs: [2026-11-20-state-a-repository-ships-is-trusted]
 blockers: []
 waiting_on_human: []
 run_consents: []
@@ -38,6 +41,8 @@ SpecSync's hash cache, transaction journal and remote spec cache live outside th
 ## What was verified
 
 - [On a2a50824 with only change 6's tests added (b2c70e1f): all 5 new unit tests and 8 of 13 new integration tests fail (also REQ-hash-cache-009, REQ-cmd-check-021, REQ-cmd-resolve-002). A forged pass in .specsync/hashes.json replays in an unpacked tree and, on this case-insensitive disk, when committed as .specsync/Hashes.json; check in an unpacked copy skips the spec on a shipped cache; a valid journal planted in the work tree is replayed by recover and by change new, with or without Git; a running transaction writes its journal into the work tree; a committed .specsync-cache/remote-specs entry is returned by the remote cache; hooks install --precommit with core.hooksPath in the work tree created outside/hooks through a linked .config and outside/created through a dangling pre-commit link; an untracked project in a home folder kept under Git appended to the outer notes.md. The read scan finds 12 unmarked reads (src/validator/tests.rs:3452 among them), the write scan 7, the Git scan 5 (git worktree add/remove/prune). The 5 that pass are controls: three monorepo subproject tests, a real in-tree hooks folder, and the lexer test.](evidence/2026-11-20-on-a2a50824-with-only-change-6-s-tests-added-b2c70e1f-all-5.md)
+- [With the fix at 0187d498, fledge lanes run verify passes all 10 steps](evidence/2026-11-20-with-the-fix-at-0187d498-fledge-lanes-run-verify-passes-all-10.md)
+- [On Linux at 0187d498: cargo clippy --all-targets -D warnings passes; cargo test --no-fail-fast passes with unit 3126 passed, 0 failed, 2 ignored and integration 700 passed, 0 failed. The first Linux run at 5a449fb0 found two defects macOS could not show, both fixed before this run: fsync on the O_PATH folder handle failed every durable journal write (fixed in 1a5adcdd), and a clean cargo test writes no dep-info beside the binary, so the scans could not find their file list (fixed in 93e06a8e by reading the deps/ dep-info of the exact binary). Not run: x86_64, the Ubuntu image CI uses, hosted CI.](evidence/2026-11-20-on-linux-at-0187d498-cargo-clippy-all-targets-d-warnings.md)
 
 ## Open threads
 

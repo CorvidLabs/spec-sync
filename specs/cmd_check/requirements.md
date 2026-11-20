@@ -252,3 +252,10 @@ Acceptance Criteria
 - A copy of a project that ships its `.git`, cache included, validates every spec.
 - With `XDG_CACHE_HOME` inside the project, `check` warns once and validates every spec.
 
+### REQ-cmd-check-022
+
+`check` SHALL list the schema folder for its cache inputs only through `read_project_dir` (REQ-util-010).
+
+Acceptance Criteria
+- A schema folder that leads out of the project contributes no input name from outside.
+

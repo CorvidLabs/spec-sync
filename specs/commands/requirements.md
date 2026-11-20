@@ -203,3 +203,10 @@ Acceptance Criteria
 Acceptance Criteria
 - `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
 
+### REQ-commands-016
+
+`check_case_collision` SHALL list the specs folder only through `read_project_dir` (REQ-util-010); a specs folder that leads out of the project is not listed, so nothing outside decides a module name.
+
+Acceptance Criteria
+- A committed `specs` link out holding `Auth` does not refuse `auth` as a collision.
+

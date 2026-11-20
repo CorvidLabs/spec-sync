@@ -2228,3 +2228,10 @@ Acceptance Criteria
 - `change new` creates no workspace in a `.specsync/changes` linked outside the repository.
 - `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
 
+### REQ-change-164
+
+`change adopt`'s requirement ID proposals SHALL find `requirements.md` files under `specs_dir` only through the confined, budgeted walk (REQ-validator-053), and the read cache SHALL be read and written only in the folder REQ-util-009 names.
+
+Acceptance Criteria
+- A committed `specs` link that leaves the project yields no proposals, and the read cache of a Git work tree is outside the clone.
+

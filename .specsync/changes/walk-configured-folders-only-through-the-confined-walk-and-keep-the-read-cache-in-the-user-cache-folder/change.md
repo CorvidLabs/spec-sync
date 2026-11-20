@@ -1,6 +1,6 @@
 ---
 id: walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 4516f355b3ad118e90ce86b7d36d4bd5e4a4c14b
 ---

@@ -259,3 +259,10 @@ The MCP server SHALL write project files only through the confined project write
 Acceptance Criteria
 - `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
 
+### REQ-mcp-014
+
+The MCP issues tool SHALL find spec files only through the confined spec walk, so a `specs` link that leaves the project is refused, not walked.
+
+Acceptance Criteria
+- The MCP issues walk uses `find_spec_files_checked` and still reports a non-regular spec path as inconclusive.
+

@@ -93,3 +93,10 @@ Acceptance Criteria
 - `.specsync/registry.toml` linked to a file outside the project: `scaffold <name>` exits 1 naming the registry and the outside file is unchanged.
 - `specs/<name>` linked to a directory inside the project: the spec is created in that directory.
 
+### REQ-cmd-scaffold-008
+
+`scaffold` SHALL check a new module name for a case collision only against spec folders the project rule reaches (REQ-commands-016).
+
+Acceptance Criteria
+- `scaffold auth` with a `specs` link out holding `Auth` reports no collision from outside.
+

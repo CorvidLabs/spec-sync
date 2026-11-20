@@ -61,7 +61,7 @@ fn durable_journal(entries: Vec<TransactionEntry>) -> String {
 }
 
 fn plant_journal(root: &Path, journal: &str) {
-    fs::write(root.join(TRANSACTION_PATH), journal).unwrap();
+    fs::write(transaction_journal_path(root), journal).unwrap();
 }
 
 /// Verifies REQ-change-162. No journal entry may rewrite or delete a file under `.git`, in any
@@ -115,23 +115,25 @@ fn a_journal_never_rewrites_or_deletes_git_files() {
             "{target}: {error}"
         );
         assert!(
-            root.join(TRANSACTION_PATH).exists(),
+            transaction_journal_path(root).exists(),
             "{target}: a refused journal is left for the person to inspect"
         );
     }
 }
 
 /// Verifies REQ-change-162. A journal Git tracks came with the repository, so it is never
-/// replayed, even when every entry names an allowed file: in the index, or only in `HEAD`.
+/// replayed, even when every entry names an allowed file: in the index, or only in `HEAD`. Like
+/// any journal in the work tree, it stops the lifecycle with the path and how to clear it.
 #[test]
 fn a_journal_git_tracks_is_never_replayed() {
     for staged_out in [false, true] {
         let temp = journal_project();
         let root = temp.path();
-        plant_journal(
-            root,
-            &durable_journal(vec![entry("specs/auth/auth.spec.md", Some("TAMPERED\n"))]),
-        );
+        fs::write(
+            root.join(TRANSACTION_PATH),
+            durable_journal(vec![entry("specs/auth/auth.spec.md", Some("TAMPERED\n"))]),
+        )
+        .unwrap();
         journal_git(root, &["add", "-A"]);
         journal_git(root, &["commit", "-q", "-m", "fixture"]);
         if staged_out {
@@ -146,7 +148,7 @@ fn a_journal_git_tracks_is_never_replayed() {
             "a tracked journal was replayed (staged out: {staged_out})"
         );
         assert!(
-            error.contains("tracked by Git") && error.contains("git rm"),
+            error.contains("in the work tree") && error.contains("rm "),
             "{error}"
         );
     }
@@ -238,7 +240,7 @@ fn a_real_interrupted_write_is_still_recovered() {
         fs::read_to_string(root.join(".specsync/changes/new-change/state.json")).unwrap(),
         "{}"
     );
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 /// Verifies REQ-change-162. A spec the local registry maps outside `specs_dir` is written by the

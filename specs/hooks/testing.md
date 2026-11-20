@@ -62,3 +62,14 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `hooks_status_does_not_wait_on_a_hook_file_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## The hooks folder (REQ-hooks-009)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| `core.hooksPath` inside the work tree behind a committed folder link | Refused; nothing created or made executable outside | `tests/integration/project_writes.rs`: `hooks_install_never_writes_through_a_linked_folder_on_the_hooks_path` |
+| A dangling `pre-commit` link in a committed hooks folder | Refused; its target is not created | `tests/integration/project_writes.rs`: `hooks_install_never_creates_the_target_of_a_dangling_pre_commit_link` |
+| A real hooks folder in the work tree | An executable `pre-commit` is installed | `tests/integration/project_writes.rs`: `hooks_install_installs_into_a_hooks_folder_in_the_work_tree` |
+| A linked `pre-commit` in `.git/hooks` | Install and uninstall refuse and the target keeps its bytes | `src/hooks.rs`: `install_and_uninstall_precommit_refuse_symlinked_hook` |

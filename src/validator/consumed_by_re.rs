@@ -1480,6 +1480,7 @@ fn open_coverage_child_directory(
     name: &std::ffi::OsStr,
     display: &Path,
 ) -> Result<Dir, String> {
+    // not a project file read: a directory handle beneath the retained coverage traversal's handle, checked against the entry it listed
     let child = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot open retained coverage source directory {}: {error}",
@@ -1570,6 +1571,7 @@ fn verify_coverage_child_directory(
             display.display()
         ));
     }
+    // not a project file read: re-opens the same directory beneath the retained handle to check its identity
     let observed = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot re-open coverage source directory {}: {error}",
@@ -1698,6 +1700,7 @@ where
         .read(true)
         ._cap_fs_ext_nonblock(true)
         ._cap_fs_ext_follow(FollowSymlinks::No);
+    // not a project file read: the retained coverage traversal's no-follow, non-blocking handle, bounded below
     let mut file = directory.open_with(name, &options).map_err(|error| {
         format!(
             "Cannot open retained coverage source file {}: {error}",
@@ -1776,6 +1779,7 @@ fn verify_coverage_file_edge(
         .read(true)
         ._cap_fs_ext_nonblock(true)
         ._cap_fs_ext_follow(FollowSymlinks::No);
+    // not a project file read: re-opens the same file through the retained no-follow handle to check its identity
     let observed = directory.open_with(name, &options).map_err(|error| {
         format!(
             "Cannot re-open coverage source file {}: {error}",

@@ -320,6 +320,7 @@ fn stage_replacement(
             "archive destination has no parent directory",
         )
     })?;
+    // checked project write: a staged file beside a tasks file `find_project_files` found and the bounded read reached, in its real parent directory
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-archive-")
         .tempfile_in(parent)?;

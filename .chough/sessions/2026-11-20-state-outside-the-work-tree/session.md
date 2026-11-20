@@ -16,7 +16,7 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-on-a2a50824-with-only-change-6-s-tests-added-b2c70e1f-all-5]
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -36,6 +36,8 @@ SpecSync's hash cache, transaction journal and remote spec cache live outside th
 - 0xLeif decided "Scope approval of keep-specsync-s-own-caches-and-journal-outside-the-work-tree": "a, all yes.. im back" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 00:38Z, answering item 1 as t4c put it at about 21:09Z on 2026-11-19 with option A: 'one more change (change 6): move the hash cache, journal and remote cache out of the work tree; close the scan blind spots, the hooks-folder case and the enclosing-repo case; leave the paths you type yourself (--template) as they are, and document the low-rated items. Then this same reviewer re-checks its own findings, rather than a third full review. [...] (fold [change 5's review] into change 6 if you pick A)', and that the class fix moves them 'into the Git directory, where a repo can't commit files, or into your user cache folder when there's no Git'; t4c mapped it to review2's F1, F2, F3, F4, F6 and F7 fixed, F5 kept and documented, F8, F9 and F10 documented; relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve keep-specsync-s-own-caches-and-journal-outside-the-work-tree as 0xLeif
 
 ## What was verified
+
+- [On a2a50824 with only change 6's tests added (b2c70e1f): all 5 new unit tests and 8 of 13 new integration tests fail (also REQ-hash-cache-009, REQ-cmd-check-021, REQ-cmd-resolve-002). A forged pass in .specsync/hashes.json replays in an unpacked tree and, on this case-insensitive disk, when committed as .specsync/Hashes.json; check in an unpacked copy skips the spec on a shipped cache; a valid journal planted in the work tree is replayed by recover and by change new, with or without Git; a running transaction writes its journal into the work tree; a committed .specsync-cache/remote-specs entry is returned by the remote cache; hooks install --precommit with core.hooksPath in the work tree created outside/hooks through a linked .config and outside/created through a dangling pre-commit link; an untracked project in a home folder kept under Git appended to the outer notes.md. The read scan finds 12 unmarked reads (src/validator/tests.rs:3452 among them), the write scan 7, the Git scan 5 (git worktree add/remove/prune). The 5 that pass are controls: three monorepo subproject tests, a real in-tree hooks folder, and the lexer test.](evidence/2026-11-20-on-a2a50824-with-only-change-6-s-tests-added-b2c70e1f-all-5.md)
 
 ## Open threads
 

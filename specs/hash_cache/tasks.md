@@ -25,6 +25,7 @@ spec: hash_cache.spec.md
 - [x] Never read or write the cache through a symbolic link: no-follow `.specsync` handle, exclusive create and rename, `refusal` for the caller's warning (REQ-hash-cache-007)
 - [x] Read project files only through the bounded project read of `util` (REQ-hash-cache-008). Evidence: `tests/integration/project_reads.rs`.
 - [x] Never read or save a cache Git tracks, and keep `prune` inside the project (REQ-hash-cache-009, REQ-hash-cache-010). Evidence: the two new `src/hash_cache.rs` tests.
+- [x] Keep the cache in the local state folder and never read the work tree's `.specsync/hashes.json` (REQ-hash-cache-009). Evidence: the forged-pass tests in `src/hash_cache.rs`.
 
 ## Review Status
 

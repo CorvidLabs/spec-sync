@@ -27,6 +27,7 @@ spec: cmd_check.spec.md
 - [x] Fail closed on malformed Gradle coverage discovery and preserve structured JSON failure output — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
 - [x] Read project files only through the bounded project read of `util` (REQ-cmd-check-019). Evidence: `tests/integration/project_reads.rs`.
 - [x] Write `--fix --backup` backups confined, and never use a hash cache Git tracks (REQ-cmd-check-020, REQ-cmd-check-021). Evidence: `tests/integration/project_writes.rs`, `tests/integration/repository_inputs.rs`.
+- [x] Use only the cache in the local state folder and name its real path (REQ-cmd-check-021). Evidence: `check_never_uses_a_hash_cache_an_unpacked_tree_ships`.
 
 ## Gaps
 

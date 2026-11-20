@@ -9,10 +9,10 @@ fn a_corrupt_transaction_journal_names_the_file_and_the_recovery() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     fs::create_dir_all(root.join(".specsync")).unwrap();
-    fs::write(root.join(TRANSACTION_PATH), "NOT JSON{{{").unwrap();
+    fs::write(transaction_journal_path(root), "NOT JSON{{{").unwrap();
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(
-        error.contains(".specsync/change-transaction.json"),
+        error.contains("change-transaction.json"),
         "the error names the file: {error}"
     );
     assert!(
@@ -32,13 +32,13 @@ fn a_journal_with_a_damaged_integrity_envelope_names_the_file_and_the_recovery()
     let root = temp.path();
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(
-        root.join(TRANSACTION_PATH),
+        transaction_journal_path(root),
         r#"{"schema_version":1,"entry_count":2,"entries_digest":"0000","entries":[]}"#,
     )
     .unwrap();
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(
-        error.contains(".specsync/change-transaction.json"),
+        error.contains("change-transaction.json"),
         "the error names the file: {error}"
     );
     assert!(
@@ -54,10 +54,10 @@ fn a_non_utf8_journal_names_the_file_and_the_recovery() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     fs::create_dir_all(root.join(".specsync")).unwrap();
-    fs::write(root.join(TRANSACTION_PATH), [0xff, 0xfe, 0x00, 0x7b]).unwrap();
+    fs::write(transaction_journal_path(root), [0xff, 0xfe, 0x00, 0x7b]).unwrap();
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(
-        error.contains(".specsync/change-transaction.json"),
+        error.contains("change-transaction.json"),
         "the error names the file: {error}"
     );
     assert!(error.contains(".broken"), "the error names the recovery: {error}");
@@ -72,10 +72,10 @@ fn a_non_utf8_journal_names_the_file_and_the_recovery() {
 fn a_directory_at_the_journal_path_names_the_file_and_the_recovery() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    fs::create_dir_all(root.join(TRANSACTION_PATH)).unwrap();
+    fs::create_dir_all(transaction_journal_path(root)).unwrap();
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(
-        error.contains(".specsync/change-transaction.json"),
+        error.contains("change-transaction.json"),
         "the error names the file: {error}"
     );
     assert!(error.contains(".broken"), "the error names the recovery: {error}");
@@ -89,7 +89,7 @@ fn the_printed_recovery_runs_verbatim_in_a_spaced_root() {
     let temp = TempDir::new().unwrap();
     let root = temp.path().join("with space");
     fs::create_dir_all(root.join(".specsync")).unwrap();
-    let journal = root.join(TRANSACTION_PATH);
+    let journal = transaction_journal_path(&root);
     fs::write(&journal, "NOT JSON{{{").unwrap();
     let error = recover_pending_transaction(&root).unwrap_err();
     // Extract the printed mv command and run it through a real shell.
@@ -104,7 +104,7 @@ fn the_printed_recovery_runs_verbatim_in_a_spaced_root() {
     assert!(status.success(), "the printed recovery runs as printed: {printed}");
     assert!(!journal.exists(), "the journal was set aside");
     assert!(
-        root.join(".specsync/change-transaction.json.broken").exists(),
+        journal.with_extension("json.broken").exists(),
         "the set-aside copy exists"
     );
 }
@@ -116,7 +116,7 @@ fn a_journal_entry_escaping_the_root_names_the_journal() {
     let root = temp.path();
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(
-        root.join(TRANSACTION_PATH),
+        transaction_journal_path(root),
         durable_journal(vec![TransactionEntry {
             path: "../outside.txt".into(),
             original: None,
@@ -125,7 +125,7 @@ fn a_journal_entry_escaping_the_root_names_the_journal() {
     .unwrap();
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(
-        error.contains(".specsync/change-transaction.json"),
+        error.contains("change-transaction.json"),
         "the refusal names the journal holding the entry: {error}"
     );
     assert!(error.contains("../outside.txt"), "and the entry: {error}");

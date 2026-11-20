@@ -3449,7 +3449,13 @@ pub fn compute_coverage_checked(
     // `--require-coverage 100` from passing vacuously over broken references.
     let mut missing_files: Vec<String> = Vec::new();
     for spec_file in &retained_spec_files {
-        let Ok(content) = std::fs::read_to_string(root.join(&spec_file.relative_path)) else {
+        // Bounded and confined like every other spec read (REQ-validator-052); a refused read is
+        // skipped as a missing spec is.
+        let Ok(content) = crate::util::read_project_string(
+            root,
+            &root.join(&spec_file.relative_path),
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");

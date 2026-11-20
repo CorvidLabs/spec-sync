@@ -7,8 +7,8 @@ spec: hash_cache.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/hash_cache.rs` | cargo test hash_cache:: | `cache_round_trip`, `snapshots_round_trip_and_old_caches_revalidate`, `snapshot_integrity_and_input_changes_are_rejected`, `is_changed_detects_new_file`, `is_changed_detects_modification`, `extract_files_from_frontmatter`, `prune_removes_missing`, `classify_detects_spec_change`, `classify_detects_requirements_change`, `classify_detects_companion_change`, `classify_detects_testing_companion_change`, `classify_detects_source_change`, `companion_files_found_with_plain_names`, `update_cache_tracks_plain_companion_files` |
-| `src/hash_cache.rs` (REQ-hash-cache-007) | cargo test hash_cache:: | `save_refuses_a_linked_cache_file_and_leaves_its_target`, `save_creates_nothing_through_a_dangling_cache_link`, `save_refuses_a_linked_cache_directory`, `load_reads_no_cache_through_a_link`, `a_directory_at_the_cache_path_is_refused`, `save_replaces_the_cache_by_rename`. Every link points inside the test's own temporary directory |
-| `tests/integration/check.rs` (REQ-hash-cache-007) | cargo test --test integration hash_cache | `check_never_writes_the_hash_cache_through_a_link`, `rehash_refuses_a_linked_hash_cache`: the real binary leaves the link's target byte for byte unchanged |
+| `src/hash_cache.rs` (REQ-hash-cache-007) | cargo test hash_cache:: | `a_link_at_the_work_tree_cache_path_is_never_followed`, `save_creates_nothing_through_a_dangling_link_or_a_linked_specsync`, `load_reads_no_cache_through_a_link`, `a_directory_at_the_cache_path_is_refused`, `save_replaces_the_cache_by_rename`. Every link points inside the test's own temporary directory |
+| `tests/integration/check.rs` (REQ-hash-cache-007) | cargo test --test integration hash_cache | `check_never_writes_the_hash_cache_through_a_link`, `rehash_never_writes_the_hash_cache_through_a_link`: the real binary leaves the link's target byte for byte unchanged |
 | `tests/integration.rs` | cargo test --test integration check_creates_hash_cache | End-to-end fixture: `check_creates_hash_cache` |
 
 ## Behavioral Verification
@@ -53,5 +53,6 @@ Every link points inside the test's own temporary directory.
 
 | Case | Required behavior | Test |
 |------|-------------------|------|
-| A cache carrying a forged pass, untracked and then tracked by Git | Replays while untracked; not once tracked; `save` refuses and the tracked bytes stay | `src/hash_cache.rs`: `a_forged_pass_in_a_cache_git_tracks_is_never_replayed`; `tests/integration/repository_inputs.rs`: `rehash_refuses_a_hash_cache_git_tracks` |
+| A cache carrying a forged pass, committed to Git | Never replayed; `save` writes the local state folder and the committed bytes stay | `src/hash_cache.rs`: `a_forged_pass_in_a_cache_git_tracks_is_never_replayed`; `tests/integration/repository_inputs.rs`: `rehash_leaves_a_hash_cache_git_tracks` |
+| A forged pass in an unpacked tree, or committed as `.specsync/Hashes.json` on a case-insensitive disk | Never replayed | `src/hash_cache.rs`: `a_forged_pass_an_unpacked_tree_ships_is_never_replayed`, `a_forged_pass_committed_in_another_letter_case_is_never_replayed`; `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_an_unpacked_tree_ships` |
 | `prune` with an absolute key and a `..` key naming an outside file | Both dropped; a project file's key kept | `src/hash_cache.rs`: `prune_drops_keys_that_leave_the_project` |

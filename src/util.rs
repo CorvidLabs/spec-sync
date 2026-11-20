@@ -7,6 +7,8 @@ use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
+pub mod local_state;
+
 /// Levenshtein edit distance between two strings.
 pub fn levenshtein(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
@@ -93,6 +95,9 @@ struct Confinement {
     /// outside a work tree. Nothing beneath it is a project file, whatever it is named
     /// (REQ-util-005).
     git_dir: Option<PathBuf>,
+    /// The enclosing work tree's top folder and the project root's path beneath it, whether or
+    /// not the confinement widened to that work tree (REQ-util-007); `None` outside a work tree.
+    work_tree: Option<(PathBuf, PathBuf)>,
 }
 
 /// The confinement of `canonical_root`, worked out once per root for the whole run.
@@ -111,6 +116,7 @@ fn confinement(canonical_root: &Path) -> Arc<Confinement> {
             top: canonical_root.to_path_buf(),
             prefix: PathBuf::new(),
             git_dir: None,
+            work_tree: None,
         }),
     );
     known
@@ -124,6 +130,11 @@ fn confinement(canonical_root: &Path) -> Arc<Confinement> {
 /// --show-toplevel --absolute-git-dir`. `None` outside a work tree, when Git is not installed,
 /// or when its answer does not hold the root. `GIT_DIR` and `GIT_WORK_TREE` are left out, so a
 /// hook's environment cannot move the answer.
+///
+/// The confinement is that work tree's top folder only when the project root is the top, or
+/// when Git tracks a file under the root: a monorepo subproject. A project that is not part of
+/// the repository around it, such as a ZIP unpacked inside a home folder kept under Git, is
+/// confined to itself, so its links cannot reach the person's own files (REQ-util-007).
 fn work_tree_confinement(canonical_root: &Path) -> Option<Confinement> {
     let mut command = std::process::Command::new("git");
     command
@@ -140,11 +151,43 @@ fn work_tree_confinement(canonical_root: &Path) -> Option<Confinement> {
     let top = Path::new(lines.next()?).canonicalize().ok()?;
     let git_dir = Path::new(lines.next()?).canonicalize().ok()?;
     let prefix = canonical_root.strip_prefix(&top).ok()?.to_path_buf();
-    Some(Confinement {
-        top,
-        prefix,
-        git_dir: Some(git_dir),
+    let work_tree = Some((top.clone(), prefix.clone()));
+    let part_of_the_work_tree = prefix.as_os_str().is_empty()
+        || crate::git_utils::tracked_by_git(&top, &prefix.to_string_lossy().replace('\\', "/"));
+    Some(if part_of_the_work_tree {
+        Confinement {
+            top,
+            prefix,
+            git_dir: Some(git_dir),
+            work_tree,
+        }
+    } else {
+        Confinement {
+            top: canonical_root.to_path_buf(),
+            prefix: PathBuf::new(),
+            git_dir: Some(git_dir),
+            work_tree,
+        }
     })
+}
+
+/// The Git directory of the work tree holding `canonical_root`, and the root's path beneath the
+/// work tree's top folder: where the project's local state is kept, one folder per project
+/// (REQ-util-006). `None` outside a work tree.
+pub(crate) fn git_state_location(canonical_root: &Path) -> Option<(PathBuf, PathBuf)> {
+    let confinement = confinement(canonical_root);
+    let git_dir = confinement.git_dir.clone()?;
+    let (_, prefix) = confinement.work_tree.clone()?;
+    Some((git_dir, prefix))
+}
+
+/// The top folder of the Git work tree holding `root`, and its Git directory, both canonical;
+/// `None` outside a work tree. The hooks folder is reached from one of them (REQ-hooks-009).
+pub(crate) fn work_tree_and_git_dir(root: &Path) -> Option<(PathBuf, PathBuf)> {
+    let confinement = confinement(&root.canonicalize().ok()?);
+    let git_dir = confinement.git_dir.clone()?;
+    let (top, _) = confinement.work_tree.clone()?;
+    Some((top, git_dir))
 }
 
 /// A Git directory name, as Git and a case-insensitive file system read it: `.git` in any letter

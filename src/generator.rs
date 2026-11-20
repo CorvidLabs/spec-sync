@@ -606,6 +606,7 @@ impl<'a> CreationSources<'a> {
 
     fn child_directory(parent: &Dir, name: &std::ffi::OsStr) -> io::Result<Dir> {
         let handle = parent.try_clone()?.into_std_file();
+        // not a project file read: opens a directory handle without following a link at its name, beneath the retained project handle
         cap_primitives::fs::open_dir_nofollow(&handle, Path::new(name)).map(Dir::from_std_file)
     }
 
@@ -1751,6 +1752,8 @@ fn write_new_retained_file(project: &Dir, relative: &Path, content: &[u8]) -> io
     let mut options = OpenOptions::new();
     // checked project write: an exclusive create through the retained project directory handle
     options.write(true).create_new(true);
+    // checked project write: the exclusive create set up just above, through the retained project directory handle
+    // not a project file read: the same open, for writing only
     let mut file = match project.open_with(relative, &options) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => return Ok(false),

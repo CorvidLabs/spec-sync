@@ -40,7 +40,11 @@ const BOOTSTRAP_RECORD_CANDIDATES: [&str; 4] = [
     ".specsync/version",
     POLICY_PATH,
 ];
+/// Where SpecSync 6.3 and earlier kept the transaction journal, in the work tree. A file there is
+/// never opened or replayed: a repository can put one there (REQ-change-162).
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
+/// The transaction journal's name in the project's local state folder (REQ-util-006).
+const TRANSACTION_FILE: &str = "change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
 const SCOPED_REVIEW_FILE: &str = "review.json";
 const SCOPED_REVIEW_ATTEMPTS_FILE: &str = "review-attempts.json";
@@ -695,20 +699,32 @@ fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
     )
 }
 
-/// Whether Git tracks the transaction journal, in the index or in `HEAD`. Outside a Git
-/// repository nothing is tracked.
-fn transaction_journal_is_tracked(root: &Path) -> bool {
-    crate::git_utils::tracked_by_git(root, TRANSACTION_PATH)
+/// The project's local state folder, which holds the transaction journal (REQ-change-162).
+fn transaction_state(
+    root: &Path,
+    create: bool,
+) -> Result<Option<crate::util::local_state::LocalState>, String> {
+    crate::util::local_state::LocalState::open(root, create).map_err(|error| {
+        format!("cannot open SpecSync's local state folder for the transaction journal: {error}")
+    })
 }
 
-/// The refusal for a journal that came with the repository, and the way to remove it.
-fn tracked_journal_error(journal_path: &Path) -> String {
-    format!(
-        "the transaction journal at {} is tracked by Git, so it came with the repository and is \
-         never replayed; remove it with `git rm --cached {TRANSACTION_PATH}` and delete the file, \
-         then re-run the command",
-        shell_quote(&journal_path.display().to_string())
-    )
+/// A journal in the work tree came from a repository or from SpecSync 6.3 or earlier, and
+/// nothing can tell which: Git says "untracked" for a ZIP, a case variant or a failing Git. It is
+/// never opened or replayed, and while it is there no lifecycle command starts (REQ-change-162).
+fn refuse_journal_in_work_tree(root: &Path) -> Result<(), String> {
+    let planted = root.join(TRANSACTION_PATH);
+    let quoted = shell_quote(&planted.display().to_string());
+    match fs::symlink_metadata(&planted) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("cannot inspect {quoted}: {error}")),
+        Ok(_) => Err(format!(
+            "{TRANSACTION_PATH} is in the work tree, where a repository can put a transaction \
+             journal, so it is never replayed: SpecSync keeps its own journal outside the work \
+             tree. If an older SpecSync left it after an interrupted write, check the files it \
+             lists, then delete it with `rm {quoted}` and re-run the command"
+        )),
+    }
 }
 
 /// Whether a journaled path is one the change workflow writes, and so one a replay may put back
@@ -775,17 +791,19 @@ fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String
 }
 
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
-    let journal_path = root.join(TRANSACTION_PATH);
-    if !journal_path.exists() {
+    refuse_journal_in_work_tree(root)?;
+    let Some(state) = transaction_state(root, false)? else {
         return Ok(());
-    }
-    // A journal Git tracks came with the repository: SpecSync on this machine never wrote it, so
-    // it is never replayed (REQ-change-162).
-    if transaction_journal_is_tracked(root) {
-        return Err(tracked_journal_error(&journal_path));
-    }
-    let content = crate::util::read_project_string(root, &journal_path, crate::util::MAX_PROJECT_INPUT_BYTES)
-        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
+    };
+    let journal_path = state.file_path(TRANSACTION_FILE);
+    // not a project file read: the journal in SpecSync's own state folder outside the work tree, read through its no-follow, bounded handle (REQ-util-006)
+    let content = match state.read_file(TRANSACTION_FILE, crate::util::MAX_PROJECT_INPUT_BYTES) {
+        Ok(Some(bytes)) => String::from_utf8(bytes).map_err(|_| {
+            invalid_journal_error(&journal_path, "stream did not contain valid UTF-8")
+        })?,
+        Ok(None) => return Ok(()),
+        Err(error) => return Err(invalid_journal_error(&journal_path, &error.to_string())),
+    };
     let value: serde_json::Value = serde_json::from_str(&content)
         .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
     // The bare-array form, written only by SpecSync 5.x, carries no envelope at all
@@ -829,7 +847,8 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
             remove_empty_transaction_directories(root, path.parent());
         }
     }
-    remove_file_durable(root, &journal_path)
+    state
+        .remove(TRANSACTION_FILE, true)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 

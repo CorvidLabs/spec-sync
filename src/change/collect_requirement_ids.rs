@@ -3070,8 +3070,12 @@ where
     };
     validate_prepared_transaction_targets(root, prepared)?;
     validate()?;
-    let journal_path = root.join(TRANSACTION_PATH);
-    atomic_write_durable(root, &journal_path, json_content(&journal)?.as_bytes())
+    // The journal is kept in SpecSync's own state folder outside the work tree, where no
+    // repository can put one (REQ-change-162).
+    let state = transaction_state(root, true)?
+        .ok_or_else(|| "the local state folder for the transaction journal is missing".to_string())?;
+    state
+        .write_file(TRANSACTION_FILE, json_content(&journal)?.as_bytes(), true)
         .map_err(|error| format!("failed to publish transaction journal: {error}"))?;
     #[cfg(test)]
     run_transaction_after_journal_hook();
@@ -3109,7 +3113,8 @@ where
         recover_pending_transaction(root)?;
         return Err(error);
     }
-    remove_file_durable(root, &journal_path)
+    state
+        .remove(TRANSACTION_FILE, true)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
     Ok(())
 }
@@ -3233,6 +3238,7 @@ fn atomic_write_durable(root: &Path, path: &Path, content: &[u8]) -> Result<(), 
         .ok_or_else(|| format!("transaction target has no parent: {}", path.display()))?;
     // checked project write: `path` and its directories were refused as links just above
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    // checked project write: `path` and its directories were refused as links just above
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-transaction-")
         .tempfile_in(parent)

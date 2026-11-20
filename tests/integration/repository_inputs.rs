@@ -80,19 +80,19 @@ fn toml_config(root: &Path, body: &str) {
 // ─── a hash cache Git tracks (F4) ──────────────────────────────────────
 
 /// Verifies REQ-hash-cache-009 and REQ-cmd-check-021. A `.specsync/hashes.json` that Git tracks
-/// came with the repository: `check` neither replays nor rewrites it, says so once with the fix,
-/// and validates every spec.
+/// came with the repository: `check` keeps its cache in the Git directory, so it never replays,
+/// rewrites or even mentions the committed one, and validates every spec.
 #[test]
 fn check_never_uses_a_hash_cache_git_tracks() {
     let (_tmp, root, _outside) = project();
     toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
     git_repo(&root);
     let first = run(&root, &["check"]);
-    assert!(
-        root.join(".specsync/hashes.json").exists(),
-        "{}",
-        said(&first)
-    );
+    let saved = state_cache_file(&root);
+    assert!(saved.is_file(), "{}", said(&first));
+    assert!(saved.starts_with(root.canonicalize().unwrap().join(".git")));
+    fs::copy(&saved, root.join(".specsync/hashes.json")).unwrap();
+    fs::remove_file(&saved).unwrap();
     git_in(&root, &["add", "-A"]);
     git_in(&root, &["add", "-f", ".specsync/hashes.json"]);
     git_in(&root, &["commit", "-q", "-m", "commit the cache"]);
@@ -102,14 +102,10 @@ fn check_never_uses_a_hash_cache_git_tracks() {
 
     let text = said(&output);
     assert!(
-        text.contains("hash cache not used") && text.contains("tracked by Git"),
-        "{text}"
-    );
-    assert!(text.contains("git rm --cached"), "{text}");
-    assert!(
         !text.contains("Skipped"),
         "a tracked cache was replayed: {text}"
     );
+    assert!(!text.contains("hash cache not used"), "{text}");
     assert_eq!(
         fs::read(root.join(".specsync/hashes.json")).unwrap(),
         cache,
@@ -117,10 +113,10 @@ fn check_never_uses_a_hash_cache_git_tracks() {
     );
 }
 
-/// Verifies REQ-hash-cache-009. `rehash` refuses a cache Git tracks, as it refuses any cache
-/// location it will not write.
+/// Verifies REQ-hash-cache-009 and REQ-rehash-003. `rehash` writes the cache in the Git
+/// directory and leaves a cache Git tracks as it is.
 #[test]
-fn rehash_refuses_a_hash_cache_git_tracks() {
+fn rehash_leaves_a_hash_cache_git_tracks() {
     let (_tmp, root, _outside) = project();
     toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
     git_repo(&root);
@@ -131,12 +127,8 @@ fn rehash_refuses_a_hash_cache_git_tracks() {
 
     let output = run(&root, &["rehash"]);
 
-    assert!(!output.status.success(), "{}", said(&output));
-    assert!(
-        said(&output).contains("tracked by Git"),
-        "{}",
-        said(&output)
-    );
+    assert!(output.status.success(), "{}", said(&output));
+    assert!(state_cache_file(&root).is_file(), "{}", said(&output));
     assert_eq!(
         fs::read_to_string(root.join(".specsync/hashes.json")).unwrap(),
         "{}"

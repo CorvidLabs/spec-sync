@@ -277,9 +277,10 @@ pub fn cmd_check(
         );
     }
 
-    // A repository can commit `.specsync/hashes.json`, or `.specsync` itself, as a link to a file
-    // of whoever clones it. Such a cache is never read or written: say so once, before anything
-    // can end the run, then run as with no cache (REQ-cmd-check-018).
+    // The cache lives in the project's local state folder outside the work tree, so whatever a
+    // repository ships at `.specsync/hashes.json` is never looked at (REQ-cmd-check-021). When
+    // that folder cannot be found or holds something the cache will not read or write, say so
+    // once, before anything can end the run, then run as with no cache (REQ-cmd-check-018).
     let cache_refusal = hash_cache::HashCache::refusal(root);
     if let Some(reason) = &cache_refusal {
         eprintln!(
@@ -461,12 +462,13 @@ pub fn cmd_check(
 
     let skipped = spec_files.len() - specs_to_validate.len();
     if skipped > 0 && matches!(format, Text) {
-        let cache_path = root.join(".specsync").join("hashes.json");
         println!(
             "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
         );
-        println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        if let Some(cache_path) = hash_cache::HashCache::cache_path(root) {
+            println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        }
     }
 
     let replayed_has_findings = replayed.iter().any(|snapshot| snapshot.has_findings());

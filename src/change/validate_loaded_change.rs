@@ -1725,13 +1725,25 @@ fn cargo_build_lock_path(
 /// the whole point, because a "probably wedged" heuristic would be one more
 /// signal that stopped carrying information while still looking like one.
 fn cargo_build_lock_is_held(path: &Path) -> bool {
-    // not a project file write: opens Cargo's build lock only to test it; nothing is written
-    // not a project file read: opens Cargo's build lock only to test it; nothing is read
-    let Ok(file) = OpenOptions::new().read(true).write(true).open(path) else {
+    // The lock is under the project's `target/`, which a repository can commit, so it is opened
+    // without following a link or blocking on a FIFO, and only a regular file counts.
+    let mut options = OpenOptions::new();
+    // not a project file write: opens Cargo's build lock without create, link or blocking, only to test whether it is held; nothing is written
+    // not a project file read: opens Cargo's build lock only to test whether it is held; nothing is read
+    options.read(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let Ok(file) = options.open(path) else {
         // The file is created by Cargo when it takes the lock; absent or
         // unreadable means there is nothing this run can prove.
         return false;
     };
+    if !file.metadata().is_ok_and(|metadata| metadata.is_file()) {
+        return false;
+    }
     match file.try_lock_exclusive() {
         // Acquired, so nothing held it. Dropping `file` releases it again.
         Ok(()) => false,

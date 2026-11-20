@@ -117,3 +117,4 @@ spec: change.spec.md
 - [x] Read project files only through the bounded project read of `util` (REQ-change-161). Evidence: `tests/integration/project_reads.rs`.
 - [x] Replay the transaction journal only when this machine can have written it and only into files the workflow writes (REQ-change-162). Evidence: `src/change_tests/journal_replay_targets.rs`, `change_new_never_replays_a_committed_journal_into_git`.
 - [x] Write change records and workspaces only through the confined helpers, and refuse a linked record before writing (REQ-change-163). Evidence: the `change_*` tests in `tests/integration/project_writes.rs`.
+- [x] Keep the transaction journal in the local state folder and never replay one in the work tree (REQ-change-162). Evidence: `a_journal_in_the_work_tree_is_never_replayed`, `a_running_transaction_keeps_its_journal_outside_the_work_tree`.

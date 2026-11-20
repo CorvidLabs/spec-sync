@@ -157,7 +157,8 @@ fn change_status_refuses_a_policy_over_its_bound() {
     );
 }
 
-/// Verifies REQ-change-161. The transaction journal is read before every lifecycle write.
+/// Verifies REQ-change-161 and REQ-change-162. Every lifecycle write looks for a journal before
+/// it starts; one in the work tree is refused without being opened.
 #[test]
 fn a_lifecycle_write_does_not_wait_on_or_follow_the_transaction_journal() {
     for planted in ["fifo", "outside"] {
@@ -176,13 +177,12 @@ fn a_lifecycle_write_does_not_wait_on_or_follow_the_transaction_journal() {
             "--path",
             "src/auth/service.ts",
         ]);
-        let reason = if planted == "fifo" {
-            "is not a regular file"
-        } else {
-            "is a symbolic link that leaves the project"
-        };
+        // A journal in the work tree is never opened, so neither a FIFO nor a link there holds
+        // or leads the command anywhere (REQ-change-162).
         assert!(
-            said(&output).contains(&format!(".specsync/change-transaction.json {reason}")),
+            said(&output).contains(
+                ".specsync/change-transaction.json is in the work tree, where a repository can put a transaction journal, so it is never replayed"
+            ),
             "{planted}: {}",
             said(&output)
         );
@@ -239,20 +239,24 @@ fn check_does_not_wait_on_a_companion_that_is_not_a_regular_file() {
 }
 
 /// Verifies REQ-hash-cache-008. The hash cache is refused over its bound, and so not saved over.
+/// It lives in the project's local state folder (REQ-hash-cache-009).
 #[test]
 fn check_refuses_a_hash_cache_over_its_bound() {
     let fx = project();
-    fx.sparse(".specsync/hashes.json", 64 * 1024 * 1024 + 1);
+    let cache = state_cache_file(&fx.root);
+    fs::create_dir_all(cache.parent().unwrap()).unwrap();
+    fs::File::create(&cache)
+        .unwrap()
+        .set_len(64 * 1024 * 1024 + 1)
+        .unwrap();
     let output = fx.run(&["check"]);
     assert!(
-        said(&output).contains(".specsync/hashes.json is larger than 67108864 bytes"),
+        said(&output).contains("hashes.json is larger than 67108864 bytes"),
         "{}",
         said(&output)
     );
     assert_eq!(
-        fs::metadata(fx.root.join(".specsync/hashes.json"))
-            .unwrap()
-            .len(),
+        fs::metadata(&cache).unwrap().len(),
         64 * 1024 * 1024 + 1,
         "a refused cache is not saved over"
     );
@@ -430,7 +434,7 @@ fn change_new_never_replays_a_committed_journal_into_git() {
     );
     assert!(!output.status.success(), "{}", said(&output));
     assert!(
-        said(&output).contains("tracked by Git"),
+        said(&output).contains("is in the work tree"),
         "{}",
         said(&output)
     );
@@ -722,9 +726,8 @@ pub(crate) fn non_test_lines<'a>(text: &'a str, code: &'a str) -> Vec<SourceLine
         for (at, _) in code.match_indices(attribute) {
             let attribute_end = code[at..].find(']').map_or(code.len(), |end| at + end + 1);
             let end = end_of_item(bytes, attribute_end);
-            for line in line_of(at)..=line_of(end.saturating_sub(1).max(at)) {
-                test_line[line] = true;
-            }
+            let (first, last) = (line_of(at), line_of(end.saturating_sub(1).max(at)));
+            test_line[first..=last].fill(true);
         }
     }
     text.split('\n')

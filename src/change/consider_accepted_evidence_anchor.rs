@@ -53,6 +53,7 @@ fn acceptance_entry_digest_at_commit(
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
+        // git writes no project file: a detached scratch worktree in a folder this function made in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -75,6 +76,7 @@ fn acceptance_entry_digest_at_commit(
     }
     let result = acceptance_entry_digest_in_tree(&tree, predecessor_id, path);
     let removed = crate::git_utils::output_after_child_exits(
+        // git writes no project file: removes the scratch worktree this function added in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -2215,6 +2217,7 @@ fn reconstruct_legacy_at_anchor(
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
+        // git writes no project file: a detached scratch worktree in a folder this function made in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -2287,6 +2290,7 @@ fn reconstruct_legacy_at_anchor(
         None
     } else {
         crate::git_utils::output_after_child_exits(
+            // git writes no project file: removes the scratch worktree this function added in the system temporary directory
             Command::new("git")
                 .args([
                     "worktree",
@@ -2301,6 +2305,7 @@ fn reconstruct_legacy_at_anchor(
     if !removed.is_some_and(|output| output.status.success()) {
         // Reclaim the registration if remove failed; ignore further hygiene errors.
         let _ = crate::git_utils::output_after_child_exits(
+            // git writes no project file: prunes the registration of the scratch worktree this function added
             Command::new("git")
                 .args(["worktree", "prune"])
                 .current_dir(root),
@@ -5025,6 +5030,7 @@ impl<'root> DeliveryPayloads<'root> {
             Some(stream) => stream,
             None => self.stream.insert(DeliveryBlobStream::open(self.root)?),
         };
+        // not a project file read: a Git object from the batch stream, by its object id
         stream.read(relative, object).map(Cow::Owned)
     }
 

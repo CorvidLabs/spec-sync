@@ -30,7 +30,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 | Type | Description |
 |------|-------------|
-| `HashCache` | Persistent file hash storage — maps relative paths to hex SHA-256 digests. Stored in `.specsync/hashes.json` |
+| `HashCache` | Persistent file hash storage — maps relative paths to hex SHA-256 digests. Stored as `hashes.json` in the project's local state folder outside the work tree (REQ-hash-cache-009) |
 | `ChangeKind` | Enum classifying what changed: `Spec`, `Requirements`, `Companion`, `Source` |
 | `ChangeClassification` | Result for one spec — contains `spec_path: PathBuf`, `changes: Vec<ChangeKind>`, and `baseline_known: bool` recording whether the cache held a prior hash |
 
@@ -38,9 +38,10 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `load` | `root: &Path` | `Self` | HashCache: load from `.specsync/hashes.json`; returns empty cache if missing, and reads nothing when `.specsync` or the file is a symbolic link or not a directory and a regular file (REQ-hash-cache-007) |
-| `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write pretty JSON to a new file in `.specsync` and rename it over `hashes.json`; refuses, writing nothing, when `.specsync` or `hashes.json` is a symbolic link or not a directory and a regular file (REQ-hash-cache-007) |
-| `refusal` | `root: &Path` | `Option<String>` | HashCache: why this project's cache is refused, naming `.specsync` or `.specsync/hashes.json` and what it is; `None` for a usable or absent cache |
+| `load` | `root: &Path` | `Self` | HashCache: load `hashes.json` from the project's local state folder; returns an empty cache if it is missing, unparseable, a link, not a regular file or over the bound; never looks at `.specsync/hashes.json` in the work tree (REQ-hash-cache-007, REQ-hash-cache-009) |
+| `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write pretty JSON to a new file in the local state folder and rename it over `hashes.json`; fails, writing nothing, when no local state folder can be found or opened (REQ-hash-cache-007, REQ-hash-cache-009) |
+| `refusal` | `root: &Path` | `Option<String>` | HashCache: why this project's cache is not used: no local state folder, or what is at `hashes.json` there is a link, not a regular file or over the bound; `None` for a usable or absent cache |
+| `cache_path` | `root: &Path` | `Option<PathBuf>` | HashCache: where the project's cache is kept, outside the work tree, for messages; `None` when no local state folder can be found |
 | `hash_file` | `root: &Path, path: &Path` | `Option<String>` | HashCache: SHA-256 of a file read through the bounded project read (8 MiB); `None` when it is missing or refused, which the cache treats as changed (REQ-hash-cache-008) |
 | `is_changed` | `&self, root: &Path, rel_path: &str` | `bool` | HashCache: true if file is new or hash differs from cached value |
 | `has_baseline` | `&self, rel_path: &str` | `bool` | HashCache: whether a prior hash exists, so "changed" can be told apart from "never seen" |
@@ -63,7 +64,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 ## Invariants
 
-1. Cache is stored at `{root}/.specsync/hashes.json`; the `.specsync/` directory is created automatically
+1. Cache is stored as `hashes.json` in the project's local state folder (`util::local_state`), which is created automatically; never in the work tree
 2. Missing or unparseable cache file is treated as empty cache (all files considered changed)
 3. Unreadable files are treated as "changed" (conservative — triggers re-validation)
 4. SHA-256 is computed in 8KB chunks for memory efficiency on large files
@@ -72,9 +73,9 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 7. `update_cache` prunes entries for deleted files to prevent unbounded cache growth
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
 9. The validation snapshot input digest frames the spec's `history/` path and the name and bytes of every entry in it, so a cached verdict never replays over an added, edited or removed history fragment (REQ-hash-cache-006).
-10. The cache is never read or written through a symbolic link, and is written only inside the project's own `.specsync`. `load` and `save` open `.specsync` without following a link and work through that directory handle. `save` creates a new file there exclusively and renames it over `hashes.json`, so the old file is never written in place. A repository can commit either path as a link, so both are treated as input its author chose (REQ-hash-cache-007).
-11. Every read of a project file here, `.specsync/hashes.json` (64 MiB, any link still refused) and every file it hashes or reads to classify a spec (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-hash-cache-008).
-12. A cache that Git tracks, in the index or in `HEAD`, came with the repository: `load` returns an empty cache, `save` refuses with `RefusedCacheLocation`, and `refusal` gives the reason and the `git rm --cached .specsync/hashes.json` fix. Git is asked only when the cache file exists. `prune` keeps an entry only for a key `confine_path_to_root` accepts that names a regular project file, so it never looks at a path outside the project (REQ-hash-cache-009, REQ-hash-cache-010).
+10. The cache is never read or written through a symbolic link. `load` and `save` work through the local state folder's handle, opened without following a link at any name SpecSync made; `save` creates a new file there exclusively and renames it over `hashes.json`, so the old file is never written in place, and a link found at that name is replaced, never followed. `.specsync` and `.specsync/hashes.json` in the work tree, which a repository can commit as links, are never looked at (REQ-hash-cache-007).
+11. The cache is read within 64 MiB through the local state folder, any link refused, and every read of a project file here, every file it hashes or reads to classify a spec (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-hash-cache-008).
+12. A `.specsync/hashes.json` in the work tree, in any letter case and whether or not Git tracks it, came with the repository or with SpecSync 6.3 or earlier and is never read or saved over: Git's pathspecs are case-sensitive and an archive has no Git, so no check of it could be complete. No `git` process is started for the cache. `prune` keeps an entry only for a key `confine_path_to_root` accepts that names a regular project file, so it never looks at a path outside the project (REQ-hash-cache-009, REQ-hash-cache-010).
 
 ## Behavioral Examples
 
@@ -98,7 +99,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 ### Scenario: First run (no cache)
 
-- **Given** `.specsync/hashes.json` does not exist
+- **Given** no `hashes.json` in the project's local state folder
 - **When** `HashCache::load` is called
 - **Then** returns empty cache; all files will be classified as changed
 
@@ -106,7 +107,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 - **Given** `.specsync/hashes.json` is a symbolic link to a file outside the project
 - **When** `HashCache::save` is called
-- **Then** it returns an error, the link stays, and the file it names keeps its bytes; `HashCache::load` returns an empty cache and `HashCache::refusal` returns `.specsync/hashes.json is a symbolic link, and the hash cache is never read or written through one`
+- **Then** it writes the cache into the local state folder, the link stays, and the file it names keeps its bytes; `HashCache::load` never reads through the link and `HashCache::refusal` is `None`
 
 ### Scenario: Requirements change triggers staleness
 
@@ -127,11 +128,11 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | Cache file missing | Returns empty cache (all files treated as changed) |
 | Cache file has invalid JSON | Returns empty cache silently |
 | File unreadable during hashing | `hash_file` returns `None`; file treated as changed |
-| Cannot create `.specsync/` directory | `save` returns `io::Error` |
-| `.specsync` is a symbolic link or not a directory | `load` returns an empty cache; `save` returns `io::Error` and writes nothing; `refusal` names `.specsync` |
-| `.specsync/hashes.json` is a symbolic link (dangling or not), a directory, or anything but a regular file | `load` returns an empty cache without reading it; `save` returns `io::Error`, leaves it as it is and creates nothing at a link's target; `refusal` names `.specsync/hashes.json` |
+| No local state folder can be found or made | `load` returns an empty cache; `save` returns `io::Error`; `refusal` gives the reason |
+| `.specsync` or `.specsync/hashes.json` in the work tree is a link, a directory or a file of any content | Never looked at: nothing is read, written or created through it |
+| `hashes.json` in the local state folder is a symbolic link, a directory, or anything but a regular file | `load` returns an empty cache without reading it; `save` renames over a link and fails on a directory; `refusal` names the path |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
-| `.specsync/hashes.json` is tracked by Git | `load` returns an empty cache; `save` refuses and leaves the tracked bytes; `refusal` names the `git rm --cached` fix |
+| `.specsync/hashes.json` is tracked by Git, or committed in another letter case | Never read or saved over; the cache in the local state folder is used as for any project |
 
 ## Dependencies
 

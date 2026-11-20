@@ -1,7 +1,10 @@
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, OpenOptions};
 use colored::Colorize;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 // ─── Agent instruction templates ─────────────────────────────────────────────
@@ -183,7 +186,34 @@ const PRE_COMMIT_BEGIN_PREFIX: &str = "# >>> specsync:pre-commit:";
 const PRE_COMMIT_END_PREFIX: &str = "# <<< specsync:pre-commit:";
 const LEGACY_PRE_COMMIT_MARKER: &str = "# --- spec-sync pre-commit hook ---";
 
-fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
+/// The hook file SpecSync manages in the hooks folder.
+const PRE_COMMIT: &str = "pre-commit";
+
+/// The hooks folder Git names, reached one component at a time without following any link, and
+/// its path for messages (REQ-hooks-009). With `core.hooksPath` inside the work tree (husky's
+/// `.husky/_`, a `.githooks` folder), every name on the way is repository content, so a link
+/// anywhere on it is refused rather than followed.
+struct HooksDir {
+    dir: Dir,
+    path: PathBuf,
+}
+
+/// `path` with `.` and `..` worked out by spelling, never by asking the filesystem.
+fn lexically_normal(path: &Path) -> PathBuf {
+    let mut normal = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                normal.pop();
+            }
+            Component::CurDir => {}
+            other => normal.push(other),
+        }
+    }
+    normal
+}
+
+fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
     let output =
         crate::git_utils::output_after_child_exits(Command::new("git").arg("-C").arg(root).args([
             "rev-parse",
@@ -203,29 +233,198 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
     if raw.is_empty() {
         return Err("Git returned an empty hooks path".into());
     }
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve {}: {error}", root.display()))?;
     let path = PathBuf::from(raw);
     let path = if path.is_absolute() {
         path
     } else {
-        root.join(path)
+        canonical_root.join(path)
     };
-    if create {
-        // not a project file write: the Git hooks directory `git rev-parse --git-path hooks` names, which a repository cannot redirect
-        fs::create_dir_all(&path)
-            .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
-    } else if !path.is_dir() {
-        return Err("configured Git hooks directory does not exist".into());
+    let path = lexically_normal(&path);
+    // The walk starts from a folder no repository content leads to: the Git directory, the work
+    // tree's top folder, or, for a hooks folder the person set outside both, its own parent.
+    let (base, rest) = match crate::util::work_tree_and_git_dir(root) {
+        Some((_, git_dir)) if path.starts_with(&git_dir) => {
+            let rest = path.strip_prefix(&git_dir).unwrap_or(&path).to_path_buf();
+            (git_dir, rest)
+        }
+        Some((top, _)) if path.starts_with(&top) => {
+            let rest = path.strip_prefix(&top).unwrap_or(&path).to_path_buf();
+            (top, rest)
+        }
+        _ => {
+            let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+                return Err(format!("Git returned an unusable hooks path: {raw}"));
+            };
+            if create {
+                // not a project file write: the parent of a hooks folder the person set outside the work tree and the Git directory in their own Git config
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
+            }
+            let parent = parent
+                .canonicalize()
+                .map_err(|_| "configured Git hooks directory does not exist".to_string())?;
+            (parent, PathBuf::from(name))
+        }
+    };
+    let mut dir = Dir::open_ambient_dir(&base, ambient_authority())
+        .map_err(|error| format!("failed to open {}: {error}", base.display()))?;
+    let mut reached = base;
+    for component in rest.components() {
+        let Component::Normal(name) = component else {
+            return Err(format!("Git returned an unusable hooks path: {raw}"));
+        };
+        reached.push(name);
+        match dir.symlink_metadata(name) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "configured Git hooks directory is reached through a symlink and is unsafe to manage: {}",
+                    reached.display()
+                ));
+            }
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Err(format!("{} is not a directory", reached.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if !create {
+                    return Err("configured Git hooks directory does not exist".into());
+                }
+                // checked project write: made through the handle on the folder above, which was reached without following a link
+                match dir.create_dir(name) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) => {
+                        return Err(format!("failed to create Git hooks directory: {error}"));
+                    }
+                }
+            }
+            Err(error) => return Err(format!("failed to inspect {}: {error}", reached.display())),
+        }
+        // The look above names what is refused; this open enforces it.
+        // not a project file read: opens the next folder on the hooks path without following a link at its name
+        dir = cap_primitives::fs::open_dir_nofollow(&dir.into_std_file(), Path::new(name))
+            .map(Dir::from_std_file)
+            .map_err(|_| {
+                format!(
+                    "configured Git hooks directory is reached through a symlink and is unsafe to manage: {}",
+                    reached.display()
+                )
+            })?;
     }
-    if fs::symlink_metadata(&path)
-        .map(|metadata| metadata.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err(format!(
-            "configured Git hooks directory is a symlink and is unsafe to manage: {}",
-            path.display()
-        ));
+    Ok(HooksDir { dir, path: reached })
+}
+
+impl HooksDir {
+    fn hook_path(&self) -> PathBuf {
+        self.path.join(PRE_COMMIT)
     }
-    Ok(path)
+
+    /// Whether `pre-commit` is there as a regular file; a link there is `Err` with `refusal`.
+    fn has_hook(&self, refusal: &str) -> Result<bool, String> {
+        match self.dir.symlink_metadata(PRE_COMMIT) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                Err(format!("{refusal}: {}", self.hook_path().display()))
+            }
+            Ok(metadata) if metadata.is_file() => Ok(true),
+            Ok(_) => Err(format!(
+                "{} is not a regular file",
+                self.hook_path().display()
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(format!("Failed to inspect pre-commit hook: {error}")),
+        }
+    }
+
+    /// The hook's text, opened without following a link or blocking, checked on the handle and
+    /// bounded; `None` when there is none.
+    fn read_hook(&self) -> Result<Option<String>, String> {
+        let mut options = OpenOptions::new();
+        // not a project file read: the pre-commit hook, opened without following a link or blocking through the hooks folder handle (REQ-hooks-009)
+        options
+            .read(true)
+            ._cap_fs_ext_nonblock(true)
+            ._cap_fs_ext_follow(cap_primitives::fs::FollowSymlinks::No);
+        // not a project file read: the pre-commit hook, opened without following a link through the hooks folder handle reached the same way (REQ-hooks-009)
+        let file = match self.dir.open_with(PRE_COMMIT, &options) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(format!("Failed to read pre-commit hook: {error}")),
+        };
+        let metadata = file
+            .metadata()
+            .map_err(|error| format!("Failed to read pre-commit hook: {error}"))?;
+        let bound = crate::util::MAX_SPEC_FILE_BYTES;
+        if !metadata.is_file() || metadata.len() > bound {
+            return Err(format!(
+                "{} is not a regular file of at most {bound} bytes",
+                self.hook_path().display()
+            ));
+        }
+        let mut content = String::new();
+        // not a project file read: the handle opened just above, bounded here
+        file.take(bound + 1)
+            .read_to_string(&mut content)
+            .map_err(|error| format!("Failed to read pre-commit hook: {error}"))?;
+        if content.len() as u64 > bound {
+            return Err(format!(
+                "{} is larger than {bound} bytes",
+                self.hook_path().display()
+            ));
+        }
+        Ok(Some(content))
+    }
+
+    /// Write the hook: an existing one through its open, checked handle, a new one with an
+    /// exclusive create, which never follows a link; then make it executable through the same
+    /// handle.
+    fn write_hook(&self, content: &str, existing: bool) -> Result<(), String> {
+        let mut options = OpenOptions::new();
+        if existing {
+            // checked project write: an existing hook opened without create, link or blocking through the hooks folder handle, checked below
+            options
+                .write(true)
+                ._cap_fs_ext_nonblock(true)
+                ._cap_fs_ext_follow(cap_primitives::fs::FollowSymlinks::No);
+        } else {
+            // checked project write: an exclusive create, which never follows a link, through the hooks folder handle
+            options.write(true).create_new(true);
+        }
+        // checked project write: the pre-commit hook, opened without following a link through the hooks folder handle (REQ-hooks-009)
+        // not a project file read: the same open, for writing only
+        let mut file = self
+            .dir
+            .open_with(PRE_COMMIT, &options)
+            .map_err(|error| format!("Failed to write pre-commit hook: {error}"))?;
+        let failed = |error: std::io::Error| format!("Failed to write pre-commit hook: {error}");
+        if !file.metadata().map_err(failed)?.is_file() {
+            return Err(format!(
+                "{} is not a regular file",
+                self.hook_path().display()
+            ));
+        }
+        // checked project write: the regular file this handle holds, checked just above
+        file.set_len(0).map_err(failed)?;
+        file.write_all(content.as_bytes()).map_err(failed)?;
+        file.flush().map_err(failed)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = cap_std::fs::Permissions::from_std(std::fs::Permissions::from_mode(0o755));
+            // checked project write: the hook's own open handle, so the mode never lands anywhere else
+            file.set_permissions(mode)
+                .map_err(|e| format!("Failed to set pre-commit hook permissions: {e}"))?;
+        }
+        Ok(())
+    }
+
+    /// Remove the hook by unlinking its name, which never touches what a link would lead to.
+    fn remove_hook(&self) -> Result<(), String> {
+        // checked project write: unlinks the name in the hooks folder handle (REQ-hooks-009)
+        self.dir
+            .remove_file(PRE_COMMIT)
+            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))
+    }
 }
 
 fn hook_project_identity(root: &Path) -> Result<(String, String, String), String> {
@@ -425,16 +624,12 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
             let Ok((begin, end)) = pre_commit_markers(root) else {
                 return false;
             };
-            let path = hooks_dir.join("pre-commit");
-            if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-                return false;
-            }
-            // The hook is Git's, not a project file: read it within the hooks directory, which
-            // the project rule would refuse as the Git directory (REQ-util-005).
-            crate::util::read_file_within(&hooks_dir, &path, crate::util::MAX_SPEC_FILE_BYTES)
+            // The hook is Git's, not a project file: read through the hooks folder handle, which
+            // never follows a link (REQ-hooks-009).
+            hooks_dir
+                .read_hook()
                 .ok()
                 .flatten()
-                .and_then(|bytes| String::from_utf8(bytes).ok())
                 .is_some_and(|content| content.contains(&begin) && content.contains(&end))
         }
         HookTarget::ClaudeCodeHook => {
@@ -467,10 +662,10 @@ pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
 pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
     if target == HookTarget::Precommit {
         let hooks_dir = match git_hooks_dir(root, false) {
-            Ok(path) => path,
+            Ok(hooks_dir) => hooks_dir,
             Err(_) => return Ok(false),
         };
-        return uninstall_precommit(root, &hooks_dir.join("pre-commit"));
+        return uninstall_precommit(root, &hooks_dir);
     }
     // A target that leaves the project through a link reads as not installed, because its read
     // is refused. Uninstall must still fail on it, naming the path (REQ-hooks-006, REQ-hooks-007).
@@ -625,20 +820,14 @@ fn install_agents_md(root: &Path) -> Result<bool, String> {
 
 fn install_precommit(root: &Path) -> Result<bool, String> {
     let hooks_dir = git_hooks_dir(root, true)?;
-    let path = hooks_dir.join("pre-commit");
+    let path = hooks_dir.hook_path();
     let (begin, end) = pre_commit_markers(root)?;
     let block = pre_commit_block(root)?;
 
-    if path.exists() {
-        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-            return Err(format!(
-                "refusing to replace symlinked pre-commit hook: {}",
-                path.display()
-            ));
-        }
-        // not a project file read: the pre-commit hook lives in the repository's own Git hooks directory, which has its own guard
-        let existing = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read pre-commit hook: {e}"))?;
+    // A link at `pre-commit`, dangling or not, is refused before anything is read or written
+    // (REQ-hooks-009).
+    if hooks_dir.has_hook("refusing to replace symlinked pre-commit hook")? {
+        let existing = hooks_dir.read_hook()?.unwrap_or_default();
         let has_begin = existing.contains(&begin);
         let has_end = existing.contains(&end);
         if has_begin != has_end {
@@ -666,40 +855,21 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
             new_content.push_str(&tail.join("\n"));
             new_content.push('\n');
         }
-        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
-        fs::write(&path, new_content)
-            .map_err(|e| format!("Failed to write pre-commit hook: {e}"))?;
+        hooks_dir.write_hook(&new_content, true)?;
     } else {
-        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
-        fs::write(&path, format!("#!/bin/sh\n{block}\n"))
-            .map_err(|e| format!("Failed to create pre-commit hook: {e}"))?;
+        hooks_dir.write_hook(&format!("#!/bin/sh\n{block}\n"), false)?;
     }
-
-    // Make executable on Unix
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o755);
-        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
-        fs::set_permissions(&path, perms)
-            .map_err(|e| format!("Failed to set pre-commit hook permissions: {e}"))?;
-    }
-
     Ok(true)
 }
 
-fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
-    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-        return Err(format!(
-            "refusing to modify symlinked pre-commit hook: {}",
-            path.display()
-        ));
+fn uninstall_precommit(root: &Path, hooks_dir: &HooksDir) -> Result<bool, String> {
+    let path = hooks_dir.hook_path();
+    let path = path.as_path();
+    if !hooks_dir.has_hook("refusing to modify symlinked pre-commit hook")? {
+        return Ok(false);
     }
-    // not a project file read: the pre-commit hook lives in the repository's own Git hooks directory, which has its own guard
-    let content = match fs::read_to_string(path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("Failed to read pre-commit hook: {error}")),
+    let Some(content) = hooks_dir.read_hook()? else {
+        return Ok(false);
     };
     let (begin_marker, end_marker) = pre_commit_markers(root)?;
     let begin = content
@@ -741,9 +911,7 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
         }
         lines.truncate(marker);
     } else if content.trim() == PRE_COMMIT_HOOK.trim() {
-        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
-        fs::remove_file(path)
-            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
+        hooks_dir.remove_hook()?;
         return Ok(true);
     } else {
         return Ok(false);
@@ -752,13 +920,9 @@ fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
         lines.pop();
     }
     if lines.is_empty() || lines == ["#!/bin/sh"] {
-        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
-        fs::remove_file(path)
-            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
+        hooks_dir.remove_hook()?;
     } else {
-        // not a project file write: the pre-commit hook in the Git hooks directory; a linked hooks directory or hook is refused before this
-        fs::write(path, format!("{}\n", lines.join("\n")))
-            .map_err(|error| format!("Failed to write pre-commit hook: {error}"))?;
+        hooks_dir.write_hook(&format!("{}\n", lines.join("\n")), true)?;
     }
     Ok(true)
 }

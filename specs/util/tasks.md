@@ -8,6 +8,7 @@ spec: util.spec.md
 - [x] Project file functions: read, write, create and remove beneath the project root without leaving it through a link (REQ-util-002). Evidence: the five `project_file_functions_*` tests.
 - [x] Read project files only through the bounded project read of `util` (REQ-util-003). Evidence: `tests/integration/project_reads.rs`.
 - [x] Confine to the Git work tree, refuse absolute links and the Git directory, open writes safely, and add the walk and directory helpers (REQ-util-004, REQ-util-005). Evidence: `tests/integration/project_writes.rs` and the new `src/util.rs` tests.
+- [x] Keep SpecSync's own state outside the work tree, confine to an enclosing work tree only for a project Git tracks there, and scan exactly the compiled sources (REQ-util-006, REQ-util-007, REQ-util-008). Evidence: `src/util/local_state.rs` tests, `tests/integration/project_writes.rs` and the scans.
 
 ## Gaps
 

@@ -22,8 +22,11 @@ pub fn cmd_rehash(root: &Path) {
         std::process::exit(1);
     }
 
+    let saved = hash_cache::HashCache::cache_path(root)
+        .map(|path| path.display().to_string())
+        .unwrap_or_default();
     println!(
-        "{} Regenerated hash cache for {} spec(s) → .specsync/hashes.json",
+        "{} Regenerated hash cache for {} spec(s) → {saved}",
         "✓".green(),
         spec_files.len()
     );

@@ -332,7 +332,8 @@ Each fixture has its own `git init`; every journal names files inside the fixtur
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | An entry for `.git/config`, `.GIT/config`, `.git./config`, `.git/HEAD` or a hook | Refused; Git's files keep their bytes | `a_journal_never_rewrites_or_deletes_git_files` |
-| A journal Git tracks, in the index or only in `HEAD` | Refused with the `git rm --cached` fix | `a_journal_git_tracks_is_never_replayed`, `change_new_never_replays_a_committed_journal_into_git` |
+| A journal in the work tree, tracked in the index or only in `HEAD`, or untracked, with or without Git | Never opened or replayed; the lock refuses naming the file and how to clear it | `a_journal_git_tracks_is_never_replayed`, `a_journal_in_the_work_tree_is_never_replayed`, `change_new_never_replays_a_committed_journal_into_git`, `tests/integration/repository_inputs.rs`: `change_new_never_replays_a_journal_an_unpacked_tree_ships` |
+| A running transaction | Its journal is in the local state folder, not the work tree | `a_running_transaction_keeps_its_journal_outside_the_work_tree` |
 | One entry outside the workflow's files | The whole journal is refused | `one_entry_outside_the_change_workflow_refuses_the_whole_journal` |
 | `.git\\config` with `specs_dir = "."`, `specs/.git\\config` | Refused: backslashes are separators, as the write treats them | `a_backslash_entry_cannot_reach_git_files` |
 | `specs_dir = "."` and an entry for `Makefile` | Refused: under `specs_dir` only spec files, `requirements.md` and history fragments | `specs_dir_dot_does_not_widen_replay` |

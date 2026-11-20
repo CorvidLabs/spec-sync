@@ -62,3 +62,15 @@ Every link points inside the test's own temporary directory.
 | A FIFO at a path being written | Refused without blocking | `src/util.rs`: `writing_a_fifo_is_refused_without_blocking` |
 | The new helpers: reading within a named directory, removing an empty directory, walking a project directory or the root itself | Stay inside; never follow a link out; the walk lists file links for the reader and stops at its budget | `src/util.rs`: `reading_within_a_named_directory_stays_inside_it`, `removing_an_empty_directory_never_follows_a_link_out`, `finding_project_files_never_follows_a_link`, `finding_project_files_from_the_root_itself_lists_its_files` |
 | Any new direct file write outside the helpers | The source scan fails | `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers` |
+
+## Local state, the enclosing work tree and the scans (REQ-util-006, REQ-util-007, REQ-util-008)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project in a Git work tree, a subproject beside it, and a project with no Git | State under the Git directory, one folder per project; with no Git, under the user's cache folder; nothing in the work tree | `src/util/local_state.rs`: `local_state_lives_outside_the_work_tree` |
+| A link where SpecSync makes its folder, a FIFO, an oversized file and a link in the folder | Refused without blocking; a link is unlinked, never followed | `src/util/local_state.rs`: `local_state_refuses_links_fifos_and_oversized_files` |
+| An untracked project unpacked inside another work tree | Confined to itself: its link to the outer work tree's file is refused and the file keeps its bytes | `tests/integration/project_writes.rs`: `an_untracked_project_inside_another_work_tree_is_confined_to_itself` |
+| A tracked monorepo subproject | Still follows a link inside its repository | `tests/integration/project_writes.rs`: the three `a_subproject_*` tests |
+| A production read in an `include!`d `tests.rs`, braces in literals, cap-std calls, Git arguments that write | Reported until bounded or marked | `tests/integration/project_reads.rs`: `the_scan_lexer_blanks_only_comments_and_literals`, `no_project_file_is_read_outside_the_bounded_read`; `tests/integration/project_writes.rs`: `no_project_file_is_written_outside_the_confined_helpers`, `no_spawned_git_command_writes_files_unmarked` |

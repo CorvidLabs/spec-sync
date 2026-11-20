@@ -38,9 +38,9 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 6. `--verify` exits 1 on breaking drift (deprecated status, missing exports)
 7. Bidirectional dependency mismatches are warnings, not errors
 8. Remote spec content is cached with configurable TTL (default 1 hour)
-9. Cache stored in `.specsync-cache/remote-specs/` under project root
-10. The remote spec cache is never read or written through a symbolic link, inside the project or not: a cache never needs one, and the entry's file name comes from the repository's own `depends_on`. A cache file or directory that is a link, or not a regular file and a directory, skips the cache for that entry with one `warning: remote spec cache not used` on stderr per run, and the fetched content is used as with no cache (REQ-cmd-resolve-002).
-11. Every read of a project file here, local spec files and the remote spec cache (8 MiB; the cache still refuses any link), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-resolve-003).
+9. Cache stored in `remote-specs/` in the project's local state folder outside the work tree, one file per repository and spec path named by their digest; `.specsync-cache/` in the work tree is never read (REQ-cmd-resolve-002)
+10. The remote spec cache is never read or written through a symbolic link: an entry is written as a new file renamed over its name, and an entry that is a link or not a regular file, or a cache folder that cannot be opened, skips the cache with one `warning: remote spec cache not used` on stderr per run, and the fetched content is used as with no cache (REQ-cmd-resolve-002).
+11. Every read of a project file here, the local spec files (8 MiB), goes through the bounded project read of `util`, and the remote spec cache (8 MiB) through the bounded read of its local state folder (REQ-cmd-resolve-003). A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-resolve-003).
 
 ## Behavioral Examples
 
@@ -85,7 +85,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 
 - **Given** a prior `--verify` run cached remote spec content
 - **When** `cmd_resolve(root, true, true, 3600)` runs within the TTL window
-- **Then** reads from `.specsync-cache/remote-specs/` instead of fetching
+- **Then** reads from `remote-specs/` in the local state folder instead of fetching
 
 ## Error Cases
 
@@ -98,7 +98,8 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 | Remote spec deprecated/removed | DRIFT error, exit 1 |
 | Consumed export missing from remote | DRIFT error, exit 1 |
 | Non-bidirectional dependency | Warning only |
-| A cache entry, `.specsync-cache` or `remote-specs` is a symbolic link or not a regular file and a directory | The cache is skipped for that entry with one stderr warning naming the path; nothing is read or written through it; the fetched content is still used |
+| A cache entry in the local state folder is a symbolic link or not a regular file, or the folder cannot be opened | The cache is skipped with one stderr warning naming the path; nothing is read through it; storing replaces the entry by a rename; the fetched content is still used |
+| `.specsync-cache/remote-specs/*` is committed in the work tree | Never read: `resolve --verify` fetches as with no cache |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies

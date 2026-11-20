@@ -665,6 +665,7 @@ fn stage_replacement(path: &Path, replacement: &[u8]) -> io::Result<tempfile::Na
             "target has no parent directory",
         )
     })?;
+    // checked project write: a staged file beside a spec `find_project_files` found and the bounded read reached, in its real parent directory
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-compact-")
         .tempfile_in(parent)?;

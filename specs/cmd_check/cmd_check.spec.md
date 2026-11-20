@@ -52,13 +52,13 @@ optional drift issues. SDD / change / archive history is not part of this comman
     snapshot is re-validated rather than reported clean.
 12. `check` does not consult SDD policy, active change workspaces, or archive history. Those
     surfaces belong to `specsync change`.
-13. When the hash cache location is refused, because `.specsync` or `.specsync/hashes.json` is a
-    symbolic link or not a directory and a regular file, `check` prints one
+13. When the hash cache location is refused, because no local state folder can be found or
+    what is at `hashes.json` there is a link or not a regular file, `check` prints one
     `warning: hash cache not used: <reason>` on stderr before anything can end the run, neither
     reads nor saves the cache, and keeps the stdout output, verdict and exit code of a run with no
     cache (REQ-cmd-check-018).
 14. Every read of a project file here, the spec files it reads again (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-check-019).
-15. `--fix --backup` reads each spec through the bounded project read and writes its backup to `.specsync/backup-fix/<spec path>` through the confined project write; a `backup-fix` directory or backup file that leads out of the repository is refused with the path, and `--fix` aborts before it changes a spec. When Git tracks `.specsync/hashes.json`, `check` prints `warning: hash cache not used:` once with the reason and the `git rm --cached` fix, validates every spec, and leaves the file unchanged (REQ-cmd-check-020, REQ-cmd-check-021).
+15. `--fix --backup` reads each spec through the bounded project read and writes its backup to `.specsync/backup-fix/<spec path>` through the confined project write; a `backup-fix` directory or backup file that leads out of the repository is refused with the path, and `--fix` aborts before it changes a spec. `check` uses only the cache in the project's local state folder: a `.specsync/hashes.json` in the work tree, tracked or not and in any letter case, is never read, changes nothing and is not mentioned, and the "Cache:" line names the real path (REQ-cmd-check-020, REQ-cmd-check-021).
 
 ## Behavioral Examples
 
@@ -105,11 +105,12 @@ optional drift issues. SDD / change / archive history is not part of this comman
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop |
 | Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
-| `.specsync/hashes.json` or `.specsync` is a symbolic link, or not a regular file and a directory | One stderr warning naming the path; full validation with no cache; nothing is read or written through it; same stdout and exit code as with no cache |
+| `.specsync/hashes.json` or `.specsync` in the work tree is a symbolic link, or not a regular file and a directory | Never looked at: same stdout and exit code as with no cache; nothing is read or written through it |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation |
 | Malformed Gradle settings prevent coverage discovery | Emits an explicit inconclusive failure, preserves valid structured JSON in JSON mode, and exits 1 |
 | A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
-| `.specsync/hashes.json` is tracked by Git | `warning: hash cache not used: ... is tracked by Git ...; remove it from Git with `git rm --cached .specsync/hashes.json``; every spec is validated and the verdict and exit code are those of a full run |
+| `.specsync/hashes.json` is tracked by Git, ships in an archive, or is committed in another letter case | Never read: nothing is replayed from it and nothing is said; the cache in the local state folder is used as for any project |
+| No local state folder can be found (no Git work tree, no `HOME`) | One `warning: hash cache not used:` with the reason; every spec is validated |
 
 ## Dependencies
 

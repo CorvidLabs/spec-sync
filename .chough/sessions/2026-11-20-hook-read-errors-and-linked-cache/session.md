@@ -5,7 +5,7 @@ aliases: [hook-read-errors-and-linked-cache]
 objective: "hooks install, uninstall and status name the path and reason when a hook target's read is refused or fails (oversized, not UTF-8, not a regular file, a link on the way to the hooks folder), and rehash refuses a user-cache hashes.json that is a link or not a regular file, so the code matches REQ-hooks-007, REQ-hooks-009 and REQ-hash-cache-007 as approved (change 9, from the reviews on #1133, private, with GHSA-7q5v-8jcc-rx54)"
 intent_scope: ""
 modules: [hooks, hash_cache]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -21,13 +21,9 @@ observations:
   - 2026-11-20-change-9-the-four-red-tests-an-oversized-and-a-non-utf-8-205d35
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
-    holds: accept
-    drives: review
-    opened: 2026-11-20T16:31:01Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # hooks install, uninstall and status name the path and reason when a hook target's read is refused or fails (oversized, not UTF-8, not a regular file, a link on the way to the hooks folder), and rehash refuses a user-cache hashes.json that is a link or not a regular file, so the code matches REQ-hooks-007, REQ-hooks-009 and REQ-hash-cache-007 as approved (change 9, from the reviews on #1133, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -40,6 +36,7 @@ hooks install, uninstall and status name the path and reason when a hook target'
 ## Decisions and why
 
 - 0xLeif decided "Scope approval of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash": "Yes, change 9 (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 15:43Z, answering 'Security PR #1133: CI is all green, but corvid-agent requested changes, which blocks the merge. Its must-fix: an oversized or non-UTF-8 hook file is reported as "not installed" instead of naming the path and reason, which the approved REQ-hooks-007 requires. Also, Codex and corvid-agent both found that rehash silently replaces a user-cache hashes.json that is a link instead of refusing (nothing is written through the link, but the notice says rehash exits 1). Both are small, and both make the code match wording you already approved. Plan: fix both as change 9 with failing tests first, Mac and Linux green, about 1-2 hours; you take one quick look; then merge and RC. A third item (hooks in a linked worktree with no shared hooks folder) goes to 6.4.1. OK?'. t4c's brief: hooks install, uninstall and status propagate a refused or failed read of a hook target with the path and the reason (uninstall exits 1, status prints the reason); rehash refuses a user-cache hashes.json that is a link or not a regular file, exit 1, with check's wording. The pre-commit uninstall's linked-hooks-folder case (corvid-agent: 'worth folding in') is included as the same REQ-hooks-009 refusal. Relayed by t4c over hc to t5r; a relayed claim, not authenticated); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash as 0xLeif
+- 0xLeif decided "Implementation review of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash": "Pass (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 16:38Z, answering 'Change 9, your quick look (the last step before the security fix merges). (1) Hooks: an installed CLAUDE.md that's oversized or not valid UTF-8 is no longer reported as "not installed". install and uninstall exit 1 naming the file and the reason, and status shows the reason. Also, uninstall --precommit with a linked hooks folder now exits 1 naming the path. (2) rehash refuses a user-cache hashes.json that's a link or a directory and exits 1, with the same reason check gives; the link and its target stay untouched. No requirement text changes ... Does it pass?' with 'Pass (Recommended)'. Reviewed tip 4f80d830 (code at 852ec92a; quick look security/change9-quick-look.md, diff security/change9.diff). Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -106,4 +103,20 @@ hooks install, uninstall and status name the path and reason when a hook target'
   - revision: 266b979d35d07e69e938eb692338253e189a6d5c
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-20T16:42:14Z · gate-closed · accept → accept · Implementation review of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash ^t-4b8353
+  - native_change: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+  - revision: 00b859ebde42f749d23469b57905840860327fee
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 16:38Z, answering 'Change 9, your quick look (the last step before the security fix merges). (1) Hooks: an installed CLAUDE.md that's oversized or not valid UTF-8 is no longer reported as "not installed". install and uninstall exit 1 naming the file and the reason, and status shows the reason. Also, uninstall --precommit with a linked hooks folder now exits 1 naming the path. (2) rehash refuses a user-cache hashes.json that's a link or a directory and exits 1, with the same reason check gives; the link and its target stay untouched. No requirement text changes ... Does it pass?' with 'Pass (Recommended)'. Reviewed tip 4f80d830 (code at 852ec92a; quick look security/change9-quick-look.md, diff security/change9.diff). Relayed by t4c over hc to t5r
+    - recorded_by: claude-code-t5r
+    - native: specsync change review name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T16:42:17Z · advance · accept → done · native:archived ^t-0e1a6b
+  - native_change: name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash
+  - gate: native:archived
+  - revision: 00b859ebde42f749d23469b57905840860327fee
   - by: claude-code (hc t5r)

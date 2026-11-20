@@ -24,6 +24,7 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
+- [hooks install, uninstall and status name the path and reason when a…](journal/2026-11-20-hooks-install-uninstall-and-status-name-the-path-and-reason.md) (2026-11-20, shipped)
 - [Every walk of a configured folder goes through the confined walk](journal/2026-11-20-every-walk-of-a-configured-folder-goes-through-the-confined.md) (2026-11-20, shipped)
 - [SpecSync keeps its cache](journal/2026-11-20-specsync-keeps-its-cache.md) (2026-11-20, shipped)
 - [SpecSync's hash cache](journal/2026-11-20-specsync-s-hash-cache.md) (2026-11-20, shipped)
@@ -33,7 +34,6 @@ Newest posts:
 - [specsync change approve \<id\> --dry-run runs the approval's own checks](journal/2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md) (2026-11-19, shipped)
 - [Change 3's call sites covered](journal/2026-11-19-change-3-s-call-sites-covered.md) (2026-11-19, shipped)
 - [Project file reads are confined and bounded](journal/2026-11-19-project-file-reads-are-confined-and-bounded.md) (2026-11-19, shipped)
-- [Text change status names a sequence-ledger freeze before the…](journal/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md) (2026-11-19, shipped)
 
 ## Where things live
 
@@ -254,9 +254,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
+- [name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash](../.specsync/archive/changes/2026-11-20-name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash/lesson-bundle.md), Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash
 - [walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder](../.specsync/archive/changes/2026-11-20-walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder/lesson-bundle.md), Walk configured folders only through the confined walk, and keep the read cache in the user cache folder
 - [keep-specsync-s-own-state-only-in-the-user-cache-folder](../.specsync/archive/changes/2026-11-20-keep-specsync-s-own-state-only-in-the-user-cache-folder/lesson-bundle.md), Keep SpecSync's own state only in the user cache folder
-- [keep-specsync-s-own-caches-and-journal-outside-the-work-tree](../.specsync/archive/changes/2026-11-20-keep-specsync-s-own-caches-and-journal-outside-the-work-tree/lesson-bundle.md), Keep SpecSync's own caches and journal outside the work tree
 
 ## Snapshots and briefs
 

@@ -11,4 +11,4 @@ artifact: tasks
 - [x] REQ-change-176: the audit's loss check apart from the change's own checks.
 - [x] REQ-change-177: name an unreadable requirements path instead of reporting a loss.
 - [x] Docs: the lost-requirements section of site/src/content/docs/deltas.md, and the CHANGELOG.
-- [ ] Lane, audit --strict, real repositories, identities.
+- [x] Lane, audit --strict, real repositories, identities.

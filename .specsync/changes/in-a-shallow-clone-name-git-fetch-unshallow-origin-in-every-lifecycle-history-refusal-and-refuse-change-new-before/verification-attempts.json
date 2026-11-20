@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795153213,
+      "commit": "54ac754219de49ce9dd6f2dd29edad51aeeb9d8b",
+      "contract_digest": "f2e4b86c3a9668ae527fb3c4f90fd82abeccddc829f60bb118bf98ddcb166940",
+      "execution_digest": "0e1c9d81c4d72102b3b7c1074c2ba3845542751e61c43c3d4dcd7e343d90ff4e",
+      "workspace_digest": "b2848c3b1b7dfb33a4e574b9336d25c9cced5600f3b14043e7345ab683f009e6",
+      "passed": false,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "specsync change check in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before (effective contract: change)",
+          "success": false,
+          "exit_code": 1,
+          "output": "effective contract `change`: 216/217 exports documented\neffective contract `change`: Undocumented export 'correction_ledger_refusal' from src/change/validate_loaded_change.rs"
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-173",
+        "REQ-cmd-change-044"
+      ]
+    },
+    {
+      "timestamp": 1795153253,
+      "commit": "9581ea4df55fcce69a15d13240ae7b08252be7c4",
+      "contract_digest": "f2e4b86c3a9668ae527fb3c4f90fd82abeccddc829f60bb118bf98ddcb166940",
+      "execution_digest": "0e1c9d81c4d72102b3b7c1074c2ba3845542751e61c43c3d4dcd7e343d90ff4e",
+      "workspace_digest": "622359eaaa4187c9f89bb13c1e9dc91abcfeac7062f8b9bc69ea98720aec15b9",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-173",
+        "REQ-cmd-change-044"
+      ]
+    }
+  ]
+}

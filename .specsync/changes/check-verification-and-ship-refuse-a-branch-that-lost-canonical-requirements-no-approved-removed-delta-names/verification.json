@@ -1,15 +1,21 @@
 {
-  "timestamp": 1795148869,
-  "commit": "d0b5f43a8332c4a6def03ff886ec6e820bbb3224",
+  "timestamp": 1795153222,
+  "commit": "54ac754219de49ce9dd6f2dd29edad51aeeb9d8b",
   "contract_digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
   "execution_digest": "2c2a5ea18e463db55d03603983bbd9a9c5516ea7eb98cc8b18fe5e5e7a6d039e",
-  "workspace_digest": "ab11bc8b19f6fe5aa9725c57542202093595405911906de0453252089061823e",
-  "passed": true,
+  "workspace_digest": "17d5e14c0731ec53238b381d6511cb5c2d0326c5ee825f8e9d9b2770b26e5352",
+  "passed": false,
   "commands": [
     {
       "command": "specsync check --spec change --spec cmd_change",
       "success": true,
       "exit_code": 0
+    },
+    {
+      "command": "specsync change check check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (effective contract: change)",
+      "success": false,
+      "exit_code": 1,
+      "output": "effective contract `change`: 216/217 exports documented\neffective contract `change`: Undocumented export 'correction_ledger_refusal' from src/change/validate_loaded_change.rs"
     }
   ],
   "requirement_ids": [

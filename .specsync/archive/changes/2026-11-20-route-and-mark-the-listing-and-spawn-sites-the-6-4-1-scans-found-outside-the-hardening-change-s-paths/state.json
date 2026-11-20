@@ -7,11 +7,11 @@
   "title": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
   "description": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "6d155ce583e44b2411db84ec2ed307b1ed62bbdb",
   "created_at": 1795211618,
-  "updated_at": 1795214881,
+  "updated_at": 1795214989,
   "affected_specs": [
     "agents",
     "cmd_comment",

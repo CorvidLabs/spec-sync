@@ -137,6 +137,13 @@
         "where": "Leif's standing OK for scope approvals ('Standing OK, tell me after', his 2026-11-20 Claude Code dialog with his planning session, hc t4c), relayed by t4c for this path-only addition: src/commands/check.rs and its owner cmd_check, the one line of the C5 warning sec-review2's re-check of 6.4.1 asked for inside the approved scope, with no requirement wording change. The change was sent back by t4c (f07226b2). It rests on Leif's 'Yes, two changes (Recommended)' (about 21:52Z). Rehearsed first in a throwaway clone. Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795214983,
+      "digest": "044080615545bb577536aa38a0fadc5f9914c4f4f1b9ab1d4c0259e4bc2408d4",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

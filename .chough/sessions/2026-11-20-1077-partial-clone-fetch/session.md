@@ -5,7 +5,7 @@ aliases: [1077-partial-clone-fetch]
 objective: In a partial clone, SpecSync downloads every history object its reads need in one fetch run with the user's own Git, never prompting and bounded at 60 s, and refuses naming one git fetch when that fails (#1077, REQ-change-172 option 1; Leif's dialog choice of 2026-11-20 about 00:45Z and 'yes to all 3' about 01:00Z, relayed via t4c and ss-lead t58)
 intent_scope: CHANGE
 modules: [change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -22,9 +22,13 @@ observations:
   - 2026-11-20-1122-codex-round-two-2-p2-plus-two-gaps-the-rule-3-runs-found
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1077"
+    holds: accept
+    drives: review
+    opened: 2026-11-20T14:11:27Z
 run_consents: []
-next: "Gate \"Re-approval of download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them (two added paths)\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # In a partial clone, SpecSync downloads every history object its reads need in one fetch run with the user's own Git, never prompting and bounded at 60 s, and refuses naming one git fetch when that fails (#1077, REQ-change-172 option 1; Leif's dialog choice of 2026-11-20 about 00:45Z and 'yes to all 3' about 01:00Z, relayed via t4c and ss-lead t58)
 
@@ -304,4 +308,37 @@ In a partial clone, SpecSync downloads every history object its reads need in on
     - recorded_by: claude-code-t4t
     - native: specsync change approve download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
     - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-20T14:11:23Z · direct-native-write · plan → plan · download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state approved → verifying ^t-1ae6db
+  - native_change: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
+  - revision: 54a92b7e6a258b571c41894e79d3b05799f2fa16
+  - direct_write:
+    - change: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-20T14:11:23Z · advance · plan → build · native:verifying ^t-6ac1ac
+  - native_change: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
+  - gate: native:verifying
+  - revision: 54a92b7e6a258b571c41894e79d3b05799f2fa16
+  - by: claude-code (hc t4t)
+- 2026-11-20T14:11:25Z · advance · build → test · native:verifying ^t-3339ba
+  - native_change: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
+  - gate: native:verifying
+  - revision: 54a92b7e6a258b571c41894e79d3b05799f2fa16
+  - by: claude-code (hc t4t)
+- 2026-11-20T14:11:27Z · advance · test → accept · native:verifying ^t-98789b
+  - native_change: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
+  - gate: native:verifying
+  - revision: 54a92b7e6a258b571c41894e79d3b05799f2fa16
+  - by: claude-code (hc t4t)
+- 2026-11-20T14:11:27Z · gate-opened · accept → accept · Leif's review of #1077 ^t-c910cb
+  - native_change: download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them
+  - revision: 54a92b7e6a258b571c41894e79d3b05799f2fa16
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

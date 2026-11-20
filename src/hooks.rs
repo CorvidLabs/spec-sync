@@ -649,7 +649,7 @@ impl HookTarget {
 /// that names the path and the reason, never "not installed" (REQ-hooks-007). For the pre-commit
 /// hook, a hooks folder that cannot be reached safely is an error too (REQ-hooks-009), while no
 /// repository or no hooks folder means there is no hook.
-pub fn installed(root: &Path, target: HookTarget) -> Result<bool, String> {
+fn installed(root: &Path, target: HookTarget) -> Result<bool, String> {
     let marked = |relative: &str, marker: &str| -> Result<bool, String> {
         Ok(read_hook_target(root, &root.join(relative), relative)?
             .is_some_and(|content| content.contains(marker)))

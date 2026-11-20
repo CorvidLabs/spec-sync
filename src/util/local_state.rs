@@ -264,13 +264,23 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
     }
     // The look above names what is refused; this open enforces it, on a link that appeared since
     // as well.
-    let folder = cap_primitives::fs::open_dir_nofollow(&dir.into_std_file(), Path::new(name))?;
+    let folder = Dir::from_std_file(cap_primitives::fs::open_dir_nofollow(
+        &dir.into_std_file(),
+        Path::new(name),
+    )?);
+    // On Linux the no-follow open is an `O_PATH` handle, which can neither change nor reliably
+    // report a mode, so the folder is reopened readable through itself.
+    let mut readable = OpenOptions::new();
+    // not a project file read: reopens SpecSync's own state folder through its handle, only to set and check its mode
+    readable.read(true);
+    // not a project file read: reopens SpecSync's own state folder through its handle, only to set and check its mode
+    let handle = folder.open_with(".", &readable)?.into_std();
     if created {
         // Only the person can write a folder SpecSync makes for itself, whatever the umask.
-        private_folder(&folder)?;
+        private_folder(&handle)?;
     }
-    refuse_shared_folder(&folder, shown)?;
-    Ok(Some(Dir::from_std_file(folder)))
+    refuse_shared_folder(&handle, shown)?;
+    Ok(Some(folder))
 }
 
 #[cfg(unix)]

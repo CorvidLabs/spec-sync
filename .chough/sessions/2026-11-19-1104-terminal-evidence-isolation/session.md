@@ -20,11 +20,13 @@ observations:
   - 2026-11-19-1104-red-s1-s2-at-418bd2ec
   - 2026-11-19-1104-red-dependency-tests-before-the-fix
   - 2026-11-19-1104-verify-lane-at-b3c2cc0b
+  - 2026-11-20-1104-red-shared-constant-at-31b3a26a
+  - 2026-11-20-1104-verify-lane-at-880dedcb
 bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: "Red first: the shared 'changed after acceptance' constant; then the three audit test tightenings"
+next: Push and open a normal PR (Archive red on purpose until its merge turn); no review or ship before Leif's relayed review
 ---
 # One change whose records fail validation no longer decides another change's terminal evidence (#1104)
 
@@ -33,6 +35,8 @@ next: "Red first: the shared 'changed after acceptance' constant; then the three
 One change whose records fail validation no longer decides another change's terminal evidence (#1104)
 
 ## Where it stands
+
+- Rework built and checked at 880dedcb: main a28e3042 merged in, criterion 2 reworded and tests/integration.rs declared on the relayed sources, the shared constant red then green, the three audit assertions; lane 10/10 and change audit --strict pass
 
 ## Decisions and why
 
@@ -47,6 +51,8 @@ One change whose records fail validation no longer decides another change's term
 - [Red first, before the fix: with the tests of 418bd2ec on 880237c8, an archive committed before another change's bad commit (tester2's S1) reads corrupt-history with that other change's 'duplicates state at commit' reason; the broken change's own failure test passes, as it must. Fixed in 71ea5bac.](evidence/2026-11-19-1104-red-s1-s2-at-418bd2ec.md)
 - [The dependency tests of 06ac04fe, written after the fix, fail against the pre-fix sources: an accepted change with unchanged inputs and an unreadable state elsewhere does not read exact, and a failed candidate is not named in a successor search.](evidence/2026-11-19-1104-red-dependency-tests-before-the-fix.md)
 - [At b3c2cc0b (checked and committed), fledge lanes run verify passed 10/10 steps in 11m42s through one-lane: unit 3099 passed (2 ignored), integration 630, spec check 166/166 files. Includes the S1 integration test through the binary (status, change list, ship-status, audit --archives, a third change shipped). The neutral git config was a prefix on the lane command only (#1092).](evidence/2026-11-19-1104-verify-lane-at-b3c2cc0b.md)
+- [Red first at 31b3a26a: the_successor_search_reads_the_words_both_writers_write fails to compile, E0425 cannot find value CHANGED_AFTER_ACCEPTANCE, before the shared constant exists; everything else in the test compiles. cargo test --bin specsync through one-lane, the neutral git config as a prefix only (#1092).](evidence/2026-11-20-1104-red-shared-constant-at-31b3a26a.md)
+- [At 880dedcb (main a28e3042 merged in, sent back, reworded criterion 2 approved, checked and committed), with this tree's own release build (specsync 6.4.0) first on PATH: fledge lanes run verify passed 10/10 steps in 9m37s through one-lane (unit 3106 passed, 2 ignored, including #1104's six unit tests and the shared-constant test; integration 645, including the binary test's three audit assertions: plain change audit exits 1 with the error on a change open and archived at once and passes on S1, change audit --archives exits 1 naming it on S1; spec check 62/62 specs, 168/168 files), the neutral git config as a prefix on the lane only (#1092). specsync change audit --strict against origin/main a28e3042 passes.](evidence/2026-11-20-1104-verify-lane-at-880dedcb.md)
 
 ## Open threads
 

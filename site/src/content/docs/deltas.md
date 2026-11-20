@@ -152,7 +152,9 @@ record, with a valid approval), accounts for a removal. A retired change does no
 
 The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold
 `requirements.md` artifacts, not canonical requirements) or any `exclude_dirs` directory, even when
-`specs_dir` is the project root, and a change workspace it cannot read accounts for no removal. When
+`specs_dir` is the project root, and a change workspace it cannot read accounts for no removal. A
+file that was canonical at the commit it compares with is judged by the exclusions configured there,
+so adding its directory to `exclude_dirs` does not remove its requirements. When
 Git cannot answer, for example in a shallow clone that lacks the merge-base, the check refuses and
 says so: repair the repository or fetch the default branch (`git fetch --unshallow origin` in a
 shallow clone, `git fetch origin` otherwise), then run `change check` again. With no default branch

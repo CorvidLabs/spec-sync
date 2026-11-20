@@ -118,16 +118,19 @@ fn requirement_scope(root: &Path) -> RequirementScope {
 const REGISTRY_PATH_CANDIDATES: [&str; 2] = [".specsync/registry.toml", "specsync-registry.toml"];
 
 /// Adds to `scope` what was canonical at `reference` ("in such a file at the reference commit";
-/// Codex on #1108): the specs directory its configuration named (the default one when it had no
-/// configuration file) and the specs its registry held, read through Git in the order the
-/// loaders read them on disk. A file that is not there adds nothing, and neither does one that
-/// does not parse, as on disk; `Err` when Git cannot read the tree or an object.
+/// Codex on #1108): the specs directory its configuration named and the specs its registry held,
+/// read through Git in the order the loaders read them on disk. Returns the directory names the
+/// reference excluded, by which a file canonical then is judged, so a directory the branch newly
+/// excludes still counts there (Codex's second round). With no configuration file there, the
+/// defaults apply; one that does not parse adds no specs directory and excludes only Git's and
+/// SpecSync's directories. A registry that is not there or does not parse adds nothing, as on
+/// disk. `Err` when Git cannot read the tree or an object.
 fn add_reference_requirement_scope(
     root: &Path,
     reference: &str,
     prefix: &str,
     scope: &mut RequirementScope,
-) -> Result<(), String> {
+) -> Result<BTreeSet<String>, String> {
     let short = &reference[..reference.len().min(12)];
     let candidates: Vec<String> = crate::config::CONFIG_PATH_CANDIDATES
         .iter()
@@ -144,22 +147,23 @@ fn add_reference_requirement_scope(
         git_output_allow_empty(root, &["show", object.as_str()])
             .ok_or_else(|| format!("cannot read {path} at {short}"))
     };
-    match crate::config::CONFIG_PATH_CANDIDATES
+    let mut excluded: BTreeSet<String> = ALWAYS_EXCLUDED_DIRECTORIES.map(String::from).into();
+    let config = match crate::config::CONFIG_PATH_CANDIDATES
         .iter()
         .find(|path| present.contains(**path))
     {
-        Some(&path) => {
-            let content = read(path)?;
-            if let Ok(config) = crate::config::parse_config_content_checked_with_source_dirs(
-                Path::new(path),
-                &content,
-                root,
-                Some(Vec::new()),
-            ) {
-                scope.add_directory(&config.specs_dir);
-            }
-        }
-        None => scope.add_directory(&crate::types::SpecSyncConfig::default().specs_dir),
+        Some(&path) => crate::config::parse_config_content_checked_with_source_dirs(
+            Path::new(path),
+            &read(path)?,
+            root,
+            Some(Vec::new()),
+        )
+        .ok(),
+        None => Some(crate::types::SpecSyncConfig::default()),
+    };
+    if let Some(config) = config {
+        scope.add_directory(&config.specs_dir);
+        excluded.extend(config.exclude_dirs);
     }
     if let Some(&path) = REGISTRY_PATH_CANDIDATES
         .iter()
@@ -170,7 +174,7 @@ fn add_reference_requirement_scope(
             scope.add_registry(&registry);
         }
     }
-    Ok(())
+    Ok(excluded)
 }
 
 /// The registry `content`, read at a reference commit from `path`, parsed by the loader the
@@ -269,11 +273,14 @@ fn requirement_blocks(text: &str) -> Vec<(String, String)> {
     blocks
 }
 
+/// Git's directory and SpecSync's, which no configuration can make canonical.
+const ALWAYS_EXCLUDED_DIRECTORIES: [&str; 2] = [".git", ".specsync"];
+
 /// The directory names the check never reads requirements from, wherever they sit: Git's own
 /// directory, SpecSync's (whose change workspaces and archives hold `requirements.md` artifacts,
 /// not canonical requirements), and the project's `exclude_dirs` (ss-lead's review of #1081).
 fn excluded_requirement_directories(root: &Path) -> BTreeSet<String> {
-    let mut excluded: BTreeSet<String> = [".git", ".specsync"].map(String::from).into();
+    let mut excluded: BTreeSet<String> = ALWAYS_EXCLUDED_DIRECTORIES.map(String::from).into();
     excluded.extend(crate::config::load_config(root).exclude_dirs);
     excluded
 }
@@ -510,7 +517,8 @@ fn lost_requirements_check(
     let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
     // What is canonical now, and what was canonical at the reference (Codex on #1108).
     let mut scope = requirement_scope(root);
-    add_reference_requirement_scope(root, &reference, &prefix, &mut scope)?;
+    let excluded_at_reference =
+        add_reference_requirement_scope(root, &reference, &prefix, &mut scope)?;
     let pathspecs = scope.pathspecs();
     let mut args = vec![
         "diff",
@@ -524,9 +532,11 @@ fn lost_requirements_check(
     args.extend(pathspecs.iter().map(String::as_str));
     let changed = git_output_allow_empty(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
-    let excluded = excluded_requirement_directories(root);
+    // The files that differ, as the reference judged them: its blocks are what can be lost.
     let changed: Vec<&str> = nul_separated(&changed)
-        .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
+        .filter(|path| {
+            is_requirements_file(path) && is_scanned_requirements_path(path, &excluded_at_reference)
+        })
         .collect();
     if changed.is_empty() {
         return Ok(None);

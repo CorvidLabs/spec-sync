@@ -24,7 +24,7 @@ bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: "Red first: the provisional-coverage tests with the code set aside; then the code"
+next: Check --commit, the lane, and the head to ss-lead with the exact old and new sentences
 ---
 # An in-flight change that declares a shared input covers an accepted change for now, and its archive records which one (#657); each of the two archive refusals over one stale input names the other change and says it is blocked too (#688)
 
@@ -38,6 +38,7 @@ An in-flight change that declares a shared input covers an accepted change for n
 
 - Scope: exactly the frozen ss-lead/gates/657-688-definition.md, which Leif approved as written (relayed by hc t4c through ss-lead t58, 2026-11-19 about 14:17Z). SHIP-13 and .a to .d are the agent's draft he approved with it, captured with that source.
 - 0xLeif decided "Leif's definition approval of #657 with #688 and its one cmd_change word (relayed by hc t4c through ss-lead t58)": ""Approve as written" for the definition; "Yes, add it (Recommended)" for REQ-cmd-change-001's one word" (The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, each shown with its intent sentences marked as the builder's draft, on exactly the frozen ss-lead/gates/657-688-definition.md (SHIP-13 and .a to .d, REQ-change-167, REQ-change-168, four choices). The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z, answering 'OK to add "provisionally-covered" to that list?' for REQ-cmd-change-001's criterion 'exact, successor-covered, or stale'. Both relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one as 0xLeif
+- 0xLeif decided "Leif's relayed approval of #657 with #688, its one cmd_change word and change finalize named on workflow v2 (relayed by hc t4c through ss-lead t58)": ""Approve as written" for the definition; "Yes, add it (Recommended)" for REQ-cmd-change-001's one word; Leif's six rules, rule 6 (a) and (c), for naming change finalize on workflow v2" (The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, on exactly the frozen ss-lead/gates/657-688-definition.md. The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z. Naming change finalize: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead on 2026-11-20 to REQ-change-167's sentence and criterion and change criterion 2; these are not his words about this text. All relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one as 0xLeif
 
 ## What was verified
 
@@ -71,4 +72,42 @@ An in-flight change that declares a shared input covers an accepted change for n
 - 2026-11-20T07:11:59Z · advance · intent → design ·  ^t-671826
   - native_change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
   - revision: aa368793c0e9aca4a56736852491dde37bdf53ed
+  - by: claude-code (hc t59)
+- 2026-11-20T07:44:22Z · gate-opened · design → design · Leif's relayed approval of #657 with #688, its one cmd_change word and change finalize named on workflow v2 (relayed by hc t4c through ss-lead t58) ^t-2845d1
+  - native_change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+  - revision: 45ce5f59b77da2ac929b45a89612784d3612d41e
+  - holds: design
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-20T07:44:22Z · direct-native-write · design → design · an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one's lifecycle records changed outside Chough: state.json changed; state implementing → approved ^t-f416c2
+  - native_change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+  - revision: 45ce5f59b77da2ac929b45a89612784d3612d41e
+  - direct_write:
+    - change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+    - files:
+      - state.json: changed
+    - before_state: implementing
+    - after_state: approved
+  - by: claude-code (hc t59)
+- 2026-11-20T07:44:22Z · direct-native-write · design → design · an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-75574d
+  - native_change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+  - revision: 45ce5f59b77da2ac929b45a89612784d3612d41e
+  - direct_write:
+    - change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-20T07:44:22Z · gate-closed · design → design · Leif's relayed approval of #657 with #688, its one cmd_change word and change finalize named on workflow v2 (relayed by hc t4c through ss-lead t58) ^t-c36066
+  - native_change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+  - revision: 45ce5f59b77da2ac929b45a89612784d3612d41e
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: "\"Approve as written\" for the definition; \"Yes, add it (Recommended)\" for REQ-cmd-change-001's one word; Leif's six rules, rule 6 (a) and (c), for naming change finalize on workflow v2"
+    - where: The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, on exactly the frozen ss-lead/gates/657-688-definition.md. The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z. Naming change finalize: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead on 2026-11-20 to REQ-change-167's sentence and criterion and change criterion 2; these are not his words about this text. All relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+    - actor: 0xLeif
   - by: claude-code (hc t59)

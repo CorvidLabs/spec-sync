@@ -256,7 +256,7 @@ Lesson bundles of the newest 3 archived changes:
 
 - [route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths](../.specsync/archive/changes/2026-11-20-route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths/lesson-bundle.md), Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths
 - [close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first](../.specsync/archive/changes/2026-11-20-close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first/lesson-bundle.md), Close the low items left after the hash-cache advisory, red tests first
-- [name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash](../.specsync/archive/changes/2026-11-20-name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash/lesson-bundle.md), Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash
+- [advance-the-action-default-and-current-guidance-to-published-specsync-6-4-0](../.specsync/archive/changes/2026-11-20-advance-the-action-default-and-current-guidance-to-published-specsync-6-4-0/lesson-bundle.md), Advance the Action default and current guidance to published SpecSync 6.4.0
 
 ## Snapshots and briefs
 

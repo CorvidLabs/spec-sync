@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+  "slug": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+  "title": "An in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
+  "description": "an in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
+  "kind": "feature",
+  "state": "approved",
+  "base_commit": "a28e30420c12627a384a685cd5d808fc3585b70a",
+  "created_at": 1795152633,
+  "updated_at": 1795157149,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/historical_reconciliation.rs",
+    "src/change/sdd_version.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change/retirement.rs",
+    "src/change/doctor.rs",
+    "src/change_tests.rs",
+    "src/change_tests/provisional_coverage.rs",
+    "src/commands/change.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/change/",
+    "specs/cmd_change/",
+    "site/src/content/docs/",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An accepted change whose signed input a later approved, implementing or verifying change has edited, and whose module and path that change declares, reads `provisionally-covered` naming it; `change audit` and `change audit --strict` exit 0 with a warning naming both changes; with no such change it is stale and audit fails as before.",
+    "`change archive` accepts a provisionally covered change and writes `coverage.json` naming each covered input and its covering change; a provisionally covered change neither covers another change nor replaces one in a retirement, and `change reopen` still accepts it.",
+    "An archived change that was covered for now reads `authenticated-history` whatever becomes of the covering change; when that change is sent back or closed, `change status`, `change show` and `change audit --archives` warn that the input has no accepted change behind it and name `change reopen`.",
+    "Each of the two archive refusals over one stale delivery input names the other change and says it is blocked too, and the `change reopen` it names frees both.",
+    "Released SpecSync 6.3.0 reads an archive that holds `coverage.json` as before: archived, `authenticated-history`, audit and doctor clean."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "a provisionally covered change neither covers another change nor replaces one in a retirement; reopen stays allowed; archived integrity is unchanged and does not read coverage.json; released 6.3.0 reads an archive that holds coverage.json as before",
+    "public_contract": "yes"
+  }
+}

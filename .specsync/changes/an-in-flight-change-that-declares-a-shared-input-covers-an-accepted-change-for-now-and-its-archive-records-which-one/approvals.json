@@ -1,0 +1,70 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795157149,
+      "digest": "20cd526f5a60d0fd3a241e4447f9d154b63210724cce7fd739f8e029a0a3e4c5",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's definition approval of #657 with #688 and its one cmd_change word (relayed by hc t4c through ss-lead t58)\": \"\"Approve as written\" for the definition; \"Yes, add it (Recommended)\" for REQ-cmd-change-001's one word\" (The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, each shown with its intent sentences marked as the builder's draft, on exactly the frozen ss-lead/gates/657-688-definition.md (SHIP-13 and .a to .d, REQ-change-167, REQ-change-168, four choices). The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z, answering 'OK to add \"provisionally-covered\" to that list?' for REQ-cmd-change-001's criterion 'exact, successor-covered, or stale'. Both relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-20T06:45:48Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+        "title": "An in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
+        "description": "an in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/doctor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/historical_reconciliation.rs",
+          "src/change/retirement.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/provisional_coverage.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change whose signed input a later approved, implementing or verifying change has edited, and whose module and path that change declares, reads `provisionally-covered` naming it; `change audit` and `change audit --strict` exit 0 with a warning naming both changes; with no such change it is stale and audit fails as before.",
+          "An archived change that was covered for now reads `authenticated-history` whatever becomes of the covering change; when that change is sent back or closed, `change status`, `change show` and `change audit --archives` warn that the input has no accepted change behind it and name `change reopen`.",
+          "Each of the two archive refusals over one stale delivery input names the other change and says it is blocked too, and the `change reopen` it names frees both.",
+          "Released SpecSync 6.3.0 reads an archive that holds `coverage.json` as before: archived, `authenticated-history`, audit and doctor clean.",
+          "`change archive` accepts a provisionally covered change and writes `coverage.json` naming each covered input and its covering change; a provisionally covered change neither covers another change nor replaces one in a retirement, and `change reopen` still accepts it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "a provisionally covered change neither covers another change nor replaces one in a retirement; reopen stays allowed; archived integrity is unchanged and does not read coverage.json; released 6.3.0 reads an archive that holds coverage.json as before",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "ae7ba6860d6bb58be54d5642aa303aef401a6903e693a9f23fba84100d37e987",
+        "cmd_change": "ef0eaf2b3e54885868312cff492a6c17988cf4775d1f69a590e15ddb74b78e63"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-001": "1781914f612d97bdfa9fd919d594a4906fdd286ba693d714fe3a7b26eb08f95e"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Approve as written\" for the definition; \"Yes, add it (Recommended)\" for REQ-cmd-change-001's one word",
+        "where": "The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, each shown with its intent sentences marked as the builder's draft, on exactly the frozen ss-lead/gates/657-688-definition.md (SHIP-13 and .a to .d, REQ-change-167, REQ-change-168, four choices). The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z, answering 'OK to add \"provisionally-covered\" to that list?' for REQ-cmd-change-001's criterion 'exact, successor-covered, or stale'. Both relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ],
+  "reopenings": []
+}

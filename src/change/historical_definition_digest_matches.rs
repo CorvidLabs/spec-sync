@@ -3007,6 +3007,107 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(archive)
 }
 
+/// The record an archive keeps of the in-flight changes that covered its changed inputs (#657).
+const PROVISIONAL_COVERAGE_FILE: &str = "coverage.json";
+
+/// What an archived change's `coverage.json` recorded, with each covering change's present state
+/// (REQ-change-167). Once that change is no longer approved, implementing, verifying, accepted or
+/// archived, because it was sent back or closed, the entry carries a warning naming the reopen of
+/// the archived change. The archive's own evidence never reads this file.
+pub fn archived_provisional_coverage(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Vec<ProvisionalCoverageSummary> {
+    if record.state != ChangeState::Archived {
+        return Vec::new();
+    }
+    let Ok(directory) = find_change_dir(root, &record.id) else {
+        return Vec::new();
+    };
+    let path = directory.join(PROVISIONAL_COVERAGE_FILE);
+    if !path.is_file() {
+        return Vec::new();
+    }
+    let Ok(text) = read_bounded_change_text(&path, "provisional coverage record") else {
+        return Vec::new();
+    };
+    let Ok(coverage) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    if coverage["change_id"].as_str() != Some(record.id.as_str()) {
+        return Vec::new();
+    }
+    coverage["covered_by"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry["path"].as_str()?.to_string();
+            let change = entry["change"].as_str()?.to_string();
+            let change_state = load_change(root, &change).ok().map(|covering| covering.state);
+            let standing = matches!(
+                change_state,
+                Some(
+                    ChangeState::Approved
+                        | ChangeState::Implementing
+                        | ChangeState::Verifying
+                        | ChangeState::Accepted
+                        | ChangeState::Archived
+                )
+            );
+            let warning = (!standing).then(|| {
+                let now = change_state
+                    .map(|state| format!("now {}", state.as_str()))
+                    .unwrap_or_else(|| "no longer in the project".into());
+                format!(
+                    "`{path}` changed after `{}` was accepted and was covered for now by `{change}`, which is {now}, so no accepted change stands behind it; run `specsync change reopen {} --actor <name> --reason <text>`",
+                    record.id, record.id
+                )
+            });
+            Some(ProvisionalCoverageSummary {
+                path,
+                change,
+                change_state,
+                warning,
+            })
+        })
+        .collect()
+}
+
+/// The later accepted changes whose declared scope covers `path` under `owner`: each of them waits
+/// on `record` too, because archiving any change runs the preflight that finds `record` stale
+/// (REQ-change-168).
+fn later_changes_blocked_by(
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> Vec<String> {
+    records
+        .values()
+        .filter(|candidate| {
+            candidate.id != record.id
+                && candidate.state == ChangeState::Accepted
+                && happens_after(candidate, record)
+                && candidate.affected_specs.iter().any(|module| module == owner)
+                && candidate
+                    .affected_paths
+                    .iter()
+                    .any(|scope| path_matches_scope(path, scope))
+        })
+        .map(|candidate| candidate.id.clone())
+        .collect()
+}
+
+/// The `delivery input `<path>` (owner `<owner>`)` a stale-input refusal names, read from the
+/// refusal `stale_input_remediation_reason` writes.
+fn stale_input_named(error: &str) -> Option<(String, String)> {
+    let rest = error.split_once("delivery input `")?.1;
+    let (path, rest) = rest.split_once("` (owner `")?;
+    let (owner, _) = rest.split_once("`)")?;
+    Some((path.to_string(), owner.to_string()))
+}
+
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
@@ -3515,7 +3616,32 @@ fn archive_change_with_options(
             destination.display()
         ));
     }
-    ensure_archiving_closing_approval_valid(root, &record)?;
+    // Which in-flight changes cover this change's changed inputs for now; its archive records
+    // them (#657).
+    let provisional_coverage = ensure_archiving_closing_approval_valid(root, &record).map_err(
+        |error| {
+            // REQ-change-168: a later change over the same stale input waits on this one too.
+            let Some((path, owner)) = stale_input_named(&error) else {
+                return error;
+            };
+            let Ok(records) = list_all_changes_structural(root) else {
+                return error;
+            };
+            let blocked = later_changes_blocked_by(&records, &record, &path, &owner);
+            if blocked.is_empty() {
+                return error;
+            }
+            let named = blocked
+                .iter()
+                .map(|id| format!("`{id}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "{error}. Later change {named} declares `{path}` too and cannot be archived either while `{}` is stale",
+                record.id
+            )
+        },
+    )?;
     if !allow_delivery_diff
         && let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -3597,9 +3723,11 @@ fn archive_change_with_options(
         ) {
             drop(memo);
             let _ = remove_file_durable(&accepted_snapshot);
+            // REQ-change-168: the stale change cannot be archived either, so the two wait on
+            // each other until it is reopened or a covering change is accepted.
             return Err(format!(
-                "archive post-move preflight would invalidate `{}`: {error}",
-                candidate.id
+                "archive post-move preflight would invalidate `{}`: {error}. `{}` cannot be archived either until it is reopened or a covering change is accepted, so the two wait on each other",
+                candidate.id, candidate.id
             ));
         }
     }
@@ -3624,16 +3752,30 @@ fn archive_change_with_options(
             relay_gated_record(&destination, &archived).as_ref(),
         )
         .and_then(|state| {
-            write_prepared_files(
-                root,
-                &[
-                    (destination.join("state.json"), state),
-                    (
-                        destination.join("change.md"),
-                        change_markdown_content(&archived),
-                    ),
-                ],
-            )
+            let mut prepared = vec![
+                (destination.join("state.json"), state),
+                (
+                    destination.join("change.md"),
+                    change_markdown_content(&archived),
+                ),
+            ];
+            if !provisional_coverage.is_empty() {
+                prepared.push((
+                    destination.join(PROVISIONAL_COVERAGE_FILE),
+                    json_content(&serde_json::json!({
+                        "schema_version": 1,
+                        "change_id": record.id,
+                        "covered_by": provisional_coverage
+                            .iter()
+                            .map(|(path, change)| serde_json::json!({
+                                "path": path,
+                                "change": change,
+                            }))
+                            .collect::<Vec<_>>(),
+                    }))?,
+                ));
+            }
+            write_prepared_files(root, &prepared)
         })
     };
     if let Err(error) = finalize {
@@ -4468,6 +4610,7 @@ fn summarize_change_with_effective(
             .unwrap_or_default(),
         next_action,
         terminal_evidence,
+        provisional_coverage: archived_provisional_coverage(root, record),
         handoff,
     }
 }
@@ -4553,6 +4696,17 @@ pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckRepor
             if !report.errors.contains(&error) {
                 report.enabled = true;
                 report.errors.push(error);
+            }
+        }
+        // REQ-change-167: an archive covered for now whose covering change was sent back or
+        // closed is a warning, never an error.
+        if let Ok(records) = list_all_changes_structural(root) {
+            for record in records.values().filter(|record| record.state == ChangeState::Archived) {
+                for entry in archived_provisional_coverage(root, record) {
+                    if let Some(warning) = entry.warning {
+                        report.warnings.push(format!("{}: {warning}", record.id));
+                    }
+                }
             }
         }
     }
@@ -4919,6 +5073,22 @@ fn check_project_with_command_output(
         ) && let Err(error) = ensure_dependencies_satisfied(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
+        }
+        // A changed input an in-flight later change declares is covered until that change is
+        // accepted: a warning naming it, not an error (#657).
+        if record.state == ChangeState::Accepted
+            && let Some(evidence) = report
+                .terminal_evidence
+                .iter()
+                .find(|evidence| evidence.id == record.id)
+            && evidence.evidence.validity == TerminalEvidenceValidity::ProvisionallyCovered
+        {
+            let warning = format!(
+                "{}: {}",
+                record.id,
+                evidence.evidence.reason.as_deref().unwrap_or("covered for now")
+            );
+            report.warnings.push(warning);
         }
         if record.state == ChangeState::Accepted
             && let Some(evidence) = report

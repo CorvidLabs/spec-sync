@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- An accepted change no longer goes stale because a later change still in flight edits a delivery input they share. When an approved, implementing or verifying change created after it declares the input's owning module and a path scope that covers it, the accepted change's terminal evidence reads `provisionally-covered`, naming that change, and `change audit` and `change audit --strict` report a warning naming both instead of an error; `specsync doctor` lists no drift for it. It may archive, through `change archive` or `change finalize`, and its archive keeps `coverage.json` (`schema_version`, `change_id`, and one `{path, change}` entry per input covered for now). The archive reads `authenticated-history` whatever becomes of the covering change; `change status`, `change show` and `change audit --archives` print each entry with that change's present state and warn, naming `specsync change reopen <id> --actor <name> --reason <text>`, once it has been sent back or closed. A provisionally covered change neither covers another change's input nor stands as a retirement replacement, and `change reopen` still accepts it. `provisionally-covered` is a new value of `summary.terminal_evidence.validity`. Released 6.3.0 and 6.4.0 read an archive that holds `coverage.json` as before, but still report such an accepted change stale, so a repository that pins SpecSync moves its pin with this release (REQ-change-167, REQ-cmd-change-001, #657).
+- When two accepted changes stop each other from being archived over one stale delivery input, each refusal names the other change and says it is blocked too, beside the `change reopen` it already names, which frees both (REQ-change-168, #688).
+
 ## [6.4.0] - 2026-11-24
 
 ### Added

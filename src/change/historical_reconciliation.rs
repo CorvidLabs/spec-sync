@@ -438,6 +438,9 @@ type AcceptedTransitionProof = (String, Vec<u8>, ChangeRecord);
 #[derive(Default)]
 struct AcceptedInputValidationMemo {
     validity: BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    /// Per accepted change, each changed input an in-flight later change covers for now, as
+    /// `(path, covering change)` (#657).
+    provisional: BTreeMap<String, Vec<(String, String)>>,
     authenticated: BTreeMap<String, Result<VerificationRecord, String>>,
     historical_receipts: BTreeMap<(String, String), Result<HistoricalReceiptProof, String>>,
     accepted_transitions: BTreeMap<String, Result<AcceptedTransitionProof, String>>,

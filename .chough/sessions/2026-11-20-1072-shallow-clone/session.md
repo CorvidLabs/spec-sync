@@ -16,7 +16,7 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-1072-req-change-173-req-cmd-change-044-in-depth-1-and-depth-2]
 bugs: []
 blockers: []
 waiting_on_human:
@@ -41,6 +41,8 @@ In a shallow clone, every lifecycle-history refusal says the clone is shallow an
 - 0xLeif decided "Scope approval of in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before": "Refuse, name the fetch (Recommended); Yes, always (Recommended); Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)" (REQ-change-173: choices in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md: choice 3 (#1072, change new in a shallow clone) and choice 4 (#1072, refusals in a shallow clone). REQ-cmd-change-044, the cmd_change spec and src/commands/change.rs, exactly as in defs/1072-cmd-change-044-draft.md: Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c); t4c confirmed its three conditions (recommended choice, adds no refusal, changes no approved wording) on 2026-11-20 at about 05:10Z, through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before as 0xLeif
 
 ## What was verified
+
+- [#1072 (REQ-change-173, REQ-cmd-change-044): in depth-1 and depth-2 clones of an adopted project change new refuses naming the shallow clone and git fetch --unshallow origin and leaves no workspace; status, check and audit name the fetch; after the fetch they pass; a full clone keeps the baseline message; text status in a clone deep enough for the baseline gives the shallow refusal instead of the ledger text. Real repos (rule 3): depth-1 and depth-50 clones of public spec-sync: 6.3.0's change new wrote a workspace, this build refuses naming the fetch and writes nothing; after git fetch --unshallow origin the audit passes. Lane: fledge lanes run verify passed at c783e8cf through one-lane (3137 unit, 654 integration, 62/62 specs, 100% coverage); change audit --strict exit 0. Red first f98998f3 (through the binary, tests/integration/git_environments.rs, shapes made by the test so nothing relies on a Git default); fix 850317cd, 6ea81ef2, 1cbe69cb.](evidence/2026-11-20-1072-req-change-173-req-cmd-change-044-in-depth-1-and-depth-2.md)
 
 ## Open threads
 

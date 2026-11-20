@@ -16,7 +16,7 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-909-req-change-171-with-git-s-git-test-assume-different-owner]
 bugs: []
 blockers: []
 waiting_on_human:
@@ -41,6 +41,8 @@ When SpecSync's isolated Git refuses a repository for dubious ownership that the
 - 0xLeif decided "Scope approval of pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user": "Yes, temp file (Recommended)" (a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md: choice 2 (#909: the trust setting goes through a private temporary file, not the command line)); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user as 0xLeif
 
 ## What was verified
+
+- [#909 (REQ-change-171), with Git's GIT_TEST_ASSUME_DIFFERENT_OWNER: a repository the user's global file trusts (its top level, or safe.directory = *) passes change status, audit and check, also from a linked worktree; the private file is gone after each command and none is made for a repository the user owns; without the entry the refusal names dubious ownership, the path and git config --global --add safe.directory. Real repos (rule 3): Chough main and spec-sync main with the switch: 6.3.0 refuses even when trusted ('unable to inspect changed paths'), this build passes when trusted and names the command when not; without the switch both pass. Not run: the container runs with a real second owner (Debian 12, Alpine 3.16, Ubuntu 22.04). Lane: fledge lanes run verify passed at c783e8cf through one-lane (3137 unit, 654 integration, 62/62 specs, 100% coverage); change audit --strict exit 0. Red first f98998f3 (through the binary, tests/integration/git_environments.rs, shapes made by the test so nothing relies on a Git default); fix 850317cd, 6ea81ef2, 1cbe69cb.](evidence/2026-11-20-909-req-change-171-with-git-s-git-test-assume-different-owner.md)
 
 ## Open threads
 

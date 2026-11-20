@@ -5,7 +5,7 @@ aliases: [1112-lost-requirements-followups]
 objective: "The lost-requirements check (REQ-change-169) reads only what was canonical at the reference, blocks only changes that can still move, runs in the audit whatever a change's own errors, and says it cannot tell when a requirements directory cannot be read (#1112, #1113, #1116, #1117; definition drafted for t4c's scope check under Leif's standing OK)"
 intent_scope: CHANGE
 modules: [change, cmd_change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -16,12 +16,16 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-1112-1113-1116-1117-req-change-175-176-177-req-cmd-change-045]
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of the lost-requirements follow-ups (#1112, #1113, #1116, #1117)"
+    holds: accept
+    drives: review
+    opened: 2026-11-20T15:52:32Z
 run_consents: []
-next: "Gate \"Scope approval of make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a (at plan)\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # The lost-requirements check (REQ-change-169) reads only what was canonical at the reference, blocks only changes that can still move, runs in the audit whatever a change's own errors, and says it cannot tell when a requirements directory cannot be read (#1112, #1113, #1116, #1117; definition drafted for t4c's scope check under Leif's standing OK)
 
@@ -38,6 +42,8 @@ The lost-requirements check (REQ-change-169) reads only what was canonical at th
 - 0xLeif decided "Scope approval of make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a (at plan)": "Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)" (Leif's standing OK for scope approvals (2026-11-20 dialog, 'Standing OK, tell me after'), confirmed for this definition (defs/1112-1113-1116-1117-definition.md: the recommended choices taken, no new refusal, all four requirements ADDED) by t4c on 2026-11-20 at about 14:50Z, sent directly from hc t4c while ss-lead t58 was stopped); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a as 0xLeif
 
 ## What was verified
+
+- [#1112, #1113, #1116, #1117 (REQ-change-175, 176, 177, REQ-cmd-change-045). Red first a6a8725f: seven tests through the binary failed on #1108's head ed258f58, each as its issue says (spec registered beside / specs_dir moved onto an existing requirements.md; ship-status of an archived change; audit with a malformed delta / an unreadable approval; an unreadable directory / file); a guard (unreadable directory, nothing lost) passes. Fix 84c668b4. Lane at 76585573 through one-lane: 3137 unit, 655 integration, 62/62 specs, 100% coverage; change audit --strict exit 0. Real repos, #1108's build against this one: private starling at PR #43's last commit, ship-status of the archived change exit 1 with the 26-id blocker before, exit 0 with none now; at the commit before the archive both refuse with the same lines; private peck full clone and the spec-sync and chough mains: the same audit lines.](evidence/2026-11-20-1112-1113-1116-1117-req-change-175-176-177-req-cmd-change-045.md)
 
 ## Open threads
 
@@ -95,4 +101,37 @@ The lost-requirements check (REQ-change-169) reads only what was canonical at th
     - recorded_by: claude-code-t4t
     - native: specsync change approve make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
     - actor: 0xLeif
+  - by: claude-code (hc t81)
+- 2026-11-20T15:52:29Z · direct-native-write · plan → plan · make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a's lifecycle records changed outside Chough: state.json changed, verification.json added, verification-attempts.json added; state approved → verifying ^t-b4a7dc
+  - native_change: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
+  - revision: 76585573d0838b387404ac762f700e2fb5cd6ab0
+  - direct_write:
+    - change: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
+    - files:
+      - state.json: changed
+      - verification.json: added
+      - verification-attempts.json: added
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t81)
+- 2026-11-20T15:52:29Z · advance · plan → build · native:verifying ^t-056378
+  - native_change: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
+  - gate: native:verifying
+  - revision: 76585573d0838b387404ac762f700e2fb5cd6ab0
+  - by: claude-code (hc t81)
+- 2026-11-20T15:52:30Z · advance · build → test · native:verifying ^t-84e93d
+  - native_change: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
+  - gate: native:verifying
+  - revision: 76585573d0838b387404ac762f700e2fb5cd6ab0
+  - by: claude-code (hc t81)
+- 2026-11-20T15:52:32Z · advance · test → accept · native:verifying ^t-b6da2b
+  - native_change: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
+  - gate: native:verifying
+  - revision: 76585573d0838b387404ac762f700e2fb5cd6ab0
+  - by: claude-code (hc t81)
+- 2026-11-20T15:52:32Z · gate-opened · accept → accept · Leif's review of the lost-requirements follow-ups (#1112, #1113, #1116, #1117) ^t-243a7b
+  - native_change: make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a
+  - revision: 76585573d0838b387404ac762f700e2fb5cd6ab0
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t81)

@@ -3376,6 +3376,7 @@ fn appends_only_closing_records(
 
 /// `closing_tail` with the gates and notes an accepting step writes; what the rule allows by
 /// shape alone, before the records are compared with what was written.
+#[cfg(test)]
 fn closing_tail_fits(head: &[u8], working: &[u8]) -> bool {
     closing_tail(head, working).is_some_and(|tail| closing_tail_gates_fit(&tail))
 }

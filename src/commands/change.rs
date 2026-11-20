@@ -3129,7 +3129,11 @@ fn run_ship(
         // An approvals-ledger refusal names its own way out (REQ-cmd-change-041). The generic
         // next step after it sent the operator to commit the edited ledger (corvid-agent on
         // #1120), so it is left off there.
-        if change::approvals_ledger_held_by_history(root, &record).err().as_deref() == Some(reason) {
+        if change::approvals_ledger_held_by_history(root, &record)
+            .err()
+            .as_deref()
+            == Some(reason)
+        {
             return Err(format!("This pull request is not finished. {reason}"));
         }
         // `ship_next` is already the action. Wrapping it in another `Run \`...\``

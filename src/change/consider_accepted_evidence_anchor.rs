@@ -3758,7 +3758,137 @@ fn effective_definition_approval<'a>(
 fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let ledger = load_approvals(root, record)?;
     ensure_committed_send_backs_kept(root, record, &ledger)?;
+    ensure_approval_history_not_forked(root, record, &ledger)?;
     effective_definition_approval(root, record, &ledger).map(|_| ())
+}
+
+/// An approval record as JSON without `relayed_by`, which `change repair-relays` may put back or
+/// remove, so two copies of one approval compare equal.
+fn approval_without_relay(approval: &ApprovalRecord) -> serde_json::Value {
+    let mut value = serde_json::to_value(approval).unwrap_or(serde_json::Value::Null);
+    if let Some(members) = value.as_object_mut() {
+        members.remove("relayed_by");
+    }
+    value
+}
+
+/// Two clones that each approve the same change commit approvals ledgers that neither extends:
+/// at some position each holds an approval the other lacks. Merging keeps both in history,
+/// whichever ledger the merge resolution kept, so every committed version that `HEAD` reaches,
+/// both sides of every merge included, is compared (REQ-change-169, #532). A fork is settled once
+/// the definition approval that counts now was recorded after both sides: first committed in a
+/// commit that descends from both, or not committed yet, on top of a `HEAD` that reaches both.
+/// An archived change is not judged again: it can no longer be approved, so a fork its history
+/// holds must not fail every later audit. A merge that reorders records stays #428's rewrite.
+fn ensure_approval_history_not_forked(
+    root: &Path,
+    record: &ChangeRecord,
+    ledger: &ApprovalLedger,
+) -> Result<(), String> {
+    if record.state == ChangeState::Archived {
+        return Ok(());
+    }
+    let Ok(prefix) = git_repo_prefix(root) else {
+        return Ok(());
+    };
+    let Some(current) = ledger
+        .approvals
+        .iter()
+        .rfind(|approval| approval.gate == "definition")
+    else {
+        return Ok(());
+    };
+    let current = approval_without_relay(current);
+    let mut candidates = Vec::new();
+    if let Ok(dir) = find_change_dir(root, &record.id)
+        && let Some(relative) = project_relative(root, &dir)
+    {
+        candidates.push(relative);
+    }
+    let active = format!("{CHANGES_PATH}/{}", record.id);
+    if !candidates.contains(&active) {
+        candidates.push(active);
+    }
+    let is_ancestor = |ancestor: &str, descendant: &str| {
+        crate::git_utils::status_without_inherited_output(
+            Command::new("git")
+                .args(["merge-base", "--is-ancestor", ancestor, descendant])
+                .current_dir(root),
+        )
+        .is_ok_and(|status| status.success())
+    };
+    for candidate in candidates {
+        let path = format!("{candidate}/approvals.json");
+        let pathspec = format!(":(top,literal){prefix}{path}");
+        // Newest first, every parent's side walked, parents before their children reversed.
+        let Some(commits) = git_output_allow_empty(
+            root,
+            &[
+                "log",
+                "--full-history",
+                "--topo-order",
+                "--no-renames",
+                "--format=%H",
+                "HEAD",
+                "--",
+                pathspec.as_str(),
+            ],
+        ) else {
+            continue;
+        };
+        let mut versions: Vec<(String, Vec<serde_json::Value>, Vec<String>)> = Vec::new();
+        for commit in commits.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            let object = format!("{commit}:{prefix}{path}");
+            let Some(text) = git_output(root, &["show", object.as_str()]) else {
+                continue;
+            };
+            let Ok(committed) = serde_json::from_str::<ApprovalLedger>(&text) else {
+                continue;
+            };
+            let approvals = committed.approvals.iter().map(approval_without_relay).collect();
+            let actors = committed
+                .approvals
+                .iter()
+                .map(|approval| approval.actor.clone())
+                .collect();
+            versions.push((commit.to_string(), approvals, actors));
+        }
+        // The commit that first recorded the approval that counts now: the oldest version holding
+        // it. None when it is not committed yet.
+        let current_first = versions
+            .iter()
+            .rev()
+            .find(|(_, approvals, _)| approvals.contains(&current))
+            .map(|(commit, _, _)| commit.clone());
+        for (index, (left_commit, left, left_actors)) in versions.iter().enumerate() {
+            for (right_commit, right, right_actors) in &versions[index + 1..] {
+                let shared = left.len().min(right.len());
+                let Some(split) = (0..shared).find(|at| left[*at] != right[*at]) else {
+                    continue;
+                };
+                let settled = current_first.as_deref().is_none_or(|first| {
+                    is_ancestor(left_commit, first) && is_ancestor(right_commit, first)
+                });
+                if settled {
+                    continue;
+                }
+                let short = |commit: &str| commit[..commit.len().min(12)].to_string();
+                return Err(format!(
+                    "the approvals of `{}` forked: commit {} recorded {}'s approval and commit {} \
+                     recorded {}'s, and neither ledger holds the other's, as when two clones \
+                     approve the same change. Record one fresh approval on the merged branch with \
+                     `specsync change approve {} --actor <name>`",
+                    record.id,
+                    short(left_commit),
+                    left_actors[split],
+                    short(right_commit),
+                    right_actors[split],
+                    record.id
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

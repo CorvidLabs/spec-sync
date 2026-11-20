@@ -67,6 +67,8 @@ Requirements use stable IDs, normative SHALL statements, and acceptance criteria
 
 An approval shows what was approved, not who approved it: its digest binds the content, and `--actor` is a recorded claim that SpecSync does not authenticate. The same holds for `--reviewer`.
 
+Two clones can approve the same change at once, since the project lock covers one working tree. Once their branches merge, history holds two approvals ledgers that neither extends, whichever one the merge kept. `change check`, `change review`, `change finalize`, `change ship` and `change audit` then refuse the change, and `change status` reports its approval as not valid, naming both approvers and both commits, until one fresh approval is recorded on the merged branch with `specsync change approve <id> --actor <name>`. An approval that only appends to an earlier ledger is not a fork, and an archived change is not judged again.
+
 ### Relayed decisions
 
 When an agent records a decision a person made somewhere else, it says who decided, their exact words, where they said it and which agent is recording it:

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `change finalize`, `change ship` and `change archive` archive only an approvals ledger that Git history holds. `approvals.json` must be committed at `HEAD` and equal to it (an accepted change may add the closing records its accepting step wrote), and every version committed along `HEAD`'s first-parent history must extend the one before it; a relay restored or removed by `change repair-relays` and the digest members `specsync migrate 5.0` adds do not count as a change. Each refusal names the file and the way out. A change whose whole workspace was deleted and created again under the same id is refused as it loads, as before, and that refusal now names the commit that removed the workspace and the two ways out. `change ship-status` lists it as a blocker. SpecSync 6.2.0 and older rewrote whole ledgers and could drop members they did not know; a committed rewrite like that is refused, so every machine that runs change commands on a repository should be on 6.3.0 or newer (REQ-change-166, REQ-cmd-change-041, #428).
 
+### Fixed
+
+- A change approved in two clones is not valid until one fresh approval is recorded after the fork. Two clones could each run `change approve` on the same change, since the project lock covers one working tree, and once their branches merged every command passed while history held two approvals ledgers that neither extends, and the merge had silently dropped one. Definition-approval validation now reads every committed version of `approvals.json` that `HEAD` reaches, both sides of every merge, so `change check`, `change review`, `change finalize`, `change ship` and `change audit` refuse such a change and `change status` reports its approval as not valid, naming both approvers and both commits, until `specsync change approve <id> --actor <name>` records one fresh approval on the merged branch. An archived change is not judged again (REQ-change-169, #532).
+
 ## [6.4.0] - 2026-11-24
 
 ### Added

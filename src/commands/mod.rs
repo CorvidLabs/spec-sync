@@ -76,7 +76,7 @@ fn normalize_project_path(root: &Path, path: &Path) -> String {
 
 #[allow(dead_code)]
 fn collect_validation_files(root: &Path, directory: &Path, inputs: &mut Vec<String>) {
-    let Ok(entries) = std::fs::read_dir(directory) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, directory) else {
         return;
     };
     let mut paths = entries

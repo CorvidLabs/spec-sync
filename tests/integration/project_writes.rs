@@ -1028,6 +1028,42 @@ const GIT_WRITING_ARGUMENTS: &[&str] = &[
 /// no project file is written.
 const GIT_MARKER: &str = "git writes no project file:";
 
+/// A spawned command other than Git carries this marker in its statement, with the reason it
+/// writes no project file (REQ-util-008).
+const SPAWN_MARKER: &str = "spawned command writes no project file:";
+
+/// Verifies REQ-util-008 (6.4.1, X1). Every command SpecSync spawns other than Git says why it
+/// writes no project file, as a Git command that writes files must.
+#[test]
+fn no_spawned_command_other_than_git_is_unmarked() {
+    use crate::project_reads::{code_only, compiled_sources, marked_in_statement, non_test_lines};
+    let mut unmarked = Vec::new();
+    for (relative, path) in compiled_sources() {
+        let text = fs::read_to_string(&path).unwrap();
+        let code = code_only(&text);
+        let lines = non_test_lines(&text, &code);
+        for (position, line) in lines.iter().enumerate() {
+            let Some(at) = line.code.find("Command::new(") else {
+                continue;
+            };
+            let argument = &line.raw[at + "Command::new(".len()..];
+            if argument.trim_start().starts_with("\"git\"") {
+                continue;
+            }
+            if marked_in_statement(&lines, position, &[SPAWN_MARKER]) {
+                continue;
+            }
+            unmarked.push(format!("{relative}:{}: {}", line.number, line.raw.trim()));
+        }
+    }
+    assert!(
+        unmarked.is_empty(),
+        "{} spawned command(s) other than Git say nothing about project files (REQ-util-008):\n{}",
+        unmarked.len(),
+        unmarked.join("\n")
+    );
+}
+
 /// The string literals on a line as written, without their quotes. Escapes are kept as they are.
 fn string_literals(raw: &str) -> Vec<&str> {
     let mut found = Vec::new();

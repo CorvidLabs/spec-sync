@@ -447,14 +447,14 @@ fn list_all_change_metadata(
         records.insert(record.id.clone(), record);
     }
     let archive = root.join(ARCHIVE_PATH);
-    let entries = match fs::read_dir(&archive) {
+    let entries = match crate::util::read_project_dir_entries(root, &archive) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(records);
         },
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
-    let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    let entries: Vec<std::io::Result<crate::util::ProjectDirEntry>> = entries.collect();
     if walk_archived_history {
         prefetch_archived_workflow_histories(root, &entries);
     }
@@ -474,8 +474,8 @@ fn list_all_change_metadata(
             Ok(content) => content,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound
-                    && (is_positive_legacy_tombstone(&entry.path())
-                        || is_untrackable_husk(&entry.path())) =>
+                    && (is_positive_legacy_tombstone(root, &entry.path())
+                        || is_untrackable_husk(root, &entry.path())) =>
             {
                 continue;
             }
@@ -512,8 +512,8 @@ fn list_all_change_metadata(
 /// A directory that does hold files but no `state.json` is damaged, not a husk,
 /// and its caller still refuses it: this predicate cannot be satisfied by
 /// ignoring corruption.
-fn is_untrackable_husk(path: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(path) else {
+fn is_untrackable_husk(root: &Path, path: &Path) -> bool {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, path) else {
         return false;
     };
     for entry in entries.flatten() {
@@ -521,7 +521,7 @@ fn is_untrackable_husk(path: &Path) -> bool {
             return false;
         };
         if kind.is_dir() {
-            if !is_untrackable_husk(&entry.path()) {
+            if !is_untrackable_husk(root, &entry.path()) {
                 return false;
             }
         } else {
@@ -546,13 +546,13 @@ fn name_carries_a_lifecycle_ordinal(name: &str) -> bool {
 ///
 /// No depth counter: archive packages are a handful of levels, and a symlink loop cannot occur
 /// because `read_dir` reports a symlink as neither file nor directory here.
-fn directory_holds_a_regular_file(path: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(path) else {
+fn directory_holds_a_regular_file(root: &Path, path: &Path) -> bool {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, path) else {
         return false;
     };
     entries.flatten().any(|entry| match entry.file_type() {
         Ok(kind) if kind.is_file() => true,
-        Ok(kind) if kind.is_dir() => directory_holds_a_regular_file(&entry.path()),
+        Ok(kind) if kind.is_dir() => directory_holds_a_regular_file(root, &entry.path()),
         _ => false,
     })
 }
@@ -582,12 +582,12 @@ fn directory_holds_a_regular_file(path: &Path) -> bool {
 /// today *only* because of its name. Retiring the ordinal therefore needs a provenance signal
 /// to take signal 3's place — git history of the package's `state.json` is the obvious
 /// candidate. That is a decision for the identity migration, not something to quietly drop here.
-fn is_positive_legacy_tombstone(path: &Path) -> bool {
-    let holds_a_file_outside_deltas = fs::read_dir(path).is_ok_and(|entries| {
+fn is_positive_legacy_tombstone(root: &Path, path: &Path) -> bool {
+    let holds_a_file_outside_deltas = crate::util::read_project_dir_entries(root, path).is_ok_and(|entries| {
         entries.flatten().any(|entry| match entry.file_type() {
             Ok(kind) if kind.is_file() => true,
             Ok(kind) if kind.is_dir() && entry.file_name() != "deltas" => {
-                directory_holds_a_regular_file(&entry.path())
+                directory_holds_a_regular_file(root, &entry.path())
             }
             _ => false,
         })
@@ -610,7 +610,7 @@ fn is_positive_legacy_tombstone(path: &Path) -> bool {
         return false;
     }
     let deltas = path.join("deltas");
-    let Ok(entries) = fs::read_dir(deltas) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, &deltas) else {
         return false;
     };
     entries.flatten().any(|entry| {
@@ -969,6 +969,7 @@ fn actor_character_is_refused(c: char) -> bool {
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
     let explicit = actor.is_some();
+    // git writes no project file: reads the configured author name; `config` with one key only reads
     let actor = actor
         .or_else(|| git_output(root, &["config", "user.name"]))
         .or_else(|| std::env::var("USER").ok())
@@ -2145,6 +2146,7 @@ fn run_configured_command(
     {
         eprintln!("{notice}");
     }
+    // spawned command writes no project file: runs a verification command the project's own policy names, by design and only when the person asks for it, as `change pr` runs the pre-push lane
     let mut command = Command::new(program);
     command
         .args(args)
@@ -2533,6 +2535,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
         Err(error) => return Err(error.to_string()),
     }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
     let mut entries = fs::read_dir(source_changes)
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
@@ -2692,6 +2695,7 @@ fn prepare_markdown_files(
             source.display()
         ));
     }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
     let mut entries = fs::read_dir(source)
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
@@ -2752,6 +2756,7 @@ fn reject_symlink_components_for(
 }
 
 fn validate_foreign_tree(root: &Path) -> Result<(), String> {
+    // not a project file read: walks the foreign tree with follow_links(false), refusing every link it finds
     for entry in walkdir::WalkDir::new(root).follow_links(false) {
         let entry = entry.map_err(|error| error.to_string())?;
         if entry.file_type().is_symlink() {
@@ -2943,7 +2948,7 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     let archive = root.join(ARCHIVE_PATH);
     if let Some(archived) = archive_index_in_scope(root, id) {
         matches.extend(archived);
-    } else if let Ok(entries) = fs::read_dir(archive) {
+    } else if let Ok(entries) = crate::util::read_project_dir_entries(root, &archive) {
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
                 continue;

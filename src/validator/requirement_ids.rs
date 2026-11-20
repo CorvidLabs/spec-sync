@@ -85,7 +85,7 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
 /// Whether `dir` holds at least one `*.spec.md` and every one of them parses
 /// with `status: archived`. A spec that cannot be read or parsed counts as live.
 fn only_archived_specs_in(root: &Path, dir: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(dir) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, dir) else {
         return false;
     };
     let mut seen = false;

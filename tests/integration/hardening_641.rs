@@ -266,7 +266,7 @@ fn hooks_install_in_a_linked_worktree_makes_the_shared_hooks_folder() {
 fn a_journal_left_for_an_earlier_project_at_the_same_path_is_not_replayed() {
     let fx = lifecycle_project();
     // Project A's interrupted write left its journal in the local state folder.
-    let journal = state_folder(&fx.root).join("change-transaction.json");
+    let journal = journal_folder(&fx.root).join("change-transaction.json");
     let _cleanup = Cleanup(journal.clone());
     // Project B replaces A at the same path.
     fs::rename(&fx.root, fx.tmp.path().join("project-a")).unwrap();

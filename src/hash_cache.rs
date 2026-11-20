@@ -410,7 +410,7 @@ fn validation_input_digest_for_build(
     let history_rel = normalize_rel(history.strip_prefix(root).unwrap_or(&history));
     let mut history_kinds = vec![format!("{history_rel}={}", entry_kind(&history))];
     input_paths.insert(history_rel);
-    if let Ok(entries) = fs::read_dir(&history) {
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &history) {
         for entry in entries.flatten() {
             let path = entry.path();
             let rel = normalize_rel(path.strip_prefix(root).unwrap_or(&path));

@@ -92,6 +92,33 @@ fn user_cache_folder() -> Option<PathBuf> {
     })
 }
 
+/// The user's state folder, where SpecSync keeps its transaction journal, which cleanup tools
+/// and macOS must not purge as they may a cache: `$XDG_STATE_HOME` when it is an absolute path,
+/// else `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows and
+/// `~/.local/state` elsewhere (REQ-util-006). Unit tests use a folder in the system temporary
+/// directory.
+fn user_state_folder() -> Option<PathBuf> {
+    if cfg!(test) {
+        return Some(std::env::temp_dir().join("specsync-unit-test-state-home"));
+    }
+    let absolute = |value: std::ffi::OsString| {
+        let path = PathBuf::from(value);
+        path.is_absolute().then_some(path)
+    };
+    if let Some(folder) = std::env::var_os("XDG_STATE_HOME").and_then(absolute) {
+        return Some(folder);
+    }
+    if cfg!(windows) {
+        return std::env::var_os("LOCALAPPDATA").and_then(absolute);
+    }
+    let home = std::env::var_os("HOME").and_then(absolute)?;
+    Some(if cfg!(target_os = "macos") {
+        home.join("Library").join("Application Support")
+    } else {
+        home.join(".local").join("state")
+    })
+}
+
 /// `path` as it is on disk: its longest existing ancestor canonicalized, and the rest of the
 /// path, which does not exist yet, joined to it.
 fn resolved(path: &Path) -> PathBuf {
@@ -114,7 +141,6 @@ fn resolved(path: &Path) -> PathBuf {
 }
 
 fn location(root: &Path) -> io::Result<Location> {
-    let canonical = root.canonicalize()?;
     let base = user_cache_folder().ok_or_else(|| {
         refused(
             "there is no user cache folder (set HOME or XDG_CACHE_HOME) to keep SpecSync's own \
@@ -122,6 +148,24 @@ fn location(root: &Path) -> io::Result<Location> {
                 .to_string(),
         )
     })?;
+    location_in(root, base)
+}
+
+/// The project's folder for its transaction journal, in the user's state folder, refused as
+/// [`location`] is (REQ-util-006).
+fn journal_location(root: &Path) -> io::Result<Location> {
+    let base = user_state_folder().ok_or_else(|| {
+        refused(
+            "there is no user state folder (set HOME or XDG_STATE_HOME) to keep SpecSync's \
+             transaction journal in"
+                .to_string(),
+        )
+    })?;
+    location_in(root, base)
+}
+
+fn location_in(root: &Path, base: PathBuf) -> io::Result<Location> {
+    let canonical = root.canonicalize()?;
     // Some CI containers set `HOME` or `XDG_CACHE_HOME` to the checkout. A cache folder inside
     // the project, or inside the folder its files are confined to, is a place a repository can
     // put a file, so it is refused rather than trusted (REQ-util-006).
@@ -276,7 +320,39 @@ impl LocalState {
     /// The local state folder of the project at `root`. With `create` it is made, with the
     /// user's cache folder if that is missing too; without, `None` when it does not exist yet.
     pub fn open(root: &Path, create: bool) -> io::Result<Option<LocalState>> {
-        let location = location(root)?;
+        Self::open_at(location(root)?, create)
+    }
+
+    /// The project's folder for its transaction journal, in the user's state folder rather than
+    /// the cache folder (REQ-util-006). With `create` it is made; without, `None` when it does not
+    /// exist yet.
+    pub fn open_journal(root: &Path, create: bool) -> io::Result<Option<LocalState>> {
+        Self::open_at(journal_location(root)?, create)
+    }
+
+    /// The folder for what SpecSync knows about the Git repository whose canonical common
+    /// directory is `common_dir`, for the project at `root`, in the user's cache folder: the change
+    /// read cache lives there (REQ-util-009). Refused as [`LocalState::open`] is.
+    pub fn open_repository(
+        root: &Path,
+        common_dir: &Path,
+        create: bool,
+    ) -> io::Result<Option<LocalState>> {
+        let project = location(root)?;
+        Self::open_at(
+            Location {
+                base: project.base,
+                names: vec![
+                    STATE_FOLDER.to_string(),
+                    REPOSITORIES_FOLDER.to_string(),
+                    key("repository", common_dir),
+                ],
+            },
+            create,
+        )
+    }
+
+    fn open_at(location: Location, create: bool) -> io::Result<Option<LocalState>> {
         if create {
             std::fs::create_dir_all(&location.base)?;
         }

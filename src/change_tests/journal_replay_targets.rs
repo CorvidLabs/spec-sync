@@ -50,12 +50,13 @@ fn entry(path: &str, original: Option<&str>) -> TransactionEntry {
 }
 
 /// The journal exactly as this build writes one, integrity envelope and all.
-fn durable_journal(entries: Vec<TransactionEntry>) -> String {
+fn durable_journal(root: &Path, entries: Vec<TransactionEntry>) -> String {
     serde_json::to_string(&TransactionJournal {
         schema_version: 1,
         entry_count: entries.len(),
         entries_digest: transaction_entries_digest(&entries).unwrap(),
         entries,
+        root: Some(journal_root(root).unwrap()),
     })
     .unwrap()
 }
@@ -83,7 +84,7 @@ fn a_journal_never_rewrites_or_deletes_git_files() {
         let config = fs::read(root.join(".git/config")).unwrap();
         let head = fs::read(root.join(".git/HEAD")).unwrap();
         let hook = fs::read(root.join(".git/hooks/pre-commit")).unwrap();
-        plant_journal(root, &durable_journal(vec![entry(target, original)]));
+        plant_journal(root, &durable_journal(root, vec![entry(target, original)]));
 
         let error = recover_pending_transaction(root).unwrap_err();
 
@@ -131,7 +132,7 @@ fn a_journal_git_tracks_is_never_replayed() {
         let root = temp.path();
         fs::write(
             root.join(TRANSACTION_PATH),
-            durable_journal(vec![entry("specs/auth/auth.spec.md", Some("TAMPERED\n"))]),
+            durable_journal(root, vec![entry("specs/auth/auth.spec.md", Some("TAMPERED\n"))]),
         )
         .unwrap();
         journal_git(root, &["add", "-A"]);
@@ -162,7 +163,7 @@ fn one_entry_outside_the_change_workflow_refuses_the_whole_journal() {
     let root = temp.path();
     plant_journal(
         root,
-        &durable_journal(vec![
+        &durable_journal(root, vec![
             entry("specs/auth/auth.spec.md", Some("RESTORED\n")),
             entry("Makefile", Some("all:\n\ttouch planted\n")),
         ]),
@@ -217,7 +218,7 @@ fn a_real_interrupted_write_is_still_recovered() {
     fs::write(root.join(".specsync/changes/new-change/state.json"), "half").unwrap();
     plant_journal(
         root,
-        &durable_journal(vec![
+        &durable_journal(root, vec![
             entry("specs/auth/auth.spec.md", Some("# Auth before\n")),
             entry("specs/auth/requirements.md", Some("# Requirements before\n")),
             entry("specs/auth/history/new-change.md", None),
@@ -259,7 +260,7 @@ fn a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not() {
     .unwrap();
     plant_journal(
         root,
-        &durable_journal(vec![
+        &durable_journal(root, vec![
             entry("docs/api/api.spec.md", Some("# Api before\n")),
             entry("docs/api/requirements.md", Some("# Api requirements\n")),
             entry("docs/api/history/new-change.md", None),
@@ -277,7 +278,7 @@ fn a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not() {
 
     plant_journal(
         root,
-        &durable_journal(vec![entry("docs/api/notes.md", Some("planted\n"))]),
+        &durable_journal(root, vec![entry("docs/api/notes.md", Some("planted\n"))]),
     );
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(!root.join("docs/api/notes.md").exists());
@@ -300,7 +301,7 @@ fn a_backslash_entry_cannot_reach_git_files() {
         let config = fs::read(root.join(".git/config")).unwrap();
         plant_journal(
             root,
-            &durable_journal(vec![entry(target, Some("[core]\n\tfsmonitor = touch planted\n"))]),
+            &durable_journal(root, vec![entry(target, Some("[core]\n\tfsmonitor = touch planted\n"))]),
         );
 
         let error = recover_pending_transaction(root).unwrap_err();
@@ -332,7 +333,7 @@ fn specs_dir_dot_does_not_widen_replay() {
     .unwrap();
     plant_journal(
         root,
-        &durable_journal(vec![entry("Makefile", Some("all:\n\ttouch planted\n"))]),
+        &durable_journal(root, vec![entry("Makefile", Some("all:\n\ttouch planted\n"))]),
     );
     let error = recover_pending_transaction(root).unwrap_err();
     assert!(!root.join("Makefile").exists(), "specs_dir . admitted Makefile");
@@ -341,7 +342,7 @@ fn specs_dir_dot_does_not_widen_replay() {
     fs::create_dir_all(root.join("auth/history")).unwrap();
     plant_journal(
         root,
-        &durable_journal(vec![
+        &durable_journal(root, vec![
             entry("auth/auth.spec.md", Some("# Auth\n")),
             entry("auth/requirements.md", Some("# Requirements\n")),
             entry("auth/history/a-change.md", Some("---\n")),
@@ -374,7 +375,7 @@ fn a_journal_in_the_work_tree_is_never_replayed() {
         let root = temp.path();
         fs::write(
             root.join(".specsync/change-transaction.json"),
-            durable_journal(vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
+            durable_journal(root, vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
         )
         .unwrap();
 
@@ -445,7 +446,7 @@ fn a_journal_under_the_git_directory_is_never_replayed() {
     fs::create_dir_all(planted.parent().unwrap()).unwrap();
     fs::write(
         &planted,
-        durable_journal(vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
+        durable_journal(root, vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
     )
     .unwrap();
 
@@ -472,7 +473,7 @@ fn a_registry_entry_that_is_not_a_spec_never_opens_a_replay() {
     )
     .unwrap();
     for original in [None, Some("SECRET=rewritten\n")] {
-        plant_journal(root, &durable_journal(vec![entry(".env", original)]));
+        plant_journal(root, &durable_journal(root, vec![entry(".env", original)]));
 
         let outcome = recover_pending_transaction(root);
 

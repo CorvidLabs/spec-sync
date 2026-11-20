@@ -713,6 +713,46 @@ pub fn read_project_dir(root: &Path, path: &Path) -> io::Result<Vec<PathBuf>> {
     Ok(found)
 }
 
+/// One entry of a project directory listed through [`read_project_dir`], with the parts of
+/// `std::fs::DirEntry` callers use. Its type and metadata are read without following a link at
+/// the entry, as `DirEntry`'s are.
+#[derive(Debug, Clone)]
+pub struct ProjectDirEntry {
+    path: PathBuf,
+}
+
+impl ProjectDirEntry {
+    pub fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    pub fn file_name(&self) -> std::ffi::OsString {
+        self.path
+            .file_name()
+            .map(|name| name.to_os_string())
+            .unwrap_or_default()
+    }
+
+    pub fn file_type(&self) -> io::Result<std::fs::FileType> {
+        std::fs::symlink_metadata(&self.path).map(|metadata| metadata.file_type())
+    }
+}
+
+/// [`read_project_dir`] as entries shaped like `std::fs::read_dir`'s, so a listing of SpecSync's
+/// own record folders (`.specsync/archive/changes`, a change's `deltas`, a spec's `history/`)
+/// goes through the project rule: a link there that leaves the project is refused with the
+/// folder named, and no name outside is listed (REQ-util-010).
+pub fn read_project_dir_entries(
+    root: &Path,
+    path: &Path,
+) -> io::Result<std::vec::IntoIter<io::Result<ProjectDirEntry>>> {
+    Ok(read_project_dir(root, path)?
+        .into_iter()
+        .map(|path| Ok(ProjectDirEntry { path }))
+        .collect::<Vec<_>>()
+        .into_iter())
+}
+
 /// Every regular file under the project directory `directory` whose name ends with `suffix`,
 /// sorted, as `root` joined with its path (REQ-util-002).
 ///

@@ -528,6 +528,7 @@ fn first_prose_line(text: &str) -> Option<String> {
 }
 
 fn today() -> String {
+    // spawned command writes no project file: `date` prints the date and writes no file
     let output = std::process::Command::new("date")
         .args(["+%Y-%m-%d"])
         .output();

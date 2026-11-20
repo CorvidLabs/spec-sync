@@ -416,6 +416,7 @@ fn inside_base(path: &Path, bases: &[&Path]) -> Option<(PathBuf, PathBuf)> {
 /// `git config --show-scope` says, rather than from the repository's config, which an archive can
 /// ship, or from anywhere else.
 fn hooks_path_is_the_persons_own(root: &Path) -> bool {
+    // git writes no project file: reads where core.hooksPath is set
     let output = crate::git_utils::output_after_child_exits(
         Command::new("git")
             .arg("-C")

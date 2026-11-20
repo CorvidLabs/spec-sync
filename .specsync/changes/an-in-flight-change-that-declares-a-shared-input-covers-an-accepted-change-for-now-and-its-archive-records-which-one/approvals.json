@@ -129,6 +129,71 @@
         "where": "The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, on exactly the frozen ss-lead/gates/657-688-definition.md. The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z. Naming change finalize: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead on 2026-11-20 to REQ-change-167's sentence and criterion and change criterion 2; these are not his words about this text. All relayed by hc t4c through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795164069,
+      "digest": "19962964c0a25e8ece74972c4a9601a6c2aee050df4c307b9b53f0ad00185ea8",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of #657 with #688, its one cmd_change word, change finalize named on workflow v2, and a later change whose delivery changed the input named in REQ-change-168 (relayed by hc t4c through ss-lead t58)\": \"\"Approve as written\" for the definition; \"Yes, add it (Recommended)\" for REQ-cmd-change-001's one word; Leif's six rules, rule 6 (a) and (c), for naming change finalize on workflow v2 and for naming in REQ-change-168 a later change whose delivery changed the input\" (The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, on exactly the frozen ss-lead/gates/657-688-definition.md. The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z. The two wording fixes: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs. ss-lead applied it on 2026-11-20 to change finalize on workflow v2 (REQ-change-167 and change criterion 2), and again to REQ-change-168's sentence and third criterion, which now also name a later change whose delivery changed the input, as his approved SHIP-13.d asks. These are not his words about either text. All relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-20T08:41:08Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+        "title": "An in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
+        "description": "an in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/doctor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/historical_reconciliation.rs",
+          "src/change/retirement.rs",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/provisional_coverage.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change whose signed input a later approved, implementing or verifying change has edited, and whose module and path that change declares, reads `provisionally-covered` naming it; `change audit` and `change audit --strict` exit 0 with a warning naming both changes; with no such change it is stale and audit fails as before.",
+          "An archived change that was covered for now reads `authenticated-history` whatever becomes of the covering change; when that change is sent back or closed, `change status`, `change show` and `change audit --archives` warn that the input has no accepted change behind it and name `change reopen`.",
+          "Each of the two archive refusals over one stale delivery input names the other change and says it is blocked too, and the `change reopen` it names frees both.",
+          "Released SpecSync 6.3.0 reads an archive that holds `coverage.json` as before: archived, `authenticated-history`, audit and doctor clean.",
+          "`change archive`, or `change finalize` on workflow v2, accepts a provisionally covered change and writes `coverage.json` naming each covered input and its covering change; a provisionally covered change neither covers another change nor replaces one in a retirement, and `change reopen` still accepts it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "a provisionally covered change neither covers another change nor replaces one in a retirement; reopen stays allowed; archived integrity is unchanged and does not read coverage.json; released 6.3.0 reads an archive that holds coverage.json as before",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "4d8d833e51e60e8c2b3712b931f1f04621d923294c20a91ba861c97f95db1bd7",
+        "cmd_change": "ef0eaf2b3e54885868312cff492a6c17988cf4775d1f69a590e15ddb74b78e63"
+      },
+      "approved_delta_bases": {
+        "cmd_change: REQUIREMENT REQ-cmd-change-001": "1781914f612d97bdfa9fd919d594a4906fdd286ba693d714fe3a7b26eb08f95e"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Approve as written\" for the definition; \"Yes, add it (Recommended)\" for REQ-cmd-change-001's one word; Leif's six rules, rule 6 (a) and (c), for naming change finalize on workflow v2 and for naming in REQ-change-168 a later change whose delivery changed the input",
+        "where": "The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, on exactly the frozen ss-lead/gates/657-688-definition.md. The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z. The two wording fixes: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs. ss-lead applied it on 2026-11-20 to change finalize on workflow v2 (REQ-change-167 and change criterion 2), and again to REQ-change-168's sentence and third criterion, which now also name a later change whose delivery changed the input, as his approved SHIP-13.d asks. These are not his words about either text. All relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
     }
   ],
   "reopenings": [],
@@ -151,6 +216,46 @@
           "target": "requirement",
           "key": "REQ-change-167",
           "content": "A changed delivery input of an `accepted` change SHALL count as covered for now when no accepted or archived successor covers it and an `approved`, `implementing` or `verifying` change created after the accepted one declares the input's owning module and a path scope that covers the input. An accepted change whose changed inputs are all covered, at least one of them only for now, SHALL read `provisionally-covered` as its terminal evidence, with a reason that names each such input and the change covering it. `change audit` SHALL report it as a warning naming both changes and never as an error, so `change audit --strict` exits 0 on it, and `specsync doctor` SHALL NOT list it as drifted. A changed input that nothing covers SHALL stay stale and stay an audit error. A provisionally covered change SHALL NOT cover another change's input and SHALL NOT stand as a retirement replacement, and `change reopen` SHALL still accept it. `change archive` SHALL accept it, the archive preflight of any other change SHALL pass over it, and its archive SHALL hold `coverage.json`: a schema version, the change id, and one `{path, change}` entry for each input covered for now. The archive's own evidence SHALL NOT depend on `coverage.json` or on what becomes of the covering change. `change status` and `change show` on such an archive SHALL print each recorded entry with the covering change's present state. When that change is no longer approved, implementing, verifying, accepted or archived, because it was sent back or closed, they and `change audit --archives` SHALL say, as a warning, that the input changed after acceptance and no accepted change stands behind it, and SHALL name `specsync change reopen <id> --actor <name> --reason <text>` for the archived change.\n\nAcceptance Criteria\n- An accepted change, a later approved change that declares the same module and path, and a committed edit of that file: the accepted change reads `provisionally-covered` naming the later change; `change audit` and `change audit --strict` exit 0 with one warning naming both; `specsync doctor` lists no drift for it.\n- The same edit with no later change declaring the file: the accepted change reads `stale` and `change audit` exits 1, as before.\n- A later change that is still a draft, or that declares the path without the owning module, does not cover.\n- `change archive` on the provisionally covered change succeeds and writes `coverage.json` naming the file and the covering change; another change's finalize is not refused because of it.\n- A provisionally covered change is not accepted as another change's covering successor or as a retirement replacement, and `change reopen` accepts it.\n- When the covering change is accepted, the earlier change reads `successor-covered`.\n- After the archive, with the covering change sent back to draft: the archived change still reads `authenticated-history`; `change status` on it prints the recorded entry and the warning; `change audit --archives` prints the warning and exits 0. With the covering change accepted or archived instead, there is no warning.\n- An archive with no `coverage.json` reads exactly as before."
+        },
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-168",
+          "content": "The two archive refusals that share one stale delivery input SHALL each name the other side and say that it is blocked too. When `change archive` refuses an accepted change because a delivery input changed after acceptance and no accepted or archived successor covers it, the refusal SHALL add one sentence naming each later change whose declared scope covers that input and saying that it cannot be archived either while this change is stale. When archiving a change is refused because the archive preflight finds another accepted change stale, the refusal SHALL add one sentence saying that the named change cannot be archived either until it is reopened or a covering change is accepted, so the two wait on each other. Neither sentence SHALL replace the `change reopen` command the refusal already names.\n\nAcceptance Criteria\n- Two accepted changes share a delivery input, the later one edited it and does not cover it: `change archive` on the earlier one names the later one and says it is blocked too; archiving the later one names the earlier one and says it is blocked too; both still name `specsync change reopen` for the earlier one.\n- Running the named `change reopen` on the earlier change lets the later one archive.\n- With no later change whose scope covers the input, the first refusal reads as it does today."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-cmd-change-001",
+          "content": "The system SHALL provide equivalent text and JSON interfaces for the complete SDD lifecycle and its explicit semantic-succession adoption.\n\nAcceptance Criteria\n- Humans receive concise next-action guidance and one consistent accepted-validity reason.\n- Agents receive stable records, summaries, question identifiers, manifests, supersedes edges, and successor evidence.\n- `change supersede` records explicit predecessor/path/module/digest obligations only before definition approval.\n- `change approve --portable-5-0-1` records one atomic marked pair and renders it as one definition transition.\n- Audited reopen returns the verifying change and its versioned supersession event in deterministic JSON.\n- Active accepted check/status/reopen/archive eligibility render exact, successor-covered, provisionally-covered, or stale; archived status renders authenticated-history or corrupt-history.",
+          "previous_content": "The system SHALL provide equivalent text and JSON interfaces for the complete SDD lifecycle and its explicit semantic-succession adoption.\n\nAcceptance Criteria\n- Humans receive concise next-action guidance and one consistent accepted-validity reason.\n- Agents receive stable records, summaries, question identifiers, manifests, supersedes edges, and successor evidence.\n- `change supersede` records explicit predecessor/path/module/digest obligations only before definition approval.\n- `change approve --portable-5-0-1` records one atomic marked pair and renders it as one definition transition.\n- Audited reopen returns the verifying change and its versioned supersession event in deterministic JSON.\n- Active accepted check/status/reopen/archive eligibility render exact, successor-covered, or stale; archived status renders authenticated-history or corrupt-history."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+      "actor": "0xLeif",
+      "reason": "REQ-change-168's sentence and third criterion name a later change whose delivery changed the input beside one whose declared scope covers it, because the earlier change's refusal now names such a change, as the approved SHIP-13.d asks and the binary test shows (standing OK, relayed via t4c)",
+      "timestamp": 1795164058,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-167",
+          "content": "A changed delivery input of an `accepted` change SHALL count as covered for now when no accepted or archived successor covers it and an `approved`, `implementing` or `verifying` change created after the accepted one declares the input's owning module and a path scope that covers the input. An accepted change whose changed inputs are all covered, at least one of them only for now, SHALL read `provisionally-covered` as its terminal evidence, with a reason that names each such input and the change covering it. `change audit` SHALL report it as a warning naming both changes and never as an error, so `change audit --strict` exits 0 on it, and `specsync doctor` SHALL NOT list it as drifted. A changed input that nothing covers SHALL stay stale and stay an audit error. A provisionally covered change SHALL NOT cover another change's input and SHALL NOT stand as a retirement replacement, and `change reopen` SHALL still accept it. `change archive`, and `change finalize` on workflow v2, SHALL accept it, the archive preflight of any other change SHALL pass over it, and its archive SHALL hold `coverage.json`: a schema version, the change id, and one `{path, change}` entry for each input covered for now. The archive's own evidence SHALL NOT depend on `coverage.json` or on what becomes of the covering change. `change status` and `change show` on such an archive SHALL print each recorded entry with the covering change's present state. When that change is no longer approved, implementing, verifying, accepted or archived, because it was sent back or closed, they and `change audit --archives` SHALL say, as a warning, that the input changed after acceptance and no accepted change stands behind it, and SHALL name `specsync change reopen <id> --actor <name> --reason <text>` for the archived change.\n\nAcceptance Criteria\n- An accepted change, a later approved change that declares the same module and path, and a committed edit of that file: the accepted change reads `provisionally-covered` naming the later change; `change audit` and `change audit --strict` exit 0 with one warning naming both; `specsync doctor` lists no drift for it.\n- The same edit with no later change declaring the file: the accepted change reads `stale` and `change audit` exits 1, as before.\n- A later change that is still a draft, or that declares the path without the owning module, does not cover.\n- `change archive` on the provisionally covered change, or `change finalize` on workflow v2, succeeds and writes `coverage.json` naming the file and the covering change; another change's finalize is not refused because of it.\n- A provisionally covered change is not accepted as another change's covering successor or as a retirement replacement, and `change reopen` accepts it.\n- When the covering change is accepted, the earlier change reads `successor-covered`.\n- After the archive, with the covering change sent back to draft: the archived change still reads `authenticated-history`; `change status` on it prints the recorded entry and the warning; `change audit --archives` prints the warning and exits 0. With the covering change accepted or archived instead, there is no warning.\n- An archive with no `coverage.json` reads exactly as before."
         },
         {
           "module": "change",

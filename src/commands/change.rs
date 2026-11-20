@@ -6814,6 +6814,32 @@ fn run_checked_commit(
         Ok(record.map(|record| record.commit.unwrap_or_default()))
     };
 
+    // REQ-change-166 (#1120): `--commit` refuses, before anything is written, to commit a ledger
+    // whose working copy changes or drops a committed record, naming the restore. A bare
+    // `--commit` asks it of the one change `change check` would select; with more than one,
+    // `change check` refuses first.
+    let ledger_target = match id {
+        Some(id) => Some(change::load_change(root, id)?),
+        None => {
+            let mut checkable = change::list_changes(root)?
+                .records
+                .into_iter()
+                .filter(|record| {
+                    matches!(
+                        record.state,
+                        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                    )
+                });
+            match (checkable.next(), checkable.next()) {
+                (Some(only), None) => Some(only),
+                _ => None,
+            }
+        }
+    };
+    if let Some(record) = &ledger_target {
+        change::ensure_working_ledger_keeps_committed_records(root, record)?;
+    }
+
     // First pass: materialize the approved delta and verify the working tree.
     verify("Checking (1/2): verifying the materialized tree…")?;
 

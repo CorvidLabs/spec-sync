@@ -140,6 +140,15 @@ impl HashCache {
     pub fn save(&self, root: &Path) -> io::Result<()> {
         let json = serde_json::to_string_pretty(self)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        // A cache every later load would refuse is never written: the one already there is kept
+        // (REQ-hash-cache-007).
+        if json.len() as u64 > MAX_CACHE_BYTES {
+            return Err(io::Error::other(format!(
+                "the hash cache would be {} bytes, larger than the {MAX_CACHE_BYTES}-byte bound \
+                 every later load refuses, so it is not written",
+                json.len()
+            )));
+        }
         let state = LocalState::open(root, true)?.ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, "the local state folder is missing")
         })?;
@@ -401,7 +410,7 @@ fn validation_input_digest_for_build(
     let history_rel = normalize_rel(history.strip_prefix(root).unwrap_or(&history));
     let mut history_kinds = vec![format!("{history_rel}={}", entry_kind(&history))];
     input_paths.insert(history_rel);
-    if let Ok(entries) = fs::read_dir(&history) {
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &history) {
         for entry in entries.flatten() {
             let path = entry.path();
             let rel = normalize_rel(path.strip_prefix(root).unwrap_or(&path));
@@ -1661,5 +1670,26 @@ mod tests {
         std::os::unix::fs::symlink(&copy, &fragment).unwrap();
 
         assert!(!replays(), "a symlink with the same bytes re-validates");
+    }
+
+    /// C5 (#1135, 6.4.1). A cache whose JSON is larger than the bound every later load refuses is
+    /// never written: `save` refuses and leaves the cache already there.
+    #[test]
+    fn save_refuses_a_cache_larger_than_the_load_bound() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        HashCache::default().save(root).unwrap();
+        let before = fs::read(state_cache_file(root)).unwrap();
+        let mut big = HashCache::default();
+        let key = "k".repeat(1024 * 1024);
+        for n in 0..65 {
+            big.hashes.insert(format!("{n}{key}"), "0".repeat(64));
+        }
+
+        assert!(
+            big.save(root).is_err(),
+            "a cache over the bound was written"
+        );
+        assert_eq!(fs::read(state_cache_file(root)).unwrap(), before);
     }
 }

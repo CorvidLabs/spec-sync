@@ -114,6 +114,13 @@ pub fn cmd_scaffold(
         eprintln!("{e}");
         process::exit(1);
     }
+    // Every template the person names is checked before anything is written (REQ-cmd-scaffold-009).
+    if let Some(template) = &template
+        && let Err(error) = generator::check_template_dir(template)
+    {
+        eprintln!("error: {error}");
+        process::exit(1);
+    }
     let config = load_config(root);
     let specs_dir = match dir {
         Some(requested) => {

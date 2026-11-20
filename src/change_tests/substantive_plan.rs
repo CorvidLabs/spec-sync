@@ -803,6 +803,7 @@ fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
         entry_count: entries.len(),
         entries_digest: transaction_entries_digest(&entries).unwrap(),
         entries,
+        root: Some(journal_root(root).unwrap()),
     };
     write_json(&transaction_journal_path(root), &journal).unwrap();
     write_json(&root.join(POLICY_PATH), &default_policy(root, Vec::new())).unwrap();
@@ -1360,7 +1361,7 @@ fn post_move_same_pr_finalization_resumes_across_dates_without_another_approval(
     // (REQ-change-162).
     fs::write(
         transaction_journal_path(root),
-        durable_journal(vec![
+        durable_journal(root, vec![
             TransactionEntry {
                 path: portable_project_path(root, &state_path),
                 original: Some(original_state),

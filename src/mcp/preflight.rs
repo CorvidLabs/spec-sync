@@ -84,6 +84,7 @@ pub(super) fn validate_autodetection_tree(root: &Path) -> Result<(), String> {
     })?;
     let ignored: HashSet<&str> = AUTODETECT_IGNORED_DIRS.iter().copied().collect();
     let mut entries_seen = 0usize;
+    // not a project file read: walks the canonical project root with follow_links(false), so no link is followed out
     let entries = WalkDir::new(&canonical_root)
         .max_depth(4)
         .follow_links(false)
@@ -274,7 +275,7 @@ pub(super) fn validate_package_workspaces(
         if !canonical_base.is_dir() || !seen_bases.insert(canonical_base) {
             continue;
         }
-        let entries = match fs::read_dir(&base_dir) {
+        let entries = match crate::util::read_project_dir_entries(root, &base_dir) {
             Ok(entries) => entries,
             Err(_) => continue,
         };

@@ -21,6 +21,8 @@ pub fn specsync_std() -> std::process::Command {
     // (REQ-util-006). Every test points that folder into the system temporary directory, so no
     // test writes into the cache folder of whoever runs the suite.
     cmd.env("XDG_CACHE_HOME", test_cache_home());
+    // The transaction journal is kept in the user's state folder instead (REQ-util-006).
+    cmd.env("XDG_STATE_HOME", test_state_home());
     cmd
 }
 
@@ -45,6 +47,34 @@ pub fn state_folder(root: &std::path::Path) -> std::path::PathBuf {
         .join("specsync")
         .join("projects")
         .join(key)
+}
+
+/// The user state folder the integration tests give SpecSync, for the transaction journal.
+pub fn test_state_home() -> std::path::PathBuf {
+    std::env::temp_dir().join("specsync-integration-state-home")
+}
+
+/// Where SpecSync keeps the transaction journal of `root` (REQ-util-006, REQ-change-162): the
+/// project's folder in the user's state folder, keyed as [`state_folder`] is.
+pub fn journal_folder(root: &std::path::Path) -> std::path::PathBuf {
+    test_state_home()
+        .join("specsync")
+        .join("projects")
+        .join(state_folder(root).file_name().unwrap())
+}
+
+/// The `root` member a journal SpecSync writes for the project at `root` carries: its canonical
+/// path, device and inode (REQ-change-162).
+pub fn journal_root_json(root: &std::path::Path) -> String {
+    use std::os::unix::fs::MetadataExt;
+    let canonical = root.canonicalize().unwrap();
+    let metadata = std::fs::metadata(&canonical).unwrap();
+    format!(
+        r#"{{"path":{},"device":{},"inode":{}}}"#,
+        serde_json::to_string(&canonical.to_string_lossy()).unwrap(),
+        metadata.dev(),
+        metadata.ino()
+    )
 }
 
 /// The hash cache of `root` in its local state folder (REQ-hash-cache-009).

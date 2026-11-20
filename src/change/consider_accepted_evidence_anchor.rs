@@ -4753,6 +4753,7 @@ fn archive_workspace_snapshot(
     project_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
     let mut workspace_paths = BTreeSet::new();
+    // not a project file read: walks the archived workspace with follow_links(false), so no link is followed out
     for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
         let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
         if entry.path() != workspace && !entry.file_type().is_dir() {

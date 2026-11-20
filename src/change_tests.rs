@@ -19,7 +19,7 @@
 /// Where the transaction journal of the project at `root` is kept: SpecSync's own state folder
 /// outside the work tree (REQ-change-162). The folder is made, so a test can plant a journal.
 fn transaction_journal_path(root: &Path) -> PathBuf {
-    crate::util::local_state::LocalState::open(root, true)
+    crate::util::local_state::LocalState::open_journal(root, true)
         .unwrap()
         .unwrap()
         .file_path(TRANSACTION_FILE)
@@ -60,3 +60,4 @@ include!("change_tests/inert_ignored_paths.rs");
 include!("change_tests/commit_identity_guards.rs");
 include!("change_tests/unknown_members.rs");
 include!("change_tests/journal_replay_targets.rs");
+include!("change_tests/hardening_641.rs");

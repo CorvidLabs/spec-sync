@@ -1,6 +1,6 @@
 ---
 id: a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 9b75e8baac2c1b254fa77ee8f8a053ed74a12f05
 ---

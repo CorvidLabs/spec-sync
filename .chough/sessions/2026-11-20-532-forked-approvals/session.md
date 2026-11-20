@@ -5,7 +5,7 @@ aliases: [532-forked-approvals]
 objective: A change approved in two clones is not valid until one fresh approval is recorded after the fork (#532)
 intent_scope: ""
 modules: []
-stage: intent
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -60,4 +60,17 @@ A change approved in two clones is not valid until one fresh approval is recorde
     - recorded_by: claude-code-t59
     - native: specsync change approve a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork
     - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-20T15:11:25Z · advance · intent → design · The definition is approved as written and recorded ^t-2ddfd7
+  - native_change: a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork
+  - revision: 33c0051cc01c2b05618d3711d0e69562a1fc33db
+  - by: claude-code (hc t59)
+- 2026-11-20T15:11:25Z · advance · design → plan · The definition is approved as written and recorded ^t-d332bf
+  - native_change: a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork
+  - revision: 33c0051cc01c2b05618d3711d0e69562a1fc33db
+  - by: claude-code (hc t59)
+- 2026-11-20T15:11:25Z · advance · plan → build · The definition is approved as written and recorded ^t-491998
+  - native_change: a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork
+  - gate: native:approved
+  - revision: 33c0051cc01c2b05618d3711d0e69562a1fc33db
   - by: claude-code (hc t59)

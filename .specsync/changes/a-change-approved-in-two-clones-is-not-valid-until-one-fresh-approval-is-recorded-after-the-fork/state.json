@@ -7,10 +7,11 @@
   "title": "A change approved in two clones is not valid until one fresh approval is recorded after the fork",
   "description": "A change approved in two clones is not valid until one fresh approval is recorded after the fork",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "9b75e8baac2c1b254fa77ee8f8a053ed74a12f05",
   "created_at": 1795187450,
-  "updated_at": 1795187485,
+  "updated_at": 1795188263,
   "affected_specs": [
     "change"
   ],

@@ -3868,7 +3868,14 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
         Err(reason) => return terminal_summary_from_cache(record, Err(reason)),
         Ok(roster) => {
             if let Some(failed) = roster.failed.get(&record.id) {
-                return own_failure_summary(record.state == ChangeState::Archived, failed);
+                let summary = own_failure_summary(record.state == ChangeState::Archived, failed);
+                // Kept like any archive's verdict, so a second read in the scope answers from it.
+                update_read_scope(root, |scope| {
+                    scope
+                        .archived_terminal_evidence
+                        .insert(record.id.clone(), summary.clone());
+                });
+                return summary;
             }
         }
     }
@@ -4087,8 +4094,15 @@ fn terminal_evidence_summary_with_validation_state(
     }
 }
 
+/// The closing-approval check of an accepted change, judged on the roster terminal evidence uses
+/// (#1104 review): when every change loads it is `list_all_changes_checked`, and when one fails,
+/// that failure stays its own and the others are judged on the changes that load.
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+    let roster = terminal_evidence_roster(root)?;
+    if let Some(failed) = roster.failed.get(&record.id) {
+        return Err(failed.reason.clone());
+    }
+    ensure_closing_approval_valid_against(root, record, &roster.records)
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they

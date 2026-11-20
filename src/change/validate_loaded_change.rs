@@ -570,12 +570,13 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
         roster.records.insert(record.id.clone(), record);
     }
     let archive = root.join(ARCHIVE_PATH);
-    let entries = match fs::read_dir(&archive) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
+    // With no archive directory there is nothing to walk, but the retirement checks below still
+    // run: a retirement rolled back to an open workspace is that change's own failure.
+    let entries: Vec<std::io::Result<fs::DirEntry>> = match fs::read_dir(&archive) {
+        Ok(entries) => entries.collect(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
-    let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
     prefetch_archived_workflow_histories(root, &entries);
     let total = entries.len();
     for (index, entry) in entries.into_iter().enumerate() {

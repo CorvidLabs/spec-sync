@@ -310,3 +310,40 @@ fn an_unbound_removal_is_refused_and_its_printed_way_out_ends_in_a_passing_check
 
     project.run(&["change", "check", &id]);
 }
+
+/// The tester's run on #1108 at 4ced5a26 (rule 3): with `specs_dir` outside the project, the
+/// check never sends Git a pathspec outside the repository, so it never says it cannot read the
+/// repository and never names a fetch. It refuses in the words `specsync check` uses, and once
+/// `specs_dir` is inside the project again the check passes.
+#[test]
+fn a_specs_directory_outside_the_project_is_named_and_never_sent_to_git() {
+    let project = Project::new();
+    let id = project.approved_change(
+        "## ADDED\n\n### REQUIREMENT REQ-auth-003\n\nThe system SHALL log every sign-in.\n\nAcceptance Criteria\n- Every sign-in is logged.\n",
+    );
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.write(
+        ".specsync/config.toml",
+        "specs_dir = \"../outside/specs\"\n",
+    );
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "specs outside the project"]);
+
+    let refused = project.invoke(&["change", "check", &id]);
+    let text = combined(&refused);
+
+    assert!(!refused.status.success(), "{text}");
+    assert!(
+        text.contains("must remain beneath the project root: ../outside/specs"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("git fetch") && !text.contains("cannot tell"),
+        "{text}"
+    );
+    fs::remove_file(project.root.join(".specsync/config.toml")).unwrap();
+    project.git(&["commit", "-q", "-am", "specs back inside the project"]);
+    project.run(&["change", "check", &id]);
+}

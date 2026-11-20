@@ -1247,3 +1247,105 @@ fn a_newly_excluded_directory_s_loss_names_a_restore_that_runs() {
         assert!(String::from_utf8_lossy(&output.stdout).contains("### REQ-gadget-001"), "{excluded}");
     }
 }
+
+/// Codex on #1108, fourth round (P1): the registry read at the reference is judged as it was
+/// there, not against today's tree. A branch that drops a mapping and makes that spec's
+/// directory a link outside the project is still compared with the old companion's files.
+#[cfg(unix)]
+#[test]
+fn a_reference_registry_path_is_judged_as_a_path_not_by_today_s_tree() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    fs::create_dir_all(&root).unwrap();
+    let record = vanished_repository(&root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        &root,
+        &[
+            (
+                ".specsync/registry.toml",
+                "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nbilling = \"modules/billing/billing.spec.md\"\n",
+            ),
+            (
+                "modules/billing/requirements.md",
+                "# Requirements\n\n### REQ-billing-001\n\nThe system SHALL bill once a month.\n",
+            ),
+        ],
+    );
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+    )
+    .unwrap();
+    let outside = temp.path().join("outside-billing");
+    fs::create_dir_all(&outside).unwrap();
+    fs::remove_dir_all(root.join("modules/billing")).unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("modules/billing")).unwrap();
+    git_in(&root)(&["add", "--all"]);
+    git_in(&root)(&["commit", "-q", "-m", "drop the mapping; billing becomes a link outside"]);
+
+    let error = ensure_no_lost_requirements(&root, &record).expect_err("REQ-billing-001 was lost");
+
+    assert!(error.contains("REQ-billing-001 (modules/billing/requirements.md)"), "{error}");
+}
+
+/// Codex on #1108, fourth round (P1): "a change the branch archived after the reference commit".
+/// A change archived before the reference, whose package the branch only renames, accounts for
+/// none of the branch's losses.
+#[test]
+fn an_archive_the_branch_only_renames_accounts_for_nothing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (first, second) = two_change_repository(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    move_into_archive(root, &second, ChangeState::Archived);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    let archive = root.join(ARCHIVE_PATH);
+    fs::rename(
+        archive.join(format!("2026-11-20-{}", second.id)),
+        archive.join(format!("2026-11-21-{}", second.id)),
+    )
+    .unwrap();
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "rename the old archive and drop REQ-auth-001"]);
+
+    let error = ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap())
+        .expect_err("an old archive authorizes nothing new");
+
+    assert!(error.contains("REQ-auth-001"), "{error}");
+}
+
+/// Codex on #1108, fourth round (P1): an id copied into a requirements file Git does not track
+/// does not count as present when the tracked files have lost it, since `change check --commit`
+/// commits no such file. The refusal names `git add` for that file; run as printed, it makes the
+/// copy tracked and the check passes.
+#[test]
+fn an_untracked_copy_of_a_lost_requirement_does_not_count() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+    git_in(root)(&["commit", "-q", "-am", "move REQ-auth-001 out"]);
+    fs::create_dir_all(root.join("specs/notes")).unwrap();
+    fs::write(
+        root.join("specs/notes/requirements.md"),
+        "# Requirements\n\n### REQ-auth-001\n\nThe system SHALL keep one session per user.\n",
+    )
+    .unwrap();
+
+    let error = ensure_no_lost_requirements(root, &record)
+        .expect_err("an untracked copy keeps nothing in the committed tree");
+
+    assert!(error.contains("REQ-auth-001 (specs/auth/requirements.md)"), "{error}");
+    let command = error
+        .split('`')
+        .find(|part| part.starts_with("git add "))
+        .unwrap_or_else(|| panic!("no git add in the refusal: {error}"));
+    assert!(command.contains("specs/notes/requirements.md"), "{error}");
+    let output = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
+    assert!(output.status.success(), "{command}");
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}

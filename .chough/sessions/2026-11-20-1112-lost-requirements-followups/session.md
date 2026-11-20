@@ -16,7 +16,9 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-20-1112-1113-1116-1117-req-change-175-176-177-req-cmd-change-045]
+observations:
+  - 2026-11-20-1112-1113-1116-1117-req-change-175-176-177-req-cmd-change-045
+  - 2026-11-20-1134-round-one-corvid-agent-s-review-codex-s-two-p2s-red-first
 bugs: []
 blockers: []
 waiting_on_human:
@@ -44,6 +46,7 @@ The lost-requirements check (REQ-change-169) reads only what was canonical at th
 ## What was verified
 
 - [#1112, #1113, #1116, #1117 (REQ-change-175, 176, 177, REQ-cmd-change-045). Red first a6a8725f: seven tests through the binary failed on #1108's head ed258f58, each as its issue says (spec registered beside / specs_dir moved onto an existing requirements.md; ship-status of an archived change; audit with a malformed delta / an unreadable approval; an unreadable directory / file); a guard (unreadable directory, nothing lost) passes. Fix 84c668b4. Lane at 76585573 through one-lane: 3137 unit, 655 integration, 62/62 specs, 100% coverage; change audit --strict exit 0. Real repos, #1108's build against this one: private starling at PR #43's last commit, ship-status of the archived change exit 1 with the 26-id blocker before, exit 0 with none now; at the commit before the archive both refuse with the same lines; private peck full clone and the spec-sync and chough mains: the same audit lines.](evidence/2026-11-20-1112-1113-1116-1117-req-change-175-176-177-req-cmd-change-045.md)
+- [#1134 round one (corvid-agent's review, Codex's two P2s). Red first b7c738aa: with nothing canonical at the reference (specs_dir outside the project, or a configuration that does not parse) the diff ran with no pathspec and read every requirements.md (two tests, regression from #1108's head); a registered spec's directory below an unreadable directory was passed by before the scan named it. Four more tests cover criteria that had none (REQ-change-175 c3, 176 c2, 177 c2, REQ-cmd-change-045 c2). Fix aad978c4: return before the diff when the reference scope is empty; the scope-directory check names a path or metadata it cannot read; testing.md maps each criterion to its test. Lane at 30c27ad4 (3137 unit, 660 integration, 62/62, 100%); audit --strict 0; real repos as round one (starling archived tip exit 0 no blocker; active commit, peck, spec-sync and chough mains the same lines as #1108's build).](evidence/2026-11-20-1134-round-one-corvid-agent-s-review-codex-s-two-p2s-red-first.md)
 
 ## Open threads
 

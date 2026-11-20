@@ -140,6 +140,15 @@ impl Project {
             self.run(&["change", "answer", &id, question, answer]);
         }
         let workspace = self.root.join(".specsync/changes").join(&id);
+        // The evidence names each requirement the delta touches.
+        let rows: String = delta
+            .split("### REQUIREMENT ")
+            .skip(1)
+            .filter_map(|rest| rest.split_whitespace().next())
+            .map(|requirement| {
+                format!("| {requirement} | SpecSync structural check of the module |\n")
+            })
+            .collect();
         let state: Value =
             serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap())
                 .unwrap();
@@ -148,7 +157,9 @@ impl Project {
             let content = match name {
                 "tasks" => "# Tasks\n\n- [x] Reword the requirement.\n".to_string(),
                 "plan" => super::helpers::SUBSTANTIVE_PLAN.to_string(),
-                "testing" => "# Testing\n\n## Requirement evidence\n\n| Requirement | Evidence |\n|---|---|\n| REQ-auth-001 | SpecSync structural check of the module |\n".to_string(),
+                "testing" => format!(
+                    "# Testing\n\n## Requirement evidence\n\n| Requirement | Evidence |\n|---|---|\n{rows}"
+                ),
                 _ => "# Complete\n\nReviewed requirement wording.\n".to_string(),
             };
             fs::write(workspace.join(format!("{name}.md")), content).unwrap();
@@ -237,4 +248,65 @@ fn ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it() {
         "{}",
         combined(&status)
     );
+}
+
+/// Codex on #1108, third round (P1), with ss-lead's rule-3 point: a change whose approval
+/// records no delta digests, as one made before they existed, binds no delta wording, so its
+/// own `## REMOVED` item accounts for nothing and the check refuses. The approval the refusal
+/// prints, run as printed, binds the delta, and the check after it passes.
+#[test]
+fn an_unbound_removal_is_refused_and_its_printed_way_out_ends_in_a_passing_check() {
+    let project = Project::new();
+    let id = project.approved_change(&format!(
+        "{REWORD_DELTA}\n## REMOVED\n\n### REQUIREMENT REQ-auth-002\n"
+    ));
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    assert!(
+        !project
+            .read("specs/auth/requirements.md")
+            .contains("REQ-auth-002")
+    );
+    // The approval predates delta digests: such a ledger records none.
+    let ledger = format!(".specsync/changes/{id}/approvals.json");
+    let mut approvals: Value = serde_json::from_str(&project.read(&ledger)).unwrap();
+    let definition = approvals["approvals"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .rev()
+        .find(|approval| approval["gate"] == "definition")
+        .unwrap();
+    assert!(
+        definition
+            .as_object_mut()
+            .unwrap()
+            .remove("approved_delta_digests")
+            .is_some()
+    );
+    project.write(&ledger, &serde_json::to_string_pretty(&approvals).unwrap());
+    project.git(&[
+        "commit",
+        "-q",
+        "-am",
+        "an approval from before delta digests",
+    ]);
+
+    let refused = project.invoke(&["change", "check", &id]);
+    let text = combined(&refused);
+    assert!(!refused.status.success(), "{text}");
+    assert!(
+        text.contains("lost canonical requirements") && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+    let printed = text
+        .split('`')
+        .find(|part| part.starts_with("specsync change approve "))
+        .unwrap_or_else(|| panic!("no approval command in the refusal: {text}"))
+        .replace("<name>", "Scope owner");
+    let words: Vec<&str> = printed.split_whitespace().collect();
+    project.run(&words[1..]);
+
+    project.run(&["change", "check", &id]);
 }

@@ -1138,3 +1138,112 @@ fn the_audit_reports_a_loss_beside_a_draft() {
         report.errors
     );
 }
+
+/// Codex on #1108, third round (P1): a specs directory the branch replaced with a link to a
+/// directory outside the project is not read, so a copy of an id there never masks the loss of
+/// the project's own requirement.
+#[cfg(unix)]
+#[test]
+fn a_specs_directory_that_leads_outside_the_project_is_not_read() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    fs::create_dir_all(&root).unwrap();
+    let record = vanished_repository(&root, ADDED_THIRD, &[]);
+    let outside = temp.path().join("outside");
+    fs::create_dir_all(outside.join("auth")).unwrap();
+    fs::write(outside.join("auth/requirements.md"), VANISHED_BASE_REQUIREMENTS).unwrap();
+    fs::rename(root.join("specs"), temp.path().join("specs-moved-away")).unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("specs")).unwrap();
+    git_in(&root)(&["add", "--all"]);
+    git_in(&root)(&["commit", "-q", "-m", "the specs directory becomes a link"]);
+
+    let error = ensure_no_lost_requirements(&root, &record)
+        .expect_err("a copy outside the project masks nothing");
+
+    assert!(
+        error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}
+
+/// Codex on #1108, third round (P1): an approval that records no delta digests, as one made
+/// before they existed, binds no delta wording, so its change's `## REMOVED` items account for
+/// nothing until the change is approved again.
+#[test]
+fn a_removal_its_approval_does_not_bind_accounts_for_nothing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (first, second) = two_change_repository(root);
+    let ledger = change_dir(root, &second.id).join("approvals.json");
+    let mut approvals: serde_json::Value = serde_json::from_str(&fs::read_to_string(&ledger).unwrap()).unwrap();
+    let definition = approvals["approvals"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .rev()
+        .find(|approval| approval["gate"] == "definition")
+        .unwrap();
+    assert!(definition.as_object_mut().unwrap().remove("approved_delta_digests").is_some());
+    fs::write(&ledger, serde_json::to_string_pretty(&approvals).unwrap()).unwrap();
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "an approval with no delta digests, and a loss"]);
+
+    let error = ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap())
+        .expect_err("an unbound removal accounts for nothing");
+
+    assert!(error.contains("REQ-auth-001"), "{error}");
+}
+
+/// Codex on #1108, third round (P2, the other half of the second round's P1): a branch that
+/// newly excludes a formerly canonical directory and only edits its requirements loses nothing.
+/// The file was canonical at the reference, so its current ids still count.
+#[test]
+fn a_directory_the_branch_newly_excludes_keeps_its_edited_requirements() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    fs::write(root.join(".specsync/config.toml"), "exclude_dirs = [\"auth\"]\n").unwrap();
+    fs::write(
+        requirements_path(root),
+        VANISHED_BASE_REQUIREMENTS.replace("after one day", "after a day"),
+    )
+    .unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "exclude auth and reword one of its requirements"]);
+
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}
+
+/// The tester's excl2 on #1108 at 4cdc28dd: a branch adds a module's directory to
+/// `exclude_dirs`, in either spelling, and deletes its requirements. The default branch still
+/// holds them, so the refusal names the restore, never a merge that changes nothing, and the
+/// restore command it prints, run as printed, prints the lost block.
+#[test]
+fn a_newly_excluded_directory_s_loss_names_a_restore_that_runs() {
+    for excluded in ["gadget", "specs/gadget"] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = vanished_repository(
+            root,
+            ADDED_THIRD,
+            &[("specs/gadget/requirements.md", "# Requirements\n\n### REQ-gadget-001\n\nThe gadget SHALL start.\n")],
+        );
+        fs::write(root.join(".specsync/config.toml"), format!("exclude_dirs = [\"{excluded}\"]\n")).unwrap();
+        fs::remove_file(root.join("specs/gadget/requirements.md")).unwrap();
+        git_in(root)(&["add", "--all"]);
+        git_in(root)(&["commit", "-q", "-m", "exclude gadget and delete its requirements"]);
+
+        let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-gadget-001 was lost");
+
+        assert!(error.contains("REQ-gadget-001 (specs/gadget/requirements.md)"), "{excluded}: {error}");
+        assert!(!error.contains("git merge"), "{excluded}: {error}");
+        let command = error
+            .split('`')
+            .find(|part| part.starts_with("git show ") && part.contains("specs/gadget"))
+            .unwrap_or_else(|| panic!("{excluded}: no restore command: {error}"));
+        let output = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
+        assert!(output.status.success(), "{excluded}: {command}");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("### REQ-gadget-001"), "{excluded}");
+    }
+}

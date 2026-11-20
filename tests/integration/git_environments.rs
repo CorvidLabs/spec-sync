@@ -801,3 +801,83 @@ fn trust_in_a_sibling_named_by_git_dir_does_not_trust_this_repository() {
     assert!(!refused.status.success(), "{text}");
     assert!(text.contains("detected dubious ownership"), "{text}");
 }
+
+// ---- Codex's second round on #1122 ----
+
+/// Codex on #1122, second round (P2): the one fetch also brings the configuration and registry
+/// files #1081 reads at the reference, so a blobless clone on `main` whose base commit holds an
+/// older `.specsync.toml` audits without saying it cannot tell.
+#[test]
+fn the_one_fetch_brings_the_reference_configuration_too() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    fs::create_dir_all(&source).unwrap();
+    write(&source, ".specsync.toml", "specs_dir = \"specs\"\n");
+    let id = adopted_project(&source);
+    write(
+        &source,
+        ".specsync.toml",
+        "# the project's settings\nspecs_dir = \"specs\"\n",
+    );
+    git(&source, &["commit", "-q", "-am", "reword the settings"]);
+    run(&source, &[], &["change", "check", &id, "--commit"]);
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+
+    let audit = run(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", config.to_str().unwrap())],
+        &["change", "audit"],
+    );
+
+    assert!(!audit.contains("cannot tell"), "{audit}");
+    assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
+}
+
+/// Codex on #1122, second round (P2): the printed recovery takes the object ids on standard
+/// input, listed by Git itself, so it runs however many objects are missing; run as printed, it
+/// lets the command pass.
+#[test]
+fn the_printed_recovery_takes_the_ids_on_stdin() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+    let unreachable = temp.path().join("nothing.gitconfig");
+    fs::write(&unreachable, "").unwrap();
+
+    let refused = invoke(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "status", &id],
+    );
+    let text = combined(&refused);
+    let command = text
+        .split('`')
+        .find(|part| part.starts_with("git -C ") && part.contains(" fetch "))
+        .unwrap_or_else(|| panic!("no fetch command: {text}"));
+
+    assert!(command.contains("--stdin"), "{command}");
+    assert!(
+        !command
+            .split_whitespace()
+            .any(|word| word.len() == 40 && word.bytes().all(|byte| byte.is_ascii_hexdigit())),
+        "the ids are on the command line: {command}"
+    );
+    let output = Command::new("sh")
+        .args(["-c", command])
+        .env("GIT_CONFIG_GLOBAL", &config)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{command}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    run(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "status", &id],
+    );
+}

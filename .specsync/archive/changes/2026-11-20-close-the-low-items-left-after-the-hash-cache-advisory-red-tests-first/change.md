@@ -1,6 +1,6 @@
 ---
 id: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e334bd8abd8f5a2343040d45ca1308cad9e33085
 ---

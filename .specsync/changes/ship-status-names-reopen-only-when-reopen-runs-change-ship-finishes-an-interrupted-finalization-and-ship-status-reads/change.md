@@ -1,6 +1,6 @@
 ---
 id: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
-state: implementing
+state: approved
 type: bug_fix
 base_commit: a28e30420c12627a384a685cd5d808fc3585b70a
 ---

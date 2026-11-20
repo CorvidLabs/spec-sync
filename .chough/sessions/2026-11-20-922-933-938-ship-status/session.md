@@ -24,7 +24,7 @@ bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: "Failing tests first: #922, #933, #938 and the #1038 assertion"
+next: Check --commit, audit --strict, identities, push; the head to ss-lead
 ---
 # ship-status names reopen only when reopen runs (#922), change ship finishes an interrupted finalization (#933), and ship-status reads the ledger freeze once per report (#938)
 
@@ -37,6 +37,7 @@ ship-status names reopen only when reopen runs (#922), change ship finishes an i
 ## Decisions and why
 
 - 0xLeif decided "Leif's relayed approval of the batch 1b definition (#922, #933, #938) (relayed by hc t4c through ss-lead t58)": "Approve as written" (A Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md: in t4c's words, "#922 + #933 + #938 definition (gates/batch1b-922-933-938-definition.md, the no-spec bug fix with #933 option 1, the text-status sentence left out)". Relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads as 0xLeif
+- 0xLeif decided "Leif's relayed approval of the batch 1b definition (#922, #933, #938) and its two test paths (relayed by hc t4c through ss-lead t58)": ""Approve as written" for the definition; for the two test paths tests/integration.rs and tests/integration/ship_status_reopen_and_resume.rs, Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c): to 'Want a standing OK for [scope approvals] too? I'd approve a bug-fix batch's scope only when every choice is the lead's recommended one, it adds no new refusal, and it changes no wording you already approved. Anything else still comes to you. Builders record your standing OK, not my decision.' he chose 'Standing OK, tell me after'" (The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md. The standing OK: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 04:17Z. hc t4c confirmed only that its three conditions hold for ss-lead/gates/batch1b-added-paths-draft.md (every choice the lead's recommended one, no new refusal, no change to approved wording), at about 14:09Z on 2026-11-20. That is not a decision of its own. All relayed through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads as 0xLeif
 
 ## What was verified
 
@@ -80,4 +81,32 @@ ship-status names reopen only when reopen runs (#922), change ship finishes an i
   - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
   - gate: native:approved
   - revision: f1b901397ea408ae402681bc8982bb3c0470533a
+  - by: claude-code (hc t59)
+- 2026-11-20T14:10:14Z · gate-opened · build → build · Leif's relayed approval of the batch 1b definition (#922, #933, #938) and its two test paths (relayed by hc t4c through ss-lead t58) ^t-d03410
+  - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+  - revision: 07dc645238ab2f30767b9c3dd16642fefd320295
+  - holds: build
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-20T14:10:14Z · direct-native-write · build → build · ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-6b32cf
+  - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+  - revision: 07dc645238ab2f30767b9c3dd16642fefd320295
+  - direct_write:
+    - change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-20T14:10:14Z · gate-closed · build → build · Leif's relayed approval of the batch 1b definition (#922, #933, #938) and its two test paths (relayed by hc t4c through ss-lead t58) ^t-c0f2ca
+  - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+  - revision: 07dc645238ab2f30767b9c3dd16642fefd320295
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: "\"Approve as written\" for the definition; for the two test paths tests/integration.rs and tests/integration/ship_status_reopen_and_resume.rs, Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c): to 'Want a standing OK for [scope approvals] too? I'd approve a bug-fix batch's scope only when every choice is the lead's recommended one, it adds no new refusal, and it changes no wording you already approved. Anything else still comes to you. Builders record your standing OK, not my decision.' he chose 'Standing OK, tell me after'"
+    - where: The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md. The standing OK: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 04:17Z. hc t4c confirmed only that its three conditions hold for ss-lead/gates/batch1b-added-paths-draft.md (every choice the lead's recommended one, no new refusal, no change to approved wording), at about 14:09Z on 2026-11-20. That is not a decision of its own. All relayed through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+    - actor: 0xLeif
   - by: claude-code (hc t59)

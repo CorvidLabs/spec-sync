@@ -46,7 +46,70 @@
         "where": "A Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md: in t4c's words, \"#922 + #933 + #938 definition (gates/batch1b-922-933-938-definition.md, the no-spec bug fix with #933 option 1, the text-status sentence left out)\". Relayed by hc t4c through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795183816,
+      "digest": "d11433f745603d45a0775bbe5178cd24ffd04d1dc8624b7f82ec2d7572b6176d",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of the batch 1b definition (#922, #933, #938) and its two test paths (relayed by hc t4c through ss-lead t58)\": \"\"Approve as written\" for the definition; for the two test paths tests/integration.rs and tests/integration/ship_status_reopen_and_resume.rs, Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c): to 'Want a standing OK for [scope approvals] too? I'd approve a bug-fix batch's scope only when every choice is the lead's recommended one, it adds no new refusal, and it changes no wording you already approved. Anything else still comes to you. Builders record your standing OK, not my decision.' he chose 'Standing OK, tell me after'\" (The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md. The standing OK: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 04:17Z. hc t4c confirmed only that its three conditions hold for ss-lead/gates/batch1b-added-paths-draft.md (every choice the lead's recommended one, no new refusal, no change to approved wording), at about 14:09Z on 2026-11-20. That is not a decision of its own. All relayed through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-20T14:10:14Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads",
+        "title": "Ship-status names reopen only when reopen runs, change ship finishes an interrupted finalization, and ship-status reads the ledger freeze once per report",
+        "description": "ship-status names reopen only when reopen runs, change ship finishes an interrupted finalization, and ship-status reads the ledger freeze once per report",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests/historical_reconciliation.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/ship_status_reopen_and_resume.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "No requirement text changes. REQ-cmd-change-033 lets the ship-status product-tip stage advertise only a command whose state guard admits the change, and names `change reopen` for an accepted or archived change whose verification is no longer current; `change reopen` refuses a change whose own accepted evidence is still current and one whose `verification.json` it cannot load, so the stage advertised a command that refuses (#922). REQ-cmd-change-031 has the open-task refusal name `specsync change ship <id>` and says running that command archives the change, and text status tells an accepted workflow-v2 change to run `change ship` or `change finalize`; ship readiness accepted only a verifying change, so the named command refused (#933). ship-status evaluated the sequence-ledger freeze twice for each report; evaluating it once changes no output (#938).",
+        "acceptance_criteria": [
+          "#1038 follow-up: the reconciled-history test asserts that an archived change whose terminal evidence is `historical-transition-unproven` reads its review as done by finalize.",
+          "#922: an archived change whose own accepted evidence is current is not told to reopen after a commit that changes only an unrelated file, its product-tip stage is done, and `change reopen` refuses it; an accepted or archived change whose own accepted evidence is stale is told to reopen in the product-tip stage and in `Next:`, never to run `change check`, and `change reopen` accepts it; an archived change whose `verification.json` cannot be read is told to restore it and is not told to reopen.",
+          "#933: after a finalization that stopped between acceptance and the archive move, `change ship-status <id>` reports the accepted change ready to finalize and `change ship <id>` archives it; with a task reopened in that state, `change ship <id>` refuses naming the task and `specsync change ship <id>`, and once the task is ticked that named command archives the change; an accepted change that `change finalize` would refuse to resume is not reported ready.",
+          "#938: `change ship-status` evaluates the sequence-ledger freeze once for each change it reports, and its blockers, `ship_next` and lifecycle next action are unchanged, with and without a freeze."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Leif's words on #938, \"compute the sequence-ledger freeze once per report and pass it down\"; readiness for an accepted change is the check `change finalize` itself makes before it resumes; the reopen question is asked of the validator that already judges accepted and archived inputs, read-only; the change lesson that a printed recovery command is a promise that it runs as printed.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Approve as written\" for the definition; for the two test paths tests/integration.rs and tests/integration/ship_status_reopen_and_resume.rs, Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c): to 'Want a standing OK for [scope approvals] too? I'd approve a bug-fix batch's scope only when every choice is the lead's recommended one, it adds no new refusal, and it changes no wording you already approved. Anything else still comes to you. Builders record your standing OK, not my decision.' he chose 'Standing OK, tell me after'",
+        "where": "The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md. The standing OK: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 04:17Z. hc t4c confirmed only that its three conditions hold for ss-lead/gates/batch1b-added-paths-draft.md (every choice the lead's recommended one, no new refusal, no change to approved wording), at about 14:09Z on 2026-11-20. That is not a decision of its own. All relayed through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
     }
   ],
-  "reopenings": []
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads",
+      "actor": "0xLeif",
+      "reason": "Declare tests/integration.rs and tests/integration/ship_status_reopen_and_resume.rs, the tests through the binary, which the definition did not list; no requirement, criterion or message changes. Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)",
+      "timestamp": 1795183805,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true
+    }
+  ]
 }

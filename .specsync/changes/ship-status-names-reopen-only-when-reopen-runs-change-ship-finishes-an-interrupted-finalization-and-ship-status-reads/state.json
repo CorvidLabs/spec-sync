@@ -7,11 +7,10 @@
   "title": "Ship-status names reopen only when reopen runs, change ship finishes an interrupted finalization, and ship-status reads the ledger freeze once per report",
   "description": "ship-status names reopen only when reopen runs, change ship finishes an interrupted finalization, and ship-status reads the ledger freeze once per report",
   "kind": "bug_fix",
-  "state": "verifying",
-  "canonical_applied": true,
+  "state": "approved",
   "base_commit": "a28e30420c12627a384a685cd5d808fc3585b70a",
   "created_at": 1795177617,
-  "updated_at": 1795179756,
+  "updated_at": 1795183816,
   "affected_specs": [
     "cmd_change",
     "change"
@@ -20,7 +19,9 @@
     "src/commands/change.rs",
     "src/change/consider_accepted_evidence_anchor.rs",
     "src/change/historical_definition_digest_matches.rs",
-    "src/change_tests/historical_reconciliation.rs"
+    "src/change_tests/historical_reconciliation.rs",
+    "tests/integration.rs",
+    "tests/integration/ship_status_reopen_and_resume.rs"
   ],
   "no_spec_change": true,
   "no_spec_change_rationale": "No requirement text changes. REQ-cmd-change-033 lets the ship-status product-tip stage advertise only a command whose state guard admits the change, and names `change reopen` for an accepted or archived change whose verification is no longer current; `change reopen` refuses a change whose own accepted evidence is still current and one whose `verification.json` it cannot load, so the stage advertised a command that refuses (#922). REQ-cmd-change-031 has the open-task refusal name `specsync change ship <id>` and says running that command archives the change, and text status tells an accepted workflow-v2 change to run `change ship` or `change finalize`; ship readiness accepted only a verifying change, so the named command refused (#933). ship-status evaluated the sequence-ledger freeze twice for each report; evaluating it once changes no output (#938).",

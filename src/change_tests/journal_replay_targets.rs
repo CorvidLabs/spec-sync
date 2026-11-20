@@ -352,3 +352,73 @@ fn specs_dir_dot_does_not_widen_replay() {
     );
 }
 
+
+/// Verifies REQ-change-162. A journal in the work tree is never replayed, whether Git tracks it
+/// or not: an unpacked archive has no Git to ask, and a case variant or a failing Git answers
+/// "untracked". Even a valid envelope whose only entry the replay rule allows leaves the spec
+/// alone, and the command says where the journal is.
+#[test]
+fn a_journal_in_the_work_tree_is_never_replayed() {
+    for with_git in [true, false] {
+        let temp = if with_git {
+            journal_project()
+        } else {
+            let temp = TempDir::new().unwrap();
+            fs::create_dir_all(temp.path().join(".specsync")).unwrap();
+            fs::create_dir_all(temp.path().join("specs/auth")).unwrap();
+            fs::write(temp.path().join("specs/auth/auth.spec.md"), "# Auth\n").unwrap();
+            temp
+        };
+        let root = temp.path();
+        fs::write(
+            root.join(".specsync/change-transaction.json"),
+            durable_journal(vec![entry("specs/auth/auth.spec.md", Some("# Forged\n"))]),
+        )
+        .unwrap();
+
+        let outcome = recover_pending_transaction(root);
+
+        assert_eq!(
+            fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+            "# Auth\n",
+            "with_git={with_git}: a journal in the work tree was replayed"
+        );
+        let error = outcome.expect_err("a journal in the work tree must refuse the lock");
+        assert!(
+            error.contains(".specsync/change-transaction.json"),
+            "with_git={with_git}: {error}"
+        );
+    }
+}
+
+/// Verifies REQ-change-162. While a transaction runs, its journal is kept outside the work tree,
+/// so no journal a repository could ship ever looks like one SpecSync wrote.
+#[test]
+fn a_running_transaction_keeps_its_journal_outside_the_work_tree() {
+    let temp = journal_project();
+    let root = temp.path().to_path_buf();
+    let seen = std::rc::Rc::new(std::cell::Cell::new(None));
+    let probe = std::rc::Rc::clone(&seen);
+    let hook_root = root.clone();
+    inject_transaction_after_journal_hook(move || {
+        probe.set(Some(
+            fs::symlink_metadata(hook_root.join(".specsync/change-transaction.json")).is_ok(),
+        ));
+    });
+
+    write_prepared_files(
+        &root,
+        &[(root.join("specs/auth/auth.spec.md"), "# Auth after\n".to_string())],
+    )
+    .unwrap();
+
+    assert_eq!(
+        seen.get(),
+        Some(false),
+        "the journal of a running transaction was written into the work tree"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        "# Auth after\n"
+    );
+}

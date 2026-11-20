@@ -341,3 +341,153 @@ fn import_from_an_outside_dir_stays_inside_that_dir() {
     assert!(root.join("specs/notes").exists(), "{}", said(&output));
     assert!(root.join("specs/again").exists(), "{}", said(&output));
 }
+
+// ─── state a repository ships with it (change 6: F1, F2) ───────────────
+
+/// Every file named `name` under `places`, wherever this build keeps it.
+fn files_named(places: &[PathBuf], name: &str) -> Vec<PathBuf> {
+    fn walk(directory: &Path, name: &str, found: &mut Vec<PathBuf>) {
+        let Ok(entries) = fs::read_dir(directory) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                walk(&path, name, found);
+            } else if kind.is_file() && path.file_name().is_some_and(|file| file == name) {
+                found.push(path);
+            }
+        }
+    }
+    let mut found = Vec::new();
+    for place in places {
+        walk(place, name, &mut found);
+    }
+    found
+}
+
+/// `specsync --root <root> <args>` with the user's cache folder set to `cache_home`.
+fn run_with_cache_home(root: &Path, cache_home: &Path, args: &[&str]) -> Output {
+    specsync()
+        .env("XDG_CACHE_HOME", cache_home)
+        .arg("--root")
+        .arg(root)
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+/// Verifies REQ-hash-cache-009, REQ-cmd-check-021 and CHECK-1.f. A ZIP or tarball of a
+/// repository has no Git, so nothing about `.specsync/hashes.json` can say it came with it. A
+/// cache a first project saved, shipped in an unpacked copy, must not let `check` skip a single
+/// spec there.
+#[test]
+fn check_never_uses_a_hash_cache_an_unpacked_tree_ships() {
+    let (tmp, root, _outside) = project();
+    toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
+    let first_home = tmp.path().join("first-cache-home");
+    let first = run_with_cache_home(&root, &first_home, &["check"]);
+    let saved = files_named(&[root.clone(), first_home.clone()], "hashes.json");
+    assert_eq!(
+        saved.len(),
+        1,
+        "check saved no single cache: {}",
+        said(&first)
+    );
+    let unpacked = tmp.path().join("unpacked");
+    fs::create_dir_all(unpacked.join("src/auth")).unwrap();
+    fs::create_dir_all(unpacked.join("specs/auth")).unwrap();
+    fs::create_dir_all(unpacked.join(".specsync")).unwrap();
+    for relative in [
+        "src/auth/service.ts",
+        "specs/auth/auth.spec.md",
+        ".specsync/config.toml",
+    ] {
+        fs::copy(root.join(relative), unpacked.join(relative)).unwrap();
+    }
+    fs::copy(&saved[0], unpacked.join(".specsync/hashes.json")).unwrap();
+
+    let output = run_with_cache_home(
+        &unpacked,
+        &tmp.path().join("unpacked-cache-home"),
+        &["check"],
+    );
+
+    let text = said(&output);
+    assert!(
+        !text.contains("Skipped") && !text.contains("nothing to validate"),
+        "a cache the unpacked tree shipped was replayed: {text}"
+    );
+}
+
+/// Verifies REQ-change-162. An unpacked tree has no Git either, so nothing about
+/// `.specsync/change-transaction.json` can say it came with it: a journal there, with a valid
+/// envelope and an entry the replay rule allows, must never be replayed.
+#[test]
+fn change_new_never_replays_a_journal_an_unpacked_tree_ships() {
+    let (_tmp, root, _outside) = project();
+    toml_config(&root, "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n");
+    let init = run(&root, &["init"]);
+    assert!(init.status.success(), "{}", said(&init));
+    let adopt = run(&root, &["change", "adopt"]);
+    assert!(adopt.status.success(), "{}", said(&adopt));
+    let spec = fs::read(root.join("specs/auth/auth.spec.md")).unwrap();
+    fs::write(
+        root.join(".specsync/change-transaction.json"),
+        journal_with(&[(
+            "specs/auth/auth.spec.md",
+            Some("# Forged by the repository\n"),
+        )]),
+    )
+    .unwrap();
+
+    let output = run(
+        &root,
+        &[
+            "change",
+            "new",
+            "Probe the journal",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth/service.ts",
+        ],
+    );
+
+    assert_eq!(
+        fs::read(root.join("specs/auth/auth.spec.md")).unwrap(),
+        spec,
+        "a journal the unpacked tree shipped was replayed: {}",
+        said(&output)
+    );
+    assert!(!output.status.success(), "{}", said(&output));
+    assert!(
+        said(&output).contains(".specsync/change-transaction.json"),
+        "{}",
+        said(&output)
+    );
+}
+
+/// A journal exactly as SpecSync writes one, with its integrity envelope.
+fn journal_with(entries: &[(&str, Option<&str>)]) -> String {
+    use sha2::{Digest, Sha256};
+    let rendered: Vec<String> = entries
+        .iter()
+        .map(|(path, original)| {
+            format!(
+                r#"{{"path":{},"original":{}}}"#,
+                serde_json::to_string(path).unwrap(),
+                serde_json::to_string(original).unwrap()
+            )
+        })
+        .collect();
+    let array = format!("[{}]", rendered.join(","));
+    let digest = format!("{:x}", Sha256::digest(array.as_bytes()));
+    format!(
+        r#"{{"schema_version":1,"entry_count":{},"entries_digest":"{digest}","entries":{array}}}"#,
+        entries.len()
+    )
+}

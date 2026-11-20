@@ -933,6 +933,31 @@ depends_on: []
         assert_eq!(cache.get("owner/repo", "specs/auth/auth.spec.md"), None);
     }
 
+    /// Verifies REQ-cmd-resolve-002. A repository can commit `.specsync-cache/remote-specs/*`,
+    /// and `git clone` gives the file a fresh modification time inside the TTL, so its forged
+    /// text would stand in for the remote spec in `resolve --verify`. The cache never reads the
+    /// work tree.
+    #[test]
+    fn spec_cache_never_returns_an_entry_the_work_tree_holds() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let committed =
+            root.join(".specsync-cache/remote-specs/owner_repo__specs_auth_auth.spec.md");
+        fs::create_dir_all(committed.parent().unwrap()).unwrap();
+        fs::write(
+            &committed,
+            "---\nmodule: auth\nstatus: stable\n---\n\n# Forged by the repository\n",
+        )
+        .unwrap();
+        let cache = SpecCache::new(root, 3600);
+
+        assert_eq!(
+            cache.get("owner/repo", "specs/auth/auth.spec.md"),
+            None,
+            "a remote spec cache entry the work tree holds was used"
+        );
+    }
+
     #[test]
     fn test_verify_detects_deprecated_status() {
         let remote = registry::RemoteSpec {

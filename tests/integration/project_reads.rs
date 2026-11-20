@@ -438,13 +438,14 @@ fn change_new_never_replays_a_committed_journal_into_git() {
 
 // ─── The guard ───────────────────────────────────────────────────────────
 
-/// Files whose every read is outside this rule: `util` holds the bounded read itself; the others
-/// already read through a confined handle with their own bounds, read Git's output, or read only a
-/// path the person names on the command line.
 /// Files whose every read is exempt, each with the reason. Everything else marks each direct read
 /// on its own line (REQ-util-003).
 const ALLOWED_FILES: &[(&str, &str)] = &[
     ("src/util.rs", "the bounded project read itself lives here"),
+    (
+        "src/util/local_state.rs",
+        "SpecSync's own state folder outside the work tree, read through no-follow, bounded handles (REQ-util-006)",
+    ),
     (
         "src/git_utils.rs",
         "reads the pipes of the Git processes it starts, never a project file",
@@ -460,10 +461,6 @@ const ALLOWED_FILES: &[(&str, &str)] = &[
     (
         "src/mcp/publication.rs",
         "reads back only what it staged in its own confined publication directory",
-    ),
-    (
-        "src/hash_cache.rs",
-        "reads its cache only through a no-follow, non-blocking, bounded handle (REQ-hash-cache-007)",
     ),
     (
         "src/watch.rs",
@@ -483,77 +480,338 @@ const ALLOWED_FILES: &[(&str, &str)] = &[
 /// the file it reads is not a project file or is read through a bounded handle already.
 const ALLOWED_MARKER: &str = "not a project file read:";
 
+/// Calls that read a file, or open one or a directory handle to read through (REQ-util-008). A
+/// pattern that starts with a name matches only where no longer name ends in it.
 const READ_CALLS: &[&str] = &[
     "fs::read(",
-    "fs::read_to_string(",
+    "read_to_string(",
     "File::open(",
     ".read_to_end(",
-    ".read_to_string(",
     "from_reader(",
     "fs::copy(",
     ".read(true)",
     "BufReader::new(",
     "io::copy(",
+    ".open_with(",
+    ".open_dir(",
+    "open_dir_nofollow(",
 ];
 
-/// The lines of `text` outside `#[cfg(test)]` items, numbered from 1.
-pub(crate) fn non_test_lines(text: &str) -> Vec<(usize, &str)> {
-    let lines: Vec<&str> = text.lines().collect();
-    let mut kept = Vec::new();
-    let mut index = 0;
-    while index < lines.len() {
-        let attribute = lines[index].trim_start();
-        if attribute.starts_with("#[cfg(test)]") || attribute.starts_with("#[cfg(all(test") {
-            let mut next = index + 1;
-            while next < lines.len() {
-                let line = lines[next].trim_start();
-                if line.starts_with("#[") || line.starts_with("///") || line.is_empty() {
-                    next += 1;
-                } else {
-                    break;
-                }
+/// Free functions of `std::fs` that read, which an import would let a call name bare.
+const READ_FUNCTIONS: &[&str] = &["read", "read_to_string", "copy"];
+
+/// One line of a source file outside `#[cfg(test)]` items: its number from 1, the line as
+/// written (where the markers are), and the same line with comments and literals blanked.
+pub(crate) struct SourceLine<'a> {
+    pub number: usize,
+    pub raw: &'a str,
+    pub code: &'a str,
+}
+
+/// `text` with every comment, string, raw string, byte string and character literal blanked to
+/// spaces, byte for byte, newlines kept: what is left is code, at the same offsets and lines
+/// (REQ-util-008). A lifetime or a label stays code.
+pub(crate) fn code_only(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let blank = |out: &mut String, c: char| {
+        if c == '\n' {
+            out.push('\n');
+        } else {
+            out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+        }
+    };
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        if c == '/' && next == Some('/') {
+            while i < chars.len() && chars[i] != '\n' {
+                blank(&mut out, chars[i]);
+                i += 1;
             }
-            if next < lines.len() && lines[next].trim_end().ends_with(';') {
-                index = next + 1;
-                continue;
-            }
-            let mut depth: i64 = 0;
-            let mut opened = false;
-            while next < lines.len() {
-                depth += lines[next].matches('{').count() as i64;
-                depth -= lines[next].matches('}').count() as i64;
-                opened |= lines[next].contains('{');
-                next += 1;
-                if opened && depth <= 0 {
-                    break;
-                }
-            }
-            index = next;
             continue;
         }
-        kept.push((index + 1, lines[index]));
-        index += 1;
+        if c == '/' && next == Some('*') {
+            let mut depth = 0usize;
+            while i < chars.len() {
+                if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
+                    depth += 1;
+                    out.push_str("  ");
+                    i += 2;
+                } else if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
+                    depth -= 1;
+                    out.push_str("  ");
+                    i += 2;
+                    if depth == 0 {
+                        break;
+                    }
+                } else {
+                    blank(&mut out, chars[i]);
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        let after_name = i > 0 && ident(chars[i - 1]);
+        if !after_name && (c == 'r' || (c == 'b' && next == Some('r'))) {
+            let start = if c == 'b' { i + 2 } else { i + 1 };
+            let mut quote = start;
+            while chars.get(quote) == Some(&'#') {
+                quote += 1;
+            }
+            if chars.get(quote) == Some(&'"') {
+                let hashes = quote - start;
+                for &prefix in &chars[i..=quote] {
+                    blank(&mut out, prefix);
+                }
+                i = quote + 1;
+                while i < chars.len() {
+                    if chars[i] == '"' && (0..hashes).all(|k| chars.get(i + 1 + k) == Some(&'#')) {
+                        out.extend(std::iter::repeat_n(' ', 1 + hashes));
+                        i += 1 + hashes;
+                        break;
+                    }
+                    blank(&mut out, chars[i]);
+                    i += 1;
+                }
+                continue;
+            }
+        }
+        if c == '"' {
+            out.push(' ');
+            i += 1;
+            while i < chars.len() {
+                if chars[i] == '\\' {
+                    blank(&mut out, chars[i]);
+                    i += 1;
+                    if i < chars.len() {
+                        blank(&mut out, chars[i]);
+                        i += 1;
+                    }
+                    continue;
+                }
+                let closing = chars[i] == '"';
+                blank(&mut out, chars[i]);
+                i += 1;
+                if closing {
+                    break;
+                }
+            }
+            continue;
+        }
+        if c == '\'' {
+            let end = if next == Some('\\') {
+                let mut j = i + 3;
+                while j < chars.len() && chars[j] != '\'' && chars[j] != '\n' {
+                    j += 1;
+                }
+                (chars.get(j) == Some(&'\'')).then_some(j)
+            } else if next.is_some_and(|n| n != '\n') && chars.get(i + 2) == Some(&'\'') {
+                Some(i + 2)
+            } else {
+                None
+            };
+            if let Some(end) = end {
+                for &literal in &chars[i..=end] {
+                    blank(&mut out, literal);
+                }
+                i = end + 1;
+                continue;
+            }
+        }
+        out.push(c);
+        i += 1;
     }
-    kept
+    out
+}
+
+/// The byte offset just past the `#[cfg(test)]` item whose attribute ends at `from` in `code`:
+/// past further attributes, then to the `;` that ends the item or the brace that closes it.
+fn end_of_item(code: &[u8], mut from: usize) -> usize {
+    loop {
+        while from < code.len() && code[from].is_ascii_whitespace() {
+            from += 1;
+        }
+        if code[from..].starts_with(b"#[") {
+            let mut depth = 0i64;
+            while from < code.len() {
+                match code[from] {
+                    b'[' => depth += 1,
+                    b']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            from += 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                from += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    // An item (`fn`, `mod`, `impl`, `use` ...) ends at its `;` or its closing brace. Anything
+    // else under the attribute, a field, a match arm or a statement, also ends at a `,` outside
+    // brackets, so it never takes the rest of the enclosing block with it.
+    let rest = std::str::from_utf8(&code[from..]).unwrap_or_default();
+    let first_word: String = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    let is_item = [
+        "fn",
+        "mod",
+        "impl",
+        "struct",
+        "enum",
+        "trait",
+        "pub",
+        "const",
+        "static",
+        "use",
+        "type",
+        "unsafe",
+        "async",
+        "extern",
+        "macro_rules",
+    ]
+    .contains(&first_word.as_str());
+    let mut braces = 0i64;
+    let mut brackets = 0i64;
+    while from < code.len() {
+        match code[from] {
+            b'(' | b'[' => brackets += 1,
+            b')' | b']' => brackets -= 1,
+            b';' if braces == 0 && brackets == 0 => return from + 1,
+            b',' if !is_item && braces == 0 && brackets <= 0 => return from + 1,
+            b'{' => braces += 1,
+            b'}' => {
+                braces -= 1;
+                if braces <= 0 {
+                    return from + 1;
+                }
+            }
+            _ => {}
+        }
+        from += 1;
+    }
+    code.len()
+}
+
+/// The lines of `text` outside `#[cfg(test)]` items, found in `code` (the same text through
+/// [`code_only`]), so a brace inside a literal or a comment never moves an item's end.
+pub(crate) fn non_test_lines<'a>(text: &'a str, code: &'a str) -> Vec<SourceLine<'a>> {
+    assert_eq!(text.len(), code.len(), "code_only must keep every offset");
+    let bytes = code.as_bytes();
+    let line_starts: Vec<usize> = std::iter::once(0)
+        .chain(
+            bytes
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| **b == b'\n')
+                .map(|(at, _)| at + 1),
+        )
+        .collect();
+    let line_of = |offset: usize| line_starts.partition_point(|start| *start <= offset) - 1;
+    let mut test_line = vec![false; line_starts.len()];
+    for attribute in ["#[cfg(test)]", "#[cfg(all(test"] {
+        for (at, _) in code.match_indices(attribute) {
+            let attribute_end = code[at..].find(']').map_or(code.len(), |end| at + end + 1);
+            let end = end_of_item(bytes, attribute_end);
+            for line in line_of(at)..=line_of(end.saturating_sub(1).max(at)) {
+                test_line[line] = true;
+            }
+        }
+    }
+    text.split('\n')
+        .zip(code.split('\n'))
+        .enumerate()
+        .filter(|(index, _)| !test_line[*index])
+        .map(|(index, (raw, code))| SourceLine {
+            number: index + 1,
+            raw,
+            code,
+        })
+        .collect()
+}
+
+/// Whether `code` holds one of `calls`. A call that starts with a name counts only where no
+/// longer name ends in it, so `symlink(` is not found in `is_symlink(`.
+pub(crate) fn has_call(code: &str, calls: &[&str]) -> bool {
+    let name = |c: char| c.is_alphanumeric() || c == '_';
+    calls.iter().any(|call| {
+        let starts_with_name = call.chars().next().is_some_and(name);
+        code.match_indices(call)
+            .any(|(at, _)| !starts_with_name || !code[..at].chars().next_back().is_some_and(name))
+    })
+}
+
+/// Whether `code` calls a whole-file method of a cap-std directory handle: `Dir::read(path)`,
+/// which `Read::read(&mut buffer)` is told apart from by its argument, or `Dir::write(path,
+/// contents)`, which `Write::write(buffer)` is told apart from by its second argument.
+pub(crate) fn has_dir_file_call(code: &str, method: &str) -> bool {
+    let call = format!(".{method}(");
+    code.match_indices(&call).any(|(at, _)| {
+        let rest = &code[at + call.len()..];
+        let mut depth = 0i64;
+        let mut arguments = rest.len();
+        let mut commas = 0;
+        for (offset, c) in rest.char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' if depth == 0 => {
+                    arguments = offset;
+                    break;
+                }
+                ')' | ']' | '}' => depth -= 1,
+                ',' if depth == 0 => commas += 1,
+                _ => {}
+            }
+        }
+        let arguments = rest[..arguments].trim();
+        match method {
+            "read" => {
+                !arguments.is_empty()
+                    && !arguments.starts_with("&mut")
+                    && arguments != "true"
+                    && arguments != "false"
+            }
+            _ => commas > 0,
+        }
+    })
+}
+
+/// Whether the line is a `use std::fs::` import that names one of `functions`, so a bare call
+/// would hide the read or write from the call list.
+pub(crate) fn imports_fs_function(code: &str, functions: &[&str]) -> bool {
+    let Some(at) = code.find("std::fs::") else {
+        return false;
+    };
+    if !code.trim_start().starts_with("use ") && !code.trim_start().starts_with("pub use ") {
+        return false;
+    }
+    code[at + "std::fs::".len()..]
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .any(|name| functions.contains(&name))
 }
 
 /// Whether the call at `position` carries one of `markers`: on its own line, or on a line above
 /// it in the same statement, which a builder chain spreads over several lines. The look back
-/// stops at the end of the statement before (`;`, `{` or `}`).
-pub(crate) fn marked_in_statement(
-    lines: &[(usize, &str)],
-    position: usize,
-    markers: &[&str],
-) -> bool {
+/// stops at the end of the statement before (`;`, `{` or `}`), judged on code, not comments.
+pub(crate) fn marked_in_statement(lines: &[SourceLine], position: usize, markers: &[&str]) -> bool {
     let has_marker = |text: &str| markers.iter().any(|marker| text.contains(marker));
-    if has_marker(lines[position].1) {
+    if has_marker(lines[position].raw) {
         return true;
     }
-    for (_, line) in lines[..position].iter().rev() {
-        if has_marker(line) {
+    for line in lines[..position].iter().rev() {
+        if has_marker(line.raw) {
             return true;
         }
-        let code = line.trim_end();
+        let code = line.code.trim_end();
         if code.ends_with(';') || code.ends_with('{') || code.ends_with('}') {
             return false;
         }
@@ -561,52 +819,114 @@ pub(crate) fn marked_in_statement(
     false
 }
 
-pub(crate) fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(directory).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            rust_sources(&path, found);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            found.push(path);
+/// The source files Cargo compiled into the `specsync` binary, from the dep-info it writes beside
+/// it: an `include!`d file is there whatever it is named, and a `#[cfg(test)]` module file is
+/// not (REQ-util-008). Fails when the list cannot be read, so a scan never passes over nothing.
+pub(crate) fn compiled_sources() -> Vec<(String, PathBuf)> {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dep_info = Path::new(env!("CARGO_BIN_EXE_specsync")).with_extension("d");
+    let text = fs::read_to_string(&dep_info).unwrap_or_else(|error| {
+        panic!(
+            "cannot read {}: {error}; the scans take their files from Cargo's dep-info",
+            dep_info.display()
+        )
+    });
+    let mut tokens = Vec::new();
+    let mut token = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' && chars.peek() == Some(&' ') {
+            token.push(' ');
+            chars.next();
+        } else if c.is_whitespace() {
+            if !token.is_empty() {
+                tokens.push(std::mem::take(&mut token));
+            }
+        } else {
+            token.push(c);
         }
     }
+    tokens.push(token);
+    let source = crate_root.join("src");
+    let mut found: Vec<(String, PathBuf)> = tokens
+        .iter()
+        .map(|token| PathBuf::from(token.trim_end_matches(':')))
+        .filter(|path| {
+            path.extension().is_some_and(|extension| extension == "rs")
+                && path.starts_with(&source)
+                && path.is_file()
+        })
+        .map(|path| {
+            let relative = path
+                .strip_prefix(crate_root)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            (relative, path)
+        })
+        .collect();
+    found.sort();
+    found.dedup();
+    assert!(
+        found.iter().any(|(relative, _)| relative == "src/main.rs"),
+        "{} does not list src/main.rs, so it is not the binary's dep-info",
+        dep_info.display()
+    );
+    found
 }
 
-/// Verifies REQ-util-003 and the module requirements that rely on it. Every read of a project
-/// file goes through the bounded read; a new direct read fails here until it does, or until it
-/// says why the file it reads is not a project file.
+/// Verifies REQ-util-008. The lexer the scans use blanks comments and literals and nothing else,
+/// so a brace in a literal never ends a test module early or late.
+#[test]
+fn the_scan_lexer_blanks_only_comments_and_literals() {
+    let text = "fn a() { let s = \"{ x\"; let c = '{'; let e = '\\''; let r = r#\"}\"#; }\n\
+                fn b<'a>(x: &'a str) -> &'a str { /* { /* } */ } */ x } // }\n\
+                let bytes = b\"{\"; let byte = b'}'; let raw = br\"{\";\n";
+    let code = code_only(text);
+    assert_eq!(code.len(), text.len());
+    assert_eq!(
+        code.matches('{').count(),
+        code.matches('}').count(),
+        "{code}"
+    );
+    assert!(code.contains("fn b<'a>(x: &'a str) -> &'a str {"), "{code}");
+    let module = "#[cfg(test)]\nmod tests {\n    const S: &str = \"{ unbalanced\";\n}\nfn after() { fs::read(p); }\n";
+    let code = code_only(module);
+    let kept: Vec<usize> = non_test_lines(module, &code)
+        .iter()
+        .map(|line| line.number)
+        .collect();
+    assert_eq!(
+        kept,
+        vec![5, 6],
+        "the line after the test module is production code"
+    );
+}
+
+/// Verifies REQ-util-003, REQ-util-008 and the module requirements that rely on them. Every
+/// read of a project file goes through the bounded read; a new direct read fails here until it
+/// does, or until it says why the file it reads is not a project file.
 #[test]
 fn no_project_file_is_read_outside_the_bounded_read() {
-    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut sources = Vec::new();
-    rust_sources(&crate_root.join("src"), &mut sources);
-    sources.sort();
     let mut direct = Vec::new();
-    for path in sources {
-        let relative = path
-            .strip_prefix(crate_root)
-            .unwrap()
-            .to_string_lossy()
-            .replace('\\', "/");
-        let name = path.file_name().unwrap().to_string_lossy();
-        if ALLOWED_FILES.iter().any(|(file, _)| *file == relative)
-            || name == "tests.rs"
-            || relative.contains("_tests")
-            || relative.contains("test_support")
-        {
+    for (relative, path) in compiled_sources() {
+        if ALLOWED_FILES.iter().any(|(file, _)| *file == relative) {
             continue;
         }
         let text = fs::read_to_string(&path).unwrap();
-        let lines = non_test_lines(&text);
-        for (position, (number, line)) in lines.iter().enumerate() {
-            let code = line.trim_start();
-            if code.starts_with("//") || !READ_CALLS.iter().any(|call| line.contains(call)) {
+        let code = code_only(&text);
+        let lines = non_test_lines(&text, &code);
+        for (position, line) in lines.iter().enumerate() {
+            if !has_call(line.code, READ_CALLS)
+                && !has_dir_file_call(line.code, "read")
+                && !imports_fs_function(line.code, READ_FUNCTIONS)
+            {
                 continue;
             }
             if marked_in_statement(&lines, position, &[ALLOWED_MARKER]) {
                 continue;
             }
-            direct.push(format!("{relative}:{number}: {}", code.trim()));
+            direct.push(format!("{relative}:{}: {}", line.number, line.raw.trim()));
         }
     }
     assert!(

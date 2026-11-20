@@ -439,6 +439,9 @@ fn monorepo() -> (TempDir, PathBuf, PathBuf) {
     symlink("../../AGENTS.md", app.join("CLAUDE.md")).unwrap();
     symlink("../../specs/app", app.join("specs")).unwrap();
     git_in(&repo, &["init", "-q", "-b", "main"]);
+    // A monorepo has its subprojects in Git; the confinement widens to the work tree only for a
+    // project Git tracks there (REQ-util-007).
+    git_in(&repo, &["add", "-A"]);
     (tmp, repo, app)
 }
 
@@ -589,7 +592,119 @@ fn change_answer_never_writes_change_md_into_a_hook() {
     assert!(said(&output).contains("Git directory"), "{}", said(&output));
 }
 
-// ─── the write scan (G1) ───────────────────────────────────────────────
+// ─── the hooks folder Git names (change 6: F6) ─────────────────────────
+
+/// A Git repository whose hooks folder is set inside the work tree with `core.hooksPath`, as
+/// husky does and as many READMEs tell people to, beside an `outside/` directory.
+fn hooks_path_project(hooks_path: &str) -> (TempDir, PathBuf, PathBuf) {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("project");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(&root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    git_in(&root, &["init", "-q", "-b", "main"]);
+    git_in(&root, &["config", "core.hooksPath", hooks_path]);
+    (tmp, root, outside)
+}
+
+fn install_precommit(root: &Path) -> Output {
+    specsync()
+        .arg("--root")
+        .arg(root)
+        .args(["hooks", "install", "--precommit"])
+        .output()
+        .unwrap()
+}
+
+/// Verifies REQ-hooks-009. With `core.hooksPath` inside the work tree, the hooks folder is
+/// repository content: a committed link on the way to it must not take the hook, or its chmod to
+/// 0755, outside.
+#[test]
+fn hooks_install_never_writes_through_a_linked_folder_on_the_hooks_path() {
+    let (_tmp, root, outside) = hooks_path_project(".config/hooks");
+    symlink("../outside", root.join(".config")).unwrap();
+
+    let output = install_precommit(&root);
+
+    assert_eq!(names(&outside), Vec::<String>::new(), "{}", said(&output));
+    assert!(!output.status.success(), "{}", said(&output));
+}
+
+/// Verifies REQ-hooks-009. A dangling `pre-commit` link in a committed hooks folder must not
+/// create its target.
+#[test]
+fn hooks_install_never_creates_the_target_of_a_dangling_pre_commit_link() {
+    let (_tmp, root, outside) = hooks_path_project(".githooks");
+    fs::create_dir_all(root.join(".githooks")).unwrap();
+    symlink("../../outside/created", root.join(".githooks/pre-commit")).unwrap();
+
+    let output = install_precommit(&root);
+
+    assert_eq!(names(&outside), Vec::<String>::new(), "{}", said(&output));
+    assert!(!output.status.success(), "{}", said(&output));
+}
+
+/// Verifies REQ-hooks-009. CONTROL: a real hooks folder in the work tree gets an executable
+/// `pre-commit`.
+#[test]
+fn hooks_install_installs_into_a_hooks_folder_in_the_work_tree() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_tmp, root, _outside) = hooks_path_project(".githooks");
+    fs::create_dir_all(root.join(".githooks")).unwrap();
+
+    let output = install_precommit(&root);
+
+    assert!(output.status.success(), "{}", said(&output));
+    let hook = root.join(".githooks/pre-commit");
+    assert!(
+        fs::read_to_string(&hook).unwrap().contains("specsync"),
+        "{}",
+        said(&output)
+    );
+    assert_ne!(
+        fs::metadata(&hook).unwrap().permissions().mode() & 0o111,
+        0,
+        "the hook is not executable"
+    );
+}
+
+// ─── a project inside a work tree that is not its own (change 6: F7) ───
+
+/// Verifies REQ-util-007. A project unpacked inside another work tree, such as a home folder
+/// kept under Git, is not part of that repository: a link of its own to a file of the outer
+/// work tree leaves the project and is refused, and the file keeps its bytes.
+#[test]
+fn an_untracked_project_inside_another_work_tree_is_confined_to_itself() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    let project = home.join("Downloads/project");
+    fs::create_dir_all(project.join(".specsync")).unwrap();
+    fs::write(home.join("notes.md"), OWNER).unwrap();
+    git_in(&home, &["init", "-q", "-b", "main"]);
+    git_in(&home, &["add", "notes.md"]);
+    symlink("../../notes.md", project.join("CLAUDE.md")).unwrap();
+
+    let output = specsync()
+        .arg("--root")
+        .arg(&project)
+        .args(["hooks", "install", "--claude"])
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        fs::read_to_string(home.join("notes.md")).unwrap(),
+        OWNER,
+        "{}",
+        said(&output)
+    );
+    assert!(
+        said(&output).contains("leaves the project"),
+        "{}",
+        said(&output)
+    );
+}
+
+// ─── the write scan (G1, change 6: F4) ────────────────────────────────
 
 /// Files whose every write is exempt, each with the reason. Everything else marks each direct
 /// write on its own line or the line above (REQ-util-002).
@@ -599,8 +714,8 @@ const WRITE_ALLOWED_FILES: &[(&str, &str)] = &[
         "the confined project write helpers live here",
     ),
     (
-        "src/hash_cache.rs",
-        "writes only through its no-follow handle on `.specsync`, then renames (REQ-hash-cache-007)",
+        "src/util/local_state.rs",
+        "SpecSync's own state folder outside the work tree, written through no-follow handles (REQ-util-006)",
     ),
     (
         "src/mcp/publication.rs",
@@ -616,6 +731,8 @@ const WRITE_ALLOWED_FILES: &[(&str, &str)] = &[
 /// project file, or its path was refused as a link just before.
 const WRITE_MARKERS: &[&str] = &["not a project file write:", "checked project write:"];
 
+/// Calls that write, create, rename, link or remove a file or a directory (REQ-util-008). A
+/// pattern that starts with a name matches only where no longer name ends in it.
 const WRITE_CALLS: &[&str] = &[
     "fs::write(",
     "fs::copy(",
@@ -629,50 +746,72 @@ const WRITE_CALLS: &[&str] = &[
     "create_dir(",
     "fs::rename(",
     ".persist(",
+    "persist_noclobber(",
     "remove_file(",
     "remove_dir(",
     "remove_dir_all(",
     "set_permissions(",
+    "set_len(",
+    "hard_link(",
+    "symlink(",
+    "symlink_file(",
+    "symlink_dir(",
+    "tempfile_in(",
+    "NamedTempFile::new_in(",
+    "tempdir_in(",
+    "TempDir::new_in(",
+    ".rename(",
+    ".copy(",
+    ".create(",
 ];
 
-/// Verifies REQ-util-002 and the module requirements that rely on it. Every write to a project
-/// file goes through the confined helpers; a new direct write fails here until it does, or until
-/// it says why its path is not a project file or was checked just before.
+/// Free functions of `std::fs` that write, which an import would let a call name bare.
+const WRITE_FUNCTIONS: &[&str] = &[
+    "write",
+    "copy",
+    "rename",
+    "remove_file",
+    "remove_dir",
+    "remove_dir_all",
+    "create_dir",
+    "create_dir_all",
+    "hard_link",
+    "soft_link",
+    "set_permissions",
+];
+
+/// Verifies REQ-util-002, REQ-util-008 and the module requirements that rely on them. Every
+/// write to a project file goes through the confined helpers; a new direct write fails here
+/// until it does, or until it says why its path is not a project file or was checked just
+/// before.
 #[test]
 fn no_project_file_is_written_outside_the_confined_helpers() {
-    use crate::project_reads::{marked_in_statement, non_test_lines, rust_sources};
-    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut sources = Vec::new();
-    rust_sources(&crate_root.join("src"), &mut sources);
-    sources.sort();
+    use crate::project_reads::{
+        code_only, compiled_sources, has_call, has_dir_file_call, imports_fs_function,
+        marked_in_statement, non_test_lines,
+    };
     let mut direct = Vec::new();
-    for path in sources {
-        let relative = path
-            .strip_prefix(crate_root)
-            .unwrap()
-            .to_string_lossy()
-            .replace('\\', "/");
-        let name = path.file_name().unwrap().to_string_lossy();
+    for (relative, path) in compiled_sources() {
         if WRITE_ALLOWED_FILES
             .iter()
             .any(|(file, _)| *file == relative)
-            || name == "tests.rs"
-            || relative.contains("_tests")
-            || relative.contains("test_support")
         {
             continue;
         }
         let text = fs::read_to_string(&path).unwrap();
-        let lines = non_test_lines(&text);
-        for (position, (number, line)) in lines.iter().enumerate() {
-            let code = line.trim_start();
-            if code.starts_with("//") || !WRITE_CALLS.iter().any(|call| line.contains(call)) {
+        let code = code_only(&text);
+        let lines = non_test_lines(&text, &code);
+        for (position, line) in lines.iter().enumerate() {
+            if !has_call(line.code, WRITE_CALLS)
+                && !has_dir_file_call(line.code, "write")
+                && !imports_fs_function(line.code, WRITE_FUNCTIONS)
+            {
                 continue;
             }
             if marked_in_statement(&lines, position, WRITE_MARKERS) {
                 continue;
             }
-            direct.push(format!("{relative}:{number}: {}", code.trim()));
+            direct.push(format!("{relative}:{}: {}", line.number, line.raw.trim()));
         }
     }
     assert!(
@@ -680,5 +819,94 @@ fn no_project_file_is_written_outside_the_confined_helpers() {
         "{} direct file write(s) bypass the confined project helpers (REQ-util-002):\n{}",
         direct.len(),
         direct.join("\n")
+    );
+}
+
+/// Git arguments that make Git write files of its own choosing: a work tree, a checkout, a reset
+/// or a stash of the project's files, an output file, a bundle or patches.
+const GIT_WRITING_ARGUMENTS: &[&str] = &[
+    "worktree",
+    "checkout",
+    "restore",
+    "stash",
+    "reset",
+    "clean",
+    "bundle",
+    "format-patch",
+    "-o",
+];
+
+/// A spawned Git command that writes files carries this marker in its statement, with the reason
+/// no project file is written.
+const GIT_MARKER: &str = "git writes no project file:";
+
+/// The string literals on a line as written, without their quotes. Escapes are kept as they are.
+fn string_literals(raw: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let bytes = raw.as_bytes();
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'"' {
+            let start = at + 1;
+            let mut end = start;
+            while end < bytes.len() && bytes[end] != b'"' {
+                end += if bytes[end] == b'\\' { 2 } else { 1 };
+            }
+            found.push(&raw[start..end.min(raw.len())]);
+            at = end + 1;
+        } else {
+            at += 1;
+        }
+    }
+    found
+}
+
+/// Verifies REQ-util-008. A Git command SpecSync spawns can write files the scans above never
+/// see (`git worktree add`, `git checkout`, `--output=`): each one says, in its statement, why
+/// no project file is written. A statement counts as a Git command when it names `git`.
+#[test]
+fn no_spawned_git_command_writes_files_unmarked() {
+    use crate::project_reads::{code_only, compiled_sources, marked_in_statement, non_test_lines};
+    let names_git = |raw: &str, code: &str| {
+        raw.contains("\"git\"")
+            || code
+                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .any(|word| word == "git" || word.starts_with("git_") || word.ends_with("_git"))
+    };
+    let mut unmarked = Vec::new();
+    for (relative, path) in compiled_sources() {
+        let text = fs::read_to_string(&path).unwrap();
+        let code = code_only(&text);
+        let lines = non_test_lines(&text, &code);
+        for (position, line) in lines.iter().enumerate() {
+            if line.code.trim().is_empty() {
+                continue;
+            }
+            let writes = string_literals(line.raw).iter().any(|literal| {
+                GIT_WRITING_ARGUMENTS.contains(literal) || literal.starts_with("--output")
+            });
+            if !writes {
+                continue;
+            }
+            // The statement this argument belongs to, back to the end of the one before.
+            let mut statement_names_git = names_git(line.raw, line.code);
+            for earlier in lines[..position].iter().rev() {
+                let ended = earlier.code.trim_end();
+                if ended.ends_with(';') || ended.ends_with('{') || ended.ends_with('}') {
+                    break;
+                }
+                statement_names_git |= names_git(earlier.raw, earlier.code);
+            }
+            if !statement_names_git || marked_in_statement(&lines, position, &[GIT_MARKER]) {
+                continue;
+            }
+            unmarked.push(format!("{relative}:{}: {}", line.number, line.raw.trim()));
+        }
+    }
+    assert!(
+        unmarked.is_empty(),
+        "{} spawned Git argument(s) that write files say nothing about where (REQ-util-008):\n{}",
+        unmarked.len(),
+        unmarked.join("\n")
     );
 }

@@ -1068,6 +1068,92 @@ mod tests {
         );
     }
 
+    /// A cache that passes `specs/auth/auth.spec.md`, which fails (its file is missing), with
+    /// digests anyone can compute: the spec, its inventory and the forged cache.
+    fn forged_pass(root: &Path) -> (PathBuf, Vec<String>, HashCache) {
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        let spec_path = root.join("specs/auth/auth.spec.md");
+        fs::write(&spec_path, "---\nfiles:\n  - src/missing.rs\n---\n").unwrap();
+        let inventory = vec!["specs/auth/auth.spec.md".to_string()];
+        let mut forged = HashCache::default();
+        let input_digest =
+            HashCache::current_validation_input_digest(root, &spec_path, &[], &inventory);
+        forged.record_validation_snapshot(
+            root,
+            &spec_path,
+            &[],
+            &inventory,
+            &input_digest,
+            ValidationDiagnostics {
+                errors: vec![],
+                warnings: vec![],
+                notices: vec![],
+            },
+        );
+        (spec_path, inventory, forged)
+    }
+
+    /// Verifies REQ-hash-cache-009 and CHECK-1.f. A ZIP or tarball of a repository has no Git,
+    /// and neither does a checkout where Git cannot answer, so nothing can say that a
+    /// `.specsync/hashes.json` there came with the repository. Its forged pass is never replayed.
+    #[test]
+    fn a_forged_pass_an_unpacked_tree_ships_is_never_replayed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory, forged) = forged_pass(root);
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/hashes.json"),
+            serde_json::to_string_pretty(&forged).unwrap(),
+        )
+        .unwrap();
+
+        let loaded = HashCache::load(root);
+
+        assert!(
+            loaded
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "a cache an unpacked tree shipped replayed a forged pass"
+        );
+    }
+
+    /// Verifies REQ-hash-cache-009 and CHECK-1.f. On a case-insensitive disk (macOS's default),
+    /// Git checks out `.specsync/Hashes.json` under that spelling, and opening `hashes.json`
+    /// finds it, while Git, asked about `.specsync/hashes.json`, says it tracks nothing there.
+    /// Its forged pass is never replayed. Skipped on a case-sensitive disk, where that file is
+    /// simply another name.
+    #[test]
+    fn a_forged_pass_committed_in_another_letter_case_is_never_replayed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::write(root.join("Probe"), "").unwrap();
+        if !root.join("probe").exists() {
+            return;
+        }
+        fs::remove_file(root.join("Probe")).unwrap();
+        let (spec_path, inventory, forged) = forged_pass(root);
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/Hashes.json"),
+            serde_json::to_string_pretty(&forged).unwrap(),
+        )
+        .unwrap();
+        git(root, &["init", "-q", "-b", "main"]);
+        git(root, &["add", "-A"]);
+        git(root, &["add", "-f", ".specsync/Hashes.json"]);
+
+        let loaded = HashCache::load(root);
+
+        assert!(
+            loaded
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_none(),
+            "a cache committed as .specsync/Hashes.json replayed a forged pass"
+        );
+    }
+
     /// Verifies REQ-hash-cache-010. `prune` keeps an entry only for a project file it can reach:
     /// a key the repository chose as an absolute path or with `..` is dropped without looking at
     /// the path it names.

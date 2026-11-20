@@ -240,7 +240,8 @@ fn a_workspace_deleted_and_created_again_under_the_same_id_is_refused() {
             "workflow-version history deleted its immutable creation anchor: commit {removed} \
              removed `{workspace}/state.json`, and a later commit holds the change again under \
              the same id. A commit already in history cannot be undone in place, so take \
-             {removed} out of this branch's history, or make the change again under a new id"
+             {removed} out of this branch's history, or remove the workspace created again with \
+             `git rm -r -- {workspace}` and a commit, then make the change again under a new id"
         )
     );
     assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
@@ -807,4 +808,34 @@ fn a_missing_ledger_is_restored_from_its_first_parent_history() {
         refused.contains(&format!("git checkout {newer} -- {display}")),
         "{refused}"
     );
+}
+
+/// tester2 on #1120: the second way out works as printed. With the workspace created again
+/// removed by the printed `git rm -r` and a commit, the same work made again under a new id
+/// approves and checks.
+#[test]
+fn the_second_way_out_of_a_workspace_created_again_works_as_printed() {
+    let (temp, record) = committed_approvals_project();
+    let root = temp.path();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "record the review"]);
+    let earlier = short_head(root);
+    let workspace = format!(".specsync/changes/{}", record.id);
+    quiet_git(root, &["rm", "-r", "-q", &workspace]);
+    quiet_git(root, &["commit", "-m", "remove the change"]);
+    quiet_git(root, &["checkout", &earlier, "--", &workspace]);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "create the change again"]);
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    let printed = format!("`git rm -r -- {workspace}` and a commit");
+    assert!(refused.contains(&printed), "{refused}");
+    quiet_git(root, &["rm", "-r", "-q", "--", &workspace]);
+    quiet_git(root, &["commit", "-m", "remove the workspace created again"]);
+    let again = current_workflow_record(root, completed_no_spec_record(root));
+    // The project keeps the workflow-v2 baseline it committed when it first adopted.
+    quiet_git(root, &["checkout", "--", WORKFLOW_V2_BASELINE_PATH]);
+    assert_ne!(again.id, record.id, "the same work, under a new id");
+    approve_definition(root, &again.id, Some("Scope owner".into()), None)
+        .expect("the new id approves once the workspace created again is gone");
+    assert!(check_change(root, Some(&again.id)).unwrap().unwrap().passed);
 }

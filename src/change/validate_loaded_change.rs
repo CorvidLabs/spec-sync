@@ -3930,10 +3930,14 @@ fn workflow_version_at_commit(
 /// the commit and the two ways out, because a commit already in history cannot be undone in place.
 fn deleted_creation_anchor_refusal(sentence: &str, commit: &str, path: &str) -> String {
     let short = &commit[..12.min(commit.len())];
+    // The workspace created again keeps every command refusing, a new change's approval too, so
+    // the second way out removes it first (tester2 on #1120).
+    let workspace = path.strip_suffix("/state.json").unwrap_or(path);
     format!(
         "{sentence}: commit {short} removed `{path}`, and a later commit holds the change again \
          under the same id. A commit already in history cannot be undone in place, so take {short} \
-         out of this branch's history, or make the change again under a new id"
+         out of this branch's history, or remove the workspace created again with `git rm -r -- \
+         {workspace}` and a commit, then make the change again under a new id"
     )
 }
 

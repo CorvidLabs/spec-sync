@@ -1374,11 +1374,21 @@ fn sequence_ledger_freeze(root: &Path) -> Option<String> {
 /// read through `artifacts_complete_for_guidance`, and approval currency arrives as the boolean
 /// `approval_current_for_guidance` returns.
 fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
+    text_mode_next_action_with_freeze(root, record, sequence_ledger_freeze(root))
+}
+
+/// `text_mode_next_action` with the sequence-ledger freeze already evaluated, so a report that
+/// needs it twice reads it once (#938).
+fn text_mode_next_action_with_freeze(
+    root: &Path,
+    record: &ChangeRecord,
+    sequence_freeze: Option<String>,
+) -> String {
     let id = record.id.as_str();
     // A project-wide sequence-ledger freeze blocks every verb, so it comes first, in the same
     // order as JSON status: before the `verification_ignored_paths` repair and the upstream
     // archive (REQ-change-138, REQ-cmd-change-034, #908, #937).
-    if let Some(remediation) = sequence_ledger_freeze(root) {
+    if let Some(remediation) = sequence_freeze {
         return remediation;
     }
     // The same refusal every later verb would give, named before any state-local step
@@ -1473,7 +1483,10 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 /// all archived, so HEAD is where the merge decision is made. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
-    let lifecycle_next = text_mode_next_action(root, record);
+    // Evaluated once for the report: the blockers, `ship_next` and the lifecycle next action all
+    // read this value (#938).
+    let sequence_freeze = sequence_ledger_freeze(root);
+    let lifecycle_next = text_mode_next_action_with_freeze(root, record, sequence_freeze.clone());
     let tip = classify_head_tip(root)?;
 
     // Resolve the workspace wherever the change actually lives. Both reads below used
@@ -1554,7 +1567,6 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     }
     // A project-wide sequence-ledger freeze outranks the upstream archive: rebasing does not
     // clear it, so it is the first blocker and the next step, as in `change status` (#908).
-    let sequence_freeze = sequence_ledger_freeze(root);
     if let Some(remediation) = &sequence_freeze {
         blockers.push(remediation.clone());
     }
@@ -1694,11 +1706,31 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // caller that violated it).
     let verification_current =
         change::recorded_verification_is_current(root, record) && verification_work.is_ok();
-    let ready_to_finalize = record.state == ChangeState::Verifying
-        && verification_present
-        && verification_current
-        && review_status.current()
-        && blockers.is_empty();
+    let ready_to_finalize = blockers.is_empty()
+        && match record.state {
+            ChangeState::Verifying => {
+                verification_present && verification_current && review_status.current()
+            }
+            // #933: an accepted change is ready when `change finalize` would resume it, by the
+            // check finalize itself makes before it resumes (REQ-cmd-change-031).
+            ChangeState::Accepted => change::finalization_would_resume(root, record).is_ok(),
+            _ => false,
+        };
+
+    // #922 (REQ-cmd-change-033): an accepted or archived change is judged by its own accepted
+    // evidence, as `change reopen` judges it. Only stale evidence names reopen; an unreadable
+    // `verification.json` names its restore.
+    let own_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+        .then(|| change::own_accepted_evidence(root, record).ok())
+        .flatten();
+    let verification_display = evidence_dir
+        .join("verification.json")
+        .strip_prefix(root)
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|_| "verification.json".to_string());
+    let own_evidence_step = own_evidence
+        .as_ref()
+        .and_then(|evidence| own_evidence_step(record, evidence, &verification_display));
 
     let stages = ship_stages(
         record,
@@ -1708,6 +1740,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         verification_current,
         review_status,
         ready_to_finalize,
+        own_evidence.as_ref(),
+        own_evidence_step.as_deref(),
     );
 
     let current_stage = stages
@@ -1728,7 +1762,16 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         change::upstream_archive_message(&record.id, upstream)
     } else if let Some(recovery) = &ownership_recovery {
         recovery.clone()
-    } else if verification_work.is_err() {
+    } else if let Some(step) = own_evidence_step
+        .as_ref()
+        .filter(|_| open_tasks_step.is_none())
+    {
+        // Open tasks come first; the lifecycle next action below names them (REQ-cmd-change-031).
+        step.clone()
+    } else if verification_work.is_err()
+        && !matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+    {
+        // `change check` refuses an accepted or archived change (#922, REQ-cmd-change-033).
         format!("run `specsync change check {} --commit`", record.id)
     } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
@@ -2310,6 +2353,24 @@ fn product_stage_action(record: &ChangeRecord) -> String {
     }
 }
 
+/// The step an accepted or archived change's own accepted evidence asks for, when it asks one:
+/// reopen when it is stale, the restore of `verification.json` when that cannot be read (#922).
+fn own_evidence_step(
+    record: &ChangeRecord,
+    evidence: &change::OwnAcceptedEvidence,
+    verification_display: &str,
+) -> Option<String> {
+    match evidence {
+        change::OwnAcceptedEvidence::Current => None,
+        change::OwnAcceptedEvidence::Stale => Some(product_stage_action(record)),
+        change::OwnAcceptedEvidence::Unreadable(_) => Some(format!(
+            "`{verification_display}` cannot be read; restore it from Git history, then run `specsync change ship-status {}`",
+            record.id
+        )),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn ship_stages(
     record: &ChangeRecord,
     tip: &HeadTip,
@@ -2318,6 +2379,8 @@ fn ship_stages(
     verification_current: bool,
     review: ShipReviewStatus,
     ready_to_finalize: bool,
+    own_evidence: Option<&change::OwnAcceptedEvidence>,
+    own_evidence_step: Option<&str>,
 ) -> Vec<serde_json::Value> {
     let id = record.id.as_str();
     let verified = verification_present && verification_current && verification_commit.is_some();
@@ -2327,12 +2390,19 @@ fn ship_stages(
     // review, finalize, or merge gate applies to a record that was retired
     // without implementation acceptance.
     let retired = record.state == ChangeState::Retired;
+    // An accepted or archived change is done here when its own accepted evidence is current, as
+    // `change reopen` judges it (#922).
     let product_done = retired
-        || (verified
-            && matches!(
-                record.state,
-                ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
-            ));
+        || match own_evidence {
+            Some(evidence) => *evidence == change::OwnAcceptedEvidence::Current,
+            None => {
+                verified
+                    && matches!(
+                        record.state,
+                        ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
+                    )
+            }
+        };
     stages.push(serde_json::json!({
         "id": "product_tip",
         "title": "Product tip (local verification)",
@@ -2342,6 +2412,8 @@ fn ship_stages(
             product_stage_action(record)
         } else if product_done {
             "product verification evidence is current for this content".to_string()
+        } else if let Some(step) = own_evidence_step {
+            step.to_string()
         } else {
             product_stage_action(record)
         },
@@ -4060,6 +4132,8 @@ if the floor call is removed from this function"
                 false,
                 ShipReviewStatus::Missing,
                 false,
+                None,
+                None,
             );
             let product = stages
                 .iter()
@@ -5870,7 +5944,7 @@ if the floor call is removed from this function"
         );
         let next = report["ship_next"].as_str().unwrap_or_default();
         assert!(
-            next.contains(&reopen) && !next.contains("change check"),
+            next.contains(&reopen) && !next.contains("specsync change check"),
             "{report}"
         );
     }
@@ -5934,7 +6008,7 @@ if the floor call is removed from this function"
         assert!(action.contains("verification.json"), "{report}");
         let next = report["ship_next"].as_str().unwrap_or_default();
         assert!(
-            !next.contains("change reopen") && next.contains("verification.json"),
+            !next.contains("specsync change reopen") && next.contains("verification.json"),
             "{report}"
         );
         drop(_scope);
@@ -5961,12 +6035,13 @@ if the floor call is removed from this function"
             .expect("reopen agrees: the change's own evidence is stale");
     }
 
-    /// #922: the same for an accepted change still in its workspace.
+    /// #922: the same for an accepted change still in its workspace. On workflow v2 a change is
+    /// accepted only by a finalization, here one that stopped before the archive move.
     #[test]
     fn a_stale_accepted_change_is_told_to_reopen_never_to_check() {
         let temp = TempDir::new().expect("temp project");
         let root = temp.path();
-        let id = accepted_change_fixture(root);
+        let id = interrupted_finalization_fixture(root);
         edit_the_changes_own_input(root);
         let record = change::load_change(root, &id).expect("reload");
         let _scope = change::begin_change_read_scope(root);
@@ -6067,14 +6142,14 @@ if the floor call is removed from this function"
         let root = temp.path();
         let id = interrupted_finalization_fixture(root);
         let tasks = root.join(".specsync/changes").join(&id).join("tasks.md");
-        fs::write(&tasks, "# Tasks\n\n- [ ] Reopened after the stop.\n").unwrap();
+        fs::write(&tasks, "# Tasks\n\n- [ ] Finish the work.\n").unwrap();
         let refused = ship_json(root, &id).expect_err("ship refuses the open task");
         assert!(
-            refused.contains("Reopened after the stop")
+            refused.contains("Finish the work")
                 && refused.contains(&format!("specsync change ship {id}")),
             "{refused}"
         );
-        fs::write(&tasks, "# Tasks\n\n- [x] Reopened after the stop.\n").unwrap();
+        fs::write(&tasks, "# Tasks\n\n- [x] Finish the work.\n").unwrap();
         ship_json(root, &id).expect("the named command archives it");
         let record = change::load_change(root, &id).expect("reload");
         assert_eq!(record.state, ChangeState::Archived);

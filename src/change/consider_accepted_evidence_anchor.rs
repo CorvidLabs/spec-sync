@@ -3817,6 +3817,44 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
 /// settles nothing. The archive must therefore be workflow v2 and still hold the finalization
 /// record that binds a passing review to the accepted verification, the check `finalize` itself
 /// makes before it resumes (review of #1093).
+/// What `change reopen` would find in an accepted or archived change's own accepted evidence,
+/// asked read-only of the validator that judges accepted and archived inputs (#922).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OwnAcceptedEvidence {
+    /// Exact, successor-covered or historically reconciled: `change reopen` refuses.
+    Current,
+    /// An input of the change's own changed and nothing covers it: `change reopen` accepts.
+    Stale,
+    /// `verification.json` cannot be loaded, so neither this nor `change reopen` can judge it.
+    Unreadable(String),
+}
+
+/// The change's own accepted evidence, as `change reopen` judges it, without writing (#922).
+pub(crate) fn own_accepted_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<OwnAcceptedEvidence, String> {
+    if let Err(error) = load_verification(root, record) {
+        return Ok(OwnAcceptedEvidence::Unreadable(error));
+    }
+    let records = list_all_changes_checked(root)?;
+    let mut visiting = BTreeSet::new();
+    let mut memo = AcceptedInputValidationMemo::default();
+    Ok(
+        match validate_accepted_inputs_recursive(
+            root,
+            record,
+            &records,
+            &mut visiting,
+            &mut memo,
+            None,
+        ) {
+            Ok(_) => OwnAcceptedEvidence::Current,
+            Err(_) => OwnAcceptedEvidence::Stale,
+        },
+    )
+}
+
 pub(crate) fn archived_review_is_settled_by_finalize(root: &Path, record: &ChangeRecord) -> bool {
     record.state == ChangeState::Archived
         && record.workflow_version >= 2

@@ -2952,6 +2952,26 @@ fn accept_change_with_gate(
     Ok(record)
 }
 
+/// Whether `change finalize` would resume this accepted change: the checks it makes before it
+/// resumes an interrupted finalization, without writing (#933). Open tasks are asked apart, as
+/// ship-status and `change ship` already do.
+pub(crate) fn finalization_would_resume(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    require_state(record, &[ChangeState::Accepted], "resume the finalization")?;
+    if let Some(upstream) = upstream_archive_of(root, record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    if record.workflow_version < 2 {
+        return Err(format!("{} uses the legacy workflow", record.id));
+    }
+    if !record.canonical_applied {
+        return Err("canonical deltas are not materialized".into());
+    }
+    let verification = load_verification(root, record)?;
+    validate_finalization_evidence(root, record, &verification)
+        .map(|_| ())
+        .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))
+}
+
 #[cfg(test)]
 thread_local! {
     static STOP_FINALIZE_AFTER_ACCEPTANCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };

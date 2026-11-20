@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `specsync change ship-status` names `change reopen` for an accepted or archived change only when `change reopen` would run: when the change's own accepted evidence is stale. After a commit that changes only an unrelated file, the product-tip stage is done; with stale evidence the product-tip stage and `Next:` name the reopen, never `change check`, which refuses such a change; and an archived change whose `verification.json` cannot be read is told to restore it (REQ-cmd-change-033, #922).
+- After a finalization that stopped between acceptance and the archive move, `specsync change ship-status` reports the accepted change ready to finalize and `specsync change ship` archives it, as the open-task refusal and text status already promised; an accepted change that `change finalize` would refuse to resume is not reported ready (REQ-cmd-change-031, #933).
+
 ## [6.4.0] - 2026-11-24
 
 ### Added

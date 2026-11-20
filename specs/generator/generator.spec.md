@@ -36,6 +36,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `module_spec_filename` | `module: &str` | `String` | Crate-private shared leaf filename for writing and recognizing scoped module specs |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
+| `check_template_dir` | `template_dir` | `Result<(), String>` | Check every template file `scaffold --template` would read, through the typed-path read, before anything is written; a FIFO, a device or a file over the bound is refused with the path and the reason (REQ-cmd-scaffold-009) |
 | `generate_companion_files_from_template` | `root, spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
 | `create_spec_file` | `root, spec_file, content` | `io::Result<()>` | Create a new spec file through `util::create_project_file`; used by `new`, `scaffold`, `add-spec`, the wizard and `import`. A file already there, a dangling link and a path that leaves the project are errors (REQ-generator-010) |
 | `collect_exports_for_files` | `root, source_files` | `Vec<String>` | Collect exported symbols across the given source files |

@@ -44,9 +44,16 @@ Provides small shared utility functions used by validators, fix suggestions, and
 | `confinement_top` | `canonical_root` | `PathBuf` | The folder the project file functions confine the root to: the enclosing work tree's top for a project Git tracks there, else the root; a user cache folder inside it is refused (REQ-util-006, REQ-util-007) |
 | `work_tree_and_git_dir` | `root` | `Option<(PathBuf, PathBuf)>` | The canonical top folder of the work tree holding the root and its Git directory, from which the hooks folder is reached (REQ-hooks-009); `None` outside a work tree |
 | `read_project_dir` | `root, path` | `io::Result<Vec<PathBuf>>` | The entries of one directory beneath the project root, sorted, reached and listed by the project rule; a directory that leads out, dangles or is the Git directory is refused (REQ-util-010) |
+| `read_project_dir_entries` | `root, path` | `io::Result<vec::IntoIter<io::Result<ProjectDirEntry>>>` | `read_project_dir` as entries shaped like `std::fs::read_dir`'s, for listings of SpecSync's own record folders (REQ-util-010) |
+| `read_typed_file` | `path, max_bytes` | `io::Result<Vec<u8>>` | Read a file the person names on the command line: links followed, opened without blocking, checked to be a regular file on the handle, at most one byte past the bound (REQ-util-011) |
+| `path` | `&self` | `PathBuf` | ProjectDirEntry: the entry's path, beneath the listed directory |
+| `file_name` | `&self` | `OsString` | ProjectDirEntry: the entry's name |
+| `file_type` | `&self` | `io::Result<FileType>` | ProjectDirEntry: the entry's type, read without following a link at it |
 | `repository_state_dir` | `root, common_dir` | `io::Result<PathBuf>` | `specsync/repositories/<key>` in the user's cache folder, keyed by the canonical Git common directory, for the change read cache; refused as `project_state_dir` is (REQ-util-009) |
 | `project_state_dir` | `root` | `io::Result<PathBuf>` | Where SpecSync keeps its own state about the project: `specsync/projects/<key>` in the user's cache folder, keyed by the canonical root, never in the work tree or a Git directory; refused when that folder lies inside the project (REQ-util-006) |
 | `open` | `root, create` | `io::Result<Option<LocalState>>` | LocalState: the project's local state folder, made with `create`, opened without following a link at any name SpecSync made there; `None` when it does not exist yet |
+| `open_journal` | `root, create` | `io::Result<Option<LocalState>>` | LocalState: the project's folder for its transaction journal in the user's state folder (`$XDG_STATE_HOME`, else `~/Library/Application Support`, `%LOCALAPPDATA%` or `~/.local/state`), opened and refused as `open` is (REQ-util-006) |
+| `open_repository` | `root, common_dir, create` | `io::Result<Option<LocalState>>` | LocalState: the folder for what SpecSync knows about the Git repository whose canonical common directory is `common_dir`, for the change read cache (REQ-util-009) |
 | `file_path` | `&self, name` | `PathBuf` | LocalState: the path of a file in the folder, for messages |
 | `subdirectory` | `&self, name, create` | `io::Result<Option<LocalState>>` | LocalState: a folder in this one, by the same rule |
 | `metadata` | `&self, name` | `io::Result<Option<Metadata>>` | LocalState: what is at a name, without following a link |
@@ -61,6 +68,7 @@ Provides small shared utility functions used by validators, fix suggestions, and
 |------|-------------|
 | `LocalState` | A handle on a project's local state folder outside the work tree, and its path for messages (REQ-util-006) |
 | `RefusedLocalState` | A local state location SpecSync will not use, with the reason, carried inside an `io::Error` |
+| `ProjectDirEntry` | One entry of a project directory listed through `read_project_dir`, with the parts of `std::fs::DirEntry` callers use (REQ-util-010) |
 
 ## Invariants
 

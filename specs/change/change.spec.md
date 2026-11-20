@@ -48,6 +48,7 @@ files:
   - src/change_tests/substantive_plan.rs
   - src/change_tests/unknown_members.rs
   - src/change_tests/journal_replay_targets.rs
+  - src/change_tests/hardening_641.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/lifecycle-validation-limits.json

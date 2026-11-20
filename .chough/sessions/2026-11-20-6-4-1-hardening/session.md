@@ -5,7 +5,7 @@ aliases: [6-4-1-hardening]
 objective: "6.4.1: close the 14 low items left after GHSA-7q5v-8jcc-rx54 (sec-review2's re-check W1, S1, S2, S3, S5, L2, X1, X2; H1 from #1133's review; C1-C5 from #1135), fold in N2, and remove the five history clauses from change 7's requirement texts, red tests first"
 intent_scope: ""
 modules: [util, hooks, change, hash_cache]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -19,13 +19,9 @@ files: []
 observations: [2026-11-20-6-4-1-the-18-red-tests-w1-s1-s2-s3x2-s5-l2-x1x3-x2-h1-n2-c1-c5]
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
-    holds: accept
-    drives: review
-    opened: 2026-11-20T21:47:26Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: Continue done
 ---
 # 6.4.1: close the 14 low items left after GHSA-7q5v-8jcc-rx54 (sec-review2's re-check W1, S1, S2, S3, S5, L2, X1, X2; H1 from #1133's review; C1-C5 from #1135), fold in N2, and remove the five history clauses from change 7's requirement texts, red tests first
 
@@ -38,6 +34,7 @@ next: Continue accept
 ## Decisions and why
 
 - 0xLeif decided "Scope approval of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first": "Approve (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 19:51Z, answering the 6.4.1 scope question (security/6.4.1-scope.md: 14 fixes, W1, S1, S2, S3, S5, L2, X1, X2, H1 and C1-C5; 5 keeps, S4, L1, L3, X3 and I1; the N2 nit and the 5 clause removals; choices (1) a journal without its project is never replayed and lifecycle commands stop with its path, (2) a typed path still follows links and only the FIFO wait and size bound are fixed, (3) the 64 MiB bound stays and an oversized cache is refused, (4) one change, one review, one re-check by sec-review2) with 'Approve (Recommended)'. The red tests were committed first (e334bd8a), each failing on 6.4.0. Relayed by t4c over hc to t5r; a relayed claim, not authenticated); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first as 0xLeif
+- 0xLeif decided "Implementation review of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first": "Pass (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 22:41Z: 'Pass (Recommended)' to his one review of 6.4.1, both changes at 25bbd814 (the 14 fixes, N2, the 5 clause removals, the re-check items of security/review2/recheck-6.4.1.md, and the covering change). His one review covers both changes, as he chose ('Yes, two changes (Recommended)', about 21:52Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change review close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -103,4 +100,20 @@ next: Continue accept
   - revision: c4ad3898e287560874ea7d2aec80e55ebceb08aa
   - holds: accept
   - drives: review
+  - by: claude-code (hc t5r)
+- 2026-11-20T22:46:55Z · gate-closed · accept → accept · Implementation review of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first ^t-a1cb0a
+  - native_change: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+  - revision: 5a0fd7b57db5248c237b16a26bcc17799b9df8c5
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 22:41Z: 'Pass (Recommended)' to his one review of 6.4.1, both changes at 25bbd814 (the 14 fixes, N2, the 5 clause removals, the re-check items of security/review2/recheck-6.4.1.md, and the covering change). His one review covers both changes, as he chose ('Yes, two changes (Recommended)', about 21:52Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated
+    - recorded_by: claude-code-t5r
+    - native: specsync change review close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+    - actor: 0xLeif
+  - by: claude-code (hc t5r)
+- 2026-11-20T22:46:58Z · advance · accept → done · native:archived ^t-8c2fae
+  - native_change: close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first
+  - gate: native:archived
+  - revision: 5a0fd7b57db5248c237b16a26bcc17799b9df8c5
   - by: claude-code (hc t5r)

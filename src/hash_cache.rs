@@ -88,6 +88,28 @@ impl Default for HashCache {
     }
 }
 
+/// Why what is at `hashes.json` in the local state folder is refused: a symbolic link, not a
+/// regular file, or, when `bounded`, larger than the bound. `save` asks without the bound, since
+/// it replaces an oversized cache by rename (REQ-hash-cache-007).
+fn entry_refusal(state: &LocalState, bounded: bool) -> Option<String> {
+    let shown = state.file_path(CACHE_FILE);
+    match state.metadata(CACHE_FILE) {
+        Ok(Some(metadata)) if metadata.file_type().is_symlink() => Some(format!(
+            "{} is a symbolic link, and the hash cache is never read or written through one",
+            shown.display()
+        )),
+        Ok(Some(metadata)) if !metadata.is_file() => {
+            Some(format!("{} is not a regular file", shown.display()))
+        }
+        Ok(Some(metadata)) if bounded && metadata.len() > MAX_CACHE_BYTES => Some(format!(
+            "{} is larger than {MAX_CACHE_BYTES} bytes",
+            shown.display()
+        )),
+        Ok(_) => None,
+        Err(error) => Some(error.to_string()),
+    }
+}
+
 impl HashCache {
     /// Load the hash cache from the project's local state folder outside the work tree
     /// (REQ-hash-cache-009). Returns an empty cache if the file does not exist, cannot be
@@ -121,6 +143,11 @@ impl HashCache {
         let state = LocalState::open(root, true)?.ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, "the local state folder is missing")
         })?;
+        // A `hashes.json` that is a symbolic link or not a regular file is refused in the words
+        // `refusal` gives, and nothing is renamed over it (REQ-hash-cache-007).
+        if let Some(reason) = entry_refusal(&state, false) {
+            return Err(io::Error::other(reason));
+        }
         state.write_file(CACHE_FILE, json.as_bytes(), false)
     }
 
@@ -143,22 +170,7 @@ impl HashCache {
             Ok(None) => return None,
             Err(error) => return Some(error.to_string()),
         };
-        let shown = state.file_path(CACHE_FILE);
-        match state.metadata(CACHE_FILE) {
-            Ok(Some(metadata)) if metadata.file_type().is_symlink() => Some(format!(
-                "{} is a symbolic link, and the hash cache is never read or written through one",
-                shown.display()
-            )),
-            Ok(Some(metadata)) if !metadata.is_file() => {
-                Some(format!("{} is not a regular file", shown.display()))
-            }
-            Ok(Some(metadata)) if metadata.len() > MAX_CACHE_BYTES => Some(format!(
-                "{} is larger than {MAX_CACHE_BYTES} bytes",
-                shown.display()
-            )),
-            Ok(_) => None,
-            Err(error) => Some(error.to_string()),
-        }
+        entry_refusal(&state, true)
     }
 
     /// Compute the SHA-256 hex digest of a file's contents.

@@ -213,19 +213,50 @@ fn lexically_normal(path: &Path) -> PathBuf {
     normal
 }
 
-fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
+/// Why the Git hooks folder was not reached: there is nothing to manage there (Git did not run,
+/// the folder is not in a Git repository, or the configured hooks folder does not exist), or the
+/// way to it is refused, with a message that names the path (REQ-hooks-009).
+enum HooksDirError {
+    Absent(String),
+    Refused(String),
+}
+
+impl From<HooksDirError> for String {
+    fn from(error: HooksDirError) -> String {
+        match error {
+            HooksDirError::Absent(message) | HooksDirError::Refused(message) => message,
+        }
+    }
+}
+
+const GIT_NOT_RUN: &str = "failed to resolve Git hooks path";
+const NOT_A_REPOSITORY: &str =
+    "is not inside a Git repository; run `git init` before installing a pre-commit hook";
+const NO_HOOKS_DIR: &str = "configured Git hooks directory does not exist";
+
+fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, HooksDirError> {
+    reach_git_hooks_dir(root, create).map_err(|message| {
+        if message == NO_HOOKS_DIR
+            || message.ends_with(NOT_A_REPOSITORY)
+            || message.starts_with(GIT_NOT_RUN)
+        {
+            HooksDirError::Absent(message)
+        } else {
+            HooksDirError::Refused(message)
+        }
+    })
+}
+
+fn reach_git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
     let output =
         crate::git_utils::output_after_child_exits(Command::new("git").arg("-C").arg(root).args([
             "rev-parse",
             "--git-path",
             "hooks",
         ]))
-        .map_err(|error| format!("failed to resolve Git hooks path: {error}"))?;
+        .map_err(|error| format!("{GIT_NOT_RUN}: {error}"))?;
     if !output.status.success() {
-        return Err(format!(
-            "{} is not inside a Git repository; run `git init` before installing a pre-commit hook",
-            root.display()
-        ));
+        return Err(format!("{} {NOT_A_REPOSITORY}", root.display()));
     }
     let raw = String::from_utf8(output.stdout)
         .map_err(|_| "Git hooks path is not valid UTF-8".to_string())?;
@@ -270,7 +301,7 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
             }
             let parent = parent
                 .canonicalize()
-                .map_err(|_| "configured Git hooks directory does not exist".to_string())?;
+                .map_err(|_| NO_HOOKS_DIR.to_string())?;
             (parent, PathBuf::from(name))
         }
     };
@@ -294,7 +325,7 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
             Ok(_) => return Err(format!("{} is not a directory", reached.display())),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 if !may_create {
-                    return Err("configured Git hooks directory does not exist".into());
+                    return Err(NO_HOOKS_DIR.into());
                 }
                 // checked project write: made through the handle on the folder above, which was reached without following a link
                 match dir.create_dir(name) {
@@ -614,65 +645,52 @@ impl HookTarget {
     }
 }
 
-/// Check if a hook target is already installed.
-pub fn is_installed(root: &Path, target: HookTarget) -> bool {
+/// Whether a hook target is installed. A read of its file that is refused or fails is an error
+/// that names the path and the reason, never "not installed" (REQ-hooks-007). For the pre-commit
+/// hook, a hooks folder that cannot be reached safely is an error too (REQ-hooks-009), while no
+/// repository or no hooks folder means there is no hook.
+pub fn installed(root: &Path, target: HookTarget) -> Result<bool, String> {
+    let marked = |relative: &str, marker: &str| -> Result<bool, String> {
+        Ok(read_hook_target(root, &root.join(relative), relative)?
+            .is_some_and(|content| content.contains(marker)))
+    };
     match target {
-        HookTarget::Claude => {
-            let path = root.join("CLAUDE.md");
-            path.exists()
-                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
-                    .map(|c| c.contains("Spec-Sync Integration"))
-                    .unwrap_or(false)
-        }
-        HookTarget::Cursor => {
-            let path = root.join(".cursorrules");
-            path.exists()
-                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
-                    .map(|c| c.contains("Spec-Sync Rules"))
-                    .unwrap_or(false)
-        }
-        HookTarget::Copilot => {
-            let path = root.join(".github").join("copilot-instructions.md");
-            path.exists()
-                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
-                    .map(|c| c.contains("Spec-Sync Integration"))
-                    .unwrap_or(false)
-        }
-        HookTarget::Agents => {
-            let path = root.join("AGENTS.md");
-            path.exists()
-                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
-                    .map(|c| c.contains("Spec-Sync Integration"))
-                    .unwrap_or(false)
-        }
+        HookTarget::Claude => marked("CLAUDE.md", "Spec-Sync Integration"),
+        HookTarget::Cursor => marked(".cursorrules", "Spec-Sync Rules"),
+        HookTarget::Copilot => marked(".github/copilot-instructions.md", "Spec-Sync Integration"),
+        HookTarget::Agents => marked("AGENTS.md", "Spec-Sync Integration"),
         HookTarget::Precommit => {
-            let Ok(hooks_dir) = git_hooks_dir(root, false) else {
-                return false;
+            let hooks_dir = match git_hooks_dir(root, false) {
+                Ok(hooks_dir) => hooks_dir,
+                Err(HooksDirError::Absent(_)) => return Ok(false),
+                Err(HooksDirError::Refused(reason)) => return Err(reason),
             };
             let Ok((begin, end)) = pre_commit_markers(root) else {
-                return false;
+                return Ok(false);
             };
-            // The hook is Git's, not a project file: read through the hooks folder handle, which
-            // never follows a link (REQ-hooks-009).
-            hooks_dir
-                .read_hook()
-                .ok()
-                .flatten()
-                .is_some_and(|content| content.contains(&begin) && content.contains(&end))
+            // A link at `pre-commit` is refused, as install and uninstall refuse it; the hook is
+            // Git's, not a project file, and is read through the hooks folder handle, which never
+            // follows a link (REQ-hooks-009).
+            if !hooks_dir.has_hook("refusing to read symlinked pre-commit hook")? {
+                return Ok(false);
+            }
+            Ok(hooks_dir
+                .read_hook()?
+                .is_some_and(|content| content.contains(&begin) && content.contains(&end)))
         }
-        HookTarget::ClaudeCodeHook => {
-            let path = root.join(".claude").join("settings.json");
-            path.exists()
-                && crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
-                    .map(|c| c.contains(CLAUDE_CODE_HOOK_MARKER))
-                    .unwrap_or(false)
-        }
+        HookTarget::ClaudeCodeHook => marked(".claude/settings.json", CLAUDE_CODE_HOOK_MARKER),
     }
+}
+
+/// [`installed`], with an error read as not installed, for the unit tests' short checks.
+#[cfg(test)]
+pub fn is_installed(root: &Path, target: HookTarget) -> bool {
+    installed(root, target).unwrap_or(false)
 }
 
 /// Install a single hook target. Returns Ok(true) if installed, Ok(false) if already present.
 pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
-    if is_installed(root, target) {
+    if installed(root, target)? {
         return Ok(false);
     }
 
@@ -686,12 +704,19 @@ pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
     }
 }
 
+/// What `uninstall` says for an installed Claude Code hook: a note, not a failure.
+const CLAUDE_CODE_HOOK_MANUAL_REMOVAL: &str =
+    "Claude Code hook settings must be removed manually from .claude/settings.json";
+
 /// Uninstall a single hook target. Returns Ok(true) if removed, Ok(false) if not found.
 pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
     if target == HookTarget::Precommit {
+        // No repository or no hooks folder holds no hook; a hooks folder reached through a link
+        // is refused with the path named (REQ-hooks-009).
         let hooks_dir = match git_hooks_dir(root, false) {
             Ok(hooks_dir) => hooks_dir,
-            Err(_) => return Ok(false),
+            Err(HooksDirError::Absent(_)) => return Ok(false),
+            Err(HooksDirError::Refused(reason)) => return Err(reason),
         };
         return uninstall_precommit(root, &hooks_dir);
     }
@@ -702,7 +727,7 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
     {
         return Err(reason);
     }
-    if !is_installed(root, target) {
+    if !installed(root, target)? {
         return Ok(false);
     }
 
@@ -732,10 +757,7 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         HookTarget::Precommit => unreachable!("pre-commit uninstall handled above"),
         HookTarget::ClaudeCodeHook => {
             // Don't auto-remove Claude Code settings — too risky
-            Err(
-                "Claude Code hook settings must be removed manually from .claude/settings.json"
-                    .to_string(),
-            )
+            Err(CLAUDE_CODE_HOOK_MANUAL_REMOVAL.to_string())
         }
     }
 }
@@ -775,9 +797,12 @@ fn wrap_snippet(snippet: &str) -> String {
 /// inside the project is followed (REQ-hooks-006).
 fn read_hook_target(root: &Path, path: &Path, label: &str) -> Result<Option<String>, String> {
     match crate::util::read_project_file(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
-        Ok(Some(bytes)) => String::from_utf8(bytes)
-            .map(Some)
-            .map_err(|e| format!("Failed to read {label}: {e}")),
+        Ok(Some(bytes)) => String::from_utf8(bytes).map(Some).map_err(|_| {
+            format!(
+                "Failed to read {label}: {} is not valid UTF-8",
+                path.display()
+            )
+        }),
         Ok(None) => Ok(None),
         Err(e) => Err(format!("Failed to read {label}: {e}")),
     }
@@ -1217,11 +1242,11 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
             }
             Err(e) => {
                 println!("  {} {}: {e}", "!".yellow(), target.description());
-                // A file `uninstall` would rewrite and refuses to, because it leaves the
-                // project through a link, is the command failing, not a note (REQ-hooks-006).
-                if uninstalled_file(root, *target)
-                    .is_some_and(|path| crate::util::project_path_refusal(root, &path).is_some())
-                {
+                // Every error but the Claude Code hook's manual-removal note is the command
+                // failing: a file it would rewrite and refuses to (REQ-hooks-006), or a read of
+                // a hook target, or the way to the hooks folder, refused or failed (REQ-hooks-007,
+                // REQ-hooks-009).
+                if e != CLAUDE_CODE_HOOK_MANUAL_REMOVAL {
                     refused += 1;
                 }
             }
@@ -1261,11 +1286,12 @@ pub fn cmd_status(root: &Path) {
     );
 
     for target in HookTarget::all() {
-        let installed = is_installed(root, *target);
-        let status = if installed {
-            "installed".green().to_string()
-        } else {
-            "not installed".dimmed().to_string()
+        // A read that is refused or fails is shown with its reason, never as "not installed"
+        // (REQ-hooks-007).
+        let status = match installed(root, *target) {
+            Ok(true) => "installed".green().to_string(),
+            Ok(false) => "not installed".dimmed().to_string(),
+            Err(reason) => format!("{} {reason}", "error:".red()),
         };
         println!("  {:20} {}", target.description(), status);
     }

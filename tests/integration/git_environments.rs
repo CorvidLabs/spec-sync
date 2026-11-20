@@ -740,3 +740,64 @@ fn a_promisor_spelled_yes_is_a_partial_clone() {
 
     assert_eq!(status.matches("downloading ").count(), 1, "{status}");
 }
+
+// ---- corvid-agent's review of #1122 ----
+
+/// corvid-agent on #1122 (1): every history read goes through the one fetch, not only the
+/// lifecycle reads of an active change. With no active change, `change audit` in a blobless
+/// clone still downloads what it reads in one announced fetch, instead of fetching blob by blob.
+#[test]
+fn a_partial_clone_with_no_active_change_audits_after_one_fetch() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    git(
+        &source,
+        &["rm", "-q", "-r", &format!(".specsync/changes/{id}")],
+    );
+    git(&source, &["commit", "-q", "-m", "no active change"]);
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+
+    let audit = run(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", config.to_str().unwrap())],
+        &["change", "audit"],
+    );
+
+    assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
+    assert_eq!(missing_objects(&clone), 0, "{audit}");
+}
+
+/// corvid-agent on #1122 (2): the user's trust is asked about this repository only. With
+/// `GIT_DIR` pointing at a sibling the user trusts, the repository the user does not trust is
+/// still refused.
+#[test]
+fn trust_in_a_sibling_named_by_git_dir_does_not_trust_this_repository() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    let id = adopted_project(&root);
+    let sibling = temp.path().join("sibling");
+    fs::create_dir_all(&sibling).unwrap();
+    git(&sibling, &["init", "-q", "-b", "main"]);
+    let sibling_top = git(&sibling, &["rev-parse", "--show-toplevel"])
+        .trim()
+        .to_string();
+    let config = user_config(temp.path(), &[sibling_top.as_str()]);
+    let sibling_git_dir = sibling.join(".git");
+
+    let refused = invoke(
+        &root,
+        &[
+            ("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
+            ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
+            ("GIT_DIR", sibling_git_dir.to_str().unwrap()),
+        ],
+        &["change", "status", &id],
+    );
+    let text = combined(&refused);
+
+    assert!(!refused.status.success(), "{text}");
+    assert!(text.contains("detected dubious ownership"), "{text}");
+}

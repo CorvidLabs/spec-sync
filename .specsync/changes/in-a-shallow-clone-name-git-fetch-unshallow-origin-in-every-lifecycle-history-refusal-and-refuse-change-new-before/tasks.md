@@ -5,8 +5,8 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Commit the failing shallow-clone tests.
-- [ ] Name the shallow clone and the fetch in the baseline history refusal and the correction-ledger text.
-- [ ] Make `change new` check the history before it writes.
-- [ ] Docs, CHANGELOG, spec invariant.
-- [ ] `change check --commit`, verify lane, `change audit --strict`, trust.
+- [x] Commit the failing shallow-clone tests.
+- [x] Name the shallow clone and the fetch in the baseline history refusal and the correction-ledger text.
+- [x] Make `change new` check the history before it writes.
+- [x] Docs, CHANGELOG, spec invariant.
+- [x] `change check --commit`, verify lane, `change audit --strict`, trust.

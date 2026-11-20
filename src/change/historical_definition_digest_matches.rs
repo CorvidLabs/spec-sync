@@ -3084,7 +3084,7 @@ fn approvals_ledger_held_by_history_at(
 ) -> Result<(), String> {
     let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
     let relative = git_repo_relative_path(root, &display)?;
-    let working = match fs::read(working_path) {
+    let working = match crate::util::read_project_bytes(root, working_path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(missing_approvals_ledger_refusal(root, &display, &relative));
@@ -3281,7 +3281,11 @@ pub(crate) fn ensure_working_ledger_keeps_committed_records(
     record: &ChangeRecord,
 ) -> Result<(), String> {
     let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
-    let Ok(working) = fs::read(change_dir(root, &record.id).join("approvals.json")) else {
+    let Ok(working) = crate::util::read_project_bytes(
+        root,
+        &change_dir(root, &record.id).join("approvals.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) else {
         return Ok(());
     };
     let relative = git_repo_relative_path(root, &display)?;

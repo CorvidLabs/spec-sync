@@ -9,11 +9,31 @@
 // id that is gone from every requirements file and that no approved REMOVED item of a change on
 // the branch names is refused, by name.
 
+/// The default branch this check compares with ("the default branch (`origin/HEAD`, else
+/// `origin/main` or `origin/master`)"): `origin/HEAD` only when it resolves to a commit, else the
+/// first of `origin/main` and `origin/master` that does. An `origin/HEAD` left dangling, by a
+/// default branch renamed and then pruned, names no default branch (corvid-agent on #1108). It is
+/// local to this check, so the other callers of `remote_default_ref` do not change.
+fn lost_requirements_default_ref(root: &Path) -> Option<String> {
+    let resolves = |candidate: &str| {
+        let commit = format!("{candidate}^{{commit}}");
+        git_output(root, &["rev-parse", "--verify", "--quiet", commit.as_str()]).is_some()
+    };
+    git_output(root, &["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"])
+        .filter(|candidate| resolves(candidate))
+        .or_else(|| {
+            ["origin/main", "origin/master"]
+                .into_iter()
+                .find(|candidate| resolves(candidate))
+                .map(str::to_string)
+        })
+}
+
 /// Where the branch's requirements are compared from, or `None` when there is nothing to compare
 /// with: no default branch, and no `base_commit` in HEAD's history. `Err` when a default branch
 /// exists and Git cannot give its merge-base with HEAD (fail closed, as REQ-change-142).
 fn lost_requirements_reference(root: &Path, record: &ChangeRecord) -> Result<Option<String>, String> {
-    if let Some(default) = remote_default_ref(root) {
+    if let Some(default) = lost_requirements_default_ref(root) {
         return git_output_allow_empty(root, &["merge-base", "HEAD", default.as_str()])
             .map(|text| text.trim().to_string())
             .filter(|commit| is_canonical_commit_id(commit))
@@ -358,7 +378,7 @@ fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTree
 
 /// The requirement ids approved `## REMOVED` items name, in the deltas of every change on the
 /// branch that may account for a loss: each active change past its draft, and each change the
-/// branch archived after `reference`, taken from its archived record. A retired change accounts
+/// branch archived after `reference`, committed or not yet, taken from its archived record. A retired change accounts
 /// for nothing, in the active roster or in the archive, and neither does a delta file under the
 /// archive path with no archived record around it (Codex on #1108; one mechanism for both).
 fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTreeSet<String>, String> {
@@ -394,7 +414,14 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         ],
     )
     .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
-    for path in nul_separated(&added) {
+    // `change finalize` moves a change into the archive before its tip is committed, and Git's diff
+    // does not list a file it does not track yet (corvid-agent on #1108).
+    let untracked = git_output_allow_empty(
+        root,
+        &["ls-files", "-z", "--others", "--exclude-standard", "--", archive.as_str()],
+    )
+    .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
+    for path in nul_separated(&added).chain(nul_separated(&untracked)) {
         // The archived record of a change: `<archive>/<package>/state.json`, one level down.
         let Some(package) = path
             .strip_prefix(ARCHIVE_PATH)
@@ -593,7 +620,7 @@ fn lost_requirements_check(
     let restore_or_remove = format!(
         "restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`"
     );
-    let way_out = match (main_removed.is_empty(), remote_default_ref(root)) {
+    let way_out = match (main_removed.is_empty(), lost_requirements_default_ref(root)) {
         (false, Some(default)) if others.is_empty() => format!(
             "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `specsync change check {id}`",
             main_removed.join(", ")
@@ -623,7 +650,7 @@ fn default_branch_requirement_ids(
     root: &Path,
     scope: &RequirementScope,
 ) -> Option<(String, BTreeSet<String>)> {
-    let default = remote_default_ref(root)?;
+    let default = lost_requirements_default_ref(root)?;
     let prefix = git_repo_prefix(root).ok()?;
     let excluded = excluded_requirement_directories(root);
     let pathspecs: Vec<String> = scope

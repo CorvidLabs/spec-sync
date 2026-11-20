@@ -3779,7 +3779,9 @@ fn approval_without_relay(approval: &ApprovalRecord) -> serde_json::Value {
 /// the definition approval that counts now was recorded after both sides: first committed in a
 /// commit that descends from both, or not committed yet, on top of a `HEAD` that reaches both.
 /// An archived change is not judged again: it can no longer be approved, so a fork its history
-/// holds must not fail every later audit. A merge that reorders records stays #428's rewrite.
+/// holds must not fail every later audit. A divergence that reached `HEAD`'s first-parent history,
+/// such as a merge that rewrites or reorders records, stays #428's rewrite (REQ-change-166): this
+/// check says nothing about it, and it compares only pairs with one side off that history.
 fn ensure_approval_history_not_forked(
     root: &Path,
     record: &ChangeRecord,
@@ -3836,6 +3838,23 @@ fn ensure_approval_history_not_forked(
         ) else {
             continue;
         };
+        let first_parent: BTreeSet<String> = git_output_allow_empty(
+            root,
+            &[
+                "log",
+                "--first-parent",
+                "--no-renames",
+                "--format=%H",
+                "HEAD",
+                "--",
+                pathspec.as_str(),
+            ],
+        )
+        .unwrap_or_default()
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect();
         let mut versions: Vec<(String, Vec<serde_json::Value>, Vec<String>)> = Vec::new();
         for commit in commits.lines().map(str::trim).filter(|line| !line.is_empty()) {
             let object = format!("{commit}:{prefix}{path}");
@@ -3853,6 +3872,20 @@ fn ensure_approval_history_not_forked(
                 .collect();
             versions.push((commit.to_string(), approvals, actors));
         }
+        // A first-parent history whose approvals do not extend one another is #428's rewrite,
+        // refused at finalize, ship and archive with its own ways out (REQ-change-166).
+        let on_first_parent: Vec<&Vec<serde_json::Value>> = versions
+            .iter()
+            .rev()
+            .filter(|(commit, _, _)| first_parent.contains(commit))
+            .map(|(_, approvals, _)| approvals)
+            .collect();
+        if on_first_parent
+            .windows(2)
+            .any(|pair| pair[1].len() < pair[0].len() || pair[1][..pair[0].len()] != pair[0][..])
+        {
+            continue;
+        }
         // The commit that first recorded the approval that counts now: the oldest version holding
         // it. None when it is not committed yet.
         let current_first = versions
@@ -3862,6 +3895,9 @@ fn ensure_approval_history_not_forked(
             .map(|(commit, _, _)| commit.clone());
         for (index, (left_commit, left, left_actors)) in versions.iter().enumerate() {
             for (right_commit, right, right_actors) in &versions[index + 1..] {
+                if first_parent.contains(left_commit) && first_parent.contains(right_commit) {
+                    continue;
+                }
                 let shared = left.len().min(right.len());
                 let Some(split) = (0..shared).find(|at| left[*at] != right[*at]) else {
                     continue;

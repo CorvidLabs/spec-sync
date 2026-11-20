@@ -165,6 +165,13 @@
         "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 16:00Z, after t4c summed up security/change5-scope.md: SETUP-6 and SETUP-7 cover points 1, 2, 3 and 5; the new intent line CHECK-1.f 'A result that a repository somebody else wrote carries along never hides a failure my check would report.'; choices 1-8 as recommended (tracked hashes.json neither read nor saved with one warning and the git rm --cached fix; confinement root = git top folder else --root, caches strict, absolute links refused with an 'absolute link' message; confine specs_dir, source_dirs and schema_dir with a budgeted confined walk; a changelog blob over 8 MiB skipped with a warning; import --from-dir confined to the named directory, 8 MiB; --fix --backup keeps its layout, written confined; the wider write scan; the two low items included); relayed by t4c over hc to t5r, to be recorded when change 5 starts after change 4",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795155011,
+      "digest": "0abe73edf894b18a48369b1bce56be30ceb53fa1dcf20b2121fd0c6ff846b071",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

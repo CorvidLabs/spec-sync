@@ -1662,4 +1662,25 @@ mod tests {
 
         assert!(!replays(), "a symlink with the same bytes re-validates");
     }
+
+    /// C5 (#1135, 6.4.1). A cache whose JSON is larger than the bound every later load refuses is
+    /// never written: `save` refuses and leaves the cache already there.
+    #[test]
+    fn save_refuses_a_cache_larger_than_the_load_bound() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        HashCache::default().save(root).unwrap();
+        let before = fs::read(state_cache_file(root)).unwrap();
+        let mut big = HashCache::default();
+        let key = "k".repeat(1024 * 1024);
+        for n in 0..65 {
+            big.hashes.insert(format!("{n}{key}"), "0".repeat(64));
+        }
+
+        assert!(
+            big.save(root).is_err(),
+            "a cache over the bound was written"
+        );
+        assert_eq!(fs::read(state_cache_file(root)).unwrap(), before);
+    }
 }

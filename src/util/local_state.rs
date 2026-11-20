@@ -487,4 +487,15 @@ mod tests {
         assert!(elsewhere.exists());
         assert!(state.read_file("linked.json", 16).unwrap().is_none());
     }
+
+    /// N2 (6.4.1). A project that would hold its own state folder, such as one at
+    /// `<cache>/specsync`, is refused as a cache folder inside the project is.
+    #[test]
+    fn a_project_that_would_hold_its_own_state_folder_is_refused() {
+        let base = user_cache_folder().unwrap();
+        let root = base.join(STATE_FOLDER);
+        fs::create_dir_all(&root).unwrap();
+        let state = project_state_dir(&root);
+        assert!(state.is_err(), "{state:?}");
+    }
 }

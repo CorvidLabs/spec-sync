@@ -1017,6 +1017,11 @@ const GIT_WRITING_ARGUMENTS: &[&str] = &[
     "bundle",
     "format-patch",
     "-o",
+    // 6.4.1 (X1): verbs SpecSync runs none of today, but which write files or Git's config.
+    "apply",
+    "merge",
+    "switch",
+    "config",
 ];
 
 /// A spawned Git command that writes files carries this marker in its statement, with the reason

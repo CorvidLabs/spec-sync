@@ -21,7 +21,7 @@ bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: Move the release surfaces to 6.4.1, the CHANGELOG section and docs/releases/6.4.1.md
+next: Ship without an intermediate commit, push, CI
 ---
 # Prepare SpecSync 6.4.1 package metadata and release handoff (6.4.0's prep, versions moved)
 
@@ -34,6 +34,7 @@ Prepare SpecSync 6.4.1 package metadata and release handoff (6.4.0's prep, versi
 ## Decisions and why
 
 - 0xLeif decided "Leif's relayed approval of the 6.4.1 prep definition (relayed by hc t4c)": ""Approve (Recommended)" to the 6.4.1 prep definition as written (gates/641-prep-definition.md: versions to 6.4.1, the CHANGELOG section dated the planned tag day and corrected before the tag if it moves, docs/releases/6.4.1.md, 6.4.0's paths and wording); and "1: hardening only (Recommended)" to what 6.4.1 holds, with his earlier "Go (Recommended)" to releasing 6.4.1 with the same steps as 6.4.0" (Claude Code question dialogs in his planning session (hc t4c), 2026-11-20 about 22:41Z (the go) and about 22:44Z (the definition and what 6.4.1 holds), on exactly ss-builder/gates/641-prep-definition.md; relayed by hc t4c); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve prepare-specsync-6-4-1-package-metadata-and-release-handoff as 0xLeif
+- 0xLeif decided "Leif's relayed review of #1138, the 6.4.1 prep (relayed by hc t4c)": ""Pass (Recommended)", to his review of #1138 (the 6.4.1 prep, at 10202242, from ss-builder/gates/1138-review-request.md)" (A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 23:40Z; relayed by hc t4c); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change review prepare-specsync-6-4-1-package-metadata-and-release-handoff as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -61,5 +62,22 @@ Prepare SpecSync 6.4.1 package metadata and release handoff (6.4.0's prep, versi
     - where: Claude Code question dialogs in his planning session (hc t4c), 2026-11-20 about 22:41Z (the go) and about 22:44Z (the definition and what 6.4.1 holds), on exactly ss-builder/gates/641-prep-definition.md; relayed by hc t4c
     - recorded_by: claude-code-t59
     - native: specsync change approve prepare-specsync-6-4-1-package-metadata-and-release-handoff
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-20T23:40:50Z · gate-opened · intent → intent · Leif's relayed review of #1138, the 6.4.1 prep (relayed by hc t4c) ^t-a9b689
+  - native_change: prepare-specsync-6-4-1-package-metadata-and-release-handoff
+  - revision: 102022428a287fa154d7c717325b03e7d7382e5e
+  - holds: intent
+  - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-20T23:40:50Z · gate-closed · intent → intent · Leif's relayed review of #1138, the 6.4.1 prep (relayed by hc t4c) ^t-0ef858
+  - native_change: prepare-specsync-6-4-1-package-metadata-and-release-handoff
+  - revision: 102022428a287fa154d7c717325b03e7d7382e5e
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: "\"Pass (Recommended)\", to his review of #1138 (the 6.4.1 prep, at 10202242, from ss-builder/gates/1138-review-request.md)"
+    - where: A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 23:40Z; relayed by hc t4c
+    - recorded_by: claude-code-t59
+    - native: specsync change review prepare-specsync-6-4-1-package-metadata-and-release-handoff
     - actor: 0xLeif
   - by: claude-code (hc t59)

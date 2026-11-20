@@ -45,6 +45,13 @@
         "where": "Claude Code question dialogs in his planning session (hc t4c), 2026-11-20 about 22:41Z (the go) and about 22:44Z (the definition and what 6.4.1 holds), on exactly ss-builder/gates/641-prep-definition.md; relayed by hc t4c",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795218071,
+      "digest": "b647939bb5e3e39912e3200aac0c08971d3a27170d3c30d63f9a79d538e9fc78",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

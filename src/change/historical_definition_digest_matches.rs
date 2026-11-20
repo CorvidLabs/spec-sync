@@ -3074,10 +3074,12 @@ pub fn archived_provisional_coverage(
         .collect()
 }
 
-/// The later accepted changes whose declared scope covers `path` under `owner`: each of them waits
-/// on `record` too, because archiving any change runs the preflight that finds `record` stale
-/// (REQ-change-168).
+/// The later accepted changes that declare `path` under `owner`, or whose delivery changed it: each
+/// of them waits on `record` too, because archiving any change runs the preflight that finds
+/// `record` stale (REQ-change-168). A later change that edits the input without declaring it is the
+/// common case, since it covers nothing (the tester on #657 with #688).
 fn later_changes_blocked_by(
+    root: &Path,
     records: &BTreeMap<String, ChangeRecord>,
     record: &ChangeRecord,
     path: &str,
@@ -3089,14 +3091,53 @@ fn later_changes_blocked_by(
             candidate.id != record.id
                 && candidate.state == ChangeState::Accepted
                 && happens_after(candidate, record)
-                && candidate.affected_specs.iter().any(|module| module == owner)
-                && candidate
-                    .affected_paths
-                    .iter()
-                    .any(|scope| path_matches_scope(path, scope))
+                && ((candidate.affected_specs.iter().any(|module| module == owner)
+                    && candidate
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope)))
+                    || delivery_changed_path(root, candidate, record, path))
         })
         .map(|candidate| candidate.id.clone())
         .collect()
+}
+
+/// Whether `candidate`'s delivery changed `path` after `record` was verified: a commit that
+/// `candidate`'s verification reaches, and that neither its base nor `record`'s verified commit
+/// reaches, touches the path.
+fn delivery_changed_path(
+    root: &Path,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+) -> bool {
+    let verified = |change: &ChangeRecord| {
+        load_verification(root, change)
+            .ok()
+            .and_then(|verification| verification.commit)
+            .filter(|commit| is_canonical_commit_id(commit))
+    };
+    let Some(delivered) = verified(candidate) else {
+        return false;
+    };
+    let Ok(relative) = git_repo_relative_path(root, path) else {
+        return false;
+    };
+    let mut args = vec!["rev-list".to_string(), "--max-count=1".to_string(), delivered];
+    if let Some(base) = candidate
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    {
+        args.push(format!("^{base}"));
+    }
+    if let Some(earlier) = verified(record) {
+        args.push(format!("^{earlier}"));
+    }
+    args.push("--".to_string());
+    args.push(format!(":(top,literal){relative}"));
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_output_allow_empty(root, &args).is_some_and(|commits| !commits.trim().is_empty())
 }
 
 /// The `delivery input `<path>` (owner `<owner>`)` a stale-input refusal names, read from the
@@ -3627,7 +3668,7 @@ fn archive_change_with_options(
             let Ok(records) = list_all_changes_structural(root) else {
                 return error;
             };
-            let blocked = later_changes_blocked_by(&records, &record, &path, &owner);
+            let blocked = later_changes_blocked_by(root, &records, &record, &path, &owner);
             if blocked.is_empty() {
                 return error;
             }
@@ -3637,7 +3678,7 @@ fn archive_change_with_options(
                 .collect::<Vec<_>>()
                 .join(", ");
             format!(
-                "{error}. Later change {named} declares `{path}` too and cannot be archived either while `{}` is stale",
+                "{error}. Later change {named} shares `{path}` and cannot be archived either while `{}` is stale",
                 record.id
             )
         },

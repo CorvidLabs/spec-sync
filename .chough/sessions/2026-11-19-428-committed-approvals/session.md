@@ -27,6 +27,8 @@ observations:
   - 2026-11-20-428-review-round-1-at-a0b997db
   - 2026-11-20-428-migrate-regression-at-c7d16a2b
   - 2026-11-20-428-ship-order-at-5ef1af6a
+  - 2026-11-20-428-check-commit-red-at-637bce9a
+  - 2026-11-20-428-check-commit-lane-at-5e072de9
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -63,6 +65,8 @@ finalize, ship and archive refuse an approvals ledger that Git history does not 
 - [#1120's first review round (Codex's five, corvid-agent's review) and tester2's way-out finding: red first at b00511c5 (5 of 5 fail); fixed at 5f57f347 and 41fa601f; checked at a0b997db. With this tree's release build first on PATH, fledge lanes run verify passed 10/10 in 9m03s through one-lane (unit 3126 passed, 2 ignored, committed_approvals 26 of 26; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix on the lane only (#1092); change audit --strict passes.](evidence/2026-11-20-428-review-round-1-at-a0b997db.md)
 - [tester2's regression on #1120 (P-428-guard-migrate-digests): red first at 768e71b6 (a reopening committed without the migrate 5.0 digests was refused as not a ledger); fixed, each committed version must be an object whose approvals, reopenings and send_backs are lists; checked at c7d16a2b. fledge lanes run verify 10/10 in 7m43s through one-lane (unit 3127 passed, 2 ignored, committed_approvals 27 of 27; integration 645; spec check 62/62, 168/168 files), the neutral git config as a prefix only (#1092); change audit --strict passes.](evidence/2026-11-20-428-migrate-regression-at-c7d16a2b.md)
 - [Codex round 2 P1 and corvid-agent's blocker on #1120: with verification stale too, ship-status puts a ledger refusal whose way out is not check --commit first and makes that way out ship_next, so ship names the restore and never check --commit. Red first through the binary at 8e3eb2ee; a refusal that check --commit itself resolves keeps its place (review_and_ship_refuse_a_verification_commit_that_lacks_the_work, which the first fix broke at 9f2a8f18). Checked at 5ef1af6a: fledge lanes run verify 10/10 in 7m19s through one-lane (unit 3127, 2 ignored; integration 646; spec check 62/62, 168/168 files), the neutral git config as a prefix only (#1092); change audit --strict passes.](evidence/2026-11-20-428-ship-order-at-5ef1af6a.md)
+- [Red first, through the binary (prepared at 637bce9a, brought in as 7d60a202): with verification stale and one approval's actor rewritten in the working tree, change check --commit succeeded and committed the edited ledger. cargo test --test integration through one-lane, the neutral git config as a prefix only (#1092).](evidence/2026-11-20-428-check-commit-red-at-637bce9a.md)
+- [Leif's 'Yes (Recommended)' (2026-11-20 about 14:13Z): REQ-change-166 adds that change check --commit refuses, before writing anything, to commit a ledger whose working copy changes or drops a committed record, naming the same restore, and its criterion. run_checked_commit asks it before the first pass, for the change given or the one change check would select. Checked at 5e072de9: fledge lanes run verify 10/10 in 9m56s through one-lane (unit 3127, 2 ignored; integration 647; spec check 62/62, 168/168 files); change audit --strict passes; the requirement text differs from b7de737c by exactly the two insertions (by script).](evidence/2026-11-20-428-check-commit-lane-at-5e072de9.md)
 
 ## Open threads
 

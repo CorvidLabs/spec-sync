@@ -243,7 +243,9 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
     pathspecs.extend(requirement_scope(root).pathspecs());
     let mut revisions = vec!["HEAD".to_string()];
     revisions.extend(default);
-    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet"];
+    // `--full-history`: a path-limited walk Git simplifies skips a side branch merged without its
+    // changes, whose files a later read can still name.
+    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "--full-history"];
     args.extend(revisions.iter().map(String::as_str));
     args.push("--");
     args.extend(pathspecs.iter().map(String::as_str));

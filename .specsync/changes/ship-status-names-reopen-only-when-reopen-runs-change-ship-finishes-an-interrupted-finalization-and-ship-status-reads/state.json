@@ -7,10 +7,11 @@
   "title": "Ship-status names reopen only when reopen runs, change ship finishes an interrupted finalization, and ship-status reads the ledger freeze once per report",
   "description": "ship-status names reopen only when reopen runs, change ship finishes an interrupted finalization, and ship-status reads the ledger freeze once per report",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "a28e30420c12627a384a685cd5d808fc3585b70a",
   "created_at": 1795177617,
-  "updated_at": 1795177718,
+  "updated_at": 1795178830,
   "affected_specs": [
     "cmd_change",
     "change"

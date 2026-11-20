@@ -5,7 +5,7 @@ aliases: [922-933-938-ship-status]
 objective: ship-status names reopen only when reopen runs (#922), change ship finishes an interrupted finalization (#933), and ship-status reads the ledger freeze once per report (#938)
 intent_scope: ""
 modules: []
-stage: intent
+stage: build
 stage_status: active
 iteration: 1
 callers: []
@@ -60,4 +60,17 @@ ship-status names reopen only when reopen runs (#922), change ship finishes an i
     - recorded_by: claude-code-t59
     - native: specsync change approve ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
     - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-20T12:28:48Z · advance · intent → design · The definition is approved as written and recorded; its design and plan are the approved definition ^t-2887e5
+  - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+  - revision: f1b901397ea408ae402681bc8982bb3c0470533a
+  - by: claude-code (hc t59)
+- 2026-11-20T12:28:48Z · advance · design → plan · The definition is approved as written and recorded; its design and plan are the approved definition ^t-54bf35
+  - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+  - revision: f1b901397ea408ae402681bc8982bb3c0470533a
+  - by: claude-code (hc t59)
+- 2026-11-20T12:28:48Z · advance · plan → build · The definition is approved as written and recorded; its design and plan are the approved definition ^t-95dd80
+  - native_change: ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads
+  - gate: native:approved
+  - revision: f1b901397ea408ae402681bc8982bb3c0470533a
   - by: claude-code (hc t59)

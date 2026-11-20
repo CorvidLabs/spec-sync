@@ -243,11 +243,9 @@ fn reference_registry(
 ) -> Result<Option<crate::types::RegistryEntry>, String> {
     let unreadable = |error: std::io::Error| format!("cannot copy {path} to read it: {error}");
     let copy = tempfile::tempdir().map_err(unreadable)?;
+    // The private copy is its own root, so the write stays confined to it (REQ-util-002).
     let file = copy.path().join(path);
-    if let Some(parent) = file.parent() {
-        fs::create_dir_all(parent).map_err(unreadable)?;
-    }
-    fs::write(&file, content).map_err(unreadable)?;
+    crate::util::write_project_file(copy.path(), &file, content.as_bytes()).map_err(unreadable)?;
     Ok(crate::registry::load_local_registry(copy.path()).ok().flatten())
 }
 
@@ -418,7 +416,8 @@ fn working_tree_requirement_blocks(
             if !is_scanned_requirements_path(&relative, excluded) {
                 return None;
             }
-            let text = fs::read_to_string(&path).ok()?;
+            let text =
+                crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES).ok()?;
             Some((relative, requirement_blocks(&text)))
         })
         .collect()
@@ -440,7 +439,7 @@ fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTree
         let Ok(path) = delta_path_checked(root, change, module) else {
             continue;
         };
-        let Ok(delta) = read_bounded_change_text(&path, "semantic delta") else {
+        let Ok(delta) = read_bounded_change_text(root, &path, "semantic delta") else {
             continue;
         };
         let approved = approval
@@ -514,7 +513,11 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
             continue;
         };
         let directory = root.join(ARCHIVE_PATH).join(package);
-        let Ok(change) = fs::read(directory.join("state.json"))
+        let Ok(change) = crate::util::read_project_bytes(
+            root,
+            &directory.join("state.json"),
+            crate::util::MAX_STATE_FILE_BYTES,
+        )
             .map_err(|error| error.to_string())
             .and_then(|bytes| {
                 serde_json::from_slice::<ChangeRecord>(&bytes).map_err(|error| error.to_string())

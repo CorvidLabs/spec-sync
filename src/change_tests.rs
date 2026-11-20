@@ -51,3 +51,4 @@ include!("change_tests/inert_ignored_paths.rs");
 include!("change_tests/commit_identity_guards.rs");
 include!("change_tests/unknown_members.rs");
 include!("change_tests/committed_approvals.rs");
+include!("change_tests/forked_approvals.rs");

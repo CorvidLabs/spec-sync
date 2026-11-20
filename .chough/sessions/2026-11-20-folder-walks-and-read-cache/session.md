@@ -27,8 +27,11 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: [2026-11-20-on-4516f355-with-only-change-8-s-tests-added-all-6-new-unit]
-bugs: []
+observations:
+  - 2026-11-20-on-4516f355-with-only-change-8-s-tests-added-all-6-new-unit
+  - 2026-11-20-with-change-8-s-fix-at-700ebb00-fledge-lanes-run-verify-passes
+  - 2026-11-20-on-linux-at-700ebb00-clippy-all-targets-d-warnings-passes
+bugs: [2026-11-20-configured-folder-walks-follow-a-link-out-and-the-read-cache]
 blockers: []
 waiting_on_human: []
 run_consents: []
@@ -49,6 +52,8 @@ Every walk of a configured folder goes through the confined walk, so a committed
 ## What was verified
 
 - [On 4516f355 with only change 8's tests added: all 6 new unit tests and the new scaffold CLI test fail (also REQ-validator-053, REQ-config-018, REQ-schema-003, REQ-commands-016, REQ-cmd-scaffold-008). change adopt's requirement proposals listed two requirements.md files behind a specs link out; the duplicate requirement ID check named specs/alpha and specs/beta behind it; source detection found lib behind a link out; the schema snapshot named outside_only.sql; a missing file's suggestion listed ../outside/data; scaffold refused auth over an Auth folder outside; the read cache path was under .git.](evidence/2026-11-20-on-4516f355-with-only-change-8-s-tests-added-all-6-new-unit.md)
+- [With change 8's fix at 700ebb00, fledge lanes run verify passes all 10 steps: unit 3131 passed, 0 failed, 2 ignored; integration 703 passed, 0 failed; clippy, the release build, the strict spec check at 62 specs and 100% coverage, the gate scripts. All 6 new unit tests and the scaffold CLI test pass; configured folders that lead out are refused, not walked, and the read cache is in the user cache folder.](evidence/2026-11-20-with-change-8-s-fix-at-700ebb00-fledge-lanes-run-verify-passes.md)
+- [On Linux at 700ebb00: clippy --all-targets -D warnings passes; cargo test --no-fail-fast passes with unit 3135 passed, 0 failed, 2 ignored and integration 706 passed, 0 failed. Not run: x86_64, the Ubuntu image CI uses, hosted CI.](evidence/2026-11-20-on-linux-at-700ebb00-clippy-all-targets-d-warnings-passes.md)
 
 ## Open threads
 

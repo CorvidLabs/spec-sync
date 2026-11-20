@@ -2,6 +2,7 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -861,7 +862,7 @@ fn cleanup_generated_namespace(root: &Path, path: &Path) {
     );
     if ours
         && crate::util::project_path_refusal(root, parent).is_none()
-        && fs::read_dir(parent)
+        && crate::util::read_project_dir_entries(root, parent)
             .map(|mut entries| entries.next().is_none())
             .unwrap_or(false)
     {

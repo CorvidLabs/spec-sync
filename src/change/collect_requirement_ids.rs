@@ -1010,6 +1010,7 @@ fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[Strin
     let testing =
         crate::util::read_project_string(root, &change_dir(root, &record.id).join("testing.md"), crate::util::MAX_STATE_FILE_BYTES).unwrap_or_default();
     let mut evidence = Vec::new();
+    // not a project file read: walks the project without following any link (WalkDir does not by default), and reads each file through the bounded read
     for entry in walkdir::WalkDir::new(root)
         .into_iter()
         .filter_map(Result::ok)
@@ -1407,7 +1408,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     let directory = change_dir(root, &record.id).join("deltas");
     let mut actual_modules = BTreeSet::new();
     if directory.exists() {
-        for entry in fs::read_dir(&directory)
+        for entry in crate::util::read_project_dir_entries(root, &directory)
             .map_err(|error| format!("failed to inspect semantic deltas: {error}"))?
         {
             let entry =
@@ -2412,6 +2413,7 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
                 ));
             }
         }
+        // not a project file read: walks the historical delta root, refused above when it is a link, without following any link below it
         for entry in walkdir::WalkDir::new(&base) {
             let entry = entry.map_err(|error| {
                 format!(
@@ -3192,11 +3194,12 @@ where
         entry_count: journal.len(),
         entries_digest: transaction_entries_digest(&journal)?,
         entries: journal,
+        root: Some(journal_root(root)?),
     };
     validate_prepared_transaction_targets(root, prepared)?;
     validate()?;
     // The journal is kept in SpecSync's own state folder outside the work tree, where no
-    // repository can put one (REQ-change-162).
+    // repository can put one, and records the project it belongs to (REQ-change-162).
     let state = transaction_state(root, true)?
         .ok_or_else(|| "the local state folder for the transaction journal is missing".to_string())?;
     state
@@ -3926,7 +3929,7 @@ fn definition_artifact_snapshot(
         ));
     }
     let deltas = dir.join("deltas");
-    match fs::read_dir(&deltas) {
+    match crate::util::read_project_dir_entries(root, &deltas) {
         Ok(entries) => {
             for entry in entries {
                 let entry = entry.map_err(|error| {
@@ -4509,6 +4512,7 @@ fn strict_walk_project_paths_excluding(
     for attempt in 0..2 {
         let mut paths = Vec::new();
         let mut total = 0_usize;
+        // not a project file read: walks the project with follow_links(false), so no link is followed out
         let entries = walkdir::WalkDir::new(root)
             .follow_links(false)
             .into_iter()
@@ -4580,6 +4584,7 @@ fn strict_walk_scoped_project_paths(
                 }
                 Ok(metadata) if metadata.is_dir() => {
                     let preserve_volatile = project_input_is_volatile(scope);
+                    // not a project file read: walks a scope folder checked to be a real directory, with follow_links(false)
                     let entries = walkdir::WalkDir::new(&scoped_root)
                         .follow_links(false)
                         .into_iter()

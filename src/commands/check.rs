@@ -837,7 +837,12 @@ pub fn cmd_check(
         for input in &global_inputs {
             cache.update(root, input);
         }
-        let _ = cache.save(root);
+        // A cache that cannot be saved, such as one over the bound every later load refuses, is
+        // said once; the run's verdict and the cache already there are unchanged
+        // (REQ-hash-cache-007).
+        if let Err(error) = cache.save(root) {
+            eprintln!("warning: hash cache not saved: {error}");
+        }
     }
 
     // --create-issues: create GitHub issues for specs with validation errors

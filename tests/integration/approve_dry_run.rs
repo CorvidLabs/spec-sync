@@ -10,7 +10,7 @@
 //
 // These drive the built binary, so they read the bytes SpecSync prints and writes.
 
-use super::helpers::{specsync, state_folder};
+use super::helpers::{journal_folder, journal_root_json, specsync};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
@@ -113,10 +113,10 @@ impl Project {
         String::from_utf8(output.stdout).unwrap()
     }
 
-    /// Plant a transaction journal where SpecSync keeps its own, in the user's cache folder, as
+    /// Plant a transaction journal where SpecSync keeps its own, in the user's state folder, as
     /// an interrupted write leaves it (REQ-change-162).
     fn write_journal(&self, content: &str) {
-        let path = state_folder(&self.root).join("change-transaction.json");
+        let path = journal_folder(&self.root).join("change-transaction.json");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, content).unwrap();
     }
@@ -787,10 +787,11 @@ fn the_dry_run_checks_the_relay_flags_as_the_approval_does() {
 fn the_dry_run_refuses_while_an_interrupted_write_is_waiting() {
     let project = Project::new();
     let id = project.clean_draft();
-    // A durable journal with no entries, as the change workflow writes one.
-    project.write_journal(
-        "{\"schema_version\":1,\"entry_count\":0,\"entries_digest\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\",\"entries\":[]}",
-    );
+    // A durable journal with no entries, as the change workflow writes one for this project.
+    project.write_journal(&format!(
+        "{{\"schema_version\":1,\"entry_count\":0,\"entries_digest\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\",\"entries\":[],\"root\":{}}}",
+        journal_root_json(&project.root)
+    ));
     let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
     assert_eq!(code, 1, "{document}");
     let refused = refusals(&document);

@@ -58,7 +58,7 @@ fn is_closed_late_name_for(name: &str, id: &str) -> bool {
 
 /// The closed-late package for `id`, if there is one.
 fn closed_late_package(root: &Path, id: &str) -> Option<PathBuf> {
-    fs::read_dir(root.join(CLOSED_LATE_PATH))
+    crate::util::read_project_dir_entries(root, &root.join(CLOSED_LATE_PATH))
         .ok()?
         .flatten()
         .map(|entry| entry.path())
@@ -128,7 +128,7 @@ fn short_commit(commit: &str) -> &str {
 
 /// The IDs of every closed-late package, from the dated directory names.
 fn closed_late_ids(root: &Path) -> Vec<(String, PathBuf)> {
-    let Ok(entries) = fs::read_dir(root.join(CLOSED_LATE_PATH)) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(CLOSED_LATE_PATH)) else {
         return Vec::new();
     };
     let mut ids: Vec<(String, PathBuf)> = entries
@@ -686,7 +686,7 @@ fn merged_late_close_candidates(root: &Path) -> BTreeSet<String> {
 /// or parsed. A directory with no `state.json` is a legacy tombstone or a Git husk, as the roster
 /// treats it, and is not reported.
 fn unreadable_archive_records(root: &Path) -> Vec<(PathBuf, String)> {
-    let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) else {
         return Vec::new();
     };
     let mut unreadable: Vec<(PathBuf, String)> = entries
@@ -708,7 +708,7 @@ fn unreadable_archive_records(root: &Path) -> Vec<(PathBuf, String)> {
 /// Every record under `.specsync/archive/changes/` that parses; a package that does not is
 /// reported by `unreadable_archive_records`.
 fn archived_records(root: &Path) -> Vec<ChangeRecord> {
-    let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) else {
         return Vec::new();
     };
     entries
@@ -722,7 +722,7 @@ fn archived_records(root: &Path) -> Vec<ChangeRecord> {
 /// Packages under `.specsync/archive/changes/` whose `state.json` still says `accepted`: the
 /// hand-archived shape #833 found in Corvidinho.
 fn archived_accepted_packages(root: &Path) -> Vec<(PathBuf, ChangeRecord)> {
-    let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) else {
         return Vec::new();
     };
     let mut packages: Vec<(PathBuf, ChangeRecord)> = entries
@@ -903,7 +903,7 @@ fn plan_late_close(root: &Path, id: &str, actor: &str, reason: &str, date: &str)
 /// identified by what it records, not by its directory name, which a hand archive need not
 /// follow (#907).
 fn archived_package_for(root: &Path, id: &str) -> Option<PathBuf> {
-    fs::read_dir(root.join(ARCHIVE_PATH))
+    crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH))
         .ok()?
         .flatten()
         .map(|entry| entry.path())

@@ -2,7 +2,6 @@ use crate::exports::{has_configured_extension, is_test_file};
 use crate::types::{CoverageReport, Language, SpecSyncConfig};
 use cap_std::fs::{Dir, OpenOptions};
 use colored::Colorize;
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 
@@ -1197,6 +1196,43 @@ pub fn generate_companion_files_for_spec(
     generate_companion_files(root, spec_dir, module_name, design_enabled);
 }
 
+/// The template files `scaffold --template` reads from the directory the person names.
+const TEMPLATE_FILES: &[&str] = &[
+    "spec.md",
+    "tasks.md",
+    "context.md",
+    "requirements.md",
+    "testing.md",
+    "design.md",
+];
+
+/// A template in the directory the person names with `--template`, read without blocking and
+/// within the spec bound (REQ-cmd-scaffold-009, REQ-util-011).
+fn read_template(path: &Path) -> io::Result<String> {
+    let bytes = crate::util::read_typed_file(path, crate::util::MAX_SPEC_FILE_BYTES)?;
+    String::from_utf8(bytes).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{} is not valid UTF-8", path.display()),
+        )
+    })
+}
+
+/// Check every template file `scaffold --template` would read before anything is written: a
+/// FIFO, a device or a file over the bound is refused with the path and the reason
+/// (REQ-cmd-scaffold-009).
+pub fn check_template_dir(template_dir: &Path) -> Result<(), String> {
+    for name in TEMPLATE_FILES {
+        let path = template_dir.join(name);
+        if !path.exists() {
+            continue;
+        }
+        read_template(&path)
+            .map_err(|error| format!("cannot use template {}: {error}", path.display()))?;
+    }
+    Ok(())
+}
+
 /// Generate a spec using templates from a custom template directory.
 /// Looks for `spec.md`, `tasks.md`, `context.md`, `requirements.md`, `testing.md` in the template dir.
 /// Falls back to built-in templates for any missing template files.
@@ -1209,8 +1245,7 @@ pub fn generate_spec_from_custom_template(
 ) -> String {
     let template_file = template_dir.join("spec.md");
     let template = if template_file.exists() {
-        // not a project file read: a template in the directory the person names with --template
-        fs::read_to_string(&template_file).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
+        read_template(&template_file).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
     } else {
         // No custom spec template — use language-aware default
         match detect_primary_language(source_files) {
@@ -1292,8 +1327,7 @@ pub fn generate_companion_files_from_template(
     if !tasks_path.exists() {
         let template_file = template_dir.join("tasks.md");
         let content = if template_file.exists() {
-            // not a project file read: a template in the directory the person names with --template
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| TASKS_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
@@ -1306,8 +1340,7 @@ pub fn generate_companion_files_from_template(
     if !context_path.exists() {
         let template_file = template_dir.join("context.md");
         let content = if template_file.exists() {
-            // not a project file read: a template in the directory the person names with --template
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| CONTEXT_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
@@ -1320,8 +1353,7 @@ pub fn generate_companion_files_from_template(
     if !requirements_path.exists() {
         let template_file = template_dir.join("requirements.md");
         let content = if template_file.exists() {
-            // not a project file read: a template in the directory the person names with --template
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| REQUIREMENTS_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
@@ -1334,8 +1366,7 @@ pub fn generate_companion_files_from_template(
     if !testing_path.exists() {
         let template_file = template_dir.join("testing.md");
         let content = if template_file.exists() {
-            // not a project file read: a template in the directory the person names with --template
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| TESTING_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
@@ -1350,8 +1381,7 @@ pub fn generate_companion_files_from_template(
         if !design_path.exists() {
             let template_file = template_dir.join("design.md");
             let content = if template_file.exists() {
-                // not a project file read: a template in the directory the person names with --template
-                fs::read_to_string(&template_file)
+                read_template(&template_file)
                     .unwrap_or_else(|_| DESIGN_TEMPLATE.to_string())
                     .replace("{module}.spec.md", &module_spec_filename(module_name))
                     .replace("{module}", module_name)

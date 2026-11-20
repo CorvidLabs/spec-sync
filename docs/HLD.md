@@ -698,8 +698,10 @@ parse error loads as an empty cache. `--force` bypasses it and `rehash` rebuilds
 saved after a run with no errors.
 
 The local state folder ([`src/util/local_state.rs`](../src/util/local_state.rs)) holds what
-SpecSync writes for itself: the hash cache, the transaction journal, the remote spec cache and,
-keyed by the Git common directory so worktrees share it, the change read cache. It
+SpecSync writes for itself: the hash cache, the remote spec cache and, keyed by the Git common
+directory so worktrees share it, the change read cache. The transaction journal, which records the
+project root it belongs to, is kept the same way in the user's state folder instead, which
+cleanup tools do not purge. It
 is never in the work tree, where a repository can put a file under any spelling a
 case-insensitive disk folds onto the real name, and never in a Git directory, which a tarball of
 a working copy carries whole. It is `specsync/projects/<key>/` in the user's cache folder, keyed

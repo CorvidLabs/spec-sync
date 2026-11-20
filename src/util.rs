@@ -514,6 +514,48 @@ pub fn read_project_bytes(root: &Path, path: &Path, max_bytes: u64) -> io::Resul
 
 /// [`read_project_file`] with the contract of `std::fs::read_to_string`: a missing file is a
 /// not-found error and bytes that are not UTF-8 are invalid data (REQ-util-003).
+/// Read a file the person names on the command line, such as a `--manifest` or a `--template`
+/// file (REQ-util-011). Links are followed, since the person chose the path, but the file is
+/// opened without blocking, its type is checked on the open handle, and at most one byte past
+/// `max_bytes` is read, so a FIFO, a device, a directory or a larger file is refused with the
+/// path and the reason.
+pub fn read_typed_file(path: &Path, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let mut options = std::fs::OpenOptions::new();
+    // not a project file read: a path the person names on the command line, opened without blocking and bounded below
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    // not a project file read: a path the person names on the command line, opened without blocking and bounded below
+    let file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} is not a regular file", path.display()),
+        ));
+    }
+    let over_bound = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{} is larger than {max_bytes} bytes", path.display()),
+        )
+    };
+    if metadata.len() > max_bytes {
+        return Err(over_bound());
+    }
+    let mut contents = Vec::new();
+    // not a project file read: the handle opened just above, bounded here
+    file.take(max_bytes.saturating_add(1))
+        .read_to_end(&mut contents)?;
+    if contents.len() as u64 > max_bytes {
+        return Err(over_bound());
+    }
+    Ok(contents)
+}
+
 pub fn read_project_string(root: &Path, path: &Path, max_bytes: u64) -> io::Result<String> {
     // The same error text as `std::fs::read_to_string`, so a caller's message does not change.
     String::from_utf8(read_project_bytes(root, path, max_bytes)?).map_err(|_| {
@@ -669,6 +711,46 @@ pub fn read_project_dir(root: &Path, path: &Path) -> io::Result<Vec<PathBuf>> {
     }
     found.sort();
     Ok(found)
+}
+
+/// One entry of a project directory listed through [`read_project_dir`], with the parts of
+/// `std::fs::DirEntry` callers use. Its type and metadata are read without following a link at
+/// the entry, as `DirEntry`'s are.
+#[derive(Debug, Clone)]
+pub struct ProjectDirEntry {
+    path: PathBuf,
+}
+
+impl ProjectDirEntry {
+    pub fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    pub fn file_name(&self) -> std::ffi::OsString {
+        self.path
+            .file_name()
+            .map(|name| name.to_os_string())
+            .unwrap_or_default()
+    }
+
+    pub fn file_type(&self) -> io::Result<std::fs::FileType> {
+        std::fs::symlink_metadata(&self.path).map(|metadata| metadata.file_type())
+    }
+}
+
+/// [`read_project_dir`] as entries shaped like `std::fs::read_dir`'s, so a listing of SpecSync's
+/// own record folders (`.specsync/archive/changes`, a change's `deltas`, a spec's `history/`)
+/// goes through the project rule: a link there that leaves the project is refused with the
+/// folder named, and no name outside is listed (REQ-util-010).
+pub fn read_project_dir_entries(
+    root: &Path,
+    path: &Path,
+) -> io::Result<std::vec::IntoIter<io::Result<ProjectDirEntry>>> {
+    Ok(read_project_dir(root, path)?
+        .into_iter()
+        .map(|path| Ok(ProjectDirEntry { path }))
+        .collect::<Vec<_>>()
+        .into_iter())
 }
 
 /// Every regular file under the project directory `directory` whose name ends with `suffix`,

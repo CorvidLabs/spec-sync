@@ -470,6 +470,7 @@ fn import_markdown_file_batch(
 /// Collect all .md files in a directory (one level deep).
 fn collect_markdown_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
+    // not a project file read: lists the directory the person names with --from-dir
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return files,

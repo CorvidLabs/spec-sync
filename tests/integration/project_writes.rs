@@ -786,6 +786,45 @@ fn hooks_install_still_makes_a_hooks_folder_from_the_global_config() {
     );
 }
 
+// ─── configured folders that lead out (change 8) ───────────────────────
+
+/// Verifies REQ-commands-016. `scaffold` checks a new module's name against the spec folders
+/// that exist, case-insensitively; a committed `specs` link that leaves the project is never
+/// listed for that, so nothing outside decides the answer.
+#[test]
+fn scaffold_never_lists_a_specs_folder_linked_out_of_the_project() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("project");
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(tmp.path().join("outside/specs/Auth")).unwrap();
+    symlink("../outside/specs", root.join("specs")).unwrap();
+
+    let output = specsync()
+        .arg("--root")
+        .arg(&root)
+        .args(["scaffold", "auth"])
+        .output()
+        .unwrap();
+
+    assert!(
+        !said(&output).contains("collides with existing spec directory"),
+        "a folder outside the project decided the module name: {}",
+        said(&output)
+    );
+    assert_eq!(
+        names(&tmp.path().join("outside/specs")),
+        vec!["Auth".to_string()],
+        "{}",
+        said(&output)
+    );
+}
+
 // ─── the write scan (G1, change 6: F4) ────────────────────────────────
 
 /// Files whose every write is exempt, each with the reason. Everything else marks each direct

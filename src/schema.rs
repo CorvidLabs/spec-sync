@@ -1625,6 +1625,34 @@ fn is_table_header_word(name: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Verifies REQ-schema-003. The schema folder is listed through the project rule, so a
+    /// committed `db` link that leaves the project is refused before any file in it is named.
+    #[cfg(unix)]
+    #[test]
+    fn a_schema_folder_linked_out_of_the_project_is_never_listed() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(temp.path().join("outside/db")).unwrap();
+        std::fs::write(
+            temp.path().join("outside/db/outside_only.sql"),
+            "CREATE TABLE outside_only (id INTEGER);\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink("../outside/db", root.join("db")).unwrap();
+
+        let outcome = build_schema_snapshot(&root, &root.join("db"));
+
+        let shown = match &outcome {
+            Ok(snapshot) => format!("{:?}", snapshot.tables.keys().collect::<Vec<_>>()),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            !shown.contains("outside_only"),
+            "a schema folder outside the project was listed: {shown}"
+        );
+    }
+
     #[test]
     fn test_parse_create_table() {
         let sql = r#"

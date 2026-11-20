@@ -4,6 +4,25 @@
 mod tests {
     use super::*;
 
+    /// Verifies REQ-validator-053. A spec's `files:` entry is the repository's text, so the
+    /// folder a missing file's suggestion is looked for in follows the project rule: `..` out of
+    /// the project lists nothing there.
+    #[test]
+    fn a_missing_file_suggestion_never_lists_a_folder_outside_the_project() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(temp.path().join("outside/data")).unwrap();
+        std::fs::write(temp.path().join("outside/data/report.ts"), "x\n").unwrap();
+
+        let suggestion = suggest_similar_file(&root, "../outside/data/reprt.ts");
+
+        assert_eq!(
+            suggestion, None,
+            "a folder outside the project was listed for a suggestion"
+        );
+    }
+
     #[test]
     fn test_compute_coverage_double_star_exclude_no_panic() {
         // Regression: a `**/**` exclude pattern used to panic in the glob matcher

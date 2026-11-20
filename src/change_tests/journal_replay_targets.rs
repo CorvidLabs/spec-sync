@@ -486,3 +486,39 @@ fn a_registry_entry_that_is_not_a_spec_never_opens_a_replay() {
         let _ = fs::remove_file(transaction_journal_path(root));
     }
 }
+
+/// A project at `<tmp>/project` whose `specs` is a link to `<tmp>/outside/specs`, which holds
+/// `requirements.md` files, as a repository can commit it.
+#[cfg(unix)]
+fn project_with_specs_linked_out() -> (TempDir, PathBuf) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    for module in ["alpha", "beta"] {
+        let dir = temp.path().join("outside/specs").join(module);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("requirements.md"), "# Requirements\n\nOutside.\n").unwrap();
+    }
+    std::os::unix::fs::symlink("../outside/specs", root.join("specs")).unwrap();
+    (temp, root)
+}
+
+/// Verifies REQ-change-164. `change adopt` proposes requirement IDs for the companions under
+/// `specs_dir`; a committed `specs` link that leaves the project is never walked for them.
+#[cfg(unix)]
+#[test]
+fn requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project() {
+    let (_temp, root) = project_with_specs_linked_out();
+
+    let proposals = requirement_id_proposals(&root);
+
+    assert!(
+        proposals.is_empty(),
+        "requirement IDs were proposed for files outside the project: {proposals:?}"
+    );
+}

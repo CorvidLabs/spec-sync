@@ -1882,6 +1882,30 @@ pub fn default_schema_pattern() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Verifies REQ-config-018. Source auto-detection never walks a folder that is a link: a
+    /// committed `lib -> ../outside/lib` is not a source folder of this project.
+    #[cfg(unix)]
+    #[test]
+    fn source_detection_never_follows_a_linked_folder() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(temp.path().join("outside/lib")).unwrap();
+        fs::write(
+            temp.path().join("outside/lib/index.ts"),
+            "export const x = 1;\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink("../outside/lib", root.join("lib")).unwrap();
+
+        let detected = scan_source_dirs(&root);
+
+        assert!(
+            !detected.contains(&"lib".to_string()),
+            "a linked folder outside the project was detected as source: {detected:?}"
+        );
+    }
     use std::fs;
     use tempfile::TempDir;
 

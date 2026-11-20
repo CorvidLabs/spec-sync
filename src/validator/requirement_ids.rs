@@ -198,6 +198,41 @@ fn update_fence(line: &str, fence: &mut Option<(char, usize)>) -> bool {
 
 #[cfg(test)]
 mod requirement_id_tests {
+
+    /// Verifies REQ-validator-053. Requirement IDs are checked under `specs_dir` through the
+    /// confined walk, so a committed `specs` link that leaves the project is refused, not walked.
+    #[cfg(unix)]
+    #[test]
+    fn duplicate_requirement_ids_are_never_looked_for_through_a_specs_link_out() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(root.join(".specsync")).unwrap();
+        std::fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        for module in ["alpha", "beta"] {
+            let dir = temp.path().join("outside/specs").join(module);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("requirements.md"), "### REQ-outside-001\n\nOutside.\n").unwrap();
+        }
+        std::os::unix::fs::symlink("../outside/specs", root.join("specs")).unwrap();
+
+        let errors = duplicate_requirement_id_errors(&root);
+
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.contains("REQ-outside-001") || error.contains("alpha")),
+            "the specs folder outside the project was walked: {errors:?}"
+        );
+        assert!(
+            errors.iter().any(|error| error.contains("leaves the project")),
+            "{errors:?}"
+        );
+    }
+
     use super::*;
 
     #[test]

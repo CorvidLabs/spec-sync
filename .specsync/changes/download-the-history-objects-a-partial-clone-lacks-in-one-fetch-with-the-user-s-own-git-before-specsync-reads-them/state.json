@@ -7,10 +7,11 @@
   "title": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
   "description": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "bdbcbd8e3ee70b89cd4934e69f8e8739073fc79e",
   "created_at": 1795151803,
-  "updated_at": 1795155253,
+  "updated_at": 1795155258,
   "affected_specs": [
     "change"
   ],

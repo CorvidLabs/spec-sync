@@ -133,3 +133,6 @@ mod vanished_requirements;
 
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+
+#[path = "integration/git_environments.rs"]
+mod git_environments;

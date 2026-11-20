@@ -5,7 +5,7 @@ aliases: [1081-vanished-requirements]
 objective: check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 intent_scope: ""
 modules: [change, cmd_change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -26,9 +26,13 @@ observations:
   - 2026-11-20-codex-s-third-round-on-1108-2-p1-3-p2-and-the-tester-s-excl2
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: "Leif's review of #1081"
+    holds: accept
+    drives: review
+    opened: 2026-11-20T04:28:08Z
 run_consents: []
-next: "Gate \"Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count)\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 
@@ -279,4 +283,37 @@ check, verification and ship refuse a branch that lost canonical requirements no
     - recorded_by: claude-code-t4t
     - native: specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
     - actor: 0xLeif
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:28:03Z · direct-native-write · plan → plan · check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state approved → verifying ^t-30a6fd
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 6a3be5ebbf9be62fc6705a39b15e1c7d5c6c0a81
+  - direct_write:
+    - change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:28:03Z · advance · plan → build · native:verifying ^t-736d4c
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - gate: native:verifying
+  - revision: 6a3be5ebbf9be62fc6705a39b15e1c7d5c6c0a81
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:28:06Z · advance · build → test · native:verifying ^t-63f341
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - gate: native:verifying
+  - revision: 6a3be5ebbf9be62fc6705a39b15e1c7d5c6c0a81
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:28:08Z · advance · test → accept · native:verifying ^t-0da4d1
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - gate: native:verifying
+  - revision: 6a3be5ebbf9be62fc6705a39b15e1c7d5c6c0a81
+  - by: claude-code (hc t4t)
+- 2026-11-20T04:28:08Z · gate-opened · accept → accept · Leif's review of #1081 ^t-db914a
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 6a3be5ebbf9be62fc6705a39b15e1c7d5c6c0a81
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t4t)

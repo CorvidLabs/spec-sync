@@ -307,28 +307,116 @@ fn another_active_change_s_approved_removal_accounts_for_the_loss() {
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &second.id).unwrap()), Ok(None));
 }
 
+/// Two approved changes on `origin/main`, one adding REQ-auth-003 and one removing REQ-auth-001,
+/// checked out on branch `change`: `(adding, removing)`.
+fn two_change_repository(root: &Path) -> (ChangeRecord, ChangeRecord) {
+    let git = git_in(root);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let first = completed_section_only_current_record(root, ADDED_THIRD);
+    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    let first = approve_definition(root, &first.id, Some("Scope owner".into()), None).unwrap();
+    let second =
+        completed_section_only_current_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    assert_ne!(first.id, second.id);
+    let second = approve_definition(root, &second.id, Some("Scope owner".into()), None).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "two approved changes"]);
+    let origin = root.join(".git/test-origin.git");
+    git(&["init", "-q", "--bare", "-b", "main", origin.to_str().unwrap()]);
+    git(&["remote", "add", "origin", origin.to_str().unwrap()]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "-b", "change"]);
+    (first, second)
+}
+
+/// Moves `record`'s workspace into the archive in `state`, as finalize leaves an archived change,
+/// and commits it.
+fn move_into_archive(root: &Path, record: &ChangeRecord, state: ChangeState) {
+    let archive = root.join(ARCHIVE_PATH).join(format!("2026-11-20-{}", record.id));
+    fs::create_dir_all(archive.parent().unwrap()).unwrap();
+    fs::rename(change_dir(root, &record.id), &archive).unwrap();
+    let mut moved = record.clone();
+    moved.state = state;
+    write_json(&archive.join("state.json"), &moved).unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "archive the removing change"]);
+}
+
 /// REQ-change-169: a change archived on the branch after the reference accounts for the
-/// requirements its archived `## REMOVED` items name.
+/// requirements its archived `## REMOVED` items name. Codex on #1108 (P2): the authority is a real
+/// archived record whose definition approval binds that delta.
 #[test]
 fn a_change_archived_on_the_branch_accounts_for_its_removal() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let _record = vanished_repository(root, ADDED_THIRD, &[]);
-    let reference = String::from_utf8(
-        Command::new("git").args(["rev-parse", "HEAD"]).current_dir(root).output().unwrap().stdout,
+    let (first, second) = two_change_repository(root);
+    let reference = vanished_rev(root, "HEAD");
+    move_into_archive(root, &second, ChangeState::Archived);
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
     )
-    .unwrap()
-    .trim()
-    .to_string();
-    let package = root.join(ARCHIVE_PATH).join("2026-11-19-retire-session-one/deltas");
-    fs::create_dir_all(&package).unwrap();
-    fs::write(package.join("auth.md"), "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n").unwrap();
-    git_in(root)(&["add", "--all"]);
-    git_in(root)(&["commit", "-q", "-m", "an archived change's delta"]);
+    .unwrap();
+    git_in(root)(&["commit", "-q", "-am", "the archived change's removal"]);
 
     let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
 
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
+    assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
+}
+
+/// Codex on #1108 (P2): a delta file under the archive path is not an archived change, and a
+/// retired change is not an accepted one, so neither accounts for a removal (ss-lead: one
+/// mechanism for both, in the active roster and in the archive).
+#[test]
+fn a_bare_archived_delta_or_a_retired_change_accounts_for_no_removal() {
+    // A delta alone under the archive path, with no archived record around it.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let reference = vanished_rev(root, "HEAD");
+    let package = root.join(ARCHIVE_PATH).join("2026-11-19-retire-session-one/deltas");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("auth.md"), "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n").unwrap();
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
+    )
+    .unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "a bare delta under the archive path"]);
+    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    assert!(!removed.contains("REQ-auth-001"), "{removed:?}");
+    let error = ensure_no_lost_requirements(root, &record).unwrap_err();
+    assert!(error.contains("REQ-auth-001"), "{error}");
+
+    // A retired change, still in the active roster and moved into the archive.
+    for archived in [false, true] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let (first, second) = two_change_repository(root);
+        if archived {
+            move_into_archive(root, &second, ChangeState::Retired);
+        } else {
+            let mut retired = load_change(root, &second.id).unwrap();
+            retired.state = ChangeState::Retired;
+            save_change(root, &retired).unwrap();
+        }
+        fs::write(
+            requirements_path(root),
+            drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
+        )
+        .unwrap();
+        git_in(root)(&["add", "--all"]);
+        git_in(root)(&["commit", "-q", "-m", "truncate beside a retired change"]);
+
+        let error = ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap())
+            .expect_err("a retired change's REMOVED item accounts for nothing");
+
+        assert!(error.contains("REQ-auth-001"), "archived {archived}: {error}");
+    }
 }
 
 /// `revision` resolved in `root`.
@@ -574,4 +662,186 @@ fn a_change_created_after_cherry_picking_main_s_removal_is_told_to_merge_main() 
     );
     git(&["merge", "-q", "--no-edit", "origin/main"]);
     materialize_change_deltas(root, &record.id).unwrap();
+}
+
+/// Adds `files` on `main`, pushes, and brings branch `change` up to it.
+fn on_main_and_change(root: &Path, files: &[(&str, &str)]) {
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    for (path, text) in files {
+        fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+        fs::write(root.join(path), text).unwrap();
+    }
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "main adds files"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+}
+
+/// Codex on #1108 (P1): a spec registered at the project root has its requirements beside it, in
+/// the root's own `requirements.md` and `<module>.req.md` ("beside a registered spec"), and losing
+/// them is refused. ss-lead's guard: that reads the root directory's own files, not the whole
+/// tree, so a stray requirements file elsewhere is still not reported.
+#[test]
+fn a_root_level_registered_spec_s_requirements_are_read_and_the_rest_of_the_tree_is_not() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        root,
+        &[
+            (
+                ".specsync/registry.toml",
+                "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nroot = \"root.spec.md\"\n",
+            ),
+            ("requirements.md", "# Requirements\n\n### REQ-root-001\n\nThe system SHALL start.\n"),
+            ("legacy.req.md", "# Requirements\n\n### REQ-legacy-001\n\nThe system SHALL stop.\n"),
+            ("docs/notes/requirements.md", "# Requirements\n\n### REQ-stray-001\n\nA note.\n"),
+        ],
+    );
+    for path in ["requirements.md", "legacy.req.md", "docs/notes/requirements.md"] {
+        fs::write(root.join(path), "# Requirements\n").unwrap();
+    }
+    git_in(root)(&["commit", "-q", "-am", "truncate the root's requirements and a stray file"]);
+
+    let error = ensure_no_lost_requirements(root, &record)
+        .expect_err("the root-level spec's requirements were lost");
+
+    assert!(
+        error.contains("REQ-legacy-001 (legacy.req.md); REQ-root-001 (requirements.md)"),
+        "{error}"
+    );
+    assert!(!error.contains("REQ-stray-001"), "{error}");
+}
+
+/// Codex on #1108 (P1): a finalization that stopped after acceptance and is retried with its
+/// workspace still active asks again whether the branch lost a requirement, beside the task check
+/// it already repeats; and the audit asks it of an accepted change ("for each active change").
+#[test]
+fn an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let mut accepted = load_change(root, &record.id).unwrap();
+    accepted.state = ChangeState::Accepted;
+    accepted.canonical_applied = true;
+    save_change(root, &accepted).unwrap();
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
+    )
+    .unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "accepted, then a loss"]);
+
+    let error = finalize_change(root, &record.id).expect_err("the resume must refuse the loss");
+
+    assert!(
+        error.contains("lost canonical requirements") && error.contains("REQ-auth-001"),
+        "{error}"
+    );
+    assert!(change_dir(root, &record.id).is_dir(), "nothing was archived");
+    let report = audit_project(root);
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|line| line.starts_with(&format!("{}:", record.id)) && line.contains("REQ-auth-001")),
+        "{:?}",
+        report.errors
+    );
+}
+
+/// Codex on #1108 (P1): a requirements file canonical at the reference ("in such a file at the
+/// reference commit") is read even when the branch dropped its registry mapping or moved the
+/// specs directory away from it.
+#[test]
+fn requirements_canonical_only_at_the_reference_are_still_read() {
+    // The branch drops the registry mapping and the file beside its spec.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        root,
+        &[
+            (
+                ".specsync/registry.toml",
+                "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\nbilling = \"modules/billing/billing.spec.md\"\n",
+            ),
+            (
+                "modules/billing/requirements.md",
+                "# Requirements\n\n### REQ-billing-001\n\nThe system SHALL bill once a month.\n",
+            ),
+        ],
+    );
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"vanished\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+    )
+    .unwrap();
+    fs::remove_file(root.join("modules/billing/requirements.md")).unwrap();
+    git_in(root)(&["commit", "-q", "-am", "drop the billing mapping and its requirements"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-billing-001 was lost");
+    assert!(error.contains("REQ-billing-001 (modules/billing/requirements.md)"), "{error}");
+
+    // The branch moves the specs directory and deletes the old one's requirements.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    fs::write(root.join(".specsync/config.toml"), "specs_dir = \"docs/specs\"\n").unwrap();
+    fs::remove_file(requirements_path(root)).unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "a new specs directory, the old requirements gone"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the old specs were lost");
+    assert!(
+        error.contains("REQ-auth-001, REQ-auth-002 (specs/auth/requirements.md)"),
+        "{error}"
+    );
+}
+
+/// Codex on #1108 (P2): Git's default `core.quotePath` quotes a non-ASCII path in a plain name
+/// listing; the check reads NUL-separated names, so a module directory named in other letters is
+/// read like any other.
+#[test]
+fn a_non_ascii_module_directory_is_read() {
+    let path = "specs/modülé/requirements.md";
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(
+        root,
+        ADDED_THIRD,
+        &[(path, "# Requirements\n\n### REQ-modulo-001\n\nThe system SHALL keep accents.\n")],
+    );
+    git_in(root)(&["config", "core.quotePath", "true"]);
+    fs::write(root.join(path), "# Requirements\n").unwrap();
+    git_in(root)(&["commit", "-q", "-am", "truncate the accented module"]);
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-modulo-001 was lost");
+
+    assert!(error.contains(&format!("REQ-modulo-001 ({path})")), "{error}");
+    // The way out prints the block from the reference by that same path.
+    assert!(error.contains(&format!(":{path}`")), "{error}");
+}
+
+/// Codex on #1108 (P2): the working tree is read to the same depth as Git's listing, so a
+/// requirements file twenty directories below the specs directory that still holds its id is
+/// not reported lost.
+#[test]
+fn a_requirements_file_deep_below_the_specs_directory_is_read() {
+    let deep = format!(
+        "specs/{}/requirements.md",
+        (0..20).map(|level| format!("d{level}")).collect::<Vec<_>>().join("/")
+    );
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(
+        root,
+        ADDED_THIRD,
+        &[(deep.as_str(), "# Requirements\n\n### REQ-deep-001\n\nKept.\n")],
+    );
+    fs::write(root.join(&deep), "# Requirements\n\n### REQ-deep-001\n\nKept, and reworded.\n").unwrap();
+    git_in(root)(&["commit", "-q", "-am", "reword the deep requirement"]);
+
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
 }

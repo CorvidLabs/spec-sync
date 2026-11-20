@@ -139,6 +139,35 @@ fn an_accepted_change_is_judged_on_its_own_inputs_and_a_failed_candidate_is_name
     }
 }
 
+/// #1104's review: `name_failed_candidates` knows a successor search by the words the two
+/// writers of a changed-input reason put in it. One constant holds those words for all three, so
+/// rewording a writer cannot quietly stop the reader from naming a failed candidate.
+#[test]
+fn the_successor_search_reads_the_words_both_writers_write() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = accepted_legacy_change(root);
+    let rejected = |workflow_version| {
+        BTreeMap::from([(
+            "a-successor".to_string(),
+            RejectedSuccessor {
+                workflow_version,
+                reason: "its own delivery-input evidence is stale".into(),
+            },
+        )])
+    };
+    let reasons = [
+        stale_input_remediation_reason(&record, "src/lib.rs", "lib", &BTreeMap::new()),
+        stale_input_remediation_reason(&record, "src/lib.rs", "lib", &rejected(2)),
+        stale_input_remediation_reason(&record, "src/lib.rs", "lib", &rejected(1)),
+        exact_only_input_remediation_reason(&record, "README.md"),
+    ];
+    for reason in reasons {
+        assert!(reason.contains(CHANGED_AFTER_ACCEPTANCE), "{reason}");
+    }
+}
+
 #[test]
 fn an_unreadable_state_counts_only_against_a_successor_search() {
     let temp = TempDir::new().unwrap();

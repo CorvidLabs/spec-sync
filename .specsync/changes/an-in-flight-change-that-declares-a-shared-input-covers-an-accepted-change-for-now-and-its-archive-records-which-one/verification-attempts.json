@@ -70,6 +70,26 @@
         "REQ-change-168",
         "REQ-cmd-change-001"
       ]
+    },
+    {
+      "timestamp": 1795160673,
+      "commit": "e637144765899e4803e77d80fff3ce391e7e47de",
+      "contract_digest": "19962964c0a25e8ece74972c4a9601a6c2aee050df4c307b9b53f0ad00185ea8",
+      "execution_digest": "ba6cb5a7ab4d1785ed81ab8bf57eaaa2fbf4d546a7941929d84581954e67452f",
+      "workspace_digest": "879375584cf536bdd2e342f2f2ad0610b5c489d3f719f5addd193775707081ee",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-167",
+        "REQ-change-168",
+        "REQ-cmd-change-001"
+      ]
     }
   ]
 }

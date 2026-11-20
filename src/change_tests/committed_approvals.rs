@@ -655,3 +655,147 @@ fn a_ledger_version_git_cannot_read_is_refused_with_the_way_out() {
     );
     assert!(change_dir(root, &record.id).is_dir(), "nothing is archived");
 }
+
+/// Codex P1 and corvid-agent on #1120: the uncommitted closing record of an accepted change is
+/// exempt only when it is the record its accepting step wrote. A finalization record whose actor,
+/// digest or note was edited, or an acceptance record whose digest was, is refused.
+#[test]
+fn an_edited_closing_record_is_refused() {
+    for member in ["actor", "digest", "note"] {
+        let (temp, record) = committed_approvals_project();
+        let root = temp.path();
+        accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
+        let mut ledger = read_ledger(root, &record);
+        let last = ledger["approvals"].as_array_mut().unwrap().last_mut().unwrap();
+        assert_eq!(last["gate"], "finalization");
+        last[member] = serde_json::json!("mallory");
+        write_ledger(root, &record, &ledger);
+        let refused = finalize_change(root, &record.id).unwrap_err();
+        assert!(refused.contains(&approvals_display(&record)), "{member}: {refused}");
+        assert!(change_dir(root, &record.id).is_dir(), "{member}: nothing is archived");
+    }
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "approve and implement"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+    let mut ledger = read_ledger(root, &record);
+    let last = ledger["approvals"].as_array_mut().unwrap().last_mut().unwrap();
+    assert_eq!(last["gate"], "acceptance");
+    last["digest"] = serde_json::json!("0".repeat(64));
+    write_ledger(root, &record, &ledger);
+    let refused = archive_change(root, &record.id).unwrap_err();
+    assert!(refused.contains(&approvals_display(&record)), "acceptance digest: {refused}");
+}
+
+/// Codex P2 on #1120: an absent list and an empty one are the same only for the ledger's own
+/// lists; a member a newer SpecSync wrote, even an empty list, must not disappear.
+#[test]
+fn an_unknown_empty_list_dropped_beside_the_closing_records_is_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    let mut ledger = read_ledger(root, &record);
+    ledger["future_records"] = serde_json::json!([]);
+    write_ledger(root, &record, &ledger);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "approve and implement, with a member a newer SpecSync wrote"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+    let mut ledger = read_ledger(root, &record);
+    assert!(ledger.as_object_mut().unwrap().remove("future_records").is_some());
+    write_ledger(root, &record, &ledger);
+    let refused = archive_change(root, &record.id).unwrap_err();
+    assert!(refused.contains(&approvals_display(&record)), "{refused}");
+}
+
+/// Codex P1 on #1120: a package moved into the archive by hand is not exempt from the history
+/// check. Its ledger is held to the history of the path it was committed at.
+#[test]
+fn a_package_moved_into_the_archive_by_hand_is_held_to_its_ledger_history() {
+    let (temp, record) = committed_approvals_project();
+    let root = temp.path();
+    accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accepted"]);
+    edit_first_approval(root, &record, "actor", serde_json::json!("mallory"));
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "rewrite the first approval"]);
+    let source = change_dir(root, &record.id);
+    let moved = root.join(ARCHIVE_PATH).join(format!("2026-11-20-{}", record.id));
+    fs::create_dir_all(moved.parent().unwrap()).unwrap();
+    fs::rename(&source, &moved).unwrap();
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    assert!(
+        refused.contains("approvals.json") && refused.contains("changes `approvals[0]`"),
+        "{refused}"
+    );
+}
+
+/// Codex P2 on #1120: every committed version must read as an approvals ledger, the first too. A
+/// first version whose `approvals` is not a list is refused, though a later commit repaired it.
+#[test]
+fn a_first_committed_ledger_that_is_not_one_is_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+    quiet_git(root, &["commit", "-m", "adopt workflow v2"]);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    let good = fs::read(approvals_path(root, &record)).unwrap();
+    let mut broken = read_ledger(root, &record);
+    broken["approvals"] = serde_json::json!({});
+    write_ledger(root, &record, &broken);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "a first ledger whose approvals is not a list"]);
+    fs::write(approvals_path(root, &record), good).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "repair the ledger and implement"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    assert!(refused.contains("does not read as an approvals ledger"), "{refused}");
+}
+
+/// Codex P2 on #1120: the restore the missing-ledger refusal names follows first-parent history,
+/// as the check does. A side branch deleted the ledger, the first parent changed it, and the
+/// merge kept the deletion: the restore names the first parent's version, not the side's.
+#[test]
+fn a_missing_ledger_is_restored_from_its_first_parent_history() {
+    let (temp, record) = committed_approvals_project();
+    let root = temp.path();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "record the review"]);
+    let display = approvals_display(&record);
+    quiet_git(root, &["checkout", "-q", "-b", "side"]);
+    quiet_git(root, &["rm", "-q", &display]);
+    quiet_git(root, &["commit", "-m", "the side branch removes the ledger"]);
+    quiet_git(root, &["checkout", "-q", "main"]);
+    append_hand_made_approval(root, &record, "definition");
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "the first parent changes the ledger"]);
+    let newer = short_head(root);
+    let _ = Command::new("git")
+        .args(["merge", "--no-edit", "side"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    quiet_git(root, &["rm", "-q", "--ignore-unmatch", &display]);
+    quiet_git(root, &["commit", "-q", "-m", "merge the side branch, keeping its deletion"]);
+    assert!(!approvals_path(root, &record).exists());
+    let refused = finalize_change(root, &record.id).unwrap_err();
+    assert!(
+        refused.contains(&format!("git checkout {newer} -- {display}")),
+        "{refused}"
+    );
+}

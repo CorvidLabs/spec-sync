@@ -178,6 +178,13 @@ fn finalize_ship_and_ship_status_refuse_a_ledger_the_working_tree_changed() {
             "{args:?} refuses with the same message:\n{message}\n---\n{}",
             printed(&output)
         );
+        // The refusal names its own way out; ship does not append the generic step, which
+        // would send the operator to commit the edited ledger (corvid-agent on #1120).
+        assert!(
+            !printed(&output).contains("--commit` if needed"),
+            "{args:?} adds no generic next step:\n{}",
+            printed(&output)
+        );
     }
     assert!(
         root.join(".specsync/changes").join(ID).is_dir(),

@@ -16,7 +16,9 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations:
+  - 2026-11-20-change-9-the-four-red-tests-an-oversized-and-a-non-utf-8
+  - 2026-11-20-change-9-the-four-red-tests-an-oversized-and-a-non-utf-8-205d35
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -36,6 +38,9 @@ hooks install, uninstall and status name the path and reason when a hook target'
 - 0xLeif decided "Scope approval of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash": "Yes, change 9 (Recommended)" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 15:43Z, answering 'Security PR #1133: CI is all green, but corvid-agent requested changes, which blocks the merge. Its must-fix: an oversized or non-UTF-8 hook file is reported as "not installed" instead of naming the path and reason, which the approved REQ-hooks-007 requires. Also, Codex and corvid-agent both found that rehash silently replaces a user-cache hashes.json that is a link instead of refusing (nothing is written through the link, but the notice says rehash exits 1). Both are small, and both make the code match wording you already approved. Plan: fix both as change 9 with failing tests first, Mac and Linux green, about 1-2 hours; you take one quick look; then merge and RC. A third item (hooks in a linked worktree with no shared hooks folder) goes to 6.4.1. OK?'. t4c's brief: hooks install, uninstall and status propagate a refused or failed read of a hook target with the path and the reason (uninstall exits 1, status prints the reason); rehash refuses a user-cache hashes.json that is a link or not a regular file, exit 1, with check's wording. The pre-commit uninstall's linked-hooks-folder case (corvid-agent: 'worth folding in') is included as the same REQ-hooks-009 refusal. Relayed by t4c over hc to t5r; a relayed claim, not authenticated); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash as 0xLeif
 
 ## What was verified
+
+- [Change 9: the four red tests (an oversized and a non-UTF-8 CLAUDE.md, a linked hooks folder, a linked user-cache hashes.json) failed on 7527da3a and pass at 852ec92a; the two controls pass; full suites green (3158 unit, 730 integration), clippy clean, check --strict 100%](evidence/2026-11-20-change-9-the-four-red-tests-an-oversized-and-a-non-utf-8.md)
+- [Change 9: the four red tests (an oversized and a non-UTF-8 CLAUDE.md, a linked hooks folder, a linked user-cache hashes.json) failed on 7527da3a and pass at 852ec92a; the two controls pass; full suites green (3158 unit, 730 integration), clippy clean, check --strict 100%](evidence/2026-11-20-change-9-the-four-red-tests-an-oversized-and-a-non-utf-8-205d35.md)
 
 ## Open threads
 

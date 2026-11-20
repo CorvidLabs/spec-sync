@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795187485,
+      "digest": "cda8e50ae18dd805e2a785b348c88b7ba07542090dd4a06ed057fb85e273ab9c",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of the #532 definition and its four recommended choices (relayed by hc t4c)\": \"\"Approve (Recommended)\", to: 'SpecSync #532 (security-labeled): two clones approve the same change, a merge keeps only one side, and check, status and audit all pass while silently dropping the other approval. ... The fix, building on your Nov 13 answers (\"build it\" and \"one fresh approval\"): approval validation also looks at both sides of every merge, and if two clones' approvals forked, it refuses until one fresh change approve. Choices, all as recommended: build it after #1120 (#428) merges; already-archived changes aren't re-judged; only definition approvals are covered; a merge that reorders records stays #428's rule. Approve the scope?'\" (A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 15:06Z, on ss-builder/gates/532-forked-approvals-definition.md, relayed by hc t4c. It builds on his 2026-11-13 answers, \"build it\" (about 03:49Z) and \"One fresh approval (Recommended)\" (about 04:04Z), relayed then by coordinator t370). Relayed and recorded by claude-code-t59 at 2026-11-20T15:11:23Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork",
+        "title": "A change approved in two clones is not valid until one fresh approval is recorded after the fork",
+        "description": "A change approved in two clones is not valid until one fresh approval is recorded after the fork",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/workflow.md",
+          "specs/change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change_tests.rs",
+          "src/change_tests/forked_approvals.rs",
+          "tests/integration.rs",
+          "tests/integration/forked_approvals.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An archived change whose history holds a fork is not judged again.",
+          "Approvals that only append are not a fork, and neither is a change sent back and approved again, or a relay removed or restored by `change repair-relays`.",
+          "One `change approve` on the merged branch settles it, and the same commands pass.",
+          "Through the binary, the reproduction above is refused, and one fresh approval lets `change check --commit` pass.",
+          "Two clones approve the same change with different actors and each commits. After a merge that keeps one clone's ledger, or both, `change check` and `change audit --strict` refuse, and `change status` reports the approval as not valid, naming both approvers, both commits and the fresh approval."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Leif's 2026-11-13 recovery choice, one fresh approval; #428's rule stays as approved: this walk adds the other side of each merge, for definition approvals only; the change lesson that a printed recovery command must work as printed.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "75275b53b39e6b16004cc22f6272f4771aa070157b79f3521910dc90a97e7ca1"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Approve (Recommended)\", to: 'SpecSync #532 (security-labeled): two clones approve the same change, a merge keeps only one side, and check, status and audit all pass while silently dropping the other approval. ... The fix, building on your Nov 13 answers (\"build it\" and \"one fresh approval\"): approval validation also looks at both sides of every merge, and if two clones' approvals forked, it refuses until one fresh change approve. Choices, all as recommended: build it after #1120 (#428) merges; already-archived changes aren't re-judged; only definition approvals are covered; a merge that reorders records stays #428's rule. Approve the scope?'",
+        "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 15:06Z, on ss-builder/gates/532-forked-approvals-definition.md, relayed by hc t4c. It builds on his 2026-11-13 answers, \"build it\" (about 03:49Z) and \"One fresh approval (Recommended)\" (about 04:04Z), relayed then by coordinator t370",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ],
+  "reopenings": []
+}

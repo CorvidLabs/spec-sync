@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork",
+  "slug": "a-change-approved-in-two-clones-is-not-valid-until-one-fresh-approval-is-recorded-after-the-fork",
+  "title": "A change approved in two clones is not valid until one fresh approval is recorded after the fork",
+  "description": "A change approved in two clones is not valid until one fresh approval is recorded after the fork",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "9b75e8baac2c1b254fa77ee8f8a053ed74a12f05",
+  "created_at": 1795187450,
+  "updated_at": 1795187485,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change_tests.rs",
+    "src/change_tests/forked_approvals.rs",
+    "tests/integration.rs",
+    "tests/integration/forked_approvals.rs",
+    "specs/change/",
+    "site/src/content/docs/workflow.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Two clones approve the same change with different actors and each commits. After a merge that keeps one clone's ledger, or both, `change check` and `change audit --strict` refuse, and `change status` reports the approval as not valid, naming both approvers, both commits and the fresh approval.",
+    "One `change approve` on the merged branch settles it, and the same commands pass.",
+    "Approvals that only append are not a fork, and neither is a change sent back and approved again, or a relay removed or restored by `change repair-relays`.",
+    "An archived change whose history holds a fork is not judged again.",
+    "Through the binary, the reproduction above is refused, and one fresh approval lets `change check --commit` pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Leif's 2026-11-13 recovery choice, one fresh approval; #428's rule stays as approved: this walk adds the other side of each merge, for definition approvals only; the change lesson that a printed recovery command must work as printed.",
+    "public_contract": "yes"
+  }
+}

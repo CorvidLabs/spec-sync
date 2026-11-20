@@ -313,8 +313,10 @@ fn an_unbound_removal_is_refused_and_its_printed_way_out_ends_in_a_passing_check
 
 /// The tester's run on #1108 at 4ced5a26 (rule 3): with `specs_dir` outside the project, the
 /// check never sends Git a pathspec outside the repository, so it never says it cannot read the
-/// repository and never names a fetch. It refuses in the words `specsync check` uses, and once
-/// `specs_dir` is inside the project again the check passes.
+/// repository and never names a fetch. It refuses naming the directory, and once `specs_dir` is
+/// inside the project again the check passes. Since 6.4.0 the confined configuration load refuses
+/// it first, in its own words, before this check runs; `specsync check` still says the directory
+/// "must remain beneath the project root".
 #[test]
 fn a_specs_directory_outside_the_project_is_named_and_never_sent_to_git() {
     let project = Project::new();
@@ -336,7 +338,9 @@ fn a_specs_directory_outside_the_project_is_named_and_never_sent_to_git() {
 
     assert!(!refused.status.success(), "{text}");
     assert!(
-        text.contains("must remain beneath the project root: ../outside/specs"),
+        text.contains("../outside/specs")
+            && (text.contains("must remain beneath the project root")
+                || text.contains("must be a relative path inside the project")),
         "{text}"
     );
     assert!(

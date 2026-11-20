@@ -21,13 +21,7 @@ fn successor_covers_input(
         // and the legacy reconstruction requires the declaration too. Deciding that
         // first keeps every refusal recorded below about a successor that claimed
         // the input.
-        if candidate.id == record.id
-            || !matches!(
-                candidate.state,
-                ChangeState::Accepted | ChangeState::Archived
-            )
-            || candidate.no_spec_change
-            || !happens_after(candidate, record)
+        if !may_succeed(candidate, record)
             || !declares_succession_obligation(candidate, &record.id, expected, owner)
         {
             continue;
@@ -140,6 +134,20 @@ fn successor_covers_input(
         }
     }
     false
+}
+
+/// The first test `successor_covers_input` puts to a candidate successor of `record`: another
+/// change, accepted or archived, with spec content, created after `record`. A change that fails it
+/// could never cover one of `record`'s inputs, so a successor search does not name it either when
+/// its own records fail validation (`name_failed_candidates`).
+fn may_succeed(candidate: &ChangeRecord, record: &ChangeRecord) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
+        && !candidate.no_spec_change
+        && happens_after(candidate, record)
 }
 
 /// The modules under which later accepted or archived changes claim `predecessor_entry` of
@@ -507,13 +515,13 @@ fn list_all_change_metadata(
     Ok(records)
 }
 
-/// One change whose records fail validation, as terminal evidence sees it (#1104): its failure, the
-/// record when it still parsed, and whether it was found in the archive.
+/// One change whose records fail validation, as terminal evidence sees it (#1104): its failure and
+/// the record when it still parsed. The verdict a failure gives is decided from the record asked
+/// about, not from where the roster found the failure (`own_failure_summary`).
 #[derive(Debug, Clone)]
 struct FailedChange {
     reason: String,
     record: Option<ChangeRecord>,
-    archived: bool,
 }
 
 /// The roster terminal evidence judges against (#1104): every change that loads and validates, and
@@ -541,6 +549,8 @@ fn terminal_evidence_roster(root: &Path) -> Result<TerminalRoster, String> {
 
 /// `list_all_change_metadata` with its history walk and the retirement checks, but each change
 /// loaded on its own: a change that fails is set aside with its reason instead of failing the rest.
+/// The archive walk keeps the roster load's history prefetch and deadline boundaries
+/// (REQ-change-149), and a failure that cannot be put on one change still fails the whole read.
 fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
     fn fail(roster: &mut TerminalRoster, id: String, failed: FailedChange) {
         roster.records.remove(&id);
@@ -553,7 +563,6 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
         let failed = FailedChange {
             reason: unreadable.reason,
             record: None,
-            archived: false,
         };
         fail(&mut roster, unreadable.id, failed);
     }
@@ -566,7 +575,11 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
-    for entry in entries {
+    let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    prefetch_archived_workflow_histories(root, &entries);
+    let total = entries.len();
+    for (index, entry) in entries.into_iter().enumerate() {
+        check_read_deadline("archived change validation", index, total)?;
         let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
         if !entry
             .file_type()
@@ -591,7 +604,6 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
                 let failed = FailedChange {
                     reason,
                     record: None,
-                    archived: true,
                 };
                 fail(&mut roster, directory, failed);
                 continue;
@@ -604,7 +616,6 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
                 let failed = FailedChange {
                     reason,
                     record: None,
-                    archived: true,
                 };
                 fail(&mut roster, directory, failed);
                 continue;
@@ -616,7 +627,6 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
             let failed = FailedChange {
                 reason,
                 record: Some(record.clone()),
-                archived: true,
             };
             fail(&mut roster, record.id.clone(), failed);
             continue;
@@ -629,31 +639,71 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
             let failed = FailedChange {
                 reason,
                 record: Some(record.clone()),
-                archived: true,
             };
             fail(&mut roster, record.id.clone(), failed);
             continue;
         }
         roster.records.insert(record.id.clone(), record);
     }
-    // A retirement that does not validate is the retired change's own failure.
-    if let Err(reason) = validate_retired_records(root, &roster.records) {
-        let retired: Vec<ChangeRecord> = roster
-            .records
-            .values()
-            .filter(|record| record.state == ChangeState::Retired)
-            .cloned()
-            .collect();
-        for record in retired {
-            let failed = FailedChange {
-                reason: reason.clone(),
-                record: Some(record.clone()),
-                archived: false,
-            };
-            fail(&mut roster, record.id.clone(), failed);
-        }
+    check_read_deadline("archived change validation", total, total)?;
+    // A retirement that does not validate is the failure of the change it names.
+    for (id, reason) in retirement_failures(root, &roster)? {
+        let record = roster.records.get(&id).cloned();
+        fail(&mut roster, id, FailedChange { reason, record });
     }
     Ok(roster)
+}
+
+/// The checks of `validate_retired_records`, each failure put on the change it names, for the
+/// per-change roster (#1104 review). The messages are `validate_retired_records`' own, word for
+/// word, so a change reads the same failure whichever roster found it. A committed retirement of a
+/// change the roster holds nowhere, loaded or failed, cannot be put on one change, so it fails the
+/// whole read, as the roster load does.
+fn retirement_failures(
+    root: &Path,
+    roster: &TerminalRoster,
+) -> Result<Vec<(String, String)>, String> {
+    let mut failures = Vec::new();
+    for (id, committed) in retirement_history(root)? {
+        let Some(record) = roster.records.get(&id) else {
+            if roster.failed.contains_key(&id) {
+                continue;
+            }
+            return Err(format!("committed retirement history for {id} was removed"));
+        };
+        if record.state != ChangeState::Retired {
+            failures.push((
+                id.clone(),
+                format!("committed retirement history for {id} was rolled back"),
+            ));
+            continue;
+        }
+        let receipt = find_change_dir(root, &id).and_then(|directory| {
+            fs::read(directory.join(RETIREMENT_FILE))
+                .map_err(|e| format!("committed retirement receipt is missing: {e}"))
+        });
+        match receipt {
+            Ok(bytes) if bytes == committed => {}
+            Ok(_) => failures.push((
+                id.clone(),
+                format!(
+                    "committed retirement history for {id} was edited; restore its exact anchored bytes"
+                ),
+            )),
+            Err(reason) => failures.push((id, reason)),
+        }
+    }
+    let named: BTreeSet<String> = failures.iter().map(|(id, _)| id.clone()).collect();
+    for record in roster
+        .records
+        .values()
+        .filter(|record| record.state == ChangeState::Retired && !named.contains(&record.id))
+    {
+        if let Err(reason) = validate_retirement_with_records(root, record, &roster.records) {
+            failures.push((record.id.clone(), reason));
+        }
+    }
+    Ok(failures)
 }
 
 /// True when `path` is a directory holding no regular file at any depth.

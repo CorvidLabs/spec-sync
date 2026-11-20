@@ -3795,8 +3795,10 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
                     (result.id, evidence)
                 })
                 .collect();
+            // Only a record that is not archived is answered from this map: an archived record
+            // in a read scope is answered by `archived_terminal_evidence_in_scope`.
             for (id, failed) in &roster.failed {
-                summaries.insert(id.clone(), own_failure_summary(failed));
+                summaries.insert(id.clone(), own_failure_summary(false, failed));
             }
             summaries
         });
@@ -3806,7 +3808,7 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
         return terminal_summary_from_cache(record, result);
     }
     let result = terminal_evidence_roster(root).map(|roster| match roster.failed.get(&record.id) {
-        Some(failed) => own_failure_summary(failed),
+        Some(failed) => own_failure_summary(record.state == ChangeState::Archived, failed),
         None => name_failed_candidates(
             &roster,
             Some(record),
@@ -3866,7 +3868,7 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
         Err(reason) => return terminal_summary_from_cache(record, Err(reason)),
         Ok(roster) => {
             if let Some(failed) = roster.failed.get(&record.id) {
-                return own_failure_summary(failed);
+                return own_failure_summary(record.state == ChangeState::Archived, failed);
             }
         }
     }
@@ -3896,11 +3898,14 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
     summary
 }
 
-/// The verdict of a change whose own records fail validation: its own reason, `corrupt-history` for
-/// an archive and `stale` for an open change, as the roster load gave every change before #1104.
-fn own_failure_summary(failed: &FailedChange) -> TerminalEvidenceSummary {
+/// The verdict of a change whose own records fail validation: its own reason, `corrupt-history`
+/// when the record asked about is archived and `stale` for any other, as the roster load gives
+/// every change it cannot read. The verdict follows the copy asked about, so a change open and
+/// archived at once reads `stale` asked as the open change and `corrupt-history` asked as the
+/// archive, whichever copy the roster found first (#1104 review).
+fn own_failure_summary(asked_archived: bool, failed: &FailedChange) -> TerminalEvidenceSummary {
     TerminalEvidenceSummary {
-        validity: if failed.archived {
+        validity: if asked_archived {
             TerminalEvidenceValidity::CorruptHistory
         } else {
             TerminalEvidenceValidity::Stale
@@ -3911,9 +3916,11 @@ fn own_failure_summary(failed: &FailedChange) -> TerminalEvidenceSummary {
 
 /// #1104: a change that failed to load cannot cover anything, so an accepted change whose changed
 /// input it might have covered is stale either way; the reason then names it and its failure. A
-/// candidate is a failed change that declares a path overlapping the judged change's, or one whose
-/// `state.json` does not read at all, which cannot be shown not to be one. Only a successor search
-/// for a changed input names candidates; every other verdict is left as it is.
+/// candidate is a failed change that could have covered one of the judged change's inputs: it
+/// passes the first test `successor_covers_input` puts to a successor (`may_succeed`) and declares
+/// a succession of the judged change. A failed change whose `state.json` does not read at all is a
+/// candidate too, because it cannot be shown not to be one. Only a successor search for a changed
+/// input names candidates; every other verdict is left as it is.
 fn name_failed_candidates(
     roster: &TerminalRoster,
     record: Option<&ChangeRecord>,
@@ -3937,7 +3944,11 @@ fn name_failed_candidates(
         .filter(|(id, failed)| {
             *id != &record.id
                 && failed.record.as_ref().is_none_or(|other| {
-                    declared_paths_overlap(&record.affected_paths, &other.affected_paths)
+                    may_succeed(other, record)
+                        && other
+                            .supersedes
+                            .iter()
+                            .any(|edge| edge.predecessor_id == record.id)
                 })
         })
         .map(|(id, failed)| format!("candidate successor `{id}` fails validation: {}", failed.reason))
@@ -3947,17 +3958,6 @@ fn name_failed_candidates(
         summary.reason = Some(format!("{reason}; {}", candidates.join("; ")));
     }
     summary
-}
-
-/// Whether two declared path scopes share a path: equal, or one a directory scope holding the other.
-fn declared_paths_overlap(left: &[String], right: &[String]) -> bool {
-    let covers = |scope: &str, path: &str| {
-        let scope = scope.trim_end_matches('/');
-        let path = path.trim_end_matches('/');
-        path == scope || path.starts_with(&format!("{scope}/"))
-    };
-    left.iter()
-        .any(|a| right.iter().any(|b| covers(a, b) || covers(b, a)))
 }
 
 fn terminal_summary_from_cache(

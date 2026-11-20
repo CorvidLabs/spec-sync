@@ -98,8 +98,12 @@ fn accepted_legacy_change(root: &Path) -> ChangeRecord {
     record
 }
 
+/// The broken change here is a no-spec-change archive over the same paths: `successor_covers_input`
+/// never takes such a change as a successor, so it could not have covered the input and is not
+/// named (Codex on #1114).
 #[test]
-fn an_accepted_change_is_judged_on_its_own_inputs_and_a_failed_candidate_is_named() {
+fn an_accepted_change_is_judged_on_its_own_inputs_and_a_broken_change_that_could_not_cover_them_is_not_named()
+{
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     fast_read_repository(root);
@@ -120,7 +124,7 @@ fn an_accepted_change_is_judged_on_its_own_inputs_and_a_failed_candidate_is_name
         );
     }
 
-    // Its input changes: the broken change would be a candidate successor, and covers nothing.
+    // Its input changes. The broken change declares no succession of it, so it is no candidate.
     fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { false }\n").unwrap();
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "-m", "change the accepted change's input"]);
@@ -130,9 +134,35 @@ fn an_accepted_change_is_judged_on_its_own_inputs_and_a_failed_candidate_is_name
     {
         assert_eq!(summary.validity, TerminalEvidenceValidity::Stale, "{read}");
         let reason = summary.reason.unwrap_or_default();
+        assert!(reason.contains(CHANGED_AFTER_ACCEPTANCE), "{read}: {reason}");
+        assert!(
+            !reason.contains(&broken.id) && !reason.contains("duplicates state at commit"),
+            "{read}: a change that could not cover the input is not named: {reason}"
+        );
+    }
+}
+
+/// A broken change that does declare the input as its successor is named, with its failure: it
+/// would have covered the input (#1104's third criterion).
+#[test]
+fn a_broken_change_that_declares_the_input_is_named_as_its_failed_candidate() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, successor) = accepted_change_with_covering_successor(root);
+    archive_change(root, &successor.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive the successor"]);
+    let before_archive = quiet_git(root, &["rev-parse", "HEAD~1"]).trim().to_string();
+    leave_open_and_archived_at_one_commit(root, &successor, &before_archive);
+    for (read, summary) in ["scoped", "unscoped"]
+        .iter()
+        .zip(scoped_and_unscoped_evidence(root, &predecessor.id))
+    {
+        assert_eq!(summary.validity, TerminalEvidenceValidity::Stale, "{read}");
+        let reason = summary.reason.unwrap_or_default();
         assert!(
             reason.contains(CHANGED_AFTER_ACCEPTANCE)
-                && reason.contains(&format!("candidate successor `{}` fails validation", broken.id))
+                && reason.contains(&format!("candidate successor `{}` fails validation", successor.id))
                 && reason.contains("duplicates state at commit"),
             "{read}: the reason names the failed candidate and its failure: {reason}"
         );
@@ -236,5 +266,154 @@ fn a_retired_change_whose_replacement_fails_still_reports_it() {
     assert!(
         reported.contains("duplicates state at commit"),
         "the retired change's status reports its replacement's failure: {reported}"
+    );
+}
+
+/// The reopened fixture change, retired under its current replacement and committed, with the
+/// bytes of its `state.json` from just before the retirement.
+fn retired_fixture() -> (TempDir, ChangeRecord, ChangeRecord, Vec<u8>) {
+    let (temp, old) = retirement_reopened_fixture();
+    let root = temp.path();
+    let replacement = retirement_current_replacement(root);
+    let before_retirement = fs::read(change_dir(root, &old.id).join("state.json")).unwrap();
+    retire_change(
+        root,
+        &old.id,
+        "Synthetic operator".into(),
+        "Obsolete intent replaced by current intent".into(),
+        replacement.id.clone(),
+        "Synthetic test authority, not a real human decision".into(),
+    )
+    .unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "retire the obsolete change"]);
+    let old = load_change(root, &old.id).unwrap();
+    let replacement = load_change(root, &replacement.id).unwrap();
+    (temp, old, replacement, before_retirement)
+}
+
+/// corvid-agent's case on #1114: a retirement rolled back, by putting back the state the change
+/// had before it, is that change's own failure. Its evidence names the rollback in the words
+/// `validate_retired_records` uses, and its replacement still reads as its own history says.
+#[test]
+fn a_rolled_back_retirement_names_the_rollback_in_its_own_evidence() {
+    let (temp, old, replacement, before_retirement) = retired_fixture();
+    let root = temp.path();
+    let archived = find_change_dir(root, &old.id).unwrap();
+    fs::write(archived.join("state.json"), &before_retirement).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "roll the retirement back"]);
+    let records = list_all_change_metadata(root, false).unwrap();
+    let expected = validate_retired_records(root, &records).unwrap_err();
+    assert_eq!(
+        expected,
+        format!("committed retirement history for {} was rolled back", old.id)
+    );
+    let rolled_back = load_change(root, &old.id).unwrap();
+    assert_ne!(rolled_back.state, ChangeState::Retired);
+    let own = terminal_evidence_summary(root, &rolled_back);
+    assert_eq!(own.validity, TerminalEvidenceValidity::Stale, "{own:?}");
+    assert_eq!(own.reason.as_deref(), Some(expected.as_str()), "{own:?}");
+    let other = terminal_evidence_summary(root, &replacement);
+    assert_eq!(
+        other.validity,
+        TerminalEvidenceValidity::AuthenticatedHistory,
+        "{other:?}"
+    );
+}
+
+/// Two changes carry committed retirement receipts, and only one still holds its retirement: the
+/// other stayed archived. That is the other change's own failure, in the words
+/// `validate_retired_records` uses; the change that is still retired reads exactly as it did
+/// before (corvid-agent and Codex on #1114).
+#[test]
+fn a_retired_change_is_not_blamed_for_another_change_s_rolled_back_retirement() {
+    let (temp, old, replacement, _) = retired_fixture();
+    let root = temp.path();
+    let clean = terminal_evidence_summary(root, &old);
+    let mut receipt: serde_json::Value = serde_json::from_slice(
+        &fs::read(find_change_dir(root, &old.id).unwrap().join(RETIREMENT_FILE)).unwrap(),
+    )
+    .unwrap();
+    receipt["change_id"] = replacement.id.clone().into();
+    fs::write(
+        find_change_dir(root, &replacement.id)
+            .unwrap()
+            .join(RETIREMENT_FILE),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(
+        root,
+        &["commit", "-m", "a retirement receipt for a change that stays archived"],
+    );
+    let records = list_all_change_metadata(root, false).unwrap();
+    let expected = validate_retired_records(root, &records).unwrap_err();
+    assert_eq!(
+        expected,
+        format!(
+            "committed retirement history for {} was rolled back",
+            replacement.id
+        )
+    );
+    assert_eq!(terminal_evidence_summary(root, &old), clean);
+    let own = terminal_evidence_summary(root, &replacement);
+    assert_eq!(own.validity, TerminalEvidenceValidity::CorruptHistory, "{own:?}");
+    assert_eq!(own.reason.as_deref(), Some(expected.as_str()), "{own:?}");
+}
+
+/// Codex on #1114: while one commit holds a change both open and archived, the open change reads
+/// `stale` with its failure, as before #1104; `corrupt-history` is an archive's verdict. The
+/// verdict follows the record asked about, not the order the roster found the two copies in.
+#[test]
+fn an_open_copy_beside_its_archive_reads_stale_with_its_own_failure() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let archived = finalized_archived_change(root);
+    let before_archive = quiet_git(root, &["rev-parse", "HEAD~1"]).trim().to_string();
+    let active = format!(".specsync/changes/{}", archived.id);
+    quiet_git(root, &["checkout", &before_archive, "--", &active]);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(
+        root,
+        &["commit", "-m", "a merge keeps the open copy beside the archive"],
+    );
+    let open: ChangeRecord =
+        serde_json::from_str(&fs::read_to_string(root.join(&active).join("state.json")).unwrap())
+            .unwrap();
+    assert_ne!(open.state, ChangeState::Archived);
+    let own = terminal_evidence_summary(root, &open);
+    assert_eq!(own.validity, TerminalEvidenceValidity::Stale, "{own:?}");
+    assert!(own.reason.is_some_and(|reason| !reason.is_empty()));
+    let archive = terminal_evidence_summary(root, &archived);
+    assert_eq!(
+        archive.validity,
+        TerminalEvidenceValidity::CorruptHistory,
+        "{archive:?}"
+    );
+}
+
+/// Codex on #1114 (REQ-change-149): the per-change roster walks the archive with the same
+/// deadline boundary as the roster load, so an expired deadline stops the read instead of setting
+/// an archive aside as failed.
+#[test]
+fn the_per_change_roster_stops_at_an_expired_deadline_in_the_archive() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    finalized_archived_change(root);
+    let _scope = begin_change_read_scope(root);
+    // The active changes are read, and kept in the scope, before the deadline passes.
+    list_changes(root).unwrap();
+    let _deadline = expired_worker_deadline();
+    let result = list_all_changes_one_by_one(root);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("archived change validation")),
+        "an expired deadline let the per-change roster answer: {:?}",
+        result.map(|roster| roster.failed.into_keys().collect::<Vec<_>>())
     );
 }

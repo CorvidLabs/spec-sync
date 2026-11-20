@@ -247,3 +247,37 @@ fn with_verification_stale_too_ship_names_the_ledger_restore_not_check_commit() 
         );
     }
 }
+
+/// Prepared for Leif's answer on #1120's first addition (Codex and corvid-agent): `change check
+/// --commit` does not commit a ledger whose working copy changes a committed record. It refuses
+/// before writing anything, naming the restore, and commits nothing; after the restore it commits.
+#[test]
+fn check_commit_refuses_to_commit_a_ledger_that_changes_a_committed_record() {
+    let (_temp, root) = reviewed_project();
+    fs::write(root.join("README.md"), "hello, edited after review\n").unwrap();
+    let path = approvals(&root);
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(&path, text.replace("Scope owner", "Mallory")).unwrap();
+    let head = git(&root, &["rev-parse", "HEAD"]);
+    let status = git(&root, &["status", "--porcelain", "--untracked-files=all"]);
+    let restore = format!("git checkout HEAD -- .specsync/changes/{ID}/approvals.json");
+
+    let output = run(&root, &["change", "check", ID, "--commit"]);
+    assert!(!output.status.success(), "{}", printed(&output));
+    assert!(printed(&output).contains(&restore), "{}", printed(&output));
+    assert_eq!(git(&root, &["rev-parse", "HEAD"]), head, "nothing is committed");
+    assert_eq!(
+        git(&root, &["status", "--porcelain", "--untracked-files=all"]),
+        status,
+        "nothing is written"
+    );
+    let committed = git(
+        &root,
+        &["show", &format!("HEAD:.specsync/changes/{ID}/approvals.json")],
+    );
+    assert!(!committed.contains("Mallory"));
+
+    git(&root, &["checkout", "HEAD", "--", &format!(".specsync/changes/{ID}/approvals.json")]);
+    run_ok(&root, &["change", "check", ID, "--commit"]);
+    assert_ne!(git(&root, &["rev-parse", "HEAD"]), head);
+}

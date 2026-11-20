@@ -1,6 +1,6 @@
 ---
 id: finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold
-state: approved
+state: implementing
 type: feature
 base_commit: cf28b4c5052afb72ce01454a353d2e99c83b3222
 ---

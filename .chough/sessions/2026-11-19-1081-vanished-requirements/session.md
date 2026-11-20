@@ -5,7 +5,7 @@ aliases: [1081-vanished-requirements]
 objective: check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 intent_scope: ""
 modules: [change, cmd_change]
-stage: accept
+stage: plan
 stage_status: active
 iteration: 1
 callers: []
@@ -24,13 +24,9 @@ observations:
   - 2026-11-20-codex-round-1-on-1108-76b59636-seven-findings-three-p1-four-p2
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: "Leif's review of #1081"
-    holds: accept
-    drives: review
-    opened: 2026-11-19T15:09:52Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: "Gate \"Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch)\" closed (approved); run `chough stage advance` to move on."
 ---
 # check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names, naming every lost id (#1081, P1; Leif's 'Approve as written' of the definition, relayed by hc t4c through ss-lead t58)
 
@@ -43,6 +39,8 @@ check, verification and ship refuse a branch that lost canonical requirements no
 ## Decisions and why
 
 - 0xLeif decided "Scope approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names": "Approve as written" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:17Z, on ss-lead's frozen gates/1081-definition.md (CHANGE-17 and .a to .c marked as the agent's draft, REQ-change-169, REQ-cmd-change-042, five choices, no CI-side guard); relayed through ss-lead t58); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
+- 0xLeif decided "Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (origin/HEAD, option A)": "A" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main."); recorded by claude-code-t4t; a relayed claim, not authenticated
+- 0xLeif decided "Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch)": "A" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main." The two insertions are ss-lead's exact texts); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names as 0xLeif
 
 ## What was verified
 
@@ -114,4 +112,68 @@ check, verification and ship refuse a branch that lost canonical requirements no
   - revision: d8612448bca01f14e9fb6f4c9b58b0aad8428de7
   - holds: accept
   - drives: review
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:19Z · gate-closed · accept → accept · Leif's review of #1081 ^t-1e18cb
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:19Z · gate-opened · accept → accept · Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (origin/HEAD, option A) ^t-5cba7a
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - holds: accept
+  - drives: none
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:31Z · direct-native-write · accept → accept · check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state stays verifying ^t-34a6ec
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - direct_write:
+    - change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: verifying
+    - after_state: verifying
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:31Z · gate-closed · accept → accept · Send-back of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names, run by the builder on Leif's word (origin/HEAD, option A) ^t-1006e1
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: A
+    - where: a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main."
+    - recorded_by: claude-code-t4t
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:47Z · direct-native-write · accept → accept · check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-837851
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - direct_write:
+    - change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:47Z · back · accept → plan · REQ-change-169 gains two insertions on Leif's 'A' (2026-11-20 about 02:15Z): origin/HEAD, origin/main or origin/master counts as the default branch only when it resolves and is not the branch HEAD is on; re-approval follows at plan ^t-bfc5c8
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 5 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:56Z · gate-opened · plan → plan · Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch) ^t-f508c6
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t4t)
+- 2026-11-20T02:18:56Z · gate-closed · plan → plan · Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch) ^t-7f2d17
+  - native_change: check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+  - revision: 9293ee73d08cbf3c76f5233e67d329faded519c4
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: A
+    - where: a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: "A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main." The two insertions are ss-lead's exact texts
+    - recorded_by: claude-code-t4t
+    - native: specsync change approve check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names
+    - actor: 0xLeif
   - by: claude-code (hc t4t)

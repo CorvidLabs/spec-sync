@@ -7,11 +7,10 @@
   "title": "Check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
   "description": "check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
   "kind": "bug_fix",
-  "state": "verifying",
-  "canonical_applied": true,
+  "state": "approved",
   "base_commit": "3bebe8b03094b2079630801584b56f94a1e460c5",
   "created_at": 1795098351,
-  "updated_at": 1795139400,
+  "updated_at": 1795141138,
   "affected_specs": [
     "change",
     "cmd_change"

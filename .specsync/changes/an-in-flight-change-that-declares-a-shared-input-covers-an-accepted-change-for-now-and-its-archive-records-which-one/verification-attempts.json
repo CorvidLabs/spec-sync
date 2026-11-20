@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795158720,
+      "commit": "aa368793c0e9aca4a56736852491dde37bdf53ed",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "verification cannot start: no requirement evidence for REQ-change-167; add a row for it to the `## Requirement evidence` table in .specsync/changes/an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one/testing.md"
+    },
+    {
+      "timestamp": 1795158763,
+      "commit": "aa368793c0e9aca4a56736852491dde37bdf53ed",
+      "contract_digest": "20cd526f5a60d0fd3a241e4447f9d154b63210724cce7fd739f8e029a0a3e4c5",
+      "execution_digest": "6722ed1d6b2e8f9e36a21372f9284f1726428f5f6623e7732b2e7d655a04976a",
+      "workspace_digest": "c9205004bebc2589dd2513cc26994b0b330c8360690ef20165738d979d5710b0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-167",
+        "REQ-change-168",
+        "REQ-cmd-change-001"
+      ]
+    }
+  ]
+}

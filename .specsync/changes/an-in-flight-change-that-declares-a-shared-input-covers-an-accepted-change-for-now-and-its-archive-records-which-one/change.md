@@ -1,6 +1,6 @@
 ---
 id: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
-state: approved
+state: implementing
 type: feature
 base_commit: a28e30420c12627a384a685cd5d808fc3585b70a
 ---

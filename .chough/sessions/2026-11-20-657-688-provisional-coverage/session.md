@@ -5,7 +5,7 @@ aliases: [657-688-provisional-coverage]
 objective: An in-flight change that declares a shared input covers an accepted change for now, and its archive records which one (#657); each of the two archive refusals over one stale input names the other change and says it is blocked too (#688)
 intent_scope: ""
 modules: []
-stage: intent
+stage: design
 stage_status: active
 iteration: 1
 callers: []
@@ -60,4 +60,8 @@ An in-flight change that declares a shared input covers an accepted change for n
     - recorded_by: claude-code-t59
     - native: specsync change approve an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
     - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-20T07:11:59Z · advance · intent → design ·  ^t-671826
+  - native_change: an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one
+  - revision: aa368793c0e9aca4a56736852491dde37bdf53ed
   - by: claude-code (hc t59)

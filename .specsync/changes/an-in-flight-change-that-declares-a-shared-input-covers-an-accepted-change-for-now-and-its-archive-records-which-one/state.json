@@ -7,10 +7,11 @@
   "title": "An in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
   "description": "an in-flight change that declares a shared input covers an accepted change for now, and its archive records which one",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "a28e30420c12627a384a685cd5d808fc3585b70a",
   "created_at": 1795152633,
-  "updated_at": 1795157149,
+  "updated_at": 1795158765,
   "affected_specs": [
     "change",
     "cmd_change"

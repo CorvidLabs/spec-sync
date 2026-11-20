@@ -356,16 +356,21 @@ fn is_bare_identifier(identifier: &str) -> bool {
 /// Build a complete schema map from SQL/migration files in the given directory.
 /// Compatibility callers receive an empty map on failure; validation uses the
 /// fallible snapshot and reports the underlying error.
-pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
-    build_schema_snapshot(schema_dir)
+pub fn build_schema(root: &Path, schema_dir: &Path) -> HashMap<String, SchemaTable> {
+    build_schema_snapshot(root, schema_dir)
         .map(|snapshot| snapshot.tables)
         .unwrap_or_default()
 }
 
 /// Build one deterministic, fallible schema snapshot. Supported DDL is replayed
 /// in byte order within filename-sorted migration files.
-pub(crate) fn build_schema_snapshot(schema_dir: &Path) -> Result<SchemaSnapshot, SchemaError> {
-    let read_dir = fs::read_dir(schema_dir).map_err(|error| {
+pub(crate) fn build_schema_snapshot(
+    root: &Path,
+    schema_dir: &Path,
+) -> Result<SchemaSnapshot, SchemaError> {
+    // Listed only by the project rule: a schema folder that leads out of the project is refused
+    // before any file in it is named (REQ-schema-003).
+    let read_dir = crate::util::read_project_dir(root, schema_dir).map_err(|error| {
         let kind = if error.kind() == std::io::ErrorKind::NotFound {
             SchemaErrorKind::MissingDirectory
         } else {
@@ -379,15 +384,7 @@ pub(crate) fn build_schema_snapshot(schema_dir: &Path) -> Result<SchemaSnapshot,
     })?;
 
     let mut files = Vec::new();
-    for entry in read_dir {
-        let entry = entry.map_err(|error| {
-            SchemaError::for_path(
-                SchemaErrorKind::ReadEntry,
-                schema_dir,
-                format!("Schema directory entry could not be read: {error}"),
-            )
-        })?;
-        let path = entry.path();
+    for path in read_dir {
         let extension = path
             .extension()
             .and_then(|extension| extension.to_str())
@@ -399,7 +396,7 @@ pub(crate) fn build_schema_snapshot(schema_dir: &Path) -> Result<SchemaSnapshot,
             continue;
         }
 
-        let file_type = entry.file_type().map_err(|error| {
+        let file_type = fs::symlink_metadata(&path).map_err(|error| {
             SchemaError::for_path(
                 SchemaErrorKind::ReadEntry,
                 &path,
@@ -419,13 +416,15 @@ pub(crate) fn build_schema_snapshot(schema_dir: &Path) -> Result<SchemaSnapshot,
 
     let mut snapshot = SchemaSnapshot::default();
     for path in files {
-        let content = fs::read_to_string(&path).map_err(|error| {
-            SchemaError::for_path(
-                SchemaErrorKind::ReadFile,
-                &path,
-                format!("Schema/migration file could not be read as UTF-8: {error}"),
-            )
-        })?;
+        let content =
+            crate::util::read_project_string(root, &path, crate::util::MAX_SOURCE_FILE_BYTES)
+                .map_err(|error| {
+                    SchemaError::for_path(
+                        SchemaErrorKind::ReadFile,
+                        &path,
+                        format!("Schema/migration file could not be read as UTF-8: {error}"),
+                    )
+                })?;
         replay_sql(&path, &content, &mut snapshot)?;
         snapshot.sources.push(SchemaSource { path, content });
     }
@@ -435,8 +434,8 @@ pub(crate) fn build_schema_snapshot(schema_dir: &Path) -> Result<SchemaSnapshot,
 
 /// Surface every snapshot-loading failure through existing validation call
 /// sites instead of letting the compatibility wrapper become a vacuous pass.
-pub fn schema_read_errors(schema_dir: &Path) -> Vec<String> {
-    match build_schema_snapshot(schema_dir) {
+pub fn schema_read_errors(root: &Path, schema_dir: &Path) -> Vec<String> {
+    match build_schema_snapshot(root, schema_dir) {
         Ok(_) => Vec::new(),
         Err(error) => vec![error.to_string()],
     }
@@ -1620,6 +1619,34 @@ fn is_table_header_word(name: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Verifies REQ-schema-003. The schema folder is listed through the project rule, so a
+    /// committed `db` link that leaves the project is refused before any file in it is named.
+    #[cfg(unix)]
+    #[test]
+    fn a_schema_folder_linked_out_of_the_project_is_never_listed() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(temp.path().join("outside/db")).unwrap();
+        std::fs::write(
+            temp.path().join("outside/db/outside_only.sql"),
+            "CREATE TABLE outside_only (id INTEGER);\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink("../outside/db", root.join("db")).unwrap();
+
+        let outcome = build_schema_snapshot(&root, &root.join("db"));
+
+        let shown = match &outcome {
+            Ok(snapshot) => format!("{:?}", snapshot.tables.keys().collect::<Vec<_>>()),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            !shown.contains("outside_only"),
+            "a schema folder outside the project was listed: {shown}"
+        );
+    }
+
     #[test]
     fn test_parse_create_table() {
         let sql = r#"
@@ -1820,7 +1847,10 @@ Something
 
     #[test]
     fn test_build_schema_nonexistent_dir() {
-        let tables = build_schema(Path::new("/nonexistent/path"));
+        let tables = build_schema(
+            Path::new("/nonexistent/path"),
+            Path::new("/nonexistent/path"),
+        );
         assert!(tables.is_empty());
     }
 
@@ -1831,23 +1861,26 @@ Something
         let dir = tmp.path();
 
         // A configured but absent directory must fail loud.
-        let missing = schema_read_errors(Path::new("/nonexistent/path"));
+        let missing = schema_read_errors(
+            Path::new("/nonexistent/path"),
+            Path::new("/nonexistent/path"),
+        );
         assert_eq!(missing.len(), 1);
         assert!(missing[0].contains("Schema directory could not be read"));
 
         // A readable migration → no error.
         fs::write(dir.join("001_ok.sql"), "CREATE TABLE t (id INTEGER);").unwrap();
-        assert!(schema_read_errors(dir).is_empty());
+        assert!(schema_read_errors(dir, dir).is_empty());
 
         // A non-source file present alongside → ignored (not a SQL_EXTENSIONS file).
         fs::write(dir.join("README.md"), "notes").unwrap();
-        assert!(schema_read_errors(dir).is_empty());
+        assert!(schema_read_errors(dir, dir).is_empty());
 
         // A non-UTF-8 migration → exactly one error naming the file.
         let mut f = std::fs::File::create(dir.join("002_bad.sql")).unwrap();
         f.write_all(b"CREATE TABLE u (id INTEGER);\n\xff\xfe")
             .unwrap();
-        let errs = schema_read_errors(dir);
+        let errs = schema_read_errors(dir, dir);
         assert_eq!(errs.len(), 1, "only the unreadable file should be flagged");
         assert!(errs[0].contains("002_bad.sql"));
     }
@@ -1861,7 +1894,7 @@ Something
         let not_a_dir = tmp.path().join("schema.sql");
         fs::write(&not_a_dir, "CREATE TABLE t (id INTEGER);").unwrap();
 
-        let errs = schema_read_errors(&not_a_dir);
+        let errs = schema_read_errors(&not_a_dir, &not_a_dir);
         assert_eq!(errs.len(), 1, "an unenumerable schema dir must be flagged");
         assert!(errs[0].contains("could not be read"));
     }
@@ -1883,7 +1916,7 @@ Something
         )
         .unwrap();
 
-        let tables = build_schema(dir);
+        let tables = build_schema(dir, dir);
         let t = tables.get("items").unwrap();
         assert_eq!(t.columns.len(), 3);
         assert_eq!(t.columns[0].name, "id");
@@ -1924,7 +1957,7 @@ DROP TABLE doomed;
         )
         .unwrap();
 
-        let snapshot = build_schema_snapshot(tmp.path()).unwrap();
+        let snapshot = build_schema_snapshot(tmp.path(), tmp.path()).unwrap();
         assert_eq!(
             snapshot.tables.keys().cloned().collect::<HashSet<_>>(),
             HashSet::from(["users".to_string()])
@@ -2033,7 +2066,7 @@ ALTER TABLE public.users RENAME TO `PUBLIC`."Accounts";
         )
         .unwrap();
 
-        let snapshot = build_schema_snapshot(tmp.path()).unwrap();
+        let snapshot = build_schema_snapshot(tmp.path(), tmp.path()).unwrap();
         let pattern = Regex::new(r"MODEL_TABLE\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
         let additional = snapshot.pattern_table_names(&pattern).unwrap();
 
@@ -2048,7 +2081,7 @@ ALTER TABLE public.users RENAME TO `PUBLIC`."Accounts";
         let malformed = tmp.path().join("001_malformed.sql");
         fs::write(&malformed, "CREATE TABLE broken (id INTEGER;").unwrap();
 
-        let error = build_schema_snapshot(tmp.path()).unwrap_err();
+        let error = build_schema_snapshot(tmp.path(), tmp.path()).unwrap_err();
         assert_eq!(error.kind, SchemaErrorKind::MalformedStatement);
         assert!(error.to_string().contains("001_malformed.sql:1:1"));
 
@@ -2057,7 +2090,7 @@ ALTER TABLE public.users RENAME TO `PUBLIC`."Accounts";
             "ALTER TABLE missing_table RENAME TO replacement;",
         )
         .unwrap();
-        let error = build_schema_snapshot(tmp.path()).unwrap_err();
+        let error = build_schema_snapshot(tmp.path(), tmp.path()).unwrap_err();
         assert_eq!(error.kind, SchemaErrorKind::MissingTable);
         assert!(error.to_string().contains("missing canonical table"));
     }
@@ -2174,7 +2207,8 @@ CREATE TABLE b (id INTEGER PRIMARY KEY, ref_a INTEGER);
         )
         .unwrap();
 
-        let snapshot = build_schema_snapshot(tmp.path()).expect("the back-fill must replay");
+        let snapshot =
+            build_schema_snapshot(tmp.path(), tmp.path()).expect("the back-fill must replay");
         let events = snapshot.tables.get("events").expect("events must exist");
         assert_eq!(
             events.columns.iter().filter(|c| c.name == "url").count(),
@@ -2200,7 +2234,7 @@ CREATE TABLE b (id INTEGER PRIMARY KEY, ref_a INTEGER);
         )
         .unwrap();
 
-        let error = build_schema_snapshot(tmp.path())
+        let error = build_schema_snapshot(tmp.path(), tmp.path())
             .expect_err("a contradicting redeclaration must still fail");
         let text = format!("{error:?}");
         assert!(text.contains("redeclares"), "{text}");
@@ -2225,7 +2259,7 @@ CREATE TABLE b (id INTEGER PRIMARY KEY, ref_a INTEGER);
         )
         .unwrap();
         assert!(
-            build_schema_snapshot(tmp.path()).is_err(),
+            build_schema_snapshot(tmp.path(), tmp.path()).is_err(),
             "a type conflict must remain an error on any binary"
         );
     }

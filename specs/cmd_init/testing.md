@@ -25,3 +25,11 @@ spec: cmd_init.spec.md
 - Run `cargo test commands::init` and the integration tests containing `init_`.
 - Run `specsync init` in a clean temporary repository and inspect the complete `.specsync/` layout.
 - Run the full strict spec and repository lanes before release.
+
+## Bounded reads (REQ-cmd-init-009)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

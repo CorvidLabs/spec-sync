@@ -546,6 +546,7 @@ fn shallow_history_is_complete_for_change(
     } else {
         root.join(shallow_path)
     };
+    // not a project file read: the repository's own .git (a clone does not take this file from the remote)
     let boundaries = fs::read_to_string(&shallow_path).map_err(|error| {
         format!(
             "failed to read shallow Git boundaries {}: {error}",
@@ -1028,8 +1029,8 @@ pub fn correct_interview_metadata(
     let effective_definition = validate_correction_records(&record, &ledger.corrections)?;
     let dir = change_dir(root, &record.id);
     let mut prepared = vec![
-        (json_content_keeping_unknown_members(&dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
-        (json_content_keeping_unknown_members(&dir.join("state.json"), relay_gated_record(&dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
+        (json_content_keeping_unknown_members(root, &dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
+        (json_content_keeping_unknown_members(root, &dir.join("state.json"), relay_gated_record(root, &dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
         (dir.join("change.md"), change_markdown_content(&record)),
     ];
     for artifact in &correction.added_artifacts {
@@ -1158,7 +1159,7 @@ fn load_verification_attempts(
     if !history_path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(&history_path)
+    let content = crate::util::read_project_string(root, &history_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
     let history: VerificationAttemptLedger = serde_json::from_str(&content)
         .map_err(|error| format!("invalid verification attempt history: {error}"))?;
@@ -1228,7 +1229,7 @@ fn scoped_review_attempts_path(root: &Path, record: &ChangeRecord) -> PathBuf {
 fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReviewRecord, String> {
     let workspace = find_change_dir(root, &record.id)?;
     let path = workspace.join(SCOPED_REVIEW_FILE);
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|_| "independent scoped review evidence is missing".to_string())?;
     let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
         with_relayed_read_recovery(
@@ -1240,7 +1241,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     })?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
     let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
-        &fs::read_to_string(&attempts_path)
+        &crate::util::read_project_string(root, &attempts_path, crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|_| "append-only scoped review history is missing".to_string())?,
     )
     .map_err(|error| {
@@ -1283,7 +1284,7 @@ fn load_scoped_review_attempt_ledger(
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read scoped review history: {error}"))?;
     // The same relay checks and recovery `load_scoped_review` applies: send-back and the review
     // ordering read the attempts through here (#995 review).
@@ -1729,7 +1730,7 @@ fn collapsed_scoped_review_archive_is_terminal(
 
 fn load_finalization(root: &Path, record: &ChangeRecord) -> Result<FinalizationRecord, String> {
     let path = find_change_dir(root, &record.id)?.join("finalization.json");
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|_| "same-PR finalization evidence is missing".to_string())?;
     serde_json::from_str(&content)
         .map_err(|error| format!("invalid same-PR finalization evidence: {error}"))
@@ -2641,7 +2642,7 @@ pub fn record_scoped_review_with_relay(
         .transpose()?;
     let mut attempts = if attempts_path.exists() {
         serde_json::from_str::<ScopedReviewAttemptLedger>(
-            &fs::read_to_string(&attempts_path)
+            &crate::util::read_project_string(root, &attempts_path, crate::util::MAX_STATE_FILE_BYTES)
                 .map_err(|error| format!("failed to read scoped review history: {error}"))?,
         )
         .map_err(|error| format!("invalid scoped review attempt history: {error}"))?
@@ -2691,12 +2692,12 @@ pub fn record_scoped_review_with_relay(
     let relayed_on_workflow_v1 = review.relayed_by.is_some() && record.workflow_version < 2;
     if review.relayed_by.is_some() && raise_for_relayed_decision(&mut record) {
         let state_path = change_dir(root, &record.id).join("state.json");
-        let state = json_content_keeping_unknown_members(&state_path, &record)?;
+        let state = json_content_keeping_unknown_members(root, &state_path, &record)?;
         prepared.push((state_path, state));
     }
     prepared.push((scoped_review_path(root, &record), json_content(&review)?));
     prepared.push(
-        json_content_keeping_unknown_members(&attempts_path, &attempts)
+        json_content_keeping_unknown_members(root, &attempts_path, &attempts)
             .map(|content| (attempts_path, content))?,
     );
     write_prepared_files(root, &prepared)?;
@@ -2806,7 +2807,7 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        let approvals = json_content_keeping_unknown_members(root, &approvals_path, &ledger)?;
         prepared.push((approvals_path, approvals));
     } else {
         let actor = resolve_actor(root, actor)?;
@@ -2853,7 +2854,7 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        let approvals = json_content_keeping_unknown_members(root, &approvals_path, &ledger)?;
         prepared.push((approvals_path, approvals));
     }
     prepared.push((
@@ -2866,7 +2867,7 @@ fn accept_change_with_gate(
         let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
         let mut attempts = if attempts_path.exists() {
             let history: VerificationAttemptLedger = serde_json::from_str(
-                &fs::read_to_string(&attempts_path)
+                &crate::util::read_project_string(root, &attempts_path, crate::util::MAX_STATE_FILE_BYTES)
                     .map_err(|error| format!("failed to read verification attempts: {error}"))?,
             )
             .map_err(|error| format!("invalid verification attempt history: {error}"))?;
@@ -2899,7 +2900,7 @@ fn accept_change_with_gate(
             );
         }
         attempts.attempts.push(verification.clone());
-        let attempts = json_content_keeping_unknown_members(&attempts_path, &attempts)?;
+        let attempts = json_content_keeping_unknown_members(root, &attempts_path, &attempts)?;
         prepared.push((attempts_path, attempts));
     }
     if gate == "finalization" {
@@ -2939,9 +2940,9 @@ fn accept_change_with_gate(
     record.canonical_applied = true;
     record.updated_at = now();
     let state_path = change_dir(root, &record.id).join("state.json");
-    let state = json_content_keeping_unknown_members(
+    let state = json_content_keeping_unknown_members(root, 
         &state_path,
-        relay_gated_record(&change_dir(root, &record.id), &record).as_ref(),
+        relay_gated_record(root, &change_dir(root, &record.id), &record).as_ref(),
     )?;
     prepared.push((state_path, state));
     prepared.push((
@@ -3135,7 +3136,7 @@ fn module_layers_path(root: &Path, module: &str) -> String {
 fn module_lesson_lines(root: &Path, module: &str) -> Option<(String, Vec<String>)> {
     let layers = module_layers_path(root, module);
     if root.join(&layers).is_file()
-        && let Ok(text) = fs::read_to_string(root.join(&layers))
+        && let Ok(text) = crate::util::read_project_string(root, &root.join(&layers), crate::util::MAX_SPEC_FILE_BYTES)
         && let Ok(document) = threemd::parse(&text)
     {
         let mut lines = Vec::new();
@@ -3145,7 +3146,7 @@ fn module_lesson_lines(root: &Path, module: &str) -> Option<(String, Vec<String>
         return Some((layers, lines));
     }
     let relative = module_context_path(root, module);
-    let text = fs::read_to_string(root.join(&relative)).ok()?;
+    let text = crate::util::read_project_string(root, &root.join(&relative), crate::util::MAX_SPEC_FILE_BYTES).ok()?;
     Some((relative, context_substantive_lines(module, &text)))
 }
 
@@ -3276,7 +3277,7 @@ fn principles_excerpt_lines(text: &str) -> Vec<String> {
 
 fn read_principles(root: &Path, path: &str) -> Option<String> {
     let absolute = safe_project_path(root, path).ok()?;
-    fs::read_to_string(absolute).ok()
+    crate::util::read_project_string(root, &absolute, crate::util::MAX_SPEC_FILE_BYTES).ok()
 }
 
 fn bounded_excerpt(lines: &[String]) -> (String, bool) {
@@ -3459,7 +3460,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
     // be lost: it is archived with the change and read by nobody afterwards.
     for artifact in ["context", "design", "testing"] {
         let path = archive.join(format!("{artifact}.md"));
-        let Ok(text) = fs::read_to_string(&path) else {
+        let Ok(text) = crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let body = strip_frontmatter(&text).trim().to_string();
@@ -3485,7 +3486,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
     // Durable like every other artifact this lifecycle writes: a crash mid-write would leave a
     // TRUNCATED bundle, and truncated lessons read exactly like lessons nobody wrote — the same
     // failure this whole change exists to prevent.
-    atomic_write_durable(&archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
+    atomic_write_durable(root, &archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
         .map_err(|error| format!("failed to write lesson bundle: {error}"))
 }
 
@@ -3537,12 +3538,12 @@ fn archive_change_with_options(
     } else {
         source.as_path()
     };
-    let original_state_bytes = fs::read(current_location.join("state.json"))
+    let original_state_bytes = crate::util::read_project_bytes(root, &current_location.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
-    let original_markdown_bytes = fs::read(current_location.join("change.md"))
+    let original_markdown_bytes = crate::util::read_project_bytes(root, &current_location.join("change.md"), crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        crate::util::create_project_dir(root, parent).map_err(|error| error.to_string())?;
     }
     // The package is being closed out of the change's own active workspace by this process, so
     // the closing evidence under `current_location` may speak for a generation history has not
@@ -3557,7 +3558,7 @@ fn archive_change_with_options(
         authenticated_accepted_transition_for(root, &record, pending_close.as_ref())
             .map(|(_, bytes, _)| bytes)
             .unwrap_or_else(|_| original_state_bytes.clone());
-    atomic_write_durable(&accepted_snapshot, &accepted_state_bytes)
+    atomic_write_durable(root, &accepted_snapshot, &accepted_state_bytes)
         .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
     // Structural roster (REQ-change-124). The change being archived had its own history checked
     // by `load_change` and is validated in full below; other archives are read from their own
@@ -3570,7 +3571,7 @@ fn archive_change_with_options(
         Some(pending) => validate_archived_integrity_closing(root, &archived_projection, pending),
         None => validate_archived_integrity(root, &archived_projection),
     } {
-        let _ = remove_file_durable(&accepted_snapshot);
+        let _ = remove_file_durable(root, &accepted_snapshot);
         return Err(format!(
             "archive target historical-integrity preflight failed: {error}"
         ));
@@ -3596,7 +3597,7 @@ fn archive_change_with_options(
             pending_close.as_ref(),
         ) {
             drop(memo);
-            let _ = remove_file_durable(&accepted_snapshot);
+            let _ = remove_file_durable(root, &accepted_snapshot);
             return Err(format!(
                 "archive post-move preflight would invalidate `{}`: {error}",
                 candidate.id
@@ -3604,8 +3605,8 @@ fn archive_change_with_options(
         }
     }
     drop(memo);
-    if !resume_post_move && let Err(error) = rename_durable(&source, &destination) {
-        let _ = remove_file_durable(&accepted_snapshot);
+    if !resume_post_move && let Err(error) = rename_durable(root, &source, &destination) {
+        let _ = remove_file_durable(root, &accepted_snapshot);
         return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
@@ -3619,9 +3620,9 @@ fn archive_change_with_options(
         Err("forced post-move archive finalization failure".to_string())
     } else {
         // The package has moved, so the archived state rewrites the state.json it carried.
-        json_content_keeping_unknown_members(
+        json_content_keeping_unknown_members(root, 
             &destination.join("state.json"),
-            relay_gated_record(&destination, &archived).as_ref(),
+            relay_gated_record(root, &destination, &archived).as_ref(),
         )
         .and_then(|state| {
             write_prepared_files(
@@ -3639,9 +3640,9 @@ fn archive_change_with_options(
     if let Err(error) = finalize {
         if resume_post_move {
             let restore =
-                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+                atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
                     .and_then(|()| {
-                        atomic_write_durable(
+                        atomic_write_durable(root, 
                             &destination.join("change.md"),
                             &original_markdown_bytes,
                         )
@@ -3655,12 +3656,12 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+        let restore = atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
             .and_then(|()| {
-                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
+                atomic_write_durable(root, &destination.join("change.md"), &original_markdown_bytes)
             })
-            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
-            .and_then(|()| rename_durable(&destination, &source));
+            .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "failed to finalize archive; source restored: {error}"
@@ -3679,9 +3680,9 @@ fn archive_change_with_options(
     } {
         if resume_post_move {
             let restore =
-                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+                atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
                     .and_then(|()| {
-                        atomic_write_durable(
+                        atomic_write_durable(root, 
                             &destination.join("change.md"),
                             &original_markdown_bytes,
                         )
@@ -3695,12 +3696,12 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+        let restore = atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
             .and_then(|()| {
-                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
+                atomic_write_durable(root, &destination.join("change.md"), &original_markdown_bytes)
             })
-            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
-            .and_then(|()| rename_durable(&destination, &source));
+            .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "archived evidence failed post-move validation; source restored: {error}"
@@ -3731,6 +3732,7 @@ fn prune_empty_package_directories(package: &Path) {
     // Deepest first, so a parent emptied by its children is removed in the same pass.
     directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
     for directory in directories {
+        // checked project write: removes empty directories inside the package just moved by a rename whose paths were refused as links; rmdir never follows a link
         let _ = fs::remove_dir(&directory);
     }
 }
@@ -4216,7 +4218,7 @@ fn summarize_change_with_effective(
                 .filter_map(|artifact| {
                     let relative = format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name());
                     let path = root.join(&relative);
-                    match fs::read_to_string(path) {
+                    match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
                         Ok(content) if !artifact_is_incomplete(artifact, &content) => None,
                         _ => Some(relative),
                     }
@@ -5110,7 +5112,7 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
         validate_foreign_import(root, source)?;
     }
     let baseline_candidate = prepare_workflow_v2_adoption_candidate(root)?;
-    let existing_bootstrap = fs::read_to_string(root.join(".specsync/adoption-report.json"))
+    let existing_bootstrap = crate::util::read_project_string(root, &root.join(".specsync/adoption-report.json"), crate::util::MAX_STATE_FILE_BYTES)
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|value| value.get("bootstrap_policy").cloned());
@@ -5225,7 +5227,7 @@ pub fn record_bootstrap_paths(root: &Path) -> Result<(), String> {
     };
     let mut paths = Vec::new();
     for candidate in BOOTSTRAP_RECORD_CANDIDATES {
-        let Ok(content) = fs::read(root.join(candidate)) else {
+        let Ok(content) = crate::util::read_project_bytes(root, &root.join(candidate), crate::util::MAX_PROJECT_INPUT_BYTES) else {
             continue;
         };
         paths.push(serde_json::json!({
@@ -5236,7 +5238,8 @@ pub fn record_bootstrap_paths(root: &Path) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
-    write_json(
+    write_record_json(
+        root,
         &root.join(BOOTSTRAP_RECORD_PATH),
         &serde_json::json!({
             "version": 1,
@@ -5330,7 +5333,7 @@ fn bootstrap_record_entry(
 }
 
 fn read_json_value(root: &Path, relative: &str) -> Option<serde_json::Value> {
-    let content = fs::read_to_string(root.join(relative)).ok()?;
+    let content = crate::util::read_project_string(root, &root.join(relative), crate::util::MAX_STATE_FILE_BYTES).ok()?;
     serde_json::from_str(&content).ok()
 }
 
@@ -5403,7 +5406,8 @@ mod lesson_bundle_dash_tests {
             requirement_ids: Vec::new(),
             refusal: None,
         };
-        write_json(
+        write_record_json(
+            root,
             &change_dir(root, &record.id).join("verification.json"),
             &verification,
         )

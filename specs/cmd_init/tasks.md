@@ -14,6 +14,7 @@ spec: cmd_init.spec.md
 - [x] Inline unit tests for `ensure_hashes_gitignored`: `adds_entry_to_missing_gitignore`, `is_idempotent_when_entry_already_present`, `errors_when_gitignore_path_is_unwritable`.
 - [x] Integration coverage for config creation, no-overwrite, and source-dir auto-detection (src/lib/multi/fallback/node_modules-ignore) plus the MCP `init` tool.
 - [x] Write the `.specsync/.gitignore` header with a colon, not an em dash (REQ-cmd-init-008, #827).
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-init-009). Evidence: `tests/integration/project_reads.rs`.
 
 ## Review Status
 

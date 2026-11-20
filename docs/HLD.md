@@ -165,7 +165,7 @@ repository checks itself at 100% file coverage. The table names the spec to read
 | Export extraction | [`src/exports/`](../src/exports/) (regex), [`src/exports/ast/`](../src/exports/ast/) (tree-sitter) | Language detection by extension and public-symbol extraction | `specs/exports` |
 | Schema drift | [`src/schema.rs`](../src/schema.rs) | Replaying SQL migrations into a table/column snapshot | `specs/schema` |
 | Dependency graph | [`src/deps.rs`](../src/deps.rs) | `depends_on` graph, cycles, undeclared imports, Mermaid/DOT output | `specs/deps` |
-| Incremental cache | [`src/hash_cache.rs`](../src/hash_cache.rs), [`src/commands/rehash.rs`](../src/commands/rehash.rs) | `.specsync/hashes.json` and replayable findings | `specs/hash_cache`, `specs/rehash` |
+| Incremental cache | [`src/hash_cache.rs`](../src/hash_cache.rs), [`src/commands/rehash.rs`](../src/commands/rehash.rs) | `hashes.json` in the local state folder outside the work tree, and replayable findings | `specs/hash_cache`, `specs/rehash` |
 | Quality | [`src/scoring.rs`](../src/scoring.rs) | 0–100 score over five 20-point components | `specs/scoring` |
 | Change lifecycle | [`src/change.rs`](../src/change.rs), [`src/commands/change.rs`](../src/commands/change.rs) | Interview, approvals, deltas, verification, review, finalization, archive, recovery | `specs/change`, `specs/cmd_change` |
 | Module maturity | [`src/commands/lifecycle.rs`](../src/commands/lifecycle.rs) | Spec `status` transitions (`draft → review → active → stable → deprecated → archived`) | `specs/cmd_lifecycle` |
@@ -221,7 +221,7 @@ sequenceDiagram
     U->>C: specsync check [--strict] [--fix] [--force]
     C->>Cfg: load config (.specsync/config.toml first)
     C->>V: discover specs/**/*.spec.md
-    C->>H: load .specsync/hashes.json
+    C->>H: load hashes.json (local state folder)
     H-->>C: unchanged specs (replay stored findings)
     opt --fix
         C->>C: rename near-miss headings, append undocumented exports
@@ -592,9 +592,9 @@ companions are described in [`site/src/content/docs/companion-files.md`](../site
 | `version` | Layout stamp; 6.0 reads it only to detect a pre-4.0 project ([`MIGRATION.md`](../MIGRATION.md)) | yes | `init` |
 | `sdd.json` | Change policy: `enabled`, meaningful and ignored paths, strict paths, legacy verification commands | yes | `init` (off), `change adopt` (on) |
 | `registry.toml` | Specs this repo publishes to others | yes | `init-registry` |
-| `hashes.json` | Incremental check cache | no (gitignored) | `check`, `rehash` |
+| `hashes.json` | Never read: from SpecSync 6.4 the cache lives in the local state folder (§5.5) | no (gitignored) | SpecSync 6.3 and earlier |
 | `change.lock` | Exclusive lifecycle lock (`fs2` `lock_exclusive`, not re-entrant) | no | every lifecycle mutation |
-| `change-transaction.json` | Undo journal for multi-file writes | no | `write_prepared_files` |
+| `change-transaction.json` | Never replayed: from SpecSync 6.4 the journal lives in the local state folder (§5.5), and a file here stops lifecycle commands until it is deleted | no | SpecSync 6.3 and earlier |
 | `change-sequence.json` | Historical `CHG-NNNN` ordinals; never allocated now, only raised to the committed value before lifecycle commits | yes | `floor_sequence_ledger_to_committed` |
 | `workflow-v2-baseline.json` | Immutable cutoff commit for recognising workflow-v1 history | yes | `change adopt` or the first v2 `change new` |
 | `bootstrap.json` | Protected paths created by bootstrap, exempt from coverage until edited | yes, when present | `init`, `adopt` |
@@ -690,12 +690,23 @@ approval. Changing intent, acceptance criteria or affected scope stales the appr
 
 ### 5.5 Hash cache
 
-`.specsync/hashes.json` maps paths to the SHA-256 of their raw bytes and stores per-spec snapshots
+The hash cache, `hashes.json` in the project's local state folder, maps paths to the SHA-256 of their raw bytes and stores per-spec snapshots
 of prior findings with an input digest and an integrity digest
 ([`src/hash_cache.rs`](../src/hash_cache.rs)). It covers the spec, its companions, its `files:`
 and global inputs (the config file and every file in `schema_dir`). An unknown format version or a
 parse error loads as an empty cache. `--force` bypasses it and `rehash` rebuilds it. It is only
 saved after a run with no errors.
+
+The local state folder ([`src/util/local_state.rs`](../src/util/local_state.rs)) holds what
+SpecSync writes for itself: the hash cache, the transaction journal, the remote spec cache and,
+keyed by the Git common directory so worktrees share it, the change read cache. It
+is never in the work tree, where a repository can put a file under any spelling a
+case-insensitive disk folds onto the real name, and never in a Git directory, which a tarball of
+a working copy carries whole. It is `specsync/projects/<key>/` in the user's cache folder, keyed
+by the canonical root. A user cache folder inside the project is refused: `check` warns once and
+validates every spec, and lifecycle commands stop, writing nothing, until `XDG_CACHE_HOME` points
+outside the project. Its folders are opened without following a link, reads are bounded and
+non-blocking, and every write is a new file renamed over the name.
 
 ## 6. Runtime and deployment
 
@@ -812,7 +823,7 @@ does and does not enforce is written down in [`docs/ci-confidence.md`](ci-confid
 | A spec lists a symbol the code lacks | `check` error, exit 1 under the default `strict` enforcement | `validate_spec` |
 | Code exports a symbol the spec omits | Warning; fails with `--strict` | `validate_spec` |
 | Config file present but unloadable | Command stops, no silent defaults | `refuse_unloadable_config` in `commands/mod.rs` |
-| Process dies mid-write during a lifecycle mutation | The next lifecycle command takes `change.lock`, finds `change-transaction.json`, verifies its integrity envelope and restores the original bytes | `recover_pending_transaction` |
+| Process dies mid-write during a lifecycle mutation | The next lifecycle command takes `change.lock`, finds `change-transaction.json` in the local state folder, verifies its integrity envelope and restores the original bytes | `recover_pending_transaction` |
 | Two lifecycle commands at once | The second blocks on the exclusive lock. A `check`, `change` or `lifecycle` that inherits `SPECSYNC_VERIFICATION_CONTEXT` from a caller is refused; SpecSync itself starts no verification child (REQ-change-023) | `acquire_project_lock`, `main.rs` |
 | Delta body edited after approval | Materialization and acceptance refuse and name the modules | invariant 38 |
 | Code or tests change after verification | Verification is stale; `change check` again | `recorded_verification_is_current` |

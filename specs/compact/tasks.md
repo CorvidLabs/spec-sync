@@ -33,6 +33,7 @@ spec: compact.spec.md
 - [x] Reject reordered generated summaries before no-final-newline reconstruction
 - [x] Write summary rows as `<first> to <last>` with `-` placeholders and keep folding the 6.1.1 dash form (REQ-compact-001, #827)
 - [x] Tie the summary range separator to its placeholder form and refuse a range start that contains ` to ` (REQ-compact-001, #827 review)
+- [x] Read project files only through the bounded project read of `util` (REQ-compact-002). Evidence: `tests/integration/project_reads.rs`.
 
 ## Review Status
 

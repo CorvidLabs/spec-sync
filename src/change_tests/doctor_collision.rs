@@ -99,7 +99,7 @@ fn a_failed_late_close_rollback_reports_each_package_it_could_not_restore() {
     let destination = temp.path().join("closed-late/2026-11-07-a");
     fs::create_dir_all(&destination).unwrap();
     let source = temp.path().join("gone/changes/a");
-    let failures = restore_late_close_moves(&[(source.clone(), destination.clone())]);
+    let failures = restore_late_close_moves(temp.path(), &[(source.clone(), destination.clone())]);
     assert_eq!(failures.len(), 1, "{failures:?}");
     assert!(failures[0].contains("2026-11-07-a"), "{failures:?}");
 }
@@ -113,7 +113,7 @@ fn a_failed_late_close_rollback_keeps_the_record_in_the_stranded_package() {
     fs::create_dir_all(&destination).unwrap();
     fs::write(destination.join(LATE_CLOSE_RECORD), "{}\n").unwrap();
     let source = temp.path().join("gone/changes/a");
-    let failures = restore_late_close_moves(&[(source, destination.clone())]);
+    let failures = restore_late_close_moves(temp.path(), &[(source, destination.clone())]);
     assert_eq!(failures.len(), 1, "{failures:?}");
     assert!(
         destination.join(LATE_CLOSE_RECORD).is_file(),

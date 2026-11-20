@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "4f80d8304f7e50a8c601e18b7f8d8eadc8e57b48",
+      "contract_digest": "51746e34539b557323976a24d4e2103ecf310664e4130200f347acbe65b9de91",
+      "execution_digest": "9a9fad11d016a460b42eeefa3b3d157481737c0756b3a5f03f6375bd38dba045",
+      "workspace_digest": "ec256e3b94933cab8712f1e45ace6c2c0b0fec358be6b0730571f60c9160b5bf",
+      "timestamp": 1795192711,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Pass (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 16:38Z, answering 'Change 9, your quick look (the last step before the security fix merges). (1) Hooks: an installed CLAUDE.md that's oversized or not valid UTF-8 is no longer reported as \"not installed\". install and uninstall exit 1 naming the file and the reason, and status shows the reason. Also, uninstall --precommit with a linked hooks folder now exits 1 naming the path. (2) rehash refuses a user-cache hashes.json that's a link or a directory and exits 1, with the same reason check gives; the link and its target stay untouched. No requirement text changes ... Does it pass?' with 'Pass (Recommended)'. Reviewed tip 4f80d830 (code at 852ec92a; quick look security/change9-quick-look.md, diff security/change9.diff). Relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

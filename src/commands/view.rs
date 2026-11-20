@@ -9,7 +9,7 @@ use crate::view;
 pub fn cmd_view(root: &Path, role: &str, spec_filter: Option<&str>) {
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
-    let spec_files = find_spec_files(&specs_dir);
+    let spec_files = find_spec_files(root, &specs_dir);
 
     if spec_files.is_empty() {
         eprintln!("No spec files found in {}/", config.specs_dir);
@@ -36,7 +36,7 @@ pub fn cmd_view(root: &Path, role: &str, spec_filter: Option<&str>) {
             continue;
         }
 
-        match view::view_spec(spec_path, role) {
+        match view::view_spec(root, spec_path, role) {
             Ok(output) => {
                 rendered += 1;
                 println!("{output}");

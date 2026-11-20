@@ -46,41 +46,21 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
         return Vec::new();
     }
     let mut errors = Vec::new();
-    for entry in WalkDir::new(&specs) {
-        // A directory that cannot be traversed hides every requirements.md below it;
-        // skip silently and an audit passes over work it never inspected (#873).
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                let path = error
-                    .path()
-                    .map(|path| path.strip_prefix(root).unwrap_or(path).to_path_buf());
-                // t384's nit on #1046: walkdir's Display repeats the absolute path;
-                // the OS error carries the real cause.
-                let detail = error
-                    .io_error()
-                    .map(|e| e.to_string())
-                    .unwrap_or_else(|| error.to_string());
-                errors.push(format!(
-                    "cannot traverse {} to check requirement IDs: {detail}",
-                    path.map(|path| path.display().to_string().replace('\\', "/"))
-                        .unwrap_or_else(|| specs.display().to_string())
-                ));
-                continue;
-            }
-        };
-        if !entry.file_type().is_file() {
-            continue;
+    // The confined walk refuses a `specs` folder that leads out of the project, and stops past
+    // its budget, instead of walking whatever a link names (REQ-validator-053).
+    let requirement_files = match find_files_named(root, &specs, "requirements.md") {
+        Ok(files) => files,
+        Err(error) => {
+            errors.push(format!("cannot check requirement IDs: {error}"));
+            return errors;
         }
-        if entry.file_name() != "requirements.md" {
-            continue;
-        }
-        let path = entry.path();
+    };
+    for path in &requirement_files {
         // `check` validates no companion of an archived spec. A requirements file
         // whose directory holds specs that are all archived is history, not living
         // contract, so the audit skips it too. A file with no spec beside it is
         // still checked.
-        if path.parent().is_some_and(only_archived_specs_in) {
+        if path.parent().is_some_and(|dir| only_archived_specs_in(root, dir)) {
             continue;
         }
         let relative = path
@@ -88,7 +68,7 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
             .unwrap_or(path)
             .to_string_lossy()
             .replace('\\', "/");
-        let text = match fs::read_to_string(path) {
+        let text = match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
             Ok(text) => text,
             Err(error) => {
                 errors.push(format!(
@@ -104,7 +84,7 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
 
 /// Whether `dir` holds at least one `*.spec.md` and every one of them parses
 /// with `status: archived`. A spec that cannot be read or parsed counts as live.
-fn only_archived_specs_in(dir: &Path) -> bool {
+fn only_archived_specs_in(root: &Path, dir: &Path) -> bool {
     let Ok(entries) = fs::read_dir(dir) else {
         return false;
     };
@@ -114,7 +94,7 @@ fn only_archived_specs_in(dir: &Path) -> bool {
         if !name.to_string_lossy().ends_with(".spec.md") {
             continue;
         }
-        let Ok(content) = fs::read_to_string(entry.path()) else {
+        let Ok(content) = crate::util::read_project_string(root, &entry.path(), crate::util::MAX_SPEC_FILE_BYTES) else {
             return false;
         };
         let archived = crate::parser::parse_frontmatter(&content).is_some_and(|parsed| {
@@ -198,6 +178,41 @@ fn update_fence(line: &str, fence: &mut Option<(char, usize)>) -> bool {
 
 #[cfg(test)]
 mod requirement_id_tests {
+
+    /// Verifies REQ-validator-053. Requirement IDs are checked under `specs_dir` through the
+    /// confined walk, so a committed `specs` link that leaves the project is refused, not walked.
+    #[cfg(unix)]
+    #[test]
+    fn duplicate_requirement_ids_are_never_looked_for_through_a_specs_link_out() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(root.join(".specsync")).unwrap();
+        std::fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        for module in ["alpha", "beta"] {
+            let dir = temp.path().join("outside/specs").join(module);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("requirements.md"), "### REQ-outside-001\n\nOutside.\n").unwrap();
+        }
+        std::os::unix::fs::symlink("../outside/specs", root.join("specs")).unwrap();
+
+        let errors = duplicate_requirement_id_errors(&root);
+
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.contains("REQ-outside-001") || error.contains("alpha")),
+            "the specs folder outside the project was walked: {errors:?}"
+        );
+        assert!(
+            errors.iter().any(|error| error.contains("leaves the project")),
+            "{errors:?}"
+        );
+    }
+
     use super::*;
 
     #[test]

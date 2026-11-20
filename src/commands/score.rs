@@ -56,7 +56,7 @@ pub fn cmd_score(
     // bootstrap case (#441). The JSON below already handles zero specs.
     let (config, all_spec_files) = load_and_discover(root, gate_requested || json);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
-    let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
+    let spec_files = filter_by_status(root, &spec_files, exclude_status, only_status);
     let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
         if json {
             let output = serde_json::json!({

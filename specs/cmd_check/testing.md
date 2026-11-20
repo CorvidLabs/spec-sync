@@ -19,6 +19,7 @@ spec: cmd_check.spec.md
 | `tests/integration.rs` (--fix) | cargo test --test integration fix_ | `fix_adds_undocumented_exports_to_spec`, `fix_does_not_duplicate_already_documented_exports`, `fix_creates_public_api_section_when_missing`, `fix_with_json_output`, `fix_does_not_duplicate_when_non_export_subsections_present`, `fix_near_miss_handles_levenshtein_typos`, `fix_dry_run_does_not_write_files`, `fix_backup_creates_backup_dir`, `fix_backup_preserves_original_on_success`, `fix_inserts_row_into_table_under_bold_label_before_trailing_prose`, `fix_inserts_row_into_table_under_heading_subsection`, `fix_creates_rows_at_section_end_when_no_table_exists`, `fix_ignores_pipe_lines_inside_fenced_examples_after_the_table`, `fix_takes_column_count_from_the_real_table_not_a_preceding_code_sample`, `fix_honours_fence_delimiter_length_for_nested_fences`, `fix_ignores_fenced_exported_heading_before_the_table`, `fix_preserves_fenced_example_when_renaming_a_near_miss_header`, `fix_768_uses_one_contiguous_export_table`, `fix_768_keeps_rows_in_the_export_table_after_a_parameters_table`, `fix_768_ignores_a_name_headed_parameters_table_after_the_export_table`, `fix_768_header_rule_picks_the_export_table_when_none_holds_a_row`, `fix_768_falls_back_to_the_last_table_with_its_own_width` (#615: rows extend the existing table, never follow trailing prose; fenced examples survive header rename; #768: width and insertion come from one target table) |
 | `tests/integration.rs` (suggestions/dry-run) | cargo test --test integration check_shows_fix_suggestions dry_run_without_fix_warns | `check_shows_fix_suggestions`, `dry_run_without_fix_warns`, `wildcard_reexport_with_fix_adds_all_symbols` |
 | `tests/integration/commands.rs` | cargo test --test integration malformed_gradle_is_inconclusive_for_coverage_gating_commands | Exits nonzero while check JSON remains parseable with `valid: false`, `inconclusive: true`, and a Gradle error |
+| `tests/integration/check.rs` | cargo test --test integration check_never_writes_the_hash_cache_through_a_link | REQ-cmd-check-018: with `.specsync/hashes.json` linked outside the project, plain, `--force`, `--strict` and JSON `check` keep the exit code and stdout of a run with no cache, warn once on stderr, and leave the link's target unchanged; a dangling link creates nothing; a linked `.specsync` gains no entry |
 | `tests/integration/commands.rs` | cargo test --test integration check_does_not_walk_sdd_when_policy_is_on | DISCRIMINATOR: `check` stays silent on a corrupt workspace; CONTROL: `change audit` still reports it when SDD is on |
 
 ## Behavioral Verification
@@ -42,6 +43,7 @@ spec: cmd_check.spec.md
 | Inference environment variables during `--fix` | No model or command executes; deterministic markdown repairs only | Keep the security regression |
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop | Keep or add a focused assertion before changing this behavior |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) | Keep or add a focused assertion before changing this behavior |
+| Hash cache location is a symbolic link | One `hash cache not used` warning on stderr; nothing read or written through the link; exit code and stdout unchanged | Keep `check_never_writes_the_hash_cache_through_a_link`; it fails on the code before the fix |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation | Keep or add a focused assertion before changing this behavior |
 | `--stale` outside a git repo, or with an unborn `HEAD` | One warning: "staleness not checked: … — `--stale` needs git history", `stale[].reason == "history_unavailable"` in JSON, `--strict` exits 1. Silence here read as "checked, found nothing" (#572) | Covered by `staleness_unmeasurable::check_stale_says_it_could_not_check_rather_than_saying_nothing` |
 | Validation has errors | Hash cache is NOT updated/saved (only saved when `total_errors == 0`) | Keep or add a focused assertion before changing this behavior |
@@ -55,3 +57,21 @@ spec: cmd_check.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Bounded reads (REQ-cmd-check-019)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Backups and a tracked hash cache (REQ-cmd-check-020, REQ-cmd-check-021)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| `.specsync/backup-fix` linked outside, or a backup file linked outside | Nothing is written there and the spec is unchanged | `tests/integration/project_writes.rs`: `check_fix_backup_copies_nothing_through_a_linked_backup_directory`, `check_fix_backup_never_copies_over_a_linked_backup_file` |
+| No link | The backup is written where it was and the fix goes on | `tests/integration/project_writes.rs`: `check_fix_backup_still_backs_up_a_project_with_no_link` |
+| `.specsync/hashes.json` committed to Git, or shipped in an unpacked tree | Never read: nothing replayed, nothing said, the file keeps its bytes | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_git_tracks`, `check_never_uses_a_hash_cache_an_unpacked_tree_ships` |

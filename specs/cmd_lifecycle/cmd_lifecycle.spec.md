@@ -12,6 +12,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/scoring/scoring.spec.md
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Lifecycle
@@ -56,6 +57,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
     it to be behind, so the guard passes, matching `stale`'s treatment since #558.
 7. Lifecycle history is appended to frontmatter `lifecycle_log` when `track_history` is enabled
 8. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
+9. Every read of a project file here, spec files (8 MiB) and `.specsync/lifecycle/*.json` (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-lifecycle-005).
 
 ## Behavioral Examples
 
@@ -88,6 +90,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | Guard check fails (without `--force`) | Prints guard failures, exits 1 |
 | `no_stale` guard with no git history (no repo, or unborn `HEAD`) | Guard fails with "no_stale could not be verified", exits 1 — never silently satisfied |
 | File write fails | Prints error, exits 1 |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

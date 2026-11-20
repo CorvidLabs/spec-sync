@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795189772,
+      "digest": "51746e34539b557323976a24d4e2103ecf310664e4130200f347acbe65b9de91",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash\": \"Yes, change 9 (Recommended)\" (Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 15:43Z, answering 'Security PR #1133: CI is all green, but corvid-agent requested changes, which blocks the merge. Its must-fix: an oversized or non-UTF-8 hook file is reported as \"not installed\" instead of naming the path and reason, which the approved REQ-hooks-007 requires. Also, Codex and corvid-agent both found that rehash silently replaces a user-cache hashes.json that is a link instead of refusing (nothing is written through the link, but the notice says rehash exits 1). Both are small, and both make the code match wording you already approved. Plan: fix both as change 9 with failing tests first, Mac and Linux green, about 1-2 hours; you take one quick look; then merge and RC. A third item (hooks in a linked worktree with no shared hooks folder) goes to 6.4.1. OK?'. t4c's brief: hooks install, uninstall and status propagate a refused or failed read of a hook target with the path and the reason (uninstall exits 1, status prints the reason); rehash refuses a user-cache hashes.json that is a link or not a regular file, exit 1, with check's wording. The pre-commit uninstall's linked-hooks-folder case (corvid-agent: 'worth folding in') is included as the same REQ-hooks-009 refusal. Relayed by t4c over hc to t5r; a relayed claim, not authenticated). Relayed and recorded by claude-code-t5r at 2026-11-20T15:49:27Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-the-path-and-reason-for-a-refused-hook-read-and-refuse-a-linked-user-cache-hashes-json-in-rehash",
+        "title": "Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash",
+        "description": "Name the path and reason for a refused hook read, and refuse a linked user-cache hashes.json in rehash",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "hash_cache",
+          "hooks",
+          "rehash"
+        ],
+        "affected_paths": [
+          "src/commands/rehash.rs",
+          "src/hash_cache.rs",
+          "src/hooks.rs",
+          "tests/integration"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The code is brought to requirements already approved: REQ-hooks-007 (a refused bounded read of a hook target is handled as that read's other errors, naming the path and the reason, for install, uninstall and status), REQ-hooks-009 (a link on the way to the hooks folder is refused with the path named) and REQ-hash-cache-007 (save refuses, writing nothing, when hashes.json is a symbolic link or anything other than a regular file). No requirement text changes.",
+        "acceptance_criteria": [
+          "With an installed CLAUDE.md grown past 8 MiB, or not valid UTF-8, hooks uninstall --claude exits 1 naming CLAUDE.md and the reason and leaves the file unchanged; hooks install --claude exits 1 naming it; hooks status prints the reason for that target instead of not installed (REQ-hooks-007).\nWith the Git hooks folder reached through a symbolic link, hooks uninstall --precommit exits 1 naming the path; in a folder that is not a Git repository, or whose hooks folder does not exist, it still reports nothing to remove and exits 0 (REQ-hooks-009).\nWith the user-cache hashes.json a symbolic link or a directory, rehash exits 1 with the reason check's warning gives, writing nothing: the link is still a link and its target unchanged; with a regular or absent cache, rehash still rebuilds it (REQ-hash-cache-007)."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "hooks.3md: the pre-commit hook keeps its own guard, and Claude Code hook uninstall is refused as a manual step, so its note is not a failure; util.3md: the caches keep a stricter rule than project files, no link at all",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Yes, change 9 (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 15:43Z, answering 'Security PR #1133: CI is all green, but corvid-agent requested changes, which blocks the merge. Its must-fix: an oversized or non-UTF-8 hook file is reported as \"not installed\" instead of naming the path and reason, which the approved REQ-hooks-007 requires. Also, Codex and corvid-agent both found that rehash silently replaces a user-cache hashes.json that is a link instead of refusing (nothing is written through the link, but the notice says rehash exits 1). Both are small, and both make the code match wording you already approved. Plan: fix both as change 9 with failing tests first, Mac and Linux green, about 1-2 hours; you take one quick look; then merge and RC. A third item (hooks in a linked worktree with no shared hooks folder) goes to 6.4.1. OK?'. t4c's brief: hooks install, uninstall and status propagate a refused or failed read of a hook target with the path and the reason (uninstall exits 1, status prints the reason); rehash refuses a user-cache hashes.json that is a link or not a regular file, exit 1, with check's wording. The pre-commit uninstall's linked-hooks-folder case (corvid-agent: 'worth folding in') is included as the same REQ-hooks-009 refusal. Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
+        "recorded_by": "claude-code-t5r"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795192731,
+      "digest": "a68198a245f6263b04cb6f657fa225e9a71d76c561bcd876d1943085693b974d",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

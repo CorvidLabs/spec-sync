@@ -16,6 +16,7 @@ spec: cmd_diff.spec.md
 - [x] PR base auto-detection via `GITHUB_BASE_REF` when base is the default `HEAD`.
 - [x] Detection of spec-file-only changes (`spec_modified` flag).
 - [x] Integration coverage: `diff_shows_changes_since_base_ref`, `diff_no_changes_returns_empty`, `diff_detects_removed_exports`, `diff_human_readable_output`, `diff_detects_spec_file_only_changes`.
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-diff-005). Evidence: `tests/integration/project_reads.rs`.
 
 ## Review Status
 

@@ -20,6 +20,7 @@ spec: scoring.spec.md
 - [x] Actionable improvement suggestions
 - [x] Project-level score aggregation with grade distribution
 - [x] No-export modules handled gracefully
+- [x] Read project files only through the bounded project read of `util` (REQ-scoring-007). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

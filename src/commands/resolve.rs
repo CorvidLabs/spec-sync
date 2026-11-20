@@ -1,6 +1,5 @@
 use colored::Colorize;
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
@@ -35,47 +34,120 @@ enum DriftIssue {
     ParseFailed,
 }
 
-/// Simple file-based cache for remote spec content.
+/// The folder of remote spec content in the project's local state folder (REQ-cmd-resolve-002).
+const REMOTE_SPECS_FOLDER: &str = "remote-specs";
+
+/// File-based cache for remote spec content, kept in `remote-specs/` in the project's local
+/// state folder outside the work tree, so a repository can never ship an entry
+/// (REQ-cmd-resolve-002). A `.specsync-cache/` in the work tree is never looked at.
 struct SpecCache {
-    cache_dir: std::path::PathBuf,
+    root: std::path::PathBuf,
     ttl: Duration,
+    /// Whether this run has already said that the cache was not used.
+    warned: std::cell::Cell<bool>,
 }
 
 impl SpecCache {
     fn new(root: &Path, ttl_secs: u64) -> Self {
-        let cache_dir = root.join(".specsync-cache").join("remote-specs");
         Self {
-            cache_dir,
+            root: root.to_path_buf(),
             ttl: Duration::from_secs(ttl_secs),
+            warned: std::cell::Cell::new(false),
         }
     }
 
-    /// Get cached content if it exists and hasn't expired.
+    /// Say once per run that the cache was skipped, and why. The fetched content is still used.
+    fn skipped(&self, reason: &str) {
+        if !self.warned.replace(true) {
+            eprintln!(
+                "{} remote spec cache not used: {reason}",
+                "warning:".yellow().bold()
+            );
+        }
+    }
+
+    /// The cache folder, made when missing and `create`. When it cannot be opened, the cache is
+    /// skipped with the reason.
+    fn folder(&self, create: bool) -> Option<crate::util::local_state::LocalState> {
+        let opened =
+            crate::util::local_state::LocalState::open(&self.root, create).and_then(|state| {
+                match state {
+                    Some(state) => state.subdirectory(REMOTE_SPECS_FOLDER, create),
+                    None => Ok(None),
+                }
+            });
+        match opened {
+            Ok(folder) => folder,
+            Err(error) => {
+                self.skipped(&error.to_string());
+                None
+            }
+        }
+    }
+
+    /// Get cached content if it exists and hasn't expired. A link or anything but a regular
+    /// file at the entry is skipped with the reason: SpecSync only ever renames files there.
     fn get(&self, repo: &str, spec_path: &str) -> Option<String> {
-        let cache_file = self.cache_path(repo, spec_path);
-        let metadata = fs::metadata(&cache_file).ok()?;
-        let modified = metadata.modified().ok()?;
+        let folder = self.folder(false)?;
+        let name = Self::entry_name(repo, spec_path);
+        let metadata = folder.metadata(&name).ok()??;
+        if !metadata.is_file() {
+            let what = if metadata.file_type().is_symlink() {
+                "a symbolic link"
+            } else {
+                "not a regular file"
+            };
+            self.skipped(&format!("{} is {what}", folder.file_path(&name).display()));
+            return None;
+        }
+        let modified = metadata.modified().ok()?.into_std();
         let age = SystemTime::now().duration_since(modified).ok()?;
         if age > self.ttl {
             return None;
         }
-        fs::read_to_string(&cache_file).ok()
-    }
-
-    /// Store content in cache.
-    fn set(&self, repo: &str, spec_path: &str, content: &str) {
-        let cache_file = self.cache_path(repo, spec_path);
-        if let Some(parent) = cache_file.parent() {
-            let _ = fs::create_dir_all(parent);
+        // not a project file read: the remote spec cache in SpecSync's own state folder outside the work tree, read through its no-follow, bounded handle (REQ-util-006)
+        match folder.read_file(&name, crate::util::MAX_SPEC_FILE_BYTES) {
+            Ok(content) => String::from_utf8(content?).ok(),
+            Err(error) => {
+                self.skipped(&error.to_string());
+                None
+            }
         }
-        let _ = fs::write(&cache_file, content);
     }
 
+    /// Store content in cache: a new file renamed over the entry, so nothing is written through
+    /// what the entry was.
+    fn set(&self, repo: &str, spec_path: &str, content: &str) {
+        let Some(folder) = self.folder(true) else {
+            return;
+        };
+        if let Err(error) = folder.write_file(
+            &Self::entry_name(repo, spec_path),
+            content.as_bytes(),
+            false,
+        ) {
+            self.skipped(&error.to_string());
+        }
+    }
+
+    /// The entry's file name: a digest of the repository and spec path, so no part of it comes
+    /// from the repository's own `depends_on` text.
+    fn entry_name(repo: &str, spec_path: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(repo.as_bytes());
+        hasher.update([0]);
+        hasher.update(spec_path.as_bytes());
+        format!("{:x}.md", hasher.finalize())
+    }
+
+    /// Where the entry is kept, for tests.
+    #[cfg(test)]
     fn cache_path(&self, repo: &str, spec_path: &str) -> std::path::PathBuf {
-        // Sanitize repo and path for filesystem: owner/repo -> owner_repo
-        let safe_repo = repo.replace('/', "_");
-        let safe_path = spec_path.replace('/', "_");
-        self.cache_dir.join(format!("{safe_repo}__{safe_path}"))
+        crate::util::local_state::project_state_dir(&self.root)
+            .unwrap()
+            .join(REMOTE_SPECS_FOLDER)
+            .join(Self::entry_name(repo, spec_path))
     }
 }
 
@@ -123,7 +195,11 @@ pub fn cmd_resolve(
     let local_repo = crate::github::detect_repo(root);
 
     for spec_file in &spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(_) => continue,
         };
@@ -617,7 +693,11 @@ fn verify_remote_specs(
 /// Expected table format: `| module | What is used |`
 fn find_consumed_exports(root: &Path, spec_path: &str, remote_module: &str) -> Vec<String> {
     let full_path = root.join(spec_path);
-    let content = match fs::read_to_string(&full_path) {
+    let content = match crate::util::read_project_string(
+        root,
+        &full_path,
+        crate::util::MAX_SPEC_FILE_BYTES,
+    ) {
         Ok(c) => c,
         Err(_) => return vec![],
     };
@@ -670,6 +750,7 @@ fn find_consumed_exports(root: &Path, spec_path: &str, remote_module: &str) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_find_consumed_exports_parses_table() {
@@ -782,6 +863,110 @@ depends_on: []
         assert!(cached.is_none());
     }
 
+    /// A project beside an `outside` directory, both in one temporary directory, so a link that
+    /// leaves the project still reaches nothing but this fixture (REQ-cmd-resolve-002).
+    #[cfg(unix)]
+    fn project_beside_outside() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        (dir, root, outside)
+    }
+
+    /// Verifies REQ-cmd-resolve-002. SpecSync only ever renames files into its cache folder, so a
+    /// link found at an entry is never read, and storing the fetched spec replaces the link
+    /// without writing through it.
+    #[cfg(unix)]
+    #[test]
+    fn spec_cache_never_writes_or_reads_through_a_link() {
+        let (_dir, root, outside) = project_beside_outside();
+        let victim = outside.join("victim.md");
+        fs::write(&victim, "the owner's bytes\n").unwrap();
+        let cache = SpecCache::new(&root, 3600);
+        let planted = cache.cache_path("owner/repo", "specs/auth/auth.spec.md");
+        fs::create_dir_all(planted.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&victim, &planted).unwrap();
+
+        assert_eq!(
+            cache.get("owner/repo", "specs/auth/auth.spec.md"),
+            None,
+            "a cache entry was read through a link"
+        );
+        assert!(cache.warned.get(), "the skipped cache is said, once");
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+
+        assert_eq!(
+            fs::read_to_string(&victim).unwrap(),
+            "the owner's bytes\n",
+            "the fetched spec was written through a link, over a file outside the project"
+        );
+        assert_eq!(
+            cache
+                .get("owner/repo", "specs/auth/auth.spec.md")
+                .as_deref(),
+            Some("# Fetched")
+        );
+    }
+
+    /// Verifies REQ-cmd-resolve-002. A dangling link at an entry never creates its target, and a
+    /// `.specsync-cache` link in the work tree is never used at all.
+    #[cfg(unix)]
+    #[test]
+    fn spec_cache_creates_nothing_through_a_dangling_link_or_a_linked_directory() {
+        let (_dir, root, outside) = project_beside_outside();
+        let cache = SpecCache::new(&root, 3600);
+        let planted = cache.cache_path("owner/repo", "specs/auth/auth.spec.md");
+        fs::create_dir_all(planted.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(outside.join("not-there-yet.md"), &planted).unwrap();
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+        assert!(
+            fs::read_dir(&outside).unwrap().next().is_none(),
+            "the fetched spec was created at a dangling link's target"
+        );
+
+        let (_dir, root, outside) = project_beside_outside();
+        std::os::unix::fs::symlink(&outside, root.join(".specsync-cache")).unwrap();
+        let cache = SpecCache::new(&root, 3600);
+        cache.set("owner/repo", "specs/auth/auth.spec.md", "# Fetched");
+        assert!(
+            fs::read_dir(&outside).unwrap().next().is_none(),
+            "the fetched spec was written into a directory outside the project"
+        );
+        assert_eq!(
+            cache
+                .get("owner/repo", "specs/auth/auth.spec.md")
+                .as_deref(),
+            Some("# Fetched")
+        );
+    }
+
+    /// Verifies REQ-cmd-resolve-002. A repository can commit `.specsync-cache/remote-specs/*`,
+    /// and `git clone` gives the file a fresh modification time inside the TTL, so its forged
+    /// text would stand in for the remote spec in `resolve --verify`. The cache never reads the
+    /// work tree.
+    #[test]
+    fn spec_cache_never_returns_an_entry_the_work_tree_holds() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let committed =
+            root.join(".specsync-cache/remote-specs/owner_repo__specs_auth_auth.spec.md");
+        fs::create_dir_all(committed.parent().unwrap()).unwrap();
+        fs::write(
+            &committed,
+            "---\nmodule: auth\nstatus: stable\n---\n\n# Forged by the repository\n",
+        )
+        .unwrap();
+        let cache = SpecCache::new(root, 3600);
+
+        assert_eq!(
+            cache.get("owner/repo", "specs/auth/auth.spec.md"),
+            None,
+            "a remote spec cache entry the work tree holds was used"
+        );
+    }
+
     #[test]
     fn test_verify_detects_deprecated_status() {
         let remote = registry::RemoteSpec {
@@ -802,6 +987,10 @@ depends_on: []
         let path = cache.cache_path("owner/repo", "specs/auth/auth.spec.md");
         let filename = path.file_name().unwrap().to_str().unwrap();
         assert!(!filename.contains('/'));
-        assert!(filename.contains("owner_repo__specs_auth_auth.spec.md"));
+        assert!(!filename.contains("owner"), "{filename}");
+        assert_ne!(
+            SpecCache::entry_name("owner/repo", "specs/auth/auth.spec.md"),
+            SpecCache::entry_name("owner/repo", "specs/auth/other.spec.md")
+        );
     }
 }

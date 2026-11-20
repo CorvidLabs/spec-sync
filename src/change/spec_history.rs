@@ -363,7 +363,7 @@ pub fn scan_history_fragments(
             ));
             continue;
         }
-        let content = match fs::read_to_string(&path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES) {
             Ok(content) => content,
             Err(error) => {
                 errors.push(format!("cannot read history fragment `{shown}`: {error}"));
@@ -521,7 +521,7 @@ pub fn read_spec_history(root: &Path, module: &str) -> Result<SpecHistory, Strin
         .unwrap_or(&spec_path)
         .to_string_lossy()
         .replace('\\', "/");
-    let spec = match fs::read_to_string(&spec_path) {
+    let spec = match crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES) {
         Ok(spec) => spec,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(format!(

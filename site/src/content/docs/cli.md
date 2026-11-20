@@ -146,6 +146,8 @@ Supports Claude Code (`CLAUDE.md`), Cursor (`.cursorrules`), GitHub Copilot (`.g
 
 To refresh an existing pre-commit hook after upgrading the generator, run `specsync hooks uninstall --precommit` followed by `specsync hooks install --precommit` from the same project root. Use the same `--root <project>` on both commands for a nested project. Installing alone preserves an existing managed block; uninstalling removes only the selected project's managed block and preserves other hook content. See [Pre-commit hook](workflow.md#pre-commit-hook) for the quoting-fix upgrade guidance.
 
+> **Symbolic links.** A command that writes into your project never writes outside it through a link. This covers `hooks`, `agents`, `mcp lock --write`, `scaffold`, `add-spec`, `new`, `wizard`, `import` and `migrate`. A link that stays inside the project is followed, so `CLAUDE.md` as a link to `AGENTS.md` works. A link that leaves the project, a dangling link, or a path that is not a regular file is refused with an error that names it, and nothing is written. The two caches, `.specsync/hashes.json` and the `resolve --remote` cache, are stricter: they are never read or written through any link. Reads follow the same rule: SpecSync never reads a project file through a link that leaves the project, never waits on a file that is not a regular file (a FIFO or a device), and never reads past a bound: 4 MiB for config, policy and state files and change records, 8 MiB for specs and source files, 64 MiB for the transaction journal and the hash cache.
+
 ### `agents`
 
 Install native SDD skills and supported slash commands for coding agents. This is separate from repository instruction snippets and Git hooks managed by `hooks`.
@@ -241,10 +243,12 @@ The backfill is deterministic (`stale` reproduces the embedded prior-verificatio
 Regenerate the hash cache for all specs. Useful after `git pull`, branch switches, or manual spec edits to reset the incremental validation baseline.
 
 ```bash
-specsync rehash                            # rebuild .specsync/hashes.json
+specsync rehash                            # rebuild the hash cache
 ```
 
-> **Note:** The hash cache (`.specsync/hashes.json`) should **not** be committed to git — it is a local-only optimization for incremental validation. Both `specsync init` and `specsync migrate` automatically add it to `.gitignore`. In CI, use `specsync check --force` (the GitHub Action does this by default).
+> **Note:** The hash cache is a local-only optimization for incremental validation, and SpecSync keeps it only in your user cache folder (`$XDG_CACHE_HOME`, else `~/Library/Caches` on macOS or `~/.cache`, under `specsync/projects/<key>/`), never in your work tree or Git directory, so no clone or archive of a repository can ship one. The transaction journal, the remote spec cache and the change read cache live there too. A user cache folder inside the project, as in CI that sets `HOME` to the checkout, is refused: `check` warns once and validates every spec, and lifecycle (`specsync change`) commands stop, writing nothing, until `XDG_CACHE_HOME` points outside the project. A `.specsync/hashes.json` in the work tree, which SpecSync 6.3 and earlier wrote, is never read; `specsync init` and `specsync migrate` still add it to `.gitignore` for older versions. In CI, use `specsync check --force` (the GitHub Action does this by default).
+>
+> The cache is never read or written through a symbolic link. If SpecSync's own folder there is a link, or the cache file is not a regular file, `check` prints `warning: hash cache not used` on stderr and runs without a cache, with the same result and exit code. A `.specsync/change-transaction.json` in the work tree stops every lifecycle command with its path until you check the files it lists and delete it.
 
 ### `stale`
 

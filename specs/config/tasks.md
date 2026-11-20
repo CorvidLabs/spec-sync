@@ -23,3 +23,6 @@ spec: config.spec.md
 - [x] Share config precedence and lexical source classification with retained CLI discovery
 - [x] Preserve explicit-source validation and malformed legacy config warning compatibility
 - [x] Parse, validate, and round-trip `owns` under `[modules."<name>"]` without making it a source mapping
+- [x] Read project files only through the bounded project read of `util` (REQ-config-016). Evidence: `tests/integration/project_reads.rs`.
+- [x] Refuse configured directories outside the project (REQ-config-017). Evidence: `tests/integration/repository_inputs.rs`, `tests/integration/mcp.rs`.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-config-018).

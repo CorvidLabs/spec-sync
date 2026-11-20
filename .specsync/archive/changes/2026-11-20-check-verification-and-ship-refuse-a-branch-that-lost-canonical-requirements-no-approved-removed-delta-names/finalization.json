@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+  "implementation_commit": "b1618923ed5b1181e556c6e06cd14793d1517236",
+  "implementation_tree": "84fa6d1ad69da3debadf55afe3d4d1fdfd8ff03c",
+  "contract_digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
+  "workspace_digest": "3d2c4b3399268b41f2defa825fa515b415addc68b6d006469faa615b67a9f4ff",
+  "closing_digest": "310aef780a11bad5fb06afed22e40643411f5090b1c9ea82ea0aed9a74deb949",
+  "review_digest": "f396fbf4bddf7bdbd77da309614c8399b4c19979d3bd313a643c440163f42652",
+  "finalization_digest": "1739aec2f107eaef733c8c3d561f5c50a0be883a78430df2b9c75db4bc9bfd39",
+  "timestamp": 1795209573
+}

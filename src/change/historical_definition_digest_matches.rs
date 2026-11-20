@@ -2766,6 +2766,8 @@ fn accept_change_with_gate(
     // And for the same reason a body approved over canonical text that has since moved is
     // refused here, before `prepare_pending_delta_application` could write it over (#843).
     ensure_approved_delta_bases_current(root, &record)?;
+    // A branch that lost a canonical requirement no approved REMOVED delta names (#1081).
+    ensure_no_lost_requirements(root, &record)?;
     let records = list_changes_checked(root)?;
     // Same as verification: acceptance reports only failures, and the project
     // surfaces report every suppression this gate applied.
@@ -2987,6 +2989,13 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // workspace already moved into the archive resumes; it passed this gate when it was accepted.
     if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
         ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
+    }
+    // Beside it, for the same reason: a finalization that stopped after acceptance and is retried
+    // while its workspace is still active asks again whether the branch lost a canonical
+    // requirement, since it can lose one in between (Codex on #1108; REQ-change-169). A first
+    // finalization asks it in `accept_change_with_gate`.
+    if record.state == ChangeState::Accepted && change_dir(root, &record.id).is_dir() {
+        ensure_no_lost_requirements(root, &record)?;
     }
     if record.state == ChangeState::Verifying {
         // REQ-change-157: ship and finalize refuse a verification commit that
@@ -4910,7 +4919,23 @@ fn check_project_with_command_output(
                 // The refusal `change check` gives for a body approved over canonical text
                 // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
+            } else if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = ensure_no_lost_requirements(root, record)
+            {
+                // The refusal `change check` gives a branch that lost a canonical requirement
+                // (#1081, REQ-change-169).
+                report.errors.push(format!("{}: {error}", record.id));
             }
+        }
+        // A draft, and an accepted change whose workspace is still active, are active changes too
+        // ("for each active change"): an accepted one's retried finalization refuses the same
+        // loss, and a draft's own delta accounts for no removal (Codex on #1108, both rounds).
+        if matches!(record.state, ChangeState::Draft | ChangeState::Accepted)
+            && change_dir(root, &record.id).is_dir()
+            && let Err(error) = ensure_no_lost_requirements(root, record)
+        {
+            report.errors.push(format!("{}: {error}", record.id));
         }
         if let Err(error) = ensure_no_delta_conflicts(root, record) {
             report.errors.push(format!("{}: {error}", record.id));

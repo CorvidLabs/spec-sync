@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-specsync-s-own-caches-and-journal-outside-the-work-tree",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "33f018109b44f5a8e8d37c46d8aebe9ad1fb76de",
+  "contract_digest": "64b321c50620be82959f32130698779cf9ff1f31916efe8c3f49d954281a88ff",
+  "execution_digest": "89742911d6bdeadf495f41cf64746d48a46d96853d1349893b1a67ccf0a4b0e4",
+  "workspace_digest": "f32d540d4b0d7fc814474ed4156130a409e3060d517792b270630028203efb86",
+  "timestamp": 1795155405,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "Pass (Recommended)",
+    "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a; this change's own lines are unchanged since (only its native check, which materializes its deltas, ran after the earlier change's archive). Relayed by t4c over hc to t5r",
+    "recorded_by": "claude-code-t5r"
+  }
+}

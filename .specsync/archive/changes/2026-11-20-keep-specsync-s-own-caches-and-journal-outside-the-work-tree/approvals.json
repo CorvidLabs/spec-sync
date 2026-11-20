@@ -71,6 +71,13 @@
         "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 00:38Z, answering item 1 as t4c put it at about 21:09Z on 2026-11-19 with option A: 'one more change (change 6): move the hash cache, journal and remote cache out of the work tree; close the scan blind spots, the hooks-folder case and the enclosing-repo case; leave the paths you type yourself (--template) as they are, and document the low-rated items. Then this same reviewer re-checks its own findings, rather than a third full review. [...] (fold [change 5's review] into change 6 if you pick A)', and that the class fix moves them 'into the Git directory, where a repo can't commit files, or into your user cache folder when there's no Git'; t4c mapped it to review2's F1, F2, F3, F4, F6 and F7 fixed, F5 kept and documented, F8, F9 and F10 documented; relayed by t4c over hc to t5r",
         "recorded_by": "claude-code-t5r"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795155467,
+      "digest": "241207504a68216b0d4fa9352a053fe17b72bd785f484c36ba1cd494179dfc75",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

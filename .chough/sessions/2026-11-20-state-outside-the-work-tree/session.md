@@ -5,7 +5,7 @@ aliases: [state-outside-the-work-tree]
 objective: SpecSync's hash cache, transaction journal and remote spec cache live outside the work tree, so a repository can never ship one; the scans see every production read and write; the hooks folder and an enclosing work tree cannot lead a write out (F1-F4, F6, F7 of the second review, private, with GHSA-7q5v-8jcc-rx54)
 intent_scope: SETUP
 modules: [util, hash_cache, change, cmd_check, rehash, cmd_resolve, hooks, validator]
-stage: build
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -22,9 +22,13 @@ observations:
   - 2026-11-20-on-linux-at-0187d498-cargo-clippy-all-targets-d-warnings
 bugs: [2026-11-20-state-a-repository-ships-is-trusted]
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+    holds: accept
+    drives: review
+    opened: 2026-11-20T06:16:27Z
 run_consents: []
-next: Continue build
+next: Continue accept
 ---
 # SpecSync's hash cache, transaction journal and remote spec cache live outside the work tree, so a repository can never ship one; the scans see every production read and write; the hooks folder and an enclosing work tree cannot lead a write out (F1-F4, F6, F7 of the second review, private, with GHSA-7q5v-8jcc-rx54)
 
@@ -80,4 +84,32 @@ SpecSync's hash cache, transaction journal and remote spec cache live outside th
   - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
   - gate: native:approved
   - revision: a2a508244b3be174a57f1b681eba5c62cfb76661
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:15:56Z · direct-native-write · build → build · keep-specsync-s-own-caches-and-journal-outside-the-work-tree's lifecycle records changed outside Chough: state.json changed, verification.json removed, verification-attempts.json removed; state verifying → approved ^t-dd0c7e
+  - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+  - revision: 33f018109b44f5a8e8d37c46d8aebe9ad1fb76de
+  - direct_write:
+    - change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+    - files:
+      - state.json: changed
+      - verification.json: removed
+      - verification-attempts.json: removed
+    - before_state: verifying
+    - after_state: approved
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:15:56Z · advance · build → test · native:verifying ^t-681a03
+  - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+  - gate: native:verifying
+  - revision: 33f018109b44f5a8e8d37c46d8aebe9ad1fb76de
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:15:59Z · advance · test → accept · native:verifying ^t-b1f6db
+  - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+  - gate: native:verifying
+  - revision: 33f018109b44f5a8e8d37c46d8aebe9ad1fb76de
+  - by: claude-code (hc t5r)
+- 2026-11-20T06:16:27Z · gate-opened · accept → accept · Implementation review of keep-specsync-s-own-caches-and-journal-outside-the-work-tree ^t-3fa0f2
+  - native_change: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
+  - revision: 33f018109b44f5a8e8d37c46d8aebe9ad1fb76de
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t5r)

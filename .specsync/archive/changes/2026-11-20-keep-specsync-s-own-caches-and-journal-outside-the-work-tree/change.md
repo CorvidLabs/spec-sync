@@ -1,6 +1,6 @@
 ---
 id: keep-specsync-s-own-caches-and-journal-outside-the-work-tree
-state: implementing
+state: archived
 type: bug_fix
 base_commit: a2a508244b3be174a57f1b681eba5c62cfb76661
 ---

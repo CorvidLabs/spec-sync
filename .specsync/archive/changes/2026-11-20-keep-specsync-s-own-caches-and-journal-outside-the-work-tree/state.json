@@ -7,11 +7,11 @@
   "title": "Keep SpecSync's own caches and journal outside the work tree",
   "description": "Keep SpecSync's own caches and journal outside the work tree",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "a2a508244b3be174a57f1b681eba5c62cfb76661",
   "created_at": 1795135886,
-  "updated_at": 1795155353,
+  "updated_at": 1795155474,
   "affected_specs": [
     "util",
     "hash_cache",
